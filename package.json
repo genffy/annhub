@@ -32,5 +32,9 @@
   "dependencies": {
     "@webext-core/proxy-service": "^1.2.1",
     "@webext-core/storage": "^1.2.0"
+  },
+  "engines": {
+    "node": "18.17.0",
+    "yarn": "4.2.2"
   }
 }
