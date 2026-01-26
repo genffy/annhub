@@ -4,5 +4,10 @@ const withNextIntl = require('next-intl/plugin')(
 )
 
 module.exports = withNextIntl({
-  // Other Next.js configuration ...
+  images: {
+    // 在 Netlify 上启用图片优化
+    unoptimized: false,
+    // 允许所有域名（或者可以指定具体域名）
+    remotePatterns: [],
+  },
 })
