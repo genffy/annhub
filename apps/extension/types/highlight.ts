@@ -1,4 +1,3 @@
-
 export interface HighlightRecord {
     id: string
     url: string
@@ -27,13 +26,11 @@ export interface HighlightRecord {
     }
 }
 
-
 export interface HighlightColor {
     name: string
     value: string
     textColor: string
 }
-
 
 export interface HighlightConfig {
     enabled: boolean
@@ -43,13 +40,11 @@ export interface HighlightConfig {
     autoSync: boolean
 }
 
-
 export interface HighlightResult {
     success: boolean
     data?: HighlightRecord
     error?: string
 }
-
 
 export interface HighlightQuery {
     url?: string

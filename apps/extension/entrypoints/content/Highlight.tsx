@@ -27,7 +27,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
     const [stats, setStats] = useState({ total: 0, active: 0 })
     const mountedRef = useRef(true)
 
-
     useEffect(() => {
         const initializeService = async () => {
             try {
@@ -47,7 +46,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
         }
     }, [])
 
-
     const loadHighlights = async () => {
         try {
             const pageHighlights = await highlightService.getCurrentPageHighlights()
@@ -58,7 +56,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
             console.error('[Highlight] Failed to load highlights:', error)
         }
     }
-
 
     const loadStats = async () => {
         try {
@@ -73,7 +70,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
             console.error('[Highlight] Failed to load stats:', error)
         }
     }
-
 
     const handleCreateHighlight = async () => {
         if (!selectedRange) {
@@ -102,7 +98,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
         }
     }
 
-
     const handleClearAll = async () => {
         try {
             await highlightService.clearAllHighlights()
@@ -113,7 +108,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
             setError('Failed to clear highlights')
         }
     }
-
 
     const ColorPicker = () => (
         <div style={{
@@ -151,7 +145,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
             ))}
         </div>
     )
-
 
     const HighlightItem = ({ highlight }: { highlight: HighlightRecord }) => (
         <div style={{

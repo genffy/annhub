@@ -6,7 +6,6 @@ import MessageUtils from '../../utils/message';
 import { HighlightRecord } from '../../types/highlight';
 import { HighlightService } from './highlight/service';
 import './content.css'
-
 interface ToolbarPosition {
   x: number;
   y: number;
