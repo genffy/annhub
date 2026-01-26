@@ -1,3 +1,9 @@
+# Env files
+/.env
+/.env.local
+/.env.*
+!/.env.publish
+
 # Logs
 logs
 *.log
