@@ -24,6 +24,10 @@
 # Netlify Essential Next.js Plugin - 自动处理 Next.js 部署
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+  
+  [plugins.inputs]
+    # 启用图片优化
+    imageOptimization = true
 
 # 开发预览配置
 [context.deploy-preview]
