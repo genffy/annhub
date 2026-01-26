@@ -22,12 +22,9 @@
   NPM_FLAGS = "--legacy-peer-deps"
 
 # Netlify Essential Next.js Plugin - 自动处理 Next.js 部署
+# 包括 SSR、图片优化、Middleware 等功能
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-  
-  [plugins.inputs]
-    # 启用图片优化
-    imageOptimization = true
 
 # 开发预览配置
 [context.deploy-preview]
