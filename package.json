@@ -16,8 +16,9 @@
     "postinstall": "wxt prepare",
     "check:sidebar": "node scripts/build-sidebar.js",
     "website:dev": "cd website && npm run dev",
-    "website:build": "cd website && npm run build",
+    "website:build": "cd website && npm install && npm run build",
     "website:start": "cd website && npm run start",
+    "website:deploy": "cd website && npm install && npm run build",
     "format": "prettier --write '**/*.{tsx,ts,json,css,scss,md}'"
   },
   "dependencies": {
