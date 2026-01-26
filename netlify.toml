@@ -8,8 +8,8 @@
   # 构建命令：先安装 website 依赖，再构建
   command = "cd website && npm install && npm run build"
   
-  # 发布目录 - 使用 Next.js plugin 时会自动处理
-  publish = "website/.next"
+  # 发布目录 - 使用 Next.js plugin 时会自动处理，不需要手动设置
+  # publish = "website/.next"  # 注释掉，让插件自动处理
   
   # 忽略某些文件的变更（不触发构建）
   ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)website'"
