@@ -8,7 +8,7 @@
   # 构建命令：先安装 website 依赖，再构建
   command = "cd website && npm install && npm run build"
   
-  # 发布目录
+  # 发布目录 - 使用 Next.js plugin 时会自动处理
   publish = "website/.next"
   
   # 忽略某些文件的变更（不触发构建）
@@ -21,26 +21,9 @@
   # npm 配置
   NPM_FLAGS = "--legacy-peer-deps"
 
-# 重定向规则（Next.js 需要）
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  force = false
-
-# 头部配置（可选，用于安全和性能优化）
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "DENY"
-    X-XSS-Protection = "1; mode=block"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-
-[[headers]]
-  for = "/_next/static/*"
-  [headers.values]
-    Cache-Control = "public, max-age=31536000, immutable"
+# Netlify Essential Next.js Plugin - 自动处理 Next.js 部署
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
 # 开发预览配置
 [context.deploy-preview]
