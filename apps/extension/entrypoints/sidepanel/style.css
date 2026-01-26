@@ -18,7 +18,6 @@ body {
     overflow-y: auto;
 }
 
-/* Sidebar特定样式 */
 .sidebar-container {
     display: flex;
     flex-direction: column;
@@ -37,7 +36,35 @@ body {
 .sidebar-header h1 {
     font-size: 16px;
     font-weight: 600;
-    margin: 0;
+    margin: 0 0 12px 0;
+}
+
+.view-selector {
+    margin-top: 8px;
+}
+
+.view-select {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+}
+
+.view-select:focus {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.4);
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
+}
+
+.view-select option {
+    background: #ffffff;
+    color: #24292f;
+    padding: 8px;
 }
 
 .sidebar-content {
@@ -193,4 +220,104 @@ body {
 .secondary-button:hover {
     background: #f3f4f6;
     border-color: #afb8c1;
+}
+
+.sidebar-highlight-list {
+    height: 100%;
+    border-radius: 0;
+    border: none;
+    background: transparent;
+}
+
+.sidebar-highlight-list .highlight-list-content {
+    padding: 8px;
+}
+
+.sidebar-highlight-list .highlight-item {
+    padding: 12px;
+    margin-bottom: 8px;
+    border-radius: 6px;
+    background: #f6f8fa;
+    border: 1px solid #d0d7de;
+}
+
+.sidebar-highlight-list .highlight-item:hover {
+    background: #ffffff;
+    border-color: #0969da;
+}
+
+.sidebar-highlight-list .highlight-title {
+    font-size: 13px;
+    margin-bottom: 4px;
+}
+
+.sidebar-highlight-list .highlight-text {
+    font-size: 12px;
+    margin-bottom: 6px;
+}
+
+.sidebar-highlight-list .highlight-meta {
+    font-size: 11px;
+}
+
+.sidebar-highlight-list .highlight-actions {
+    margin-top: 8px;
+}
+
+.sidebar-highlight-list .action-button {
+    padding: 4px 8px;
+    font-size: 11px;
+}
+
+.sidebar-highlight-list .highlight-pagination {
+    padding: 12px 8px;
+    background: #f6f8fa;
+}
+
+.sidebar-highlight-list .pagination-info {
+    font-size: 12px;
+}
+
+.sidebar-highlight-list .pagination-button,
+.sidebar-highlight-list .pagination-number {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.sidebar-highlight-list .page-size-select {
+    padding: 2px 6px;
+    font-size: 12px;
+}
+
+.sidebar-highlight-list .empty-state,
+.sidebar-highlight-list .loading-state,
+.sidebar-highlight-list .error-state {
+    padding: 24px 8px;
+}
+
+.sidebar-highlight-list .empty-icon {
+    font-size: 32px;
+}
+
+.sidebar-highlight-list .loading-spinner {
+    width: 24px;
+    height: 24px;
+}
+
+.sidebar-section {
+    padding: 16px;
+}
+
+.sidebar-section h3 {
+    margin: 0 0 12px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #24292f;
+}
+
+.sidebar-section p {
+    margin: 0;
+    font-size: 14px;
+    color: #656d76;
+    line-height: 1.5;
 }

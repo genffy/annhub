@@ -1,5 +1,5 @@
 
-// 配置类型定义
+
 export interface TranslationConfig {
     enableGoogleTranslate: boolean
     enableBaiduTranslate: boolean

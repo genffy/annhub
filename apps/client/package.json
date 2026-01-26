@@ -4,7 +4,7 @@
   "private": true,
   "description": "Annotation, comment, capture, share anywhere",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3001",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"

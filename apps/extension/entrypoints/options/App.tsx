@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react'
 import './App.css'
+import { i18n } from '#i18n';
 
-// 导入页面组件
-import TranslationPage from './pages/TranslationPage'
-import AboutPage from './pages/AboutPage'
+import HighlightPage from './pages/HighlightPage'
 
-// 导入类型和路由
-import { TranslationConfig, MenuItem } from './types'
+
+import { MenuItem } from './types'
+import { TranslationConfig } from '../../types/translate'
 import { useRouter, Route } from './hooks/useRouter'
+import MessageUtils from '../../utils/message'
+
 
 function App() {
     const [config, setConfig] = useState<TranslationConfig>({
@@ -26,41 +28,57 @@ function App() {
             google: { key: '' },
             baidu: { appId: '', key: '' },
             youdao: { appKey: '', appSecret: '' }
+        },
+        translationRules: {
+            enabled: true,
+            skipChinese: false,
+            skipNumbers: true,
+            skipCryptoAddresses: true,
+            customRules: []
         }
     })
 
     const [isSaving, setIsSaving] = useState(false)
     const [saveMessage, setSaveMessage] = useState('')
 
-    // 定义路由
+
     const routes: Route[] = [
-        { path: '/translation', component: TranslationPage },
-        { path: '/about', component: AboutPage },
+        { path: '/highlights', component: HighlightPage },
     ]
 
-    // 使用路由
-    const { currentPath, currentRoute, navigate, isActive } = useRouter(routes, '/translation')
 
-    // 菜单项配置
+    const { currentPath, currentRoute, navigate, isActive } = useRouter(routes, '/highlights')
+
+
     const menuItems: MenuItem[] = [
-        { id: 'translation', label: '翻译设置', icon: '🌐', path: '/translation' },
-        { id: 'about', label: '关于', icon: 'ℹ️', path: '/about' },
+        { id: 'highlights', label: i18n.t("options.menus.highlights.label"), icon: i18n.t("options.menus.highlights.icon"), path: '/highlights' },
     ]
 
-    // Load config from storage on component mount
+    // Load config from background script on component mount
     useEffect(() => {
-        chrome.storage.sync.get(['translationConfig']).then((result) => {
-            if (result.translationConfig) {
-                setConfig(prev => ({
-                    ...prev,
-                    ...result.translationConfig,
-                    apiKeys: {
-                        ...prev.apiKeys,
-                        ...result.translationConfig.apiKeys
-                    }
-                }))
+        const loadConfig = async () => {
+            try {
+                const response = await MessageUtils.sendMessage({
+                    type: 'GET_CONFIG',
+                    configType: 'translation'
+                })
+
+                if (response.success && response.data) {
+                    setConfig(prev => ({
+                        ...prev,
+                        ...response.data,
+                        apiKeys: {
+                            ...prev.apiKeys,
+                            ...response.data.apiKeys
+                        }
+                    }))
+                }
+            } catch (error) {
+                console.error('Failed to load config:', error)
             }
-        })
+        }
+
+        loadConfig()
     }, [])
 
     const handleConfigChange = (key: keyof TranslationConfig, value: any) => {
@@ -86,31 +104,34 @@ function App() {
     const handleSave = async () => {
         setIsSaving(true)
         try {
-            await chrome.storage.sync.set({ translationConfig: config })
-            setSaveMessage('配置已保存成功！')
+            const response = await MessageUtils.sendMessage({
+                type: 'SET_CONFIG',
+                configType: 'translation',
+                config: config
+            })
+
+            if (response.success) {
+                setSaveMessage(i18n.t('network.success'))
+            } else {
+                setSaveMessage(i18n.t('network.errorWithReason', [response.error || i18n.t('network.unknow')]))
+            }
             setTimeout(() => setSaveMessage(''), 3000)
         } catch (error) {
-            setSaveMessage('保存失败，请重试')
+            setSaveMessage(i18n.t('network.retry'))
             setTimeout(() => setSaveMessage(''), 3000)
         } finally {
             setIsSaving(false)
         }
     }
 
-    // 渲染当前页面组件
+
     const renderCurrentPage = () => {
         if (!currentRoute) return null
 
         const Component = currentRoute.component
 
         switch (currentPath) {
-            case '/translation':
-                return <Component
-                    config={config}
-                    onConfigChange={handleConfigChange}
-                    onApiKeyChange={handleApiKeyChange}
-                />
-            case '/about':
+            case '/highlights':
                 return <Component />
             default:
                 return null
@@ -119,10 +140,9 @@ function App() {
 
     return (
         <div className="options-layout">
-            {/* 侧边栏 */}
             <aside className="sidebar">
                 <div className="sidebar-header">
-                    <h1>🌐 翻译设置</h1>
+                    <h1>⚙️ {i18n.t("options.name")}</h1>
                 </div>
                 <nav className="sidebar-nav">
                     {menuItems.map((item) => (
@@ -138,28 +158,9 @@ function App() {
                 </nav>
             </aside>
 
-            {/* 主内容区 */}
             <main className="main-content">
                 <div className="content-wrapper">
                     {renderCurrentPage()}
-
-                    {/* 保存按钮区域 */}
-                    {currentPath !== '/about' && (
-                        <div className="save-section">
-                            <button
-                                onClick={handleSave}
-                                disabled={isSaving}
-                                className="save-button"
-                            >
-                                {isSaving ? '保存中...' : '保存设置'}
-                            </button>
-                            {saveMessage && (
-                                <div className={`save-message ${saveMessage.includes('成功') ? 'success' : 'error'}`}>
-                                    {saveMessage}
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
             </main>
         </div>

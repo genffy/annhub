@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { HighlightService } from '../../modules/services/highlight/highlight-service'
+import { HighlightService } from './highlight/service'
 import { HighlightRecord } from '../../types/highlight'
 
 interface HighlightProps {
@@ -27,7 +27,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
     const [stats, setStats] = useState({ total: 0, active: 0 })
     const mountedRef = useRef(true)
 
-    // 初始化高亮服务
     useEffect(() => {
         const initializeService = async () => {
             try {
@@ -47,7 +46,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
         }
     }, [])
 
-    // 加载当前页面高亮
     const loadHighlights = async () => {
         try {
             const pageHighlights = await highlightService.getCurrentPageHighlights()
@@ -59,7 +57,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
         }
     }
 
-    // 加载统计信息
     const loadStats = async () => {
         try {
             const highlightStats = await highlightService.getHighlightStats()
@@ -74,7 +71,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
         }
     }
 
-    // 创建高亮
     const handleCreateHighlight = async () => {
         if (!selectedRange) {
             setError('No text selected')
@@ -87,10 +83,10 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
         try {
             const result = await highlightService.createHighlight(selectedRange, selectedColor)
 
-            if (result.success && result.highlight) {
+            if (result.success && result.data) {
                 await loadHighlights()
                 await loadStats()
-                onHighlightCreated?.(result.highlight)
+                onHighlightCreated?.(result.data)
                 onClose?.()
             } else {
                 setError(result.error || 'Failed to create highlight')
@@ -102,7 +98,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
         }
     }
 
-    // 清除所有高亮
     const handleClearAll = async () => {
         try {
             await highlightService.clearAllHighlights()
@@ -114,7 +109,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
         }
     }
 
-    // 颜色选择器
     const ColorPicker = () => (
         <div style={{
             display: 'flex',
@@ -152,7 +146,6 @@ export default function Highlight({ selectedRange, onHighlightCreated, onClose }
         </div>
     )
 
-    // 高亮列表项
     const HighlightItem = ({ highlight }: { highlight: HighlightRecord }) => (
         <div style={{
             padding: '8px',

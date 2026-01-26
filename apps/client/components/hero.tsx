@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Gradient } from '@/lib/gradient'
 import { useEffect } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 
 const Hero = () => {
   useEffect(() => {
@@ -31,11 +32,11 @@ const Hero = () => {
           className="relative md:ml-[-10px] md:mb-[37px] font-extrabold text-[16vw] md:text-[130px] font-inter text-[#1E2B3A] leading-[0.9] tracking-[-2px] z-[100]"
         >
           <svg className="inline-block w-[82px] row-start-2 mb-8 md:mb-6" viewBox="0 0 170 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path fillRule="evenodd" clipRule="evenodd" d="M30 110L70 0H40L0 110V200H30L60 110H30ZM140 110L100 0H130L170 110V200H140L110 110H140Z" fill="#1E2B3A" />
+            <path fillRule="evenodd" clipRule="evenodd" d="M30 110L70 0H40L0 110V200H30L60 110H30ZM140 110L100 0H130L170 110V200H140L110 110H140Z" fill="#673AB8" />
           </svg>
           nnotation <br />
-          share <span className="text-[#407BBF]">anywhere</span>
-          <span className="font-inter text-[#407BBF]">.</span>
+          share <span className="text-[#673AB8]">anywhere</span>
+          <span className="font-inter text-[#673AB8]">.</span>
         </motion.h1>
         <motion.div
           initial={{ opacity: 0, y: 40 }}
@@ -68,23 +69,16 @@ const Hero = () => {
             }}
           >
             <Link
-              href="https://github.com/madaotech/ann"
+              href="https://github.com/genffy/annhub"
               target="_blank"
-              className="group rounded-full pl-[8px] min-w-[180px] pr-4 py-2 text-[13px] font-semibold transition-all flex items-center justify-center bg-[#1E2B3A] text-white hover:[linear-gradient(0deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1)), #0D2247] no-underline flex gap-x-2  active:scale-95 scale-100 duration-75"
+              className="group rounded-full pl-[8px] min-w-[180px] pr-4 py-2 text-[13px] font-semibold transition-all flex items-center justify-center bg-[#673AB8] text-white hover:[linear-gradient(0deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.1)), #0D2247] no-underline flex gap-x-2  active:scale-95 scale-100 duration-75"
               style={{
                 boxShadow: '0px 1px 4px rgba(13, 34, 71, 0.17), inset 0px 0px 0px 1px #061530, inset 0px 0px 0px 2px rgba(255, 255, 255, 0.1)',
               }}
             >
-              <span className="w-5 h-5 rounded-full bg-[#407BBF] flex items-center justify-center">
-                <svg className="w-[16px] h-[16px] text-white" fill="none" viewBox="0 0 24 24">
-                  <path
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="2"
-                    d="M4.75 7.75C4.75 6.64543 5.64543 5.75 6.75 5.75H17.25C18.3546 5.75 19.25 6.64543 19.25 7.75V16.25C19.25 17.3546 18.3546 18.25 17.25 18.25H6.75C5.64543 18.25 4.75 17.3546 4.75 16.25V7.75Z"
-                  ></path>
-                  <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5.5 6.5L12 12.25L18.5 6.5"></path>
+              <span className="w-5 h-5 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-star-icon lucide-star">
+                  <path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z" />
                 </svg>
               </span>
               Star on Github
@@ -100,7 +94,7 @@ const Hero = () => {
             }}
           >
             <Link
-              href="/"
+              href="https://github.com/genffy/annhub/releases"
               aria-disabled
               className="group rounded-full px-4 py-2 text-[13px] font-semibold transition-all flex items-center justify-center bg-[#f5f7f9] text-[#1E2B3A] no-underline active:scale-95 scale-100 duration-75"
               style={{
@@ -115,6 +109,29 @@ const Hero = () => {
             </Link>
           </motion.div>
         </div>
+
+        {/* Preview Image */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.8, y: 40 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{
+            delay: 0.8,
+            duration: 0.8,
+            ease: [0.075, 0.82, 0.965, 1],
+          }}
+          className="mt-8 md:mt-12 max-w-2xl z-[60]"
+        >
+          <div className="relative w-full aspect-[16/10] rounded-lg overflow-hidden shadow-2xl">
+            <Image
+              src="/preview/highlight.png"
+              alt="Annotation Preview"
+              fill
+              className="object-cover"
+              priority
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-transparent to-white/10"></div>
+          </div>
+        </motion.div>
       </main>
 
       <div

@@ -1,0 +1,1 @@
+ref: https://wxt.dev/guide/essentials/wxt-modules.html

@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { i18n } from '#i18n';
+
 import './App.css'
 
 function App() {
@@ -13,21 +15,33 @@ function App() {
     })
   }
 
+  const handleSidepanelClick = () => {
+    chrome.tabs.create({
+      url: chrome.runtime.getURL('sidepanel.html')
+    }).finally(() => {
+      window.close()
+    })
+  }
+
   const menuItems = [
     {
-      id: 'settings',
-      label: '设置 Settings',
+      id: 'options',
+      label: i18n.t("options.name"),
       icon: '⚙️',
-      description: '配置翻译插件设置',
       onClick: handleSettingsClick
+    },
+    {
+      id: 'chat',
+      label: i18n.t("sidepanel.name"),
+      icon: '💬',
+      onClick: handleSidepanelClick
     }
   ]
 
   return (
     <div className="popup-container">
       <header className="popup-header">
-        <h1>文本翻译</h1>
-        <p>Text Translation</p>
+        <h1>{i18n.t("extName")}</h1>
       </header>
 
       <nav className="popup-nav">
@@ -45,7 +59,6 @@ function App() {
             <div className="nav-item-icon">{item.icon}</div>
             <div className="nav-item-content">
               <div className="nav-item-label">{item.label}</div>
-              <div className="nav-item-description">{item.description}</div>
             </div>
             <div className="nav-item-arrow">→</div>
           </button>
@@ -53,7 +66,7 @@ function App() {
       </nav>
 
       <footer className="popup-footer">
-        <p>点击选中文本即可翻译</p>
+        <p>{i18n.t("extDescription")}</p>
       </footer>
     </div>
   )

@@ -27,7 +27,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     /* shadcn/ui path mapping */
-    "baseUrl": ".",
+    // "baseUrl": ".",
   },
   "exclude": [
     "node_modules"

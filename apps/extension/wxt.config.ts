@@ -3,22 +3,23 @@ import { ANN_SELECTION_KEY } from './constants'
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
-  modules: ['@wxt-dev/module-react'],
+  modules: ['@wxt-dev/i18n/module', '@wxt-dev/module-react'],
   srcDir: '.',
   manifest: {
-    name: 'ANN - Advanced Text Toolkit',
-    description: 'Multi-functional text selection toolkit with translation, notes, and sharing capabilities',
-    version: '2.0.0',
+    name: '__MSG_extName__',
+    description: '__MSG_extDescription__',
+    version: '0.1.0',
+    default_locale: 'en',
     permissions: [
       'storage',
       'activeTab',
       'notifications',
       'tabs',
       'contextMenus',
-      'commands',        // 快捷键支持
-      'downloads',       // 文件下载支持
-      'scripting',       // 脚本注入支持
-      'sidePanel'        // 侧边栏支持
+      'commands',
+      'downloads',
+      'scripting',
+      'sidePanel'
     ],
     host_permissions: [
       'https://translation.googleapis.com/*',
@@ -27,11 +28,11 @@ export default defineConfig({
       'https://clients5.google.com/*',
       'https://fanyi-api.baidu.com/*',
       'https://openapi.youdao.com/*',
-      '<all_urls>',      // 支持所有网站的截图功能
+      '<all_urls>',
     ],
     action: {
       default_popup: 'popup/index.html',
-      default_title: 'ANN - Advanced Text Toolkit',
+      default_title: '__MSG_extName__',
     },
     options_ui: {
       page: 'options/index.html',
@@ -49,12 +50,18 @@ export default defineConfig({
           mac: 'Command+Shift+S'
         },
         description: 'Capture selected text area for annotation',
-        global: false  // 只在 Chrome 有焦点时工作
+        global: false
       }
     },
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline';",
     },
+    web_accessible_resources: [
+      {
+        matches: ['<all_urls>'],
+        resources: ['content-scripts/content.css'],
+      },
+    ],
   },
   webExt: {
     disabled: true,

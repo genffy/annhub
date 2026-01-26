@@ -1,0 +1,51 @@
+extName: "ANN - Advanced Text Toolkit"
+extDescription: "Multi-functional text selection toolkit with translation, notes, and sharing capabilities"
+wip: "$1 is under development..."
+search: "Search"
+noData: "No data"
+
+network:
+  loading: "Loading..."
+  error: "Failed to fetch data"
+  retry: "Retry"
+  success: "Success"
+  errorWithReason: "Failed with $1"
+  unknow: "Unknow Error"
+
+highlight:
+  name: "Highlights"
+  context: "Context"
+  viewDetail: "View Detail"
+  status:
+    all: "All"
+    active: "Active"
+    archived: "Archived"
+    deleted: "Deleted"
+
+pagination:
+  total: "Total $1"
+  pageSize: "Page Size"
+  page: "Page"
+  previous: "Previous"
+  next: "Next"
+
+sidepanel:
+  name: "Chats"
+  title: "🌐 ANN Toolkit"
+
+options:
+  name: "Settings"
+  title: ""
+  menus:
+    highlights:
+      label: "Highlights"
+      icon: "📝"
+  highlight:
+    name: "Highlights"
+    description: "Manage your highlights, search, filter, and quickly locate them"
+
+content:
+  drawing:
+    save: "Save"
+    clear: "Clear"
+    close: "Close"

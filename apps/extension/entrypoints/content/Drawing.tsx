@@ -1,3 +1,6 @@
+import { useRef, useState, useEffect } from 'react';
+import { i18n } from '#i18n';
+
 interface DrawingCanvasProps {
     area: {
         x: number;
@@ -23,11 +26,11 @@ export default function DrawingCanvas({ area, onClose, onSave }: DrawingCanvasPr
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // 设置画布大小
+
         canvas.width = area.width;
         canvas.height = area.height;
 
-        // 设置画布样式
+
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
     }, [area]);
@@ -103,7 +106,6 @@ export default function DrawingCanvas({ area, onClose, onSave }: DrawingCanvasPr
                 zIndex: 1000000,
             }}
         >
-            {/* 工具栏 */}
             <div
                 style={{
                     position: 'absolute',
@@ -183,7 +185,7 @@ export default function DrawingCanvas({ area, onClose, onSave }: DrawingCanvasPr
                         cursor: 'pointer',
                     }}
                 >
-                    清空
+                    {i18n.t("content.drawing.clear")}
                 </button>
                 <button
                     onClick={handleSave}
@@ -196,7 +198,7 @@ export default function DrawingCanvas({ area, onClose, onSave }: DrawingCanvasPr
                         cursor: 'pointer',
                     }}
                 >
-                    保存
+                    {i18n.t("content.drawing.save")}
                 </button>
                 <button
                     onClick={onClose}
@@ -209,11 +211,10 @@ export default function DrawingCanvas({ area, onClose, onSave }: DrawingCanvasPr
                         cursor: 'pointer',
                     }}
                 >
-                    关闭
+                    {i18n.t("content.drawing.close")}
                 </button>
             </div>
 
-            {/* 画布 */}
             <canvas
                 ref={canvasRef}
                 onMouseDown={handleMouseDown}

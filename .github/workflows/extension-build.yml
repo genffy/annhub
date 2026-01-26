@@ -1,0 +1,54 @@
+name: Build Extension
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-extension.yml
+    
+  debug-artifacts:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: ./downloaded-artifacts
+
+      - name: Debug - List downloaded files
+        run: |
+          echo "=== Downloaded artifacts ==="
+          ls -la ./downloaded-artifacts/
+          echo "=== Looking for zip files ==="
+          find ./downloaded-artifacts -name "*.zip" -type f
+          
+      - name: Upload individual extension artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension
+          path: ./downloaded-artifacts/*chrome.zip
+          retention-days: 30
+
+      - name: Upload Firefox extension artifact  
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-extension
+          path: ./downloaded-artifacts/*firefox.zip
+          retention-days: 30
+
+      - name: Upload Firefox sources artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firefox-sources  
+          path: ./downloaded-artifacts/*sources.zip
+          retention-days: 30

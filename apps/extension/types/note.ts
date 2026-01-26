@@ -1,4 +1,4 @@
-// 类型定义
+
 export interface NoteRecord {
     id: string
     url: string

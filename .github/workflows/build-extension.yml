@@ -1,0 +1,53 @@
+name: Build Extension (Reusable)
+
+on:
+  workflow_call:
+    outputs:
+      artifact-name:
+        description: "Name of the uploaded artifact"
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: extension-build-${{ github.sha }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.17.0
+          cache: 'yarn'
+
+      - name: Install dependencies
+        run: yarn install --immutable
+
+      - name: Build extension
+        run: yarn run ext:build
+
+      - name: Zip extension for Chrome
+        run: |
+          cd apps/extension
+          yarn zip
+        
+      - name: Zip extension for Firefox
+        run: |
+          cd apps/extension
+          yarn zip:firefox
+
+      - name: List generated files
+        run: |
+          echo "Generated files:"
+          ls -la apps/extension/.output/*.zip 2>/dev/null || echo "No zip files found"
+
+      - name: Upload extension packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-build-${{ github.sha }}
+          path: apps/extension/.output/
+          retention-days: 30
+          include-hidden-files: true 

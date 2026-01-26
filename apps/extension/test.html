@@ -357,7 +357,6 @@
             const range = selection.getRangeAt(0);
             const rangeRect = range.getBoundingClientRect();
 
-            // 改进的图片检测逻辑，避免重复
             const addedImageSrcs = new Set();
             const uniqueImages = [];
             const allImages = document.querySelectorAll('img');
@@ -365,7 +364,6 @@
             allImages.forEach(img => {
               const imgRect = img.getBoundingClientRect();
 
-              // 检查图片是否与选择范围重叠
               const isOverlapping = !(imgRect.right < rangeRect.left ||
                 imgRect.left > rangeRect.right ||
                 imgRect.bottom < rangeRect.top ||

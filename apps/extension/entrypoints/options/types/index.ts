@@ -17,7 +17,7 @@ export interface TranslationConfig {
     }
 }
 
-export type MenuSection = 'translation' | 'about'
+export type MenuSection = 'translation' | 'highlights' | 'about'
 
 export interface MenuItem {
     id: MenuSection

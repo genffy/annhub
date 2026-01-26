@@ -1,0 +1,64 @@
+name: Release Extensions
+
+on:
+  release:
+    types: [published]
+  push:
+    tags:
+      - 'v*' # eg：v2.0.0
+
+jobs:
+  build:
+    uses: ./.github/workflows/build-extension.yml
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact-name }}
+          path: ./release-assets
+
+      - name: List release assets
+        run: |
+          echo "Release assets to upload:"
+          ls -la ./release-assets/*.zip
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/v}
+            echo "version=$VERSION" >> $GITHUB_OUTPUT
+            echo "tag_name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=development" >> $GITHUB_OUTPUT
+            echo "tag_name=development" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          name: Release ${{ steps.get_version.outputs.tag_name }}
+          tag_name: ${{ steps.get_version.outputs.tag_name }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            ./release-assets/*-chrome.zip
+            ./release-assets/*-firefox.zip
+            ./release-assets/*-sources.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release artifacts (backup)
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-packages-${{ steps.get_version.outputs.version }}
+          path: ./release-assets/
+          retention-days: 90
+          include-hidden-files: true 

@@ -1,8 +1,11 @@
 import ReactDOM from 'react-dom/client'
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { debounce, domUtils } from '../../lib/helpers';
+import { debounce } from '../../utils/helpers';
 import Highlight from './Highlight';
-import { HighlightService } from '../../modules/services/highlight/highlight-service';
+import MessageUtils from '../../utils/message';
+import { HighlightRecord } from '../../types/highlight';
+import { HighlightService } from './highlight/service';
+import './content.css'
 interface ToolbarPosition {
   x: number;
   y: number;
@@ -114,6 +117,27 @@ const getArrowStyle = (placement: TooltipPlacement) => {
   return arrowStyle;
 };
 
+
+function isPageReady(): boolean {
+  return document.readyState === 'complete' || document.readyState === 'interactive'
+}
+
+
+function waitForPageReady(): Promise<void> {
+  return new Promise((resolve) => {
+    if (isPageReady()) {
+      resolve()
+    } else {
+      const handler = () => {
+        if (isPageReady()) {
+          document.removeEventListener('readystatechange', handler)
+          resolve()
+        }
+      }
+      document.addEventListener('readystatechange', handler)
+    }
+  })
+}
 function Selection() {
   const [visible, setVisible] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -278,7 +302,7 @@ function Selection() {
         const selection = window.getSelection();
 
         if (selection && selection.rangeCount > 0) {
-          const selectionInfo = domUtils.getSelectionInfo(selection);
+          const selectionInfo = highlightService.getSelectionInfo(selection);
 
           if (selectionInfo.hasText || selectionInfo.hasImages) {
             const range = selection.getRangeAt(0);
@@ -296,7 +320,7 @@ function Selection() {
       const selection = window.getSelection();
 
       if (selection && selection.rangeCount > 0) {
-        const selectionInfo = domUtils.getSelectionInfo(selection);
+        const selectionInfo = highlightService.getSelectionInfo(selection);
 
         if (!selectionInfo.hasText && !selectionInfo.hasImages) {
           hideTooltip();
@@ -341,30 +365,24 @@ function Selection() {
     }
   }, [visible, selectionRange, updateToolbarPosition]);
 
-  // Initialize highlight service on page load
+  // Initialize extension communication
+  // init highlights
+  // wait background script to initialize
   const [highlightService] = useState(() => HighlightService.getInstance());
+
   useEffect(() => {
-    const initializeHighlights = async () => {
+    const initializeExtension = async () => {
       try {
-        console.log('[Selection] Initializing highlight service...');
+        console.log('[Selection] Initializing extension communication...');
+        await waitForPageReady();
         await highlightService.initialize();
-        console.log('[Selection] Highlight service initialized successfully');
+        console.log('[Selection] Extension communication initialized successfully');
       } catch (error) {
-        console.error('[Selection] Failed to initialize highlight service:', error);
+        console.error('[Selection] Failed to initialize extension communication:', error);
       }
     };
 
-    // Wait for DOM to be ready
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', initializeHighlights);
-    } else {
-      // DOM is already ready
-      initializeHighlights();
-    }
-
-    return () => {
-      document.removeEventListener('DOMContentLoaded', initializeHighlights);
-    };
+    initializeExtension();
   }, [highlightService]);
 
   // Handle option click
@@ -528,5 +546,87 @@ export default defineContentScript({
       },
     })
     ui.mount()
+
+
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.type === 'LOCATE_HIGHLIGHT') {
+        locateHighlight(message.data.highlightId)
+          .then(result => sendResponse({ success: true, result }))
+          .catch(error => sendResponse({ success: false, error: error.message }))
+        return true
+      }
+    })
   }
 })
+
+
+async function locateHighlight(highlightId: string) {
+  try {
+
+    const response = await MessageUtils.sendMessage({
+      type: 'GET_HIGHLIGHTS',
+      query: {
+        id: highlightId
+      }
+    })
+
+    if (!response.success) {
+      throw new Error(response.error || 'Failed to get highlights')
+    }
+
+    const highlight = response.data as HighlightRecord
+
+    if (!highlight) {
+      throw new Error('Highlight not found')
+    }
+
+
+    if (highlight.url !== window.location.href) {
+      throw new Error('Highlight is not on current page')
+    }
+
+
+    const element = document.querySelector(highlight.selector) as HTMLElement
+    if (element) {
+
+      element.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'center'
+      })
+
+
+      const originalStyle = element.style.cssText
+      element.style.cssText += `
+        background-color: ${highlight.color} !important;
+        animation: highlight-pulse 2s ease-in-out;
+      `
+
+
+      if (!document.getElementById('highlight-pulse-style')) {
+        const style = document.createElement('style')
+        style.id = 'highlight-pulse-style'
+        style.textContent = `
+          @keyframes highlight-pulse {
+            0% { box-shadow: 0 0 0 0 ${highlight.color}80; }
+            50% { box-shadow: 0 0 0 10px ${highlight.color}40; }
+            100% { box-shadow: 0 0 0 0 ${highlight.color}00; }
+          }
+        `
+        document.head.appendChild(style)
+      }
+
+      setTimeout(() => {
+        element.style.cssText = originalStyle
+      }, 2000)
+
+      return { success: true, message: 'Highlight located successfully' }
+    } else {
+      throw new Error('Could not locate highlight element')
+    }
+
+  } catch (error) {
+    console.error('[Content Script] Failed to locate highlight:', error)
+    throw error
+  }
+}
