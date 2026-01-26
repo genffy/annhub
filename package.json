@@ -1,40 +1,62 @@
 {
   "name": "annhub",
-  "version": "1.0.0",
-  "description": "",
-  "packageManager": "yarn@4.2.2",
-  "type": "module",
-  "volta": {
-    "node": "18.17.0",
-    "yarn": "4.2.2"
-  },
-  "installConfig": {},
+  "version": "0.1.0",
+  "description": "Browser extension for annotation, comment, capture, and share anywhere",
   "private": true,
-  "workspaces": [
-    "apps/*"
-  ],
+  "type": "module",
   "scripts": {
-    "initenv": "volta install node@18.17.0 && volta install yarn@4.2.2 && corepack enable",
-    "clean": "find . -name 'node_modules' -exec rm -rf '{}' \\;",
-    "format": "prettier --write '**/*.{tsx,ts,json,css,scss,md}'",
-    "ext:dev": "yarn workspace @annhub/extension dev",
-    "client:dev": "yarn workspace @annhub/client dev",
-    "server:dev": "yarn workspace @annhub/server dev",
-    "ext:build": "yarn workspace @annhub/extension build",
-    "client:build": "yarn workspace @annhub/client build",
-    "server:build": "yarn workspace @annhub/server build"
-  },
-  "devDependencies": {
-    "@types/node": "^20.6.3",
-    "prettier": "^3.0.3",
-    "typescript": "5.1.3"
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "build:sidebar": "node scripts/build-sidebar.js && wxt build",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "compile": "tsc --noEmit",
+    "postinstall": "wxt prepare",
+    "check:sidebar": "node scripts/build-sidebar.js",
+    "website:dev": "cd website && npm run dev",
+    "website:build": "cd website && npm run build",
+    "website:start": "cd website && npm run start",
+    "format": "prettier --write '**/*.{tsx,ts,json,css,scss,md}'"
   },
   "dependencies": {
+    "@radix-ui/react-slot": "^1.2.3",
     "@webext-core/proxy-service": "^1.2.1",
-    "@webext-core/storage": "^1.2.0"
+    "@wxt-dev/i18n": "^0.2.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "crypto-js": "^4.2.0",
+    "dom-to-image": "^2.6.0",
+    "fabric": "^6.7.0",
+    "html2canvas": "^1.4.1",
+    "idb": "^8.0.3",
+    "lucide-react": "^0.522.0",
+    "nanoid": "^5.1.5",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.2",
+    "tailwind-merge": "^3.3.1",
+    "zustand": "^5.0.5"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.326",
+    "@types/crypto-js": "^4.2.2",
+    "@types/dom-to-image": "^2.6.7",
+    "@types/node": "^24.0.3",
+    "@types/react": "^19.1.2",
+    "@types/react-dom": "^19.1.3",
+    "@types/react-router-dom": "^5.3.3",
+    "@wxt-dev/module-react": "^1.1.3",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "prettier": "^3.0.3",
+    "tailwindcss": "^3.4.0",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.8.3",
+    "wxt": "^0.20.6"
   },
   "engines": {
-    "node": "18.17.0",
-    "yarn": "4.2.2"
+    "node": ">=24.0.0"
   }
 }

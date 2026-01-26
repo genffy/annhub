@@ -1,5 +1,5 @@
 {
-  "extends": "../../root.tsconfig.json",
+  "extends": "../root.tsconfig.json",
   "compilerOptions": {
     "target": "es5",
     "lib": [
