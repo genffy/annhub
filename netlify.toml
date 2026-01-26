@@ -23,13 +23,9 @@
 
 # Netlify Essential Next.js Plugin - 自动处理 Next.js 部署
 # 包括 SSR、图片优化、Middleware 等功能
-# 注意：此插件不支持 imageOptimization 配置项，图片优化会自动处理
+# 注意：此插件不支持任何 inputs 配置项，图片优化会自动处理，无需手动配置
 [[plugins]]
   package = "@netlify/plugin-nextjs"
-  
-  [plugins.inputs]
-    # 启用图片优化
-    imageOptimization = true
 
 # 开发预览配置
 [context.deploy-preview]
