@@ -1,1 +1,19 @@
-body {}
+/* ── Shadow DOM styles for ANN content script UI ─────────── */
+
+/* Hover menu fade-in */
+@keyframes ann-hover-fadein {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Capsule slide-in from right */
+@keyframes ann-capsule-slidein {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* +1 float animation */
+@keyframes ann-float-up {
+  0%   { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-24px); }
+}

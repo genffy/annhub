@@ -19,9 +19,11 @@ export interface HighlightRecord {
         after: string
     }
     status: 'active' | 'archived' | 'deleted'
+    user_note?: string
     metadata: {
         pageTitle: string
         pageUrl: string
+        sourceUrl?: string
         userId?: string
     }
 }

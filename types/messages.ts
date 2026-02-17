@@ -1,6 +1,7 @@
 import { HighlightRecord, HighlightQuery } from './highlight'
 import { NoteRecord } from './note'
 import { TranslationConfig, TranslationRules } from './translate'
+import { ClipRecord } from './clip'
 
 export type RequiredFields<T, K extends keyof T> = Required<Pick<T, K>> & Partial<Omit<T, K>>
 
@@ -91,6 +92,16 @@ export interface DeleteHighlightMessage extends BaseMessage {
 
 export interface ClearAllHighlightsMessage extends BaseMessage {
     type: 'CLEAR_ALL_HIGHLIGHTS'
+}
+
+
+export interface SaveClipMessage extends BaseMessage {
+    type: 'SAVE_CLIP'
+    data: ClipRecord
+}
+
+export interface ToggleHighlighterModeMessage extends BaseMessage {
+    type: 'TOGGLE_HIGHLIGHTER_MODE'
 }
 
 export interface GetCurrentPageHighlightsMessage extends BaseMessage {
@@ -259,6 +270,8 @@ export type UIToBackgroundMessage =
     | GetVersionMessage
     | GetStatusMessage
     | ClearAllHighlightsMessage
+    | SaveClipMessage
+    | ToggleHighlighterModeMessage
 
 export type BackgroundToUIMessage =
     | ResponseMessage<TranslationConfig | TranslationRules>

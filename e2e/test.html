@@ -140,16 +140,16 @@
 
     <div class="section">
       <h2>English Test Text</h2>
-      <div class="test-text">
+      <div class="test-text" data-testid="english-hello">
         Hello world! This is a simple test for the translation extension.
       </div>
-      <div class="test-text">
+      <div class="test-text" data-testid="english-tech">
         Technology is advancing rapidly in the modern world.
       </div>
-      <div class="test-text">
+      <div class="test-text" data-testid="english-ai">
         Artificial intelligence will transform many industries.
       </div>
-      <div class="test-text">
+      <div class="test-text" data-testid="english-morning">
         Good morning! How are you today?
       </div>
     </div>
@@ -293,6 +293,29 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- Feed simulation for sourceUrl e2e tests -->
+    <div class="section" id="feed-section">
+      <h2>Feed Simulation (sourceUrl tests)</h2>
+      <article data-testid="tweet" id="tweet-1">
+        <div data-testid="User-Name">
+          <a href="/testuser">@testuser</a>
+          <a href="/testuser/status/12345" data-testid="tweet-time-link">
+            <time datetime="2026-02-17T00:00:00.000Z">Feb 17</time>
+          </a>
+        </div>
+        <div data-testid="tweetText" id="id__dynamic123"><span data-testid="tweet-body-1">This is a test tweet with some selectable text for highlight testing.</span></div>
+      </article>
+      <article data-testid="tweet" id="tweet-2">
+        <div data-testid="User-Name">
+          <a href="/anotheruser">@anotheruser</a>
+          <a href="/anotheruser/status/67890" data-testid="tweet-time-link-2">
+            <time datetime="2026-02-16T12:00:00.000Z">Feb 16</time>
+          </a>
+        </div>
+        <div data-testid="tweetText" id="id__dynamic456"><span data-testid="tweet-body-2">Another tweet with different content for testing highlight restore.</span></div>
+      </article>
     </div>
 
     <div class="instruction">

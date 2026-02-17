@@ -20,6 +20,11 @@ stats-*.json
 .wxt
 web-ext.config.ts
 
+# Test outputs
+test-results/
+playwright-report/
+coverage/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

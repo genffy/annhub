@@ -69,7 +69,7 @@ export class HighlightService {
     }
 
 
-    async createHighlight(range: Range, color: string = '#ffeb3b'): Promise<HighlightResult> {
+    async createHighlight(range: Range, color: string = '#ffeb3b', userNote?: string): Promise<HighlightResult> {
         try {
             const text = range.toString().trim()
             if (!text) {
@@ -79,6 +79,7 @@ export class HighlightService {
             const textHash = hash(text)
             const selector = HighlightDOMManager.generateSelector(range)
             const context = HighlightDOMManager.getTextContext(range)
+            const sourceUrl = HighlightDOMManager.findSourceUrl(range)
 
             const highlight: HighlightRecord = {
                 id: generateId(),
@@ -98,9 +99,11 @@ export class HighlightService {
                 },
                 context,
                 status: 'active',
+                user_note: userNote || undefined,
                 metadata: {
                     pageTitle: document.title,
-                    pageUrl: window.location.href
+                    pageUrl: window.location.href,
+                    sourceUrl: sourceUrl || undefined
                 }
             }
 
@@ -199,8 +202,19 @@ export class HighlightService {
             }
             console.log(`[HighlightService] Restoring ${highlights.data?.length} highlights`)
 
-            for (const highlight of highlights.data || []) {
-                await this.restoreHighlight(highlight)
+            // First pass: try to restore immediately
+            let pending = (highlights.data || []).filter(h => !this.tryRestoreHighlight(h))
+
+            // Retry pending highlights with increasing delays (for SPA dynamic content)
+            const retryDelays = [1000, 2000, 3000]
+            for (let attempt = 0; attempt < retryDelays.length && pending.length > 0; attempt++) {
+                console.log(`[HighlightService] ${pending.length} highlights pending, retrying in ${retryDelays[attempt]}ms (attempt ${attempt + 1}/${retryDelays.length})`)
+                await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]))
+                pending = pending.filter(h => !this.tryRestoreHighlight(h))
+            }
+
+            if (pending.length > 0) {
+                console.warn(`[HighlightService] Could not restore ${pending.length} highlights after retries:`, pending.map(h => h.id))
             }
 
             console.log('[HighlightService] Page highlights restored')
@@ -210,56 +224,59 @@ export class HighlightService {
     }
 
 
-    private async restoreHighlight(highlight: HighlightRecord): Promise<void> {
+    /**
+     * Attempt to restore a single highlight. Returns true if successful.
+     */
+    private tryRestoreHighlight(highlight: HighlightRecord): boolean {
         try {
-
-            const range = await this.findTextRange(highlight)
+            const range = this.findTextRangeSync(highlight)
             if (!range) {
-                console.warn(`[HighlightService] Could not find text for highlight: ${highlight.id}`)
-                return
+                return false
             }
-
-
             this.domManager.createHighlight(range, highlight.color, highlight.id)
             console.log(`[HighlightService] Restored highlight: ${highlight.id}`)
-
+            return true
         } catch (error) {
             console.error(`[HighlightService] Failed to restore highlight ${highlight.id}:`, error)
+            return false
         }
     }
 
 
-    private async findTextRange(highlight: HighlightRecord): Promise<Range | null> {
+    /**
+     * Synchronous version of findTextRange — searches document.body directly
+     * when selector-based search fails, improving SPA compatibility.
+     */
+    private findTextRangeSync(highlight: HighlightRecord): Range | null {
         const { originalText, context, selector } = highlight
 
         try {
-
-            let targetElements: Element[] = []
+            // First try selector-scoped search
             if (selector) {
-                const elements = document.querySelectorAll(selector)
-                targetElements = Array.from(elements)
-            }
-
-
-            if (targetElements.length === 0) {
-                targetElements = [document.body]
-            }
-
-
-            for (const element of targetElements) {
-                const range = this.findTextInElement(element, originalText, context)
-                if (range) {
-                    return range
+                try {
+                    const elements = document.querySelectorAll(selector)
+                    for (const element of Array.from(elements)) {
+                        const range = this.findTextInElement(element, originalText, context)
+                        if (range) return range
+                    }
+                } catch {
+                    // Selector may contain invalid CSS characters (e.g. Tailwind's md:pt-[60px])
+                    // Fall through to body search
                 }
             }
 
-            return null
+            // Fall back to full-body search (handles SPA pages where selector is too generic)
+            const range = this.findTextInElement(document.body, originalText, context)
+            if (range) return range
 
+            return null
         } catch (error) {
             console.error('[HighlightService] Error finding text range:', error)
             return null
         }
     }
+
+
 
 
     private findTextInElement(element: Element, targetText: string, context: { before: string; after: string }): Range | null {

@@ -51,6 +51,14 @@ export default defineConfig({
         },
         description: 'Capture selected text area for annotation',
         global: false
+      },
+      'toggle-highlighter': {
+        suggested_key: {
+          default: 'Alt+H',
+          mac: 'Command+Shift+H'
+        },
+        description: 'Toggle highlighter / machine-gun capture mode',
+        global: false
       }
     },
     content_security_policy: {
