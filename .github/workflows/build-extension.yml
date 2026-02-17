@@ -20,34 +20,30 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18.17.0
-          cache: 'yarn'
+          node-version: 24
+          cache: 'npm'
 
       - name: Install dependencies
-        run: yarn install --immutable
+        run: npm ci
 
       - name: Build extension
-        run: yarn run ext:build
+        run: npm run build
 
       - name: Zip extension for Chrome
-        run: |
-          cd apps/extension
-          yarn zip
-        
+        run: npm run zip
+
       - name: Zip extension for Firefox
-        run: |
-          cd apps/extension
-          yarn zip:firefox
+        run: npm run zip:firefox
 
       - name: List generated files
         run: |
           echo "Generated files:"
-          ls -la apps/extension/.output/*.zip 2>/dev/null || echo "No zip files found"
+          ls -la .output/*.zip 2>/dev/null || echo "No zip files found"
 
       - name: Upload extension packages
         uses: actions/upload-artifact@v4
         with:
           name: extension-build-${{ github.sha }}
-          path: apps/extension/.output/
+          path: .output/
           retention-days: 30
           include-hidden-files: true 
