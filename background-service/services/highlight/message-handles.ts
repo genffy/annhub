@@ -117,7 +117,7 @@ export const messageHandlers = {
 
 
                 await new Promise<void>((resolve) => {
-                    const listener = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
+                    const listener = (tabId: number, changeInfo: chrome.tabs.OnUpdatedInfo) => {
                         if (tabId === tab.id && changeInfo.status === 'complete') {
                             browser.tabs.onUpdated.removeListener(listener)
                             resolve()

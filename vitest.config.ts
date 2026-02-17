@@ -5,7 +5,7 @@ export default defineConfig({
     test: {
         environment: 'jsdom',
         include: ['**/*.test.ts'],
-        exclude: ['node_modules', '.output', 'e2e'],
+        exclude: ['node_modules', '.output', 'e2e', 'website'],
         globals: true,
         coverage: {
             reportsDirectory: './coverage',

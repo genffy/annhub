@@ -53,14 +53,14 @@ export class ClipService implements IService {
     }
 
     private async saveClip(clip: ClipRecord): Promise<void> {
-        const result = await chrome.storage.local.get(CLIPS_STORAGE_KEY)
+        const result = await chrome.storage.local.get(CLIPS_STORAGE_KEY) as Record<string, ClipRecord[]>
         const clips: ClipRecord[] = result[CLIPS_STORAGE_KEY] || []
         clips.push(clip)
         await chrome.storage.local.set({ [CLIPS_STORAGE_KEY]: clips })
     }
 
     async getClips(): Promise<ClipRecord[]> {
-        const result = await chrome.storage.local.get(CLIPS_STORAGE_KEY)
+        const result = await chrome.storage.local.get(CLIPS_STORAGE_KEY) as Record<string, ClipRecord[]>
         return result[CLIPS_STORAGE_KEY] || []
     }
 

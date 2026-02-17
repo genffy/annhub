@@ -57,7 +57,7 @@ export class ConfigService implements IService {
     }
 
     async getTranslationConfig(): Promise<TranslationConfig> {
-        const result = await browser.storage.sync.get('translationConfig')
+        const result = await browser.storage.sync.get('translationConfig') as Record<string, TranslationConfig>
         return result.translationConfig || defaultTranslationConfig
     }
 
@@ -66,7 +66,7 @@ export class ConfigService implements IService {
     }
 
     async getTranslationRules(): Promise<TranslationRules> {
-        const result = await browser.storage.sync.get('translationRules')
+        const result = await browser.storage.sync.get('translationRules') as Record<string, TranslationRules>
         return result.translationRules || defaultTranslationRules
     }
 
