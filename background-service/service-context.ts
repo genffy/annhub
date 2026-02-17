@@ -10,7 +10,7 @@ export enum ServiceStatus {
 }
 
 
-export type SupportedServices = 'config' | 'translation' | 'highlight'
+export type SupportedServices = 'config' | 'translation' | 'highlight' | 'clip'
 
 
 export interface IServiceContext {
@@ -41,7 +41,8 @@ export class ServiceContext {
             services: {
                 config: false,
                 translation: false,
-                highlight: false
+                highlight: false,
+                clip: false
             }
         }
     }

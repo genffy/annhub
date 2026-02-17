@@ -1,6 +1,79 @@
 import { HighlightColor } from '../../../types/highlight'
 import { MixedSelectionContent } from '../../../types/dom'
 
+/**
+ * Site-specific rule for finding the permalink URL of a content item.
+ *
+ * `findSourceUrl` iterates through registered rules in order. The first rule
+ * whose `match` returns true is used; its `containerSelector`, `containerFilter`,
+ * and `extractPermalink` drive the entire lookup.
+ */
+interface SitePermalinkRule {
+    /** Human-readable name, for debugging */
+    name: string
+    /** Return true if this rule applies to the current page */
+    match: (url: URL) => boolean
+    /** CSS selector(s) to walk up and locate the content container */
+    containerSelector: string
+    /** Optional extra check on the candidate container element */
+    containerFilter?: (el: Element) => boolean
+    /**
+     * Extract the permalink from the located container.
+     * Return a full URL string, or null to fall through to the default logic.
+     */
+    extractPermalink: (container: Element, origin: string) => string | null
+}
+
+// ── Twitter / X ─────────────────────────────────────────────────────────────
+export const TWEET_STATUS_RE = /^\/[^/]+\/status\/\d+$/
+export const TWEET_STATUS_PREFIX_RE = /^\/[^/]+\/status\/\d+/
+
+export function extractTwitterPermalink(container: Element, origin: string): string | null {
+    // Strategy 1: <a> wrapping a <time> element — most reliable
+    const timeEl = container.querySelector('time')
+    if (timeEl) {
+        const timeLink = timeEl.closest('a[href]') as HTMLAnchorElement | null
+        if (timeLink) {
+            const m = timeLink.pathname.match(TWEET_STATUS_PREFIX_RE)
+            if (m) return `${origin}${m[0]}`
+        }
+    }
+
+    // Strategy 2 & 3: scan links for /{user}/status/{id}
+    const links = container.querySelectorAll('a[href]')
+    let fallback: string | null = null
+
+    for (const link of Array.from(links)) {
+        const a = link as HTMLAnchorElement
+        try {
+            const u = new URL(a.href)
+            if (u.origin !== origin) continue
+            if (TWEET_STATUS_RE.test(u.pathname)) return a.href
+            if (!fallback && TWEET_STATUS_PREFIX_RE.test(u.pathname)) {
+                const m = u.pathname.match(TWEET_STATUS_PREFIX_RE)
+                if (m) fallback = `${origin}${m[0]}`
+            }
+        } catch { continue }
+    }
+    return fallback
+}
+
+// ── Rule registry ───────────────────────────────────────────────────────────
+const SITE_PERMALINK_RULES: SitePermalinkRule[] = [
+    {
+        name: 'twitter',
+        match: (url) => /^(x\.com|twitter\.com)$/i.test(url.hostname),
+        containerSelector: 'article, [data-testid="tweet"]',
+        extractPermalink: extractTwitterPermalink,
+    },
+    // To add a new site, append a rule here. Example:
+    // {
+    //     name: 'hackernews',
+    //     match: (url) => url.hostname === 'news.ycombinator.com',
+    //     containerSelector: 'tr.athing',
+    //     extractPermalink: (container, origin) => { ... },
+    // },
+]
 
 export class HighlightDOMManager {
     private static instance: HighlightDOMManager | null = null
@@ -582,19 +655,176 @@ export class HighlightDOMManager {
 
         if (!element) return ''
 
-
         let selector = element.tagName.toLowerCase()
 
-        if (element.id) {
+        // Prefer stable data-testid attribute (works across page navigations on SPAs)
+        const testId = element.getAttribute('data-testid')
+        if (testId) {
+            selector = `[data-testid="${testId}"]`
+            return selector
+        }
+
+        // Skip dynamic/random-looking IDs (e.g. x.com's id__xxxxx)
+        if (element.id && !this.isDynamicId(element.id)) {
             selector += `#${element.id}`
-        } else if (element.className) {
-            const classes = element.className.split(' ').filter(c => c.trim())
+        } else if (element.className && typeof element.className === 'string') {
+            // Filter out utility-first CSS classes with special characters (e.g. Tailwind's md:pt-[60px])
+            const classes = element.className.split(' ')
+                .map(c => c.trim())
+                .filter(c => c && !/[:\[\]()!@]/.test(c))
             if (classes.length > 0) {
                 selector += `.${classes.join('.')}`
             }
         }
 
         return selector
+    }
+
+    /**
+     * Detect IDs that look dynamically generated and are unlikely to be stable
+     * across page loads. Patterns: id__xxxx, react-generated, random hex/base64, etc.
+     */
+    static isDynamicId(id: string): boolean {
+        // x.com pattern: id__<random>
+        if (/^id__[a-z0-9]+$/i.test(id)) return true
+        // Common SPA patterns: :r0:, :r1a:, etc. (React)
+        if (/^:r[a-z0-9]*:$/i.test(id)) return true
+        // Long random-looking strings (16+ hex/alphanum chars with no clear word)
+        if (/^[a-f0-9]{16,}$/i.test(id)) return true
+        return false
+    }
+
+    /**
+     * Find the detail/permalink URL for the selected text.
+     *
+     * Flow:
+     * 1. Check SITE_PERMALINK_RULES for a site-specific rule that matches the current URL.
+     *    If matched, use its containerSelector + extractPermalink to get the result.
+     * 2. Otherwise, fall back to the generic heuristic (walk up to article-like container,
+     *    pick the best <a> link).
+     */
+    static findSourceUrl(range: Range): string | null {
+        const currentUrl = new URL(window.location.href)
+        const currentOrigin = currentUrl.origin
+        const currentPath = currentUrl.pathname
+
+        const container = range.commonAncestorContainer
+        const startElement = container.nodeType === Node.TEXT_NODE
+            ? container.parentElement
+            : container as Element
+
+        if (!startElement) return null
+
+        // Try site-specific rules first
+        const matchedRule = SITE_PERMALINK_RULES.find(r => r.match(currentUrl))
+        if (matchedRule) {
+            const ruleContainer = this.findContainerBySelector(
+                startElement, matchedRule.containerSelector, matchedRule.containerFilter
+            )
+            if (ruleContainer) {
+                return matchedRule.extractPermalink(ruleContainer, currentOrigin)
+            }
+        }
+
+        // Generic fallback: walk up to article-like container
+        const articleContainer = this.findGenericContainer(startElement)
+        if (!articleContainer) return null
+
+        return this.extractGenericPermalink(articleContainer, currentOrigin, currentPath)
+    }
+
+    /**
+     * Walk up from `startElement` and return the first ancestor matching the
+     * given CSS selector. Optionally run `filter` for extra validation.
+     */
+    private static findContainerBySelector(
+        startElement: Element,
+        selector: string,
+        filter?: (el: Element) => boolean
+    ): Element | null {
+        let el: Element | null = startElement
+        while (el && el !== document.body) {
+            if (el.matches(selector) && (!filter || filter(el))) {
+                return el
+            }
+            el = el.parentElement
+        }
+        return null
+    }
+
+    /**
+     * Generic container detection — used when no site-specific rule matches.
+     * Prefers <article> and elements with role/data-testid hinting at content items,
+     * falls back to <li> / <section>.
+     */
+    private static findGenericContainer(startElement: Element): Element | null {
+        const STRONG_TAGS = new Set(['ARTICLE'])
+        const FALLBACK_TAGS = new Set(['SECTION', 'LI'])
+        const CONTENT_INDICATORS = ['article', 'tweet', 'post', 'item', 'entry', 'card']
+
+        let fallback: Element | null = null
+        let el: Element | null = startElement
+
+        while (el && el !== document.body) {
+            const tag = el.tagName
+            if (STRONG_TAGS.has(tag)) return el
+
+            const role = el.getAttribute('role')
+            const testId = el.getAttribute('data-testid') || ''
+            if (CONTENT_INDICATORS.some(k => role === k || testId.includes(k))) return el
+
+            if (!fallback && FALLBACK_TAGS.has(tag)) fallback = el
+
+            el = el.parentElement
+        }
+        return fallback
+    }
+
+    /**
+     * Generic permalink extraction — scan links in the container and pick the
+     * most likely detail/permalink URL using path-depth heuristics.
+     */
+    private static extractGenericPermalink(
+        container: Element, origin: string, currentPath: string
+    ): string | null {
+        const currentUrl = window.location.href
+        const links = container.querySelectorAll('a[href]')
+        let bestUrl: string | null = null
+
+        for (const link of Array.from(links)) {
+            const href = (link as HTMLAnchorElement).href
+            if (!href) continue
+
+            if (href.startsWith('javascript:') ||
+                href === currentUrl ||
+                href === currentUrl + '#' ||
+                href.startsWith('#')) {
+                continue
+            }
+
+            const linkText = (link.textContent || '').trim()
+            if (linkText.length <= 2 && !link.querySelector('time')) continue
+
+            try {
+                const linkUrl = new URL(href)
+
+                if (linkUrl.origin === origin && linkUrl.pathname !== currentPath) {
+                    const linkSegments = linkUrl.pathname.split('/').filter(Boolean).length
+                    const currentSegments = currentPath.split('/').filter(Boolean).length
+                    if (linkSegments > currentSegments) {
+                        bestUrl = href
+                        break
+                    }
+                    if (!bestUrl) bestUrl = href
+                }
+
+                if (!bestUrl && linkUrl.origin !== origin) {
+                    bestUrl = href
+                }
+            } catch { continue }
+        }
+
+        return bestUrl
     }
 
     static getTextContext(range: Range, contextLength: number = 50): { before: string; after: string } {

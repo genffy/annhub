@@ -4,6 +4,7 @@ import { EventHandlerManager } from './event-handlers'
 import { ServiceContext } from './service-context'
 import { ConfigService } from './services/config'
 import { HighlightService } from './services/highlight'
+import { ClipService } from './services/clip'
 
 export class BackgroundServiceManager {
   private static instance: BackgroundServiceManager
@@ -53,7 +54,8 @@ export class BackgroundServiceManager {
 
     const services: IService[] = [
       ConfigService.getInstance(),
-      HighlightService.getInstance()
+      HighlightService.getInstance(),
+      ClipService.getInstance()
     ]
 
     this.serviceManager.registerServices(services)

@@ -164,10 +164,8 @@ export default class MessageUtils {
 
 
     static createMessageHandler(handlers: Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>>) {
-        console.log('createMessageHandler', handlers)
         return this.wrapAsyncHandler(async (message: BaseMessage, sender: chrome.runtime.MessageSender) => {
             const handler = handlers[message.type]
-            console.log(message, handlers)
             if (!handler) {
                 return this.createResponse(false, undefined, `Unknown message type: ${message.type}`)
             }

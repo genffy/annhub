@@ -73,7 +73,8 @@ export default function HighlightList({
                 filteredHighlights = allHighlights.filter((h: HighlightRecord) =>
                     h.originalText.toLowerCase().includes(searchTerm) ||
                     h.metadata.pageTitle.toLowerCase().includes(searchTerm) ||
-                    h.url.toLowerCase().includes(searchTerm)
+                    h.url.toLowerCase().includes(searchTerm) ||
+                    (h.user_note && h.user_note.toLowerCase().includes(searchTerm))
                 )
             }
 
@@ -267,6 +268,12 @@ export default function HighlightList({
                                 <div className="highlight-content">
                                     <h4 className="highlight-title">{highlight.metadata.pageTitle}</h4>
                                     <p className="highlight-text">{truncateText(highlight.originalText)}</p>
+                                    {highlight.user_note && (
+                                        <p className="highlight-note">
+                                            <span className="note-icon">💬</span>
+                                            <span className="note-text">{highlight.user_note}</span>
+                                        </p>
+                                    )}
                                     {highlight.context.before && (
                                         <p className="highlight-context">
                                             <span className="context-label">{i18n.t('highlight.context')}:</span>
@@ -284,7 +291,19 @@ export default function HighlightList({
                                 </div>
 
                                 <div className="highlight-actions">
-                                    <button className="action-button primary">
+                                    {highlight.metadata.sourceUrl && (
+                                        <span className="source-url-badge" title={highlight.metadata.sourceUrl}>
+                                            📎 {(() => { try { return new URL(highlight.metadata.sourceUrl).pathname; } catch { return highlight.metadata.sourceUrl; } })()}
+                                        </span>
+                                    )}
+                                    <button
+                                        className="action-button primary"
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            const targetUrl = highlight.metadata.sourceUrl || highlight.url
+                                            window.open(targetUrl, '_blank')
+                                        }}
+                                    >
                                         <span className="action-icon">🔗</span>
                                         <span>{i18n.t('highlight.viewDetail')}</span>
                                     </button>

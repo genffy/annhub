@@ -111,10 +111,33 @@ export class HighlightStorage {
     }
 
     async getCurrentPageHighlights(url: string): Promise<HighlightRecord[]> {
-        return this.getHighlights({
+        // Exact URL match
+        const byUrl = await this.getHighlights({
             url: url,
             status: 'active'
         })
+
+        // Also find highlights whose sourceUrl matches the current page,
+        // so highlights created on a list page (e.g. x.com/home) are shown
+        // on the detail page (e.g. x.com/user/status/123)
+        const byDomain = await this.getHighlights({
+            domain: new URL(url).hostname,
+            status: 'active'
+        })
+        const bySourceUrl = byDomain.filter(
+            h => h.metadata?.sourceUrl === url && h.url !== url
+        )
+
+        // Merge and deduplicate by id
+        const seen = new Set(byUrl.map(h => h.id))
+        for (const h of bySourceUrl) {
+            if (!seen.has(h.id)) {
+                byUrl.push(h)
+                seen.add(h.id)
+            }
+        }
+
+        return byUrl
     }
 
     async updateHighlight(id: string, updates: Partial<HighlightRecord>): Promise<HighlightResult> {

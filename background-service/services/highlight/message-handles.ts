@@ -111,12 +111,13 @@ export const messageHandlers = {
             }
 
 
-            if (tab.url !== highlight.url) {
-                await browser.tabs.update(tab.id, { url: highlight.url })
+            const targetUrl = highlight.metadata?.sourceUrl || highlight.url
+            if (tab.url !== targetUrl && tab.url !== highlight.url) {
+                await browser.tabs.update(tab.id, { url: targetUrl })
 
 
                 await new Promise<void>((resolve) => {
-                    const listener = (tabId: number, changeInfo: chrome.tabs.TabChangeInfo) => {
+                    const listener = (tabId: number, changeInfo: chrome.tabs.OnUpdatedInfo) => {
                         if (tabId === tab.id && changeInfo.status === 'complete') {
                             browser.tabs.onUpdated.removeListener(listener)
                             resolve()
