@@ -2,6 +2,7 @@ import { HighlightRecord, HighlightQuery } from './highlight'
 import { NoteRecord } from './note'
 import { TranslationConfig, TranslationRules } from './translate'
 import { ClipRecord } from './clip'
+import { LogseqConfig, LogseqSyncResult } from './logseq'
 
 export type RequiredFields<T, K extends keyof T> = Required<Pick<T, K>> & Partial<Omit<T, K>>
 
@@ -221,6 +222,34 @@ export interface TriggerScreenshotMessage extends BaseMessage {
     command: string
 }
 
+
+export interface LogseqTestConnectionMessage extends BaseMessage {
+    type: 'LOGSEQ_TEST_CONNECTION'
+}
+
+export interface LogseqGetConfigMessage extends BaseMessage {
+    type: 'LOGSEQ_GET_CONFIG'
+}
+
+export interface LogseqSetConfigMessage extends BaseMessage {
+    type: 'LOGSEQ_SET_CONFIG'
+    config: Partial<LogseqConfig>
+}
+
+export interface LogseqSyncHighlightMessage extends BaseMessage {
+    type: 'LOGSEQ_SYNC_HIGHLIGHT'
+    data: HighlightRecord
+}
+
+export interface LogseqSyncClipMessage extends BaseMessage {
+    type: 'LOGSEQ_SYNC_CLIP'
+    data: ClipRecord
+}
+
+export interface LogseqSyncAllMessage extends BaseMessage {
+    type: 'LOGSEQ_SYNC_ALL'
+}
+
 export interface InitializeMessage extends BaseMessage {
     type: 'INITIALIZE'
 }
@@ -272,6 +301,12 @@ export type UIToBackgroundMessage =
     | ClearAllHighlightsMessage
     | SaveClipMessage
     | ToggleHighlighterModeMessage
+    | LogseqTestConnectionMessage
+    | LogseqGetConfigMessage
+    | LogseqSetConfigMessage
+    | LogseqSyncHighlightMessage
+    | LogseqSyncClipMessage
+    | LogseqSyncAllMessage
 
 export type BackgroundToUIMessage =
     | ResponseMessage<TranslationConfig | TranslationRules>
@@ -283,6 +318,8 @@ export type BackgroundToUIMessage =
     | ResponseMessage<NoteRecord>
     | ResponseMessage<NoteStatsResponse>
     | ResponseMessage<SystemStatus>
+    | ResponseMessage<LogseqConfig>
+    | ResponseMessage<LogseqSyncResult>
     | ResponseMessage<any>
     | ScreenshotCapturedMessage
     | ScreenshotErrorMessage

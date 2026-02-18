@@ -3,6 +3,7 @@ import { IService } from '../service-manager'
 import { ResponseMessage } from '../../types/messages'
 import { Logger } from '../../utils/logger'
 import MessageUtils from '../../utils/message'
+import { LogseqSyncService } from './logseq/logseq-sync'
 
 const CLIPS_STORAGE_KEY = 'ann-clips'
 
@@ -39,6 +40,12 @@ export class ClipService implements IService {
                     const clip = message.data as ClipRecord
                     await this.saveClip(clip)
                     Logger.info(`[ClipService] Saved clip: ${clip.id}`)
+
+                    const logseqSync = LogseqSyncService.getInstance()
+                    if (logseqSync.isAutoSyncEnabled()) {
+                        logseqSync.syncClip(clip).catch(() => {})
+                    }
+
                     return MessageUtils.createResponse(true, clip)
                 } catch (error) {
                     Logger.error('[ClipService] Failed to save clip:', error)
