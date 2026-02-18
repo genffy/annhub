@@ -5,6 +5,7 @@ import { ServiceContext } from './service-context'
 import { ConfigService } from './services/config'
 import { HighlightService } from './services/highlight'
 import { ClipService } from './services/clip'
+import { LogseqService } from './services/logseq'
 
 export class BackgroundServiceManager {
   private static instance: BackgroundServiceManager
@@ -55,7 +56,8 @@ export class BackgroundServiceManager {
     const services: IService[] = [
       ConfigService.getInstance(),
       HighlightService.getInstance(),
-      ClipService.getInstance()
+      ClipService.getInstance(),
+      LogseqService.getInstance()
     ]
 
     this.serviceManager.registerServices(services)
@@ -122,5 +124,6 @@ export { EventHandlerManager } from './event-handlers'
 export { ServiceContext } from './service-context'
 export { ConfigService } from './services/config'
 export { HighlightService } from './services/highlight'
+export { LogseqService } from './services/logseq'
 
 export default BackgroundServiceManager.getInstance() 
