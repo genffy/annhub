@@ -3,6 +3,7 @@ import './App.css'
 import { i18n } from '#i18n';
 
 import HighlightPage from './pages/HighlightPage'
+import LogseqPage from './pages/LogseqPage'
 
 
 import { MenuItem } from './types'
@@ -44,6 +45,7 @@ function App() {
 
     const routes: Route[] = [
         { path: '/highlights', component: HighlightPage },
+        { path: '/logseq', component: LogseqPage },
     ]
 
 
@@ -52,6 +54,7 @@ function App() {
 
     const menuItems: MenuItem[] = [
         { id: 'highlights', label: i18n.t("options.menus.highlights.label"), icon: i18n.t("options.menus.highlights.icon"), path: '/highlights' },
+        { id: 'logseq', label: 'Logseq Sync', icon: '🔄', path: '/logseq' },
     ]
 
     // Load config from background script on component mount
@@ -132,6 +135,7 @@ function App() {
 
         switch (currentPath) {
             case '/highlights':
+            case '/logseq':
                 return <Component />
             default:
                 return null

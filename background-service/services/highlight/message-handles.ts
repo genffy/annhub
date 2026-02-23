@@ -2,6 +2,7 @@ import MessageUtils from "../../../utils/message"
 import { GetHighlightsMessage, ResponseMessage, SaveHighlightMessage, DeleteHighlightMessage, GetCurrentPageHighlightsMessage, LocateHighlightMessage, HighlightStatsResponse, RequiredFields } from "../../../types/messages"
 import { HighlightStorage } from "./highlight-storage"
 import { HighlightRecord } from "../../../types/highlight"
+import { LogseqSyncService } from "../logseq/logseq-sync"
 
 export const messageHandlers = {
 
@@ -16,12 +17,16 @@ export const messageHandlers = {
 
     SAVE_HIGHLIGHT: async (message: SaveHighlightMessage): Promise<ResponseMessage> => {
         try {
-
-
             const saveResult = await HighlightStorage.getInstance().saveHighlight(message.data)
             if (!saveResult.success) {
                 return MessageUtils.createResponse(false, undefined, saveResult.error)
             }
+
+            const logseqSync = LogseqSyncService.getInstance()
+            if (logseqSync.isAutoSyncEnabled() && saveResult.data) {
+                logseqSync.syncHighlight(saveResult.data).catch(() => {})
+            }
+
             return MessageUtils.createResponse(true, saveResult.data)
         } catch (error) {
             return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
