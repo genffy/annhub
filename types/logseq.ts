@@ -3,7 +3,10 @@ export interface LogseqConfig {
     serverUrl: string
     authToken: string
     autoSync: boolean
-    pagePrefix: string
+    // Journal-based sync settings
+    syncMode: 'journal' // Always journal mode now
+    customTags: string // Comma-separated custom tags, e.g., "#reading #research"
+    autoTagDomain: boolean // Automatically add domain as tag, e.g., "#example.com"
 }
 
 export const DEFAULT_LOGSEQ_CONFIG: LogseqConfig = {
@@ -11,7 +14,9 @@ export const DEFAULT_LOGSEQ_CONFIG: LogseqConfig = {
     serverUrl: 'http://127.0.0.1:12315',
     authToken: '',
     autoSync: false,
-    pagePrefix: 'AnnHub',
+    syncMode: 'journal',
+    customTags: '',
+    autoTagDomain: true,
 }
 
 export interface LogseqApiRequest {

@@ -72,7 +72,7 @@ export default function LogseqPage() {
     const connectionLabel: Record<ConnectionStatus, string> = {
         idle: 'Test Connection',
         testing: 'Testing...',
-        connected: 'Connected',
+        connected: 'Connected ✓',
         failed: 'Connection Failed',
     }
 
@@ -83,11 +83,27 @@ export default function LogseqPage() {
         failed: 'connection-error',
     }
 
+    // Generate preview based on current config
+    const generatePreview = () => {
+        const today = new Date().toISOString().slice(0, 10)
+        const customTags = config.customTags.trim() ? config.customTags : '#reading'
+        const domainTag = config.autoTagDomain ? ' #example_com' : ''
+
+        return `[[${today}]]
+
+- #annhub ${customTags}${domainTag} [[Article Title]] 🔗
+  > This is the highlighted text
+    annhub-id:: hl_abc123
+    source-url:: https://example.com/article
+    color:: #ffeb3b
+  - 💭 My note about this highlight`
+    }
+
     return (
         <div className="content-section">
             <h2>Logseq Sync</h2>
             <p className="section-description">
-                Sync your highlights and clips to Logseq via its local HTTP server.
+                Sync your highlights and clips to Logseq journal pages using tags.
             </p>
 
             <div className="settings-group">
@@ -116,7 +132,7 @@ export default function LogseqPage() {
                         placeholder="Paste your Logseq API token here"
                     />
                     <p className="input-help">
-                        Find it in Logseq: Settings &rarr; Features &rarr; HTTP APIs Server &rarr; Authorization tokens.
+                        Find it in Logseq: Settings → Features → HTTP APIs Server → Authorization tokens.
                     </p>
                 </div>
 
@@ -124,7 +140,7 @@ export default function LogseqPage() {
                     <button
                         className={`save-button ${connectionClass[connectionStatus]}`}
                         onClick={handleTestConnection}
-                        disabled={connectionStatus === 'testing' || !config.authToken}
+                        disabled={connectionStatus === 'testing'}
                         style={{
                             backgroundColor: connectionStatus === 'connected' ? '#238636'
                                 : connectionStatus === 'failed' ? '#cf222e' : undefined
@@ -155,37 +171,39 @@ export default function LogseqPage() {
                         />
                         <span>Auto-sync on capture (sync highlights and clips as they are created)</span>
                     </label>
+
+                    <label className="checkbox-label">
+                        <input
+                            type="checkbox"
+                            checked={config.autoTagDomain}
+                            onChange={e => setConfig(c => ({ ...c, autoTagDomain: e.target.checked }))}
+                        />
+                        <span>Auto-tag domain (e.g., #example_com)</span>
+                    </label>
                 </div>
 
                 <div className="input-group" style={{ marginTop: 16 }}>
-                    <label>Page Prefix</label>
+                    <label>Custom Tags</label>
                     <input
                         type="text"
                         className="text-input"
-                        value={config.pagePrefix}
-                        onChange={e => setConfig(c => ({ ...c, pagePrefix: e.target.value }))}
-                        placeholder="AnnHub"
+                        value={config.customTags}
+                        onChange={e => setConfig(c => ({ ...c, customTags: e.target.value }))}
+                        placeholder="#reading #research"
                     />
                     <p className="input-help">
-                        Logseq namespace prefix for pages. e.g. <code>AnnHub</code> creates pages like <code>AnnHub/Page Title</code>.
+                        Comma-separated tags to add to all synced items. e.g., <code>#reading, #research</code>
                     </p>
                 </div>
             </div>
 
             <div className="settings-group">
                 <h3>Data Format Preview</h3>
+                <p className="input-help" style={{ marginBottom: 12 }}>
+                    Items are synced to journal pages (e.g., [[2025-01-15]]) with tags for categorization.
+                </p>
                 <div className="logseq-format-preview">
-                    <pre>{`Page: ${config.pagePrefix}/Article Title
-
-url:: https://example.com/article
-domain:: example.com
-
-- > This is the highlighted text
-  annhub-id:: hl_abc123
-  source-url:: https://example.com/article
-  date:: [[${new Date().toISOString().slice(0, 10)}]]
-  color:: #ffeb3b
-  - 💭 My note about this highlight`}</pre>
+                    <pre>{generatePreview()}</pre>
                 </div>
             </div>
 
@@ -197,7 +215,7 @@ domain:: example.com
                 <button
                     className="save-button"
                     onClick={handleSyncAll}
-                    disabled={!config.enabled || !config.authToken}
+                    disabled={!config.enabled}
                     style={{ backgroundColor: '#238636' }}
                 >
                     Sync All Highlights
