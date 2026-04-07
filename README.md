@@ -2,7 +2,7 @@
 
 > Browser extension for annotation, comment, capture, and share anywhere
 
-一个功能强大的浏览器扩展，让你可以在任何网页上进行标注、评论、截图和分享。
+一个功能强大的浏览器扩展，让你可以在任何网页上进行标注、评论、截图和分享，并在英文页面自动标注生词释义。
 
 ## 核心功能
 
@@ -12,26 +12,87 @@
 - **跨页回显**：列表页（如 x.com/home）创建的高亮在对应详情页也能恢复
 - **站点感知**：自动提取推文等内容的详情永久链接
 - **用户备注**：高亮记录支持附加文字备注
+- **生词标注**：英文页面自动识别生词并以 ruby 注音/下划线标注，释义来自欧路词库或 LLM
+- **Logseq 同步**：高亮和采集记录可同步到 Logseq
 - **快捷键**：`Alt+H` / `Cmd+Shift+H` 切换荧光笔模式
+
+## 架构总览
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Extension UI entrypoints                │
+│  ┌────────┐  ┌───────────┐  ┌─────────────┐  ┌───────────┐ │
+│  │ popup  │  │ sidepanel │  │   options    │  │  words    │ │
+│  │        │  │           │  │ (Vocab/LLM/ │  │ (storage  │ │
+│  │        │  │           │  │  Logseq UI) │  │  reader)  │ │
+│  └────┬───┘  └─────┬─────┘  └──────┬──────┘  └─────┬─────┘ │
+│       └──────────┬──┘───────────────┘               │       │
+│                  ▼                                   │       │
+│          utils/message ──────────────────────────────┘       │
+└──────────────────┬───────────────────────────────────────────┘
+                   │ chrome.runtime.sendMessage
+┌──────────────────▼───────────────────────────────────────────┐
+│               Background (Service Worker)                    │
+│  ┌──────────────────────────────────────────────────────┐    │
+│  │            BackgroundServiceManager                   │    │
+│  │  ┌─────────┐ ┌───────────┐ ┌──────┐ ┌──────────────┐│    │
+│  │  │ Config  │ │ Highlight │ │ Clip │ │    Logseq    ││    │
+│  │  │ Service │ │  Service  │ │ Svc  │ │   Service    ││    │
+│  │  └─────────┘ └───────────┘ └──────┘ └──────────────┘│    │
+│  │  ┌───────────────────────────────────────────────────┐│    │
+│  │  │            VocabularyService                      ││    │
+│  │  │  sync(eudic) · resolveGloss · chrome.alarms      ││    │
+│  │  └───────────────────┬───────────────────────────────┘│    │
+│  │                      │                                │    │
+│  │  ┌───────────────────▼───────────────────────────────┐│    │
+│  │  │  LLM services (ILlmClient → OpenAICompatible)    ││    │
+│  │  └───────────────────────────────────────────────────┘│    │
+│  └──────────────────────────────────────────────────────┘    │
+└──────────────────────────────────────────────────────────────┘
+                   │ chrome.runtime.sendMessage
+┌──────────────────▼───────────────────────────────────────────┐
+│                    Content Script                             │
+│  ┌──────────────────────────┐  ┌────────────────────────────┐│
+│  │  Shadow UI (index.tsx)   │  │  vocab-label/* (宿主 DOM)  ││
+│  │  HoverMenu · Capsule     │  │  detect-page · annotate    ││
+│  │  highlight/* · clip      │  │  styles · MutationObserver ││
+│  └──────────────────────────┘  └────────────────────────────┘│
+└──────────────────────────────────────────────────────────────┘
+```
 
 ## 项目结构
 
 ```
 annhub/
-├── entrypoints/            # 扩展入口点
-│   ├── content/            # Content Script（Mode A/B 交互、高亮、采集）
-│   └── background/         # Service Worker（快捷键、消息分发）
-├── background-service/     # 后台服务管理（Highlight、Clip、Config）
-├── components/             # React 组件（SidePanel 高亮列表等）
-├── types/                  # TypeScript 类型（highlight, clip, action, messages）
-├── utils/                  # 工具函数
+├── entrypoints/
+│   ├── content/            # Content Script（Mode A/B + 生词标注）
+│   │   ├── highlight/      # 高亮 DOM 操作与业务逻辑
+│   │   └── vocab-label/    # 生词标注（宿主 DOM）
+│   ├── background/         # Service Worker 入口
+│   ├── options/            # 设置页（Highlights / Words / Settings）
+│   ├── words/              # 词表浏览页（读 storage 快照）
+│   ├── popup/              # 弹出窗口
+│   └── sidepanel/          # 侧边栏
+├── background-service/     # 后台服务
+│   ├── services/config/    # ConfigService
+│   ├── services/highlight/ # HighlightService + IndexedDB
+│   ├── services/clip.ts    # ClipService
+│   ├── services/logseq/    # LogseqService
+│   ├── services/vocabulary/ # VocabularyService（欧路同步 + 释义）
+│   └── services/llm/       # LLM 抽象（ILlmClient + OpenAI Compatible）
+├── types/                  # TypeScript 类型
+│   ├── vocabulary.ts       # VocabConfig, LlmConfig, VocabSnapshot
+│   ├── highlight.ts        # HighlightRecord
+│   ├── messages.ts         # 消息协议
+│   └── ...
+├── utils/
+│   ├── eudic-openapi.ts    # 欧路 API 封装
+│   └── ...
 ├── e2e/                    # Playwright E2E 测试及 fixture
-├── public/                 # 公共资源
 ├── website/                # 文档和落地页 (Next.js)
 ├── wxt.config.ts           # WXT 构建配置
 ├── vitest.config.ts        # 单元测试配置
-├── playwright.config.ts    # E2E 测试配置
-└── package.json            # 依赖配置
+└── playwright.config.ts    # E2E 测试配置
 ```
 
 本项目采用扁平化结构，扩展代码位于根目录，文档和落地页位于 `website/` 目录。更详细的架构说明参见 [AGENTS.md](./AGENTS.md)。
@@ -143,6 +204,16 @@ npm run build
 npx playwright test
 ```
 
+当前单测覆盖以下核心能力：
+- 高亮 DOM 操作与 selector 生成
+- LLM endpoint 拼接与请求格式
+- Vocabulary 配置 merge 策略
+- 标注引擎逆序 DOM 操作
+- ServiceManager restart 行为
+- Logseq 同步格式化与客户端
+
+> TODO（隐私策略）：针对 LLM 释义补全，细化“哪些页面/内容可以发送到模型”的外发策略，避免默认全量候选上下文外发。
+
 测试输出目录（`test-results/`、`playwright-report/`、`coverage/`）已加入 `.gitignore`。
 
 ### 文档网站开发
@@ -178,6 +249,8 @@ npm run website:start
 - **状态管理**: Zustand
 - **路由**: React Router DOM 7
 - **存储**: IndexedDB (idb) + chrome.storage.local
+- **LLM**: OpenAI Compatible API（支持 GLM、DeepSeek 等）
+- **词库**: 欧路词典 Open API + chrome.alarms 定时同步
 - **测试**: Vitest (单元) + Playwright (E2E)
 - **工具库**: fabric.js, html2canvas, nanoid 等
 

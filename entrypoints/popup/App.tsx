@@ -15,26 +15,12 @@ function App() {
     })
   }
 
-  const handleSidepanelClick = () => {
-    chrome.tabs.create({
-      url: chrome.runtime.getURL('sidepanel.html')
-    }).finally(() => {
-      window.close()
-    })
-  }
-
   const menuItems = [
     {
       id: 'options',
       label: i18n.t("options.name"),
       icon: '⚙️',
       onClick: handleSettingsClick
-    },
-    {
-      id: 'chat',
-      label: i18n.t("sidepanel.name"),
-      icon: '💬',
-      onClick: handleSidepanelClick
     }
   ]
 

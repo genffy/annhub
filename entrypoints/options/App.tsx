@@ -1,51 +1,21 @@
-import { useState, useEffect } from 'react'
 import './App.css'
 import { i18n } from '#i18n';
 
 import HighlightPage from './pages/HighlightPage'
-import LogseqPage from './pages/LogseqPage'
+import SettingsPage from './pages/SettingsPage'
+import WordsManagementPage from './pages/WordsManagementPage'
 
 
 import { MenuItem } from './types'
-import { TranslationConfig } from '../../types/translate'
 import { useRouter, Route } from './hooks/useRouter'
-import MessageUtils from '../../utils/message'
 
 
 function App() {
-    const [config, setConfig] = useState<TranslationConfig>({
-        enableGoogleTranslate: true,
-        enableBaiduTranslate: false,
-        enableYoudaoTranslate: false,
-        defaultTranslationService: 'google',
-        targetLanguage: 'zh-CN',
-        showTranslationOnHover: true,
-        autoDetectLanguage: true,
-        domainWhitelist: {
-            enabled: true,
-            domains: ['x.com', 'twitter.com']
-        },
-        apiKeys: {
-            google: { key: '' },
-            baidu: { appId: '', key: '' },
-            youdao: { appKey: '', appSecret: '' }
-        },
-        translationRules: {
-            enabled: true,
-            skipChinese: false,
-            skipNumbers: true,
-            skipCryptoAddresses: true,
-            customRules: []
-        }
-    })
-
-    const [isSaving, setIsSaving] = useState(false)
-    const [saveMessage, setSaveMessage] = useState('')
-
 
     const routes: Route[] = [
         { path: '/highlights', component: HighlightPage },
-        { path: '/logseq', component: LogseqPage },
+        { path: '/words', component: WordsManagementPage },
+        { path: '/settings', component: SettingsPage },
     ]
 
 
@@ -54,78 +24,9 @@ function App() {
 
     const menuItems: MenuItem[] = [
         { id: 'highlights', label: i18n.t("options.menus.highlights.label"), icon: i18n.t("options.menus.highlights.icon"), path: '/highlights' },
-        { id: 'logseq', label: 'Logseq Sync', icon: '🔄', path: '/logseq' },
+        { id: 'words', label: 'Words Management', icon: '📚', path: '/words' },
+        { id: 'settings', label: 'Settings', icon: '⚙️', path: '/settings' },
     ]
-
-    // Load config from background script on component mount
-    useEffect(() => {
-        const loadConfig = async () => {
-            try {
-                const response = await MessageUtils.sendMessage({
-                    type: 'GET_CONFIG',
-                    configType: 'translation'
-                })
-
-                if (response.success && response.data) {
-                    setConfig(prev => ({
-                        ...prev,
-                        ...response.data,
-                        apiKeys: {
-                            ...prev.apiKeys,
-                            ...response.data.apiKeys
-                        }
-                    }))
-                }
-            } catch (error) {
-                console.error('Failed to load config:', error)
-            }
-        }
-
-        loadConfig()
-    }, [])
-
-    const handleConfigChange = (key: keyof TranslationConfig, value: any) => {
-        setConfig(prev => ({
-            ...prev,
-            [key]: value
-        }))
-    }
-
-    const handleApiKeyChange = (service: 'google' | 'baidu' | 'youdao', key: string, value: string) => {
-        setConfig(prev => ({
-            ...prev,
-            apiKeys: {
-                ...prev.apiKeys,
-                [service]: {
-                    ...prev.apiKeys[service],
-                    [key]: value
-                }
-            }
-        }))
-    }
-
-    const handleSave = async () => {
-        setIsSaving(true)
-        try {
-            const response = await MessageUtils.sendMessage({
-                type: 'SET_CONFIG',
-                configType: 'translation',
-                config: config
-            })
-
-            if (response.success) {
-                setSaveMessage(i18n.t('network.success'))
-            } else {
-                setSaveMessage(i18n.t('network.errorWithReason', [response.error || i18n.t('network.unknow')]))
-            }
-            setTimeout(() => setSaveMessage(''), 3000)
-        } catch (error) {
-            setSaveMessage(i18n.t('network.retry'))
-            setTimeout(() => setSaveMessage(''), 3000)
-        } finally {
-            setIsSaving(false)
-        }
-    }
 
 
     const renderCurrentPage = () => {
@@ -135,7 +36,8 @@ function App() {
 
         switch (currentPath) {
             case '/highlights':
-            case '/logseq':
+            case '/words':
+            case '/settings':
                 return <Component />
             default:
                 return null
@@ -171,4 +73,4 @@ function App() {
     )
 }
 
-export default App 
+export default App

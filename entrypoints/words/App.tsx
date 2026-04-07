@@ -1,268 +1,95 @@
-import { useEffect, useState } from 'react'
-import { i18n } from '#i18n'
+import { useEffect, useState, useMemo } from 'react'
+import type { VocabSnapshot, VocabSyncState } from '../../types/vocabulary'
 
-type ViewMode = 'highlights' | 'chats'
+type SortMode = 'alpha' | 'proficiency' | 'recent'
 
-type StudyListCategory = {
-    id: string
-    language: string
-    name: string
-}
-
-type StudyListWord = {
-    word: string
-    phon?: string
-    exp?: string
-    add_time?: string
-    star?: number
-    context_line?: string
-}
-
-const DEFAULT_LANGUAGE = 'en'
-const WORDS_PAGE_SIZE = 100
-
-const BR_DELIMITER = /<br\s*\/?\s*>/gi
-
-const resolveAuthorizationToken = () => {
-    const env = import.meta.env as Record<string, string | undefined>
-
-    return (
-        env.EUDIC_OPENAPI_AUTHORIZATION ??
-        env.WXT_EUDIC_OPENAPI_AUTHORIZATION ??
-        env.VITE_EUDIC_OPENAPI_AUTHORIZATION ??
-        ''
-    )
-}
-
-const splitRichText = (value?: string) =>
-    value
-        ? value
-            .split(BR_DELIMITER)
-            .map((line) => line.trim())
-            .filter(Boolean)
-        : []
-
-const formatAddedTime = (value?: string) => {
-    if (!value) {
-        return ''
-    }
-
-    const date = new Date(value)
-
-    if (Number.isNaN(date.getTime())) {
-        return value
-    }
-
+const formatTime = (ts: number) => {
+    if (!ts) return 'Never'
     try {
         return new Intl.DateTimeFormat(undefined, {
             dateStyle: 'medium',
             timeStyle: 'short',
-        }).format(date)
-    } catch (error) {
-        return date.toLocaleString()
+        }).format(new Date(ts))
+    } catch {
+        return new Date(ts).toLocaleString()
     }
 }
 
 function App() {
-    const [currentView, setCurrentView] = useState<ViewMode>('highlights')
-    const [isLoadingCategories, setIsLoadingCategories] = useState(false)
-    const [categoriesError, setCategoriesError] = useState<string | null>(null)
-    const [categories, setCategories] = useState<StudyListCategory[]>([])
-    const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
-
-    const [isLoadingWords, setIsLoadingWords] = useState(false)
-    const [wordsError, setWordsError] = useState<string | null>(null)
-    const [words, setWords] = useState<StudyListWord[]>([])
-    const [currentPage, setCurrentPage] = useState(1)
-    const [hasNextPage, setHasNextPage] = useState(false)
+    const [snapshot, setSnapshot] = useState<VocabSnapshot | null>(null)
+    const [syncState, setSyncState] = useState<VocabSyncState | null>(null)
+    const [isLoading, setIsLoading] = useState(true)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [sortMode, setSortMode] = useState<SortMode>('alpha')
 
     useEffect(() => {
-        const controller = new AbortController()
-
-        const fetchCategories = async () => {
-            const authorization = resolveAuthorizationToken()
-
-            if (!authorization) {
-                setCategoriesError('Missing authorization token')
-                return
-            }
-
-            setIsLoadingCategories(true)
-            setCategoriesError(null)
-
+        const loadData = async () => {
+            setIsLoading(true)
             try {
-                const response = await fetch(
-                    `https://api.frdic.com/api/open/v1/studylist/category?language=${encodeURIComponent(DEFAULT_LANGUAGE)}`,
-                    {
-                        method: 'GET',
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0',
-                            Authorization: authorization,
-                        },
-                        signal: controller.signal,
-                    },
-                )
-
-                if (!response.ok) {
-                    throw new Error(`Request failed with status ${response.status}`)
-                }
-
-                const payload = (await response.json()) as {
-                    data?: StudyListCategory[]
-                    message?: string
-                }
-
-                const nextCategories = payload.data ?? []
-                setCategories(nextCategories)
-
-                if (payload.message?.trim()) {
-                    setCategoriesError(payload.message.trim())
-                }
-
-                if (nextCategories.length > 0) {
-                    setSelectedCategoryId((prev) => prev ?? nextCategories[0].id)
-                } else {
-                    setSelectedCategoryId(null)
-                }
+                const result = await chrome.storage.local.get(['vocabSnapshot', 'vocabSyncState'])
+                setSnapshot((result.vocabSnapshot as VocabSnapshot | undefined) ?? null)
+                setSyncState((result.vocabSyncState as VocabSyncState | undefined) ?? null)
             } catch (err) {
-                if ((err as Error).name === 'AbortError') {
-                    return
-                }
-
-                const message = err instanceof Error ? err.message : 'Unknown error'
-                setCategoriesError(message)
-                setCategories([])
-                setSelectedCategoryId(null)
+                console.error('Failed to load vocab data:', err)
             } finally {
-                setIsLoadingCategories(false)
+                setIsLoading(false)
             }
         }
 
-        void fetchCategories()
+        loadData()
 
-        return () => {
-            controller.abort()
+        const listener = (changes: { [key: string]: chrome.storage.StorageChange }) => {
+            if (changes.vocabSnapshot) {
+                setSnapshot(
+                    (changes.vocabSnapshot.newValue as VocabSnapshot | undefined) ?? null,
+                )
+            }
+            if (changes.vocabSyncState) {
+                setSyncState(
+                    (changes.vocabSyncState.newValue as VocabSyncState | undefined) ?? null,
+                )
+            }
         }
+        chrome.storage.local.onChanged.addListener(listener)
+        return () => chrome.storage.local.onChanged.removeListener(listener)
     }, [])
 
-    useEffect(() => {
-        setCurrentPage(1)
-        setHasNextPage(false)
-    }, [selectedCategoryId])
+    const wordEntries = useMemo(() => {
+        if (!snapshot) return []
 
-    useEffect(() => {
-        if (!selectedCategoryId) {
-            setWords([])
-            setWordsError(null)
-            setHasNextPage(false)
-            return
+        let entries = Object.entries(snapshot.entries).map(([word, data]) => ({
+            word,
+            ...data,
+        }))
+
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase().trim()
+            entries = entries.filter(e => e.word.toLowerCase().includes(q))
         }
 
-        const controller = new AbortController()
-
-        const fetchWords = async () => {
-            const authorization = resolveAuthorizationToken()
-
-            if (!authorization) {
-                setWordsError('Missing authorization token')
-                setWords([])
-                setHasNextPage(false)
-                return
-            }
-
-            setIsLoadingWords(true)
-            setWordsError(null)
-            setWords([])
-            setHasNextPage(false)
-
-            try {
-                const response = await fetch(
-                    `https://api.frdic.com/api/open/v1/studylist/words?language=${encodeURIComponent(DEFAULT_LANGUAGE)}&category_id=${encodeURIComponent(selectedCategoryId)}&page=${currentPage}&page_size=${WORDS_PAGE_SIZE}`,
-                    {
-                        method: 'GET',
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0',
-                            Authorization: authorization,
-                        },
-                        signal: controller.signal,
-                    },
-                )
-
-                if (!response.ok) {
-                    throw new Error(`Request failed with status ${response.status}`)
-                }
-
-                const payload = (await response.json()) as {
-                    data?: StudyListWord[]
-                    message?: string
-                }
-
-                const rawWords = payload.data ?? []
-
-                const nextWords = rawWords
-                    .slice()
-                    .sort((a, b) => {
-                        const aTime = a.add_time ? Date.parse(a.add_time) : 0
-                        const bTime = b.add_time ? Date.parse(b.add_time) : 0
-                        return bTime - aTime
-                    })
-
-                setWords(nextWords)
-                setHasNextPage(rawWords.length === WORDS_PAGE_SIZE)
-
-                if (payload.message?.trim()) {
-                    setWordsError(payload.message.trim())
-                }
-            } catch (err) {
-                if ((err as Error).name === 'AbortError') {
-                    return
-                }
-
-                const message = err instanceof Error ? err.message : 'Unknown error'
-                setWordsError(message)
-                setWords([])
-                setHasNextPage(false)
-            } finally {
-                setIsLoadingWords(false)
-            }
+        switch (sortMode) {
+            case 'alpha':
+                entries.sort((a, b) => a.word.localeCompare(b.word))
+                break
+            case 'proficiency':
+                entries.sort((a, b) => (a.proficiency ?? 0) - (b.proficiency ?? 0))
+                break
+            case 'recent':
+                // Snapshot doesn't have per-word timestamps; keep original order
+                break
         }
 
-        void fetchWords()
+        return entries
+    }, [snapshot, searchQuery, sortMode])
 
-        return () => {
-            controller.abort()
-        }
-    }, [selectedCategoryId, currentPage])
+    const totalWords = snapshot ? Object.keys(snapshot.entries).length : 0
 
-    const selectedCategory = selectedCategoryId
-        ? categories.find((category) => category.id === selectedCategoryId) ?? null
-        : null
-
-    const selectedLanguageLabel = (selectedCategory?.language ?? DEFAULT_LANGUAGE).toUpperCase()
-    const totalWords = words.length
-    const hasCategories = categories.length > 0
-    const canShowWords =
-        !isLoadingCategories && !categoriesError && hasCategories && Boolean(selectedCategoryId && selectedCategory)
-
-    const viewOptions = [
-        { value: 'highlights', label: i18n.t('highlight.name'), icon: '📝' },
-        { value: 'chats', label: i18n.t('sidepanel.name'), icon: '💬' },
-    ]
-
-    const handlePreviousPage = () => {
-        if (currentPage === 1 || isLoadingWords) {
-            return
-        }
-
-        setCurrentPage((prev) => Math.max(1, prev - 1))
-    }
-
-    const handleNextPage = () => {
-        if (!hasNextPage || isLoadingWords) {
-            return
-        }
-
-        setCurrentPage((prev) => prev + 1)
+    if (isLoading) {
+        return (
+            <div className="sidebar-container">
+                <div className="section-status">Loading vocabulary data...</div>
+            </div>
+        )
     }
 
     return (
@@ -270,202 +97,98 @@ function App() {
             <div className="sidebar-header">
                 <div className="header-top">
                     <div className="header-meta">
-                        <span className="header-eyebrow">Vocabulary books</span>
-                        <span className="header-selected">
-                            {selectedCategory?.name ?? 'Select a vocabulary book'}
-                        </span>
-                    </div>
-
-                    <div className="view-selector">
-                        <label className="sr-only" htmlFor="view-mode-selector">
-                            View mode
-                        </label>
-                        <select
-                            id="view-mode-selector"
-                            value={currentView}
-                            onChange={(event) => setCurrentView(event.target.value as ViewMode)}
-                            className="view-select"
-                        >
-                            {viewOptions.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                    {option.icon} {option.label}
-                                </option>
-                            ))}
-                        </select>
+                        <span className="header-eyebrow">Vocabulary Snapshot</span>
+                        <span className="header-selected">{totalWords} words</span>
                     </div>
                 </div>
 
                 <div className="header-categories">
-                    {isLoadingCategories && (
-                        <div className="header-status">Loading vocabulary books…</div>
-                    )}
-
-                    {!isLoadingCategories && categoriesError && (
-                        <div className="header-status header-status-error">{categoriesError}</div>
-                    )}
-
-                    {!isLoadingCategories && !categoriesError && !hasCategories && (
-                        <div className="header-status">No vocabulary books found.</div>
-                    )}
-
-                    {!isLoadingCategories && !categoriesError && hasCategories && (
-                        <div className="header-studylist-row">
-                            {categories.map((category) => (
-                                <button
-                                    key={category.id}
-                                    type="button"
-                                    className={`studylist-card${selectedCategoryId === category.id ? ' active' : ''}`}
-                                    onClick={() => setSelectedCategoryId(category.id)}
-                                    aria-pressed={selectedCategoryId === category.id}
-                                >
-                                    <div className="studylist-name">{category.name}</div>
-                                    <div className="studylist-meta">
-                                        <span className="studylist-language">{category.language}</span>
-                                        <span className="studylist-id">ID: {category.id}</span>
-                                    </div>
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                    <div className="sync-status">
+                        <span>Last sync: {syncState ? formatTime(syncState.lastSyncAt) : 'Never'}</span>
+                        {syncState?.lastSyncStatus === 'error' && (
+                            <span className="header-status-error"> — {syncState.lastError ?? 'Error'}</span>
+                        )}
+                    </div>
                 </div>
             </div>
 
             <div className="sidebar-content">
                 <div className="studylist-section">
-                    {canShowWords ? (
-                        <div className="studylist-words">
-                            <div className="studylist-toolbar">
-                                <div className="toolbar-info">
-                                    <span className="toolbar-eyebrow">Vocabulary book</span>
-                                    <h2 className="toolbar-title">
-                                        {selectedCategory?.name ?? 'Select a vocabulary book'}
-                                    </h2>
-                                    {selectedCategory && (
-                                        <div className="toolbar-meta">
-                                            <span className="toolbar-chip">{selectedLanguageLabel}</span>
-                                            <span className="toolbar-separator" aria-hidden="true">
-                                                •
-                                            </span>
-                                            <span className="toolbar-chip">
-                                                {isLoadingWords ? 'Loading…' : `${totalWords} words`}
-                                            </span>
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div className="toolbar-controls">
-                                    <label className="sr-only" htmlFor="category-selector">
-                                        Vocabulary book
-                                    </label>
-                                    <select
-                                        id="category-selector"
-                                        className="studylist-select"
-                                        value={selectedCategoryId ?? ''}
-                                        onChange={(event) => setSelectedCategoryId(event.target.value || null)}
-                                    >
-                                        {categories.map((category) => (
-                                            <option key={category.id} value={category.id}>
-                                                {category.name}
-                                            </option>
-                                        ))}
-                                    </select>
+                    <div className="studylist-words">
+                        <div className="studylist-toolbar">
+                            <div className="toolbar-info">
+                                <h2 className="toolbar-title">Words</h2>
+                                <div className="toolbar-meta">
+                                    <span className="toolbar-chip">{wordEntries.length} shown</span>
                                 </div>
                             </div>
+                            <div className="toolbar-controls">
+                                <input
+                                    type="text"
+                                    className="search-input"
+                                    placeholder="Search words..."
+                                    value={searchQuery}
+                                    onChange={e => setSearchQuery(e.target.value)}
+                                />
+                                <select
+                                    className="studylist-select"
+                                    value={sortMode}
+                                    onChange={e => setSortMode(e.target.value as SortMode)}
+                                >
+                                    <option value="alpha">A-Z</option>
+                                    <option value="proficiency">Proficiency</option>
+                                    <option value="recent">Default</option>
+                                </select>
+                            </div>
+                        </div>
 
-                            <div className="studylist-words-content">
-                                {isLoadingWords && (
-                                    <div className="section-status">Loading words…</div>
-                                )}
+                        <div className="studylist-words-content">
+                            {!snapshot && (
+                                <div className="section-status">
+                                    No vocabulary data yet. Configure sync in Options.
+                                </div>
+                            )}
 
-                                {!isLoadingWords && wordsError && (
-                                    <div className="section-status section-status-error">{wordsError}</div>
-                                )}
+                            {snapshot && wordEntries.length === 0 && (
+                                <div className="section-status">
+                                    {searchQuery ? 'No matching words found.' : 'No words in snapshot.'}
+                                </div>
+                            )}
 
-                                {!isLoadingWords && !wordsError && words.length === 0 && (
-                                    <div className="section-status">No words found in this list.</div>
-                                )}
+                            {wordEntries.length > 0 && (
+                                <div className="words-grid">
+                                    {wordEntries.map(entry => {
+                                        const definitionLines = entry.exp
+                                            ? entry.exp.split(/<br\s*\/?\s*>/gi).map(l => l.trim()).filter(Boolean)
+                                            : []
 
-                                {!isLoadingWords && !wordsError && words.length > 0 && (
-                                    <div className="words-grid">
-                                        {words.map((word) => {
-                                            const definitionLines = splitRichText(word.exp)
-                                            const contextLines = splitRichText(word.context_line)
-
-                                            return (
-                                                <article
-                                                    className="word-card"
-                                                    key={`${word.word}-${word.add_time ?? ''}`}
-                                                >
-                                                    <div className="word-header">
-                                                        <span className="word-text">{word.word}</span>
-                                                        {typeof word.star === 'number' && word.star > 0 && (
-                                                            <span
-                                                                className="word-star"
-                                                                aria-label={`Star level ${word.star}`}
-                                                            >
-                                                                ★ {word.star}
-                                                            </span>
-                                                        )}
+                                        return (
+                                            <article className="word-card" key={entry.word}>
+                                                <div className="word-header">
+                                                    <span className="word-text">{entry.word}</span>
+                                                    {typeof entry.star === 'number' && entry.star > 0 && (
+                                                        <span className="word-star" aria-label={`Star level ${entry.star}`}>
+                                                            ★ {entry.star}
+                                                        </span>
+                                                    )}
+                                                    <span className="word-proficiency">
+                                                        P{entry.proficiency}
+                                                    </span>
+                                                </div>
+                                                {definitionLines.length > 0 && (
+                                                    <div className="word-exp">
+                                                        {definitionLines.map((line, i) => (
+                                                            <p key={i}>{line}</p>
+                                                        ))}
                                                     </div>
-
-                                                    {word.phon && <div className="word-phon">{word.phon}</div>}
-
-                                                    {definitionLines.length > 0 && (
-                                                        <div className="word-exp">
-                                                            {definitionLines.map((line, index) => (
-                                                                <p key={index}>{line}</p>
-                                                            ))}
-                                                        </div>
-                                                    )}
-
-                                                    {contextLines.length > 0 && (
-                                                        <div className="word-context">
-                                                            {contextLines.map((line, index) => (
-                                                                <p key={index}>{line}</p>
-                                                            ))}
-                                                        </div>
-                                                    )}
-
-                                                    {word.add_time && (
-                                                        <div className="word-meta">Added {formatAddedTime(word.add_time)}</div>
-                                                    )}
-                                                </article>
-                                            )
-                                        })}
-                                    </div>
-                                )}
-                                <div className="pagination-controls">
-                                    <button
-                                        type="button"
-                                        className="pagination-button"
-                                        onClick={handlePreviousPage}
-                                        disabled={currentPage === 1 || isLoadingWords}
-                                    >
-                                        Prev
-                                    </button>
-                                    <span className="pagination-status">Page {currentPage}</span>
-                                    <button
-                                        type="button"
-                                        className="pagination-button"
-                                        onClick={handleNextPage}
-                                        disabled={!hasNextPage || isLoadingWords}
-                                    >
-                                        Next
-                                    </button>
+                                                )}
+                                            </article>
+                                        )
+                                    })}
                                 </div>
-                            </div>
+                            )}
                         </div>
-                    ) : (
-                        <div
-                            className={`section-status${categoriesError ? ' section-status-error' : ''}`}
-                        >
-                            {isLoadingCategories
-                                ? 'Loading vocabulary books…'
-                                : categoriesError ?? (hasCategories
-                                    ? 'Select a vocabulary book above.'
-                                    : 'No vocabulary books found.')}
-                        </div>
-                    )}
+                    </div>
                 </div>
             </div>
         </div>

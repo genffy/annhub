@@ -479,5 +479,12 @@ export default defineContentScript({
       },
     })
     ui.mount()
+
+    // Vocab label operates on host DOM, init after mount
+    import('./vocab-label').then(({ initVocabLabel }) => {
+      initVocabLabel().catch(err => {
+        console.error('[Content] Vocab label init failed:', err)
+      })
+    })
   },
 })

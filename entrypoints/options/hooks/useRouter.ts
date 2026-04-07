@@ -7,15 +7,20 @@ export interface Route {
     component: React.ComponentType<any>
 }
 
+const resolvePathFromHash = (defaultPath: string): string => {
+    const rawHash = window.location.hash.slice(1) || defaultPath
+    const [path] = rawHash.split('?')
+    return path || defaultPath
+}
+
 export function useRouter(routes: Route[], defaultPath: string = '/') {
     const [currentPath, setCurrentPath] = useState(() => {
-
-        return window.location.hash.slice(1) || defaultPath
+        return resolvePathFromHash(defaultPath)
     })
 
     const navigate = (path: string) => {
         window.location.hash = path
-        setCurrentPath(path)
+        setCurrentPath(path.split('?')[0] || defaultPath)
     }
 
     const goBack = () => {
@@ -29,7 +34,7 @@ export function useRouter(routes: Route[], defaultPath: string = '/') {
 
     useEffect(() => {
         const handleHashChange = () => {
-            const newPath = window.location.hash.slice(1) || defaultPath
+            const newPath = resolvePathFromHash(defaultPath)
             setCurrentPath(newPath)
         }
 
@@ -53,6 +58,6 @@ export function useRouter(routes: Route[], defaultPath: string = '/') {
         navigate,
         goBack,
         goForward,
-        isActive: (path: string) => currentPath === path
+        isActive: (path: string) => currentPath === (path.split('?')[0] || defaultPath)
     }
-} 
+}

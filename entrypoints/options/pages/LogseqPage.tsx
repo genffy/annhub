@@ -4,7 +4,11 @@ import MessageUtils from '../../../utils/message'
 
 type ConnectionStatus = 'idle' | 'testing' | 'connected' | 'failed'
 
-export default function LogseqPage() {
+interface LogseqPageProps {
+    embedded?: boolean
+}
+
+export default function LogseqPage({ embedded = false }: LogseqPageProps) {
     const [config, setConfig] = useState<LogseqConfig>({ ...DEFAULT_LOGSEQ_CONFIG })
     const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('idle')
     const [isSaving, setIsSaving] = useState(false)
@@ -99,13 +103,8 @@ export default function LogseqPage() {
   - 💭 My note about this highlight`
     }
 
-    return (
-        <div className="content-section">
-            <h2>Logseq Sync</h2>
-            <p className="section-description">
-                Sync your highlights and clips to Logseq journal pages using tags.
-            </p>
-
+    const content = (
+        <>
             <div className="settings-group">
                 <h3>Connection</h3>
                 <div className="input-group">
@@ -242,6 +241,20 @@ export default function LogseqPage() {
                     </p>
                 )}
             </div>
+        </>
+    )
+
+    if (embedded) {
+        return content
+    }
+
+    return (
+        <div className="content-section">
+            <h2>Logseq Sync</h2>
+            <p className="section-description">
+                Sync your highlights and clips to Logseq journal pages using tags.
+            </p>
+            {content}
         </div>
     )
 }

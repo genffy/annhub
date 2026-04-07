@@ -2,13 +2,6 @@
   "editor.formatOnSave": true,
   "typescript.preferences.includePackageJsonAutoImports": "on",
   "typescript.enablePromptUseWorkspaceTsdk": true,
-  "typescript.preferences.includeCompletionsForModuleExports": true,
   "typescript.suggest.includeCompletionsForImportStatements": true,
-  "search.exclude": {
-    "**/.yarn": true,
-    "**/.pnp.*": true
-  },
-  "eslint.nodePath": ".yarn/sdks",
-  "prettier.prettierPath": ".yarn/sdks/prettier/index.cjs",
-  "typescript.tsdk": ".yarn/sdks/typescript/lib"
+  "typescript.tsdk": "node_modules/typescript/lib"
 }

@@ -104,33 +104,7 @@ export class InstallationHandler {
 
   private async migrateFromV1ToV2(): Promise<void> {
     Logger.info('[InstallationHandler] Starting V1 to V2 migration...')
-
-    try {
-
-      const oldData = await browser.storage.sync.get()
-      const newData: Record<string, any> = {}
-
-
-      if (oldData.oldTranslationConfig) {
-        newData.translationConfig = {
-          ...oldData.oldTranslationConfig,
-
-          version: '0.1.0'
-        }
-
-        await browser.storage.sync.remove('oldTranslationConfig')
-      }
-
-
-      if (Object.keys(newData).length > 0) {
-        await browser.storage.sync.set(newData)
-      }
-
-      Logger.info('[InstallationHandler] V1 to V2 migration completed')
-    } catch (error) {
-      Logger.error('[InstallationHandler] V1 to V2 migration failed:', error)
-      throw error
-    }
+    Logger.info('[InstallationHandler] V1 to V2 migration completed (no-op)')
   }
 
 

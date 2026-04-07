@@ -19,15 +19,10 @@ export default defineConfig({
       'commands',
       'downloads',
       'scripting',
-      'sidePanel'
+      'sidePanel',
+      'alarms'
     ],
     host_permissions: [
-      'https://translation.googleapis.com/*',
-      'https://translate.googleapis.com/*',
-      'https://translate.google.com/*',
-      'https://clients5.google.com/*',
-      'https://fanyi-api.baidu.com/*',
-      'https://openapi.youdao.com/*',
       '<all_urls>',
     ],
     action: {

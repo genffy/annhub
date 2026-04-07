@@ -100,7 +100,18 @@ export default function HighlightList({
     }
 
 
+    const openHighlightInNewTab = (highlight: HighlightRecord) => {
+        const targetUrl = highlight.metadata.sourceUrl || highlight.url
+        window.open(targetUrl, '_blank', 'noopener,noreferrer')
+    }
+
+
     const handleHighlightClick = async (highlight: HighlightRecord) => {
+        if (alwaysNewTab) {
+            openHighlightInNewTab(highlight)
+            return
+        }
+
         if (onHighlightClick) {
             onHighlightClick(highlight)
         } else {
@@ -300,8 +311,7 @@ export default function HighlightList({
                                         className="action-button primary"
                                         onClick={(e) => {
                                             e.stopPropagation()
-                                            const targetUrl = highlight.metadata.sourceUrl || highlight.url
-                                            window.open(targetUrl, '_blank')
+                                            openHighlightInNewTab(highlight)
                                         }}
                                     >
                                         <span className="action-icon">🔗</span>

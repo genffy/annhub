@@ -10,7 +10,7 @@ export enum ServiceStatus {
 }
 
 
-export type SupportedServices = 'config' | 'translation' | 'highlight' | 'clip' | 'logseq'
+export type SupportedServices = 'config' | 'highlight' | 'clip' | 'logseq' | 'vocabulary'
 
 
 export interface IServiceContext {
@@ -28,6 +28,7 @@ export interface IServiceContext {
 export class ServiceContext {
     private static instance: ServiceContext
     private context: IServiceContext
+    private registeredServices: Set<SupportedServices> = new Set()
 
     private constructor() {
         this.context = {
@@ -40,10 +41,10 @@ export class ServiceContext {
             startupTime: Date.now(),
             services: {
                 config: false,
-                translation: false,
                 highlight: false,
                 clip: false,
-                logseq: false
+                logseq: false,
+                vocabulary: false
             }
         }
     }
@@ -55,6 +56,9 @@ export class ServiceContext {
         return ServiceContext.instance
     }
 
+    registerServiceSlot(name: SupportedServices): void {
+        this.registeredServices.add(name)
+    }
 
     startInitialization(): void {
         Logger.info('[ServiceContext] Starting service initialization')
@@ -64,10 +68,9 @@ export class ServiceContext {
         this.context.initStartTime = Date.now()
         this.context.initEndTime = null
 
-
-        Object.keys(this.context.services).forEach(key => {
-            this.context.services[key as SupportedServices] = false
-        })
+        for (const name of this.registeredServices) {
+            this.context.services[name] = false
+        }
     }
 
 
@@ -75,9 +78,10 @@ export class ServiceContext {
         this.context.services[serviceName] = true
         Logger.info(`[ServiceContext] Service ${serviceName} initialized`)
 
-
-        const allServicesReady = Object.values(this.context.services).every(status => status)
-        if (allServicesReady && this.context.status === ServiceStatus.INITIALIZING) {
+        const allServicesReady = Array.from(this.registeredServices).every(
+            name => this.context.services[name]
+        )
+        if (allServicesReady && this.registeredServices.size > 0 && this.context.status === ServiceStatus.INITIALIZING) {
             this.markInitializationComplete()
         }
     }
@@ -108,9 +112,9 @@ export class ServiceContext {
         this.context.status = ServiceStatus.RESTARTING
         this.context.error = null
 
-        Object.keys(this.context.services).forEach(key => {
-            this.context.services[key as SupportedServices] = false
-        })
+        for (const name of this.registeredServices) {
+            this.context.services[name] = false
+        }
     }
 
 
@@ -161,4 +165,4 @@ export class ServiceContext {
     getError(): Error | null {
         return this.context.error
     }
-} 
+}
