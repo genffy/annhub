@@ -6,6 +6,7 @@ import { ConfigService } from './services/config'
 import { HighlightService } from './services/highlight'
 import { ClipService } from './services/clip'
 import { LogseqService } from './services/logseq'
+import { VocabularyService } from './services/vocabulary'
 
 export class BackgroundServiceManager {
   private static instance: BackgroundServiceManager
@@ -57,7 +58,8 @@ export class BackgroundServiceManager {
       ConfigService.getInstance(),
       HighlightService.getInstance(),
       ClipService.getInstance(),
-      LogseqService.getInstance()
+      LogseqService.getInstance(),
+      VocabularyService.getInstance(),
     ]
 
     this.serviceManager.registerServices(services)
@@ -125,5 +127,6 @@ export { ServiceContext } from './service-context'
 export { ConfigService } from './services/config'
 export { HighlightService } from './services/highlight'
 export { LogseqService } from './services/logseq'
+export { VocabularyService } from './services/vocabulary'
 
 export default BackgroundServiceManager.getInstance() 

@@ -35,3 +35,11 @@ coverage/
 *.njsproj
 *.sln
 *.sw?
+
+# docs images
+.claude/docs/**/*.png
+.claude/docs/**/*.jpg
+.claude/docs/**/*.jpeg
+.claude/docs/**/*.gif
+.claude/docs/**/*.webp
+.claude/docs/**/*.svg

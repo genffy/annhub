@@ -1,8 +1,7 @@
 import { HighlightRecord, HighlightQuery } from './highlight'
-import { NoteRecord } from './note'
-import { TranslationConfig, TranslationRules } from './translate'
 import { ClipRecord } from './clip'
 import { LogseqConfig, LogseqSyncResult } from './logseq'
+import { VocabConfig, LlmConfig } from './vocabulary'
 
 export type RequiredFields<T, K extends keyof T> = Required<Pick<T, K>> & Partial<Omit<T, K>>
 
@@ -21,41 +20,6 @@ export interface ResponseMessage<T = any> extends BaseMessage {
 }
 
 
-export interface GetConfigMessage extends BaseMessage {
-    type: 'GET_CONFIG'
-    configType: 'translation' | 'rules'
-}
-
-export interface SetConfigMessage extends BaseMessage {
-    type: 'SET_CONFIG'
-    configType: 'translation' | 'rules'
-    config: TranslationConfig | TranslationRules
-}
-
-export interface InitializeConfigMessage extends BaseMessage {
-    type: 'INITIALIZE_CONFIG'
-}
-
-export interface ResetConfigMessage extends BaseMessage {
-    type: 'RESET_CONFIG'
-}
-
-
-export interface TranslateTextMessage extends BaseMessage {
-    type: 'TRANSLATE_TEXT'
-    text: string
-    targetLanguage?: string
-    sourceLanguage?: string
-}
-
-export interface TranslateResponse {
-    translatedText: string
-    sourceLanguage: string
-    targetLanguage: string
-    provider: string
-}
-
-
 export interface GetHighlightsMessage extends BaseMessage {
     type: 'GET_HIGHLIGHTS'
     query?: HighlightQuery
@@ -64,19 +28,6 @@ export interface GetHighlightsMessage extends BaseMessage {
 export interface SaveHighlightMessage extends BaseMessage {
     type: 'SAVE_HIGHLIGHT'
     data: HighlightRecord
-    // text: string
-    // range: {
-    //     startOffset: number
-    //     endOffset: number
-    //     startContainerPath: string
-    //     endContainerPath: string
-    // }
-    // color?: string
-    // pageInfo: {
-    //     url: string
-    //     title: string
-    //     domain: string
-    // }
 }
 
 export interface UpdateHighlightMessage extends BaseMessage {
@@ -123,58 +74,6 @@ export interface GetHighlightStatsMessage extends BaseMessage {
 }
 
 export interface HighlightStatsResponse {
-    total: number
-    active: number
-    archived: number
-    deleted: number
-}
-
-
-export interface GetNotesMessage extends BaseMessage {
-    type: 'GET_NOTES'
-    query?: {
-        url?: string
-        domain?: string
-        status?: 'active' | 'archived' | 'deleted'
-        limit?: number
-        offset?: number
-    }
-}
-
-export interface SaveNoteMessage extends BaseMessage {
-    type: 'SAVE_NOTE'
-    text: string
-    range: {
-        startOffset: number
-        endOffset: number
-        startContainerPath: string
-        endContainerPath: string
-    }
-    comment?: string
-    pageInfo: {
-        url: string
-        title: string
-        domain: string
-    }
-}
-
-export interface UpdateNoteMessage extends BaseMessage {
-    type: 'UPDATE_NOTE'
-    noteId: string
-    updates: Partial<Pick<NoteRecord, 'userComment' | 'status' | 'tags'>>
-}
-
-export interface DeleteNoteMessage extends BaseMessage {
-    type: 'DELETE_NOTE'
-    noteId: string
-}
-
-export interface GetNoteStatsMessage extends BaseMessage {
-    type: 'GET_NOTE_STATS'
-    url?: string
-}
-
-export interface NoteStatsResponse {
     total: number
     active: number
     archived: number
@@ -265,7 +164,6 @@ export interface GetStatusMessage extends BaseMessage {
 export interface SystemStatus {
     isInitialized: boolean
     services: {
-        translation: boolean
         highlight: boolean
         config: boolean
     }
@@ -273,12 +171,100 @@ export interface SystemStatus {
 }
 
 
+// ── Vocabulary & LLM messages ──
+
+export interface GetVocabConfigMessage extends BaseMessage {
+    type: 'GET_VOCAB_CONFIG'
+}
+
+export interface SetVocabConfigMessage extends BaseMessage {
+    type: 'SET_VOCAB_CONFIG'
+    config: Partial<VocabConfig>
+}
+
+export interface GetLlmConfigMessage extends BaseMessage {
+    type: 'GET_LLM_CONFIG'
+}
+
+export interface SetLlmConfigMessage extends BaseMessage {
+    type: 'SET_LLM_CONFIG'
+    config: Partial<LlmConfig>
+}
+
+export interface GetVocabSnapshotMessage extends BaseMessage {
+    type: 'GET_VOCAB_SNAPSHOT'
+    words?: string[]
+}
+
+export interface RefreshVocabMessage extends BaseMessage {
+    type: 'REFRESH_VOCAB'
+    force?: boolean
+}
+
+export interface GetEudicCategoriesMessage extends BaseMessage {
+    type: 'GET_EUDIC_CATEGORIES'
+    language?: string
+}
+
+export interface CreateEudicCategoryMessage extends BaseMessage {
+    type: 'CREATE_EUDIC_CATEGORY'
+    name: string
+    language?: string
+}
+
+export interface RenameEudicCategoryMessage extends BaseMessage {
+    type: 'RENAME_EUDIC_CATEGORY'
+    id: string
+    name: string
+    language?: string
+}
+
+export interface DeleteEudicCategoryMessage extends BaseMessage {
+    type: 'DELETE_EUDIC_CATEGORY'
+    id: string
+    name: string
+    language?: string
+}
+
+export interface GetEudicWordsMessage extends BaseMessage {
+    type: 'GET_EUDIC_WORDS'
+    categoryId: string
+    language?: string
+    page?: number
+    pageSize?: number
+}
+
+export interface AddEudicWordMessage extends BaseMessage {
+    type: 'ADD_EUDIC_WORD'
+    word: string
+    language?: string
+    star?: number
+    contextLine?: string
+    categoryIds?: string[]
+}
+
+export interface DeleteEudicWordsMessage extends BaseMessage {
+    type: 'DELETE_EUDIC_WORDS'
+    categoryId: string
+    words: string[]
+    language?: string
+}
+
+export interface GetEudicWordMessage extends BaseMessage {
+    type: 'GET_EUDIC_WORD'
+    word: string
+    language?: string
+}
+
+export interface ContextGlossMessage extends BaseMessage {
+    type: 'CONTEXT_GLOSS'
+    word: string
+    sentence: string
+    targetLanguage?: string
+}
+
+
 export type UIToBackgroundMessage =
-    | GetConfigMessage
-    | SetConfigMessage
-    | InitializeConfigMessage
-    | ResetConfigMessage
-    | TranslateTextMessage
     | GetHighlightsMessage
     | SaveHighlightMessage
     | UpdateHighlightMessage
@@ -286,11 +272,6 @@ export type UIToBackgroundMessage =
     | GetCurrentPageHighlightsMessage
     | LocateHighlightMessage
     | GetHighlightStatsMessage
-    | GetNotesMessage
-    | SaveNoteMessage
-    | UpdateNoteMessage
-    | DeleteNoteMessage
-    | GetNoteStatsMessage
     | GetStorageMessage
     | SetStorageMessage
     | ClearStorageMessage
@@ -307,16 +288,26 @@ export type UIToBackgroundMessage =
     | LogseqSyncHighlightMessage
     | LogseqSyncClipMessage
     | LogseqSyncAllMessage
+    | GetVocabConfigMessage
+    | SetVocabConfigMessage
+    | GetLlmConfigMessage
+    | SetLlmConfigMessage
+    | GetVocabSnapshotMessage
+    | RefreshVocabMessage
+    | GetEudicCategoriesMessage
+    | CreateEudicCategoryMessage
+    | RenameEudicCategoryMessage
+    | DeleteEudicCategoryMessage
+    | GetEudicWordsMessage
+    | AddEudicWordMessage
+    | DeleteEudicWordsMessage
+    | GetEudicWordMessage
+    | ContextGlossMessage
 
 export type BackgroundToUIMessage =
-    | ResponseMessage<TranslationConfig | TranslationRules>
-    | ResponseMessage<TranslateResponse>
     | ResponseMessage<HighlightRecord[]>
     | ResponseMessage<HighlightRecord>
     | ResponseMessage<HighlightStatsResponse>
-    | ResponseMessage<NoteRecord[]>
-    | ResponseMessage<NoteRecord>
-    | ResponseMessage<NoteStatsResponse>
     | ResponseMessage<SystemStatus>
     | ResponseMessage<LogseqConfig>
     | ResponseMessage<LogseqSyncResult>
@@ -337,4 +328,4 @@ export interface MessageUtils {
     sendMessage: <T = any>(message: UIToBackgroundMessage) => Promise<ResponseMessage<T>>
     createResponse: <T = any>(success: boolean, data?: T, error?: string) => ResponseMessage<T>
     generateRequestId: () => string
-} 
+}

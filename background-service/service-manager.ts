@@ -46,6 +46,7 @@ export class ServiceManager {
     }
 
     this.services.set(service.name, service)
+    this.serviceContext.registerServiceSlot(service.name)
     Logger.info(`[ServiceManager] Service ${service.name} registered`)
   }
 
@@ -61,6 +62,10 @@ export class ServiceManager {
 
 
   async initializeServices(): Promise<void> {
+    return this.initializeServicesInternal(false)
+  }
+
+  private async initializeServicesInternal(forceReinitialize: boolean): Promise<void> {
     if (this.services.size === 0) {
       Logger.warn('[ServiceManager] No services registered for initialization')
       return
@@ -71,19 +76,19 @@ export class ServiceManager {
       Logger.info(`[ServiceManager] Starting initialization of ${this.services.size} services`)
 
 
-      const initOrder = ['config', 'translation', 'highlight']
+      const initOrder = ['config', 'highlight', 'vocabulary']
 
       for (const serviceName of initOrder) {
         const service = this.services.get(serviceName)
         if (service) {
-          await this.initializeService(service)
+          await this.initializeService(service, forceReinitialize)
         }
       }
 
 
       for (const [name, service] of this.services) {
         if (!initOrder.includes(name)) {
-          await this.initializeService(service)
+          await this.initializeService(service, forceReinitialize)
         }
       }
 
@@ -99,11 +104,11 @@ export class ServiceManager {
   }
 
 
-  private async initializeService(service: IService): Promise<void> {
+  private async initializeService(service: IService, forceReinitialize = false): Promise<void> {
     try {
       Logger.info(`[ServiceManager] Initializing service: ${service.name}`)
 
-      if (service.isInitialized()) {
+      if (!forceReinitialize && service.isInitialized()) {
         Logger.info(`[ServiceManager] Service ${service.name} is already initialized, skipping...`)
         this.serviceContext.markServiceInitialized(service.name)
         return
@@ -154,7 +159,18 @@ export class ServiceManager {
       Logger.info('[ServiceManager] Restarting all services...')
       this.serviceContext.startRestart()
 
-      await this.initializeServices()
+      for (const [name, service] of this.services) {
+        try {
+          if (service.cleanup) {
+            await service.cleanup()
+            Logger.info(`[ServiceManager] Service ${name} cleaned up before restart`)
+          }
+        } catch (error) {
+          Logger.error(`[ServiceManager] Failed to cleanup service ${name} before restart:`, error)
+        }
+      }
+
+      await this.initializeServicesInternal(true)
 
       Logger.info('[ServiceManager] All services restarted successfully')
     } catch (error) {

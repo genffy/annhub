@@ -1,5 +1,3 @@
-import { defaultTranslationConfig, defaultTranslationRules } from './default-config'
-import type { TranslationConfig, TranslationRules } from '../../../types/translate'
 import { IService } from '../../service-manager'
 import { ResponseMessage } from '../../../types/messages'
 import { messageHandlers } from './message-handles'
@@ -27,19 +25,6 @@ export class ConfigService implements IService {
 
         try {
             Logger.info('[ConfigService] Initializing configuration service...')
-
-            const config = await browser.storage.sync.get(['translationConfig', 'translationRules'])
-
-            if (!config.translationConfig) {
-                await this.setTranslationConfig(defaultTranslationConfig)
-                Logger.info('[ConfigService] Set default translation config')
-            }
-
-            if (!config.translationRules) {
-                await this.setTranslationRules(defaultTranslationRules)
-                Logger.info('[ConfigService] Set default translation rules')
-            }
-
             this.initialized = true
             Logger.info('[ConfigService] Configuration service initialized successfully')
         } catch (error) {
@@ -54,30 +39,6 @@ export class ConfigService implements IService {
 
     isInitialized(): boolean {
         return this.initialized
-    }
-
-    async getTranslationConfig(): Promise<TranslationConfig> {
-        const result = await browser.storage.sync.get('translationConfig') as Record<string, TranslationConfig>
-        return result.translationConfig || defaultTranslationConfig
-    }
-
-    async setTranslationConfig(config: TranslationConfig): Promise<void> {
-        await browser.storage.sync.set({ translationConfig: config })
-    }
-
-    async getTranslationRules(): Promise<TranslationRules> {
-        const result = await browser.storage.sync.get('translationRules') as Record<string, TranslationRules>
-        return result.translationRules || defaultTranslationRules
-    }
-
-    async setTranslationRules(rules: TranslationRules): Promise<void> {
-        await browser.storage.sync.set({ translationRules: rules })
-    }
-
-    async resetToDefaults(): Promise<void> {
-        await this.setTranslationConfig(defaultTranslationConfig)
-        await this.setTranslationRules(defaultTranslationRules)
-        Logger.info('[ConfigService] Reset configuration to defaults')
     }
 
     async cleanup(): Promise<void> {
