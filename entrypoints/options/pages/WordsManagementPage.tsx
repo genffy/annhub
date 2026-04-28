@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { i18n } from '#i18n'
 import MessageUtils from '../../../utils/message'
 import { normalizeWord, type VocabConfigPublic } from '../../../types/vocabulary'
 import type { EudicCategory, EudicWord } from '../../../utils/eudic-openapi'
+import { Card, PageHeader, StatusMessage } from '../components/ui'
 
 const ALL_CATEGORIES_ID = '__ALL_CATEGORIES__'
 const WORDS_ROUTE_PATH = '/words'
 const CATEGORY_QUERY_KEY = 'category'
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const
+const EUDIC_API_PAGE_SIZE = 100
 
 type SortMode = 'time-desc' | 'word-asc'
 type MessageType = 'success' | 'error'
@@ -169,8 +172,8 @@ export default function WordsManagementPage() {
         [categories, selectedCategoryId],
     )
     const managerCategoryLabel = selectedCategoryId === ALL_CATEGORIES_ID
-        ? '全部生词本'
-        : (selectedCategory?.name || '未选择生词本')
+        ? i18n.t('options.words.allCategories')
+        : (selectedCategory?.name || i18n.t('options.words.noCategorySelected'))
 
     const showMessage = useCallback((text: string, type: MessageType = 'success') => {
         setMessage({ text, type })
@@ -202,7 +205,7 @@ export default function WordsManagementPage() {
             })
 
             if (!res.success || !res.data) {
-                throw new Error(res.error || 'Failed to load categories')
+                throw new Error(res.error || i18n.t('network.error'))
             }
 
             const next = sortCategories(res.data)
@@ -224,7 +227,7 @@ export default function WordsManagementPage() {
             })
             return next
         } catch (error) {
-            showMessage(`Failed to load categories: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
+            showMessage(i18n.t('options.words.errors.loadCategories', [error instanceof Error ? error.message : i18n.t('options.words.errors.unknown')]), 'error')
             return []
         } finally {
             setIsLoadingCategories(false)
@@ -233,8 +236,7 @@ export default function WordsManagementPage() {
 
     const fetchAllWordsByCategory = useCallback(async (categoryId: string): Promise<EudicWord[]> => {
         const words: EudicWord[] = []
-        // NOTE: OpenAPI `studylist/words` pagination is zero-based in practice.
-        let page = 0
+        let page = 1
         let hasMore = true
 
         while (hasMore) {
@@ -243,11 +245,11 @@ export default function WordsManagementPage() {
                 categoryId,
                 language: 'en',
                 page,
-                pageSize: 200,
+                pageSize: EUDIC_API_PAGE_SIZE,
             })
 
             if (!res.success || !res.data) {
-                throw new Error(res.error || 'Failed to load words')
+                throw new Error(res.error || i18n.t('network.error'))
             }
 
             words.push(...res.data.words)
@@ -293,7 +295,7 @@ export default function WordsManagementPage() {
             }
         } catch (error) {
             setRawWords([])
-            showMessage(`Failed to load words: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
+            showMessage(i18n.t('options.words.errors.loadWords', [error instanceof Error ? error.message : i18n.t('options.words.errors.unknown')]), 'error')
         } finally {
             setIsLoadingWords(false)
         }
@@ -328,7 +330,7 @@ export default function WordsManagementPage() {
     const handleCreateCategory = async () => {
         const name = newCategoryName.trim()
         if (!name) {
-            showMessage('Please input category name', 'error')
+            showMessage(i18n.t('options.words.errors.inputCategoryName'), 'error')
             return
         }
 
@@ -340,13 +342,13 @@ export default function WordsManagementPage() {
                 language: 'en',
             })
             if (!res.success) {
-                throw new Error(res.error || 'Failed to create category')
+                throw new Error(res.error || i18n.t('network.error'))
             }
             setNewCategoryName('')
-            showMessage(`Category "${name}" created`)
+            showMessage(i18n.t('options.words.messages.categoryCreated', [name]))
             await loadCategories()
         } catch (error) {
-            showMessage(`Create failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
+            showMessage(i18n.t('options.words.messages.createFailed', [error instanceof Error ? error.message : i18n.t('options.words.errors.unknown')]), 'error')
         } finally {
             setIsCategorySubmitting(false)
         }
@@ -354,11 +356,11 @@ export default function WordsManagementPage() {
 
     const handleRenameCategory = async () => {
         if (!selectedCategory || selectedCategoryId === ALL_CATEGORIES_ID) {
-            showMessage('Please select one category first', 'error')
+            showMessage(i18n.t('options.words.errors.selectCategory'), 'error')
             return
         }
 
-        const nextName = window.prompt('请输入新的生词本名称', selectedCategory.name)?.trim()
+        const nextName = window.prompt(i18n.t('options.words.prompts.renameCategory'), selectedCategory.name)?.trim()
         if (!nextName || nextName === selectedCategory.name) {
             return
         }
@@ -372,12 +374,12 @@ export default function WordsManagementPage() {
                 language: selectedCategory.language || 'en',
             })
             if (!res.success) {
-                throw new Error(res.error || 'Failed to rename category')
+                throw new Error(res.error || i18n.t('network.error'))
             }
-            showMessage('Category renamed')
+            showMessage(i18n.t('options.words.messages.categoryRenamed'))
             await loadCategories()
         } catch (error) {
-            showMessage(`Rename failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
+            showMessage(i18n.t('options.words.messages.renameFailed', [error instanceof Error ? error.message : i18n.t('options.words.errors.unknown')]), 'error')
         } finally {
             setIsCategorySubmitting(false)
         }
@@ -385,15 +387,15 @@ export default function WordsManagementPage() {
 
     const handleDeleteCategory = async () => {
         if (!selectedCategory || selectedCategoryId === ALL_CATEGORIES_ID) {
-            showMessage('Please select one category first', 'error')
+            showMessage(i18n.t('options.words.errors.selectCategory'), 'error')
             return
         }
         if (selectedCategory.id === '0') {
-            showMessage('Default category cannot be deleted', 'error')
+            showMessage(i18n.t('options.words.errors.defaultCategoryDelete'), 'error')
             return
         }
 
-        const confirmed = window.confirm(`确定删除生词本 "${selectedCategory.name}" 吗？`)
+        const confirmed = window.confirm(i18n.t('options.words.prompts.confirmDeleteCategory', [selectedCategory.name]))
         if (!confirmed) return
 
         setIsCategorySubmitting(true)
@@ -405,17 +407,17 @@ export default function WordsManagementPage() {
                 language: selectedCategory.language || 'en',
             })
             if (!res.success) {
-                throw new Error(res.error || 'Failed to delete category')
+                throw new Error(res.error || i18n.t('network.error'))
             }
 
-            showMessage('Category deleted')
+            showMessage(i18n.t('options.words.messages.categoryDeleted'))
 
             const nextCategories = await loadCategories()
             const fallbackCategoryId = nextCategories[0]?.id ?? ALL_CATEGORIES_ID
             setSelectedCategoryId(fallbackCategoryId)
             await loadWords(nextCategories, fallbackCategoryId)
         } catch (error) {
-            showMessage(`Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
+            showMessage(i18n.t('options.words.messages.deleteFailed', [error instanceof Error ? error.message : i18n.t('options.words.errors.unknown')]), 'error')
         } finally {
             setIsCategorySubmitting(false)
         }
@@ -433,7 +435,7 @@ export default function WordsManagementPage() {
                     language: 'en',
                 })
                 if (!detailRes.success || !detailRes.data) {
-                    throw new Error(detailRes.error || 'Failed to query categories for this word')
+                    throw new Error(detailRes.error || i18n.t('options.words.errors.queryCategories'))
                 }
 
                 const categoryIds = (detailRes.data.category_ids || []).map(String)
@@ -449,7 +451,7 @@ export default function WordsManagementPage() {
                         language: 'en',
                     })
                     if (!deleteRes.success) {
-                        throw new Error(deleteRes.error || `Failed to delete word "${word}"`)
+                        throw new Error(deleteRes.error || i18n.t('options.words.messages.deleteFailed', [word]))
                     }
                 }
             }
@@ -463,18 +465,18 @@ export default function WordsManagementPage() {
             language: 'en',
         })
         if (!deleteRes.success) {
-            throw new Error(deleteRes.error || 'Failed to delete words')
+            throw new Error(deleteRes.error || i18n.t('network.error'))
         }
     }, [selectedCategoryId])
 
     const handleAddWord = async () => {
         const word = newWord.trim()
         if (!word) {
-            showMessage('Please input a word', 'error')
+            showMessage(i18n.t('options.words.errors.inputWord'), 'error')
             return
         }
         if (selectedCategoryId === ALL_CATEGORIES_ID) {
-            showMessage('Please select one category before adding a word', 'error')
+            showMessage(i18n.t('options.words.errors.selectCategoryBeforeAdd'), 'error')
             return
         }
 
@@ -487,20 +489,20 @@ export default function WordsManagementPage() {
                 categoryIds: [selectedCategoryId],
             })
             if (!res.success) {
-                throw new Error(res.error || 'Failed to add word')
+                throw new Error(res.error || i18n.t('network.error'))
             }
             setNewWord('')
-            showMessage(`Added "${word}"`)
+            showMessage(i18n.t('options.words.messages.wordAdded', [word]))
             await loadWords()
         } catch (error) {
-            showMessage(`Add failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
+            showMessage(i18n.t('options.words.messages.addFailed', [error instanceof Error ? error.message : i18n.t('options.words.errors.unknown')]), 'error')
         } finally {
             setIsWordSubmitting(false)
         }
     }
 
     const handleDeleteWord = async (word: string) => {
-        const confirmed = window.confirm(`确认删除单词 "${word}" 吗？`)
+        const confirmed = window.confirm(i18n.t('options.words.prompts.confirmDeleteWord', [word]))
         if (!confirmed) return
 
         setDeletingWord(word)
@@ -511,10 +513,10 @@ export default function WordsManagementPage() {
                 next.delete(getWordKey(word))
                 return next
             })
-            showMessage(`Deleted "${word}"`)
+            showMessage(i18n.t('options.words.messages.wordDeleted', [word]))
             await loadWords()
         } catch (error) {
-            showMessage(`Delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
+            showMessage(i18n.t('options.words.messages.deleteFailed', [error instanceof Error ? error.message : i18n.t('options.words.errors.unknown')]), 'error')
         } finally {
             setDeletingWord(null)
         }
@@ -613,21 +615,21 @@ export default function WordsManagementPage() {
 
     const handleBatchDelete = async () => {
         if (selectedWordList.length === 0) {
-            showMessage('请先勾选要删除的单词', 'error')
+            showMessage(i18n.t('options.words.errors.selectWords'), 'error')
             return
         }
 
-        const confirmed = window.confirm(`确认删除选中的 ${selectedWordList.length} 个单词吗？`)
+        const confirmed = window.confirm(i18n.t('options.words.prompts.confirmDeleteWords', [selectedWordList.length]))
         if (!confirmed) return
 
         setIsBatchDeleting(true)
         try {
             await deleteWordsInCurrentScope(selectedWordList)
-            showMessage(`Deleted ${selectedWordList.length} words`)
+            showMessage(i18n.t('options.words.messages.wordsDeleted', [selectedWordList.length]))
             setSelectedWordKeys(new Set())
             await loadWords()
         } catch (error) {
-            showMessage(`Batch delete failed: ${error instanceof Error ? error.message : 'Unknown error'}`, 'error')
+            showMessage(i18n.t('options.words.messages.batchDeleteFailed', [error instanceof Error ? error.message : i18n.t('options.words.errors.unknown')]), 'error')
         } finally {
             setIsBatchDeleting(false)
         }
@@ -663,18 +665,21 @@ export default function WordsManagementPage() {
     }
 
     return (
-        <div className="content-section">
-            <h2>Words Management</h2>
+        <Card>
+            <PageHeader
+                title={i18n.t('options.words.name')}
+                description={i18n.t('options.words.description')}
+            />
             <div className="vocab-settings">
                 {message && (
-                    <div className={`settings-message ${message.type === 'error' ? 'settings-message--error' : ''}`}>
+                    <StatusMessage tone={message.type} className="mb-4">
                         {message.text}
-                    </div>
+                    </StatusMessage>
                 )}
 
                 {!canManageWords && (
                     <div className="vocab-manager-empty">
-                        Please configure and save Eudic token in Settings → Vocabulary Labeling first.
+                        {i18n.t('options.words.configureToken')}
                     </div>
                 )}
 
@@ -682,13 +687,13 @@ export default function WordsManagementPage() {
                     <div className="vocab-manager">
                         <aside className="vocab-manager-sidebar">
                             <div className="vocab-manager-sidebar-header">
-                                <span>生词本</span>
+                                <span>{i18n.t('options.words.categories')}</span>
                                 <button
                                     type="button"
                                     onClick={() => { void loadCategories() }}
                                     disabled={isLoadingCategories}
                                 >
-                                    {isLoadingCategories ? '刷新中…' : '刷新'}
+                                    {isLoadingCategories ? i18n.t('options.words.refreshing') : i18n.t('options.words.refresh')}
                                 </button>
                             </div>
 
@@ -697,14 +702,14 @@ export default function WordsManagementPage() {
                                     type="text"
                                     value={newCategoryName}
                                     onChange={e => setNewCategoryName(e.target.value)}
-                                    placeholder="新建生词本名称"
+                                    placeholder={i18n.t('options.words.createCategoryPlaceholder')}
                                 />
                                 <button
                                     type="button"
                                     onClick={handleCreateCategory}
                                     disabled={isCategorySubmitting || !newCategoryName.trim()}
                                 >
-                                    新建
+                                    {i18n.t('options.words.create')}
                                 </button>
                             </div>
 
@@ -713,7 +718,7 @@ export default function WordsManagementPage() {
                                 className={`vocab-manager-category ${selectedCategoryId === ALL_CATEGORIES_ID ? 'active' : ''}`}
                                 onClick={() => setSelectedCategoryId(ALL_CATEGORIES_ID)}
                             >
-                                全部生词本
+                                {i18n.t('options.words.allCategories')}
                             </button>
 
                             <div className="vocab-manager-category-list">
@@ -734,16 +739,16 @@ export default function WordsManagementPage() {
                             <div className="vocab-manager-header">
                                 <div>
                                     <h4>{managerCategoryLabel}</h4>
-                                    <p>共{rawWords.length}词</p>
+                                    <p>{i18n.t('options.words.wordCount', [rawWords.length])}</p>
                                 </div>
                                 <div className="vocab-manager-header-actions">
                                     <label className="vocab-manager-toolbar-item vocab-manager-toolbar-search">
-                                        <span>搜索：</span>
+                                        <span>{i18n.t('options.words.searchLabel')}</span>
                                         <input
                                             type="text"
                                             value={managerSearch}
                                             onChange={e => setManagerSearch(e.target.value)}
-                                            placeholder="搜索"
+                                            placeholder={i18n.t('options.words.searchPlaceholder')}
                                         />
                                     </label>
                                     <label className="vocab-manager-toolbar-item">
@@ -751,12 +756,12 @@ export default function WordsManagementPage() {
                                             value={managerSort}
                                             onChange={e => setManagerSort(e.target.value as SortMode)}
                                         >
-                                            <option value="time-desc">按时间排序</option>
-                                            <option value="word-asc">按单词排序</option>
+                                            <option value="time-desc">{i18n.t('options.words.sortByTime')}</option>
+                                            <option value="word-asc">{i18n.t('options.words.sortByWord')}</option>
                                         </select>
                                     </label>
                                     <label className="vocab-manager-toolbar-item">
-                                        <span className="vocab-manager-operation-label">操作</span>
+                                        <span className="vocab-manager-operation-label">{i18n.t('options.words.operation')}</span>
                                         <select
                                             value={operationAction}
                                             onChange={e => {
@@ -765,18 +770,18 @@ export default function WordsManagementPage() {
                                                 void handleOperationSelect(action)
                                             }}
                                         >
-                                            <option value="">操作</option>
+                                            <option value="">{i18n.t('options.words.operation')}</option>
                                             <option
                                                 value="delete-selected"
                                                 disabled={selectedWordList.length === 0 || isBatchDeleting}
                                             >
-                                                删除选中单词
+                                                {i18n.t('options.words.deleteSelected')}
                                             </option>
                                             <option
                                                 value="rename-category"
                                                 disabled={selectedCategoryId === ALL_CATEGORIES_ID || isCategorySubmitting}
                                             >
-                                                重命名当前生词本
+                                                {i18n.t('options.words.renameCategory')}
                                             </option>
                                             <option
                                                 value="delete-category"
@@ -786,7 +791,7 @@ export default function WordsManagementPage() {
                                                     || isCategorySubmitting
                                                 }
                                             >
-                                                删除当前生词本
+                                                {i18n.t('options.words.deleteCategory')}
                                             </option>
                                         </select>
                                     </label>
@@ -798,7 +803,7 @@ export default function WordsManagementPage() {
                                     type="text"
                                     value={newWord}
                                     onChange={e => setNewWord(e.target.value)}
-                                    placeholder={selectedCategoryId === ALL_CATEGORIES_ID ? '请先选择生词本' : '输入要添加的单词'}
+                                    placeholder={selectedCategoryId === ALL_CATEGORIES_ID ? i18n.t('options.words.selectCategoryBeforeAdd') : i18n.t('options.words.addWordPlaceholder')}
                                     disabled={selectedCategoryId === ALL_CATEGORIES_ID}
                                 />
                                 <button
@@ -806,14 +811,14 @@ export default function WordsManagementPage() {
                                     onClick={handleAddWord}
                                     disabled={isWordSubmitting || selectedCategoryId === ALL_CATEGORIES_ID || !newWord.trim()}
                                 >
-                                    {isWordSubmitting ? '添加中…' : '添加单词'}
+                                    {isWordSubmitting ? i18n.t('options.words.addingWord') : i18n.t('options.words.addWord')}
                                 </button>
                                 <button
                                     type="button"
                                     onClick={() => { void loadWords() }}
                                     disabled={isLoadingWords}
                                 >
-                                    {isLoadingWords ? '刷新中…' : '刷新词表'}
+                                    {isLoadingWords ? i18n.t('options.words.refreshing') : i18n.t('options.words.refreshWords')}
                                 </button>
                             </div>
 
@@ -827,27 +832,27 @@ export default function WordsManagementPage() {
                                                     type="checkbox"
                                                     checked={isAllCurrentPageSelected}
                                                     onChange={e => handleToggleAllCurrentPage(e.target.checked)}
-                                                    aria-label="Select current page"
+                                                    aria-label={i18n.t('options.words.table.selectCurrentPage')}
                                                 />
                                             </th>
-                                            <th>序号</th>
-                                            <th>单词</th>
-                                            <th>音标</th>
-                                            <th>释义</th>
-                                            <th>等级</th>
-                                            <th>操作</th>
+                                            <th>{i18n.t('options.words.table.index')}</th>
+                                            <th>{i18n.t('options.words.table.word')}</th>
+                                            <th>{i18n.t('options.words.table.phonetic')}</th>
+                                            <th>{i18n.t('options.words.table.meaning')}</th>
+                                            <th>{i18n.t('options.words.table.level')}</th>
+                                            <th>{i18n.t('options.words.table.action')}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {isLoadingWords && (
                                             <tr>
-                                                <td colSpan={7} className="vocab-manager-empty-row">词条加载中…</td>
+                                                <td colSpan={7} className="vocab-manager-empty-row">{i18n.t('options.words.loadingWords')}</td>
                                             </tr>
                                         )}
                                         {!isLoadingWords && displayedWords.length === 0 && (
                                             <tr>
                                                 <td colSpan={7} className="vocab-manager-empty-row">
-                                                    {managerSearch.trim() ? '没有匹配结果' : '当前生词本暂无词条'}
+                                                    {managerSearch.trim() ? i18n.t('options.words.noMatchedWords') : i18n.t('options.words.emptyWords')}
                                                 </td>
                                             </tr>
                                         )}
@@ -889,7 +894,7 @@ export default function WordsManagementPage() {
                                                             onClick={() => { void handleDeleteWord(word.word) }}
                                                             disabled={deletingWord === word.word}
                                                         >
-                                                            {deletingWord === word.word ? '删除中…' : '删除'}
+                                                            {deletingWord === word.word ? i18n.t('options.words.deleting') : i18n.t('options.words.delete')}
                                                         </button>
                                                     </td>
                                                 </tr>
@@ -907,7 +912,7 @@ export default function WordsManagementPage() {
                                         onClick={() => setManagerPage(prev => Math.max(1, prev - 1))}
                                         disabled={managerPage <= 1}
                                     >
-                                        &lt;
+                                        {i18n.t('options.words.previousPage')}
                                     </button>
                                     {paginationItems.map((item, idx) => (
                                         item === 'ellipsis'
@@ -929,12 +934,12 @@ export default function WordsManagementPage() {
                                         onClick={() => setManagerPage(prev => Math.min(totalPages, prev + 1))}
                                         disabled={managerPage >= totalPages}
                                     >
-                                        &gt;
+                                        {i18n.t('options.words.nextPage')}
                                     </button>
                                 </div>
 
                                 <div className="vocab-manager-pagination-jump">
-                                    <span>第</span>
+                                    <span>{i18n.t('options.words.pagePrefix')}</span>
                                     <input
                                         type="number"
                                         min={1}
@@ -947,13 +952,12 @@ export default function WordsManagementPage() {
                                             }
                                         }}
                                     />
-                                    <span>页</span>
                                     <button
                                         type="button"
                                         className="page-jump-btn"
                                         onClick={handleJumpToPage}
                                     >
-                                        转到
+                                        {i18n.t('options.words.goToPage')}
                                     </button>
                                 </div>
 
@@ -963,7 +967,7 @@ export default function WordsManagementPage() {
                                         onChange={e => setManagerPageSize(Number(e.target.value))}
                                     >
                                         {PAGE_SIZE_OPTIONS.map(size => (
-                                            <option key={size} value={size}>{size} 条/页</option>
+                                            <option key={size} value={size}>{i18n.t('options.words.pageSize', [size])}</option>
                                         ))}
                                     </select>
                                 </div>
@@ -972,6 +976,6 @@ export default function WordsManagementPage() {
                     </div>
                 )}
             </div>
-        </div>
+        </Card>
     )
 }

@@ -1,46 +1,41 @@
 import { useState } from 'react'
+import { BookOpen, RefreshCw } from 'lucide-react'
 import LogseqPage from './LogseqPage'
 import VocabPage from './VocabPage'
+import { Card, PageHeader } from '../components/ui'
 
 type SettingsTab = 'logseq' | 'vocab'
 
-const TABS: Array<{ id: SettingsTab; label: string; icon: string }> = [
-    { id: 'logseq', label: 'Logseq Sync', icon: '🔄' },
-    { id: 'vocab', label: 'Vocabulary Labeling', icon: '📚' },
+const TABS = [
+  { id: 'logseq', label: 'Logseq Sync', icon: RefreshCw },
+  { id: 'vocab', label: 'Vocabulary Labeling', icon: BookOpen },
 ]
 
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState<SettingsTab>('logseq')
+  const [activeTab, setActiveTab] = useState<SettingsTab>('logseq')
 
-    return (
-        <div className="content-section">
-            <h2>Settings</h2>
-            <p className="section-description">
-                Configure sync, vocabulary labeling, and model options.
-            </p>
+  return (
+    <Card>
+      <PageHeader title="Settings" description="Configure sync, vocabulary labeling, and model options." />
 
-            <div className="tab-container">
-                <div className="tab-nav">
-                    {TABS.map(tab => (
-                        <button
-                            key={tab.id}
-                            type="button"
-                            className={`tab-button ${activeTab === tab.id ? 'active' : ''}`}
-                            onClick={() => setActiveTab(tab.id)}
-                        >
-                            <span className="tab-icon">{tab.icon}</span>
-                            <span className="tab-label">{tab.label}</span>
-                        </button>
-                    ))}
-                </div>
+      <div className="mb-6 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
+              activeTab === tab.id ? 'bg-slate-950 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100 hover:text-slate-950'
+            }`}
+            onClick={() => setActiveTab(tab.id as SettingsTab)}
+          >
+            <tab.icon className="h-4 w-4" />
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-                <div className="tab-content-wrapper">
-                    <div className="tab-content">
-                        {activeTab === 'logseq' && <LogseqPage embedded />}
-                        {activeTab === 'vocab' && <VocabPage embedded />}
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
+      {activeTab === 'logseq' && <LogseqPage embedded />}
+      {activeTab === 'vocab' && <VocabPage embedded />}
+    </Card>
+  )
 }
