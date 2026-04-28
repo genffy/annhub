@@ -1,5 +1,7 @@
 // ── Vocabulary Config ──
 
+export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2'
+
 export interface VocabConfig {
     enabled: boolean
     eudicToken: string
@@ -7,6 +9,7 @@ export interface VocabConfig {
     masteryThreshold: number
     syncPeriodMinutes: number
     maxAnnotationsPerPage: number
+    cefrLevel: CEFRLevel
     domainWhitelist: {
         enabled: boolean
         domains: string[]
@@ -20,6 +23,7 @@ export const defaultVocabConfig: VocabConfig = {
     masteryThreshold: 3,
     syncPeriodMinutes: 60,
     maxAnnotationsPerPage: 200,
+    cefrLevel: 'B1',
     domainWhitelist: {
         enabled: false,
         domains: [],

@@ -27,6 +27,7 @@
     "format": "prettier --write '**/*.{tsx,ts,json,css,scss,md}'"
   },
   "dependencies": {
+    "@mozilla/readability": "^0.6.0",
     "@radix-ui/react-slot": "^1.2.3",
     "@webext-core/proxy-service": "^2.0.0",
     "@wxt-dev/i18n": "^0.2.4",

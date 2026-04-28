@@ -152,8 +152,8 @@ export async function fetchWords(
     token: string,
     categoryId: string,
     language = 'en',
-    // NOTE: OpenAPI `studylist/words` pagination is zero-based in practice.
-    page = 0,
+    // Eudic OpenAPI `studylist/words` uses one-based pagination.
+    page = 1,
     pageSize = 100,
 ): Promise<{ words: EudicWord[]; hasMore: boolean }> {
     const payload = await eudicRequest<EudicWord[]>(token, '/studylist/words', {
@@ -224,8 +224,7 @@ export async function fetchAllWords(
     const allWords: EudicWord[] = []
 
     for (const categoryId of categoryIds) {
-        // NOTE: OpenAPI `studylist/words` pagination is zero-based in practice.
-        let page = 0
+        let page = 1
         let hasMore = true
 
         while (hasMore) {

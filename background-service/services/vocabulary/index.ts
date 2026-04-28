@@ -260,8 +260,7 @@ export class VocabularyService implements IService {
     ): Promise<{ words: EudicWord[]; hasMore: boolean }> {
         const token = await this.getEudicToken()
         const language = options.language ?? 'en'
-        // NOTE: OpenAPI `studylist/words` pagination is zero-based in practice.
-        const page = options.page ?? 0
+        const page = options.page ?? 1
         const pageSize = options.pageSize ?? 200
         return fetchWords(token, categoryId, language, page, pageSize)
     }
