@@ -187,6 +187,19 @@ function unwrapAnnotationElement(el: Element): void {
 
   const parent = el.parentNode
   if (!parent) return
+
+  if (el.tagName === 'RUBY') {
+    // Restore only the base text when removing annotation markers.
+    // Do not reinsert <rt>/<rp> nodes into document flow.
+    const baseText = Array.from(el.childNodes)
+      .filter(node => !(node instanceof HTMLElement && (node.tagName === 'RT' || node.tagName === 'RP')))
+      .map(node => node.textContent ?? '')
+      .join('')
+    parent.insertBefore(document.createTextNode(baseText), el)
+    parent.removeChild(el)
+    return
+  }
+
   while (el.firstChild) {
     parent.insertBefore(el.firstChild, el)
   }

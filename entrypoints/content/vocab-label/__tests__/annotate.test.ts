@@ -333,6 +333,28 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     expect(document.querySelectorAll('[data-ann-vocab]').length).toBe(0)
   })
 
+  it('cleanupAnnotations does not leak ruby rt text into body', async () => {
+    setupDOM('<p>The ubiquitous phenomenon appears.</p>')
+
+    mockSendMessage.mockImplementation(async () => ({
+      success: true,
+      data: { gloss: '释义', source: 'llm' },
+    }))
+
+    const before = (document.body.textContent || '').replace(/\s+/g, ' ').trim()
+    const ctx = makeCtx({ userCEFRLevel: 'A1' })
+
+    await annotateVisibleText(ctx)
+    expect(document.querySelectorAll('ruby[data-ann-vocab] rt').length).toBeGreaterThan(0)
+
+    cleanupAnnotations()
+
+    expect(document.querySelectorAll('rt').length).toBe(0)
+    const after = (document.body.textContent || '').replace(/\s+/g, ' ').trim()
+    expect(after).toBe(before)
+    expect(after).not.toContain('释义')
+  })
+
   it('B1 user sees B2/C1 words but not A1/A2/B1 words', async () => {
     // "robust" is C1, "ubiquitous" is not in CEFR (→ LLM) — both should be annotated
     // "help" is A1, "become" is A1, "abandon" is B1 — all filtered at B1
