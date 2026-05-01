@@ -2,6 +2,7 @@ import { isEnglishPage, shouldAnnotateDomain } from './detect-page'
 import { injectVocabStyles, removeVocabStyles } from './styles'
 import { annotateVisibleText, cleanupAnnotations, resetVocabLabelRuntimeState } from './annotate'
 import { collectAnnotatableBlocks, resolveContentRoot, ANNOTATABLE_BLOCK_SELECTOR, isExcludedSection } from './content-scope'
+import { getActivePlatformRule } from './platform-rules'
 import { isElementWithinViewportWindow } from './viewport'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
@@ -161,6 +162,20 @@ function collectBlocksFromNode(node: Node): Element[] {
   if (!activeContentRoot) return []
 
   const collected = new Set<Element>()
+  const platformRule = getActivePlatformRule()
+
+  if (platformRule) {
+    const platformRoot = node.nodeType === Node.TEXT_NODE ? node.parentElement : node instanceof Element ? node : null
+    if (platformRoot) {
+      for (const block of platformRule.collectBlocks(platformRoot)) {
+        if (activeContentRoot.contains(block)) {
+          collected.add(block)
+        }
+      }
+    }
+
+    if (collected.size > 0) return Array.from(collected)
+  }
 
   const addIfBlock = (el: Element | null): void => {
     if (!el) return

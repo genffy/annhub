@@ -8,6 +8,35 @@ import { isWithinViewportWindowByRect } from './viewport'
 const MARKER_ATTR = 'data-ann-vocab'
 const HIDDEN_SELECTOR = '[hidden], [aria-hidden="true"], .sr-only, .visually-hidden, [class*="sr-only"]'
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'SELECT', 'CODE', 'PRE', 'SVG', 'CANVAS', 'VIDEO', 'AUDIO', 'IFRAME', 'NOSCRIPT'])
+const INTERACTIVE_TEXT_SELECTOR = [
+  'a[href]',
+  'button',
+  '[role="button"]',
+  '[role="link"]',
+  '[role="menuitem"]',
+  '[role="tab"]',
+  '[role="switch"]',
+  '[role="checkbox"]',
+  '[role="radio"]',
+  '[contenteditable="true"]',
+].join(',')
+const SHORT_UI_LABELS = new Set([
+  'like',
+  'dislike',
+  'repost',
+  'quote',
+  'comment',
+  'commit',
+  'reply',
+  'share',
+  'bookmark',
+  'follow',
+  'following',
+  'subscribe',
+  'more',
+  'view',
+  'views',
+])
 
 const WORD_RE = /\b[a-zA-Z]{2,}\b/g
 const GLOSS_L1_CACHE_MAX = 600
@@ -82,7 +111,7 @@ function hashSentence(sentence: string): string {
   return hash.toString(36)
 }
 
-function shouldSkip(node: Node, contentRoot?: Element, restrictToFeedArticles = false): boolean {
+function shouldSkip(node: Node, contentRoot?: Element, restrictToFeedArticles = false, annotationRoot?: Element): boolean {
   if (!node.parentElement) return true
 
   const el = node.parentElement
@@ -91,6 +120,8 @@ function shouldSkip(node: Node, contentRoot?: Element, restrictToFeedArticles = 
   if (restrictToFeedArticles && !el.closest('article, [role="article"]')) return true
   if (isExcludedSection(el)) return true
   if (el.closest(HIDDEN_SELECTOR)) return true
+  if (isWithinInteractiveText(el, annotationRoot)) return true
+  if (isShortUiLabel(node.textContent || '')) return true
 
   if (el.closest(`[${MARKER_ATTR}]`)) return true
   if (el.isContentEditable) return true
@@ -100,6 +131,23 @@ function shouldSkip(node: Node, contentRoot?: Element, restrictToFeedArticles = 
   if (el.closest('ann-selection')) return true
 
   return false
+}
+
+function isWithinInteractiveText(el: Element, annotationRoot?: Element): boolean {
+  const interactiveAncestor = el.closest(INTERACTIVE_TEXT_SELECTOR)
+  if (!interactiveAncestor) return false
+
+  // Platform rules can provide a precise content root inside an outer clickable
+  // card, e.g. X quoted tweets. Keep skipping links/buttons inside that root.
+  if (annotationRoot && !annotationRoot.contains(interactiveAncestor)) return false
+
+  return true
+}
+
+function isShortUiLabel(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase()
+  if (!normalized || normalized.length > 24) return false
+  return SHORT_UI_LABELS.has(normalized)
 }
 
 function getSentenceContext(textNode: Text): string {
@@ -310,14 +358,13 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
   }
 }
 
-function collectTextNodes(roots: Element[], contentRoot?: Element, restrictToFeedArticles = false): Text[] {
-  const visited = new Set<Text>()
+function collectTextNodes(roots: Element[], contentRoot?: Element, restrictToFeedArticles = false, visited = new Set<Text>()): Text[] {
   const nodes: Text[] = []
 
   for (const root of roots) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node: Node) {
-        if (shouldSkip(node, contentRoot, restrictToFeedArticles)) return NodeFilter.FILTER_REJECT
+        if (shouldSkip(node, contentRoot, restrictToFeedArticles, root)) return NodeFilter.FILTER_REJECT
         const tn = node as Text
         if (!tn.textContent?.trim()) return NodeFilter.FILTER_REJECT
         return NodeFilter.FILTER_ACCEPT
@@ -336,6 +383,31 @@ function collectTextNodes(roots: Element[], contentRoot?: Element, restrictToFee
   }
 
   return nodes
+}
+
+function applyPendingAnnotations(pending: PendingItem[]): number {
+  let appliedCount = 0
+
+  // Reverse apply to protect offsets in same text node.
+  for (let i = pending.length - 1; i >= 0; i--) {
+    const item = pending[i]
+    try {
+      const range = document.createRange()
+      range.setStart(item.textNode, item.startOffset)
+      range.setEnd(item.textNode, item.endOffset)
+
+      if (item.gloss) {
+        wrapWordWithRuby(range, item.gloss)
+      } else {
+        wrapWordWithUnderline(range)
+      }
+      appliedCount++
+    } catch {
+      // Node may be modified externally between collect/apply phases.
+    }
+  }
+
+  return appliedCount
 }
 
 async function resolvePendingGlosses(pending: PendingItem[]): Promise<void> {
@@ -417,39 +489,27 @@ export async function annotateVisibleText(ctx: AnnotationContext, options?: Anno
   const restrictToFeedArticles = Boolean(
     ctx.contentRoot && ctx.contentRoot.querySelectorAll('article, [role="article"]').length >= 2,
   )
-  const textNodes = collectTextNodes(roots, ctx.contentRoot, restrictToFeedArticles)
-  if (textNodes.length === 0) return 0
-
-  const pending: PendingItem[] = []
-
-  for (const textNode of textNodes) {
-    if (pending.length >= budget) break
-    collectMatches(textNode, ctx, pending, budget)
-  }
-
-  if (pending.length === 0) return 0
-
-  await resolvePendingGlosses(pending)
-
   let appliedCount = 0
+  const visitedTextNodes = new Set<Text>()
 
-  // Reverse apply to protect offsets in same text node.
-  for (let i = pending.length - 1; i >= 0; i--) {
-    const item = pending[i]
-    try {
-      const range = document.createRange()
-      range.setStart(item.textNode, item.startOffset)
-      range.setEnd(item.textNode, item.endOffset)
+  for (const root of roots) {
+    const remainingBudget = budget - appliedCount
+    if (remainingBudget <= 0) break
 
-      if (item.gloss) {
-        wrapWordWithRuby(range, item.gloss)
-      } else {
-        wrapWordWithUnderline(range)
-      }
-      appliedCount++
-    } catch {
-      // Node may be modified externally between collect/apply phases.
+    const textNodes = collectTextNodes([root], ctx.contentRoot, restrictToFeedArticles, visitedTextNodes)
+    if (textNodes.length === 0) continue
+
+    const pending: PendingItem[] = []
+
+    for (const textNode of textNodes) {
+      if (pending.length >= remainingBudget) break
+      collectMatches(textNode, ctx, pending, remainingBudget)
     }
+
+    if (pending.length === 0) continue
+
+    await resolvePendingGlosses(pending)
+    appliedCount += applyPendingAnnotations(pending)
   }
 
   return appliedCount

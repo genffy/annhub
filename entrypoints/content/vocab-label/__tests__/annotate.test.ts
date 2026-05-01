@@ -265,6 +265,109 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     expect(visibleRuby).toBeTruthy()
   })
 
+  it('skips link text without suppressing nearby content', async () => {
+    setupDOM(`
+      <p>
+        <a href="https://example.com">Extraordinary reference</a>
+        <span>Ubiquitous visible token</span>
+      </p>
+    `)
+
+    mockSendMessage.mockImplementation(async () => ({
+      success: true,
+      data: { gloss: '释义', source: 'llm' },
+    }))
+
+    const ctx = makeCtx()
+
+    await annotateVisibleText(ctx)
+
+    expect(document.querySelector('a ruby[data-ann-vocab]')).toBeNull()
+    expect(document.querySelector('span ruby[data-ann-vocab]')).not.toBeNull()
+  })
+
+  it('annotates a platform content block nested inside an outer clickable card', async () => {
+    setupDOM(`
+      <div role="link">
+        <div data-testid="tweetText">
+          <span>Ubiquitous quoted content.</span>
+          <a href="https://example.com">Extraordinary link</a>
+        </div>
+      </div>
+    `)
+
+    mockSendMessage.mockImplementation(async () => ({
+      success: true,
+      data: { gloss: '释义', source: 'llm' },
+    }))
+
+    const root = document.querySelector('[data-testid="tweetText"]') as Element
+    const ctx = makeCtx({ contentRoot: document.body })
+
+    await annotateVisibleText(ctx, { roots: [root] })
+
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
+      .map(r => r.firstChild?.textContent?.toLowerCase())
+
+    expect(annotatedWords).toContain('ubiquitous')
+    expect(annotatedWords).not.toContain('extraordinary')
+  })
+
+  it('resolves LLM glosses per content block instead of letting the first block consume the batch quota', async () => {
+    setupDOM(`
+      <div id="first">
+        Zyphoria blorptastic quendovar nimbulary vextronic lumifrax gravitonix
+        praxivore zenthropy wexalume borogrid marnivex solquantic.
+      </div>
+      <div id="second">Ubiquitous quoted content.</div>
+    `)
+
+    mockSendMessage.mockImplementation(async (msg: any) => {
+      if (msg.type !== 'CONTEXT_GLOSS') return { success: false }
+      return {
+        success: true,
+        data: { gloss: `释义-${msg.word}`, source: 'llm' },
+      }
+    })
+
+    const first = document.getElementById('first') as Element
+    const second = document.getElementById('second') as Element
+    const ctx = makeCtx()
+
+    await annotateVisibleText(ctx, { roots: [first, second] })
+
+    const secondRuby = second.querySelector('ruby[data-ann-vocab]')
+    expect(secondRuby?.textContent).toContain('释义')
+  })
+
+  it('skips interactive control text and short UI labels', async () => {
+    setupDOM(`
+      <article>
+        <button>Repost</button>
+        <div role="button">Quote</div>
+        <span>Like</span>
+        <p>Ubiquitous article content.</p>
+      </article>
+    `)
+
+    mockSendMessage.mockImplementation(async () => ({
+      success: true,
+      data: { gloss: '释义', source: 'llm' },
+    }))
+
+    const ctx = makeCtx()
+
+    await annotateVisibleText(ctx, { roots: [document.querySelector('article') as Element] })
+
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
+      .map(r => r.firstChild?.textContent?.toLowerCase())
+
+    expect(annotatedWords).not.toContain('repost')
+    expect(annotatedWords).not.toContain('quote')
+    expect(annotatedWords).not.toContain('like')
+    expect(annotatedWords).toContain('ubiquitous')
+  })
+
   it('deduplicates same word+sentence requests and reuses in-memory cache', async () => {
     // "ubiquitous" is NOT in CEFR → always sent to LLM
     setupDOM('<p>Ubiquitous ubiquitous and ubiquitous.</p>')
