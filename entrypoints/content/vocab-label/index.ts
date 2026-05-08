@@ -70,12 +70,21 @@ function ensureFeedbackMenu(): HTMLDivElement {
   }
   const menu = document.createElement('div')
   menu.className = 'ann-vocab-feedback-menu'
-  menu.innerHTML = `
-    <button type="button" data-ann-action="known">Known</button>
-    <button type="button" data-ann-action="unknown">Unknown</button>
-    <button type="button" data-ann-action="suppress">Skip</button>
-    <button type="button" data-ann-action="addToVocab">Add</button>
-  `
+
+  const actions = [
+    { action: 'known', label: 'Known' },
+    { action: 'unknown', label: 'Unknown' },
+    { action: 'suppress', label: 'Skip' },
+    { action: 'addToVocab', label: 'Add' },
+  ]
+  for (const { action, label } of actions) {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.dataset.annAction = action
+    btn.textContent = label
+    menu.appendChild(btn)
+  }
+
   document.documentElement.appendChild(menu)
   feedbackMenuEl = menu
   return menu

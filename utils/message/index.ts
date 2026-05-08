@@ -1,5 +1,6 @@
 import { UIToBackgroundMessage, ResponseMessage, BaseMessage } from '../../types/messages'
 import { ServiceWorkerManager } from './service-worker-manager'
+import { Logger } from '../logger'
 
 
 export default class MessageUtils {
@@ -14,7 +15,7 @@ export default class MessageUtils {
 
         for (let attempt = 1; attempt <= retryCount; attempt++) {
             try {
-                console.log(`[MessageUtils] Sending message (attempt ${attempt}/${retryCount}):`, message.type)
+                Logger.info(`[MessageUtils] Sending message (attempt ${attempt}/${retryCount}):`, message.type)
 
                 const response = await chrome.runtime.sendMessage(messageWithMeta)
 
@@ -22,22 +23,22 @@ export default class MessageUtils {
                     throw new Error('No response received from background script')
                 }
 
-                console.log(`[MessageUtils] Message sent successfully on attempt ${attempt}`)
+                Logger.info(`[MessageUtils] Message sent successfully on attempt ${attempt}`)
                 return response
 
             } catch (error) {
                 const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-                console.warn(`[MessageUtils] Message send failed on attempt ${attempt}:`, errorMessage)
+                Logger.warn(`[MessageUtils] Message send failed on attempt ${attempt}:`, errorMessage)
 
 
                 if (attempt === retryCount) {
-                    console.error(`[MessageUtils] All ${retryCount} attempts failed for message:`, message.type)
+                    Logger.error(`[MessageUtils] All ${retryCount} attempts failed for message:`, message.type)
                     return this.createResponse<T>(false, undefined, `Failed after ${retryCount} attempts: ${errorMessage}`)
                 }
 
 
                 const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000)
-                console.log(`[MessageUtils] Retrying in ${delay}ms...`)
+                Logger.info(`[MessageUtils] Retrying in ${delay}ms...`)
                 await this.delay(delay)
             }
         }
@@ -63,7 +64,7 @@ export default class MessageUtils {
                 timestamp: Date.now()
             }
 
-            console.log('[MessageUtils] Sending message with service worker support:', message.type)
+            Logger.info('[MessageUtils] Sending message with service worker support:', message.type)
 
 
             const sendPromise = this.serviceWorkerManager.sendMessageWithRetry<ResponseMessage<T>>(
@@ -98,7 +99,7 @@ export default class MessageUtils {
             return response
 
         } catch (error) {
-            console.error('[MessageUtils] Failed to send message with service worker support:', error)
+            Logger.error('[MessageUtils] Failed to send message with service worker support:', error)
 
 
             if (error instanceof Error && error.message.includes('timeout')) {
@@ -155,7 +156,7 @@ export default class MessageUtils {
             handler(message, sender)
                 .then(response => sendResponse(response))
                 .catch(error => {
-                    console.error('Message handler error:', error)
+                    Logger.error('Message handler error:', error)
                     sendResponse(this.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error'))
                 })
             return true

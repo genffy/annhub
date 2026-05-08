@@ -8,17 +8,13 @@ export default defineConfig({
   manifest: {
     name: '__MSG_extName__',
     description: '__MSG_extDescription__',
-    version: '0.1.0',
+    version: '1.0.0',
     default_locale: 'en',
     permissions: [
       'storage',
       'activeTab',
-      'notifications',
       'tabs',
-      'contextMenus',
       'commands',
-      'downloads',
-      'scripting',
       'sidePanel',
       'alarms'
     ],
@@ -26,7 +22,6 @@ export default defineConfig({
       '<all_urls>',
     ],
     action: {
-      default_popup: 'popup/index.html',
       default_title: '__MSG_extName__',
     },
     options_ui: {
@@ -35,7 +30,6 @@ export default defineConfig({
     },
     side_panel: {
       default_path: 'sidepanel/index.html',
-      open_panel_on_action_click: true
     },
 
     commands: {

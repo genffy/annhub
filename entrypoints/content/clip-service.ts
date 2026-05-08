@@ -5,6 +5,7 @@
 import { ClipRecord } from '../../types/clip'
 import { generateId } from '../../utils/helpers'
 import MessageUtils from '../../utils/message'
+import { Logger } from '../../utils/logger'
 import { HighlightDOMManager } from './highlight/highlight-dom'
 
 const CONTEXT_LENGTH = 20
@@ -38,7 +39,7 @@ export class ClipService {
         try {
             sourceUrl = HighlightDOMManager.findSourceUrl(range)
         } catch (err) {
-            console.warn('[ClipService] Failed to extract source URL:', err)
+            Logger.warn('[ClipService] Failed to extract source URL:', err)
         }
 
         const clip: ClipRecord = {
@@ -60,13 +61,13 @@ export class ClipService {
                 data: clip,
             })
             if (response.success) {
-                console.log(`[ClipService] Clip saved: ${clip.id}`)
+                Logger.info(`[ClipService] Clip saved: ${clip.id}`)
                 return clip
             }
-            console.error('[ClipService] Failed to save clip:', response.error)
+            Logger.error('[ClipService] Failed to save clip:', response.error)
             return null
         } catch (error) {
-            console.error('[ClipService] Error saving clip:', error)
+            Logger.error('[ClipService] Error saving clip:', error)
             return null
         }
     }

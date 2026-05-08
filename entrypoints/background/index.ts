@@ -35,9 +35,15 @@ export default defineBackground(() => {
     }
   })
 
-  // Handle browser action icon click (when no popup is configured)
-  chrome.action.onClicked.addListener(() => {
-    sendToActiveTab({ type: 'TOGGLE_HIGHLIGHTER_MODE' })
+  // Handle browser action icon click — open side panel
+  chrome.action.onClicked.addListener(async (tab) => {
+    try {
+      if (tab.windowId) {
+        await chrome.sidePanel.open({ windowId: tab.windowId })
+      }
+    } catch (error) {
+      Logger.error('Failed to open side panel:', error)
+    }
   })
 })
 

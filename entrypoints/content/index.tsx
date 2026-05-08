@@ -6,6 +6,7 @@ import modeManager from './mode-manager'
 import { ClipService } from './clip-service'
 import { HighlightService } from './highlight/service'
 import MessageUtils from '../../utils/message'
+import { Logger } from '../../utils/logger'
 import { HighlightRecord } from '../../types/highlight'
 import type { HoverMenuAction } from '../../types/action'
 import './content.css'
@@ -40,27 +41,27 @@ function getDefaultActions(): HoverMenuAction[] {
   return [
     {
       id: 'direct-collect',
-      label: '采集',
+      label: 'Collect',
       icon: '🎯',
-      desc: '直接采集选中文本',
+      desc: 'Collect selected text',
       order: 1,
       enabled: true,
       type: 'instant',
     },
     {
       id: 'add-note',
-      label: '备注',
+      label: 'Note',
       icon: '💬',
-      desc: '添加备注后保存',
+      desc: 'Add a note before saving',
       order: 2,
       enabled: true,
       type: 'expandable',
     },
     {
       id: 'enter-highlighter',
-      label: '荧光笔',
+      label: 'Highlighter',
       icon: '🖍️',
-      desc: '开启荧光笔模式 (Alt+H)',
+      desc: 'Enter highlighter mode (Alt+H)',
       order: 3,
       enabled: true,
       type: 'toggle',
@@ -130,9 +131,9 @@ function Selection() {
         await waitForPageReady()
         injectHostStyles()
         await highlightService.initialize()
-        console.log('[Selection] Initialized successfully')
+        Logger.info('[Selection] Initialized successfully')
       } catch (error) {
-        console.error('[Selection] Init failed:', error)
+        Logger.error('[Selection] Init failed:', error)
       }
     }
     init()
@@ -156,7 +157,8 @@ function Selection() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Alt+H or Cmd+Shift+H → toggle Mode B
-      const isMac = navigator.platform.toUpperCase().includes('MAC')
+      const isMac = (navigator as any).userAgentData?.platform?.toUpperCase()?.includes('MAC')
+        ?? /mac/i.test(navigator.platform ?? '')
       if (
         (isMac && e.metaKey && e.shiftKey && e.key.toLowerCase() === 'h') ||
         (!isMac && e.altKey && e.key.toLowerCase() === 'h')
@@ -300,7 +302,7 @@ function Selection() {
           window.getSelection()?.removeAllRanges()
         }
       } catch (error) {
-        console.error('[Selection] Mode B capture failed:', error)
+        Logger.error('[Selection] Mode B capture failed:', error)
       }
     },
     [clipService, highlightService]
@@ -344,7 +346,7 @@ function Selection() {
           break
         }
         default: {
-          console.log(`[Selection] Unknown action: ${actionId}`)
+          Logger.info(`[Selection] Unknown action: ${actionId}`)
         }
       }
     },
@@ -447,7 +449,7 @@ async function locateHighlight(highlightId: string) {
 
     return { success: true, message: 'Highlight located' }
   } catch (error) {
-    console.error('[Content Script] Locate highlight failed:', error)
+    Logger.error('[Content Script] Locate highlight failed:', error)
     throw error
   }
 }
@@ -483,7 +485,7 @@ export default defineContentScript({
     // Vocab label operates on host DOM, init after mount
     import('./vocab-label').then(({ initVocabLabel }) => {
       initVocabLabel().catch(err => {
-        console.error('[Content] Vocab label init failed:', err)
+        Logger.error('[Content] Vocab label init failed:', err)
       })
     })
   },

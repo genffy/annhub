@@ -1,5 +1,6 @@
 import { HighlightColor } from '../../../types/highlight'
 import { MixedSelectionContent } from '../../../types/dom'
+import { Logger } from '../../../utils/logger'
 
 /**
  * Site-specific rule for finding the permalink URL of a content item.
@@ -260,10 +261,10 @@ export class HighlightDOMManager {
 
             this.highlightElements.set(highlightId, highlightElements)
 
-            console.log(`[HighlightDOMManager] Created highlight ${highlightId} with ${highlightElements.length} elements`)
+            Logger.info(`[HighlightDOMManager] Created highlight ${highlightId} with ${highlightElements.length} elements`)
 
         } catch (error) {
-            console.error('[HighlightDOMManager] Failed to create highlight:', error)
+            Logger.error('[HighlightDOMManager] Failed to create highlight:', error)
         }
 
         return highlightElements
@@ -321,7 +322,7 @@ export class HighlightDOMManager {
         })
 
         this.highlightElements.delete(highlightId)
-        console.log(`[HighlightDOMManager] Removed highlight ${highlightId}`)
+        Logger.info(`[HighlightDOMManager] Removed highlight ${highlightId}`)
     }
 
 
@@ -335,7 +336,7 @@ export class HighlightDOMManager {
             element.setAttribute('data-highlight-color', newColor)
         })
 
-        console.log(`[HighlightDOMManager] Updated highlight ${highlightId} color to ${newColor}`)
+        Logger.info(`[HighlightDOMManager] Updated highlight ${highlightId} color to ${newColor}`)
     }
 
 
@@ -389,7 +390,7 @@ export class HighlightDOMManager {
 
                             nodeRange.detach()
                         } catch (error) {
-                            console.warn('[HighlightDOMManager] Error comparing ranges:', error)
+                            Logger.warn('[HighlightDOMManager] Error comparing ranges:', error)
 
                             try {
                                 return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
@@ -594,9 +595,9 @@ export class HighlightDOMManager {
 
         const text = elements.map(el => el.textContent || '').join('')
         navigator.clipboard.writeText(text).then(() => {
-            console.log(`[HighlightDOMManager] Copied highlight text: ${text}`)
+            Logger.info(`[HighlightDOMManager] Copied highlight text: ${text}`)
         }).catch(err => {
-            console.error('[HighlightDOMManager] Failed to copy text:', err)
+            Logger.error('[HighlightDOMManager] Failed to copy text:', err)
         })
     }
 
@@ -629,7 +630,7 @@ export class HighlightDOMManager {
             this.removeHighlight(highlightId)
         })
         this.highlightElements.clear()
-        console.log('[HighlightDOMManager] Cleared all highlights')
+        Logger.info('[HighlightDOMManager] Cleared all highlights')
     }
 
 
@@ -894,7 +895,7 @@ export class HighlightDOMManager {
                 }
             })
         } catch (error) {
-            console.warn('Error checking image overlap:', error)
+            Logger.warn('Error checking image overlap:', error)
         }
 
 
@@ -941,7 +942,7 @@ export class HighlightDOMManager {
                 }
             }
         } catch (error) {
-            console.warn('Error traversing selection nodes:', error)
+            Logger.warn('Error traversing selection nodes:', error)
         }
 
         return result
