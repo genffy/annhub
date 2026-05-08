@@ -1,4 +1,5 @@
 import { Readability } from '@mozilla/readability'
+import { getActivePlatformRule } from './platform-rules'
 
 const PRIMARY_ROOT_SELECTORS = ['main', 'article', '[role="main"]'] as const
 const EXCLUDED_SECTION_SELECTOR = [
@@ -146,6 +147,9 @@ function findRootByReadability(): Element | null {
 }
 
 export function resolveContentRoot(): Element {
+  const platformRoot = getActivePlatformRule()?.resolveContentRoot?.()
+  if (platformRoot) return platformRoot
+
   const semanticRoot = findSemanticRoot()
   if (semanticRoot) {
     return narrowToPrimaryContent(semanticRoot)
@@ -164,6 +168,9 @@ export function isExcludedSection(el: Element): boolean {
 }
 
 export function collectAnnotatableBlocks(root: Element): Element[] {
+  const platformBlocks = getActivePlatformRule()?.collectBlocks(root) ?? []
+  if (platformBlocks.length > 0) return platformBlocks
+
   const articles = Array.from(root.querySelectorAll(FEED_ARTICLE_SELECTOR))
     .filter(el => !isExcludedSection(el))
     .filter(el => textLength(el) >= 80)
