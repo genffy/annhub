@@ -220,6 +220,53 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     expect(annotatedWords).toContain('ubiquitous')
   })
 
+  it('skips unknown proper-name-like words and acronyms', async () => {
+    setupDOM('<p>Mike Chong met NASA while discussing ubiquitous research.</p>')
+
+    mockSendMessage.mockImplementation(async (msg: any) => {
+      if (msg.type !== 'CONTEXT_GLOSS') return { success: false }
+      return {
+        success: true,
+        data: { gloss: '释义', source: 'llm' },
+      }
+    })
+
+    const ctx = makeCtx()
+
+    await annotateVisibleText(ctx)
+
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
+      .map(r => r.firstChild?.textContent?.toLowerCase())
+    const llmWords = mockSendMessage.mock.calls
+      .filter((c: any[]) => c[0]?.type === 'CONTEXT_GLOSS')
+      .map((c: any[]) => c[0].word.toLowerCase())
+
+    expect(annotatedWords).not.toContain('mike')
+    expect(annotatedWords).not.toContain('chong')
+    expect(annotatedWords).not.toContain('nasa')
+    expect(llmWords).not.toContain('mike')
+    expect(llmWords).not.toContain('chong')
+    expect(llmWords).not.toContain('nasa')
+    expect(annotatedWords).toContain('ubiquitous')
+  })
+
+  it('keeps capitalized words that already exist in the user snapshot', async () => {
+    setupDOM('<p>Zephyr arrived today.</p>')
+
+    const snapshot = makeSnapshot({
+      zephyr: { proficiency: 1, exp: '西风' },
+    })
+
+    const ctx = makeCtx({ snapshot })
+
+    await annotateVisibleText(ctx)
+
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
+      .map(r => r.firstChild?.textContent?.toLowerCase())
+
+    expect(annotatedWords).toContain('zephyr')
+  })
+
   it('restricts annotation to the provided content root', async () => {
     setupDOM(`
             <nav>Extraordinary nav item appears here.</nav>
