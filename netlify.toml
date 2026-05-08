@@ -21,6 +21,32 @@
   # npm 配置
   NPM_FLAGS = "--legacy-peer-deps"
 
+[build.processing]
+  skip_processing = false
+
+[build.processing.html]
+  pretty_urls = false
+
+[[redirects]]
+  from = "/privacy-policy"
+  to = "/privacy-policy.html"
+  status = 200
+
+[[redirects]]
+  from = "/privacy-policy/"
+  to = "/privacy-policy.html"
+  status = 200
+
+[[redirects]]
+  from = "/terms-of-service"
+  to = "/terms-of-service.html"
+  status = 200
+
+[[redirects]]
+  from = "/terms-of-service/"
+  to = "/terms-of-service.html"
+  status = 200
+
 # Netlify Essential Next.js Plugin - 自动处理 Next.js 部署
 # 包括 SSR、图片优化、Middleware 等功能
 # 注意：此插件不支持任何 inputs 配置项，图片优化会自动处理，无需手动配置

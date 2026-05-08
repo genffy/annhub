@@ -410,8 +410,6 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
 
     if (!entry && isLikelyProperNounCandidate(word, text, match.index, match.index + word.length)) continue
 
-    if (!entry && isLikelyProperNounCandidate(word, text, match.index, match.index + word.length)) continue
-
     if (!entry && shouldFilterByLevel(wordNorm, ctx.userCEFRLevel)) continue
 
     const score = calculateCandidateScore(ctx, wordNorm, entry, effectiveStar)
