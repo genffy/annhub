@@ -6,6 +6,7 @@ import {
   VocabConfigPublic,
   LlmConfig,
   LlmApiKeySource,
+  VocabSyncState,
   defaultVocabConfig,
   defaultLlmConfig,
   parseDomainWhitelistInput,
@@ -31,11 +32,18 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
   const [isSaving, setIsSaving] = useState(false)
   const [isSyncing, setIsSyncing] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: MessageType } | null>(null)
+  const [learningSyncState, setLearningSyncState] = useState<VocabSyncState | null>(null)
+  const [learningCategories, setLearningCategories] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedLearningCategoryId, setSelectedLearningCategoryId] = useState('')
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [vocabRes, llmRes] = await Promise.all([MessageUtils.sendMessage({ type: 'GET_VOCAB_CONFIG' }), MessageUtils.sendMessage({ type: 'GET_LLM_CONFIG' })])
+        const [vocabRes, llmRes, learningStateRes] = await Promise.all([
+          MessageUtils.sendMessage({ type: 'GET_VOCAB_CONFIG' }),
+          MessageUtils.sendMessage({ type: 'GET_LLM_CONFIG' }),
+          MessageUtils.sendMessage({ type: 'GET_VOCAB_LEARNING_SYNC_STATE' }),
+        ])
 
         if (vocabRes.success && vocabRes.data) {
           const { hasEudicToken: hasToken, ...publicConfig } = vocabRes.data as VocabConfigPublic
@@ -58,6 +66,19 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
           setHasApiKey(Boolean(hasKey))
           setApiKeySource(source ?? 'none')
           setIsApiKeyMasked(Boolean(hasKey))
+        }
+
+        if (learningStateRes.success && learningStateRes.data) {
+          const state = learningStateRes.data as VocabSyncState
+          setLearningSyncState(state)
+          setSelectedLearningCategoryId(state.learningCategoryId ?? '')
+        }
+
+        if (vocabRes.success && vocabRes.data && (vocabRes.data as VocabConfigPublic).hasEudicToken) {
+          const categoryRes = await MessageUtils.sendMessage<{ id: string; name: string }[]>({ type: 'GET_EUDIC_CATEGORIES' })
+          if (categoryRes.success && Array.isArray(categoryRes.data)) {
+            setLearningCategories(categoryRes.data.map(item => ({ id: item.id, name: item.name })))
+          }
         }
       } catch (e) {
         console.error('Failed to load vocab config:', e)
@@ -140,6 +161,65 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
     }
   }
 
+  const handleSyncLearningProfile = async () => {
+    setIsSyncing(true)
+    try {
+      const res = await MessageUtils.sendMessage({ type: 'SYNC_VOCAB_LEARNING_PROFILE', force: true })
+      if (res.success) {
+        const stateRes = await MessageUtils.sendMessage({ type: 'GET_VOCAB_LEARNING_SYNC_STATE' })
+        if (stateRes.success && stateRes.data) {
+          setLearningSyncState(stateRes.data as VocabSyncState)
+        }
+        showMessage('Learning profile synced')
+      } else {
+        showMessage('Learning profile sync failed: ' + (res.error || 'Unknown error'), 'error')
+      }
+    } catch {
+      showMessage('Learning profile sync failed', 'error')
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const handleEnsureLearningBook = async () => {
+    try {
+      const res = await MessageUtils.sendMessage<{ categoryId: string }>({ type: 'ENSURE_VOCAB_LEARNING_CATEGORY' })
+      if (!res.success || !res.data) {
+        showMessage('Failed to setup learning book: ' + (res.error || 'Unknown error'), 'error')
+        return
+      }
+      setSelectedLearningCategoryId(res.data.categoryId)
+      const stateRes = await MessageUtils.sendMessage({ type: 'GET_VOCAB_LEARNING_SYNC_STATE' })
+      if (stateRes.success && stateRes.data) {
+        setLearningSyncState(stateRes.data as VocabSyncState)
+      }
+      showMessage('Learning book is ready')
+    } catch {
+      showMessage('Failed to setup learning book', 'error')
+    }
+  }
+
+  const handleSelectLearningBook = async () => {
+    if (!selectedLearningCategoryId) return
+    try {
+      const res = await MessageUtils.sendMessage({
+        type: 'SELECT_VOCAB_LEARNING_CATEGORY',
+        categoryId: selectedLearningCategoryId,
+      })
+      if (!res.success) {
+        showMessage('Failed to select learning book: ' + (res.error || 'Unknown error'), 'error')
+        return
+      }
+      const stateRes = await MessageUtils.sendMessage({ type: 'GET_VOCAB_LEARNING_SYNC_STATE' })
+      if (stateRes.success && stateRes.data) {
+        setLearningSyncState(stateRes.data as VocabSyncState)
+      }
+      showMessage('Learning book selected')
+    } catch {
+      showMessage('Failed to select learning book', 'error')
+    }
+  }
+
   const content = (
     <div>
       {message && (
@@ -150,6 +230,22 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
 
       <SettingsSection title="General">
         <CheckboxField label="Enable vocabulary labeling" checked={vocabConfig.enabled} onChange={checked => setVocabConfig(prev => ({ ...prev, enabled: checked }))} />
+        <CheckboxField
+          label="Enable adaptive learning"
+          checked={vocabConfig.adaptiveLearningEnabled}
+          onChange={checked => setVocabConfig(prev => ({ ...prev, adaptiveLearningEnabled: checked }))}
+        />
+        <Field label="Annotation aggressiveness">
+          <SelectInput
+            name="annotationAggressiveness"
+            value={vocabConfig.annotationAggressiveness}
+            onChange={e => setVocabConfig(prev => ({ ...prev, annotationAggressiveness: e.target.value as VocabConfig['annotationAggressiveness'] }))}
+          >
+            <option value="review-light">Review-light</option>
+            <option value="balanced">Balanced</option>
+            <option value="aggressive">Aggressive</option>
+          </SelectInput>
+        </Field>
         <Field label="Mastery threshold (star level)">
           <TextInput
             name="vocabMasteryThreshold"
@@ -234,6 +330,37 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
         <div className="md:pl-[236px]">
           <Button type="button" variant="secondary" onClick={handleSync} disabled={isSyncing}>
             {isSyncing ? 'Syncing...' : 'Sync Now'}
+          </Button>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection title="Adaptive Learning Book">
+        <Field
+          label="Current learning book"
+          hint={`Pending events: ${learningSyncState?.learningPendingCount ?? 0}${learningSyncState?.learningLastError ? `, last error: ${learningSyncState.learningLastError}` : ''}`}
+        >
+          <SelectInput
+            name="learningCategoryId"
+            value={selectedLearningCategoryId}
+            onChange={e => setSelectedLearningCategoryId(e.target.value)}
+          >
+            <option value="">Select a book...</option>
+            {learningCategories.map(category => (
+              <option key={category.id} value={category.id}>
+                {category.name} ({category.id})
+              </option>
+            ))}
+          </SelectInput>
+        </Field>
+        <div className="md:pl-[236px] flex gap-2">
+          <Button type="button" variant="secondary" onClick={handleEnsureLearningBook}>
+            Ensure AnnHub Learning
+          </Button>
+          <Button type="button" variant="secondary" onClick={handleSelectLearningBook} disabled={!selectedLearningCategoryId}>
+            Use Selected Book
+          </Button>
+          <Button type="button" variant="secondary" onClick={handleSyncLearningProfile} disabled={isSyncing}>
+            {isSyncing ? 'Syncing...' : 'Sync Learning Now'}
           </Button>
         </div>
       </SettingsSection>

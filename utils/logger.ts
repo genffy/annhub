@@ -1,11 +1,19 @@
 
 /**
- * a simple logger
+ * a simple logger with production-mode suppression
  */
 export class Logger {
-    private static prefix = '[Translation Extension]'
+    private static prefix = '[AnnHub]'
+    private static get isProduction(): boolean {
+        try {
+            return import.meta.env.MODE === 'production'
+        } catch {
+            return false
+        }
+    }
 
     static info(message: string, ...args: any[]): void {
+        if (this.isProduction) return
         console.log(`${this.prefix} [INFO]`, message, ...args)
     }
 
@@ -18,9 +26,8 @@ export class Logger {
     }
 
     static debug(message: string, ...args: any[]): void {
-        if (process.env.NODE_ENV === 'development') {
-            console.debug(`${this.prefix} [DEBUG]`, message, ...args)
-        }
+        if (this.isProduction) return
+        console.debug(`${this.prefix} [DEBUG]`, message, ...args)
     }
 }
 // error handling tools

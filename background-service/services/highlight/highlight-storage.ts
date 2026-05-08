@@ -1,5 +1,6 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb'
 import type { HighlightRecord, HighlightQuery, HighlightResult } from '../../../types/highlight'
+import { Logger } from '../../../utils/logger'
 
 interface HighlightDB extends DBSchema {
     highlights: {
@@ -46,9 +47,9 @@ export class HighlightStorage {
                 }
             })
 
-            console.log('[HighlightStorage] Database initialized successfully')
+            Logger.info('[HighlightStorage] Database initialized successfully')
         } catch (error) {
-            console.error('[HighlightStorage] Failed to initialize database:', error)
+            Logger.error('[HighlightStorage] Failed to initialize database:', error)
             throw error
         }
     }
@@ -63,11 +64,11 @@ export class HighlightStorage {
         try {
             await this.db!.add('highlights', highlight)
 
-            console.log('[HighlightStorage] Highlight saved:', highlight.id)
+            Logger.info('[HighlightStorage] Highlight saved:', highlight.id)
             return { success: true, data: highlight }
 
         } catch (error) {
-            console.error('[HighlightStorage] Failed to save highlight:', error)
+            Logger.error('[HighlightStorage] Failed to save highlight:', error)
             return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
         }
     }
@@ -82,7 +83,7 @@ export class HighlightStorage {
             const store = tx.objectStore('highlights')
 
             let highlights: HighlightRecord[] = []
-            console.log('getHighlights query', query)
+            Logger.debug('getHighlights query', query)
             if (query.url) {
                 highlights = await store.index('by-url').getAll(query.url)
             } else if (query.domain) {
@@ -90,7 +91,7 @@ export class HighlightStorage {
             } else {
                 highlights = await store.getAll()
             }
-            console.log('getHighlights highlights', highlights)
+            Logger.debug('getHighlights highlights', highlights)
             if (query.status) {
                 highlights = highlights.filter(h => h.status === query.status)
             }
@@ -105,7 +106,7 @@ export class HighlightStorage {
             return highlights
 
         } catch (error) {
-            console.error('[HighlightStorage] Failed to get highlights:', error)
+            Logger.error('[HighlightStorage] Failed to get highlights:', error)
             return []
         }
     }
@@ -163,11 +164,11 @@ export class HighlightStorage {
             await store.put(updated)
             await tx.done
 
-            console.log('[HighlightStorage] Highlight updated:', id)
+            Logger.info('[HighlightStorage] Highlight updated:', id)
             return { success: true, data: updated }
 
         } catch (error) {
-            console.error('[HighlightStorage] Failed to update highlight:', error)
+            Logger.error('[HighlightStorage] Failed to update highlight:', error)
             return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
         }
     }
@@ -189,11 +190,11 @@ export class HighlightStorage {
             await store.delete(id)
             await tx.done
 
-            console.log('[HighlightStorage] Highlight deleted:', id)
+            Logger.info('[HighlightStorage] Highlight deleted:', id)
             return { success: true, data: existing }
 
         } catch (error) {
-            console.error('[HighlightStorage] Failed to delete highlight:', error)
+            Logger.error('[HighlightStorage] Failed to delete highlight:', error)
             return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
         }
     }
@@ -209,9 +210,9 @@ export class HighlightStorage {
             await store.clear()
             await tx.done
 
-            console.log('[HighlightStorage] All highlights cleared')
+            Logger.info('[HighlightStorage] All highlights cleared')
         } catch (error) {
-            console.error('[HighlightStorage] Failed to clear highlights:', error)
+            Logger.error('[HighlightStorage] Failed to clear highlights:', error)
             throw error
         }
     }
@@ -236,7 +237,7 @@ export class HighlightStorage {
                 deleted: highlights.filter(h => h.status === 'deleted').length
             }
         } catch (error) {
-            console.error('[HighlightStorage] Failed to get stats:', error)
+            Logger.error('[HighlightStorage] Failed to get stats:', error)
             return { total: 0, active: 0, archived: 0, deleted: 0 }
         }
     }

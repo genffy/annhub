@@ -1,6 +1,6 @@
 import { isEnglishPage, shouldAnnotateDomain } from './detect-page'
 import { injectVocabStyles, removeVocabStyles } from './styles'
-import { annotateVisibleText, cleanupAnnotations, resetVocabLabelRuntimeState } from './annotate'
+import { annotateVisibleText, cleanupAnnotations, resetVocabLabelRuntimeState, getSkipStarThreshold } from './annotate'
 import { collectAnnotatableBlocks, resolveContentRoot, ANNOTATABLE_BLOCK_SELECTOR, isExcludedSection } from './content-scope'
 import { getActivePlatformRule, type VocabPlatformRule } from './platform-rules'
 import { isElementWithinViewportWindow } from './viewport'
@@ -19,6 +19,8 @@ let activePlatformRule: VocabPlatformRule | null = null
 let rootRecheckTimers: ReturnType<typeof setTimeout>[] = []
 let allowRootFallbackToContentRoot = true
 let viewportReconcileTimer: ReturnType<typeof setTimeout> | null = null
+let feedbackMenuEl: HTMLDivElement | null = null
+let currentFeedbackTarget: HTMLElement | null = null
 
 let annotateCtx: Parameters<typeof annotateVisibleText>[0] | null = null
 let observedBlocks = new WeakSet<Element>()
@@ -45,6 +47,156 @@ async function getSnapshot(): Promise<VocabSnapshot | null> {
     Logger.error('[VocabLabel] Failed to get snapshot:', e)
   }
   return null
+}
+
+async function getLearningProfile(words?: string[]): Promise<{ stars: Record<string, number> } | null> {
+  try {
+    const res = await MessageUtils.sendMessage({
+      type: 'GET_VOCAB_LEARNING_PROFILE',
+      words,
+    })
+    if (res.success && res.data) {
+      return res.data as { stars: Record<string, number> }
+    }
+  } catch (e) {
+    Logger.warn('[VocabLabel] Failed to get learning profile:', e)
+  }
+  return null
+}
+
+function ensureFeedbackMenu(): HTMLDivElement {
+  if (feedbackMenuEl && feedbackMenuEl.isConnected) {
+    return feedbackMenuEl
+  }
+  const menu = document.createElement('div')
+  menu.className = 'ann-vocab-feedback-menu'
+
+  const actions = [
+    { action: 'known', label: 'Known' },
+    { action: 'unknown', label: 'Unknown' },
+    { action: 'suppress', label: 'Skip' },
+    { action: 'addToVocab', label: 'Add' },
+  ]
+  for (const { action, label } of actions) {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.dataset.annAction = action
+    btn.textContent = label
+    menu.appendChild(btn)
+  }
+
+  document.documentElement.appendChild(menu)
+  feedbackMenuEl = menu
+  return menu
+}
+
+function hideFeedbackMenu(): void {
+  feedbackMenuEl?.classList.remove('is-open')
+  currentFeedbackTarget = null
+}
+
+function showFeedbackMenu(target: HTMLElement, clientX: number, clientY: number): void {
+  const menu = ensureFeedbackMenu()
+  currentFeedbackTarget = target
+  menu.style.left = `${clientX}px`
+  menu.style.top = `${clientY}px`
+  menu.classList.add('is-open')
+}
+
+async function onFeedbackAction(action: string): Promise<void> {
+  const target = currentFeedbackTarget
+  if (!target) return
+  const word = target.dataset.annVocabWord?.trim()
+  if (!word) return
+  const sentence = target.dataset.annVocabSentence?.trim()
+  try {
+    const res = await MessageUtils.sendMessage({
+      type: 'RECORD_VOCAB_LEARNING_EVENT',
+      event: {
+        word,
+        sentence: sentence || undefined,
+        eventType: action,
+      },
+    })
+    if (!res.success || !res.data) {
+      Logger.warn('[VocabLabel] Learning event failed', res.error)
+      return
+    }
+    const { star: newStar } = res.data as { queued: number; star: number; word: string }
+    if (action === 'known' || action === 'suppress') {
+      if (annotateCtx) {
+        // For "known": ensure the overlay is at least the skip threshold so MutationObserver
+        // does not immediately re-annotate the word within the current session.
+        const overlayStar = action === 'suppress' ? 5 : Math.max(newStar, getSkipStarThreshold(annotateCtx))
+        annotateCtx.pendingStarOverlay = {
+          ...(annotateCtx.pendingStarOverlay ?? {}),
+          [word]: overlayStar,
+        }
+      }
+      const sameWord = document.querySelectorAll<HTMLElement>(`[data-ann-vocab][data-ann-vocab-word="${word}"]`)
+      sameWord.forEach(el => {
+        cleanupAnnotationsForElement(el)
+      })
+    }
+  } catch (error) {
+    Logger.warn('[VocabLabel] Failed to record learning event', error)
+  } finally {
+    hideFeedbackMenu()
+  }
+}
+
+function cleanupAnnotationsForElement(el: Element): void {
+  if (!el.parentNode) return
+  if (el.tagName === 'RUBY') {
+    const baseText = Array.from(el.childNodes)
+      .filter(node => !(node instanceof HTMLElement && (node.tagName === 'RT' || node.tagName === 'RP')))
+      .map(node => node.textContent ?? '')
+      .join('')
+    el.parentNode.insertBefore(document.createTextNode(baseText), el)
+    el.remove()
+    return
+  }
+
+  while (el.firstChild) {
+    el.parentNode.insertBefore(el.firstChild, el)
+  }
+  el.remove()
+}
+
+function setupFeedbackMenuListeners(): void {
+  const onContextMenu = (event: MouseEvent) => {
+    const target = (event.target as Element | null)?.closest<HTMLElement>('[data-ann-vocab]')
+    if (!target) {
+      hideFeedbackMenu()
+      return
+    }
+    event.preventDefault()
+    showFeedbackMenu(target, event.clientX, event.clientY)
+  }
+  const onClick = (event: MouseEvent) => {
+    const actionEl = (event.target as Element | null)?.closest<HTMLButtonElement>('[data-ann-action]')
+    if (actionEl) {
+      event.preventDefault()
+      void onFeedbackAction(actionEl.dataset.annAction || '')
+      return
+    }
+    if (!feedbackMenuEl?.contains(event.target as Node)) {
+      hideFeedbackMenu()
+    }
+  }
+  const onKeyDown = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') hideFeedbackMenu()
+  }
+
+  document.addEventListener('contextmenu', onContextMenu)
+  document.addEventListener('click', onClick, true)
+  document.addEventListener('keydown', onKeyDown)
+
+  ;(setupFeedbackMenuListeners as any)._cleanup = () => {
+    document.removeEventListener('contextmenu', onContextMenu)
+    document.removeEventListener('click', onClick, true)
+    document.removeEventListener('keydown', onKeyDown)
+  }
 }
 
 function cancelScheduledFlush(): void {
@@ -362,6 +514,7 @@ export async function initVocabLabel(): Promise<void> {
   }
 
   const snapshot = await getSnapshot()
+  const learningProfile = await getLearningProfile()
   if (!snapshot) {
     Logger.info('[VocabLabel] No vocab snapshot, using empty snapshot for LLM-only mode')
   }
@@ -380,6 +533,9 @@ export async function initVocabLabel(): Promise<void> {
     maxAnnotations: normalizedMaxAnnotations,
     contentRoot: activeContentRoot,
     userCEFRLevel: config.cefrLevel ?? 'B1',
+    adaptiveLearningEnabled: config.adaptiveLearningEnabled !== false,
+    annotationAggressiveness: config.annotationAggressiveness ?? 'balanced',
+    pendingStarOverlay: learningProfile?.stars ?? {},
   }
 
   Logger.info('[VocabLabel] Starting annotation with strict content root...')
@@ -396,6 +552,7 @@ export async function initVocabLabel(): Promise<void> {
   setupVisibilityObserver(activeContentRoot)
   setupMutationObserver(activeContentRoot)
   setupViewportListeners()
+  setupFeedbackMenuListeners()
   scheduleViewportReconcile(0)
   scheduleContentRootRechecks()
 }
@@ -426,6 +583,10 @@ export function destroyVocabLabel(): void {
   activePlatformRule = null
   annotateCtx = null
   allowRootFallbackToContentRoot = true
+  ;(setupFeedbackMenuListeners as any)._cleanup?.()
+  feedbackMenuEl?.remove()
+  feedbackMenuEl = null
+  currentFeedbackTarget = null
 
   cleanupAnnotations()
   resetVocabLabelRuntimeState()

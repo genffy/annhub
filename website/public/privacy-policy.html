@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnnHub - Privacy Policy</title>
+    <link rel="canonical" href="https://annhub.org/privacy-policy.html">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.7;
+            color: #1a1a2e;
+            background: #f8fafc;
+            padding: 2rem 1rem;
+        }
+        .container {
+            max-width: 720px;
+            margin: 0 auto;
+            background: #fff;
+            border-radius: 12px;
+            padding: 2.5rem;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
+        .updated { color: #64748b; font-size: 0.875rem; margin-bottom: 2rem; }
+        h2 { font-size: 1.25rem; margin-top: 1.75rem; margin-bottom: 0.5rem; color: #0f172a; }
+        p, li { font-size: 0.95rem; color: #334155; margin-bottom: 0.75rem; }
+        ul { padding-left: 1.25rem; }
+        li { margin-bottom: 0.4rem; }
+        a { color: #2563eb; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .highlight { background: #fef3c7; padding: 0.75rem 1rem; border-radius: 8px; border-left: 3px solid #f59e0b; margin: 1rem 0; }
+        .nav { display: flex; gap: 1rem; margin-bottom: 1.5rem; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <nav class="nav" aria-label="Legal pages">
+            <a href="https://annhub.org/">Home</a>
+            <a href="https://annhub.org/terms-of-service.html">Terms of Service</a>
+        </nav>
+        <h1>Privacy Policy</h1>
+        <p class="updated">Last updated: May 8, 2026</p>
+
+        <p>AnnHub ("we", "our", or "the extension") is a browser extension that provides text highlighting, annotation, and vocabulary labeling on web pages. We are committed to protecting your privacy.</p>
+
+        <h2>1. Data We Collect</h2>
+        <p>AnnHub collects and stores the following types of data <strong>locally on your device</strong>:</p>
+        <ul>
+            <li><strong>Highlighted text</strong> — text you select and highlight, along with the page URL, page title, and CSS selector for highlight restoration</li>
+            <li><strong>Clip records</strong> — text you collect using Mode A or Mode B, with surrounding context (up to 20 characters before/after)</li>
+            <li><strong>User notes</strong> — any notes you attach to highlights or clips</li>
+            <li><strong>Vocabulary data</strong> — word lists, proficiency levels, and gloss/definition cache for the vocabulary labeling feature</li>
+            <li><strong>Extension settings</strong> — your configuration preferences</li>
+        </ul>
+
+        <div class="highlight">
+            <strong>All data listed above is stored locally</strong> in your browser using IndexedDB and chrome.storage.local. We do not operate any servers that receive or store your data.
+        </div>
+
+        <h2>2. Data Sent to Third Parties</h2>
+        <p>AnnHub may send data to third-party services <strong>only when you explicitly configure and enable</strong> the following optional features:</p>
+
+        <ul>
+            <li><strong>Eudic (欧路词典) API</strong> — If you configure an Eudic API token, AnnHub syncs your vocabulary word lists with the Eudic service. Only word lists and proficiency data are transmitted. No page content or browsing history is sent.</li>
+            <li><strong>LLM API (e.g., OpenAI, GLM, DeepSeek)</strong> — If you configure an LLM API key and endpoint, AnnHub may send individual English words along with their surrounding sentence context (up to ~300 characters) to the configured LLM service for contextual word definitions. <strong>No full page content, URLs, or browsing history is sent to the LLM.</strong></li>
+            <li><strong>Logseq</strong> — If you configure Logseq sync, highlights and clips may be synced to your local Logseq instance.</li>
+        </ul>
+
+        <p>You can disable any of these integrations at any time from the extension's Settings page.</p>
+
+        <h2>3. Chrome Web Store Limited Use</h2>
+        <p>AnnHub's use of information received from Chrome extension APIs adheres to the Chrome Web Store User Data Policy, including the Limited Use requirements. We use extension permissions only to provide user-facing highlighting, annotation, vocabulary labeling, and optional sync features.</p>
+
+        <h2>4. Data We Do NOT Collect</h2>
+        <ul>
+            <li>We do not collect your full browsing history or record every page you visit</li>
+            <li>We do not collect personal information (name, email, etc.)</li>
+            <li>We do not use analytics, tracking, or telemetry</li>
+            <li>We do not serve ads</li>
+            <li>We do not sell or share any data</li>
+        </ul>
+
+        <p>When you actively highlight or collect text, AnnHub stores the related page URL, page title, selected text, and limited surrounding context so it can restore highlights and show the source of your saved content.</p>
+
+        <h2>5. Permissions Explained</h2>
+        <ul>
+            <li><strong>storage</strong> — store highlights, clips, vocabulary, and settings locally</li>
+            <li><strong>activeTab / tabs</strong> — access the current active tab to open or locate highlights selected by you</li>
+            <li><strong>commands</strong> — register keyboard shortcuts (Alt+H, Cmd+Shift+H)</li>
+            <li><strong>sidePanel</strong> — display the highlight list in Chrome's side panel</li>
+            <li><strong>alarms</strong> — schedule periodic vocabulary sync with Eudic (if configured)</li>
+            <li><strong>host_permissions (&lt;all_urls&gt;)</strong> — required to inject the content script on any webpage so you can highlight and annotate text on any site you visit</li>
+        </ul>
+
+        <h2>6. Data Security</h2>
+        <p>All API communications (Eudic, LLM) use HTTPS encryption. API keys and tokens are stored in chrome.storage.local and are never exposed to web pages — only the extension's background service worker has access to them.</p>
+
+        <h2>7. Data Retention and Deletion</h2>
+        <p>All data is stored locally. You can delete all stored data at any time by:</p>
+        <ul>
+            <li>Using the extension's built-in clear/delete features</li>
+            <li>Uninstalling the extension (all local data is removed automatically)</li>
+        </ul>
+
+        <h2>8. Children's Privacy</h2>
+        <p>AnnHub is not directed at children under 13. We do not knowingly collect information from children.</p>
+
+        <h2>9. Changes to This Policy</h2>
+        <p>We may update this privacy policy from time to time. Changes will be reflected on this page with an updated date.</p>
+
+        <h2>10. Contact</h2>
+        <p>If you have questions about this privacy policy, please open an issue on our <a href="https://github.com/genffy/annhub" target="_blank" rel="noopener">GitHub repository</a>.</p>
+    </div>
+</body>
+</html>

@@ -1,7 +1,7 @@
 import { HighlightRecord, HighlightQuery } from './highlight'
 import { ClipRecord } from './clip'
 import { LogseqConfig, LogseqSyncResult } from './logseq'
-import { VocabConfig, LlmConfig } from './vocabulary'
+import { VocabConfig, LlmConfig, VocabLearningEvent, VocabSyncState } from './vocabulary'
 
 export type RequiredFields<T, K extends keyof T> = Required<Pick<T, K>> & Partial<Omit<T, K>>
 
@@ -263,6 +263,46 @@ export interface ContextGlossMessage extends BaseMessage {
     targetLanguage?: string
 }
 
+export interface EnsureVocabLearningCategoryMessage extends BaseMessage {
+    type: 'ENSURE_VOCAB_LEARNING_CATEGORY'
+    language?: string
+    name?: string
+}
+
+export interface SelectVocabLearningCategoryMessage extends BaseMessage {
+    type: 'SELECT_VOCAB_LEARNING_CATEGORY'
+    categoryId: string
+}
+
+export interface SyncVocabLearningProfileMessage extends BaseMessage {
+    type: 'SYNC_VOCAB_LEARNING_PROFILE'
+    force?: boolean
+}
+
+export interface RecordVocabLearningEventMessage extends BaseMessage {
+    type: 'RECORD_VOCAB_LEARNING_EVENT'
+    event: VocabLearningEvent
+}
+
+export interface FlushVocabLearningPendingMessage extends BaseMessage {
+    type: 'FLUSH_VOCAB_LEARNING_PENDING'
+}
+
+export interface GetVocabLearningSyncStateMessage extends BaseMessage {
+    type: 'GET_VOCAB_LEARNING_SYNC_STATE'
+}
+
+export interface GetVocabLearningProfileMessage extends BaseMessage {
+    type: 'GET_VOCAB_LEARNING_PROFILE'
+    words?: string[]
+}
+
+export interface ResetVocabWordLearningMessage extends BaseMessage {
+    type: 'RESET_VOCAB_WORD_LEARNING'
+    word: string
+    language?: string
+}
+
 
 export type UIToBackgroundMessage =
     | GetHighlightsMessage
@@ -303,6 +343,14 @@ export type UIToBackgroundMessage =
     | DeleteEudicWordsMessage
     | GetEudicWordMessage
     | ContextGlossMessage
+    | EnsureVocabLearningCategoryMessage
+    | SelectVocabLearningCategoryMessage
+    | SyncVocabLearningProfileMessage
+    | RecordVocabLearningEventMessage
+    | FlushVocabLearningPendingMessage
+    | GetVocabLearningSyncStateMessage
+    | GetVocabLearningProfileMessage
+    | ResetVocabWordLearningMessage
 
 export type BackgroundToUIMessage =
     | ResponseMessage<HighlightRecord[]>
@@ -311,6 +359,7 @@ export type BackgroundToUIMessage =
     | ResponseMessage<SystemStatus>
     | ResponseMessage<LogseqConfig>
     | ResponseMessage<LogseqSyncResult>
+    | ResponseMessage<VocabSyncState>
     | ResponseMessage<any>
     | ScreenshotCapturedMessage
     | ScreenshotErrorMessage

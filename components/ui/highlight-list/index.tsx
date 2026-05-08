@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { HighlightRecord, HighlightQuery } from '../../../types/highlight'
 import MessageUtils from '../../../utils/message'
+import { Logger } from '../../../utils/logger'
 import './index.style.css'
 
 interface HighlightListProps {
@@ -125,10 +126,10 @@ export default function HighlightList({
                 })
 
                 if (!response.success) {
-                    console.error('Failed to locate highlight:', response.error)
+                    Logger.error('Failed to locate highlight:', response.error)
                 }
             } catch (err) {
-                console.error('Failed to locate highlight:', err)
+                Logger.error('Failed to locate highlight:', err)
             }
         }
     }

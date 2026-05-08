@@ -186,4 +186,95 @@ export const messageHandlers: Record<string, (message: any, sender: chrome.runti
             return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
         }
     },
+
+    ENSURE_VOCAB_LEARNING_CATEGORY: async (message: any): Promise<ResponseMessage> => {
+        try {
+            const service = VocabularyService.getInstance()
+            const result = await service.ensureLearningCategory({
+                language: message.language ?? 'en',
+                name: message.name,
+            })
+            return MessageUtils.createResponse(true, result)
+        } catch (error) {
+            return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+    },
+
+    SELECT_VOCAB_LEARNING_CATEGORY: async (message: any, sender: chrome.runtime.MessageSender): Promise<ResponseMessage> => {
+        if (!isExtensionPageSender(sender)) return forbiddenResponse()
+        try {
+            const service = VocabularyService.getInstance()
+            await service.selectLearningCategory(message.categoryId)
+            return MessageUtils.createResponse(true)
+        } catch (error) {
+            return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+    },
+
+    SYNC_VOCAB_LEARNING_PROFILE: async (message: any): Promise<ResponseMessage> => {
+        try {
+            const service = VocabularyService.getInstance()
+            const syncResult = await service.syncLearningProfileFromEudic({
+                force: message.force,
+                language: message.language ?? 'en',
+            })
+            const flushResult = await service.flushLearningPendingEvents()
+            return MessageUtils.createResponse(true, {
+                ...syncResult,
+                flush: flushResult,
+            })
+        } catch (error) {
+            return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+    },
+
+    RECORD_VOCAB_LEARNING_EVENT: async (message: any): Promise<ResponseMessage> => {
+        try {
+            const service = VocabularyService.getInstance()
+            const result = await service.recordLearningEvent(message.event)
+            return MessageUtils.createResponse(true, result)
+        } catch (error) {
+            return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+    },
+
+    FLUSH_VOCAB_LEARNING_PENDING: async (): Promise<ResponseMessage> => {
+        try {
+            const service = VocabularyService.getInstance()
+            const result = await service.flushLearningPendingEvents()
+            return MessageUtils.createResponse(true, result)
+        } catch (error) {
+            return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+    },
+
+    GET_VOCAB_LEARNING_SYNC_STATE: async (): Promise<ResponseMessage> => {
+        try {
+            const service = VocabularyService.getInstance()
+            const state = await service.getLearningSyncState()
+            return MessageUtils.createResponse(true, state)
+        } catch (error) {
+            return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+    },
+
+    GET_VOCAB_LEARNING_PROFILE: async (message: any): Promise<ResponseMessage> => {
+        try {
+            const service = VocabularyService.getInstance()
+            const profile = await service.getLearningProfile(message.words)
+            return MessageUtils.createResponse(true, profile)
+        } catch (error) {
+            return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+    },
+
+    RESET_VOCAB_WORD_LEARNING: async (message: any): Promise<ResponseMessage> => {
+        try {
+            const service = VocabularyService.getInstance()
+            const result = await service.resetWordLearning(message.word, message.language ?? 'en')
+            return MessageUtils.createResponse(true, result)
+        } catch (error) {
+            return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+    },
 }

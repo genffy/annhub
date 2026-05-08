@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import type { VocabSnapshot, VocabSyncState } from '../../types/vocabulary'
+import MessageUtils from '../../utils/message'
 
 type SortMode = 'alpha' | 'proficiency' | 'recent'
 
@@ -21,6 +22,7 @@ function App() {
     const [isLoading, setIsLoading] = useState(true)
     const [searchQuery, setSearchQuery] = useState('')
     const [sortMode, setSortMode] = useState<SortMode>('alpha')
+    const [resettingWord, setResettingWord] = useState('')
 
     useEffect(() => {
         const loadData = async () => {
@@ -83,6 +85,23 @@ function App() {
     }, [snapshot, searchQuery, sortMode])
 
     const totalWords = snapshot ? Object.keys(snapshot.entries).length : 0
+
+    const handleResetWordLearning = async (word: string) => {
+        setResettingWord(word)
+        try {
+            const res = await MessageUtils.sendMessage({
+                type: 'RESET_VOCAB_WORD_LEARNING',
+                word,
+            })
+            if (!res.success) {
+                console.error('Failed to reset word learning:', res.error)
+            }
+        } catch (error) {
+            console.error('Failed to reset word learning:', error)
+        } finally {
+            setResettingWord('')
+        }
+    }
 
     if (isLoading) {
         return (
@@ -174,6 +193,15 @@ function App() {
                                                     <span className="word-proficiency">
                                                         P{entry.proficiency}
                                                     </span>
+                                                    <button
+                                                        type="button"
+                                                        className="word-reset-btn"
+                                                        onClick={() => void handleResetWordLearning(entry.word)}
+                                                        disabled={resettingWord === entry.word}
+                                                        title="Reset this word learning level to 1"
+                                                    >
+                                                        {resettingWord === entry.word ? 'Resetting...' : 'Reset'}
+                                                    </button>
                                                 </div>
                                                 {definitionLines.length > 0 && (
                                                     <div className="word-exp">

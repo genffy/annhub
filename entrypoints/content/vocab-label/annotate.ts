@@ -51,6 +51,9 @@ interface AnnotationContext {
   maxAnnotations: number
   contentRoot?: Element
   userCEFRLevel: CEFRLevel
+  adaptiveLearningEnabled?: boolean
+  annotationAggressiveness?: 'review-light' | 'balanced' | 'aggressive'
+  pendingStarOverlay?: Record<string, number>
 }
 
 interface AnnotateOptions {
@@ -67,6 +70,8 @@ interface PendingItem {
   wordNorm: string
   entry?: VocabEntry
   sentence: string
+  score: number
+  effectiveStar: number
   gloss?: string | null
 }
 
@@ -201,10 +206,18 @@ async function resolveGlossWithTimeout(word: string, sentence: string, timeoutMs
   }
 }
 
-function wrapWordWithRuby(range: Range, gloss: string): void {
+function setAnnotationMetadata(el: HTMLElement, item: PendingItem): void {
+  el.dataset.annVocabWord = item.wordNorm
+  if (item.sentence) {
+    el.dataset.annVocabSentence = item.sentence.slice(0, 280)
+  }
+}
+
+function wrapWordWithRuby(range: Range, gloss: string, item: PendingItem): void {
   const ruby = document.createElement('ruby')
   ruby.setAttribute(MARKER_ATTR, '1')
   ruby.className = 'ann-vocab-ruby'
+  setAnnotationMetadata(ruby, item)
 
   try {
     range.surroundContents(ruby)
@@ -218,10 +231,11 @@ function wrapWordWithRuby(range: Range, gloss: string): void {
   observeAnnotationElement(ruby)
 }
 
-function wrapWordWithUnderline(range: Range): void {
+function wrapWordWithUnderline(range: Range, item: PendingItem): void {
   const span = document.createElement('span')
   span.setAttribute(MARKER_ATTR, '1')
   span.className = 'ann-vocab-underline'
+  setAnnotationMetadata(span, item)
 
   try {
     range.surroundContents(span)
@@ -336,15 +350,54 @@ function cleanupAnnotationsOutsideViewportWindow(expansionRatio: number): void {
   }
 }
 
-function collectMatches(textNode: Text, ctx: AnnotationContext, pending: PendingItem[], budget: number): void {
+function getEffectiveStar(ctx: AnnotationContext, wordNorm: string, entry?: VocabEntry): number {
+  const overlayStar = ctx.pendingStarOverlay?.[wordNorm]
+  if (typeof overlayStar === 'number') {
+    return Math.min(5, Math.max(1, Math.round(overlayStar)))
+  }
+
+  const fallback = typeof entry?.star === 'number' ? entry.star : entry?.proficiency
+  if (typeof fallback !== 'number' || Number.isNaN(fallback)) {
+    return 1
+  }
+  return Math.min(5, Math.max(1, Math.round(fallback)))
+}
+
+export function getSkipStarThreshold(ctx: AnnotationContext): number {
+  if (!ctx.adaptiveLearningEnabled) {
+    return Math.max(1, Math.min(5, Math.round(ctx.masteryThreshold)))
+  }
+
+  switch (ctx.annotationAggressiveness ?? 'balanced') {
+    case 'review-light':
+      return 4
+    case 'aggressive':
+      return 5
+    case 'balanced':
+    default:
+      return 3
+  }
+}
+
+function calculateCandidateScore(ctx: AnnotationContext, wordNorm: string, entry: VocabEntry | undefined, effectiveStar: number): number {
+  let score = 0
+  if (!entry) score += 2
+  if (!shouldFilterByLevel(wordNorm, ctx.userCEFRLevel)) score += 2
+  if (effectiveStar <= 2) score += 1
+  score -= effectiveStar
+  return score
+}
+
+function collectMatches(textNode: Text, ctx: AnnotationContext, pending: PendingItem[], candidateLimit: number): void {
   const text = textNode.textContent
   if (!text) return
+  const skipStarThreshold = getSkipStarThreshold(ctx)
 
   WORD_RE.lastIndex = 0
   let match: RegExpExecArray | null
 
   while ((match = WORD_RE.exec(text)) !== null) {
-    if (pending.length >= budget) return
+    if (pending.length >= candidateLimit) return
 
     const word = match[0]
     const wordNorm = normalizeWord(word)
@@ -352,11 +405,16 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
     if (!wordNorm || wordNorm.length < 3) continue
 
     const entry = ctx.snapshot.entries[wordNorm]
-    if (entry && entry.proficiency >= ctx.masteryThreshold) continue
+    const effectiveStar = getEffectiveStar(ctx, wordNorm, entry)
+    if (effectiveStar >= skipStarThreshold) continue
+
+    if (!entry && isLikelyProperNounCandidate(word, text, match.index, match.index + word.length)) continue
 
     if (!entry && isLikelyProperNounCandidate(word, text, match.index, match.index + word.length)) continue
 
     if (!entry && shouldFilterByLevel(wordNorm, ctx.userCEFRLevel)) continue
+
+    const score = calculateCandidateScore(ctx, wordNorm, entry, effectiveStar)
 
     pending.push({
       textNode,
@@ -366,6 +424,8 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
       wordNorm,
       entry,
       sentence: getSentenceContext(textNode),
+      score,
+      effectiveStar,
     })
   }
 }
@@ -481,30 +541,33 @@ export async function annotateVisibleText(ctx: AnnotationContext, options?: Anno
   if (textNodes.length === 0) return 0
 
   const pending: PendingItem[] = []
+  const candidateLimit = Math.max(budget * 6, 60)
 
   for (const textNode of textNodes) {
-    if (pending.length >= budget) break
-    collectMatches(textNode, ctx, pending, budget)
+    if (pending.length >= candidateLimit) break
+    collectMatches(textNode, ctx, pending, candidateLimit)
   }
 
   if (pending.length === 0) return 0
 
-  await resolvePendingGlosses(pending)
+  pending.sort((a, b) => b.score - a.score || a.effectiveStar - b.effectiveStar)
+  const selectedPending = pending.slice(0, budget)
+  await resolvePendingGlosses(selectedPending)
 
   let appliedCount = 0
 
   // Reverse apply to protect offsets in same text node.
-  for (let i = pending.length - 1; i >= 0; i--) {
-    const item = pending[i]
+  for (let i = selectedPending.length - 1; i >= 0; i--) {
+    const item = selectedPending[i]
     try {
       const range = document.createRange()
       range.setStart(item.textNode, item.startOffset)
       range.setEnd(item.textNode, item.endOffset)
 
       if (item.gloss) {
-        wrapWordWithRuby(range, item.gloss)
+        wrapWordWithRuby(range, item.gloss, item)
       } else {
-        wrapWordWithUnderline(range)
+        wrapWordWithUnderline(range, item)
       }
       appliedCount++
     } catch {

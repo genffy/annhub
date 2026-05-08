@@ -1,5 +1,6 @@
 import { HighlightDOMManager } from './highlight-dom'
 import { HighlightRecord, HighlightResult } from '../../../types/highlight'
+import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
 import { HighlightStatsResponse } from '../../../types/messages'
 import { generateId, hash } from '../../../utils/helpers'
@@ -44,9 +45,9 @@ export class HighlightService {
             await this.restorePageHighlights()
 
             this.isInitialized = true
-            console.log('[HighlightService] Initialized successfully')
+            Logger.info('[HighlightService] Initialized successfully')
         } catch (error) {
-            console.error('[HighlightService] Failed to initialize:', error)
+            Logger.error('[HighlightService] Failed to initialize:', error)
             throw error
         }
     }
@@ -129,11 +130,11 @@ export class HighlightService {
                 return { success: false, error: 'Failed to create DOM highlight' }
             }
 
-            console.log(`[HighlightService] Created highlight: ${saveResult.data.id}`)
+            Logger.info(`[HighlightService] Created highlight: ${saveResult.data.id}`)
             return saveResult
 
         } catch (error) {
-            console.error('[HighlightService] Failed to create highlight:', error)
+            Logger.error('[HighlightService] Failed to create highlight:', error)
             return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
         }
     }
@@ -156,11 +157,11 @@ export class HighlightService {
 
             this.domManager.updateHighlightColor(highlightId, newColor)
 
-            console.log(`[HighlightService] Updated highlight color: ${highlightId} -> ${newColor}`)
+            Logger.info(`[HighlightService] Updated highlight color: ${highlightId} -> ${newColor}`)
             return updateResult
 
         } catch (error) {
-            console.error('[HighlightService] Failed to update highlight color:', error)
+            Logger.error('[HighlightService] Failed to update highlight color:', error)
             return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
         }
     }
@@ -179,11 +180,11 @@ export class HighlightService {
                 }
             })
 
-            console.log(`[HighlightService] Deleted highlight: ${highlightId}`)
+            Logger.info(`[HighlightService] Deleted highlight: ${highlightId}`)
             return deleteResult
 
         } catch (error) {
-            console.error('[HighlightService] Failed to delete highlight:', error)
+            Logger.error('[HighlightService] Failed to delete highlight:', error)
             return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
         }
     }
@@ -195,12 +196,12 @@ export class HighlightService {
                 type: 'GET_CURRENT_PAGE_HIGHLIGHTS',
                 url: window.location.href,
             })
-            console.log('restorePageHighlights', highlights)
+            Logger.debug('restorePageHighlights', highlights)
             if (!highlights.success) {
-                console.error('[HighlightService] Failed to get current page highlights:', highlights.error)
+                Logger.error('[HighlightService] Failed to get current page highlights:', highlights.error)
                 return
             }
-            console.log(`[HighlightService] Restoring ${highlights.data?.length} highlights`)
+            Logger.info(`[HighlightService] Restoring ${highlights.data?.length} highlights`)
 
             // First pass: try to restore immediately
             let pending = (highlights.data || []).filter(h => !this.tryRestoreHighlight(h))
@@ -208,18 +209,18 @@ export class HighlightService {
             // Retry pending highlights with increasing delays (for SPA dynamic content)
             const retryDelays = [1000, 2000, 3000]
             for (let attempt = 0; attempt < retryDelays.length && pending.length > 0; attempt++) {
-                console.log(`[HighlightService] ${pending.length} highlights pending, retrying in ${retryDelays[attempt]}ms (attempt ${attempt + 1}/${retryDelays.length})`)
+                Logger.info(`[HighlightService] ${pending.length} highlights pending, retrying in ${retryDelays[attempt]}ms (attempt ${attempt + 1}/${retryDelays.length})`)
                 await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]))
                 pending = pending.filter(h => !this.tryRestoreHighlight(h))
             }
 
             if (pending.length > 0) {
-                console.warn(`[HighlightService] Could not restore ${pending.length} highlights after retries:`, pending.map(h => h.id))
+                Logger.warn(`[HighlightService] Could not restore ${pending.length} highlights after retries:`, pending.map(h => h.id))
             }
 
-            console.log('[HighlightService] Page highlights restored')
+            Logger.info('[HighlightService] Page highlights restored')
         } catch (error) {
-            console.error('[HighlightService] Failed to restore page highlights:', error)
+            Logger.error('[HighlightService] Failed to restore page highlights:', error)
         }
     }
 
@@ -234,10 +235,10 @@ export class HighlightService {
                 return false
             }
             this.domManager.createHighlight(range, highlight.color, highlight.id)
-            console.log(`[HighlightService] Restored highlight: ${highlight.id}`)
+            Logger.info(`[HighlightService] Restored highlight: ${highlight.id}`)
             return true
         } catch (error) {
-            console.error(`[HighlightService] Failed to restore highlight ${highlight.id}:`, error)
+            Logger.error(`[HighlightService] Failed to restore highlight ${highlight.id}:`, error)
             return false
         }
     }
@@ -271,7 +272,7 @@ export class HighlightService {
 
             return null
         } catch (error) {
-            console.error('[HighlightService] Error finding text range:', error)
+            Logger.error('[HighlightService] Error finding text range:', error)
             return null
         }
     }
@@ -386,7 +387,7 @@ export class HighlightService {
             url: window.location.href,
         })
         if (!response.success) {
-            console.error('[HighlightService] Failed to get current page highlights:', response.error)
+            Logger.error('[HighlightService] Failed to get current page highlights:', response.error)
             return []
         }
         return response.data || []
@@ -402,7 +403,7 @@ export class HighlightService {
             type: 'CLEAR_ALL_HIGHLIGHTS',
         })
 
-        console.log('[HighlightService] All highlights cleared')
+        Logger.info('[HighlightService] All highlights cleared')
     }
 
 
@@ -414,7 +415,7 @@ export class HighlightService {
             type: 'GET_HIGHLIGHT_STATS',
         })
         if (!storageStats.success) {
-            console.error('[HighlightService] Failed to get highlight stats:', storageStats.error)
+            Logger.error('[HighlightService] Failed to get highlight stats:', storageStats.error)
             return { storage: { total: 0, active: 0, archived: 0, deleted: 0 }, dom: { total: 0, colors: {} } }
         }
         const domStats = this.domManager.getHighlightStats()

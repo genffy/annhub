@@ -69,7 +69,6 @@ async function eudicRequest<T>(
     const response = await fetch(url.toString(), {
         method,
         headers: {
-            'User-Agent': 'Mozilla/5.0',
             'Authorization': token,
             ...(body ? { 'Content-Type': 'application/json' } : {}),
         },

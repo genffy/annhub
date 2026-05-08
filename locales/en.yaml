@@ -1,5 +1,5 @@
-extName: 'ANN - Advanced Text Toolkit'
-extDescription: 'Multi-functional text selection toolkit with translation, notes, and sharing capabilities'
+extName: 'AnnHub - Text Highlight & Vocabulary'
+extDescription: 'Highlight, annotate and collect text on any webpage. Auto-label English vocabulary with contextual definitions.'
 wip: '$1 is under development...'
 search: 'Search'
 noData: 'No data'
@@ -125,3 +125,10 @@ content:
     save: 'Save'
     clear: 'Clear'
     close: 'Close'
+  hoverMenu:
+    collect: 'Collect'
+    collectDesc: 'Collect selected text'
+    note: 'Note'
+    noteDesc: 'Add a note before saving'
+    highlighter: 'Highlighter'
+    highlighterDesc: 'Enter highlighter mode (Alt+H)'
