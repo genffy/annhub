@@ -8,6 +8,35 @@ import { isWithinViewportWindowByRect } from './viewport'
 const MARKER_ATTR = 'data-ann-vocab'
 const HIDDEN_SELECTOR = '[hidden], [aria-hidden="true"], .sr-only, .visually-hidden, [class*="sr-only"]'
 const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'SELECT', 'CODE', 'PRE', 'SVG', 'CANVAS', 'VIDEO', 'AUDIO', 'IFRAME', 'NOSCRIPT'])
+const INTERACTIVE_TEXT_SELECTOR = [
+  'a[href]',
+  'button',
+  '[role="button"]',
+  '[role="link"]',
+  '[role="menuitem"]',
+  '[role="tab"]',
+  '[role="switch"]',
+  '[role="checkbox"]',
+  '[role="radio"]',
+  '[contenteditable="true"]',
+].join(',')
+const SHORT_UI_LABELS = new Set([
+  'like',
+  'dislike',
+  'repost',
+  'quote',
+  'comment',
+  'commit',
+  'reply',
+  'share',
+  'bookmark',
+  'follow',
+  'following',
+  'subscribe',
+  'more',
+  'view',
+  'views',
+])
 
 const WORD_RE = /\b[a-zA-Z]{2,}\b/g
 const GLOSS_L1_CACHE_MAX = 600
@@ -91,6 +120,8 @@ function shouldSkip(node: Node, contentRoot?: Element, restrictToFeedArticles = 
   if (restrictToFeedArticles && !el.closest('article, [role="article"]')) return true
   if (isExcludedSection(el)) return true
   if (el.closest(HIDDEN_SELECTOR)) return true
+  if (el.closest(INTERACTIVE_TEXT_SELECTOR)) return true
+  if (isShortUiLabel(node.textContent || '')) return true
 
   if (el.closest(`[${MARKER_ATTR}]`)) return true
   if (el.isContentEditable) return true
@@ -100,6 +131,12 @@ function shouldSkip(node: Node, contentRoot?: Element, restrictToFeedArticles = 
   if (el.closest('ann-selection')) return true
 
   return false
+}
+
+function isShortUiLabel(text: string): boolean {
+  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase()
+  if (!normalized || normalized.length > 24) return false
+  return SHORT_UI_LABELS.has(normalized)
 }
 
 function getSentenceContext(textNode: Text): string {
