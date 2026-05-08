@@ -2,7 +2,7 @@ import { isEnglishPage, shouldAnnotateDomain } from './detect-page'
 import { injectVocabStyles, removeVocabStyles } from './styles'
 import { annotateVisibleText, cleanupAnnotations, resetVocabLabelRuntimeState } from './annotate'
 import { collectAnnotatableBlocks, resolveContentRoot, ANNOTATABLE_BLOCK_SELECTOR, isExcludedSection } from './content-scope'
-import { getActivePlatformRule } from './platform-rules'
+import { getActivePlatformRule, type VocabPlatformRule } from './platform-rules'
 import { isElementWithinViewportWindow } from './viewport'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
@@ -15,6 +15,7 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let idleHandle: ReturnType<typeof setTimeout> | number | null = null
 let isFlushing = false
 let activeContentRoot: Element | null = null
+let activePlatformRule: VocabPlatformRule | null = null
 let rootRecheckTimers: ReturnType<typeof setTimeout>[] = []
 let allowRootFallbackToContentRoot = true
 let viewportReconcileTimer: ReturnType<typeof setTimeout> | null = null
@@ -116,6 +117,18 @@ function enqueueBlocks(blocks: Iterable<Element>): void {
   }
 }
 
+function resolveActiveContentRoot(): Element {
+  return activePlatformRule?.resolveContentRoot?.() ?? resolveContentRoot()
+}
+
+function collectActiveAnnotatableBlocks(root: Element): Element[] {
+  if (activePlatformRule) {
+    return activePlatformRule.collectBlocks(root).filter(block => !isExcludedSection(block))
+  }
+
+  return collectAnnotatableBlocks(root)
+}
+
 function observeBlock(block: Element): void {
   if (!visibilityObserver) return
   if (observedBlocks.has(block)) return
@@ -126,7 +139,7 @@ function observeBlock(block: Element): void {
 
 function reconcileVisibleBlocks(): void {
   if (!activeContentRoot) return
-  const visibleBlocks = collectAnnotatableBlocks(activeContentRoot).filter(block => isElementWithinViewportWindow(block, 0.5))
+  const visibleBlocks = collectActiveAnnotatableBlocks(activeContentRoot).filter(block => isElementWithinViewportWindow(block, 0.5))
   for (const block of visibleBlocks) {
     observeBlock(block)
   }
@@ -161,21 +174,15 @@ function removeViewportListeners(): void {
 function collectBlocksFromNode(node: Node): Element[] {
   if (!activeContentRoot) return []
 
-  const collected = new Set<Element>()
-  const platformRule = getActivePlatformRule()
-
-  if (platformRule) {
-    const platformRoot = node.nodeType === Node.TEXT_NODE ? node.parentElement : node instanceof Element ? node : null
-    if (platformRoot) {
-      for (const block of platformRule.collectBlocks(platformRoot)) {
-        if (activeContentRoot.contains(block)) {
-          collected.add(block)
-        }
-      }
-    }
-
-    if (collected.size > 0) return Array.from(collected)
+  if (activePlatformRule) {
+    const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node instanceof Element ? node : null
+    if (!element || !activeContentRoot.contains(element)) return []
+    return activePlatformRule.collectBlocks(element)
+      .filter(block => activeContentRoot?.contains(block))
+      .filter(block => !isExcludedSection(block))
   }
+
+  const collected = new Set<Element>()
 
   const addIfBlock = (el: Element | null): void => {
     if (!el) return
@@ -246,8 +253,8 @@ function setupVisibilityObserver(root: Element): void {
     },
   )
 
-  const blocks = collectAnnotatableBlocks(root)
-  allowRootFallbackToContentRoot = blocks.length === 1 && blocks[0] === root
+  const blocks = collectActiveAnnotatableBlocks(root)
+  allowRootFallbackToContentRoot = !activePlatformRule && blocks.length === 1 && blocks[0] === root
 
   for (const block of blocks) {
     observeBlock(block)
@@ -260,7 +267,7 @@ function refreshContentRootIfNeeded(force = false): void {
   if (!activeContentRoot) return
   if (!force && activeContentRoot !== document.body && activeContentRoot.isConnected) return
 
-  const nextRoot = resolveContentRoot()
+  const nextRoot = resolveActiveContentRoot()
   if (!nextRoot || nextRoot === activeContentRoot) return
 
   activeContentRoot = nextRoot
@@ -361,11 +368,12 @@ export async function initVocabLabel(): Promise<void> {
 
   isRunning = true
   injectVocabStyles()
+  activePlatformRule = getActivePlatformRule()
 
   const emptySnapshot: VocabSnapshot = { version: '1.0', updatedAt: 0, entries: {} }
   const normalizedMaxAnnotations = Number.isFinite(config.maxAnnotationsPerPage) && config.maxAnnotationsPerPage > 0 ? config.maxAnnotationsPerPage : 200
 
-  activeContentRoot = resolveContentRoot()
+  activeContentRoot = resolveActiveContentRoot()
   annotateCtx = {
     snapshot: snapshot ?? emptySnapshot,
     masteryThreshold: config.masteryThreshold,
@@ -376,7 +384,7 @@ export async function initVocabLabel(): Promise<void> {
 
   Logger.info('[VocabLabel] Starting annotation with strict content root...')
 
-  const initialBlocks = collectAnnotatableBlocks(activeContentRoot).filter(block => isElementWithinViewportWindow(block, 0.5))
+  const initialBlocks = collectActiveAnnotatableBlocks(activeContentRoot).filter(block => isElementWithinViewportWindow(block, 0.5))
 
   const initialCount = await annotateVisibleText(annotateCtx, {
     roots: initialBlocks,
@@ -415,6 +423,7 @@ export function destroyVocabLabel(): void {
   cancelScheduledFlush()
   pendingBlocks.clear()
   activeContentRoot = null
+  activePlatformRule = null
   annotateCtx = null
   allowRootFallbackToContentRoot = true
 

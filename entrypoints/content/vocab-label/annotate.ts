@@ -151,6 +151,27 @@ function getSentenceContext(textNode: Text): string {
   return text
 }
 
+function isAtSentenceStart(text: string, startOffset: number): boolean {
+  const before = text.slice(0, startOffset).trim()
+  return before.length === 0 || /[.!?]\s*$/.test(before)
+}
+
+function hasAdjacentTitleCaseToken(text: string, startOffset: number, endOffset: number): boolean {
+  const before = text.slice(0, startOffset)
+  const after = text.slice(endOffset)
+  return /[A-Z][a-z]+[\s'-]+$/.test(before) || /^[\s'-]+[A-Z][a-z]+/.test(after)
+}
+
+function isLikelyProperNounCandidate(word: string, text: string, startOffset: number, endOffset: number): boolean {
+  if (/^[A-Z]{2,}$/.test(word)) return true
+  if (/[a-z][A-Z]/.test(word)) return true
+
+  if (!/^[A-Z][a-z]+$/.test(word)) return false
+
+  if (hasAdjacentTitleCaseToken(text, startOffset, endOffset)) return true
+  return !isAtSentenceStart(text, startOffset)
+}
+
 async function resolveGloss(word: string, sentence: string): Promise<GlossResult | null> {
   try {
     const res = await MessageUtils.sendMessage({
@@ -332,6 +353,8 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
 
     const entry = ctx.snapshot.entries[wordNorm]
     if (entry && entry.proficiency >= ctx.masteryThreshold) continue
+
+    if (!entry && isLikelyProperNounCandidate(word, text, match.index, match.index + word.length)) continue
 
     if (!entry && shouldFilterByLevel(wordNorm, ctx.userCEFRLevel)) continue
 
