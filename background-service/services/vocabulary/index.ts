@@ -12,6 +12,8 @@ import {
     GlossResult, GlossCacheEntry,
     normalizeDomainRuleList,
     normalizeWord,
+    VocabLearningEvent,
+    VocabLearningPendingEvent,
 } from '../../../types/vocabulary'
 import {
     EudicCategory,
@@ -36,10 +38,13 @@ const STORAGE_KEYS = {
     vocabSnapshot: 'vocabSnapshot',
     vocabSyncState: 'vocabSyncState',
     glossCache: 'glossCache',
+    vocabLearningCategoryId: 'vocabLearningCategoryId',
+    vocabLearningPendingEvents: 'vocabLearningPendingEvents',
 } as const
 
 const ALARM_NAME = 'vocab-sync'
 const GLOSS_CACHE_TTL = 7 * 24 * 60 * 60 * 1000 // 7 days
+const DEFAULT_LEARNING_CATEGORY_NAME = 'AnnHub Learning'
 
 export class VocabularyService implements IService {
     readonly name = 'vocabulary' as const
@@ -346,6 +351,226 @@ export class VocabularyService implements IService {
         }
     }
 
+    async ensureLearningCategory(
+        options: {
+            language?: string
+            name?: string
+            forceRefresh?: boolean
+        } = {},
+    ): Promise<{ categoryId: string; created: boolean }> {
+        const language = options.language ?? 'en'
+        const categoryName = options.name?.trim() || DEFAULT_LEARNING_CATEGORY_NAME
+        const storedCategoryId = options.forceRefresh ? '' : await this.getLearningCategoryId()
+        if (storedCategoryId) {
+            return { categoryId: storedCategoryId, created: false }
+        }
+
+        const categories = await this.listEudicCategories(language)
+        const matched = categories.find(category => category.name.trim() === categoryName)
+        if (matched) {
+            await chrome.storage.local.set({ [STORAGE_KEYS.vocabLearningCategoryId]: matched.id })
+            await this.updateLearningSyncState({
+                learningCategoryId: matched.id,
+            })
+            return { categoryId: matched.id, created: false }
+        }
+
+        const created = await this.createEudicCategory(categoryName, language)
+        await chrome.storage.local.set({ [STORAGE_KEYS.vocabLearningCategoryId]: created.id })
+        await this.updateLearningSyncState({
+            learningCategoryId: created.id,
+        })
+        return { categoryId: created.id, created: true }
+    }
+
+    async selectLearningCategory(categoryId: string): Promise<void> {
+        const normalizedId = categoryId.trim()
+        if (!normalizedId) {
+            throw new Error('Learning category ID is required')
+        }
+
+        await chrome.storage.local.set({ [STORAGE_KEYS.vocabLearningCategoryId]: normalizedId })
+        await this.updateLearningSyncState({
+            learningCategoryId: normalizedId,
+        })
+    }
+
+    async syncLearningProfileFromEudic(options: { force?: boolean; language?: string } = {}): Promise<{ count: number; syncedAt: number }> {
+        const language = options.language ?? 'en'
+        const category = await this.ensureLearningCategory({ language, forceRefresh: options.force })
+        const token = await this.getEudicToken()
+        const words = await fetchAllWords(token, [category.categoryId], language)
+
+        const result = await chrome.storage.local.get(STORAGE_KEYS.vocabSnapshot)
+        const snapshot = (result[STORAGE_KEYS.vocabSnapshot] as VocabSnapshot | undefined) ?? {
+            version: '1.0',
+            updatedAt: Date.now(),
+            entries: {},
+        }
+        const entries: Record<string, VocabEntry> = { ...snapshot.entries }
+        for (const word of words) {
+            const key = normalizeWord(word.word)
+            if (!key) continue
+            const star = this.normalizeStar(word.star)
+            entries[key] = {
+                ...entries[key],
+                proficiency: star,
+                star,
+                exp: word.exp ?? entries[key]?.exp,
+            }
+        }
+
+        const updatedSnapshot: VocabSnapshot = {
+            ...snapshot,
+            updatedAt: Date.now(),
+            entries,
+        }
+        await chrome.storage.local.set({ [STORAGE_KEYS.vocabSnapshot]: updatedSnapshot })
+        await this.updateLearningSyncState({
+            learningCategoryId: category.categoryId,
+            learningLastSyncAt: Date.now(),
+            learningLastSyncStatus: 'ok',
+            learningLastError: undefined,
+        })
+
+        return { count: words.length, syncedAt: updatedSnapshot.updatedAt }
+    }
+
+    async recordLearningEvent(event: VocabLearningEvent): Promise<{ queued: number; star: number; word: string }> {
+        const word = normalizeWord(event.word)
+        if (!word) {
+            throw new Error('Word is required')
+        }
+
+        const category = await this.ensureLearningCategory({ language: event.language ?? 'en' })
+        const currentStar = await this.getCurrentWordStar(word)
+        const targetStar = this.resolveTargetStar(event, currentStar)
+        await this.upsertWordLearningState(word, targetStar)
+
+        const pending = await this.getPendingLearningEvents()
+        const now = Date.now()
+        const pendingEvent: VocabLearningPendingEvent = {
+            id: `${now}_${Math.random().toString(36).slice(2, 10)}`,
+            word,
+            star: targetStar,
+            sentence: event.sentence,
+            language: event.language ?? 'en',
+            createdAt: event.timestamp ?? now,
+            updatedAt: now,
+            attempts: 0,
+        }
+        pending.push(pendingEvent)
+        await chrome.storage.local.set({ [STORAGE_KEYS.vocabLearningPendingEvents]: pending })
+        await this.updateLearningSyncState({
+            learningCategoryId: category.categoryId,
+            learningPendingCount: pending.length,
+        })
+
+        this.flushLearningPendingEvents().catch(error => {
+            Logger.warn('[VocabularyService] Failed to flush pending learning events', error)
+        })
+
+        return { queued: pending.length, star: targetStar, word }
+    }
+
+    async flushLearningPendingEvents(): Promise<{ successCount: number; failedCount: number; pendingCount: number }> {
+        const pending = await this.getPendingLearningEvents()
+        if (pending.length === 0) {
+            await this.updateLearningSyncState({ learningPendingCount: 0 })
+            return { successCount: 0, failedCount: 0, pendingCount: 0 }
+        }
+
+        const categoryId = await this.getLearningCategoryId()
+        if (!categoryId) {
+            throw new Error('Learning category not configured')
+        }
+
+        const nextPending: VocabLearningPendingEvent[] = []
+        let successCount = 0
+        let failedCount = 0
+        for (const event of pending) {
+            try {
+                await this.addEudicWord(event.word, {
+                    language: event.language,
+                    star: event.star,
+                    contextLine: event.sentence,
+                    categoryIds: [categoryId],
+                })
+                successCount += 1
+            } catch (error) {
+                failedCount += 1
+                nextPending.push({
+                    ...event,
+                    attempts: event.attempts + 1,
+                    updatedAt: Date.now(),
+                    lastError: error instanceof Error ? error.message : String(error),
+                })
+            }
+        }
+
+        await chrome.storage.local.set({ [STORAGE_KEYS.vocabLearningPendingEvents]: nextPending })
+        await this.updateLearningSyncState({
+            learningCategoryId: categoryId,
+            learningPendingCount: nextPending.length,
+            learningLastSyncAt: Date.now(),
+            learningLastSyncStatus: failedCount > 0 ? 'error' : 'ok',
+            learningLastError: failedCount > 0 ? nextPending[0]?.lastError ?? 'Unknown error' : undefined,
+        })
+
+        return {
+            successCount,
+            failedCount,
+            pendingCount: nextPending.length,
+        }
+    }
+
+    async getLearningSyncState(): Promise<VocabSyncState> {
+        const result = await chrome.storage.local.get(STORAGE_KEYS.vocabSyncState)
+        const state = result[STORAGE_KEYS.vocabSyncState] as VocabSyncState | undefined
+        if (!state) {
+            const pending = await this.getPendingLearningEvents()
+            const learningCategoryId = await this.getLearningCategoryId()
+            return {
+                lastSyncAt: 0,
+                lastSyncStatus: 'ok',
+                learningCategoryId: learningCategoryId || undefined,
+                learningPendingCount: pending.length,
+            }
+        }
+        return state
+    }
+
+    async getLearningProfile(words?: string[]): Promise<{ stars: Record<string, number>; pendingCount: number }> {
+        const snapshot = await this.getSnapshot(words)
+        const pending = await this.getPendingLearningEvents()
+        const filterSet = words && words.length > 0
+            ? new Set(words.map(normalizeWord).filter(Boolean))
+            : null
+
+        const stars: Record<string, number> = {}
+        const entries = snapshot?.entries ?? {}
+        for (const [word, entry] of Object.entries(entries)) {
+            if (filterSet && !filterSet.has(word)) continue
+            const raw = typeof entry.star === 'number' ? entry.star : entry.proficiency
+            stars[word] = this.normalizeStar(raw)
+        }
+
+        for (const event of pending) {
+            if (filterSet && !filterSet.has(event.word)) continue
+            stars[event.word] = this.normalizeStar(event.star)
+        }
+
+        return { stars, pendingCount: pending.length }
+    }
+
+    async resetWordLearning(word: string, language = 'en'): Promise<{ queued: number; star: number; word: string }> {
+        return this.recordLearningEvent({
+            word,
+            language,
+            eventType: 'reset',
+        })
+    }
+
     // ── Snapshot access ──
 
     async getSnapshot(words?: string[]): Promise<VocabSnapshot | null> {
@@ -445,6 +670,89 @@ export class VocabularyService implements IService {
         const result = await chrome.storage.local.get(STORAGE_KEYS.glossCache)
         const raw = result[STORAGE_KEYS.glossCache] as Record<string, GlossCacheEntry> | undefined
         return raw ?? {}
+    }
+
+    private async getLearningCategoryId(): Promise<string> {
+        const result = await chrome.storage.local.get(STORAGE_KEYS.vocabLearningCategoryId)
+        const categoryId = result[STORAGE_KEYS.vocabLearningCategoryId] as string | undefined
+        return categoryId?.trim() ?? ''
+    }
+
+    private async getPendingLearningEvents(): Promise<VocabLearningPendingEvent[]> {
+        const result = await chrome.storage.local.get(STORAGE_KEYS.vocabLearningPendingEvents)
+        const pending = result[STORAGE_KEYS.vocabLearningPendingEvents] as VocabLearningPendingEvent[] | undefined
+        return Array.isArray(pending) ? pending : []
+    }
+
+    private async updateLearningSyncState(partial: Partial<VocabSyncState>): Promise<void> {
+        const result = await chrome.storage.local.get(STORAGE_KEYS.vocabSyncState)
+        const current = (result[STORAGE_KEYS.vocabSyncState] as VocabSyncState | undefined) ?? {
+            lastSyncAt: 0,
+            lastSyncStatus: 'ok',
+        }
+        const nextState: VocabSyncState = {
+            ...current,
+            ...partial,
+        }
+        await chrome.storage.local.set({ [STORAGE_KEYS.vocabSyncState]: nextState })
+    }
+
+    private normalizeStar(value: number | undefined): number {
+        if (typeof value !== 'number' || Number.isNaN(value)) {
+            return 1
+        }
+        return Math.min(5, Math.max(1, Math.round(value)))
+    }
+
+    private resolveTargetStar(event: VocabLearningEvent, currentStar: number): number {
+        if (typeof event.targetStar === 'number') {
+            return this.normalizeStar(event.targetStar)
+        }
+
+        switch (event.eventType) {
+            case 'known':
+                return this.normalizeStar(currentStar + 1)
+            case 'unknown':
+            case 'reveal':
+                return this.normalizeStar(currentStar - 1)
+            case 'suppress':
+                return 5
+            case 'addToVocab':
+                return this.normalizeStar(Math.min(currentStar, 2))
+            case 'reset':
+                return 1
+            case 'seen':
+            default:
+                return this.normalizeStar(currentStar)
+        }
+    }
+
+    private async getCurrentWordStar(word: string): Promise<number> {
+        const snapshot = await this.getSnapshot([word])
+        const entry = snapshot?.entries[word]
+        if (typeof entry?.star === 'number') {
+            return this.normalizeStar(entry.star)
+        }
+        if (typeof entry?.proficiency === 'number') {
+            return this.normalizeStar(entry.proficiency)
+        }
+        return 1
+    }
+
+    private async upsertWordLearningState(word: string, star: number): Promise<void> {
+        const result = await chrome.storage.local.get(STORAGE_KEYS.vocabSnapshot)
+        const snapshot = (result[STORAGE_KEYS.vocabSnapshot] as VocabSnapshot | undefined) ?? {
+            version: '1.0',
+            updatedAt: Date.now(),
+            entries: {},
+        }
+        snapshot.entries[word] = {
+            ...snapshot.entries[word],
+            proficiency: star,
+            star,
+        }
+        snapshot.updatedAt = Date.now()
+        await chrome.storage.local.set({ [STORAGE_KEYS.vocabSnapshot]: snapshot })
     }
 
     private async getEudicToken(): Promise<string> {

@@ -155,6 +155,53 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     expect(annotatedWords).toContain('fundamental')
   })
 
+  it('applies pending star overlay to skip high-star words', async () => {
+    setupDOM('<p>The volatile signal remains robust.</p>')
+
+    mockSendMessage.mockImplementation(async () => ({
+      success: true,
+      data: { gloss: '释义', source: 'llm' },
+    }))
+
+    const ctx = makeCtx({
+      pendingStarOverlay: {
+        volatile: 5,
+      },
+      adaptiveLearningEnabled: true,
+      annotationAggressiveness: 'balanced',
+    })
+
+    await annotateVisibleText(ctx)
+
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
+      .map(r => r.firstChild?.textContent?.toLowerCase())
+
+    expect(annotatedWords).not.toContain('volatile')
+  })
+
+  it('falls back to masteryThreshold when adaptive learning is disabled', async () => {
+    setupDOM('<p>The volatile signal remains robust.</p>')
+
+    mockSendMessage.mockImplementation(async () => ({
+      success: true,
+      data: { gloss: '释义', source: 'llm' },
+    }))
+
+    const ctx = makeCtx({
+      masteryThreshold: 5,
+      adaptiveLearningEnabled: false,
+      pendingStarOverlay: {
+        volatile: 4,
+      },
+    })
+
+    await annotateVisibleText(ctx)
+
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
+      .map(r => r.firstChild?.textContent?.toLowerCase())
+    expect(annotatedWords).toContain('volatile')
+  })
+
   it('respects maxAnnotations limit', async () => {
     setupDOM('<p>Architecture implementation evaluation methodology comprehensive extraordinary.</p>')
 
@@ -167,6 +214,42 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
 
     const count = await annotateVisibleText(ctx)
     expect(count).toBe(2)
+  })
+
+  it('prioritizes higher-scored candidates across text nodes before applying the page budget', async () => {
+    setupDOM(`
+      <main>
+        <p>algorithm</p>
+        <p>ubiquitous</p>
+      </main>
+    `)
+
+    const snapshot = makeSnapshot({
+      algorithm: { proficiency: 2, star: 2, exp: '算法' },
+    })
+
+    mockSendMessage.mockImplementation(async (msg: any) => {
+      if (msg.type !== 'CONTEXT_GLOSS') return { success: false }
+      return {
+        success: true,
+        data: { gloss: '无处不在', source: 'llm' },
+      }
+    })
+
+    const ctx = makeCtx({
+      snapshot,
+      maxAnnotations: 1,
+      userCEFRLevel: 'A1',
+      adaptiveLearningEnabled: true,
+      annotationAggressiveness: 'balanced',
+    })
+
+    await annotateVisibleText(ctx)
+
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
+      .map(r => r.firstChild?.textContent?.toLowerCase())
+
+    expect(annotatedWords).toEqual(['ubiquitous'])
   })
 
   it('skips common words at B1 level', async () => {

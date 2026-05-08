@@ -4,6 +4,8 @@ export type CEFRLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2'
 
 export interface VocabConfig {
     enabled: boolean
+    adaptiveLearningEnabled: boolean
+    annotationAggressiveness: 'review-light' | 'balanced' | 'aggressive'
     eudicToken: string
     eudicCategoryIds: string[]
     masteryThreshold: number
@@ -18,6 +20,8 @@ export interface VocabConfig {
 
 export const defaultVocabConfig: VocabConfig = {
     enabled: false,
+    adaptiveLearningEnabled: true,
+    annotationAggressiveness: 'balanced',
     eudicToken: '',
     eudicCategoryIds: [],
     masteryThreshold: 3,
@@ -104,6 +108,41 @@ export interface VocabSnapshot {
 export interface VocabSyncState {
     lastSyncAt: number
     lastSyncStatus: 'ok' | 'error'
+    lastError?: string
+    learningCategoryId?: string
+    learningLastSyncAt?: number
+    learningLastSyncStatus?: 'ok' | 'error'
+    learningLastError?: string
+    learningPendingCount?: number
+}
+
+export type VocabLearningEventType =
+    | 'seen'
+    | 'reveal'
+    | 'known'
+    | 'unknown'
+    | 'suppress'
+    | 'addToVocab'
+    | 'reset'
+
+export interface VocabLearningEvent {
+    word: string
+    eventType: VocabLearningEventType
+    sentence?: string
+    targetStar?: number
+    language?: string
+    timestamp?: number
+}
+
+export interface VocabLearningPendingEvent {
+    id: string
+    word: string
+    star: number
+    sentence?: string
+    language: string
+    createdAt: number
+    updatedAt: number
+    attempts: number
     lastError?: string
 }
 
