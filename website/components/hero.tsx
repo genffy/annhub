@@ -13,23 +13,23 @@ const Hero = () => {
   }, [])
   return (
     <AnimatePresence>
-      <svg style={{ filter: 'contrast(125%) brightness(110%)' }} className="fixed z-[1] w-full h-full opacity-[35%]">
+      <svg style={{ filter: 'contrast(125%) brightness(110%)' }} className="fixed z-[1] w-full h-full opacity-[35%] pointer-events-none">
         <filter id="noise">
           <feTurbulence type="fractalNoise" baseFrequency=".7" numOctaves="3" stitchTiles="stitch"></feTurbulence>
           <feColorMatrix type="saturate" values="0"></feColorMatrix>
         </filter>
         <rect width="100%" height="100%" filter="url(#noise)"></rect>
       </svg>
-      <main className="flex flex-col justify-center h-[90%] static md:fixed w-screen overflow-hidden grid-rows-[1fr_repeat(3,auto)_1fr] z-[100] pt-[30px] pb-[320px] px-4 md:px-20 md:py-0">
+      <main className="relative flex min-h-screen w-full flex-col justify-center overflow-hidden grid-rows-[1fr_repeat(3,auto)_1fr] z-[100] pt-[30px] pb-[120px] px-4 md:px-20 md:py-0">
         <motion.h1
-          initial={{ opacity: 0, y: 40 }}
+          initial={{ opacity: 1, y: 0 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{
             delay: 0.15,
             duration: 0.95,
             ease: [0.165, 0.84, 0.44, 1],
           }}
-          className="relative md:ml-[-10px] md:mb-[37px] font-extrabold text-[16vw] md:text-[130px] font-inter text-[#1E2B3A] leading-[0.9] tracking-[-2px] z-[100]"
+          className="relative md:ml-[-10px] md:mb-[37px] font-extrabold text-[16vw] md:text-[130px] font-inter text-[#1E2B3A] leading-[0.9] tracking-normal z-[100]"
         >
           <svg className="inline-block w-[82px] row-start-2 mb-8 md:mb-6" viewBox="0 0 170 200" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path fillRule="evenodd" clipRule="evenodd" d="M30 110L70 0H40L0 110V200H30L60 110H30ZM140 110L100 0H130L170 110V200H140L110 110H140Z" fill="#673AB8" />
@@ -39,7 +39,7 @@ const Hero = () => {
           <span className="font-inter text-[#673AB8]">.</span>
         </motion.h1>
         <motion.div
-          initial={{ opacity: 0, y: 40 }}
+          initial={{ opacity: 1, y: 0 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{
             delay: 0.15,
@@ -60,7 +60,7 @@ const Hero = () => {
 
         <div className="flex gap-[15px] mt-8 md:mt-0">
           <motion.div
-            initial={{ opacity: 0, y: 40 }}
+            initial={{ opacity: 1, y: 0 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{
               delay: 0.55,
@@ -85,7 +85,7 @@ const Hero = () => {
             </Link>
           </motion.div>
           <motion.div
-            initial={{ opacity: 0, y: 40 }}
+            initial={{ opacity: 1, y: 0 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{
               delay: 0.65,
@@ -112,7 +112,7 @@ const Hero = () => {
 
         {/* Preview Image */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.8, y: 40 }}
+          initial={{ opacity: 1, scale: 1, y: 0 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{
             delay: 0.8,
@@ -135,7 +135,7 @@ const Hero = () => {
       </main>
 
       <div
-        className="fixed top-0 right-0 w-[80%] md:w-1/2 h-screen bg-[#1F2B3A]/20"
+        className="absolute top-0 right-0 w-[80%] md:w-1/2 h-full bg-[#1F2B3A]/20"
         style={{
           clipPath: 'polygon(100px 0,100% 0,calc(100% + 225px) 100%, 480px 100%)',
         }}
@@ -157,7 +157,7 @@ const Hero = () => {
         }}
         id="gradient-canvas"
         data-transition-in
-        className="z-50 fixed top-0 right-[-2px] w-[80%] md:w-1/2 h-screen bg-[#c3e4ff]"
+        className="z-50 absolute top-0 right-0 w-[80%] md:w-1/2 h-full bg-[#c3e4ff]"
       ></motion.canvas>
     </AnimatePresence>
   )

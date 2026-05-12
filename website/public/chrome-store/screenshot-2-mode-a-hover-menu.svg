@@ -1,0 +1,72 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800">
+  
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FAFBFC"/>
+      <stop offset="52%" stop-color="#EFF5FF"/>
+      <stop offset="100%" stop-color="#F8F3FF"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7C4DFF"/>
+      <stop offset="100%" stop-color="#4B2E83"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#172033" flood-opacity="0.16"/>
+    </filter>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#172033" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="800" rx="0" fill="#F7F9FC" stroke="none" stroke-width="1" opacity="1"/>
+  <g transform="translate(68 56) scale(0.3176470588235294)"><path fill-rule="evenodd" clip-rule="evenodd" d="M30 110L70 0H40L0 110V200H30L60 110H30ZM140 110L100 0H130L170 110V200H140L110 110H140Z" fill="#673AB8"/></g>
+  <text x="132" y="91" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="800" fill="#1E2B3A" text-anchor="start" opacity="1">AnnHub</text>
+  <text x="68" y="158" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="48" font-weight="820" fill="#172033" text-anchor="start" opacity="1">Mode A: precise capture when text is selected</text>
+  <text x="70" y="202" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="21" font-weight="450" fill="#526070" text-anchor="start" opacity="1">Select a passage, then choose capture, note, or highlighter mode from the hover menu.</text>
+  
+  
+  <rect x="90" y="254" width="790" height="434" rx="14" fill="#ffffff" stroke="#D7DCE3" stroke-width="1.5" opacity="1" filter="url(#shadow)"/>
+  <rect x="90" y="254" width="790" height="48" rx="14" fill="#F4F6F8" stroke="#D7DCE3" stroke-width="1" opacity="1"/>
+  <circle cx="114" cy="278" r="6" fill="#FF5F57"/>
+  <circle cx="134" cy="278" r="6" fill="#FFBD2E"/>
+  <circle cx="154" cy="278" r="6" fill="#28C840"/>
+  <rect x="186" y="267" width="670" height="22" rx="11" fill="#E9EDF2" stroke="none" stroke-width="1" opacity="1"/>
+  <text x="202" y="283" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start" opacity="1">docs.example/guide</text>
+
+  <text x="132" y="348" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="31" font-weight="800" fill="#172033" text-anchor="start" opacity="1">Deep reading without losing your place</text>
+  
+        
+        <text x="136" y="406" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="450" fill="#283344" text-anchor="start" opacity="1">Annotating should happen exactly where the insight appears.</text>
+      
+        <rect x="130" y="415" width="562.8" height="28" rx="5" fill="#FFEB3B" stroke="none" stroke-width="1" opacity="0.85"/>
+        <text x="136" y="436" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="450" fill="#283344" text-anchor="start" opacity="1">A lightweight hover menu keeps capture actions nearby.</text>
+      
+        
+        <text x="136" y="466" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="450" fill="#283344" text-anchor="start" opacity="1">Use notes for interpretation, follow-up tasks, or reminders.</text>
+      
+        
+        <text x="136" y="496" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="450" fill="#283344" text-anchor="start" opacity="1">Switch into highlighter mode when a page has many findings.</text>
+      
+  <rect x="468" y="438" width="342" height="70" rx="35" fill="#172033" stroke="none" stroke-width="1" opacity="1" filter="url(#softShadow)"/>
+  
+  <rect x="488" y="452" width="92" height="42" rx="21" fill="#673AB8" stroke="none" stroke-width="1" opacity="1"/>
+  <text x="534" y="479" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle" opacity="1">Clip</text>
+
+  
+  <rect x="590" y="452" width="92" height="42" rx="21" fill="#475467" stroke="none" stroke-width="1" opacity="1"/>
+  <text x="636" y="479" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle" opacity="1">Note</text>
+
+  
+  <rect x="692" y="452" width="92" height="42" rx="21" fill="#F4C430" stroke="none" stroke-width="1" opacity="1"/>
+  <text x="738" y="479" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="15" font-weight="700" fill="#ffffff" text-anchor="middle" opacity="1">Mark</text>
+
+  <rect x="926" y="280" width="262" height="320" rx="16" fill="#ffffff" stroke="#E4E7EC" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+  <text x="958" y="338" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="820" fill="#172033" text-anchor="start" opacity="1">Precise Mode</text>
+  <text x="958" y="392" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="650" fill="#364152" text-anchor="start" opacity="1">1. Select text</text>
+  <text x="958" y="436" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="650" fill="#364152" text-anchor="start" opacity="1">2. Pick an action</text>
+  <text x="958" y="480" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="650" fill="#364152" text-anchor="start" opacity="1">3. Save with context</text>
+  <rect x="958" y="522" width="154" height="40" rx="20" fill="#F5F0FF" stroke="none" stroke-width="1" opacity="1"/>
+  <text x="1035" y="548" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="800" fill="#673AB8" text-anchor="middle" opacity="1">Mode A</text>
+  
+</svg>

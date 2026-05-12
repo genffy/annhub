@@ -444,6 +444,39 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     expect(annotatedWords).toContain('ubiquitous')
   })
 
+  it('skips no-translate regions and code-like technical tokens', async () => {
+    setupDOM(`
+      <main>
+        <p translate="no">Ubiquitous hidden from translators.</p>
+        <p class="notranslate">Extraordinary should not be touched.</p>
+        <p>https://example.com</p>
+        <p>user@example.com</p>
+        <p>Release v1.2.3 happened at 2026-05-12T00:00:00Z.</p>
+        <p>The ubiquitous phenomenon remains visible.</p>
+      </main>
+    `)
+
+    mockSendMessage.mockImplementation(async () => ({
+      success: true,
+      data: { gloss: '释义', source: 'llm' },
+    }))
+
+    const ctx = makeCtx({ userCEFRLevel: 'A1' })
+
+    await annotateVisibleText(ctx)
+
+    expect(document.querySelector('[translate="no"] ruby[data-ann-vocab]')).toBeNull()
+    expect(document.querySelector('.notranslate ruby[data-ann-vocab]')).toBeNull()
+
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
+      .map(r => r.firstChild?.textContent?.toLowerCase())
+
+    expect(annotatedWords).not.toContain('https')
+    expect(annotatedWords).not.toContain('example')
+    expect(annotatedWords).not.toContain('user')
+    expect(annotatedWords).toContain('ubiquitous')
+  })
+
   it('deduplicates same word+sentence requests and reuses in-memory cache', async () => {
     // "ubiquitous" is NOT in CEFR → always sent to LLM
     setupDOM('<p>Ubiquitous ubiquitous and ubiquitous.</p>')

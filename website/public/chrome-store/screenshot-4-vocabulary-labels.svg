@@ -1,0 +1,66 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800">
+  
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FAFBFC"/>
+      <stop offset="52%" stop-color="#EFF5FF"/>
+      <stop offset="100%" stop-color="#F8F3FF"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7C4DFF"/>
+      <stop offset="100%" stop-color="#4B2E83"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#172033" flood-opacity="0.16"/>
+    </filter>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#172033" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1280" height="800" rx="0" fill="#F7F9FC" stroke="none" stroke-width="1" opacity="1"/>
+  <g transform="translate(68 56) scale(0.3176470588235294)"><path fill-rule="evenodd" clip-rule="evenodd" d="M30 110L70 0H40L0 110V200H30L60 110H30ZM140 110L100 0H130L170 110V200H140L110 110H140Z" fill="#673AB8"/></g>
+  <text x="132" y="91" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="800" fill="#1E2B3A" text-anchor="start" opacity="1">AnnHub</text>
+  <text x="68" y="158" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="48" font-weight="820" fill="#172033" text-anchor="start" opacity="1">Vocabulary labels for English reading</text>
+  <text x="70" y="202" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="21" font-weight="450" fill="#526070" text-anchor="start" opacity="1">Mark unfamiliar words in-page with local Eudic snapshots and optional LLM explanations.</text>
+  
+  
+  <rect x="70" y="248" width="788" height="444" rx="14" fill="#ffffff" stroke="#D7DCE3" stroke-width="1.5" opacity="1" filter="url(#shadow)"/>
+  <rect x="70" y="248" width="788" height="48" rx="14" fill="#F4F6F8" stroke="#D7DCE3" stroke-width="1" opacity="1"/>
+  <circle cx="94" cy="272" r="6" fill="#FF5F57"/>
+  <circle cx="114" cy="272" r="6" fill="#FFBD2E"/>
+  <circle cx="134" cy="272" r="6" fill="#28C840"/>
+  <rect x="166" y="261" width="668" height="22" rx="11" fill="#E9EDF2" stroke="none" stroke-width="1" opacity="1"/>
+  <text x="182" y="277" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start" opacity="1">longform.example/essay</text>
+
+  <text x="112" y="342" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="31" font-weight="800" fill="#172033" text-anchor="start" opacity="1">How teams build durable systems</text>
+  
+        
+        <text x="116" y="396" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="450" fill="#283344" text-anchor="start" opacity="1">A resilient workflow reduces cognitive overhead.</text>
+      
+        
+        <text x="116" y="426" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="450" fill="#283344" text-anchor="start" opacity="1">Readers can inspect terminology without leaving the article.</text>
+      
+        
+        <text x="116" y="456" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="450" fill="#283344" text-anchor="start" opacity="1">Local vocabulary snapshots keep common words out of sight.</text>
+      
+        
+        <text x="116" y="486" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="450" fill="#283344" text-anchor="start" opacity="1">Context-aware glosses help distinguish subtle meanings.</text>
+      
+  <rect x="226" y="376" width="92" height="52" rx="6" fill="#F3EFFF" stroke="#C7B7FF" stroke-width="1" opacity="1"/>
+  <text x="272" y="401" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="800" fill="#4B2E83" text-anchor="middle" opacity="1">resilient</text>
+  <text x="272" y="421" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="13" font-weight="700" fill="#4B2E83" text-anchor="middle" opacity="1">有弹性的</text>
+  <rect x="406" y="436" width="110" height="52" rx="6" fill="#F3EFFF" stroke="#C7B7FF" stroke-width="1" opacity="1"/>
+  <text x="461" y="461" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="800" fill="#4B2E83" text-anchor="middle" opacity="1">terminology</text>
+  <text x="461" y="481" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="13" font-weight="700" fill="#4B2E83" text-anchor="middle" opacity="1">术语</text>
+  <rect x="904" y="270" width="292" height="360" rx="16" fill="#ffffff" stroke="#E4E7EC" stroke-width="1" opacity="1" filter="url(#shadow)"/>
+  <text x="940" y="330" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="820" fill="#172033" text-anchor="start" opacity="1">Reading Aid</text>
+  <text x="940" y="384" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="19" font-weight="650" fill="#364152" text-anchor="start" opacity="1">English page detection</text>
+  <text x="940" y="426" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="19" font-weight="650" fill="#364152" text-anchor="start" opacity="1">Known-word filtering</text>
+  <text x="940" y="468" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="19" font-weight="650" fill="#364152" text-anchor="start" opacity="1">Eudic sync</text>
+  <text x="940" y="510" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="19" font-weight="650" fill="#364152" text-anchor="start" opacity="1">LLM fallback glosses</text>
+  <rect x="940" y="556" width="174" height="40" rx="20" fill="#F5F0FF" stroke="none" stroke-width="1" opacity="1"/>
+  <text x="1027" y="582" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="800" fill="#673AB8" text-anchor="middle" opacity="1">Vocab Label</text>
+  
+</svg>

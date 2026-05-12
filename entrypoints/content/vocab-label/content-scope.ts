@@ -1,5 +1,6 @@
 import { Readability } from '@mozilla/readability'
 import { getActivePlatformRule } from './platform-rules'
+import { isBlockLikeElement, shouldSkipElement } from './dom-policy'
 
 const PRIMARY_ROOT_SELECTORS = ['main', 'article', '[role="main"]'] as const
 const EXCLUDED_SECTION_SELECTOR = [
@@ -30,6 +31,18 @@ function textLength(el: Element): number {
   return normalizeText(el.textContent || '').length
 }
 
+function contentDensity(el: Element): number {
+  const length = textLength(el)
+  if (length === 0) return 0
+
+  const linksLength = Array.from(el.querySelectorAll('a'))
+    .reduce((sum, link) => sum + normalizeText(link.textContent || '').length, 0)
+  const interactiveCount = el.querySelectorAll('button, [role="button"], input, select, textarea').length
+  const blockCount = Math.max(1, Array.from(el.children).filter(child => isBlockLikeElement(child)).length)
+
+  return length - linksLength * 0.65 - interactiveCount * 45 - blockCount * 3
+}
+
 function isUsableRoot(el: Element | null): el is Element {
   return Boolean(el && textLength(el) >= 120)
 }
@@ -48,7 +61,7 @@ function findSemanticRoot(): Element | null {
     const tag = candidate.tagName
     const classAndId = `${candidate.id} ${candidate.className}`.toLowerCase()
 
-    let score = Math.min(tlen, 12000) + blockCount * 20
+    let score = Math.min(tlen, 12000) + blockCount * 20 + contentDensity(candidate)
     if (tag === 'ARTICLE') score += 5000
     if (tag === 'MAIN') score += 2000
     if (classAndId.includes('readme')) score += 5000
@@ -164,7 +177,7 @@ export function resolveContentRoot(): Element {
 }
 
 export function isExcludedSection(el: Element): boolean {
-  return Boolean(el.closest(EXCLUDED_SECTION_SELECTOR))
+  return Boolean(el.closest(EXCLUDED_SECTION_SELECTOR)) || shouldSkipElement(el)
 }
 
 export function collectAnnotatableBlocks(root: Element): Element[] {
@@ -178,7 +191,9 @@ export function collectAnnotatableBlocks(root: Element): Element[] {
   if (articles.length >= 2) return articles
   if (articles.length === 1) return articles
 
-  const blocks = Array.from(root.querySelectorAll(ANNOTATABLE_BLOCK_SELECTOR)).filter(el => !isExcludedSection(el))
+  const blocks = Array.from(root.querySelectorAll(ANNOTATABLE_BLOCK_SELECTOR))
+    .filter(el => !isExcludedSection(el))
+    .filter(el => textLength(el) >= 8)
   if (blocks.length > 0) return blocks
   return [root]
 }
