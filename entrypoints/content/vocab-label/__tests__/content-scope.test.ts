@@ -156,6 +156,26 @@ describe('content scope resolver', () => {
     expect(ids).not.toContain('aria-hidden-p')
   })
 
+  it('excludes no-translate and code-like regions from annotatable blocks', () => {
+    document.body.innerHTML = `
+      <main id="main-root">
+        <p id="visible">Visible article content here.</p>
+        <p id="no-translate" translate="no">Do not translate this text.</p>
+        <p id="class-no-translate" class="notranslate">Do not translate this either.</p>
+        <pre><code><span id="code-text">const ubiquitous = true</span></code></pre>
+      </main>
+    `
+
+    const root = document.getElementById('main-root') as Element
+    const blocks = collectAnnotatableBlocks(root)
+    const ids = blocks.map(el => el.id).filter(Boolean)
+
+    expect(ids).toContain('visible')
+    expect(ids).not.toContain('no-translate')
+    expect(ids).not.toContain('class-no-translate')
+    expect(isExcludedSection(document.getElementById('code-text') as Element)).toBe(true)
+  })
+
   it('returns single article when only one is present', () => {
     document.body.innerHTML = `
       <main id="main-root">

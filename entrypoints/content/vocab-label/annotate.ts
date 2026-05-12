@@ -2,42 +2,11 @@ import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
 import { type VocabSnapshot, type VocabEntry, type GlossResult, normalizeWord } from '../../../types/vocabulary'
 import { shouldFilterByLevel, type CEFRLevel } from './frequency-filter'
-import { ANNOTATABLE_BLOCK_SELECTOR, isExcludedSection } from './content-scope'
+import { ANNOTATABLE_BLOCK_SELECTOR } from './content-scope'
 import { isWithinViewportWindowByRect } from './viewport'
+import { clearDomPolicyCaches, shouldSkipTextNode } from './dom-policy'
 
 const MARKER_ATTR = 'data-ann-vocab'
-const HIDDEN_SELECTOR = '[hidden], [aria-hidden="true"], .sr-only, .visually-hidden, [class*="sr-only"]'
-const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT', 'SELECT', 'CODE', 'PRE', 'SVG', 'CANVAS', 'VIDEO', 'AUDIO', 'IFRAME', 'NOSCRIPT'])
-const INTERACTIVE_TEXT_SELECTOR = [
-  'a[href]',
-  'button',
-  '[role="button"]',
-  '[role="link"]',
-  '[role="menuitem"]',
-  '[role="tab"]',
-  '[role="switch"]',
-  '[role="checkbox"]',
-  '[role="radio"]',
-  '[contenteditable="true"]',
-].join(',')
-const SHORT_UI_LABELS = new Set([
-  'like',
-  'dislike',
-  'repost',
-  'quote',
-  'comment',
-  'commit',
-  'reply',
-  'share',
-  'bookmark',
-  'follow',
-  'following',
-  'subscribe',
-  'more',
-  'view',
-  'views',
-])
-
 const WORD_RE = /\b[a-zA-Z]{2,}\b/g
 const GLOSS_L1_CACHE_MAX = 600
 const GLOSS_REQUEST_TIMEOUT_MS = 1800
@@ -114,34 +83,6 @@ function hashSentence(sentence: string): string {
     hash |= 0
   }
   return hash.toString(36)
-}
-
-function shouldSkip(node: Node, contentRoot?: Element, restrictToFeedArticles = false): boolean {
-  if (!node.parentElement) return true
-
-  const el = node.parentElement
-
-  if (contentRoot && !contentRoot.contains(el)) return true
-  if (restrictToFeedArticles && !el.closest('article, [role="article"]')) return true
-  if (isExcludedSection(el)) return true
-  if (el.closest(HIDDEN_SELECTOR)) return true
-  if (el.closest(INTERACTIVE_TEXT_SELECTOR)) return true
-  if (isShortUiLabel(node.textContent || '')) return true
-
-  if (el.closest(`[${MARKER_ATTR}]`)) return true
-  if (el.isContentEditable) return true
-  if (SKIP_TAGS.has(el.tagName)) return true
-
-  // Skip our own shadow host
-  if (el.closest('ann-selection')) return true
-
-  return false
-}
-
-function isShortUiLabel(text: string): boolean {
-  const normalized = text.replace(/\s+/g, ' ').trim().toLowerCase()
-  if (!normalized || normalized.length > 24) return false
-  return SHORT_UI_LABELS.has(normalized)
 }
 
 function getSentenceContext(textNode: Text): string {
@@ -435,7 +376,7 @@ function collectTextNodes(roots: Element[], contentRoot?: Element, restrictToFee
   for (const root of roots) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
       acceptNode(node: Node) {
-        if (shouldSkip(node, contentRoot, restrictToFeedArticles)) return NodeFilter.FILTER_REJECT
+        if (shouldSkipTextNode(node, contentRoot, restrictToFeedArticles)) return NodeFilter.FILTER_REJECT
         const tn = node as Text
         if (!tn.textContent?.trim()) return NodeFilter.FILTER_REJECT
         return NodeFilter.FILTER_ACCEPT
@@ -596,4 +537,5 @@ export function resetVocabLabelRuntimeState(): void {
   annotationVisibilityObserver = null
   annotationBlockMarkers.clear()
   annotationMarkerBlocks = new WeakMap<Element, Element>()
+  clearDomPolicyCaches()
 }

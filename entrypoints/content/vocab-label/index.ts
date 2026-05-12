@@ -4,9 +4,10 @@ import { annotateVisibleText, cleanupAnnotations, resetVocabLabelRuntimeState, g
 import { collectAnnotatableBlocks, resolveContentRoot, ANNOTATABLE_BLOCK_SELECTOR, isExcludedSection } from './content-scope'
 import { getActivePlatformRule, type VocabPlatformRule } from './platform-rules'
 import { isElementWithinViewportWindow } from './viewport'
+import { findNearestRescanContainer, isWithinVocabMarker } from './dom-policy'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
-import type { VocabSnapshot, VocabConfigPublic } from '../../../types/vocabulary'
+import type { VocabSnapshot, VocabConfigPublic, VocabLearningEventType } from '../../../types/vocabulary'
 
 let isRunning = false
 let domObserver: MutationObserver | null = null
@@ -104,6 +105,7 @@ function showFeedbackMenu(target: HTMLElement, clientX: number, clientY: number)
 }
 
 async function onFeedbackAction(action: string): Promise<void> {
+  if (!isFeedbackAction(action)) return
   const target = currentFeedbackTarget
   if (!target) return
   const word = target.dataset.annVocabWord?.trim()
@@ -143,6 +145,10 @@ async function onFeedbackAction(action: string): Promise<void> {
   } finally {
     hideFeedbackMenu()
   }
+}
+
+function isFeedbackAction(action: string): action is VocabLearningEventType {
+  return action === 'known' || action === 'unknown' || action === 'suppress' || action === 'addToVocab'
 }
 
 function cleanupAnnotationsForElement(el: Element): void {
@@ -325,6 +331,7 @@ function removeViewportListeners(): void {
 
 function collectBlocksFromNode(node: Node): Element[] {
   if (!activeContentRoot) return []
+  if (isWithinVocabMarker(node)) return []
 
   if (activePlatformRule) {
     const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node instanceof Element ? node : null
@@ -335,6 +342,10 @@ function collectBlocksFromNode(node: Node): Element[] {
   }
 
   const collected = new Set<Element>()
+  const rescanContainer = findNearestRescanContainer(node, activeContentRoot)
+  if (rescanContainer && !isExcludedSection(rescanContainer)) {
+    collected.add(rescanContainer)
+  }
 
   const addIfBlock = (el: Element | null): void => {
     if (!el) return
@@ -462,6 +473,7 @@ function setupMutationObserver(root: Element): void {
       for (const mutation of mutations) {
         if (mutation.type === 'childList') {
           mutation.addedNodes.forEach(node => {
+            if (isWithinVocabMarker(node)) return
             collectBlocksFromNode(node).forEach(block => {
               candidates.add(block)
             })
@@ -469,6 +481,7 @@ function setupMutationObserver(root: Element): void {
         }
 
         if (mutation.type === 'characterData') {
+          if (isWithinVocabMarker(mutation.target)) return
           collectBlocksFromNode(mutation.target).forEach(block => {
             candidates.add(block)
           })

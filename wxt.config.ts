@@ -63,5 +63,15 @@ export default defineConfig({
   webExt: {
     disabled: true,
     chromiumArgs: ['--user-data-dir=./.wxt/browser-data']
-  }
+  },
+  vite: () => ({
+    server: {
+      cors: {
+        origin: [
+          /^chrome-extension:\/\/[a-p]{32}$/,
+          /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/,
+        ],
+      },
+    },
+  }),
 })

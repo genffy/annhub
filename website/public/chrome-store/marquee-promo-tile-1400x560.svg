@@ -1,0 +1,54 @@
+
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="560" viewBox="0 0 1400 560">
+  
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FAFBFC"/>
+      <stop offset="52%" stop-color="#EFF5FF"/>
+      <stop offset="100%" stop-color="#F8F3FF"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7C4DFF"/>
+      <stop offset="100%" stop-color="#4B2E83"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#172033" flood-opacity="0.16"/>
+    </filter>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="180%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#172033" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect x="0" y="0" width="1400" height="560" rx="0" fill="#F7F9FC" stroke="none" stroke-width="1" opacity="1"/>
+  
+  <g transform="translate(86 78) scale(0.4588235294117647)"><path fill-rule="evenodd" clip-rule="evenodd" d="M30 110L70 0H40L0 110V200H30L60 110H30ZM140 110L100 0H130L170 110V200H140L110 110H140Z" fill="#673AB8"/></g>
+  <text x="182" y="126" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="56" font-weight="860" fill="#172033" text-anchor="start" opacity="1">AnnHub</text>
+  <text x="86" y="224" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="44" font-weight="840" fill="#172033" text-anchor="start" opacity="1">Annotate and capture anywhere.</text>
+  <text x="88" y="282" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="23" font-weight="480" fill="#526070" text-anchor="start" opacity="1">Highlight passages, collect clips, and label vocabulary</text>
+  <text x="88" y="318" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="23" font-weight="480" fill="#526070" text-anchor="start" opacity="1">while reading in Chrome.</text>
+  <rect x="88" y="348" width="198" height="54" rx="27" fill="#673AB8" stroke="none" stroke-width="1" opacity="1"/>
+  <text x="187" y="382" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="820" fill="#ffffff" text-anchor="middle" opacity="1">Built for Chrome</text>
+  
+  <rect x="770" y="72" width="520" height="350" rx="14" fill="#ffffff" stroke="#D7DCE3" stroke-width="1.5" opacity="1" filter="url(#shadow)"/>
+  <rect x="770" y="72" width="520" height="48" rx="14" fill="#F4F6F8" stroke="#D7DCE3" stroke-width="1" opacity="1"/>
+  <circle cx="794" cy="96" r="6" fill="#FF5F57"/>
+  <circle cx="814" cy="96" r="6" fill="#FFBD2E"/>
+  <circle cx="834" cy="96" r="6" fill="#28C840"/>
+  <rect x="866" y="85" width="400" height="22" rx="11" fill="#E9EDF2" stroke="none" stroke-width="1" opacity="1"/>
+  <text x="882" y="101" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="12" font-weight="500" fill="#667085" text-anchor="start" opacity="1">annhub://reading</text>
+
+  <text x="810" y="166" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="820" fill="#172033" text-anchor="start" opacity="1">Research notes</text>
+  
+        <rect x="808" y="199" width="379.2" height="28" rx="5" fill="#FFEB3B" stroke="none" stroke-width="1" opacity="0.85"/>
+        <text x="814" y="220" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="450" fill="#283344" text-anchor="start" opacity="1">Save the exact passage that matters.</text>
+      
+        
+        <text x="814" y="250" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="450" fill="#283344" text-anchor="start" opacity="1">Restore highlights when you return.</text>
+      
+        <rect x="808" y="259" width="382" height="28" rx="5" fill="#FFEB3B" stroke="none" stroke-width="1" opacity="0.85"/>
+        <text x="814" y="280" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="20" font-weight="450" fill="#283344" text-anchor="start" opacity="1">Add notes and vocabulary labels inline.</text>
+      
+  <rect x="1054" y="300" width="178" height="46" rx="23" fill="#172033" stroke="none" stroke-width="1" opacity="1" filter="url(#softShadow)"/>
+  <text x="1143" y="330" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="17" font-weight="800" fill="#ffffff" text-anchor="middle" opacity="1">Highlighter On</text>
+
+</svg>
