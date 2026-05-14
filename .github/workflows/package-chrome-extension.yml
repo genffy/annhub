@@ -1,0 +1,74 @@
+name: Package Chrome Extension
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+    paths:
+      - '.github/workflows/package-chrome-extension.yml'
+      - 'assets/**'
+      - 'background-service/**'
+      - 'components/**'
+      - 'constants/**'
+      - 'entrypoints/**'
+      - 'public/**'
+      - 'scripts/**'
+      - 'types/**'
+      - 'utils/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'wxt.config.ts'
+      - 'vite.config.ts'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-chrome-extension-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    name: Build and zip Chrome MV3
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run compile
+
+      - name: Build Chrome extension
+        run: npm run build
+
+      - name: Package Chrome extension
+        run: npm run zip
+
+      - name: Verify package
+        run: |
+          set -euo pipefail
+          test -d .output/chrome-mv3
+          test -f .output/chrome-mv3/manifest.json
+          ls .output/*-chrome.zip
+
+      - name: Upload Chrome package
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-extension-${{ github.sha }}
+          path: .output/*-chrome.zip
+          if-no-files-found: error
+          retention-days: 30
