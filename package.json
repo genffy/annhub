@@ -1,6 +1,6 @@
 {
   "name": "annhub",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Browser extension for annotation, comment, capture, and share anywhere",
   "private": true,
   "type": "module",
