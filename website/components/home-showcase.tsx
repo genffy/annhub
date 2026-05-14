@@ -17,7 +17,7 @@ const showcaseItems: ShowcaseItem[] = [
     label: '01',
     title: 'Highlight any page',
     description: 'Capture exact passages with source context and restoreable highlights.',
-    image: '/chrome-store/screenshot-1-highlight-any-page.png',
+    image: '/chrome-store/screenshot-1-highlight-any-page.svg',
     accent: '#F5C542',
     offset: 'lg:translate-x-0 lg:translate-y-0',
   },
@@ -25,7 +25,7 @@ const showcaseItems: ShowcaseItem[] = [
     label: '02',
     title: 'Act from the hover menu',
     description: 'Clip, annotate, or switch into highlighter mode without leaving the article.',
-    image: '/chrome-store/screenshot-2-mode-a-hover-menu.png',
+    image: '/chrome-store/screenshot-2-mode-a-hover-menu.svg',
     accent: '#673AB8',
     offset: 'lg:translate-x-8 lg:translate-y-10',
   },
@@ -33,7 +33,7 @@ const showcaseItems: ShowcaseItem[] = [
     label: '03',
     title: 'Sweep through reading',
     description: 'Mode B turns every selection into a saved clip, with a compact live counter.',
-    image: '/chrome-store/screenshot-3-mode-b-fast-capture.png',
+    image: '/chrome-store/screenshot-3-mode-b-fast-capture.svg',
     accent: '#1E2B3A',
     offset: 'lg:-translate-x-8 lg:translate-y-20',
   },
@@ -41,7 +41,7 @@ const showcaseItems: ShowcaseItem[] = [
     label: '04',
     title: 'Label vocabulary inline',
     description: 'Unfamiliar words stay readable with local vocabulary and optional LLM glosses.',
-    image: '/chrome-store/screenshot-4-vocabulary-labels.png',
+    image: '/chrome-store/screenshot-4-vocabulary-labels.svg',
     accent: '#2E7D62',
     offset: 'lg:translate-x-6 lg:translate-y-5',
   },
@@ -49,7 +49,7 @@ const showcaseItems: ShowcaseItem[] = [
     label: '05',
     title: 'Sync the reading system',
     description: 'Configure vocabulary, LLM, and reading lists from one focused settings surface.',
-    image: '/chrome-store/screenshot-5-settings-sync.png',
+    image: '/chrome-store/screenshot-5-settings-sync.svg',
     accent: '#E46D4F',
     offset: 'lg:-translate-x-4 lg:translate-y-14',
   },
@@ -111,22 +111,25 @@ function ShowcaseCard({ item, index }: { item: ShowcaseItem; index: number }) {
 
 export default function HomeShowcase() {
   return (
-    <section className="relative z-[90] overflow-hidden bg-[#F2F3F5] px-4 pb-20 pt-14 text-[#1E2B3A] sm:px-6 md:px-20 md:pb-36 md:pt-20">
-      <div className="absolute left-0 top-20 h-px w-full bg-[#1E2B3A]/10" />
-      <div className="absolute right-[-8%] top-0 hidden h-[62%] w-[42%] skew-x-[-12deg] bg-[#673AB8]/10 md:block" />
+    <section className="relative z-[90] -mt-4 overflow-hidden bg-[#F2F3F5] px-4 pb-20 pt-8 text-[#1E2B3A] sm:px-6 md:-mt-8 md:px-20 md:pb-36 md:pt-12">
+      <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-transparent via-[#F2F3F5]/85 to-[#F2F3F5]" />
+      <div className="absolute left-[7%] top-0 hidden h-px w-[86%] bg-gradient-to-r from-transparent via-[#1E2B3A]/12 to-transparent md:block" />
+      <div className="absolute right-[-10%] top-[-10%] hidden h-[68%] w-[44%] skew-x-[-12deg] bg-[#673AB8]/8 md:block" />
       <div className="absolute bottom-0 left-0 hidden h-[40%] w-full bg-gradient-to-t from-[#1E2B3A]/7 to-transparent md:block" />
 
       <div className="relative mx-auto max-w-7xl">
         <motion.div {...fadeUp} className="grid items-end gap-8 lg:grid-cols-[1fr_0.82fr]">
           <div>
-            <p className="mb-5 text-[13px] font-extrabold uppercase tracking-[0.22em] text-[#673AB8]">Showcase</p>
+            <p className="mb-5 inline-flex border-l-2 border-[#673AB8] bg-white/55 px-3 py-2 text-[13px] font-extrabold uppercase tracking-[0.22em] text-[#673AB8] shadow-sm backdrop-blur">
+              Showcase
+            </p>
             <h2 className="max-w-5xl text-[38px] font-extrabold leading-[0.96] sm:text-[60px] md:text-[86px] lg:text-[96px]">
-              Store visuals, built into the product story.
+              The same reading loop, shown from every angle.
             </h2>
           </div>
           <div className="max-w-xl lg:justify-self-end">
             <p className="text-[15px] leading-7 text-[#1E2B3A]/74 sm:text-[16px] md:text-[18px] md:leading-8">
-              AnnHub now reuses the Chrome Web Store artwork as a richer website journey: highlight, clip, label vocabulary, and tune the reading workflow before the footer closes the page.
+              The hero starts with the browser moment; the showcase unfolds the same system: highlight, clip, label vocabulary, and tune the reading workflow before the footer closes the page.
             </p>
             <div className="mt-6 grid grid-cols-3 gap-2">
               {metrics.map((metric) => (
@@ -172,7 +175,7 @@ export default function HomeShowcase() {
                 className="relative z-20 overflow-hidden rounded-lg border border-white bg-white p-2 shadow-2xl"
               >
                 <Image
-                  src="/chrome-store/marquee-promo-tile-1400x560.png"
+                  src="/chrome-store/marquee-promo-tile-1400x560.svg"
                   alt="AnnHub Chrome Web Store marquee promo tile"
                   width={1400}
                   height={560}
@@ -186,7 +189,7 @@ export default function HomeShowcase() {
                 transition={{ duration: 5.4, repeat: Infinity, ease: 'easeInOut' }}
                 className="relative z-30 ml-auto mt-4 w-[62%] overflow-hidden rounded-lg border border-white bg-white p-2 shadow-xl sm:absolute sm:bottom-7 sm:right-8 sm:mt-0 sm:w-[42%]"
               >
-                <Image src="/chrome-store/small-promo-tile-440x280.png" alt="AnnHub small Chrome Web Store promo tile" width={440} height={280} className="w-full rounded-md" />
+                <Image src="/chrome-store/small-promo-tile-440x280.svg" alt="AnnHub small Chrome Web Store promo tile" width={440} height={280} className="w-full rounded-md" />
               </motion.div>
 
               <motion.div

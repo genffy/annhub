@@ -21,9 +21,9 @@
 
   <rect x="0" y="0" width="1280" height="800" rx="0" fill="#F7F9FC" stroke="none" stroke-width="1" opacity="1"/>
   <g transform="translate(68 56) scale(0.3176470588235294)"><path fill-rule="evenodd" clip-rule="evenodd" d="M30 110L70 0H40L0 110V200H30L60 110H30ZM140 110L100 0H130L170 110V200H140L110 110H140Z" fill="#673AB8"/></g>
-  <text x="132" y="91" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="800" fill="#1E2B3A" text-anchor="start" opacity="1">AnnHub</text>
-  <text x="68" y="158" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="48" font-weight="820" fill="#172033" text-anchor="start" opacity="1">Mode B: fast highlighter for dense pages</text>
-  <text x="70" y="202" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="21" font-weight="450" fill="#526070" text-anchor="start" opacity="1">Use Alt+H or Cmd+Shift+H, select repeatedly, and watch the capture count update.</text>
+  <text x="132" y="119" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="800" fill="#1E2B3A" text-anchor="start" opacity="1">nnHub</text>
+  <text x="68" y="158" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="48" font-weight="820" fill="#172033" text-anchor="start" opacity="1">Sweep through dense reading</text>
+  <text x="70" y="202" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="21" font-weight="450" fill="#526070" text-anchor="start" opacity="1">Use Alt+H or Cmd+Shift+H, select repeatedly, and watch the count update.</text>
   
   
   <rect x="84" y="250" width="804" height="438" rx="14" fill="#ffffff" stroke="#D7DCE3" stroke-width="1.5" opacity="1" filter="url(#shadow)"/>

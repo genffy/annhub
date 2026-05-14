@@ -21,14 +21,14 @@
 
   <rect x="0" y="0" width="1280" height="800" rx="0" fill="#F7F9FC" stroke="none" stroke-width="1" opacity="1"/>
   <g transform="translate(68 56) scale(0.3176470588235294)"><path fill-rule="evenodd" clip-rule="evenodd" d="M30 110L70 0H40L0 110V200H30L60 110H30ZM140 110L100 0H130L170 110V200H140L110 110H140Z" fill="#673AB8"/></g>
-  <text x="132" y="91" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="800" fill="#1E2B3A" text-anchor="start" opacity="1">AnnHub</text>
-  <text x="68" y="158" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="48" font-weight="820" fill="#172033" text-anchor="start" opacity="1">Manage highlights, words, sync, and LLM settings</text>
-  <text x="70" y="202" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="21" font-weight="450" fill="#526070" text-anchor="start" opacity="1">A focused options surface keeps storage, vocabulary, Logseq, and model configuration together.</text>
+  <text x="132" y="119" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="800" fill="#1E2B3A" text-anchor="start" opacity="1">nnHub</text>
+  <text x="68" y="158" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="48" font-weight="820" fill="#172033" text-anchor="start" opacity="1">Settings for your reading loop</text>
+  <text x="70" y="202" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="21" font-weight="450" fill="#526070" text-anchor="start" opacity="1">Keep highlights, vocabulary sync, Logseq, and LLM configuration together.</text>
   
   <rect x="82" y="250" width="1116" height="456" rx="18" fill="#ffffff" stroke="#D7DCE3" stroke-width="1" opacity="1" filter="url(#shadow)"/>
   <rect x="82" y="250" width="248" height="456" rx="18" fill="#F5F7FA" stroke="#E4E7EC" stroke-width="1" opacity="1"/>
   <g transform="translate(122 294) scale(0.24705882352941178)"><path fill-rule="evenodd" clip-rule="evenodd" d="M30 110L70 0H40L0 110V200H30L60 110H30ZM140 110L100 0H130L170 110V200H140L110 110H140Z" fill="#673AB8"/></g>
-  <text x="178" y="326" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="820" fill="#172033" text-anchor="start" opacity="1">AnnHub</text>
+  <text x="178" y="343" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="28" font-weight="820" fill="#172033" text-anchor="start" opacity="1">nnHub</text>
   
     <rect x="114" y="376" width="176" height="38" rx="9" fill="transparent" stroke="none" stroke-width="1" opacity="1"/>
     <text x="138" y="401" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="600" fill="#526070" text-anchor="start" opacity="1">Highlights</text>
