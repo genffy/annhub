@@ -165,6 +165,147 @@ describe('OpenAICompatibleLlmService', () => {
                 'https://open.bigmodel.cn/api/coding/paas/v4/chat/completions',
             )
         })
+
+        it('does not append paths when baseUrl is already chat completions endpoint', async () => {
+            vi.stubGlobal(
+                'fetch',
+                vi.fn().mockResolvedValue({
+                    ok: true,
+                    json: async () => ({
+                        choices: [{ message: { content: 'ok' } }],
+                    }),
+                }),
+            )
+
+            const service = new OpenAICompatibleLlmService({
+                ...mockConfig,
+                baseUrl: 'https://api.example.com/v1/chat/completions',
+            })
+            await service.completeChat({ user: 'test' })
+
+            expect((fetch as any).mock.calls[0][0]).toBe('https://api.example.com/v1/chat/completions')
+        })
+
+        it('supports provider-specific OpenAI compatibility paths', async () => {
+            vi.stubGlobal(
+                'fetch',
+                vi.fn().mockResolvedValue({
+                    ok: true,
+                    json: async () => ({
+                        choices: [{ message: { content: 'ok' } }],
+                    }),
+                }),
+            )
+
+            const service = new OpenAICompatibleLlmService({
+                ...mockConfig,
+                baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+            })
+            await service.completeChat({ user: 'test' })
+
+            expect((fetch as any).mock.calls[0][0]).toBe(
+                'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
+            )
+        })
+
+        it('does not duplicate /v1 when baseUrl already ends with /v1', async () => {
+            vi.stubGlobal(
+                'fetch',
+                vi.fn().mockResolvedValue({
+                    ok: true,
+                    json: async () => ({
+                        choices: [{ message: { content: 'ok' } }],
+                    }),
+                }),
+            )
+
+            const service = new OpenAICompatibleLlmService({
+                ...mockConfig,
+                baseUrl: 'https://api.openai.com/v1',
+            })
+            await service.completeChat({ user: 'test' })
+
+            expect((fetch as any).mock.calls[0][0]).toBe('https://api.openai.com/v1/chat/completions')
+        })
+
+        it('omits temperature when provider requires it', async () => {
+            vi.stubGlobal(
+                'fetch',
+                vi.fn().mockResolvedValue({
+                    ok: true,
+                    json: async () => ({
+                        choices: [{ message: { content: 'ok' } }],
+                    }),
+                }),
+            )
+
+            const service = new OpenAICompatibleLlmService({
+                ...mockConfig,
+                omitTemperature: true,
+            })
+            await service.completeChat({ user: 'test', temperature: 0.3 })
+
+            const body = JSON.parse((fetch as any).mock.calls[0][1].body)
+            expect(body.temperature).toBeUndefined()
+        })
+
+        it('times out stalled requests', async () => {
+            vi.stubGlobal(
+                'fetch',
+                vi.fn((_url, init?: RequestInit) => new Promise((_resolve, reject) => {
+                    init?.signal?.addEventListener('abort', () => {
+                        reject(new DOMException('Aborted', 'AbortError'))
+                    })
+                })),
+            )
+
+            const service = new OpenAICompatibleLlmService(mockConfig)
+            await expect(service.completeChat({ user: 'test', timeoutMs: 1 })).rejects.toThrow('LLM request timed out')
+        })
+    })
+
+    describe('listModels', () => {
+        it('loads OpenAI-compatible model list', async () => {
+            vi.stubGlobal(
+                'fetch',
+                vi.fn().mockResolvedValue({
+                    ok: true,
+                    json: async () => ({
+                        data: [
+                            { id: 'gpt-4o-mini', owned_by: 'openai' },
+                            { id: 'gpt-4o', name: 'GPT-4o' },
+                        ],
+                    }),
+                }),
+            )
+
+            const service = new OpenAICompatibleLlmService(mockConfig)
+            const models = await service.listModels()
+
+            expect((fetch as any).mock.calls[0][0]).toBe('https://api.example.com/v1/models')
+            expect(models).toEqual([
+                { id: 'gpt-4o-mini', name: 'gpt-4o-mini', description: 'openai' },
+                { id: 'gpt-4o', name: 'GPT-4o', description: undefined },
+            ])
+        })
+
+        it('uses explicit modelsEndpoint when provided', async () => {
+            vi.stubGlobal(
+                'fetch',
+                vi.fn().mockResolvedValue({
+                    ok: true,
+                    json: async () => ({ data: [{ id: 'model-a' }] }),
+                }),
+            )
+
+            const service = new OpenAICompatibleLlmService({
+                ...mockConfig,
+                modelsEndpoint: 'https://models.example.com/list',
+            })
+            await service.listModels()
+
+            expect((fetch as any).mock.calls[0][0]).toBe('https://models.example.com/list')
+        })
     })
 
     describe('glossBatch', () => {

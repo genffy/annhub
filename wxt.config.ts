@@ -23,6 +23,7 @@ export default defineConfig({
     ],
     action: {
       default_title: '__MSG_extName__',
+      default_popup: 'popup/index.html',
     },
     options_ui: {
       page: 'options/index.html',

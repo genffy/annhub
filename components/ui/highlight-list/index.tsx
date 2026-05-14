@@ -196,7 +196,7 @@ export default function HighlightList({
             {showHeader && (
                 <div className="highlight-list-header">
                     <div className="header-title">
-                        <h3>{i18n.t('highlights')}</h3>
+                        <h3>{i18n.t('highlight.name')}</h3>
                         <span className="total-count">{i18n.t('pagination.total', [pagination.total])}</span>
                     </div>
 

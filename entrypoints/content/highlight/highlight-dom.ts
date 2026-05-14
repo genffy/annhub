@@ -433,43 +433,6 @@ export class HighlightDOMManager {
         return textNodes
     }
 
-
-    private getAllTextNodesInRange(range: Range): Text[] {
-        const textNodes: Text[] = []
-        const walker = document.createTreeWalker(
-            range.commonAncestorContainer,
-            NodeFilter.SHOW_TEXT,
-            null
-        )
-
-        let node: Text | null
-        while (node = walker.nextNode() as Text) {
-
-            const nodeRange = document.createRange()
-            nodeRange.selectNodeContents(node)
-
-
-            try {
-                const startToEnd = range.compareBoundaryPoints(Range.START_TO_END, nodeRange)
-                const endToStart = range.compareBoundaryPoints(Range.END_TO_START, nodeRange)
-
-                if (startToEnd > 0 && endToStart < 0) {
-                    textNodes.push(node)
-                }
-            } catch (error) {
-
-                const rangeText = range.toString()
-                const nodeText = node.textContent || ''
-                if (rangeText.includes(nodeText) || nodeText.includes(rangeText)) {
-                    textNodes.push(node)
-                }
-            }
-        }
-
-        return textNodes
-    }
-
-
     private getContrastColor(backgroundColor: string): string {
 
         const hex = backgroundColor.replace('#', '')
@@ -963,4 +926,4 @@ export class HighlightDOMManager {
             rect1.top >= rect2.top &&
             rect1.bottom <= rect2.bottom
     }
-} 
+}

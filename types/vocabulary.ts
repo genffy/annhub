@@ -53,11 +53,20 @@ export function resolveDefaultVocabConfig(): VocabConfig {
 
 // ── LLM Config ──
 
+export type LlmApiMode = 'openai-compatible' | 'anthropic-messages'
+
 export interface LlmConfig {
     provider: 'openai-compatible'
+    apiMode?: LlmApiMode
+    providerPresetId?: string
+    providerEndpointId?: string
+    customProviderName?: string
     baseUrl: string
     apiKey: string
     model: string
+    modelsEndpoint?: string
+    omitTemperature?: boolean
+    requestTimeoutMs?: number
     maxTokens?: number
     systemPrompt?: string
 }
@@ -85,6 +94,51 @@ export type LlmApiKeySource = 'env' | 'storage' | 'none'
 export type LlmConfigPublic = Omit<LlmConfig, 'apiKey'> & {
     hasApiKey: boolean
     apiKeySource: LlmApiKeySource
+}
+
+export interface LlmModelOption {
+    id: string
+    name?: string
+    description?: string
+}
+
+export interface LlmProviderPreset {
+    id: string
+    name: string
+    region?: string
+    description?: string
+    apiMode?: LlmApiMode
+    baseUrl: string
+    apiKeyUrl?: string
+    docsUrl?: string
+    defaultModel: string
+    modelFetchStrategy: 'openai-models' | 'none'
+    modelsEndpoint?: string
+    omitTemperature?: boolean
+    models: LlmModelOption[]
+    endpointVariants?: LlmEndpointVariant[]
+}
+
+export interface LlmEndpointVariant {
+    id: string
+    name: string
+    region?: string
+    description?: string
+    apiMode?: LlmApiMode
+    baseUrl: string
+    defaultModel?: string
+    modelFetchStrategy?: 'openai-models' | 'none'
+    modelsEndpoint?: string
+    omitTemperature?: boolean
+    models?: LlmModelOption[]
+}
+
+export interface LlmConnectionTestResult {
+    ok: boolean
+    endpoint: string
+    model: string
+    responsePreview?: string
+    availableModels?: LlmModelOption[]
 }
 
 export type VocabConfigPublic = Omit<VocabConfig, 'eudicToken'> & {

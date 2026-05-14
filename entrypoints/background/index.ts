@@ -12,7 +12,6 @@ async function initializeServices(): Promise<void> {
   }
 }
 
-/** Send a message to the active tab's content script */
 async function sendToActiveTab(message: { type: string }) {
   try {
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
@@ -34,16 +33,4 @@ export default defineBackground(() => {
       sendToActiveTab({ type: 'TOGGLE_HIGHLIGHTER_MODE' })
     }
   })
-
-  // Handle browser action icon click — open side panel
-  chrome.action.onClicked.addListener(async (tab) => {
-    try {
-      if (tab.windowId) {
-        await chrome.sidePanel.open({ windowId: tab.windowId })
-      }
-    } catch (error) {
-      Logger.error('Failed to open side panel:', error)
-    }
-  })
 })
-

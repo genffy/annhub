@@ -14,7 +14,10 @@ import {
     normalizeWord,
     VocabLearningEvent,
     VocabLearningPendingEvent,
+    LlmConnectionTestResult,
+    LlmModelOption,
 } from '../../../types/vocabulary'
+import { findLlmProviderEndpoint, findLlmProviderPreset, normalizeLlmModelOptions } from '../../../utils/llm-provider-presets'
 import {
     EudicCategory,
     EudicWord,
@@ -231,6 +234,100 @@ export class VocabularyService implements IService {
 
         const { apiKey, ...publicConfig } = config
         return { ...publicConfig, hasApiKey, apiKeySource }
+    }
+
+    private mergePresetIntoLlmConfig(config: LlmConfig): LlmConfig {
+        const preset = findLlmProviderPreset(config.providerPresetId)
+        const endpoint = findLlmProviderEndpoint(config.providerPresetId, config.providerEndpointId)
+        if (!preset || !endpoint) return config
+
+        return {
+            ...config,
+            apiMode: endpoint.apiMode ?? preset.apiMode ?? config.apiMode ?? 'openai-compatible',
+            baseUrl: config.baseUrl || endpoint.baseUrl,
+            model: config.model || endpoint.defaultModel || preset.defaultModel,
+            modelsEndpoint: config.modelsEndpoint || endpoint.modelsEndpoint || preset.modelsEndpoint,
+            omitTemperature: config.omitTemperature ?? endpoint.omitTemperature ?? preset.omitTemperature,
+        }
+    }
+
+    async getLlmRuntimeConfig(override?: Partial<LlmConfig>): Promise<LlmConfig> {
+        const stored = await this.getLlmConfig()
+        const merged: LlmConfig = {
+            ...stored,
+            ...(override ?? {}),
+        }
+
+        if (override && override.apiKey === undefined) {
+            merged.apiKey = stored.apiKey
+        }
+
+        return this.mergePresetIntoLlmConfig(merged)
+    }
+
+    private getLlmFallbackModels(config: LlmConfig): LlmModelOption[] {
+        const preset = findLlmProviderPreset(config.providerPresetId)
+        if (!preset) return []
+        const endpoint = findLlmProviderEndpoint(config.providerPresetId, config.providerEndpointId)
+        return normalizeLlmModelOptions(endpoint?.models ?? preset.models)
+    }
+
+    async fetchLlmModels(configOverride?: Partial<LlmConfig>): Promise<LlmModelOption[]> {
+        const config = await this.getLlmRuntimeConfig(configOverride)
+        const fallbackModels = this.getLlmFallbackModels(config)
+
+        if (config.apiMode && config.apiMode !== 'openai-compatible') {
+            return fallbackModels
+        }
+
+        if (!config.baseUrl || !config.apiKey) {
+            return fallbackModels
+        }
+
+        try {
+            const client = createLlmClient(config)
+            const remoteModels = await client.listModels?.()
+            const normalizedRemote = normalizeLlmModelOptions(remoteModels ?? [])
+            return normalizedRemote.length > 0 ? normalizedRemote : fallbackModels
+        } catch (error) {
+            Logger.warn('[VocabularyService] Failed to fetch LLM models:', error)
+            if (fallbackModels.length > 0) return fallbackModels
+            throw error
+        }
+    }
+
+    async testLlmConnection(configOverride?: Partial<LlmConfig>): Promise<LlmConnectionTestResult> {
+        const config = await this.getLlmRuntimeConfig(configOverride)
+        if (!config.baseUrl || !config.apiKey || !config.model) {
+            throw new Error('LLM config incomplete: Base URL, API key, and model are required')
+        }
+        if (config.apiMode && config.apiMode !== 'openai-compatible') {
+            throw new Error(`Provider endpoint uses ${config.apiMode}; AnnHub currently supports Test Connection for OpenAI-compatible endpoints only`)
+        }
+
+        const client = createLlmClient(config)
+        const response = await client.completeChat({
+            system: 'Reply with exactly OK.',
+            user: 'Connection test.',
+            temperature: 0,
+            maxTokens: 8,
+            timeoutMs: config.requestTimeoutMs ?? 30000,
+        })
+
+        let availableModels: LlmModelOption[] | undefined
+        try {
+            availableModels = await this.fetchLlmModels(config)
+        } catch {
+            availableModels = undefined
+        }
+
+        return {
+            ok: true,
+            endpoint: config.baseUrl,
+            model: config.model,
+            responsePreview: response.slice(0, 80),
+            availableModels,
+        }
     }
 
     // ── Eudic category/word management ──
@@ -612,7 +709,7 @@ export class VocabularyService implements IService {
         }
 
         // 3. Call LLM
-        const llmConfig = await this.getLlmConfig()
+        const llmConfig = await this.getLlmRuntimeConfig()
         if (!llmConfig.baseUrl || !llmConfig.apiKey || !llmConfig.model) {
             return { gloss: '', source: 'llm' }
         }

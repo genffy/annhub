@@ -53,6 +53,7 @@ const VOCAB_ENV_DEFAULTS: VocabConfig = {
     masteryThreshold: 3,
     syncPeriodMinutes: 60,
     maxAnnotationsPerPage: 200,
+    cefrLevel: 'B1',
     domainWhitelist: {
         enabled: false,
         domains: [],
