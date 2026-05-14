@@ -7,11 +7,9 @@ export default function Footer() {
       <Container>
         <div className="my-4 flex flex-col items-center justify-center gap-2 text-sm text-slate-300 sm:flex-row sm:gap-4">
           <span>
-            Copyright © {new Date().getFullYear()}. Made with ♥ by{' '}
+            Copyright © {new Date().getFullYear()}. Made with ♥
           </span>
-          <a className="text-slate-100 hover:text-white" href="https://annhub.org/" target="_blank" rel="noopener">
-            AnnHub.
-          </a>{' '}
+          <a className="text-slate-100 hover:text-white" href="https://annhub.org/" target="_blank" rel="noopener">AnnHub.</a>{' '}
           <span className="hidden text-slate-500 sm:inline">|</span>
           <a className="text-slate-100 hover:text-white" href="https://annhub.org/privacy-policy.html">
             Privacy Policy

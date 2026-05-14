@@ -6,6 +6,8 @@ import {
   VocabConfigPublic,
   LlmConfig,
   LlmApiKeySource,
+  LlmConnectionTestResult,
+  LlmModelOption,
   VocabSyncState,
   defaultVocabConfig,
   defaultLlmConfig,
@@ -13,6 +15,7 @@ import {
   type CEFRLevel,
 } from '../../../types/vocabulary'
 import { Card, CheckboxField, Field, PageHeader, SelectInput, SettingsSection, StatusMessage, TextareaInput, TextInput } from '../components/ui'
+import { CUSTOM_LLM_PROVIDER_ID, findLlmProviderEndpoint, findLlmProviderPreset, getLlmProviderEndpoint, LLM_PROVIDER_PRESETS, normalizeLlmModelOptions } from '../../../utils/llm-provider-presets'
 
 type MessageType = 'success' | 'error'
 const MASKED_SECRET_VALUE = '****************'
@@ -35,6 +38,14 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
   const [learningSyncState, setLearningSyncState] = useState<VocabSyncState | null>(null)
   const [learningCategories, setLearningCategories] = useState<Array<{ id: string; name: string }>>([])
   const [selectedLearningCategoryId, setSelectedLearningCategoryId] = useState('')
+  const [llmModels, setLlmModels] = useState<LlmModelOption[]>([])
+  const [isFetchingModels, setIsFetchingModels] = useState(false)
+  const [isTestingLlm, setIsTestingLlm] = useState(false)
+  const [llmTestResult, setLlmTestResult] = useState<LlmConnectionTestResult | null>(null)
+  const [llmTestError, setLlmTestError] = useState<string | null>(null)
+
+  const activePreset = findLlmProviderPreset(llmConfig.providerPresetId)
+  const activeEndpoint = findLlmProviderEndpoint(llmConfig.providerPresetId, llmConfig.providerEndpointId)
 
   useEffect(() => {
     const load = async () => {
@@ -58,11 +69,22 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
 
         if (llmRes.success && llmRes.data) {
           const { hasApiKey: hasKey, apiKeySource: source, ...rest } = llmRes.data as any
+          const preset = findLlmProviderPreset(rest.providerPresetId)
+          const providerEndpointId = rest.providerEndpointId ?? preset?.endpointVariants?.[0]?.id
+          const endpoint = findLlmProviderEndpoint(rest.providerPresetId, providerEndpointId)
           setLlmConfig(prev => ({
             ...prev,
             ...rest,
+            providerPresetId: rest.providerPresetId ?? CUSTOM_LLM_PROVIDER_ID,
+            providerEndpointId,
+            apiMode: rest.apiMode ?? endpoint?.apiMode ?? preset?.apiMode ?? 'openai-compatible',
+            baseUrl: rest.baseUrl || endpoint?.baseUrl || preset?.baseUrl || '',
+            model: rest.model || endpoint?.defaultModel || preset?.defaultModel || '',
+            modelsEndpoint: rest.modelsEndpoint || endpoint?.modelsEndpoint || preset?.modelsEndpoint,
+            omitTemperature: rest.omitTemperature ?? endpoint?.omitTemperature ?? preset?.omitTemperature,
             apiKey: hasKey ? MASKED_SECRET_VALUE : '',
           }))
+          setLlmModels(normalizeLlmModelOptions(endpoint?.models ?? preset?.models ?? (rest.model ? [rest.model] : [])))
           setHasApiKey(Boolean(hasKey))
           setApiKeySource(source ?? 'none')
           setIsApiKeyMasked(Boolean(hasKey))
@@ -92,6 +114,131 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
     setTimeout(() => setMessage(null), 3500)
   }, [])
 
+  const buildLlmConfigPayload = useCallback((includeMaskedApiKey = false): Partial<LlmConfig> => {
+    const payload: Partial<LlmConfig> = {
+      provider: llmConfig.provider,
+      apiMode: llmConfig.apiMode,
+      providerPresetId: llmConfig.providerPresetId || CUSTOM_LLM_PROVIDER_ID,
+      providerEndpointId: llmConfig.providerEndpointId,
+      customProviderName: llmConfig.customProviderName,
+      baseUrl: llmConfig.baseUrl.trim(),
+      model: llmConfig.model.trim(),
+      modelsEndpoint: llmConfig.modelsEndpoint?.trim() || undefined,
+      omitTemperature: llmConfig.omitTemperature,
+      requestTimeoutMs: llmConfig.requestTimeoutMs,
+      maxTokens: llmConfig.maxTokens,
+      systemPrompt: llmConfig.systemPrompt,
+    }
+
+    if (!isApiKeyMasked || includeMaskedApiKey) {
+      payload.apiKey = isApiKeyMasked ? undefined : llmConfig.apiKey.trim()
+    }
+
+    return payload
+  }, [isApiKeyMasked, llmConfig])
+
+  const handleProviderPresetChange = (providerPresetId: string) => {
+    const preset = findLlmProviderPreset(providerPresetId)
+    setLlmTestResult(null)
+    setLlmTestError(null)
+
+    if (!preset) {
+      setLlmModels([])
+      setLlmConfig(prev => ({
+        ...prev,
+        providerPresetId: CUSTOM_LLM_PROVIDER_ID,
+        providerEndpointId: undefined,
+        apiMode: 'openai-compatible',
+        baseUrl: '',
+        model: '',
+        modelsEndpoint: undefined,
+        omitTemperature: undefined,
+      }))
+      return
+    }
+
+    const endpoint = getLlmProviderEndpoint(preset, preset.endpointVariants?.[0]?.id)
+    setLlmModels(normalizeLlmModelOptions(endpoint.models ?? preset.models))
+    setLlmConfig(prev => ({
+      ...prev,
+      providerPresetId: preset.id,
+      providerEndpointId: endpoint.id === preset.id ? undefined : endpoint.id,
+      customProviderName: undefined,
+      apiMode: endpoint.apiMode ?? preset.apiMode ?? 'openai-compatible',
+      baseUrl: endpoint.baseUrl,
+      model: endpoint.defaultModel || preset.defaultModel,
+      modelsEndpoint: endpoint.modelsEndpoint || preset.modelsEndpoint,
+      omitTemperature: endpoint.omitTemperature ?? preset.omitTemperature,
+    }))
+  }
+
+  const handleProviderEndpointChange = (providerEndpointId: string) => {
+    if (!activePreset) return
+    const endpoint = getLlmProviderEndpoint(activePreset, providerEndpointId)
+    setLlmTestResult(null)
+    setLlmTestError(null)
+    setLlmModels(normalizeLlmModelOptions(endpoint.models ?? activePreset.models))
+    setLlmConfig(prev => ({
+      ...prev,
+      providerEndpointId: endpoint.id === activePreset.id ? undefined : endpoint.id,
+      apiMode: endpoint.apiMode ?? activePreset.apiMode ?? 'openai-compatible',
+      baseUrl: endpoint.baseUrl,
+      model: endpoint.defaultModel || activePreset.defaultModel,
+      modelsEndpoint: endpoint.modelsEndpoint || activePreset.modelsEndpoint,
+      omitTemperature: endpoint.omitTemperature ?? activePreset.omitTemperature,
+    }))
+  }
+
+  const handleFetchLlmModels = async () => {
+    setIsFetchingModels(true)
+    setLlmTestError(null)
+    try {
+      const res = await MessageUtils.sendMessage<LlmModelOption[]>({
+        type: 'FETCH_LLM_MODELS',
+        config: buildLlmConfigPayload(),
+      })
+      if (res.success && Array.isArray(res.data)) {
+        const models = normalizeLlmModelOptions(res.data)
+        setLlmModels(models)
+        if (!models.some(model => model.id === llmConfig.model) && models[0]) {
+          setLlmConfig(prev => ({ ...prev, model: models[0].id }))
+        }
+        showMessage(`Loaded ${models.length} models`)
+      } else {
+        setLlmTestError(res.error || 'Failed to fetch models')
+      }
+    } catch (error) {
+      setLlmTestError(error instanceof Error ? error.message : 'Failed to fetch models')
+    } finally {
+      setIsFetchingModels(false)
+    }
+  }
+
+  const handleTestLlmConnection = async () => {
+    setIsTestingLlm(true)
+    setLlmTestResult(null)
+    setLlmTestError(null)
+    try {
+      const res = await MessageUtils.sendMessage<LlmConnectionTestResult>({
+        type: 'TEST_LLM_CONNECTION',
+        config: buildLlmConfigPayload(),
+      })
+      if (res.success && res.data) {
+        setLlmTestResult(res.data)
+        if (res.data.availableModels?.length) {
+          setLlmModels(normalizeLlmModelOptions(res.data.availableModels))
+        }
+        showMessage('LLM connection test passed')
+      } else {
+        setLlmTestError(res.error || 'Connection test failed')
+      }
+    } catch (error) {
+      setLlmTestError(error instanceof Error ? error.message : 'Connection test failed')
+    } finally {
+      setIsTestingLlm(false)
+    }
+  }
+
   const handleSave = async () => {
     setIsSaving(true)
     try {
@@ -102,16 +249,7 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
         delete vocabPayload.eudicToken
       }
 
-      const llmPayload: Partial<LlmConfig> = {
-        provider: llmConfig.provider,
-        baseUrl: llmConfig.baseUrl,
-        model: llmConfig.model,
-        maxTokens: llmConfig.maxTokens,
-        systemPrompt: llmConfig.systemPrompt,
-      }
-      if (!isApiKeyMasked) {
-        llmPayload.apiKey = llmConfig.apiKey.trim()
-      }
+      const llmPayload = buildLlmConfigPayload()
 
       const [vocabRes, llmRes] = await Promise.all([
         MessageUtils.sendMessage({ type: 'SET_VOCAB_CONFIG', config: vocabPayload }),
@@ -366,11 +504,45 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
       </SettingsSection>
 
       <SettingsSection title="LLM Configuration">
-        <Field label="Provider">
-          <SelectInput name="llmProvider" value={llmConfig.provider} disabled>
-            <option value="openai-compatible">OpenAI Compatible</option>
+        <Field label="Provider" hint={activePreset ? `${activePreset.region ?? 'OpenAI compatible'} provider preset` : 'Use any OpenAI-compatible endpoint'}>
+          <SelectInput name="llmProviderPreset" value={llmConfig.providerPresetId || CUSTOM_LLM_PROVIDER_ID} onChange={e => handleProviderPresetChange(e.target.value)}>
+            {LLM_PROVIDER_PRESETS.map(provider => (
+              <option key={provider.id} value={provider.id}>
+                {provider.name}
+              </option>
+            ))}
+            <option value={CUSTOM_LLM_PROVIDER_ID}>Custom OpenAI Compatible</option>
           </SelectInput>
         </Field>
+        {activePreset?.endpointVariants?.length ? (
+          <Field
+            label="Endpoint"
+            hint={activeEndpoint?.description || `${activeEndpoint?.region ?? activePreset.region ?? 'Global'} endpoint, ${activeEndpoint?.apiMode ?? activePreset.apiMode ?? 'openai-compatible'}`}
+          >
+            <SelectInput
+              name="llmProviderEndpoint"
+              value={llmConfig.providerEndpointId || activePreset.endpointVariants[0]?.id || ''}
+              onChange={e => handleProviderEndpointChange(e.target.value)}
+            >
+              {activePreset.endpointVariants.map(endpoint => (
+                <option key={endpoint.id} value={endpoint.id}>
+                  {endpoint.name}
+                </option>
+              ))}
+            </SelectInput>
+          </Field>
+        ) : null}
+        {!activePreset && (
+          <Field label="Custom provider name">
+            <TextInput
+              name="llmCustomProviderName"
+              type="text"
+              value={llmConfig.customProviderName ?? ''}
+              onChange={e => setLlmConfig(prev => ({ ...prev, customProviderName: e.target.value }))}
+              placeholder="My provider"
+            />
+          </Field>
+        )}
         <Field label="Base URL">
           <TextInput
             name="llmBaseUrl"
@@ -380,6 +552,17 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
             placeholder="https://api.openai.com"
           />
         </Field>
+        {!activePreset && (
+          <Field label="Models endpoint" hint="Optional. Leave blank to use Base URL + /v1/models.">
+            <TextInput
+              name="llmModelsEndpoint"
+              type="text"
+              value={llmConfig.modelsEndpoint ?? ''}
+              onChange={e => setLlmConfig(prev => ({ ...prev, modelsEndpoint: e.target.value || undefined }))}
+              placeholder="https://api.example.com/v1/models"
+            />
+          </Field>
+        )}
         <Field
           label="API Key"
           hint={
@@ -411,9 +594,54 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
             placeholder="Input your API key"
           />
         </Field>
-        <Field label="Model">
-          <TextInput name="llmModel" type="text" value={llmConfig.model} onChange={e => setLlmConfig(prev => ({ ...prev, model: e.target.value }))} placeholder="glm-4-flash" />
+        <Field label="Model" hint="Choose a preset model or type a custom model id.">
+          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(180px,0.5fr)]">
+            <SelectInput
+              name="llmModelSelect"
+              value={llmModels.some(model => model.id === llmConfig.model) ? llmConfig.model : ''}
+              onChange={e => setLlmConfig(prev => ({ ...prev, model: e.target.value }))}
+            >
+              <option value="">Custom model...</option>
+              {llmModels.map(model => (
+                <option key={model.id} value={model.id}>
+                  {model.name || model.id}
+                </option>
+              ))}
+            </SelectInput>
+            <TextInput
+              name="llmModel"
+              type="text"
+              value={llmConfig.model}
+              onChange={e => setLlmConfig(prev => ({ ...prev, model: e.target.value }))}
+              placeholder={activePreset?.defaultModel || 'model-id'}
+            />
+          </div>
         </Field>
+        <div className="md:pl-[236px] flex flex-wrap gap-2">
+          <Button type="button" variant="secondary" onClick={handleFetchLlmModels} disabled={isFetchingModels || isTestingLlm}>
+            {isFetchingModels ? 'Loading models...' : 'Fetch Models'}
+          </Button>
+          <Button type="button" variant="secondary" onClick={handleTestLlmConnection} disabled={isTestingLlm || isFetchingModels}>
+            {isTestingLlm ? 'Testing...' : 'Test Connection'}
+          </Button>
+          {activePreset?.apiKeyUrl && (
+            <a className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-slate-600 hover:text-slate-950" href={activePreset.apiKeyUrl} target="_blank" rel="noreferrer">
+              Get API key
+            </a>
+          )}
+          {activePreset?.docsUrl && (
+            <a className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-slate-600 hover:text-slate-950" href={activePreset.docsUrl} target="_blank" rel="noreferrer">
+              Docs
+            </a>
+          )}
+        </div>
+        {(llmTestResult || llmTestError) && (
+          <div className="md:pl-[236px]">
+            <StatusMessage tone={llmTestError ? 'error' : 'success'}>
+              {llmTestError ? llmTestError : `Connected to ${llmTestResult?.model} at ${llmTestResult?.endpoint}. Response: ${llmTestResult?.responsePreview || 'OK'}`}
+            </StatusMessage>
+          </div>
+        )}
         <Field label="Max tokens (optional)">
           <TextInput
             name="llmMaxTokens"

@@ -1,5 +1,4 @@
 import { Logger } from '../../utils/logger'
-import { ServiceContext } from '../service-context'
 import { CommandHandler } from './command-handler'
 import { InstallationHandler } from './installation-handler'
 import { RuntimeHandler } from './runtime-handler'
@@ -7,14 +6,12 @@ import { RuntimeHandler } from './runtime-handler'
 
 export class EventHandlerManager {
   private static instance: EventHandlerManager
-  private serviceContext: ServiceContext
   private commandHandler: CommandHandler
   private installationHandler: InstallationHandler
   private runtimeHandler: RuntimeHandler
   private listenersRegistered = false
 
   private constructor() {
-    this.serviceContext = ServiceContext.getInstance()
     this.commandHandler = new CommandHandler()
     this.installationHandler = new InstallationHandler()
     this.runtimeHandler = new RuntimeHandler()
@@ -101,4 +98,4 @@ export class EventHandlerManager {
       Logger.error('[EventHandlerManager] Failed to remove event listeners:', error)
     }
   }
-} 
+}

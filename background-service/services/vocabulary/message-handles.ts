@@ -59,6 +59,28 @@ export const messageHandlers: Record<string, (message: any, sender: chrome.runti
         }
     },
 
+    FETCH_LLM_MODELS: async (message: any, sender: chrome.runtime.MessageSender): Promise<ResponseMessage> => {
+        if (!isExtensionPageSender(sender)) return forbiddenResponse()
+        try {
+            const service = VocabularyService.getInstance()
+            const models = await service.fetchLlmModels(message.config)
+            return MessageUtils.createResponse(true, models)
+        } catch (error) {
+            return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+    },
+
+    TEST_LLM_CONNECTION: async (message: any, sender: chrome.runtime.MessageSender): Promise<ResponseMessage> => {
+        if (!isExtensionPageSender(sender)) return forbiddenResponse()
+        try {
+            const service = VocabularyService.getInstance()
+            const result = await service.testLlmConnection(message.config)
+            return MessageUtils.createResponse(true, result)
+        } catch (error) {
+            return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+    },
+
     GET_VOCAB_SNAPSHOT: async (message: any): Promise<ResponseMessage> => {
         try {
             const service = VocabularyService.getInstance()

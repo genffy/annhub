@@ -22,9 +22,9 @@
   <rect x="0" y="0" width="440" height="280" rx="0" fill="#F7F9FC" stroke="none" stroke-width="1" opacity="1"/>
   
   <g transform="translate(34 42) scale(0.3176470588235294)"><path fill-rule="evenodd" clip-rule="evenodd" d="M30 110L70 0H40L0 110V200H30L60 110H30ZM140 110L100 0H130L170 110V200H140L110 110H140Z" fill="#673AB8"/></g>
-  <text x="98" y="76" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="850" fill="#172033" text-anchor="start" opacity="1">AnnHub</text>
-  <text x="38" y="136" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="24" font-weight="780" fill="#172033" text-anchor="start" opacity="1">Capture web text</text>
-  <text x="38" y="168" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="500" fill="#526070" text-anchor="start" opacity="1">Highlight, annotate, and sync.</text>
+  <text x="98" y="106" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="34" font-weight="850" fill="#172033" text-anchor="start" opacity="1">nnHub</text>
+  <text x="38" y="136" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="24" font-weight="780" fill="#172033" text-anchor="start" opacity="1">Annotation in Chrome</text>
+  <text x="38" y="168" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="18" font-weight="500" fill="#526070" text-anchor="start" opacity="1">Highlight, clip, label, and sync.</text>
   <rect x="38" y="206" width="126" height="42" rx="21" fill="#673AB8" stroke="none" stroke-width="1" opacity="1"/>
   <text x="101" y="233" font-family="Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif" font-size="14" font-weight="800" fill="#ffffff" text-anchor="middle" opacity="1">Chrome Extension</text>
   <rect x="286" y="92" width="118" height="116" rx="10" fill="#ffffff" stroke="#D7DCE3" stroke-width="1" opacity="1" filter="url(#softShadow)"/>

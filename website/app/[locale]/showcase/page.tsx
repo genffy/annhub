@@ -1,7 +1,14 @@
 import Footer from '@/components/footer'
 import HomeShowcase from '@/components/home-showcase'
-import Image from 'next/image'
 import Link from 'next/link'
+
+function AnnMark({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 170 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <path fillRule="evenodd" clipRule="evenodd" d="M30 110L70 0H40L0 110V200H30L60 110H30ZM140 110L100 0H130L170 110V200H140L110 110H140Z" fill="currentColor" />
+    </svg>
+  )
+}
 
 export default function Showcase() {
   return (
@@ -10,7 +17,7 @@ export default function Showcase() {
         <div className="absolute right-[-12%] top-0 h-full w-1/2 skew-x-[-12deg] bg-[#673AB8]/10" />
         <nav className="relative z-10 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-3 text-2xl font-extrabold text-[#1E2B3A]">
-            <Image src="/ann.svg" alt="AnnHub" width={40} height={48} className="h-12 w-auto" priority />
+            <AnnMark className="h-11 w-auto text-[#673AB8]" />
             AnnHub
           </Link>
           <Link

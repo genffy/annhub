@@ -5,7 +5,6 @@ import { ServiceContext } from '../service-context'
 export class RuntimeHandler {
   private serviceContext: ServiceContext
   private pingListener?: (message: any, sender: chrome.runtime.MessageSender, sendResponse: (response: any) => void) => boolean
-  private actionClickListener?: (tab: chrome.tabs.Tab) => void
   private startupListener?: () => void
 
   constructor() {
@@ -16,7 +15,7 @@ export class RuntimeHandler {
   registerListeners(): void {
     Logger.info('[RuntimeHandler] Registering runtime listeners...')
 
-    this.pingListener = (message, sender, sendResponse) => {
+    this.pingListener = (message, _sender, sendResponse) => {
       if (message.type === 'PING') {
         Logger.info('[RuntimeHandler] Received PING, service worker is active')
         sendResponse({
@@ -29,36 +28,6 @@ export class RuntimeHandler {
       return false
     }
     browser.runtime.onMessage.addListener(this.pingListener)
-
-
-    this.actionClickListener = async (tab) => {
-      try {
-        Logger.info('[RuntimeHandler] Extension icon clicked, opening sidebar')
-        if (tab.id) {
-
-          if (browser.sidePanel && browser.sidePanel.open) {
-            await browser.sidePanel.open({ tabId: tab.id })
-            Logger.info('[RuntimeHandler] Sidebar opened successfully')
-          } else {
-
-            Logger.warn('[RuntimeHandler] SidePanel API not supported, falling back to popup')
-            throw new Error('SidePanel not supported')
-          }
-        }
-      } catch (error) {
-        Logger.error('[RuntimeHandler] Failed to open sidebar:', error)
-
-
-        try {
-          await browser.action.setPopup({ popup: 'popup/index.html' })
-          Logger.info('[RuntimeHandler] Fallback to popup mode')
-        } catch (popupError) {
-          Logger.error('[RuntimeHandler] Failed to fallback to popup:', popupError)
-        }
-      }
-    }
-    // if configured default_popup, this will be ignored
-    browser.action.onClicked.addListener(this.actionClickListener)
 
 
     this.startupListener = async () => {
@@ -93,11 +62,6 @@ export class RuntimeHandler {
       this.pingListener = undefined
     }
 
-    if (this.actionClickListener) {
-      browser.action.onClicked.removeListener(this.actionClickListener)
-      this.actionClickListener = undefined
-    }
-
     if (this.startupListener) {
       browser.runtime.onStartup.removeListener(this.startupListener)
       this.startupListener = undefined
@@ -105,4 +69,4 @@ export class RuntimeHandler {
 
     Logger.info('[RuntimeHandler] Runtime listeners removed successfully')
   }
-} 
+}

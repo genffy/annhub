@@ -1,10 +1,17 @@
 'use client'
 import Link from 'next/link'
 import DarkSwitch from './dark-switch'
-import Image from 'next/image'
 import { Disclosure } from '@headlessui/react'
 import { useTranslations } from 'next-intl'
 import LocaleSwitcher from './locale-switcher'
+
+function AnnMark({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 170 200" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+      <path fillRule="evenodd" clipRule="evenodd" d="M30 110L70 0H40L0 110V200H30L60 110H30ZM140 110L100 0H130L170 110V200H140L110 110H140Z" fill="currentColor" />
+    </svg>
+  )
+}
 
 const Navbar = async () => {
   const navigation = ['Product', 'Pricing', 'Community']
@@ -20,11 +27,9 @@ const Navbar = async () => {
             <>
               <div className="flex flex-wrap items-center justify-between w-full lg:w-auto">
                 <Link href="/">
-                  <span className="flex items-center space-x-2 text-2xl font-medium text-indigo-500 dark:text-gray-100">
-                    <span>
-                      <Image src="/img/logo.svg" alt="N" width="32" height="32" className="w-8" />
-                    </span>
-                    <span>Nextly</span>
+                  <span className="flex items-center space-x-2 text-2xl font-extrabold text-[#1E2B3A] dark:text-gray-100">
+                    <AnnMark className="h-9 w-auto text-[#673AB8]" />
+                    <span>AnnHub</span>
                   </span>
                 </Link>
 

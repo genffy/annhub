@@ -48,7 +48,7 @@ vi.mock('../../../../utils/logger', () => ({
 }))
 
 // Mock HighlightStorage
-const mockGetHighlights = vi.fn(() => Promise.resolve([]))
+const mockGetHighlights = vi.fn(async (): Promise<HighlightRecord[]> => [])
 vi.mock('../../highlight/highlight-storage', () => ({
     HighlightStorage: {
         getInstance: vi.fn(() => ({

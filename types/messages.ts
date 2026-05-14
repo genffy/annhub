@@ -263,6 +263,16 @@ export interface ContextGlossMessage extends BaseMessage {
     targetLanguage?: string
 }
 
+export interface FetchLlmModelsMessage extends BaseMessage {
+    type: 'FETCH_LLM_MODELS'
+    config?: Partial<LlmConfig>
+}
+
+export interface TestLlmConnectionMessage extends BaseMessage {
+    type: 'TEST_LLM_CONNECTION'
+    config?: Partial<LlmConfig>
+}
+
 export interface EnsureVocabLearningCategoryMessage extends BaseMessage {
     type: 'ENSURE_VOCAB_LEARNING_CATEGORY'
     language?: string
@@ -332,6 +342,8 @@ export type UIToBackgroundMessage =
     | SetVocabConfigMessage
     | GetLlmConfigMessage
     | SetLlmConfigMessage
+    | FetchLlmModelsMessage
+    | TestLlmConnectionMessage
     | GetVocabSnapshotMessage
     | RefreshVocabMessage
     | GetEudicCategoriesMessage

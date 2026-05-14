@@ -11,8 +11,9 @@
   # 发布目录 - 使用 Next.js plugin 时会自动处理，不需要手动设置
   # publish = "website/.next"  # 注释掉，让插件自动处理
   
-  # 忽略某些文件的变更（不触发构建）
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- . ':(exclude)website'"
+  # 只允许 production(main) 构建；main 上 website/ 无变化时也跳过。
+  # Netlify 的 ignore 命令返回 0 表示跳过构建，返回非 0 才继续构建。
+  ignore = "test \"$CONTEXT\" != \"production\" || git diff --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- website"
 
 [build.environment]
   # Node.js 版本（会优先使用根目录的 .node-version，这里作为备用）
@@ -53,12 +54,12 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# 开发预览配置
+# 非生产上下文不做自动部署；这里保留显式兜底，避免 UI 设置被误打开后跑构建。
 [context.deploy-preview]
-  command = "cd website && npm install && npm run build"
+  ignore = "exit 0"
 
 [context.branch-deploy]
-  command = "cd website && npm install && npm run build"
+  ignore = "exit 0"
 
 # 生产环境配置
 [context.production]

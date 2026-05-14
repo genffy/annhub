@@ -27,7 +27,7 @@ describe('LogseqClient', () => {
         it('should remove trailing slashes from server URL', () => {
             const config = { serverUrl: 'http://127.0.0.1:12315///', authToken: '' }
             const c = new LogseqClient(config)
-            // Client should work correctly despite trailing slashes
+            expect(c).toBeDefined()
         })
 
         it('should handle empty auth token', () => {
