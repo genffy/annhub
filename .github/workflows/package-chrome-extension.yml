@@ -2,27 +2,6 @@ name: Package Chrome Extension
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    tags:
-      - 'v*'
-    paths:
-      - '.github/workflows/package-chrome-extension.yml'
-      - 'assets/**'
-      - 'background-service/**'
-      - 'components/**'
-      - 'constants/**'
-      - 'entrypoints/**'
-      - 'public/**'
-      - 'scripts/**'
-      - 'types/**'
-      - 'utils/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'tsconfig.json'
-      - 'wxt.config.ts'
-      - 'vite.config.ts'
 
 permissions:
   contents: read
@@ -52,9 +31,6 @@ jobs:
       - name: Type check
         run: npm run compile
 
-      - name: Build Chrome extension
-        run: npm run build
-
       - name: Package Chrome extension
         run: npm run zip
 
@@ -65,10 +41,18 @@ jobs:
           test -f .output/chrome-mv3/manifest.json
           ls .output/*-chrome.zip
 
+      - name: Prepare artifact files
+        run: |
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          cp .output/*-chrome.zip artifacts/
+          ls -la artifacts/
+
       - name: Upload Chrome package
         uses: actions/upload-artifact@v7
         with:
           name: chrome-extension-${{ github.sha }}
-          path: .output/*-chrome.zip
+          path: artifacts/*-chrome.zip
           if-no-files-found: error
           retention-days: 30
