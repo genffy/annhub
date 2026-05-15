@@ -34,6 +34,11 @@ const inter = Inter({
 export const metadata = {
   title: 'AnnHub',
   description: 'Annotation, comment, capture, and share anywhere',
+  icons: {
+    icon: '/icon.png',
+    shortcut: '/icon.png',
+    apple: '/icon.png',
+  },
 }
 
 type RootLayoutProps = {
