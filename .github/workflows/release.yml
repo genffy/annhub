@@ -21,13 +21,12 @@ jobs:
           name: ${{ needs.build.outputs.artifact-name }}
           path: ./release-assets
 
-      - name: List release assets
+      - name: Package release asset
         run: |
           set -euo pipefail
-          echo "Release assets to upload:"
-          ls -la ./release-assets/*.zip
-          chrome_zip="$(ls ./release-assets/*-chrome.zip | head -n 1)"
-          unzip -l "$chrome_zip" manifest.json
+          test -f ./release-assets/manifest.json
+          (cd ./release-assets && zip -qr "../${{ needs.build.outputs.zip-name }}" .)
+          unzip -l "./${{ needs.build.outputs.zip-name }}" manifest.json
 
       - name: Extract version from tag
         id: get_version
@@ -49,17 +48,6 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-          files: |
-            ./release-assets/*-chrome.zip
-            ./release-assets/*-firefox.zip
-            ./release-assets/*-sources.zip
+          files: ./${{ needs.build.outputs.zip-name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload release artifacts (backup)
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-packages-unzip-first-${{ steps.get_version.outputs.version }}
-          path: ./release-assets/
-          retention-days: 90
-          include-hidden-files: true
