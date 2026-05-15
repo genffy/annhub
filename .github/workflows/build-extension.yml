@@ -26,8 +26,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build extension
-        run: npm run build
+      - name: Type check
+        run: npm run compile
 
       - name: Zip extension for Chrome
         run: npm run zip
@@ -35,15 +35,18 @@ jobs:
       - name: Zip extension for Firefox
         run: npm run zip:firefox
 
-      - name: List generated files
+      - name: Prepare extension packages
         run: |
-          echo "Generated files:"
-          ls -la .output/*.zip 2>/dev/null || echo "No zip files found"
+          set -euo pipefail
+          rm -rf artifacts
+          mkdir -p artifacts
+          cp .output/*.zip artifacts/
+          ls -la artifacts/
 
       - name: Upload extension packages
         uses: actions/upload-artifact@v7
         with:
           name: extension-build-${{ github.sha }}
-          path: .output/
+          path: artifacts/
           retention-days: 30
           include-hidden-files: true 

@@ -1,8 +1,6 @@
 name: Release Extensions
 
 on:
-  release:
-    types: [published]
   push:
     tags:
       - 'v*' # eg：v2.0.0

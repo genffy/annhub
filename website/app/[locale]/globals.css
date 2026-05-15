@@ -6,6 +6,8 @@
   html,
   body {
     @apply dark:bg-trueGray-900;
+    max-width: 100%;
+    overflow-x: clip;
   }
 }
 
