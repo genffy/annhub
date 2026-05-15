@@ -4,6 +4,7 @@ import { Gradient } from '@/lib/gradient'
 import { useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { CHROME_WEB_STORE_URL } from '@/lib/links'
 
 function AnnMark({ className = '' }: { className?: string }) {
   return (
@@ -147,8 +148,9 @@ const Hero = () => {
                 }}
               >
                 <Link
-                  href="https://github.com/genffy/annhub/releases"
-                  aria-disabled
+                  href={CHROME_WEB_STORE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="group flex scale-100 items-center justify-center rounded-full bg-[#f5f7f9] px-4 py-2 text-[13px] font-semibold text-[#1E2B3A] no-underline transition-all duration-75 active:scale-95"
                   style={{
                     boxShadow: '0 1px 1px #0c192714, 0 1px 3px #0c192724',

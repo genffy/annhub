@@ -28,20 +28,20 @@ jobs:
       - name: Upload individual extension artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: chrome-extension
+          name: chrome-extension-unzip-first
           path: ./downloaded-artifacts/*chrome.zip
           retention-days: 30
 
       - name: Upload Firefox extension artifact  
         uses: actions/upload-artifact@v7
         with:
-          name: firefox-extension
+          name: firefox-extension-unzip-first
           path: ./downloaded-artifacts/*firefox.zip
           retention-days: 30
 
       - name: Upload Firefox sources artifact
         uses: actions/upload-artifact@v7
         with:
-          name: firefox-sources  
+          name: firefox-sources-unzip-first
           path: ./downloaded-artifacts/*sources.zip
           retention-days: 30
