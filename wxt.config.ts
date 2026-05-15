@@ -1,5 +1,12 @@
 import { defineConfig } from 'wxt'
 import { ANN_SELECTION_KEY } from './constants'
+import packageJson from './package.json'
+
+const extensionVersion = packageJson.version
+
+if (!/^\d+(\.\d+){0,3}$/.test(extensionVersion)) {
+  throw new Error(`package.json version "${extensionVersion}" is not a valid Chrome extension version`)
+}
 
 // See https://wxt.dev/api/config.html
 export default defineConfig({
@@ -8,7 +15,7 @@ export default defineConfig({
   manifest: {
     name: '__MSG_extName__',
     description: '__MSG_extDescription__',
-    version: '1.0.0',
+    version: extensionVersion,
     default_locale: 'en',
     permissions: [
       'storage',
