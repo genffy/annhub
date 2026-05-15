@@ -39,7 +39,8 @@ jobs:
           set -euo pipefail
           test -d .output/chrome-mv3
           test -f .output/chrome-mv3/manifest.json
-          ls .output/*-chrome.zip
+          chrome_zip="$(ls .output/*-chrome.zip | head -n 1)"
+          unzip -l "$chrome_zip" manifest.json
 
       - name: Prepare artifact files
         run: |
@@ -52,7 +53,7 @@ jobs:
       - name: Upload Chrome package
         uses: actions/upload-artifact@v7
         with:
-          name: chrome-extension-${{ github.sha }}
+          name: chrome-extension-unzip-first-${{ github.sha }}
           path: artifacts/*-chrome.zip
           if-no-files-found: error
           retention-days: 30

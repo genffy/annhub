@@ -23,8 +23,11 @@ jobs:
 
       - name: List release assets
         run: |
+          set -euo pipefail
           echo "Release assets to upload:"
           ls -la ./release-assets/*.zip
+          chrome_zip="$(ls ./release-assets/*-chrome.zip | head -n 1)"
+          unzip -l "$chrome_zip" manifest.json
 
       - name: Extract version from tag
         id: get_version
@@ -56,7 +59,7 @@ jobs:
       - name: Upload release artifacts (backup)
         uses: actions/upload-artifact@v7
         with:
-          name: release-packages-${{ steps.get_version.outputs.version }}
+          name: release-packages-unzip-first-${{ steps.get_version.outputs.version }}
           path: ./release-assets/
           retention-days: 90
-          include-hidden-files: true 
+          include-hidden-files: true

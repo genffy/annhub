@@ -4,6 +4,7 @@ import DarkSwitch from './dark-switch'
 import { Disclosure } from '@headlessui/react'
 import { useTranslations } from 'next-intl'
 import LocaleSwitcher from './locale-switcher'
+import { CHROME_WEB_STORE_URL } from '@/lib/links'
 
 function AnnMark({ className = '' }: { className?: string }) {
   return (
@@ -60,7 +61,7 @@ const Navbar = async () => {
                         {item}
                       </Link>
                     ))}
-                    <Link href="/" className="w-full px-6 py-2 mt-3 text-center text-white bg-indigo-600 rounded-md lg:ml-5">
+                    <Link href={CHROME_WEB_STORE_URL} target="_blank" rel="noopener noreferrer" className="w-full px-6 py-2 mt-3 text-center text-white bg-indigo-600 rounded-md lg:ml-5">
                       Get Started
                     </Link>
                   </>
@@ -87,7 +88,7 @@ const Navbar = async () => {
         </div>
 
         <div className="hidden mr-3 space-x-4 lg:flex nav__item">
-          <Link href="/" className="px-6 py-2 text-white bg-indigo-600 rounded-md md:ml-5">
+          <Link href={CHROME_WEB_STORE_URL} target="_blank" rel="noopener noreferrer" className="px-6 py-2 text-white bg-indigo-600 rounded-md md:ml-5">
             Get Started
           </Link>
           <DarkSwitch />
