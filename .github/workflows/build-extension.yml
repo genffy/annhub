@@ -49,3 +49,4 @@ jobs:
           name: extension-build-${{ github.sha }}
           path: artifacts/
           retention-days: 30
+          include-hidden-files: true 
