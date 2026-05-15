@@ -1,6 +1,6 @@
 import { isEnglishPage, shouldAnnotateDomain } from './detect-page'
 import { injectVocabStyles, removeVocabStyles } from './styles'
-import { annotateVisibleText, cleanupAnnotations, resetVocabLabelRuntimeState, getSkipStarThreshold } from './annotate'
+import { annotateVisibleText, cleanupAnnotations, resetVocabLabelRuntimeState, getSkipStarThreshold, getAnnotationSentence } from './annotate'
 import { collectAnnotatableBlocks, resolveContentRoot, ANNOTATABLE_BLOCK_SELECTOR, isExcludedSection } from './content-scope'
 import { getActivePlatformRule, type VocabPlatformRule } from './platform-rules'
 import { isElementWithinViewportWindow } from './viewport'
@@ -110,7 +110,7 @@ async function onFeedbackAction(action: string): Promise<void> {
   if (!target) return
   const word = target.dataset.annVocabWord?.trim()
   if (!word) return
-  const sentence = target.dataset.annVocabSentence?.trim()
+  const sentence = getAnnotationSentence(target)
   try {
     const res = await MessageUtils.sendMessage({
       type: 'RECORD_VOCAB_LEARNING_EVENT',

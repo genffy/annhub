@@ -49,6 +49,7 @@ let lastViewportCleanupAt = 0
 let annotationVisibilityObserver: IntersectionObserver | null = null
 let annotationBlockMarkers = new Map<Element, Set<Element>>()
 let annotationMarkerBlocks = new WeakMap<Element, Element>()
+let annotationSentences = new WeakMap<Element, string>()
 
 function getL1Gloss(cacheKey: string): string | null {
   const hit = glossMemoryCache.get(cacheKey)
@@ -150,8 +151,12 @@ async function resolveGlossWithTimeout(word: string, sentence: string, timeoutMs
 function setAnnotationMetadata(el: HTMLElement, item: PendingItem): void {
   el.dataset.annVocabWord = item.wordNorm
   if (item.sentence) {
-    el.dataset.annVocabSentence = item.sentence.slice(0, 280)
+    annotationSentences.set(el, item.sentence)
   }
+}
+
+export function getAnnotationSentence(el: Element): string | undefined {
+  return annotationSentences.get(el)?.trim() || undefined
 }
 
 function wrapWordWithRuby(range: Range, gloss: string, item: PendingItem): void {
@@ -494,10 +499,23 @@ export async function annotateVisibleText(ctx: AnnotationContext, options?: Anno
   await resolvePendingGlosses(selectedPending)
 
   let appliedCount = 0
+  const textNodeOrder = new WeakMap<Text, number>()
+  let nextTextNodeOrder = 0
+  for (const item of selectedPending) {
+    if (!textNodeOrder.has(item.textNode)) {
+      textNodeOrder.set(item.textNode, nextTextNodeOrder++)
+    }
+  }
 
-  // Reverse apply to protect offsets in same text node.
-  for (let i = selectedPending.length - 1; i >= 0; i--) {
-    const item = selectedPending[i]
+  const applyOrder = [...selectedPending].sort((a, b) => {
+    if (a.textNode === b.textNode) {
+      return b.startOffset - a.startOffset
+    }
+    return (textNodeOrder.get(a.textNode) ?? 0) - (textNodeOrder.get(b.textNode) ?? 0)
+  })
+
+  // Apply from the end of each text node so earlier wraps do not invalidate later offsets.
+  for (const item of applyOrder) {
     try {
       const range = document.createRange()
       range.setStart(item.textNode, item.startOffset)
@@ -537,5 +555,6 @@ export function resetVocabLabelRuntimeState(): void {
   annotationVisibilityObserver = null
   annotationBlockMarkers.clear()
   annotationMarkerBlocks = new WeakMap<Element, Element>()
+  annotationSentences = new WeakMap<Element, string>()
   clearDomPolicyCaches()
 }
