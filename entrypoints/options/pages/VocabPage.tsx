@@ -299,6 +299,9 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
     }
   }
 
+  const defaultLearningCategoryId = vocabConfig.eudicCategoryIds[0] ?? ''
+  const effectiveLearningCategoryId = selectedLearningCategoryId || defaultLearningCategoryId
+
   const handleSyncLearningProfile = async () => {
     setIsSyncing(true)
     try {
@@ -338,11 +341,12 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
   }
 
   const handleSelectLearningBook = async () => {
-    if (!selectedLearningCategoryId) return
+    const categoryId = selectedLearningCategoryId || defaultLearningCategoryId
+    if (!categoryId) return
     try {
       const res = await MessageUtils.sendMessage({
         type: 'SELECT_VOCAB_LEARNING_CATEGORY',
-        categoryId: selectedLearningCategoryId,
+        categoryId,
       })
       if (!res.success) {
         showMessage('Failed to select learning book: ' + (res.error || 'Unknown error'), 'error')
@@ -439,7 +443,7 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
             placeholder="Input your Eudic OpenAPI token"
           />
         </Field>
-        <Field label="Category IDs (comma-separated)">
+        <Field label="Category IDs (optional)" hint="Leave blank to sync all Eudic vocabulary books. Set one or more IDs to limit sync and choose the default feedback target.">
           <TextInput
             name="vocabEudicCategoryIds"
             type="text"
@@ -453,7 +457,7 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
                   .filter(Boolean),
               }))
             }
-            placeholder="e.g. 0, abc123"
+            placeholder="Blank = all books, or e.g. 0, abc123"
           />
         </Field>
         <Field label="Sync period (minutes)">
@@ -474,15 +478,19 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
 
       <SettingsSection title="Adaptive Learning Book">
         <Field
-          label="Current learning book"
-          hint={`Pending events: ${learningSyncState?.learningPendingCount ?? 0}${learningSyncState?.learningLastError ? `, last error: ${learningSyncState.learningLastError}` : ''}`}
+          label="Feedback target book"
+          hint={`Defaults to the first Category ID (${defaultLearningCategoryId || 'not set'}). Pending events: ${learningSyncState?.learningPendingCount ?? 0}${learningSyncState?.learningLastError ? `, last error: ${learningSyncState.learningLastError}` : ''}`}
         >
           <SelectInput
             name="learningCategoryId"
-            value={selectedLearningCategoryId}
+            value={effectiveLearningCategoryId}
             onChange={e => setSelectedLearningCategoryId(e.target.value)}
           >
-            <option value="">Select a book...</option>
+            {defaultLearningCategoryId ? (
+              <option value={defaultLearningCategoryId}>Default ({defaultLearningCategoryId})</option>
+            ) : (
+              <option value="">Select a book...</option>
+            )}
             {learningCategories.map(category => (
               <option key={category.id} value={category.id}>
                 {category.name} ({category.id})
@@ -492,10 +500,10 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
         </Field>
         <div className="md:pl-[236px] flex gap-2">
           <Button type="button" variant="secondary" onClick={handleEnsureLearningBook}>
-            Ensure AnnHub Learning
+            Ensure Feedback Book
           </Button>
-          <Button type="button" variant="secondary" onClick={handleSelectLearningBook} disabled={!selectedLearningCategoryId}>
-            Use Selected Book
+          <Button type="button" variant="secondary" onClick={handleSelectLearningBook} disabled={!effectiveLearningCategoryId}>
+            Use This Book
           </Button>
           <Button type="button" variant="secondary" onClick={handleSyncLearningProfile} disabled={isSyncing}>
             {isSyncing ? 'Syncing...' : 'Sync Learning Now'}

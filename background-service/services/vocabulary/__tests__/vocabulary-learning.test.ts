@@ -90,6 +90,18 @@ describe('VocabularyService learning sync and queue', () => {
 
     it('ensureLearningCategory reuses existing category', async () => {
         fetchCategoriesMock.mockResolvedValue([{ id: 'learn-cat-1', language: 'en', name: 'AnnHub Learning' }])
+        mockStorage.set('vocabConfig', {
+            enabled: true,
+            adaptiveLearningEnabled: true,
+            annotationAggressiveness: 'balanced',
+            eudicToken: 'NIS token-123',
+            eudicCategoryIds: [],
+            masteryThreshold: 3,
+            syncPeriodMinutes: 60,
+            maxAnnotationsPerPage: 200,
+            cefrLevel: 'B1',
+            domainWhitelist: { enabled: false, domains: [] },
+        })
         const svc = VocabularyService.getInstance()
 
         const result = await svc.ensureLearningCategory()
@@ -97,6 +109,26 @@ describe('VocabularyService learning sync and queue', () => {
         expect(result).toEqual({ categoryId: 'learn-cat-1', created: false })
         expect(createCategoryMock).not.toHaveBeenCalled()
         expect(mockStorage.get('vocabLearningCategoryId')).toBe('learn-cat-1')
+    })
+
+    it('ensureLearningCategory defaults to first configured vocab category', async () => {
+        const svc = VocabularyService.getInstance()
+
+        const result = await svc.ensureLearningCategory()
+
+        expect(result).toEqual({ categoryId: 'seed-cat', created: false })
+        expect(fetchCategoriesMock).not.toHaveBeenCalled()
+        expect(createCategoryMock).not.toHaveBeenCalled()
+        expect(mockStorage.get('vocabLearningCategoryId')).toBe('seed-cat')
+    })
+
+    it('getLearningSyncState exposes first configured vocab category as feedback target', async () => {
+        const svc = VocabularyService.getInstance()
+
+        const state = await svc.getLearningSyncState()
+
+        expect(state.learningCategoryId).toBe('seed-cat')
+        expect(state.learningPendingCount).toBe(0)
     })
 
     it('recordLearningEvent queues mapped star and updates snapshot', async () => {
@@ -117,6 +149,27 @@ describe('VocabularyService learning sync and queue', () => {
         const pending = mockStorage.get('vocabLearningPendingEvents')
         expect(pending).toHaveLength(1)
         expect(pending[0].word).toBe('ephemeral')
+    })
+
+    it('recordLearningEvent flushes immediately when Eudic accepts the word', async () => {
+        fetchCategoriesMock.mockResolvedValue([{ id: 'learn-cat-1', language: 'en', name: 'AnnHub Learning' }])
+        addWordMock.mockResolvedValue(undefined)
+        const svc = VocabularyService.getInstance()
+
+        const result = await svc.recordLearningEvent({
+            word: 'Resilient',
+            eventType: 'addToVocab',
+            sentence: 'The system stayed resilient under pressure.',
+        })
+
+        expect(result.queued).toBe(0)
+        expect(result.flush).toEqual({ successCount: 1, failedCount: 0, pendingCount: 0 })
+        expect(addWordMock).toHaveBeenCalledWith('NIS token-123', expect.objectContaining({
+            word: 'resilient',
+            star: 1,
+            categoryIds: ['seed-cat'],
+        }))
+        expect(mockStorage.get('vocabLearningPendingEvents')).toEqual([])
     })
 
     it('flushLearningPendingEvents retries failed and clears succeeded', async () => {
@@ -173,6 +226,64 @@ describe('VocabularyService learning sync and queue', () => {
         expect(snapshot.entries.volatile.star).toBe(3)
         expect(snapshot.entries.volatile.proficiency).toBe(3)
         expect(snapshot.entries.robust.exp).toBe('强健的')
+    })
+
+    it('syncFromEudic includes selected learning book and overlays pending feedback', async () => {
+        mockStorage.set('vocabLearningCategoryId', 'learn-cat-1')
+        mockStorage.set('vocabLearningPendingEvents', [
+            {
+                id: 'evt-overlay-sync',
+                word: 'resilient',
+                star: 4,
+                language: 'en',
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+                attempts: 0,
+            },
+        ])
+        fetchAllWordsMock.mockResolvedValue([
+            { word: 'seeded', exp: '已有的', star: 2 },
+            { word: 'adaptive', exp: '自适应的', star: 3 },
+        ])
+        const svc = VocabularyService.getInstance()
+
+        await svc.syncFromEudic()
+
+        expect(fetchAllWordsMock).toHaveBeenCalledWith('NIS token-123', ['seed-cat', 'learn-cat-1'])
+        const snapshot = mockStorage.get('vocabSnapshot')
+        expect(snapshot.entries.adaptive.star).toBe(3)
+        expect(snapshot.entries.resilient.star).toBe(4)
+    })
+
+    it('syncFromEudic syncs all categories when configured category IDs are empty', async () => {
+        mockStorage.set('vocabConfig', {
+            enabled: true,
+            adaptiveLearningEnabled: true,
+            annotationAggressiveness: 'balanced',
+            eudicToken: 'NIS token-123',
+            eudicCategoryIds: [],
+            masteryThreshold: 3,
+            syncPeriodMinutes: 60,
+            maxAnnotationsPerPage: 200,
+            cefrLevel: 'B1',
+            domainWhitelist: { enabled: false, domains: [] },
+        })
+        fetchCategoriesMock.mockResolvedValue([
+            { id: 'cat-a', language: 'en', name: 'Book A' },
+            { id: 'cat-b', language: 'en', name: 'Book B' },
+        ])
+        fetchAllWordsMock.mockResolvedValue([
+            { word: 'universal', exp: '通用的', star: 2 },
+        ])
+        const svc = VocabularyService.getInstance()
+
+        const result = await svc.syncFromEudic()
+
+        expect(result.count).toBe(1)
+        expect(fetchCategoriesMock).toHaveBeenCalledWith('NIS token-123', 'en')
+        expect(fetchAllWordsMock).toHaveBeenCalledWith('NIS token-123', ['cat-a', 'cat-b'])
+        const snapshot = mockStorage.get('vocabSnapshot')
+        expect(snapshot.entries.universal.exp).toBe('通用的')
     })
 
     it('getLearningProfile overlays pending star over snapshot', async () => {

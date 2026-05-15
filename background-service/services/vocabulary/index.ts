@@ -75,7 +75,7 @@ export class VocabularyService implements IService {
 
             const config = await this.getVocabConfig()
 
-            if (config.enabled && config.eudicToken && config.eudicCategoryIds.length > 0) {
+            if (config.enabled && config.eudicToken) {
                 // Non-blocking initial sync
                 this.syncFromEudic().catch(err => {
                     Logger.error('[VocabularyService] Initial sync failed:', err)
@@ -141,7 +141,7 @@ export class VocabularyService implements IService {
             merged.eudicToken = envDefaults.eudicToken
         }
 
-        if (!stored.eudicCategoryIds || stored.eudicCategoryIds.length === 0) {
+        if (!stored.eudicCategoryIds) {
             merged.eudicCategoryIds = envDefaults.eudicCategoryIds
         }
 
@@ -401,14 +401,20 @@ export class VocabularyService implements IService {
     async syncFromEudic(_options?: { force?: boolean }): Promise<{ count: number; syncedAt: number }> {
         const config = await this.getVocabConfig()
 
-        if (!config.eudicToken || config.eudicCategoryIds.length === 0) {
-            throw new Error('Eudic token or category IDs not configured')
+        if (!config.eudicToken) {
+            throw new Error('Eudic token not configured')
         }
 
         Logger.info('[VocabularyService] Starting Eudic sync...')
 
         try {
-            const words = await fetchAllWords(config.eudicToken, config.eudicCategoryIds)
+            const categoryIds = await this.resolveSyncCategoryIds(config)
+            const learningCategoryId = await this.getLearningCategoryId()
+            if (learningCategoryId && !categoryIds.includes(learningCategoryId)) {
+                categoryIds.push(learningCategoryId)
+            }
+
+            const words = await fetchAllWords(config.eudicToken, categoryIds)
 
             const entries: Record<string, VocabEntry> = {}
             for (const w of words) {
@@ -420,6 +426,7 @@ export class VocabularyService implements IService {
                     star: w.star,
                 }
             }
+            await this.overlayPendingLearningEvents(entries)
 
             const snapshot: VocabSnapshot = {
                 version: '1.0',
@@ -448,6 +455,15 @@ export class VocabularyService implements IService {
         }
     }
 
+    private async resolveSyncCategoryIds(config: VocabConfig): Promise<string[]> {
+        if (config.eudicCategoryIds.length > 0) {
+            return [...config.eudicCategoryIds]
+        }
+
+        const categories = await this.listEudicCategories('en')
+        return categories.map(category => category.id).filter(Boolean)
+    }
+
     async ensureLearningCategory(
         options: {
             language?: string
@@ -460,6 +476,15 @@ export class VocabularyService implements IService {
         const storedCategoryId = options.forceRefresh ? '' : await this.getLearningCategoryId()
         if (storedCategoryId) {
             return { categoryId: storedCategoryId, created: false }
+        }
+
+        const configuredDefaultCategoryId = await this.getConfiguredDefaultCategoryId()
+        if (configuredDefaultCategoryId) {
+            await chrome.storage.local.set({ [STORAGE_KEYS.vocabLearningCategoryId]: configuredDefaultCategoryId })
+            await this.updateLearningSyncState({
+                learningCategoryId: configuredDefaultCategoryId,
+            })
+            return { categoryId: configuredDefaultCategoryId, created: false }
         }
 
         const categories = await this.listEudicCategories(language)
@@ -533,13 +558,17 @@ export class VocabularyService implements IService {
         return { count: words.length, syncedAt: updatedSnapshot.updatedAt }
     }
 
-    async recordLearningEvent(event: VocabLearningEvent): Promise<{ queued: number; star: number; word: string }> {
+    async recordLearningEvent(event: VocabLearningEvent): Promise<{
+        queued: number
+        star: number
+        word: string
+        flush?: { successCount: number; failedCount: number; pendingCount: number }
+    }> {
         const word = normalizeWord(event.word)
         if (!word) {
             throw new Error('Word is required')
         }
 
-        const category = await this.ensureLearningCategory({ language: event.language ?? 'en' })
         const currentStar = await this.getCurrentWordStar(word)
         const targetStar = this.resolveTargetStar(event, currentStar)
         await this.upsertWordLearningState(word, targetStar)
@@ -559,15 +588,23 @@ export class VocabularyService implements IService {
         pending.push(pendingEvent)
         await chrome.storage.local.set({ [STORAGE_KEYS.vocabLearningPendingEvents]: pending })
         await this.updateLearningSyncState({
-            learningCategoryId: category.categoryId,
             learningPendingCount: pending.length,
         })
 
-        this.flushLearningPendingEvents().catch(error => {
+        let flushResult: { successCount: number; failedCount: number; pendingCount: number } | undefined
+        try {
+            flushResult = await this.flushLearningPendingEvents()
+        } catch (error) {
+            await this.updateLearningSyncState({
+                learningPendingCount: pending.length,
+                learningLastSyncAt: Date.now(),
+                learningLastSyncStatus: 'error',
+                learningLastError: error instanceof Error ? error.message : String(error),
+            })
             Logger.warn('[VocabularyService] Failed to flush pending learning events', error)
-        })
+        }
 
-        return { queued: pending.length, star: targetStar, word }
+        return { queued: flushResult?.pendingCount ?? pending.length, star: targetStar, word, flush: flushResult }
     }
 
     async flushLearningPendingEvents(): Promise<{ successCount: number; failedCount: number; pendingCount: number }> {
@@ -577,10 +614,8 @@ export class VocabularyService implements IService {
             return { successCount: 0, failedCount: 0, pendingCount: 0 }
         }
 
-        const categoryId = await this.getLearningCategoryId()
-        if (!categoryId) {
-            throw new Error('Learning category not configured')
-        }
+        const category = await this.ensureLearningCategory({ language: pending[0]?.language ?? 'en' })
+        const categoryId = category.categoryId
 
         const nextPending: VocabLearningPendingEvent[] = []
         let successCount = 0
@@ -624,17 +659,21 @@ export class VocabularyService implements IService {
     async getLearningSyncState(): Promise<VocabSyncState> {
         const result = await chrome.storage.local.get(STORAGE_KEYS.vocabSyncState)
         const state = result[STORAGE_KEYS.vocabSyncState] as VocabSyncState | undefined
+        const defaultCategoryId = await this.getConfiguredDefaultCategoryId()
         if (!state) {
             const pending = await this.getPendingLearningEvents()
             const learningCategoryId = await this.getLearningCategoryId()
             return {
                 lastSyncAt: 0,
                 lastSyncStatus: 'ok',
-                learningCategoryId: learningCategoryId || undefined,
+                learningCategoryId: learningCategoryId || defaultCategoryId || undefined,
                 learningPendingCount: pending.length,
             }
         }
-        return state
+        return {
+            ...state,
+            learningCategoryId: state.learningCategoryId || defaultCategoryId || undefined,
+        }
     }
 
     async getLearningProfile(words?: string[]): Promise<{ stars: Record<string, number>; pendingCount: number }> {
@@ -775,10 +814,26 @@ export class VocabularyService implements IService {
         return categoryId?.trim() ?? ''
     }
 
+    private async getConfiguredDefaultCategoryId(): Promise<string> {
+        const config = await this.getVocabConfig()
+        return config.eudicCategoryIds[0]?.trim() ?? ''
+    }
+
     private async getPendingLearningEvents(): Promise<VocabLearningPendingEvent[]> {
         const result = await chrome.storage.local.get(STORAGE_KEYS.vocabLearningPendingEvents)
         const pending = result[STORAGE_KEYS.vocabLearningPendingEvents] as VocabLearningPendingEvent[] | undefined
         return Array.isArray(pending) ? pending : []
+    }
+
+    private async overlayPendingLearningEvents(entries: Record<string, VocabEntry>): Promise<void> {
+        const pending = await this.getPendingLearningEvents()
+        for (const event of pending) {
+            entries[event.word] = {
+                ...entries[event.word],
+                proficiency: this.normalizeStar(event.star),
+                star: this.normalizeStar(event.star),
+            }
+        }
     }
 
     private async updateLearningSyncState(partial: Partial<VocabSyncState>): Promise<void> {
