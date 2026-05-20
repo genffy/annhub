@@ -38,6 +38,7 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
   const [learningSyncState, setLearningSyncState] = useState<VocabSyncState | null>(null)
   const [learningCategories, setLearningCategories] = useState<Array<{ id: string; name: string }>>([])
   const [selectedLearningCategoryId, setSelectedLearningCategoryId] = useState('')
+  const [selectedMasteredCategoryId, setSelectedMasteredCategoryId] = useState('')
   const [llmModels, setLlmModels] = useState<LlmModelOption[]>([])
   const [isFetchingModels, setIsFetchingModels] = useState(false)
   const [isTestingLlm, setIsTestingLlm] = useState(false)
@@ -94,6 +95,7 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
           const state = learningStateRes.data as VocabSyncState
           setLearningSyncState(state)
           setSelectedLearningCategoryId(state.learningCategoryId ?? '')
+          setSelectedMasteredCategoryId(state.masteredCategoryId ?? '')
         }
 
         if (vocabRes.success && vocabRes.data && (vocabRes.data as VocabConfigPublic).hasEudicToken) {
@@ -301,6 +303,7 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
 
   const defaultLearningCategoryId = vocabConfig.eudicCategoryIds[0] ?? ''
   const effectiveLearningCategoryId = selectedLearningCategoryId || defaultLearningCategoryId
+  const effectiveMasteredCategoryId = selectedMasteredCategoryId || learningSyncState?.masteredCategoryId || ''
 
   const handleSyncLearningProfile = async () => {
     setIsSyncing(true)
@@ -359,6 +362,46 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
       showMessage('Learning book selected')
     } catch {
       showMessage('Failed to select learning book', 'error')
+    }
+  }
+
+  const handleEnsureMasteredBook = async () => {
+    try {
+      const res = await MessageUtils.sendMessage<{ categoryId: string }>({ type: 'ENSURE_VOCAB_MASTERED_CATEGORY' })
+      if (!res.success || !res.data) {
+        showMessage('Failed to setup mastered book: ' + (res.error || 'Unknown error'), 'error')
+        return
+      }
+      setSelectedMasteredCategoryId(res.data.categoryId)
+      const stateRes = await MessageUtils.sendMessage({ type: 'GET_VOCAB_LEARNING_SYNC_STATE' })
+      if (stateRes.success && stateRes.data) {
+        setLearningSyncState(stateRes.data as VocabSyncState)
+      }
+      showMessage('Mastered book is ready')
+    } catch {
+      showMessage('Failed to setup mastered book', 'error')
+    }
+  }
+
+  const handleSelectMasteredBook = async () => {
+    const categoryId = effectiveMasteredCategoryId
+    if (!categoryId) return
+    try {
+      const res = await MessageUtils.sendMessage({
+        type: 'SELECT_VOCAB_MASTERED_CATEGORY',
+        categoryId,
+      })
+      if (!res.success) {
+        showMessage('Failed to select mastered book: ' + (res.error || 'Unknown error'), 'error')
+        return
+      }
+      const stateRes = await MessageUtils.sendMessage({ type: 'GET_VOCAB_LEARNING_SYNC_STATE' })
+      if (stateRes.success && stateRes.data) {
+        setLearningSyncState(stateRes.data as VocabSyncState)
+      }
+      showMessage('Mastered book selected')
+    } catch {
+      showMessage('Failed to select mastered book', 'error')
     }
   }
 
@@ -507,6 +550,34 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
           </Button>
           <Button type="button" variant="secondary" onClick={handleSyncLearningProfile} disabled={isSyncing}>
             {isSyncing ? 'Syncing...' : 'Sync Learning Now'}
+          </Button>
+        </div>
+      </SettingsSection>
+
+      <SettingsSection title="Mastered Book">
+        <Field
+          label="Fully mastered book"
+          hint={`Skip stores words here and removes them from the feedback book. Current: ${effectiveMasteredCategoryId || 'not set'}`}
+        >
+          <SelectInput
+            name="masteredCategoryId"
+            value={effectiveMasteredCategoryId}
+            onChange={e => setSelectedMasteredCategoryId(e.target.value)}
+          >
+            <option value="">Select a book...</option>
+            {learningCategories.map(category => (
+              <option key={category.id} value={category.id}>
+                {category.name} ({category.id})
+              </option>
+            ))}
+          </SelectInput>
+        </Field>
+        <div className="md:pl-[236px] flex gap-2">
+          <Button type="button" variant="secondary" onClick={handleEnsureMasteredBook}>
+            Ensure Mastered Book
+          </Button>
+          <Button type="button" variant="secondary" onClick={handleSelectMasteredBook} disabled={!effectiveMasteredCategoryId}>
+            Use This Book
           </Button>
         </div>
       </SettingsSection>

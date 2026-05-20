@@ -42,14 +42,14 @@ options:
       label: 'Highlights'
       icon: '📝'
     words:
-      label: 'Words Management'
+      label: 'Word Books'
     settings:
       label: 'Settings'
   highlight:
     name: 'Highlights'
     description: 'Manage your highlights, search, filter, and quickly locate them'
   words:
-    name: 'Words Management'
+    name: 'Word Books'
     description: 'Browse and manage words from your Eudic vocabulary books.'
     configureToken: 'Please configure and save Eudic token in Settings > Vocabulary Labeling first.'
     categories: 'Word Books'

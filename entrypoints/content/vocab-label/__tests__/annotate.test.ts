@@ -462,6 +462,37 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     expect(document.querySelector('span ruby[data-ann-vocab]')).not.toBeNull()
   })
 
+  it('annotates X quoted tweet text even when the quoted card has role link', async () => {
+    setupDOM(`
+      <article>
+        <div data-testid="tweetText">Andrej Karpathy joined Anthropic.</div>
+        <div role="link" tabindex="0">
+          <div data-testid="tweetText">
+            Personal update: I've joined Anthropic. The next few years at the frontier of LLMs will be formative.
+          </div>
+        </div>
+      </article>
+      <a href="https://example.com">Ubiquitous reference</a>
+    `)
+
+    mockSendMessage.mockImplementation(async () => ({
+      success: true,
+      data: { gloss: '释义', source: 'llm' },
+    }))
+
+    const quotedText = document.querySelector('[role="link"] [data-testid="tweetText"]') as Element
+    const ctx = makeCtx({ userCEFRLevel: 'A1' })
+
+    await annotateVisibleText(ctx, { roots: [quotedText] })
+
+    const annotatedWords = Array.from(quotedText.querySelectorAll('ruby[data-ann-vocab]'))
+      .map(r => r.firstChild?.textContent?.toLowerCase())
+
+    expect(annotatedWords).toContain('frontier')
+    expect(annotatedWords).toContain('formative')
+    expect(document.querySelector('a ruby[data-ann-vocab]')).toBeNull()
+  })
+
   it('skips interactive control text and short UI labels', async () => {
     setupDOM(`
       <article>

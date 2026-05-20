@@ -164,6 +164,7 @@ export interface VocabSyncState {
     lastSyncStatus: 'ok' | 'error'
     lastError?: string
     learningCategoryId?: string
+    masteredCategoryId?: string
     learningLastSyncAt?: number
     learningLastSyncStatus?: 'ok' | 'error'
     learningLastError?: string
@@ -176,6 +177,7 @@ export type VocabLearningEventType =
     | 'known'
     | 'unknown'
     | 'suppress'
+    | 'skip'
     | 'addToVocab'
     | 'reset'
 
@@ -192,6 +194,7 @@ export interface VocabLearningPendingEvent {
     id: string
     word: string
     star: number
+    eventType?: VocabLearningEventType
     sentence?: string
     language: string
     createdAt: number

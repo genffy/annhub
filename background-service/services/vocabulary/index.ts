@@ -42,12 +42,14 @@ const STORAGE_KEYS = {
     vocabSyncState: 'vocabSyncState',
     glossCache: 'glossCache',
     vocabLearningCategoryId: 'vocabLearningCategoryId',
+    vocabMasteredCategoryId: 'vocabMasteredCategoryId',
     vocabLearningPendingEvents: 'vocabLearningPendingEvents',
 } as const
 
 const ALARM_NAME = 'vocab-sync'
 const GLOSS_CACHE_TTL = 7 * 24 * 60 * 60 * 1000 // 7 days
 const DEFAULT_LEARNING_CATEGORY_NAME = 'AnnHub Learning'
+const DEFAULT_MASTERED_CATEGORY_NAME = 'AnnHub Mastered'
 
 export class VocabularyService implements IService {
     readonly name = 'vocabulary' as const
@@ -362,8 +364,8 @@ export class VocabularyService implements IService {
     ): Promise<{ words: EudicWord[]; hasMore: boolean }> {
         const token = await this.getEudicToken()
         const language = options.language ?? 'en'
-        const page = options.page ?? 1
-        const pageSize = options.pageSize ?? 200
+        const page = options.page ?? 0
+        const pageSize = options.pageSize ?? 100
         return fetchWords(token, categoryId, language, page, pageSize)
     }
 
@@ -413,6 +415,10 @@ export class VocabularyService implements IService {
             if (learningCategoryId && !categoryIds.includes(learningCategoryId)) {
                 categoryIds.push(learningCategoryId)
             }
+            const masteredCategoryId = await this.getMasteredCategoryId()
+            if (masteredCategoryId && !categoryIds.includes(masteredCategoryId)) {
+                categoryIds.push(masteredCategoryId)
+            }
 
             const words = await fetchAllWords(config.eudicToken, categoryIds)
 
@@ -424,6 +430,19 @@ export class VocabularyService implements IService {
                     proficiency: w.star ?? 0,
                     exp: w.exp,
                     star: w.star,
+                }
+            }
+            if (masteredCategoryId) {
+                const masteredWords = await fetchAllWords(config.eudicToken, [masteredCategoryId])
+                for (const w of masteredWords) {
+                    const key = normalizeWord(w.word)
+                    if (!key) continue
+                    entries[key] = {
+                        ...entries[key],
+                        proficiency: 5,
+                        exp: w.exp ?? entries[key]?.exp,
+                        star: 5,
+                    }
                 }
             }
             await this.overlayPendingLearningEvents(entries)
@@ -439,6 +458,8 @@ export class VocabularyService implements IService {
             const syncState: VocabSyncState = {
                 lastSyncAt: Date.now(),
                 lastSyncStatus: 'ok',
+                learningCategoryId: learningCategoryId || undefined,
+                masteredCategoryId: masteredCategoryId || undefined,
             }
             await chrome.storage.local.set({ [STORAGE_KEYS.vocabSyncState]: syncState })
 
@@ -517,6 +538,50 @@ export class VocabularyService implements IService {
         })
     }
 
+    async ensureMasteredCategory(
+        options: {
+            language?: string
+            name?: string
+            forceRefresh?: boolean
+        } = {},
+    ): Promise<{ categoryId: string; created: boolean }> {
+        const language = options.language ?? 'en'
+        const categoryName = options.name?.trim() || DEFAULT_MASTERED_CATEGORY_NAME
+        const storedCategoryId = options.forceRefresh ? '' : await this.getMasteredCategoryId()
+        if (storedCategoryId) {
+            return { categoryId: storedCategoryId, created: false }
+        }
+
+        const categories = await this.listEudicCategories(language)
+        const matched = categories.find(category => category.name.trim() === categoryName)
+        if (matched) {
+            await chrome.storage.local.set({ [STORAGE_KEYS.vocabMasteredCategoryId]: matched.id })
+            await this.updateLearningSyncState({
+                masteredCategoryId: matched.id,
+            })
+            return { categoryId: matched.id, created: false }
+        }
+
+        const created = await this.createEudicCategory(categoryName, language)
+        await chrome.storage.local.set({ [STORAGE_KEYS.vocabMasteredCategoryId]: created.id })
+        await this.updateLearningSyncState({
+            masteredCategoryId: created.id,
+        })
+        return { categoryId: created.id, created: true }
+    }
+
+    async selectMasteredCategory(categoryId: string): Promise<void> {
+        const normalizedId = categoryId.trim()
+        if (!normalizedId) {
+            throw new Error('Mastered category ID is required')
+        }
+
+        await chrome.storage.local.set({ [STORAGE_KEYS.vocabMasteredCategoryId]: normalizedId })
+        await this.updateLearningSyncState({
+            masteredCategoryId: normalizedId,
+        })
+    }
+
     async syncLearningProfileFromEudic(options: { force?: boolean; language?: string } = {}): Promise<{ count: number; syncedAt: number }> {
         const language = options.language ?? 'en'
         const category = await this.ensureLearningCategory({ language, forceRefresh: options.force })
@@ -579,6 +644,7 @@ export class VocabularyService implements IService {
             id: `${now}_${Math.random().toString(36).slice(2, 10)}`,
             word,
             star: targetStar,
+            eventType: event.eventType,
             sentence: event.sentence,
             language: event.language ?? 'en',
             createdAt: event.timestamp ?? now,
@@ -621,13 +687,13 @@ export class VocabularyService implements IService {
         let successCount = 0
         let failedCount = 0
         for (const event of pending) {
+            const eventType = this.normalizeLearningEventType(event.eventType)
+            if (eventType === 'unknown' || eventType === 'reveal') {
+                successCount += 1
+                continue
+            }
             try {
-                await this.addEudicWord(event.word, {
-                    language: event.language,
-                    star: event.star,
-                    contextLine: event.sentence,
-                    categoryIds: [categoryId],
-                })
+                await this.dispatchEudicLearningEvent(event, categoryId)
                 successCount += 1
             } catch (error) {
                 failedCount += 1
@@ -660,6 +726,7 @@ export class VocabularyService implements IService {
         const result = await chrome.storage.local.get(STORAGE_KEYS.vocabSyncState)
         const state = result[STORAGE_KEYS.vocabSyncState] as VocabSyncState | undefined
         const defaultCategoryId = await this.getConfiguredDefaultCategoryId()
+        const masteredCategoryId = await this.getMasteredCategoryId()
         if (!state) {
             const pending = await this.getPendingLearningEvents()
             const learningCategoryId = await this.getLearningCategoryId()
@@ -667,12 +734,14 @@ export class VocabularyService implements IService {
                 lastSyncAt: 0,
                 lastSyncStatus: 'ok',
                 learningCategoryId: learningCategoryId || defaultCategoryId || undefined,
+                masteredCategoryId: masteredCategoryId || undefined,
                 learningPendingCount: pending.length,
             }
         }
         return {
             ...state,
             learningCategoryId: state.learningCategoryId || defaultCategoryId || undefined,
+            masteredCategoryId: state.masteredCategoryId || masteredCategoryId || undefined,
         }
     }
 
@@ -692,6 +761,8 @@ export class VocabularyService implements IService {
         }
 
         for (const event of pending) {
+            const eventType = this.normalizeLearningEventType(event.eventType)
+            if (eventType === 'unknown' || eventType === 'reveal') continue
             if (filterSet && !filterSet.has(event.word)) continue
             stars[event.word] = this.normalizeStar(event.star)
         }
@@ -814,6 +885,51 @@ export class VocabularyService implements IService {
         return categoryId?.trim() ?? ''
     }
 
+    private async getMasteredCategoryId(): Promise<string> {
+        const result = await chrome.storage.local.get(STORAGE_KEYS.vocabMasteredCategoryId)
+        const categoryId = result[STORAGE_KEYS.vocabMasteredCategoryId] as string | undefined
+        return categoryId?.trim() ?? ''
+    }
+
+    private async dispatchEudicLearningEvent(event: VocabLearningPendingEvent, categoryId: string): Promise<void> {
+        const language = event.language ?? 'en'
+        const eventType = this.normalizeLearningEventType(event.eventType)
+
+        Logger.info('[VocabularyService] dispatchEudicLearningEvent', {
+            word: event.word,
+            eventType,
+            star: event.star,
+            categoryId,
+            language,
+        })
+
+        if (eventType === 'skip') {
+            const masteredCategory = await this.ensureMasteredCategory({ language })
+            await this.addEudicWord(event.word, {
+                language,
+                star: 5,
+                contextLine: event.sentence,
+                categoryIds: [masteredCategory.categoryId],
+            })
+
+            if (masteredCategory.categoryId !== categoryId) {
+                try {
+                    await this.deleteEudicWords(categoryId, [event.word], language)
+                } catch (error) {
+                    Logger.warn('[VocabularyService] Failed to delete skipped word from learning category', error)
+                }
+            }
+            return
+        }
+
+        await this.addEudicWord(event.word, {
+            language,
+            star: event.star,
+            contextLine: event.sentence,
+            categoryIds: [categoryId],
+        })
+    }
+
     private async getConfiguredDefaultCategoryId(): Promise<string> {
         const config = await this.getVocabConfig()
         return config.eudicCategoryIds[0]?.trim() ?? ''
@@ -828,6 +944,8 @@ export class VocabularyService implements IService {
     private async overlayPendingLearningEvents(entries: Record<string, VocabEntry>): Promise<void> {
         const pending = await this.getPendingLearningEvents()
         for (const event of pending) {
+            const eventType = this.normalizeLearningEventType(event.eventType)
+            if (eventType === 'unknown' || eventType === 'reveal') continue
             entries[event.word] = {
                 ...entries[event.word],
                 proficiency: this.normalizeStar(event.star),
@@ -856,21 +974,27 @@ export class VocabularyService implements IService {
         return Math.min(5, Math.max(1, Math.round(value)))
     }
 
+    private normalizeLearningEventType(eventType: VocabLearningEvent['eventType'] | undefined): VocabLearningEvent['eventType'] {
+        if (eventType === 'suppress') return 'skip'
+        return eventType ?? 'seen'
+    }
+
     private resolveTargetStar(event: VocabLearningEvent, currentStar: number): number {
         if (typeof event.targetStar === 'number') {
             return this.normalizeStar(event.targetStar)
         }
 
-        switch (event.eventType) {
+        switch (this.normalizeLearningEventType(event.eventType)) {
             case 'known':
-                return this.normalizeStar(currentStar + 1)
+                return 5
             case 'unknown':
             case 'reveal':
-                return this.normalizeStar(currentStar - 1)
+                return this.normalizeStar(currentStar)
             case 'suppress':
+            case 'skip':
                 return 5
             case 'addToVocab':
-                return this.normalizeStar(Math.min(currentStar, 2))
+                return 1
             case 'reset':
                 return 1
             case 'seen':

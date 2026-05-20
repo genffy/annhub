@@ -18,6 +18,8 @@ interface SitePermalinkRule {
     containerSelector: string
     /** Optional extra check on the candidate container element */
     containerFilter?: (el: Element) => boolean
+    /** Optional site-specific container lookup from the exact selection node */
+    findContainer?: (startElement: Element, origin: string) => Element | null
     /**
      * Extract the permalink from the located container.
      * Return a full URL string, or null to fall through to the default logic.
@@ -28,6 +30,47 @@ interface SitePermalinkRule {
 // ── Twitter / X ─────────────────────────────────────────────────────────────
 export const TWEET_STATUS_RE = /^\/[^/]+\/status\/\d+$/
 export const TWEET_STATUS_PREFIX_RE = /^\/[^/]+\/status\/\d+/
+const TWITTER_HOST_RE = /^(x\.com|twitter\.com)$/i
+
+type TwitterStatusHref = {
+    url: string
+    path: string
+    isExact: boolean
+}
+
+function parseTwitterStatusHref(href: string | null | undefined, origin: string): TwitterStatusHref | null {
+    if (!href) return null
+
+    try {
+        const url = new URL(href, origin)
+        if (!TWITTER_HOST_RE.test(url.hostname)) return null
+
+        const match = url.pathname.match(TWEET_STATUS_PREFIX_RE)
+        if (!match) return null
+
+        return {
+            url: `${origin}${match[0]}`,
+            path: match[0],
+            isExact: TWEET_STATUS_RE.test(url.pathname),
+        }
+    } catch {
+        return null
+    }
+}
+
+function getHref(el: Element): string | null {
+    return el instanceof HTMLAnchorElement ? el.getAttribute('href') || el.href : null
+}
+
+function getTwitterStatusLinks(container: Element, origin: string): TwitterStatusHref[] {
+    const links: Element[] = []
+    if (container instanceof HTMLAnchorElement) links.push(container)
+    links.push(...Array.from(container.querySelectorAll('a[href]')))
+
+    return links
+        .map(link => parseTwitterStatusHref(getHref(link), origin))
+        .filter((item): item is TwitterStatusHref => Boolean(item))
+}
 
 export function extractTwitterPermalink(container: Element, origin: string): string | null {
     // Strategy 1: <a> wrapping a <time> element — most reliable
@@ -35,28 +78,65 @@ export function extractTwitterPermalink(container: Element, origin: string): str
     if (timeEl) {
         const timeLink = timeEl.closest('a[href]') as HTMLAnchorElement | null
         if (timeLink) {
-            const m = timeLink.pathname.match(TWEET_STATUS_PREFIX_RE)
-            if (m) return `${origin}${m[0]}`
+            const status = parseTwitterStatusHref(getHref(timeLink), origin)
+            if (status) return status.url
         }
     }
 
     // Strategy 2 & 3: scan links for /{user}/status/{id}
-    const links = container.querySelectorAll('a[href]')
     let fallback: string | null = null
 
-    for (const link of Array.from(links)) {
-        const a = link as HTMLAnchorElement
-        try {
-            const u = new URL(a.href)
-            if (u.origin !== origin) continue
-            if (TWEET_STATUS_RE.test(u.pathname)) return a.href
-            if (!fallback && TWEET_STATUS_PREFIX_RE.test(u.pathname)) {
-                const m = u.pathname.match(TWEET_STATUS_PREFIX_RE)
-                if (m) fallback = `${origin}${m[0]}`
-            }
-        } catch { continue }
+    for (const status of getTwitterStatusLinks(container, origin)) {
+        if (status.isExact) return status.url
+        if (!fallback) fallback = status.url
     }
     return fallback
+}
+
+export function findTwitterPermalinkContainer(startElement: Element, origin: string): Element | null {
+    let el: Element | null = startElement
+
+    while (el && el !== document.body) {
+        const ownStatus = parseTwitterStatusHref(getHref(el), origin)
+        if (ownStatus) return el
+
+        const role = el.getAttribute('role')
+        const testId = el.getAttribute('data-testid')
+        const isTweetBoundary = el.matches('article, [data-testid="tweet"]')
+        const isQuotedTweetCard = role === 'link'
+
+        if ((isQuotedTweetCard || isTweetBoundary) && extractTwitterPermalink(el, origin)) {
+            return el
+        }
+
+        if (isTweetBoundary) break
+        el = el.parentElement
+    }
+
+    return null
+}
+
+export function findTwitterContainerByPermalink(sourceUrl: string, origin: string): Element | null {
+    const target = parseTwitterStatusHref(sourceUrl, origin)
+    if (!target) return null
+
+    const links = Array.from(document.querySelectorAll('a[href]'))
+
+    for (const link of links) {
+        const status = parseTwitterStatusHref(getHref(link), origin)
+        if (!status || status.path !== target.path) continue
+
+        let el: Element | null = link
+        while (el && el !== document.body) {
+            if (el.getAttribute('role') === 'link') return el
+            if (el.matches('article, [data-testid="tweet"]')) return el
+            el = el.parentElement
+        }
+
+        return link
+    }
+
+    return null
 }
 
 // ── Rule registry ───────────────────────────────────────────────────────────
@@ -65,6 +145,7 @@ const SITE_PERMALINK_RULES: SitePermalinkRule[] = [
         name: 'twitter',
         match: (url) => /^(x\.com|twitter\.com)$/i.test(url.hostname),
         containerSelector: 'article, [data-testid="tweet"]',
+        findContainer: findTwitterPermalinkContainer,
         extractPermalink: extractTwitterPermalink,
     },
     // To add a new site, append a rule here. Example:
@@ -682,9 +763,11 @@ export class HighlightDOMManager {
         // Try site-specific rules first
         const matchedRule = SITE_PERMALINK_RULES.find(r => r.match(currentUrl))
         if (matchedRule) {
-            const ruleContainer = this.findContainerBySelector(
-                startElement, matchedRule.containerSelector, matchedRule.containerFilter
-            )
+            const ruleContainer = matchedRule.findContainer
+                ? matchedRule.findContainer(startElement, currentOrigin)
+                : this.findContainerBySelector(
+                    startElement, matchedRule.containerSelector, matchedRule.containerFilter
+                )
             if (ruleContainer) {
                 return matchedRule.extractPermalink(ruleContainer, currentOrigin)
             }
@@ -695,6 +778,22 @@ export class HighlightDOMManager {
         if (!articleContainer) return null
 
         return this.extractGenericPermalink(articleContainer, currentOrigin, currentPath)
+    }
+
+    static findSourceContainer(sourceUrl?: string): Element | null {
+        if (!sourceUrl) return null
+
+        try {
+            const currentUrl = new URL(window.location.href)
+            const source = new URL(sourceUrl)
+            if (!TWITTER_HOST_RE.test(currentUrl.hostname) || !TWITTER_HOST_RE.test(source.hostname)) {
+                return null
+            }
+
+            return findTwitterContainerByPermalink(sourceUrl, currentUrl.origin)
+        } catch {
+            return null
+        }
     }
 
     /**

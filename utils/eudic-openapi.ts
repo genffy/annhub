@@ -11,6 +11,9 @@ interface EudicRequestOptions {
     body?: Record<string, unknown>
 }
 
+const EUDIC_MAX_PAGE = 50
+const EUDIC_MAX_PAGE_SIZE = 100
+
 export interface EudicCategory {
     id: string
     language: string
@@ -54,7 +57,7 @@ async function eudicRequest<T>(
     token: string,
     path: string,
     options: EudicRequestOptions = {},
-): Promise<EudicApiResponse<T>> {
+): Promise<EudicApiResponse<T> | T> {
     const { method = 'GET', query, body } = options
 
     const url = new URL(`${EUDIC_API_BASE}${path}`)
@@ -75,11 +78,13 @@ async function eudicRequest<T>(
         ...(body ? { body: JSON.stringify(body) } : {}),
     })
 
+    const raw = await response.text()
+
     if (!response.ok) {
         const fallbackError = `Eudic request failed: ${response.status}`
         let errorMessage = fallbackError
         try {
-            const payload = await response.json() as EudicApiResponse<unknown>
+            const payload = JSON.parse(raw) as EudicApiResponse<unknown>
             if (payload.message) {
                 errorMessage = payload.message
             }
@@ -89,16 +94,28 @@ async function eudicRequest<T>(
         throw new Error(errorMessage)
     }
 
-    if (response.status === 204) {
+    if (response.status === 204 || !raw.trim()) {
         return {}
     }
 
-    const raw = await response.text()
-    if (!raw.trim()) {
-        return {}
-    }
+    return JSON.parse(raw) as EudicApiResponse<T> | T
+}
 
-    return JSON.parse(raw) as EudicApiResponse<T>
+function responseData<T>(payload: EudicApiResponse<T> | T): T | undefined {
+    if (payload && typeof payload === 'object' && ('data' in payload || 'message' in payload)) {
+        return (payload as EudicApiResponse<T>).data
+    }
+    return payload as T
+}
+
+function normalizePage(page: number): number {
+    if (!Number.isFinite(page)) return 0
+    return Math.min(EUDIC_MAX_PAGE, Math.max(0, Math.floor(page)))
+}
+
+function normalizePageSize(pageSize: number): number {
+    if (!Number.isFinite(pageSize)) return EUDIC_MAX_PAGE_SIZE
+    return Math.min(EUDIC_MAX_PAGE_SIZE, Math.max(1, Math.floor(pageSize)))
 }
 
 export async function fetchCategories(token: string, language = 'en'): Promise<EudicCategory[]> {
@@ -106,7 +123,7 @@ export async function fetchCategories(token: string, language = 'en'): Promise<E
         method: 'GET',
         query: { language },
     })
-    return payload.data ?? []
+    return responseData(payload) ?? []
 }
 
 export async function createCategory(token: string, value: Omit<EudicCategoryPayload, 'id'>): Promise<EudicCategory> {
@@ -117,12 +134,13 @@ export async function createCategory(token: string, value: Omit<EudicCategoryPay
             name: value.name,
         },
     })
+    const data = responseData(payload)
 
-    if (!payload.data) {
-        throw new Error(payload.message || 'Failed to create Eudic category')
+    if (!data) {
+        throw new Error((payload as EudicApiResponse<EudicCategory>).message || 'Failed to create Eudic category')
     }
 
-    return payload.data
+    return data
 }
 
 export async function renameCategory(token: string, value: EudicCategoryPayload): Promise<void> {
@@ -151,22 +169,23 @@ export async function fetchWords(
     token: string,
     categoryId: string,
     language = 'en',
-    // Eudic OpenAPI `studylist/words` uses one-based pagination.
-    page = 1,
-    pageSize = 100,
+    page = 0,
+    pageSize = EUDIC_MAX_PAGE_SIZE,
 ): Promise<{ words: EudicWord[]; hasMore: boolean }> {
+    const normalizedPage = normalizePage(page)
+    const normalizedPageSize = normalizePageSize(pageSize)
     const payload = await eudicRequest<EudicWord[]>(token, '/studylist/words', {
         method: 'GET',
         query: {
             language,
             category_id: categoryId,
-            page,
-            page_size: pageSize,
+            page: normalizedPage,
+            page_size: normalizedPageSize,
         },
     })
 
-    const words = payload.data ?? []
-    return { words, hasMore: words.length === pageSize }
+    const words = responseData(payload) ?? []
+    return { words, hasMore: words.length === normalizedPageSize && normalizedPage < EUDIC_MAX_PAGE }
 }
 
 export async function addWordsToCategory(token: string, value: EudicBatchWordsPayload): Promise<void> {
@@ -192,14 +211,52 @@ export async function deleteWordsFromCategory(token: string, value: EudicBatchWo
 }
 
 export async function addWord(token: string, value: EudicAddWordPayload): Promise<void> {
+    const language = value.language ?? 'en'
+    const categoryIds = value.categoryIds?.filter(Boolean) ?? []
+
+    // Eudic's singular `POST /studylist/word` endpoint accepts `category_ids`,
+    // but in practice the field is unreliable for large numeric ids passed as
+    // strings — words may silently fall back to the default category. The
+    // plural `POST /studylist/words` endpoint takes a single `category_id`
+    // string and is the canonical way to assign a category. When the caller
+    // provides categories we route the word through the plural endpoint and
+    // only use the singular endpoint to attach `star` / `context_line` after.
+    if (categoryIds.length > 0) {
+        for (const categoryId of categoryIds) {
+            await eudicRequest(token, '/studylist/words', {
+                method: 'POST',
+                body: {
+                    language,
+                    category_id: categoryId,
+                    words: [value.word],
+                },
+            })
+        }
+
+        // Star / context_line are not exposed on the plural endpoint. The
+        // singular endpoint upserts these on the already-existing word; we
+        // intentionally omit `category_ids` here so it does not move the word.
+        if (value.star !== undefined || value.contextLine) {
+            await eudicRequest(token, '/studylist/word', {
+                method: 'POST',
+                body: {
+                    language,
+                    word: value.word,
+                    ...(value.star !== undefined ? { star: value.star } : {}),
+                    ...(value.contextLine ? { context_line: value.contextLine } : {}),
+                },
+            })
+        }
+        return
+    }
+
     await eudicRequest(token, '/studylist/word', {
         method: 'POST',
         body: {
-            language: value.language ?? 'en',
+            language,
             word: value.word,
             ...(value.star !== undefined ? { star: value.star } : {}),
             ...(value.contextLine ? { context_line: value.contextLine } : {}),
-            ...(value.categoryIds && value.categoryIds.length > 0 ? { category_ids: value.categoryIds } : {}),
         },
     })
 }
@@ -212,7 +269,7 @@ export async function getWord(token: string, word: string, language = 'en'): Pro
             word,
         },
     })
-    return payload.data ?? null
+    return responseData(payload) ?? null
 }
 
 export async function fetchAllWords(
@@ -223,7 +280,7 @@ export async function fetchAllWords(
     const allWords: EudicWord[] = []
 
     for (const categoryId of categoryIds) {
-        let page = 1
+        let page = 0
         let hasMore = true
 
         while (hasMore) {
