@@ -1,10 +1,10 @@
-# AnnHub Annotation Architecture Refactor Plan
+# 标注架构重构计划
 
 更新时间：2026-05-20
 
 本文档分析 AnnHub 高亮标注与生词标注的重合逻辑，并给出可直接实施的分阶段重构方案。本次计划只描述架构和迁移路径，不要求一次性执行代码重构。
 
-## Summary
+## 1. 概览
 
 核心判断：
 
@@ -15,7 +15,7 @@
 
 重构方向是新增共享的 content annotation core，让高亮和生词共享“页面理解”和 DOM 安全工具，各自保留业务决策。
 
-## 1. 现状分析
+## 2. 现状分析
 
 ### 高亮链路
 
@@ -74,7 +74,7 @@ contentRoot / blocks
 - Text range search：从文本和上下文恢复 `Range`。
 - DOM marker lifecycle：安全包裹、解包、清理、避免 MutationObserver 自触发。
 
-## 2. 问题归因
+## 3. 问题归因
 
 1. `highlight/highlight-dom.ts` 与 `vocab-label/platform-rules.ts` 分别维护 X 规则。
 2. `vocab-label/dom-policy.ts` 的跳过策略和高亮恢复的搜索策略没有共享语义。
@@ -82,7 +82,7 @@ contentRoot / blocks
 4. 站点适配目前是功能局部补丁，缺少统一的页面内容模型。
 5. SPA 增量扫描、视口清理和 marker 幂等逻辑只服务生词标注，高亮恢复不能复用这些能力。
 
-## 3. 目标架构
+## 4. 目标架构
 
 新增共享 content annotation core，负责：
 
@@ -114,11 +114,11 @@ entrypoints/content/
     ...
 ```
 
-## 4. Refactor Plan
+## 5. 重构计划
 
 分三阶段实施，避免一次性大改。
 
-### Phase 1：抽共享站点规则
+### 5.1 Phase 1：抽共享站点规则
 
 新增 `entrypoints/content/annotation-core/`，先抽平台规则。
 
@@ -146,7 +146,7 @@ X/Twitter rule 必须同时服务：
 3. `highlight-dom.ts` 和 `vocab-label/index.ts` 改为调用同一个 rule。
 4. 保留原文件薄封装，先降低测试和 import 迁移风险。
 
-### Phase 2：抽共享 DOM policy
+### 5.2 Phase 2：抽共享 DOM policy
 
 将 `vocab-label/dom-policy.ts` 改为共享 `annotation-core/dom-policy.ts`。
 
@@ -176,7 +176,7 @@ type AnnotationIntent = 'manual-highlight' | 'auto-vocab'
 3. `vocab-label/index.ts` 和 `annotate.ts` 切到 core policy。
 4. 高亮恢复的 source container / text search 逐步接入 `manual-highlight` policy。
 
-### Phase 3：抽文本定位与 DOM marker
+### 5.3 Phase 3：抽文本定位与 DOM marker
 
 抽出 `text-range.ts`：
 
@@ -207,7 +207,7 @@ cleanupMarkers(selector: string): void
 3. 为 text-range 增加 quoted tweet、普通文章、跨 text node 的单测。
 4. 最后减少高亮和生词各自内部重复 helper。
 
-## 5. Public Interfaces / Types
+## 6. Public Interfaces / Types
 
 建议新增稳定接口：
 
@@ -245,7 +245,7 @@ export interface MarkerConfig {
 }
 ```
 
-## 6. 兼容原则
+## 7. 兼容原则
 
 - `HighlightRecord.metadata.sourceUrl` 不改名、不迁移。
 - 现有 `data-ann-vocab` 不改名。
@@ -254,7 +254,7 @@ export interface MarkerConfig {
 - 保持高亮和生词标注的产品语义分离：共享底层页面理解，不合并业务逻辑。
 - 平台 rule 的行为变化必须由高亮和生词两边测试共同覆盖。
 
-## 7. Test Plan
+## 8. 测试计划
 
 ### X quoted tweet
 
@@ -289,7 +289,7 @@ npx vitest run entrypoints/content/vocab-label/__tests__/platform-rules.test.ts
 npm run build
 ```
 
-## 8. Assumptions
+## 9. Assumptions
 
 - 文档新增到 `docs/annotation-architecture-refactor.md`。
 - 本次只落文档和重构计划，不直接执行代码重构。
