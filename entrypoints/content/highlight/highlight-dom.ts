@@ -101,7 +101,6 @@ export function findTwitterPermalinkContainer(startElement: Element, origin: str
         if (ownStatus) return el
 
         const role = el.getAttribute('role')
-        const testId = el.getAttribute('data-testid')
         const isTweetBoundary = el.matches('article, [data-testid="tweet"]')
         const isQuotedTweetCard = role === 'link'
 
