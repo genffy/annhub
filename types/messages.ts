@@ -284,6 +284,17 @@ export interface SelectVocabLearningCategoryMessage extends BaseMessage {
     categoryId: string
 }
 
+export interface EnsureVocabMasteredCategoryMessage extends BaseMessage {
+    type: 'ENSURE_VOCAB_MASTERED_CATEGORY'
+    language?: string
+    name?: string
+}
+
+export interface SelectVocabMasteredCategoryMessage extends BaseMessage {
+    type: 'SELECT_VOCAB_MASTERED_CATEGORY'
+    categoryId: string
+}
+
 export interface SyncVocabLearningProfileMessage extends BaseMessage {
     type: 'SYNC_VOCAB_LEARNING_PROFILE'
     force?: boolean
@@ -357,6 +368,8 @@ export type UIToBackgroundMessage =
     | ContextGlossMessage
     | EnsureVocabLearningCategoryMessage
     | SelectVocabLearningCategoryMessage
+    | EnsureVocabMasteredCategoryMessage
+    | SelectVocabMasteredCategoryMessage
     | SyncVocabLearningProfileMessage
     | RecordVocabLearningEventMessage
     | FlushVocabLearningPendingMessage

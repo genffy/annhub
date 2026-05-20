@@ -89,13 +89,14 @@ annhub/
 │   ├── eudic-openapi.ts    # 欧路 API 封装
 │   └── ...
 ├── e2e/                    # Playwright E2E 测试及 fixture
-├── website/                # 文档和落地页 (Next.js)
+├── docs/                   # 架构与模块说明文档
+├── website/                # 落地页 (Next.js)
 ├── wxt.config.ts           # WXT 构建配置
 ├── vitest.config.ts        # 单元测试配置
 └── playwright.config.ts    # E2E 测试配置
 ```
 
-本项目采用扁平化结构，扩展代码位于根目录，文档和落地页位于 `website/` 目录。更详细的架构说明参见 [AGENTS.md](./AGENTS.md)。
+本项目采用扁平化结构，扩展代码位于根目录，架构与模块说明位于 [docs](./docs/)，落地页位于 `website/` 目录。更详细的项目上下文参见 [AGENTS.md](./AGENTS.md)。
 
 ## 快速开始
 

@@ -1,4 +1,4 @@
-import { BookOpen, Highlighter, Settings, SlidersHorizontal } from 'lucide-react'
+import { BookOpen, Highlighter, Settings } from 'lucide-react'
 
 type OptionTarget = {
   label: string
@@ -9,27 +9,21 @@ type OptionTarget = {
 
 const OPTION_TARGETS: OptionTarget[] = [
   {
+    label: 'Word Books',
+    description: 'Browse Eudic word books',
+    path: '/words',
+    icon: BookOpen,
+  },
+  {
     label: 'Highlights',
     description: 'Manage saved highlights',
     path: '/highlights',
     icon: Highlighter,
   },
   {
-    label: 'Words Management',
-    description: 'Browse Eudic word books',
-    path: '/words',
-    icon: BookOpen,
-  },
-  {
-    label: 'Vocabulary Labeling',
-    description: 'Configure labels and LLM glosses',
-    path: '/settings?tab=vocab',
-    icon: SlidersHorizontal,
-  },
-  {
-    label: 'Logseq Sync',
-    description: 'Configure highlight sync',
-    path: '/settings?tab=logseq',
+    label: 'Settings',
+    description: 'Configure AnnHub',
+    path: '/settings',
     icon: Settings,
   },
 ]

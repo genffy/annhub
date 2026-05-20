@@ -236,7 +236,7 @@ export default function WordsManagementPage() {
 
     const fetchAllWordsByCategory = useCallback(async (categoryId: string): Promise<EudicWord[]> => {
         const words: EudicWord[] = []
-        let page = 1
+        let page = 0
         let hasMore = true
 
         while (hasMore) {

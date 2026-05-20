@@ -187,7 +187,7 @@ describe('VocabularyService — getVocabConfig', () => {
         expect(config.eudicCategoryIds).toEqual(['cat-x'])
     })
 
-    it('stored empty category IDs do not override env default', async () => {
+    it('stored empty category IDs are preserved to mean sync all categories', async () => {
         mockStorage.set('vocabConfig', {
             eudicToken: 'NIS custom-token',
             eudicCategoryIds: [],
@@ -196,7 +196,7 @@ describe('VocabularyService — getVocabConfig', () => {
         const config = await svc.getVocabConfig()
 
         expect(config.eudicToken).toBe('NIS custom-token')
-        expect(config.eudicCategoryIds).toEqual(VOCAB_ENV_DEFAULTS.eudicCategoryIds)
+        expect(config.eudicCategoryIds).toEqual([])
     })
 })
 

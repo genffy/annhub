@@ -1,6 +1,6 @@
 import { isEnglishPage, shouldAnnotateDomain } from './detect-page'
 import { injectVocabStyles, removeVocabStyles } from './styles'
-import { annotateVisibleText, cleanupAnnotations, resetVocabLabelRuntimeState, getSkipStarThreshold } from './annotate'
+import { annotateVisibleText, cleanupAnnotations, resetVocabLabelRuntimeState, getSkipStarThreshold, getAnnotationSentence } from './annotate'
 import { collectAnnotatableBlocks, resolveContentRoot, ANNOTATABLE_BLOCK_SELECTOR, isExcludedSection } from './content-scope'
 import { getActivePlatformRule, type VocabPlatformRule } from './platform-rules'
 import { isElementWithinViewportWindow } from './viewport'
@@ -74,8 +74,7 @@ function ensureFeedbackMenu(): HTMLDivElement {
 
   const actions = [
     { action: 'known', label: 'Known' },
-    { action: 'unknown', label: 'Unknown' },
-    { action: 'suppress', label: 'Skip' },
+    { action: 'skip', label: 'Skip' },
     { action: 'addToVocab', label: 'Add' },
   ]
   for (const { action, label } of actions) {
@@ -110,7 +109,7 @@ async function onFeedbackAction(action: string): Promise<void> {
   if (!target) return
   const word = target.dataset.annVocabWord?.trim()
   if (!word) return
-  const sentence = target.dataset.annVocabSentence?.trim()
+  const sentence = getAnnotationSentence(target)
   try {
     const res = await MessageUtils.sendMessage({
       type: 'RECORD_VOCAB_LEARNING_EVENT',
@@ -125,11 +124,11 @@ async function onFeedbackAction(action: string): Promise<void> {
       return
     }
     const { star: newStar } = res.data as { queued: number; star: number; word: string }
-    if (action === 'known' || action === 'suppress') {
+    if (action === 'known' || action === 'skip') {
       if (annotateCtx) {
         // For "known": ensure the overlay is at least the skip threshold so MutationObserver
         // does not immediately re-annotate the word within the current session.
-        const overlayStar = action === 'suppress' ? 5 : Math.max(newStar, getSkipStarThreshold(annotateCtx))
+        const overlayStar = action === 'skip' ? 5 : Math.max(newStar, getSkipStarThreshold(annotateCtx))
         annotateCtx.pendingStarOverlay = {
           ...(annotateCtx.pendingStarOverlay ?? {}),
           [word]: overlayStar,
@@ -148,7 +147,7 @@ async function onFeedbackAction(action: string): Promise<void> {
 }
 
 function isFeedbackAction(action: string): action is VocabLearningEventType {
-  return action === 'known' || action === 'unknown' || action === 'suppress' || action === 'addToVocab'
+  return action === 'known' || action === 'skip' || action === 'addToVocab'
 }
 
 function cleanupAnnotationsForElement(el: Element): void {

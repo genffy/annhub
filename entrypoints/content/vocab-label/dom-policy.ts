@@ -21,9 +21,20 @@ const INTERACTIVE_TEXT_SELECTOR = [
   '[contenteditable="true"]',
 ].join(',')
 
+const STRICT_INTERACTIVE_TEXT_SELECTOR = [
+  'a[href]',
+  'button',
+  '[role="button"]',
+  '[role="menuitem"]',
+  '[role="tab"]',
+  '[role="switch"]',
+  '[role="checkbox"]',
+  '[role="radio"]',
+  '[contenteditable="true"]',
+].join(',')
+
 const SKIP_SELECTOR = [
   HIDDEN_SELECTOR,
-  INTERACTIVE_TEXT_SELECTOR,
   'script',
   'style',
   'textarea',
@@ -46,6 +57,8 @@ const SKIP_SELECTOR = [
   '[translate="no"]',
   '.notranslate',
 ].join(',')
+
+const X_TWEET_TEXT_SELECTOR = '[data-testid="tweetText"]'
 
 const BLOCK_TAGS = new Set([
   'ADDRESS',
@@ -172,6 +185,18 @@ export function isWithinVocabMarker(node: Node | null): boolean {
 
 export function shouldSkipElement(el: Element): boolean {
   if (el.closest(SKIP_SELECTOR)) return true
+  if (el.closest(STRICT_INTERACTIVE_TEXT_SELECTOR)) return true
+
+  const interactive = el.closest(INTERACTIVE_TEXT_SELECTOR)
+  if (interactive) {
+    const isXQuotedTweetText = Boolean(
+      el.closest(X_TWEET_TEXT_SELECTOR) &&
+      interactive.getAttribute('role') === 'link' &&
+      !el.closest('a[href]'),
+    )
+    if (!isXQuotedTweetText) return true
+  }
+
   if (el instanceof HTMLElement && el.isContentEditable) return true
   return false
 }

@@ -10,16 +10,16 @@ import { useRouter, Route } from './hooks/useRouter'
 
 function App() {
   const routes: Route[] = [
-    { path: '/highlights', component: HighlightPage },
     { path: '/words', component: WordsManagementPage },
+    { path: '/highlights', component: HighlightPage },
     { path: '/settings', component: SettingsPage },
   ]
 
-  const { currentPath, currentRoute, navigate, isActive } = useRouter(routes, '/highlights')
+  const { currentPath, currentRoute, navigate, isActive } = useRouter(routes, '/words')
 
   const menuItems = [
-    { id: 'highlights', label: i18n.t('options.menus.highlights.label'), icon: Highlighter, path: '/highlights' },
     { id: 'words', label: i18n.t('options.menus.words.label'), icon: BookOpen, path: '/words' },
+    { id: 'highlights', label: i18n.t('options.menus.highlights.label'), icon: Highlighter, path: '/highlights' },
     { id: 'settings', label: i18n.t('options.menus.settings.label'), icon: Settings, path: '/settings' },
   ]
 

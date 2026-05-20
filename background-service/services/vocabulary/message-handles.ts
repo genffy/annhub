@@ -233,6 +233,30 @@ export const messageHandlers: Record<string, (message: any, sender: chrome.runti
         }
     },
 
+    ENSURE_VOCAB_MASTERED_CATEGORY: async (message: any): Promise<ResponseMessage> => {
+        try {
+            const service = VocabularyService.getInstance()
+            const result = await service.ensureMasteredCategory({
+                language: message.language ?? 'en',
+                name: message.name,
+            })
+            return MessageUtils.createResponse(true, result)
+        } catch (error) {
+            return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+    },
+
+    SELECT_VOCAB_MASTERED_CATEGORY: async (message: any, sender: chrome.runtime.MessageSender): Promise<ResponseMessage> => {
+        if (!isExtensionPageSender(sender)) return forbiddenResponse()
+        try {
+            const service = VocabularyService.getInstance()
+            await service.selectMasteredCategory(message.categoryId)
+            return MessageUtils.createResponse(true)
+        } catch (error) {
+            return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+    },
+
     SYNC_VOCAB_LEARNING_PROFILE: async (message: any): Promise<ResponseMessage> => {
         try {
             const service = VocabularyService.getInstance()

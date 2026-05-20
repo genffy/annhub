@@ -252,6 +252,12 @@ export class HighlightService {
         const { originalText, context, selector } = highlight
 
         try {
+            const sourceContainer = HighlightDOMManager.findSourceContainer(highlight.metadata?.sourceUrl)
+            if (sourceContainer) {
+                const range = this.findTextInElement(sourceContainer, originalText, context)
+                if (range) return range
+            }
+
             // First try selector-scoped search
             if (selector) {
                 try {
@@ -443,4 +449,4 @@ export class HighlightService {
             mixedContent
         }
     }
-} 
+}

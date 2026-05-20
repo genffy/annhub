@@ -2,6 +2,8 @@ import { describe, it, expect, afterEach } from 'vitest'
 import {
     HighlightDOMManager,
     extractTwitterPermalink,
+    findTwitterContainerByPermalink,
+    findTwitterPermalinkContainer,
     TWEET_STATUS_RE,
     TWEET_STATUS_PREFIX_RE,
 } from '../highlight-dom'
@@ -235,5 +237,68 @@ describe('extractTwitterPermalink', () => {
 
         const result = extractTwitterPermalink(article, origin)
         expect(result).toBe('https://x.com/userB/status/222')
+    })
+
+    it('finds the quoted tweet card instead of the outer tweet article', () => {
+        const article = buildArticle(`
+            <div data-testid="tweetText">Andrej Karpathy 官宣加入 Anthropic</div>
+            <a href="/dotey/status/2056758623338942530">
+                <time datetime="2026-05-20T00:00:00.000Z">11h</time>
+            </a>
+            <div role="link" tabindex="0" data-testid="card.wrapper">
+                <a href="/karpathy/status/2056753169888334312">
+                    <time datetime="2026-05-19T23:05:00.000Z">11h</time>
+                </a>
+                <div data-testid="tweetText">
+                    Personal update: I've joined Anthropic. I think the next few years at the frontier of LLMs will be especially formative.
+                </div>
+            </div>
+        `)
+        const quotedText = article.querySelector('[role="link"] [data-testid="tweetText"]')!
+
+        const result = findTwitterPermalinkContainer(quotedText, origin)
+
+        expect(result).toBe(article.querySelector('[role="link"]'))
+        expect(extractTwitterPermalink(result!, origin)).toBe('https://x.com/karpathy/status/2056753169888334312')
+    })
+
+    it('falls back to the outer tweet article for normal tweet text', () => {
+        const article = buildArticle(`
+            <div data-testid="tweetText">Andrej Karpathy 官宣加入 Anthropic</div>
+            <a href="/dotey/status/2056758623338942530">
+                <time datetime="2026-05-20T00:00:00.000Z">11h</time>
+            </a>
+            <div role="link" tabindex="0">
+                <a href="/karpathy/status/2056753169888334312">
+                    <time datetime="2026-05-19T23:05:00.000Z">11h</time>
+                </a>
+                <div data-testid="tweetText">Personal update: I've joined Anthropic.</div>
+            </div>
+        `)
+        const outerText = article.querySelector('[data-testid="tweetText"]')!
+
+        const result = findTwitterPermalinkContainer(outerText, origin)
+
+        expect(result).toBe(article)
+        expect(extractTwitterPermalink(result!, origin)).toBe('https://x.com/dotey/status/2056758623338942530')
+    })
+
+    it('finds an on-page tweet container by source permalink', () => {
+        const article = buildArticle(`
+            <div data-testid="tweetText">Andrej Karpathy 官宣加入 Anthropic</div>
+            <a href="/dotey/status/2056758623338942530">
+                <time datetime="2026-05-20T00:00:00.000Z">11h</time>
+            </a>
+            <div role="link" tabindex="0">
+                <a href="/karpathy/status/2056753169888334312">
+                    <time datetime="2026-05-19T23:05:00.000Z">11h</time>
+                </a>
+                <div data-testid="tweetText">Personal update: I've joined Anthropic.</div>
+            </div>
+        `)
+
+        const result = findTwitterContainerByPermalink('https://x.com/karpathy/status/2056753169888334312', origin)
+
+        expect(result).toBe(article.querySelector('[role="link"]'))
     })
 })

@@ -74,6 +74,52 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     expect(bodyText).toContain('thoroughly')
   })
 
+  it('applies same-node annotations by DOM offset after candidate scoring', async () => {
+    setupDOM('<p>The algorithm meets zephyr.</p>')
+
+    mockSendMessage.mockImplementation(async (msg: any) => {
+      if (msg.type !== 'CONTEXT_GLOSS') return { success: false }
+      return {
+        success: true,
+        data: { gloss: '西风', source: 'llm' },
+      }
+    })
+
+    const snapshot = makeSnapshot({
+      algorithm: { proficiency: 1, exp: '算法' },
+    })
+    const ctx = makeCtx({ snapshot, userCEFRLevel: 'A1' })
+
+    await annotateVisibleText(ctx)
+
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
+      .map(r => r.firstChild?.textContent?.toLowerCase())
+    expect(annotatedWords).toContain('algorithm')
+    expect(annotatedWords).toContain('zephyr')
+  })
+
+  it('does not write sentence context into host DOM or duplicate mixed-language content', async () => {
+    const originalText = `这几天一堆密集的小作文fud国产，比如玻璃基板路线取代陶瓷，英伟达不同意PCB涨价，开放英伟达，国产芯片AI部署受阻等等。盘面也一起配合。大A两天抹去了一周的涨幅，融资和短线盘砸的差不多了。
+换个角度是个好事，直接回补缺口，差不多测试完4100的支撑了，再砸也没什么意思了。不要看川子来了甜蜜蜜，芯片自主可控是不会动摇的路线。`
+    setupDOM(`<span>${originalText}</span>`)
+
+    const before = document.body.textContent || ''
+    const snapshot = makeSnapshot({
+      fud: { proficiency: 1, exp: '制造负面消息' },
+    })
+    const ctx = makeCtx({ snapshot, userCEFRLevel: 'A1' })
+
+    await annotateVisibleText(ctx)
+    await annotateVisibleText(ctx)
+
+    expect(document.querySelectorAll('ruby[data-ann-vocab][data-ann-vocab-word="fud"]').length).toBe(1)
+    expect(document.body.innerHTML).not.toContain('data-ann-vocab-sentence')
+
+    cleanupAnnotations()
+
+    expect(document.body.textContent).toBe(before)
+  })
+
   it('does not produce partial-word annotations when many words in one node', async () => {
     setupDOM('<p>The architecture implementation requires comprehensive evaluation methodology.</p>')
 
@@ -414,6 +460,37 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
 
     expect(document.querySelector('a ruby[data-ann-vocab]')).toBeNull()
     expect(document.querySelector('span ruby[data-ann-vocab]')).not.toBeNull()
+  })
+
+  it('annotates X quoted tweet text even when the quoted card has role link', async () => {
+    setupDOM(`
+      <article>
+        <div data-testid="tweetText">Andrej Karpathy joined Anthropic.</div>
+        <div role="link" tabindex="0">
+          <div data-testid="tweetText">
+            Personal update: I've joined Anthropic. The next few years at the frontier of LLMs will be formative.
+          </div>
+        </div>
+      </article>
+      <a href="https://example.com">Ubiquitous reference</a>
+    `)
+
+    mockSendMessage.mockImplementation(async () => ({
+      success: true,
+      data: { gloss: '释义', source: 'llm' },
+    }))
+
+    const quotedText = document.querySelector('[role="link"] [data-testid="tweetText"]') as Element
+    const ctx = makeCtx({ userCEFRLevel: 'A1' })
+
+    await annotateVisibleText(ctx, { roots: [quotedText] })
+
+    const annotatedWords = Array.from(quotedText.querySelectorAll('ruby[data-ann-vocab]'))
+      .map(r => r.firstChild?.textContent?.toLowerCase())
+
+    expect(annotatedWords).toContain('frontier')
+    expect(annotatedWords).toContain('formative')
+    expect(document.querySelector('a ruby[data-ann-vocab]')).toBeNull()
   })
 
   it('skips interactive control text and short UI labels', async () => {
