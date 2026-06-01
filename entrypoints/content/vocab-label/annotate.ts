@@ -1,11 +1,12 @@
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
 import { type VocabSnapshot, type VocabEntry, type GlossResult, normalizeWord } from '../../../types/vocabulary'
-import { shouldFilterByLevel, type CEFRLevel } from './frequency-filter'
+import { shouldFilterByLevel, getWordFrequencyBand, type CEFRLevel } from './frequency-filter'
 import { ANNOTATABLE_BLOCK_SELECTOR } from './content-scope'
 import { isWithinViewportWindowByRect } from './viewport'
 import { clearDomPolicyCaches, shouldSkipTextNode } from './dom-policy'
 import { cleanupMarkers, unwrapMarker, wrapRange } from '../annotation-core/markers'
+import { pickLemma } from '../annotation-core/lemmatize'
 
 const MARKER_ATTR = 'data-ann-vocab'
 const WORD_RE = /\b[a-zA-Z]{2,}\b/g
@@ -117,7 +118,13 @@ function isLikelyProperNounCandidate(word: string, text: string, startOffset: nu
   if (!/^[A-Z][a-z]+$/.test(word)) return false
 
   if (hasAdjacentTitleCaseToken(text, startOffset, endOffset)) return true
-  return !isAtSentenceStart(text, startOffset)
+  if (!isAtSentenceStart(text, startOffset)) return true
+
+  // Sentence-start Title-case word: ambiguous (could be an ordinary word that
+  // simply starts a sentence). Treat it as a proper noun only when its lemma is
+  // absent from the general-corpus frequency table — i.e. not common vocabulary.
+  const lemma = pickLemma(word.toLowerCase(), w => getWordFrequencyBand(w) !== null)
+  return getWordFrequencyBand(lemma) === null
 }
 
 async function resolveGloss(word: string, sentence: string): Promise<GlossResult | null> {
@@ -304,10 +311,10 @@ export function getSkipStarThreshold(ctx: AnnotationContext): number {
   }
 }
 
-function calculateCandidateScore(ctx: AnnotationContext, wordNorm: string, entry: VocabEntry | undefined, effectiveStar: number): number {
+function calculateCandidateScore(ctx: AnnotationContext, lemmaNorm: string, entry: VocabEntry | undefined, effectiveStar: number): number {
   let score = 0
   if (!entry) score += 2
-  if (!shouldFilterByLevel(wordNorm, ctx.userCEFRLevel)) score += 2
+  if (!shouldFilterByLevel(lemmaNorm, ctx.userCEFRLevel)) score += 2
   if (effectiveStar <= 2) score += 1
   score -= effectiveStar
   return score
@@ -329,22 +336,26 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
 
     if (!wordNorm || wordNorm.length < 3) continue
 
-    const entry = ctx.snapshot.entries[wordNorm]
-    const effectiveStar = getEffectiveStar(ctx, wordNorm, entry)
+    // Resolve inflected forms to a base lemma for all lookups (Eudic snapshot,
+    // frequency table). DOM offsets below still use the original token.
+    const lemmaNorm = pickLemma(wordNorm, w => Boolean(ctx.snapshot.entries[w]) || getWordFrequencyBand(w) !== null)
+
+    const entry = ctx.snapshot.entries[lemmaNorm] ?? ctx.snapshot.entries[wordNorm]
+    const effectiveStar = getEffectiveStar(ctx, lemmaNorm, entry)
     if (effectiveStar >= skipStarThreshold) continue
 
     if (!entry && isLikelyProperNounCandidate(word, text, match.index, match.index + word.length)) continue
 
-    if (!entry && shouldFilterByLevel(wordNorm, ctx.userCEFRLevel)) continue
+    if (!entry && shouldFilterByLevel(lemmaNorm, ctx.userCEFRLevel)) continue
 
-    const score = calculateCandidateScore(ctx, wordNorm, entry, effectiveStar)
+    const score = calculateCandidateScore(ctx, lemmaNorm, entry, effectiveStar)
 
     pending.push({
       textNode,
       startOffset: match.index,
       endOffset: match.index + word.length,
       word,
-      wordNorm,
+      wordNorm: lemmaNorm,
       entry,
       sentence: getSentenceContext(textNode),
       score,
@@ -457,9 +468,7 @@ export async function annotateVisibleText(ctx: AnnotationContext, options?: Anno
 
   if (roots.length === 0) return 0
 
-  const restrictToFeedArticles = Boolean(
-    ctx.contentRoot && ctx.contentRoot.querySelectorAll('article, [role="article"]').length >= 2,
-  )
+  const restrictToFeedArticles = Boolean(ctx.contentRoot && ctx.contentRoot.querySelectorAll('article, [role="article"]').length >= 2)
   const textNodes = collectTextNodes(roots, ctx.contentRoot, restrictToFeedArticles)
   if (textNodes.length === 0) return 0
 

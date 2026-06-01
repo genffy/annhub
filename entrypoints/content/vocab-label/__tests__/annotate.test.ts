@@ -92,8 +92,7 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
 
     await annotateVisibleText(ctx)
 
-    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
-      .map(r => r.firstChild?.textContent?.toLowerCase())
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]')).map(r => r.firstChild?.textContent?.toLowerCase())
     expect(annotatedWords).toContain('algorithm')
     expect(annotatedWords).toContain('zephyr')
   })
@@ -219,8 +218,7 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
 
     await annotateVisibleText(ctx)
 
-    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
-      .map(r => r.firstChild?.textContent?.toLowerCase())
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]')).map(r => r.firstChild?.textContent?.toLowerCase())
 
     expect(annotatedWords).not.toContain('volatile')
   })
@@ -243,8 +241,7 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
 
     await annotateVisibleText(ctx)
 
-    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
-      .map(r => r.firstChild?.textContent?.toLowerCase())
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]')).map(r => r.firstChild?.textContent?.toLowerCase())
     expect(annotatedWords).toContain('volatile')
   })
 
@@ -292,8 +289,7 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
 
     await annotateVisibleText(ctx)
 
-    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
-      .map(r => r.firstChild?.textContent?.toLowerCase())
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]')).map(r => r.firstChild?.textContent?.toLowerCase())
 
     expect(annotatedWords).toEqual(['ubiquitous'])
   })
@@ -323,9 +319,10 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     expect(annotatedWords).toContain('documentation')
   })
 
-  it('suppresses CEFR-listed words at or below user level', async () => {
-    // "system" is A2, "architecture" is A2 — both at or below B1 → suppressed
-    // "robust" is C1, "ubiquitous" is not in CEFR → both annotated
+  it('suppresses high-frequency words at or below the user band threshold', async () => {
+    // "system" is band 1, "architecture" is band 4. At B1 (threshold band 3),
+    // band 1 is suppressed and band 4 is annotated. "robust" (band 5) and
+    // "ubiquitous" (band 7) are well above the threshold → annotated.
     setupDOM('<p>The system architecture remains robust and ubiquitous.</p>')
 
     mockSendMessage.mockImplementation(async (msg: any) => {
@@ -344,7 +341,6 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     const annotatedWords = Array.from(rubies).map(r => r.firstChild?.textContent?.toLowerCase())
 
     expect(annotatedWords).not.toContain('system')
-    expect(annotatedWords).not.toContain('architecture')
     expect(annotatedWords).toContain('robust')
     expect(annotatedWords).toContain('ubiquitous')
   })
@@ -364,11 +360,8 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
 
     await annotateVisibleText(ctx)
 
-    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
-      .map(r => r.firstChild?.textContent?.toLowerCase())
-    const llmWords = mockSendMessage.mock.calls
-      .filter((c: any[]) => c[0]?.type === 'CONTEXT_GLOSS')
-      .map((c: any[]) => c[0].word.toLowerCase())
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]')).map(r => r.firstChild?.textContent?.toLowerCase())
+    const llmWords = mockSendMessage.mock.calls.filter((c: any[]) => c[0]?.type === 'CONTEXT_GLOSS').map((c: any[]) => c[0].word.toLowerCase())
 
     expect(annotatedWords).not.toContain('mike')
     expect(annotatedWords).not.toContain('chong')
@@ -390,8 +383,7 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
 
     await annotateVisibleText(ctx)
 
-    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
-      .map(r => r.firstChild?.textContent?.toLowerCase())
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]')).map(r => r.firstChild?.textContent?.toLowerCase())
 
     expect(annotatedWords).toContain('zephyr')
   })
@@ -408,7 +400,7 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     }))
 
     const main = document.getElementById('main-content') as Element
-    const ctx = makeCtx({ contentRoot: main })
+    const ctx = makeCtx({ contentRoot: main, userCEFRLevel: 'A1' })
 
     await annotateVisibleText(ctx)
 
@@ -485,8 +477,7 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
 
     await annotateVisibleText(ctx, { roots: [quotedText] })
 
-    const annotatedWords = Array.from(quotedText.querySelectorAll('ruby[data-ann-vocab]'))
-      .map(r => r.firstChild?.textContent?.toLowerCase())
+    const annotatedWords = Array.from(quotedText.querySelectorAll('ruby[data-ann-vocab]')).map(r => r.firstChild?.textContent?.toLowerCase())
 
     expect(annotatedWords).toContain('frontier')
     expect(annotatedWords).toContain('formative')
@@ -512,8 +503,7 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
 
     await annotateVisibleText(ctx, { roots: [document.querySelector('article') as Element] })
 
-    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
-      .map(r => r.firstChild?.textContent?.toLowerCase())
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]')).map(r => r.firstChild?.textContent?.toLowerCase())
 
     expect(annotatedWords).not.toContain('repost')
     expect(annotatedWords).not.toContain('quote')
@@ -545,8 +535,7 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     expect(document.querySelector('[translate="no"] ruby[data-ann-vocab]')).toBeNull()
     expect(document.querySelector('.notranslate ruby[data-ann-vocab]')).toBeNull()
 
-    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
-      .map(r => r.firstChild?.textContent?.toLowerCase())
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]')).map(r => r.firstChild?.textContent?.toLowerCase())
 
     expect(annotatedWords).not.toContain('https')
     expect(annotatedWords).not.toContain('example')
@@ -660,8 +649,7 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     const ctx = makeCtx({ userCEFRLevel: 'B1' })
     await annotateVisibleText(ctx)
 
-    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
-      .map(r => r.firstChild?.textContent?.toLowerCase())
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]')).map(r => r.firstChild?.textContent?.toLowerCase())
 
     expect(annotatedWords).not.toContain('become')
     expect(annotatedWords).toContain('robust')
@@ -685,8 +673,7 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     const ctx = makeCtx({ userCEFRLevel: 'C1' })
     await annotateVisibleText(ctx)
 
-    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
-      .map(r => r.firstChild?.textContent?.toLowerCase())
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]')).map(r => r.firstChild?.textContent?.toLowerCase())
 
     expect(annotatedWords).not.toContain('extraordinary')
     expect(annotatedWords).not.toContain('architecture')
@@ -709,8 +696,7 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     const ctx = makeCtx({ userCEFRLevel: 'A1' })
     await annotateVisibleText(ctx)
 
-    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]'))
-      .map(r => r.firstChild?.textContent?.toLowerCase())
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab]')).map(r => r.firstChild?.textContent?.toLowerCase())
 
     // "performs" is B2 — should be annotated for A1 user
     expect(annotatedWords).toContain('algorithm')

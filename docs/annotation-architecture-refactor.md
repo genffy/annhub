@@ -10,6 +10,7 @@
 - Phase 2 已完成：生词 DOM policy 迁移到 `entrypoints/content/annotation-core/dom-policy.ts`，旧路径保留兼容导出。
 - Phase 3 已完成主体：高亮恢复 text range 与生词 marker wrap/unwrap/cleanup 已抽到 `annotation-core/text-range.ts` 和 `annotation-core/markers.ts`。
 - Phase 4 已完成（2026-06-01）：高亮**创建路径**也接入 `wrapRange/unwrapMarker`；`findTextRangeInElement` 支持 `intent` 参数，高亮恢复路径以 `manual-highlight` intent 真实消费 `dom-policy`；`manual-highlight` 与 `auto-vocab` policy 在生产代码中均有调用方，不再是 dead code。
+- 生词选词精准化（2026-06-01）：新增 `annotation-core/lemmatize.ts`（词形还原，仅用于查表）；难度门由小 CEFR 表换成通用语料词频带 `vocab-label/frequency-band-data.ts`（OpenSubtitles 50k，离线脚本 `scripts/build-frequency-data.ts` 生成），`frequency-filter.ts` 反转默认——**不在词频表的长尾词（专名/术语/噪声）默认不标**；`isLikelyProperNounCandidate` 增补词频信号修掉句首专名逃逸。数据契约未变。
 - 数据契约始终未改变：`HighlightRecord.metadata.sourceUrl`、`data-ann-vocab`、`data-highlight-id` 均保持原名和语义。
 
 > 与本文档配套的全局规则见 `AGENTS.md §七` 第 12 条"文档同步（强制）"与 `CLAUDE.md` "Docs stay in sync"：任何 annotation-core 行为或接口变更，**必须**同步更新本文档对应章节，否则任务不算完成。
