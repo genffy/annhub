@@ -5,6 +5,7 @@ import MessageUtils from '../../../utils/message'
 import { HighlightStatsResponse } from '../../../types/messages'
 import { generateId, hash } from '../../../utils/helpers'
 import { MixedSelectionContent } from '../../../types/dom'
+import { findTextRangeInElement } from '../annotation-core/text-range'
 
 
 export class HighlightService {
@@ -23,16 +24,6 @@ export class HighlightService {
         }
         return HighlightService.instance
     }
-
-
-    private _normalize(text: string): string {
-        return text
-            .toLowerCase()
-            .replace(/\s+/g, ' ')
-            .replace(/[^\w\s\u4e00-\u9fa5]/g, '')
-            .trim()
-    }
-
 
     async initialize(): Promise<void> {
         if (this.isInitialized) return
@@ -245,8 +236,14 @@ export class HighlightService {
 
 
     /**
-     * Synchronous version of findTextRange — searches document.body directly
-     * when selector-based search fails, improving SPA compatibility.
+     * Synchronous version of findTextRange — searches in priority order:
+     *   1. Platform-rule source container (for cross-page detail-page restoration)
+     *   2. Stored CSS selector (best-case re-anchor on same page)
+     *   3. document.body fallback (SPA / dynamic content where selector breaks)
+     *
+     * All searches run through annotation-core `findTextRangeInElement` with the
+     * `manual-highlight` intent so extension UI / nested markers / contenteditable
+     * regions are skipped uniformly. See docs/annotation-architecture-refactor.md §11 risk 4.
      */
     private findTextRangeSync(highlight: HighlightRecord): Range | null {
         const { originalText, context, selector } = highlight
@@ -254,16 +251,16 @@ export class HighlightService {
         try {
             const sourceContainer = HighlightDOMManager.findSourceContainer(highlight.metadata?.sourceUrl)
             if (sourceContainer) {
-                const range = this.findTextInElement(sourceContainer, originalText, context)
+                const range = findTextRangeInElement(sourceContainer, originalText, context, { intent: 'manual-highlight' })
                 if (range) return range
             }
 
-            // First try selector-scoped search
+            // Then try selector-scoped search
             if (selector) {
                 try {
                     const elements = document.querySelectorAll(selector)
                     for (const element of Array.from(elements)) {
-                        const range = this.findTextInElement(element, originalText, context)
+                        const range = findTextRangeInElement(element, originalText, context, { intent: 'manual-highlight' })
                         if (range) return range
                     }
                 } catch {
@@ -272,8 +269,8 @@ export class HighlightService {
                 }
             }
 
-            // Fall back to full-body search (handles SPA pages where selector is too generic)
-            const range = this.findTextInElement(document.body, originalText, context)
+            // Last resort: full-body search (handles SPA pages where selector is too generic)
+            const range = findTextRangeInElement(document.body, originalText, context, { intent: 'manual-highlight' })
             if (range) return range
 
             return null
@@ -281,109 +278,6 @@ export class HighlightService {
             Logger.error('[HighlightService] Error finding text range:', error)
             return null
         }
-    }
-
-
-
-
-    private findTextInElement(element: Element, targetText: string, context: { before: string; after: string }): Range | null {
-        const walker = document.createTreeWalker(
-            element,
-            NodeFilter.SHOW_TEXT,
-            null
-        )
-
-        const textNodes: Text[] = []
-        let node: Text | null
-        while (node = walker.nextNode() as Text) {
-            textNodes.push(node)
-        }
-
-
-        const fullText = textNodes.map(node => node.textContent || '').join('')
-
-
-        const targetIndex = this.findBestMatch(fullText, targetText, context)
-        if (targetIndex === -1) {
-            return null
-        }
-
-
-        return this.createRangeFromIndex(textNodes, targetIndex, targetText.length)
-    }
-
-
-    private findBestMatch(fullText: string, targetText: string, context: { before: string; after: string }): number {
-
-        let index = fullText.indexOf(targetText)
-        if (index !== -1) {
-            return index
-        }
-
-
-        const normalizedTarget = this._normalize(targetText)
-        const normalizedFull = this._normalize(fullText)
-
-        index = normalizedFull.indexOf(normalizedTarget)
-        if (index !== -1) {
-            return index
-        }
-
-
-        if (context.before || context.after) {
-            const contextPattern = `${context.before}.*?${targetText}.*?${context.after}`
-            const regex = new RegExp(contextPattern, 'i')
-            const match = fullText.match(regex)
-            if (match) {
-                return fullText.indexOf(match[0]) + context.before.length
-            }
-        }
-
-        return -1
-    }
-
-
-    private createRangeFromIndex(textNodes: Text[], startIndex: number, length: number): Range | null {
-        let currentIndex = 0
-        let startNode: Text | null = null
-        let startOffset = 0
-        let endNode: Text | null = null
-        let endOffset = 0
-
-
-        for (const node of textNodes) {
-            const nodeLength = node.textContent?.length || 0
-            if (currentIndex + nodeLength > startIndex) {
-                startNode = node
-                startOffset = startIndex - currentIndex
-                break
-            }
-            currentIndex += nodeLength
-        }
-
-        if (!startNode) return null
-
-
-        const endIndex = startIndex + length
-        currentIndex = 0
-        for (const node of textNodes) {
-            const nodeLength = node.textContent?.length || 0
-            if (currentIndex + nodeLength >= endIndex) {
-                endNode = node
-                endOffset = endIndex - currentIndex
-                break
-            }
-            currentIndex += nodeLength
-        }
-
-        if (!endNode) return null
-
-
-        const range = document.createRange()
-        range.setStart(startNode, startOffset)
-        range.setEnd(endNode, endOffset)
-
-        return range
     }
 
 

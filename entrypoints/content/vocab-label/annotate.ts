@@ -5,6 +5,7 @@ import { shouldFilterByLevel, type CEFRLevel } from './frequency-filter'
 import { ANNOTATABLE_BLOCK_SELECTOR } from './content-scope'
 import { isWithinViewportWindowByRect } from './viewport'
 import { clearDomPolicyCaches, shouldSkipTextNode } from './dom-policy'
+import { cleanupMarkers, unwrapMarker, wrapRange } from '../annotation-core/markers'
 
 const MARKER_ATTR = 'data-ann-vocab'
 const WORD_RE = /\b[a-zA-Z]{2,}\b/g
@@ -160,35 +161,31 @@ export function getAnnotationSentence(el: Element): string | undefined {
 }
 
 function wrapWordWithRuby(range: Range, gloss: string, item: PendingItem): void {
-  const ruby = document.createElement('ruby')
-  ruby.setAttribute(MARKER_ATTR, '1')
-  ruby.className = 'ann-vocab-ruby'
+  const ruby = wrapRange(range, {
+    tagName: 'ruby',
+    className: 'ann-vocab-ruby',
+    attributes: { [MARKER_ATTR]: '1' },
+    buildChildren: base => {
+      const rt = document.createElement('rt')
+      rt.textContent = gloss
+      base.appendChild(rt)
+    },
+  })
+  if (!ruby) return
+
   setAnnotationMetadata(ruby, item)
-
-  try {
-    range.surroundContents(ruby)
-  } catch {
-    return
-  }
-
-  const rt = document.createElement('rt')
-  rt.textContent = gloss
-  ruby.appendChild(rt)
   observeAnnotationElement(ruby)
 }
 
 function wrapWordWithUnderline(range: Range, item: PendingItem): void {
-  const span = document.createElement('span')
-  span.setAttribute(MARKER_ATTR, '1')
-  span.className = 'ann-vocab-underline'
+  const span = wrapRange(range, {
+    tagName: 'span',
+    className: 'ann-vocab-underline',
+    attributes: { [MARKER_ATTR]: '1' },
+  })
+  if (!span) return
+
   setAnnotationMetadata(span, item)
-
-  try {
-    range.surroundContents(span)
-  } catch {
-    return
-  }
-
   observeAnnotationElement(span)
 }
 
@@ -203,25 +200,7 @@ function unwrapAnnotationElement(el: Element): void {
     }
   }
 
-  const parent = el.parentNode
-  if (!parent) return
-
-  if (el.tagName === 'RUBY') {
-    // Restore only the base text when removing annotation markers.
-    // Do not reinsert <rt>/<rp> nodes into document flow.
-    const baseText = Array.from(el.childNodes)
-      .filter(node => !(node instanceof HTMLElement && (node.tagName === 'RT' || node.tagName === 'RP')))
-      .map(node => node.textContent ?? '')
-      .join('')
-    parent.insertBefore(document.createTextNode(baseText), el)
-    parent.removeChild(el)
-    return
-  }
-
-  while (el.firstChild) {
-    parent.insertBefore(el.firstChild, el)
-  }
-  parent.removeChild(el)
+  unwrapMarker(el)
 }
 
 function supportsIntersectionObserver(): boolean {
@@ -542,10 +521,11 @@ function extractShortGloss(exp: string): string {
 }
 
 export function cleanupAnnotations(): void {
-  const annotated = document.querySelectorAll(`[${MARKER_ATTR}]`)
-  annotated.forEach(el => {
-    unwrapAnnotationElement(el)
-  })
+  cleanupMarkers(`[${MARKER_ATTR}]`)
+  annotationBlockMarkers.clear()
+  annotationMarkerBlocks = new WeakMap<Element, Element>()
+  annotationVisibilityObserver?.disconnect()
+  annotationVisibilityObserver = null
 }
 
 export function resetVocabLabelRuntimeState(): void {

@@ -1,0 +1,60 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+AnnHub is a Chrome MV3 browser extension (built with WXT) for text capture, highlight annotation, and English vocabulary glossing on any webpage. It integrates Eudic (欧路) dictionary sync and LLM-based glossing.
+
+`AGENTS.md` is the canonical, detailed architecture doc (data models, message protocol, site rules, test matrix). Read it for depth. This file is the quick-start summary.
+
+## Commands
+
+Requires Node.js >= 24 (see `.node-version`). Package manager is npm.
+
+```bash
+npm run dev              # dev mode (Chrome), load .output/chrome-mv3 at chrome://extensions
+npm run dev:firefox      # dev mode (Firefox)
+npm run build            # production build
+npm run compile          # tsc --noEmit type check
+npm run format           # prettier write
+
+npm test                 # Vitest unit tests (single run)
+npm run test:watch       # Vitest watch mode
+npx vitest run path/to/file.test.ts   # run a single test file
+npx vitest run -t "name"              # run tests matching a name
+
+npm run build && npx playwright test  # E2E (Playwright) — build extension first
+npx playwright test e2e/mode-a.spec.ts   # single E2E spec
+```
+
+The landing-page site lives in `website/` (separate Next.js app, its own deps): `npm run website:dev`.
+
+## Architecture
+
+Three runtime layers communicate via `chrome.runtime.sendMessage`. All message types are defined in `types/messages.ts` (`UIToBackgroundMessage` union); always add new messages there.
+
+1. **UI entrypoints** (`entrypoints/{popup,sidepanel,options,words}`) — React 19 + Zustand + React Router. Talk to background through `utils/message`.
+2. **Background Service Worker** (`background-service/`) — `BackgroundServiceManager` owns singleton services: Config, Highlight (IndexedDB via `idb`), Clip (`chrome.storage.local`), Logseq, Vocabulary (Eudic sync + `chrome.alarms`), and an LLM abstraction (`services/llm/`, `ILlmClient` → `OpenAICompatibleLlmService`).
+3. **Content Script** (`entrypoints/content/`) — two surfaces: a **Shadow-DOM UI** (`index.tsx`, HoverMenu, Capsule, `highlight/*`) and **host-DOM vocab labeling** (`vocab-label/*`, operates directly on the page, marks nodes with `data-ann-vocab="1"`).
+
+### Two interaction modes
+- **Mode A (precision)**: select text → HoverMenu pops up → capture/note/highlight. Highlight color `#ffeb3b`.
+- **Mode B (machine-gun)**: toggle with `Alt+H` / `Cmd+Shift+H` / toolbar icon → selecting auto-captures, count shown in top-right Capsule, `Esc` exits. Color `#FFF8B4`.
+
+`mode-manager.ts` is a non-React singleton tracking the active mode.
+
+### Key cross-cutting designs (see AGENTS.md §5 for detail)
+- **Site permalink rules**: `SITE_PERMALINK_RULES` in `highlight-dom.ts` extracts detail-page permalinks on list/feed pages (x.com/twitter.com supported). Add a site by appending a rule, not editing core logic.
+- **Selector generation**: prefers `data-testid` → stable id → filtered class; `isDynamicId` skips unstable ids (x.com `id__*`, React `:r*:`, random hex).
+- **Cross-page highlight echo**: `getCurrentPageHighlights(url)` matches both exact URL and same-domain records whose `metadata.sourceUrl === url`, so highlights made on a feed page reappear on the detail page.
+- **Restore retry**: `restorePageHighlights` retries on increasing delays (SPA late render); `findTextRangeSync` falls back to full-body search when the selector misses.
+
+### In-progress: annotation-core refactor
+`entrypoints/content/annotation-core/` is an active refactor (tracked in `docs/annotation-architecture-refactor.md`) extracting logic shared between highlight and vocab labeling: `platform-rules.ts` (unified X/Twitter rules), `dom-policy.ts` (DOM skip policy), `text-range.ts` (range location), `markers.ts` (wrap/unwrap/cleanup). Old paths keep compatibility re-exports. **Data contracts are unchanged**: `HighlightRecord.metadata.sourceUrl`, `data-ann-vocab`, `data-highlight-id` keep their names and semantics. Prefer the `annotation-core` modules when touching shared logic.
+
+## Conventions
+- **Docs stay in sync (required)**: after completing any task, update the affected docs (`AGENTS.md`, `CLAUDE.md`, `docs/`, `README.md`) in the same change. Adding/removing modules, changing the message protocol, shortcuts, or test layout must update the corresponding sections. A task is not done until docs match the code.
+- Singletons via `getInstance()`: `HighlightService`, `ClipService`, `ModeManager`, `VocabularyService`, etc.
+- Tests live in `__tests__/` colocated with source; all E2E specs + fixture HTML + helpers live in `e2e/`.
+- Vitest uses jsdom and the `@` → repo-root path alias.
+- LLM config merge (`getLlmConfig`) is non-empty-wins: empty strings / `undefined` do not overwrite stored values. `GET_*_CONFIG` messages return redacted configs (no token/apiKey to the frontend).
+- Path alias `@/` maps to the repo root (`tsconfig.json` + `vitest.config.ts`).

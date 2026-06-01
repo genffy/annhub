@@ -5,6 +5,7 @@ import { collectAnnotatableBlocks, resolveContentRoot, ANNOTATABLE_BLOCK_SELECTO
 import { getActivePlatformRule, type VocabPlatformRule } from './platform-rules'
 import { isElementWithinViewportWindow } from './viewport'
 import { findNearestRescanContainer, isWithinVocabMarker } from './dom-policy'
+import { unwrapMarker } from '../annotation-core/markers'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
 import type { VocabSnapshot, VocabConfigPublic, VocabLearningEventType } from '../../../types/vocabulary'
@@ -151,21 +152,7 @@ function isFeedbackAction(action: string): action is VocabLearningEventType {
 }
 
 function cleanupAnnotationsForElement(el: Element): void {
-  if (!el.parentNode) return
-  if (el.tagName === 'RUBY') {
-    const baseText = Array.from(el.childNodes)
-      .filter(node => !(node instanceof HTMLElement && (node.tagName === 'RT' || node.tagName === 'RP')))
-      .map(node => node.textContent ?? '')
-      .join('')
-    el.parentNode.insertBefore(document.createTextNode(baseText), el)
-    el.remove()
-    return
-  }
-
-  while (el.firstChild) {
-    el.parentNode.insertBefore(el.firstChild, el)
-  }
-  el.remove()
+  unwrapMarker(el)
 }
 
 function setupFeedbackMenuListeners(): void {

@@ -1,8 +1,18 @@
 # 标注架构重构计划
 
-更新时间：2026-05-20
+更新时间：2026-06-01
 
-本文档分析 AnnHub 高亮标注与生词标注的重合逻辑，并给出可直接实施的分阶段重构方案。本次计划只描述架构和迁移路径，不要求一次性执行代码重构。
+本文档分析 AnnHub 高亮标注与生词标注的重合逻辑，并记录 annotation core 重构的实施范围、验收标准和后续边界。
+
+实现状态：
+
+- Phase 1 已完成：X/Twitter 平台规则统一到 `entrypoints/content/annotation-core/platform-rules.ts`。
+- Phase 2 已完成：生词 DOM policy 迁移到 `entrypoints/content/annotation-core/dom-policy.ts`，旧路径保留兼容导出。
+- Phase 3 已完成主体：高亮恢复 text range 与生词 marker wrap/unwrap/cleanup 已抽到 `annotation-core/text-range.ts` 和 `annotation-core/markers.ts`。
+- Phase 4 已完成（2026-06-01）：高亮**创建路径**也接入 `wrapRange/unwrapMarker`；`findTextRangeInElement` 支持 `intent` 参数，高亮恢复路径以 `manual-highlight` intent 真实消费 `dom-policy`；`manual-highlight` 与 `auto-vocab` policy 在生产代码中均有调用方，不再是 dead code。
+- 数据契约始终未改变：`HighlightRecord.metadata.sourceUrl`、`data-ann-vocab`、`data-highlight-id` 均保持原名和语义。
+
+> 与本文档配套的全局规则见 `AGENTS.md §七` 第 12 条"文档同步（强制）"与 `CLAUDE.md` "Docs stay in sync"：任何 annotation-core 行为或接口变更，**必须**同步更新本文档对应章节，否则任务不算完成。
 
 ## 1. 概览
 
@@ -44,19 +54,24 @@ selection Range
 
 ```text
 contentRoot / blocks
-  -> text node scan
-  -> vocab rules
-  -> DOM wrap
-  -> MutationObserver rescan
+  -> viewport gating (IntersectionObserver, ±50% rootMargin)
+  -> idle-callback batched flush
+  -> text node scan (annotation-core/dom-policy)
+  -> vocab rules + CEFR / 学习态过滤
+  -> DOM wrap (annotation-core/markers)
+  -> MutationObserver rescan + scroll/resize 重 reconcile
 ```
 
 关键模块：
 
 - `entrypoints/content/vocab-label/index.ts`
 - `entrypoints/content/vocab-label/annotate.ts`
-- `entrypoints/content/vocab-label/dom-policy.ts`
-- `entrypoints/content/vocab-label/platform-rules.ts`
+- `entrypoints/content/vocab-label/dom-policy.ts`（已变为 annotation-core/dom-policy 的 re-export）
+- `entrypoints/content/vocab-label/platform-rules.ts`（annotation-core 平台规则的适配层）
 - `entrypoints/content/vocab-label/content-scope.ts`
+- `entrypoints/content/vocab-label/viewport.ts`
+- `entrypoints/content/vocab-label/frequency-filter.ts`
+- `entrypoints/content/vocab-label/cefr-data.ts`
 
 生词标注的主要职责：
 
@@ -256,6 +271,8 @@ export interface MarkerConfig {
 
 ## 8. 测试计划
 
+测试策略按“共享 core 行为 + 两个调用方回归”组织。每个阶段都要先补 core 单测，再保留或补齐高亮、生词两侧的薄集成测试，避免共享模块正确但调用语义漂移。
+
 ### X quoted tweet
 
 必须覆盖：
@@ -263,6 +280,7 @@ export interface MarkerConfig {
 - 引用页内的原推文本可被生词标注。
 - 高亮引用卡片内文本时，`sourceUrl` 指向原推。
 - 原推详情页恢复高亮时，落在原推正文，不落在引用者正文。
+- quoted card 外层存在 `role="link"` 时，`auto-vocab` 仍允许 `[data-testid="tweetText"]` 内正文，但不标注卡片里的用户名、时间和 action 文案。
 
 ### X 普通 tweet
 
@@ -271,6 +289,7 @@ export interface MarkerConfig {
 - 普通正文、高亮、生词标注行为不变。
 - action bar、用户名、按钮、链接文本不被生词误标。
 - tweet permalink 仍优先从 `<time>` 所在链接提取。
+- `findContainerBySourceUrl()` 在详情页返回正文所在 tweet container，而不是同页其它推荐 tweet。
 
 ### 通用页面
 
@@ -279,6 +298,31 @@ export interface MarkerConfig {
 - `a[href]` 文本仍默认跳过自动生词标注。
 - 用户手动高亮不受自动标注 skip policy 过度限制。
 - 已有 `data-ann-vocab` / `data-highlight-id` marker 不触发重复扫描或重复包裹。
+- 跨 text node 文本可以通过共享 `text-range` 找回。
+- `cleanupMarkers()` 不把 `ruby rt` 释义文本泄漏回正文。
+
+### 建议新增测试文件
+
+```text
+entrypoints/content/annotation-core/__tests__/
+  platform-rules.test.ts
+  dom-policy.test.ts
+  text-range.test.ts
+  markers.test.ts
+```
+
+测试职责：
+
+- `platform-rules.test.ts`：覆盖 X host match、`collectContentBlocks()`、quoted tweet sourceUrl、详情页 container 反查。
+- `dom-policy.test.ts`：覆盖 `manual-highlight` 与 `auto-vocab` 在链接、按钮、quoted tweet、扩展 marker 上的差异。
+- `text-range.test.ts`：覆盖 selector 命中、selector 失效 fallback、上下文 disambiguation、跨文本节点。
+- `markers.test.ts`：覆盖 `mark` / `span` / `ruby` 的 wrap、fallback wrap、unwrap、批量 cleanup。
+
+原有测试迁移原则：
+
+- 迁移初期不删除 `highlight/__tests__/highlight-dom.test.ts` 和 `vocab-label/__tests__/*` 的关键用例。
+- 被 core 覆盖的低层用例可以在后续阶段减少重复，但必须保留调用方语义测试。
+- X quoted tweet 至少在 core、highlight、vocab 三层各保留一个回归用例。
 
 ### 回归命令
 
@@ -286,12 +330,197 @@ export interface MarkerConfig {
 npx vitest run entrypoints/content/highlight/__tests__/highlight-dom.test.ts
 npx vitest run entrypoints/content/vocab-label/__tests__/annotate.test.ts
 npx vitest run entrypoints/content/vocab-label/__tests__/platform-rules.test.ts
+npx vitest run entrypoints/content/vocab-label/__tests__/content-scope.test.ts
+npx vitest run entrypoints/content/annotation-core/__tests__
 npm run build
 ```
 
-## 9. Assumptions
+阶段内如果还没有创建 `annotation-core/__tests__`，对应命令可先跳过，但该阶段完成前必须补上。
+
+## 9. 分阶段交付定义
+
+### Phase 1 完成标准（已完成）
+
+- 新增 `annotation-core/platform-rules.ts` 与 `types.ts`。
+- X/Twitter 的 host match、content root、tweet text block 收集、tweet permalink 提取只在 core 中维护。
+- `highlight/highlight-dom.ts` 不再持有独立的 X permalink rule 细节，只通过 core rule 获取 `sourceUrl` / source container。
+- `vocab-label/platform-rules.ts` 变成兼容导出或薄封装，调用 core rule。
+- quoted tweet 的高亮 `sourceUrl` 和生词标注测试同时通过。
+
+### Phase 2 完成标准（已完成）
+
+- 新增或迁移 `annotation-core/dom-policy.ts`。
+- `vocab-label/dom-policy.ts` 只保留兼容导出，真实策略来自 core。
+- `auto-vocab` 行为与当前生词标注保持一致，包括保守跳过链接、按钮、代码、隐藏内容、`translate="no"` 和短 UI label。
+- `manual-highlight` 只跳过扩展 UI、已有 marker、不可见/不可编辑安全边界，不继承自动生词的短文本和链接限制。
+- MutationObserver 增量扫描使用共享 marker 判断，避免 marker 自触发导致重复扫描。
+
+### Phase 3 完成标准（已完成主体；高亮创建路径在 Phase 4 完成）
+
+- 新增 `annotation-core/text-range.ts` 与 `markers.ts`。
+- 高亮恢复的文本查找和生词标注的 DOM 包裹共享底层 helper。
+- `data-highlight-id`、`data-ann-vocab`、高亮颜色、ruby 展示结构保持兼容。
+- `Range.surroundContents()` 失败时的 fallback 行为在 core 中有单测。
+- `destroyVocabLabel()`（旧名 `cleanupAnnotations()`）和高亮 remove/restore 均不产生孤立空节点、重复 marker 或释义文本泄漏。
+
+本轮实现说明：
+
+- `text-range.ts` 覆盖高亮恢复路径的文本节点收集、文本匹配和索引转 `Range`。
+- `markers.ts` 覆盖通用 `wrapRange()`、`unwrapMarker()`、`cleanupMarkers()`。
+- 生词 marker 的可见性观察、block 关联和 sentence metadata 仍保留在 `vocab-label/annotate.ts`，避免把业务运行时状态混进 core。
+- Phase 3 阶段高亮 DOM **创建**仍保留独立实现于 `highlight-dom.ts`，恢复查找路径已迁移；本残留在 Phase 4 闭环。
+
+### Phase 4 完成标准（已完成 — 2026-06-01）
+
+补齐 Phase 3 残留 + 真实消费 `manual-highlight` policy：
+
+- `highlight/highlight-dom.ts` 的 `wrapTextNode` 改用 `annotation-core/markers.wrapRange`，统一 `surroundContents` fallback；`removeHighlight` 改用 `unwrapMarker`，并在 unwrap 前移除 `.ann-highlight-tooltip` 子节点防止 tooltip 文本泄漏到正文。
+- `wrapTextNode` 在 wrap 前调用 `shouldSkipElement(parent, 'manual-highlight')`：跳过 contenteditable 区域、扩展 UI 与已存在的 `data-highlight-id` / `data-ann-vocab` 容器，避免嵌套 marker。
+- `findTextRangeInElement(element, target, context, { intent })` 接受可选 `intent`；`collectTextNodes(element, { intent })` 在 TreeWalker 阶段过滤。
+- `highlight/service.ts` 的 `findTextRangeSync` 三级 fallback（platform rule container → selector → document.body）全部以 `intent: 'manual-highlight'` 调用 `findTextRangeInElement`，使 `dom-policy` 在生产路径生效。
+- `manual-highlight` 与 `auto-vocab` 两个 intent 在 `entrypoints/content/` 内均有真实调用方，policy 不再是 dead code。
+- 新增 `entrypoints/content/highlight/__tests__/wrap-integration.test.ts` 覆盖 wrapRange 接入、unwrap tooltip 防泄漏、contenteditable 跳过、嵌套 marker 跳过、idempotent remove。
+- 扩展 `annotation-core/__tests__/text-range.test.ts`，覆盖 intent 在文本节点收集与查找路径上的过滤行为。
+
+### 文档/代码同步标准
+
+- 每完成一个 phase，要更新本文档对应完成状态或新增实现记录。
+- 如果新增站点 rule，要在本文档或站点 rule 注释中写明可标注 block、permalink 来源、跳过策略差异。
+- 如果改变公开数据契约，必须同步更新 `types/highlight.ts`、`types/vocabulary.ts` 或对应消息协议文档；默认不改变契约。
+- 命名漂移（如 `cleanupAnnotations` → `destroyVocabLabel`）必须在本文档勘误。
+- 与 `AGENTS.md`、`CLAUDE.md` 的"文档同步（强制）"约束一致：代码与文档必须同 PR 落地。
+
+## 10. 建议实施任务拆分
+
+### PR 1：平台规则统一（已完成）
+
+范围：
+
+- 新增 `annotation-core/types.ts`。
+- 新增 `annotation-core/platform-rules.ts`。
+- 迁移 X/Twitter permalink、tweet container、tweet text block 收集。
+- 保留 `vocab-label/platform-rules.ts` 作为兼容 facade。
+- 调整 `highlight-dom.ts` 的 `findSourceUrl()` / `findSourceContainer()` 调用。
+
+不做：
+
+- 不重写 DOM marker。
+- 不调整 LLM、生词过滤、欧路同步。
+- 不改变 `HighlightRecord` 或 `ClipRecord`。
+
+### PR 2：DOM policy 统一（已完成）
+
+范围：
+
+- 新增共享 `AnnotationIntent`。
+- 迁移 `shouldSkipElement()`、`shouldSkipTextNode()`、`isWithinVocabMarker()` 的通用部分。
+- 增加 `isWithinAnnotationMarker()`，同时识别 vocab marker 和 highlight marker。
+- 让 `vocab-label/annotate.ts`、`content-scope.ts`、`index.ts` 通过 core policy 工作。
+- 为高亮文本搜索准备 `manual-highlight` policy（Phase 4 完成接入）。
+
+### PR 3：text range 和 marker helper（已完成）
+
+范围：
+
+- 抽出共享 text node 收集、文本索引转 Range、上下文生成。
+- 抽出 marker wrap/unwrap/cleanup，但保留高亮和生词自己的 marker config。
+- 高亮恢复使用 `findTextRangeInElement()`。
+- 生词标注使用 `wrapRange()` 替代局部 DOM mutation helper。
+
+### PR 4：高亮创建路径接入共享 marker + 激活 manual-highlight intent（已完成 — 2026-06-01）
+
+范围：
+
+- `highlight-dom.ts` `wrapTextNode` 改用 `wrapRange`；`removeHighlight` 改用 `unwrapMarker`（先清理 tooltip）。
+- 调用 `shouldSkipElement(parent, 'manual-highlight')` 防止嵌套到 contenteditable / 已有 annotation marker。
+- `findTextRangeInElement` 与 `collectTextNodes` 接受 `intent`，`highlight/service.ts` 三级 fallback 全程传 `'manual-highlight'`。
+- 新增 `wrap-integration.test.ts`；扩展 `text-range.test.ts` 覆盖 intent 过滤。
+
+验收命令：
+
+```bash
+npx vitest run entrypoints/content/annotation-core/__tests__/text-range.test.ts
+npx vitest run entrypoints/content/highlight/__tests__/wrap-integration.test.ts
+npx vitest run entrypoints/content/highlight/__tests__/highlight-dom.test.ts
+npm run compile
+npm test
+```
+
+## 11. 风险与控制
+
+### 风险：共享模块过度抽象
+
+控制：
+
+- core 只抽“页面理解”和“DOM 安全工具”，不抽业务状态。
+- 不把高亮存储、生词词库、LLM 释义、UI 状态放进 core。
+- 接口优先围绕当前调用方需要设计，避免提前支持不存在的平台能力。
+
+### 风险：自动生词变得过于激进
+
+控制：
+
+- `auto-vocab` 默认沿用现有保守策略。
+- quoted tweet 是明确例外：允许 `role="link"` 内的 `[data-testid="tweetText"]`，但不放开全部 link/card 文本。
+- 新增站点 rule 时必须说明哪些区域允许自动标注，哪些区域仍跳过。
+
+### 风险：手动高亮被自动标注策略误伤
+
+控制：
+
+- `manual-highlight` 与 `auto-vocab` 分 intent。
+- 手动高亮不使用短 UI label、CEFR、链接文本等自动标注过滤。
+- 高亮恢复 fallback 到正文搜索时，只避开扩展自身 UI、已有 marker 和明显不可见区域。
+
+### 风险：SPA MutationObserver 自触发
+
+控制：
+
+- core marker helper 统一提供 `isWithinAnnotationMarker()`。
+- 生词增量扫描在 mutation target、addedNodes 和 rescan container 阶段都跳过 marker。
+- marker wrap/cleanup 单测覆盖重复执行不会重复包裹。
+
+### 风险：详情页恢复落错内容
+
+控制：
+
+- `findContainerBySourceUrl()` 必须优先使用平台 rule 的 permalink 反查。
+- 文本相同但 sourceUrl 不同的场景，用 source container 缩小搜索范围。
+- source container 不存在时才 fallback 到 `document.body`。
+
+## 12. 首个重构 PR 推荐形态
+
+首个 PR 建议只做 Phase 1，目标是先消除 X/Twitter 规则漂移。该 PR 的 diff 应该主要集中在：
+
+```text
+entrypoints/content/annotation-core/
+entrypoints/content/highlight/highlight-dom.ts
+entrypoints/content/vocab-label/platform-rules.ts
+entrypoints/content/vocab-label/content-scope.ts
+entrypoints/content/vocab-label/index.ts
+```
+
+推荐提交顺序：
+
+1. 添加 core types 和 X platform rule，不接调用方。
+2. 添加 core platform 单测，覆盖普通 tweet 和 quoted tweet。
+3. 将 vocab platform facade 改为调用 core。
+4. 将 highlight sourceUrl/sourceContainer 改为调用 core。
+5. 跑完整阶段验收命令，必要时补调用方回归测试。
+
+首个 PR 不应包含：
+
+- 大规模格式化。
+- UI 文案调整。
+- 设置页、后台服务、LLM 或欧路同步改动。
+- 数据迁移。
+- 与 annotation core 无关的性能优化。
+
+## 13. Assumptions
 
 - 文档新增到 `docs/annotation-architecture-refactor.md`。
-- 本次只落文档和重构计划，不直接执行代码重构。
-- 后续重构优先解决 X 平台规则漂移，再抽通用 DOM / text utilities。
+- 本轮已按该计划完成 annotation core 主体重构。
+- 后续新增站点时优先扩展 `annotation-core/platform-rules.ts`。
 - 保持高亮和生词标注的产品语义分离：共享底层页面理解，不合并业务逻辑。
+- 目前已有的 quoted tweet 生词标注测试可以作为 Phase 1 的回归基线，本轮新增了 core 层 quoted tweet sourceUrl/sourceContainer 覆盖。
+- 若后续发现其它站点规则与 X 差异过大，先扩展 `AnnotationPlatformRule`，不要在调用方重新写站点特例。
