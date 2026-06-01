@@ -109,6 +109,7 @@ annhub/
 ### 安装 fnm (可选但推荐)
 
 **macOS / Linux:**
+
 ```bash
 # 使用 Homebrew
 brew install fnm
@@ -118,6 +119,7 @@ curl -fsSL https://fnm.vercel.app/install | bash
 ```
 
 **Windows:**
+
 ```bash
 # 使用 Scoop
 scoop install fnm
@@ -136,23 +138,27 @@ eval "$(fnm env --use-on-cd)"
 ### 初始化项目
 
 1. **克隆仓库**
+
    ```bash
    git clone <repository-url>
    cd annhub
    ```
 
 2. **使用 fnm 安装 Node.js 24** (如果使用 fnm)
+
    ```bash
    fnm use
    # fnm 会自动读取 .node-version 文件并安装/切换到 Node 24
    ```
-   
+
    或手动安装 Node.js 24 并确保版本正确:
+
    ```bash
    node --version  # 应显示 v24.x.x
    ```
 
 3. **安装扩展依赖**
+
    ```bash
    npm install
    ```
@@ -190,6 +196,7 @@ npm run compile
 ```
 
 开发模式启动后:
+
 - Chrome: 访问 `chrome://extensions/`，启用"开发者模式"，加载 `.output/chrome-mv3` 目录
 - Firefox: 访问 `about:debugging#/runtime/this-firefox`，加载临时扩展
 
@@ -206,6 +213,7 @@ npx playwright test
 ```
 
 当前单测覆盖以下核心能力：
+
 - 高亮 DOM 操作与 selector 生成
 - LLM endpoint 拼接与请求格式
 - Vocabulary 配置 merge 策略
@@ -235,15 +243,18 @@ npm run website:start
 ## 构建产物
 
 ### 扩展
+
 - 开发构建: `.output/chrome-mv3/` 或 `.output/firefox-mv3/`
 - 生产 zip: `.output/*.zip`
 
 ### 文档网站
+
 - 构建输出: `website/.next/`
 
 ## 技术栈
 
 ### 扩展
+
 - **框架**: [WXT](https://wxt.dev/) - 下一代 Web 扩展框架
 - **UI**: React 19 + TypeScript
 - **样式**: TailwindCSS 3
@@ -256,6 +267,7 @@ npm run website:start
 - **工具库**: fabric.js, html2canvas, nanoid 等
 
 ### 文档网站
+
 - **框架**: Next.js 13 (App Router + Pages Router)
 - **UI**: React 18 + TypeScript
 - **样式**: TailwindCSS 3 + Emotion

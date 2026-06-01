@@ -3,7 +3,6 @@ import { CommandHandler } from './command-handler'
 import { InstallationHandler } from './installation-handler'
 import { RuntimeHandler } from './runtime-handler'
 
-
 export class EventHandlerManager {
   private static instance: EventHandlerManager
   private commandHandler: CommandHandler
@@ -24,7 +23,6 @@ export class EventHandlerManager {
     return EventHandlerManager.instance
   }
 
-
   registerEventListeners(): void {
     if (this.listenersRegistered) {
       Logger.info('[EventHandlerManager] Event listeners already registered, skipping...')
@@ -34,15 +32,11 @@ export class EventHandlerManager {
     try {
       Logger.info('[EventHandlerManager] Registering event listeners...')
 
-
       this.runtimeHandler.registerListeners()
-
 
       this.commandHandler.registerListeners()
 
-
       this.installationHandler.registerListeners()
-
 
       this.registerGlobalErrorHandlers()
 
@@ -54,10 +48,8 @@ export class EventHandlerManager {
     }
   }
 
-
   private registerGlobalErrorHandlers(): void {
-
-    browser.runtime.onConnect.addListener((port) => {
+    browser.runtime.onConnect.addListener(port => {
       port.onDisconnect.addListener(() => {
         if (browser.runtime.lastError) {
           Logger.error('[EventHandlerManager] Port disconnected with error:', browser.runtime.lastError)
@@ -65,19 +57,16 @@ export class EventHandlerManager {
       })
     })
 
-
-    self.addEventListener('error', (event) => {
+    self.addEventListener('error', event => {
       Logger.error('[EventHandlerManager] Global error:', event.error)
     })
 
-
-    self.addEventListener('unhandledrejection', (event) => {
+    self.addEventListener('unhandledrejection', event => {
       Logger.error('[EventHandlerManager] Unhandled promise rejection:', event.reason)
     })
 
     Logger.info('[EventHandlerManager] Global error handlers registered')
   }
-
 
   removeEventListeners(): void {
     if (!this.listenersRegistered) {
@@ -86,7 +75,6 @@ export class EventHandlerManager {
 
     try {
       Logger.info('[EventHandlerManager] Removing event listeners...')
-
 
       this.runtimeHandler.removeListeners()
       this.commandHandler.removeListeners()

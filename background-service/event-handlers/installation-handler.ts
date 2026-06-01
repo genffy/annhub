@@ -1,7 +1,6 @@
 import { Logger } from '../../utils/logger'
 import { ServiceContext } from '../service-context'
 
-
 export class InstallationHandler {
   private serviceContext: ServiceContext
   private installedListener?: (details: chrome.runtime.InstalledDetails) => void
@@ -9,7 +8,6 @@ export class InstallationHandler {
   constructor() {
     this.serviceContext = ServiceContext.getInstance()
   }
-
 
   registerListeners(): void {
     Logger.info('[InstallationHandler] Registering installation listeners...')
@@ -54,16 +52,10 @@ export class InstallationHandler {
     Logger.info('[InstallationHandler] Installation listeners registered successfully')
   }
 
-
   private async handleFirstInstallation(): Promise<void> {
     Logger.info('[InstallationHandler] Handling first installation setup...')
 
     try {
-
-
-
-
-
       // await browser.runtime.openOptionsPage()
 
       Logger.info('[InstallationHandler] First installation setup completed successfully')
@@ -72,7 +64,6 @@ export class InstallationHandler {
       throw error
     }
   }
-
 
   private async handleVersionUpdate(previousVersion?: string): Promise<void> {
     if (!previousVersion) {
@@ -83,16 +74,10 @@ export class InstallationHandler {
     Logger.info(`[InstallationHandler] Updating from version ${previousVersion} to current version`)
 
     try {
-
-
-
-
       if (previousVersion.startsWith('1.')) {
         Logger.info('[InstallationHandler] Performing migration from version 1.x to 2.x')
         await this.migrateFromV1ToV2()
       }
-
-
 
       Logger.info('[InstallationHandler] Version update migration completed successfully')
     } catch (error) {
@@ -101,12 +86,10 @@ export class InstallationHandler {
     }
   }
 
-
   private async migrateFromV1ToV2(): Promise<void> {
     Logger.info('[InstallationHandler] Starting V1 to V2 migration...')
     Logger.info('[InstallationHandler] V1 to V2 migration completed (no-op)')
   }
-
 
   removeListeners(): void {
     Logger.info('[InstallationHandler] Removing installation listeners...')
@@ -118,4 +101,4 @@ export class InstallationHandler {
 
     Logger.info('[InstallationHandler] Installation listeners removed successfully')
   }
-} 
+}

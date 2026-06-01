@@ -35,8 +35,7 @@ function contentDensity(el: Element): number {
   const length = textLength(el)
   if (length === 0) return 0
 
-  const linksLength = Array.from(el.querySelectorAll('a'))
-    .reduce((sum, link) => sum + normalizeText(link.textContent || '').length, 0)
+  const linksLength = Array.from(el.querySelectorAll('a')).reduce((sum, link) => sum + normalizeText(link.textContent || '').length, 0)
   const interactiveCount = el.querySelectorAll('button, [role="button"], input, select, textarea').length
   const blockCount = Math.max(1, Array.from(el.children).filter(child => isBlockLikeElement(child)).length)
 

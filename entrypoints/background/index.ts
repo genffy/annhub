@@ -28,7 +28,7 @@ export default defineBackground(() => {
   initializeServices()
 
   // Handle keyboard shortcut commands
-  chrome.commands.onCommand.addListener((command) => {
+  chrome.commands.onCommand.addListener(command => {
     if (command === 'toggle-highlighter') {
       sendToActiveTab({ type: 'TOGGLE_HIGHLIGHTER_MODE' })
     }

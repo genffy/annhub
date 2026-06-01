@@ -30,10 +30,7 @@ describe('vocab platform rules', () => {
 
     expect(blocks).toHaveLength(2)
     expect(blocks.every(block => block.getAttribute('data-testid') === 'tweetText')).toBe(true)
-    expect(blocks.map(block => block.textContent)).toEqual([
-      'Ubiquitous article content.',
-      'Quoted phenomenon appears here.',
-    ])
+    expect(blocks.map(block => block.textContent)).toEqual(['Ubiquitous article content.', 'Quoted phenomenon appears here.'])
   })
 
   it('finds the nearest tweet text block from a nested mutation target', () => {

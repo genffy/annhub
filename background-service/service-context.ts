@@ -1,168 +1,152 @@
 import { Logger } from '../utils/logger'
 
-
 export enum ServiceStatus {
-    IDLE = 'idle',
-    INITIALIZING = 'initializing',
-    READY = 'ready',
-    ERROR = 'error',
-    RESTARTING = 'restarting'
+  IDLE = 'idle',
+  INITIALIZING = 'initializing',
+  READY = 'ready',
+  ERROR = 'error',
+  RESTARTING = 'restarting',
 }
-
 
 export type SupportedServices = 'config' | 'highlight' | 'clip' | 'logseq' | 'vocabulary'
 
-
 export interface IServiceContext {
-    status: ServiceStatus
-    initialized: boolean
-    error: Error | null
-    initStartTime: number | null
-    initEndTime: number | null
-    version: string
-    startupTime: number
-    services: Record<SupportedServices, boolean>
+  status: ServiceStatus
+  initialized: boolean
+  error: Error | null
+  initStartTime: number | null
+  initEndTime: number | null
+  version: string
+  startupTime: number
+  services: Record<SupportedServices, boolean>
 }
 
-
 export class ServiceContext {
-    private static instance: ServiceContext
-    private context: IServiceContext
-    private registeredServices: Set<SupportedServices> = new Set()
+  private static instance: ServiceContext
+  private context: IServiceContext
+  private registeredServices: Set<SupportedServices> = new Set()
 
-    private constructor() {
-        this.context = {
-            status: ServiceStatus.IDLE,
-            initialized: false,
-            error: null,
-            initStartTime: null,
-            initEndTime: null,
-            version: '0.1.0',
-            startupTime: Date.now(),
-            services: {
-                config: false,
-                highlight: false,
-                clip: false,
-                logseq: false,
-                vocabulary: false
-            }
-        }
+  private constructor() {
+    this.context = {
+      status: ServiceStatus.IDLE,
+      initialized: false,
+      error: null,
+      initStartTime: null,
+      initEndTime: null,
+      version: '0.1.0',
+      startupTime: Date.now(),
+      services: {
+        config: false,
+        highlight: false,
+        clip: false,
+        logseq: false,
+        vocabulary: false,
+      },
     }
+  }
 
-    static getInstance(): ServiceContext {
-        if (!ServiceContext.instance) {
-            ServiceContext.instance = new ServiceContext()
-        }
-        return ServiceContext.instance
+  static getInstance(): ServiceContext {
+    if (!ServiceContext.instance) {
+      ServiceContext.instance = new ServiceContext()
     }
+    return ServiceContext.instance
+  }
 
-    registerServiceSlot(name: SupportedServices): void {
-        this.registeredServices.add(name)
+  registerServiceSlot(name: SupportedServices): void {
+    this.registeredServices.add(name)
+  }
+
+  startInitialization(): void {
+    Logger.info('[ServiceContext] Starting service initialization')
+    this.context.status = ServiceStatus.INITIALIZING
+    this.context.initialized = false
+    this.context.error = null
+    this.context.initStartTime = Date.now()
+    this.context.initEndTime = null
+
+    for (const name of this.registeredServices) {
+      this.context.services[name] = false
     }
+  }
 
-    startInitialization(): void {
-        Logger.info('[ServiceContext] Starting service initialization')
-        this.context.status = ServiceStatus.INITIALIZING
-        this.context.initialized = false
-        this.context.error = null
-        this.context.initStartTime = Date.now()
-        this.context.initEndTime = null
+  markServiceInitialized(serviceName: SupportedServices): void {
+    this.context.services[serviceName] = true
+    Logger.info(`[ServiceContext] Service ${serviceName} initialized`)
 
-        for (const name of this.registeredServices) {
-            this.context.services[name] = false
-        }
+    const allServicesReady = Array.from(this.registeredServices).every(name => this.context.services[name])
+    if (allServicesReady && this.registeredServices.size > 0 && this.context.status === ServiceStatus.INITIALIZING) {
+      this.markInitializationComplete()
     }
+  }
 
+  private markInitializationComplete(): void {
+    this.context.status = ServiceStatus.READY
+    this.context.initialized = true
+    this.context.initEndTime = Date.now()
+    this.context.error = null
 
-    markServiceInitialized(serviceName: SupportedServices): void {
-        this.context.services[serviceName] = true
-        Logger.info(`[ServiceContext] Service ${serviceName} initialized`)
+    const initDuration = this.context.initEndTime! - this.context.initStartTime!
+    Logger.info(`[ServiceContext] All services initialized successfully in ${initDuration}ms`)
+  }
 
-        const allServicesReady = Array.from(this.registeredServices).every(
-            name => this.context.services[name]
-        )
-        if (allServicesReady && this.registeredServices.size > 0 && this.context.status === ServiceStatus.INITIALIZING) {
-            this.markInitializationComplete()
-        }
+  markInitializationFailed(error: Error): void {
+    Logger.error('[ServiceContext] Service initialization failed:', error)
+    this.context.status = ServiceStatus.ERROR
+    this.context.initialized = false
+    this.context.error = error
+    this.context.initEndTime = Date.now()
+  }
+
+  startRestart(): void {
+    Logger.info('[ServiceContext] Starting service restart')
+    this.context.status = ServiceStatus.RESTARTING
+    this.context.error = null
+
+    for (const name of this.registeredServices) {
+      this.context.services[name] = false
     }
+  }
 
+  getStatus(): IServiceContext {
+    return { ...this.context }
+  }
 
-    private markInitializationComplete(): void {
-        this.context.status = ServiceStatus.READY
-        this.context.initialized = true
-        this.context.initEndTime = Date.now()
-        this.context.error = null
+  getDetailedStatus() {
+    const now = Date.now()
+    const uptime = now - this.context.startupTime
+    const initDuration = this.context.initEndTime && this.context.initStartTime ? this.context.initEndTime - this.context.initStartTime : null
 
-        const initDuration = this.context.initEndTime! - this.context.initStartTime!
-        Logger.info(`[ServiceContext] All services initialized successfully in ${initDuration}ms`)
+    return {
+      status: this.context.status,
+      initialized: this.context.initialized,
+      version: this.context.version,
+      uptime,
+      startupTime: this.context.startupTime,
+      initDuration,
+      services: { ...this.context.services },
+      error: this.context.error
+        ? {
+            name: this.context.error.name,
+            message: this.context.error.message,
+          }
+        : null,
+      timestamp: now,
     }
+  }
 
+  isReady(): boolean {
+    return this.context.status === ServiceStatus.READY && this.context.initialized
+  }
 
-    markInitializationFailed(error: Error): void {
-        Logger.error('[ServiceContext] Service initialization failed:', error)
-        this.context.status = ServiceStatus.ERROR
-        this.context.initialized = false
-        this.context.error = error
-        this.context.initEndTime = Date.now()
-    }
+  isInitializing(): boolean {
+    return this.context.status === ServiceStatus.INITIALIZING
+  }
 
+  hasError(): boolean {
+    return this.context.status === ServiceStatus.ERROR
+  }
 
-    startRestart(): void {
-        Logger.info('[ServiceContext] Starting service restart')
-        this.context.status = ServiceStatus.RESTARTING
-        this.context.error = null
-
-        for (const name of this.registeredServices) {
-            this.context.services[name] = false
-        }
-    }
-
-
-    getStatus(): IServiceContext {
-        return { ...this.context }
-    }
-
-
-    getDetailedStatus() {
-        const now = Date.now()
-        const uptime = now - this.context.startupTime
-        const initDuration = this.context.initEndTime && this.context.initStartTime
-            ? this.context.initEndTime - this.context.initStartTime
-            : null
-
-        return {
-            status: this.context.status,
-            initialized: this.context.initialized,
-            version: this.context.version,
-            uptime,
-            startupTime: this.context.startupTime,
-            initDuration,
-            services: { ...this.context.services },
-            error: this.context.error ? {
-                name: this.context.error.name,
-                message: this.context.error.message
-            } : null,
-            timestamp: now
-        }
-    }
-
-
-    isReady(): boolean {
-        return this.context.status === ServiceStatus.READY && this.context.initialized
-    }
-
-
-    isInitializing(): boolean {
-        return this.context.status === ServiceStatus.INITIALIZING
-    }
-
-
-    hasError(): boolean {
-        return this.context.status === ServiceStatus.ERROR
-    }
-
-
-    getError(): Error | null {
-        return this.context.error
-    }
+  getError(): Error | null {
+    return this.context.error
+  }
 }

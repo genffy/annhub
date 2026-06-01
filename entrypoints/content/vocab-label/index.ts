@@ -183,7 +183,6 @@ function setupFeedbackMenuListeners(): void {
   document.addEventListener('contextmenu', onContextMenu)
   document.addEventListener('click', onClick, true)
   document.addEventListener('keydown', onKeyDown)
-
   ;(setupFeedbackMenuListeners as any)._cleanup = () => {
     document.removeEventListener('contextmenu', onContextMenu)
     document.removeEventListener('click', onClick, true)
@@ -322,7 +321,8 @@ function collectBlocksFromNode(node: Node): Element[] {
   if (activePlatformRule) {
     const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node instanceof Element ? node : null
     if (!element || !activeContentRoot.contains(element)) return []
-    return activePlatformRule.collectBlocks(element)
+    return activePlatformRule
+      .collectBlocks(element)
       .filter(block => activeContentRoot?.contains(block))
       .filter(block => !isExcludedSection(block))
   }

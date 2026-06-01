@@ -3,13 +3,7 @@ import type { AnnotationIntent } from './types'
 const VOCAB_MARKER_ATTR = 'data-ann-vocab'
 const HIGHLIGHT_MARKER_ATTR = 'data-highlight-id'
 
-const HIDDEN_SELECTOR = [
-  '[hidden]',
-  '[aria-hidden="true"]',
-  '.sr-only',
-  '.visually-hidden',
-  '[class*="sr-only"]',
-].join(',')
+const HIDDEN_SELECTOR = ['[hidden]', '[aria-hidden="true"]', '.sr-only', '.visually-hidden', '[class*="sr-only"]'].join(',')
 
 const INTERACTIVE_TEXT_SELECTOR = [
   'a[href]',
@@ -66,16 +60,7 @@ const COMMON_SKIP_SELECTOR = [
   `[${HIGHLIGHT_MARKER_ATTR}]`,
 ].join(',')
 
-const AUTO_VOCAB_SKIP_SELECTOR = [
-  COMMON_SKIP_SELECTOR,
-  'code',
-  'pre',
-  'kbd',
-  'samp',
-  'var',
-  '[translate="no"]',
-  '.notranslate',
-].join(',')
+const AUTO_VOCAB_SKIP_SELECTOR = [COMMON_SKIP_SELECTOR, 'code', 'pre', 'kbd', 'samp', 'var', '[translate="no"]', '.notranslate'].join(',')
 
 const X_TWEET_TEXT_SELECTOR = '[data-testid="tweetText"]'
 
@@ -202,12 +187,12 @@ export function isVocabMarkerElement(node: Node | null): node is Element {
 }
 
 export function isWithinVocabMarker(node: Node | null): boolean {
-  const element = node instanceof Element ? node : node?.parentElement ?? null
+  const element = node instanceof Element ? node : (node?.parentElement ?? null)
   return Boolean(element?.closest(`[${VOCAB_MARKER_ATTR}]`))
 }
 
 export function isWithinAnnotationMarker(node: Node | null): boolean {
-  const element = node instanceof Element ? node : node?.parentElement ?? null
+  const element = node instanceof Element ? node : (node?.parentElement ?? null)
   return Boolean(element?.closest(`[${VOCAB_MARKER_ATTR}], [${HIGHLIGHT_MARKER_ATTR}]`))
 }
 
@@ -225,11 +210,7 @@ export function shouldSkipElement(el: Element, intent: AnnotationIntent = 'auto-
 
   const interactive = el.closest(INTERACTIVE_TEXT_SELECTOR)
   if (interactive) {
-    const isXQuotedTweetText = Boolean(
-      el.closest(X_TWEET_TEXT_SELECTOR) &&
-      interactive.getAttribute('role') === 'link' &&
-      !el.closest('a[href]'),
-    )
+    const isXQuotedTweetText = Boolean(el.closest(X_TWEET_TEXT_SELECTOR) && interactive.getAttribute('role') === 'link' && !el.closest('a[href]'))
     if (!isXQuotedTweetText) return true
   }
 
@@ -237,12 +218,7 @@ export function shouldSkipElement(el: Element, intent: AnnotationIntent = 'auto-
   return false
 }
 
-export function shouldSkipTextNode(
-  node: Node,
-  contentRoot?: Element,
-  restrictToFeedArticles = false,
-  intent: AnnotationIntent = 'auto-vocab',
-): boolean {
+export function shouldSkipTextNode(node: Node, contentRoot?: Element, restrictToFeedArticles = false, intent: AnnotationIntent = 'auto-vocab'): boolean {
   if (!node.parentElement) return true
 
   const el = node.parentElement
@@ -291,11 +267,7 @@ export function isBlockLikeElement(el: Element): boolean {
   return isBlock
 }
 
-export function findNearestRescanContainer(
-  startNode: Node,
-  contentRoot: Element,
-  intent: AnnotationIntent = 'auto-vocab',
-): Element | null {
+export function findNearestRescanContainer(startNode: Node, contentRoot: Element, intent: AnnotationIntent = 'auto-vocab'): Element | null {
   const startElement = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode instanceof Element ? startNode : null
   if (!startElement || !contentRoot.contains(startElement) || shouldSkipElement(startElement, intent)) return null
 
@@ -311,10 +283,6 @@ export function findNearestRescanContainer(
   return contentRoot.contains(startElement) ? contentRoot : null
 }
 
-export function findNearestAnnotatableBlock(
-  startNode: Node,
-  contentRoot: Element,
-  intent: AnnotationIntent = 'auto-vocab',
-): Element | null {
+export function findNearestAnnotatableBlock(startNode: Node, contentRoot: Element, intent: AnnotationIntent = 'auto-vocab'): Element | null {
   return findNearestRescanContainer(startNode, contentRoot, intent)
 }

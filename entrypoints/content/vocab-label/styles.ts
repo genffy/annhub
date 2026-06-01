@@ -1,11 +1,11 @@
 const STYLE_ID = 'ann-vocab-label-styles'
 
 export function injectVocabStyles(): void {
-    if (document.getElementById(STYLE_ID)) return
+  if (document.getElementById(STYLE_ID)) return
 
-    const style = document.createElement('style')
-    style.id = STYLE_ID
-    style.textContent = `
+  const style = document.createElement('style')
+  style.id = STYLE_ID
+  style.textContent = `
         ruby.ann-vocab-ruby {
             ruby-position: over;
         }
@@ -50,9 +50,9 @@ export function injectVocabStyles(): void {
             background: #f0f0f0;
         }
     `
-    document.head.appendChild(style)
+  document.head.appendChild(style)
 }
 
 export function removeVocabStyles(): void {
-    document.getElementById(STYLE_ID)?.remove()
+  document.getElementById(STYLE_ID)?.remove()
 }

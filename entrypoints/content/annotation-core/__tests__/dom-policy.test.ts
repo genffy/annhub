@@ -1,11 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import {
-  findNearestAnnotatableBlock,
-  isAnnotatableTextNode,
-  isWithinAnnotationMarker,
-  shouldSkipElement,
-  shouldSkipTextNode,
-} from '../dom-policy'
+import { findNearestAnnotatableBlock, isAnnotatableTextNode, isWithinAnnotationMarker, shouldSkipElement, shouldSkipTextNode } from '../dom-policy'
 
 function setupDOM(html: string): void {
   document.body.innerHTML = html

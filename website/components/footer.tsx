@@ -6,10 +6,10 @@ export default function Footer() {
     <div className="min-h-[60px] bg-[#1D2B3A] relative z-20 w-full flex flex-row items-center justify-evenly">
       <Container>
         <div className="my-4 flex flex-col items-center justify-center gap-2 text-sm text-slate-300 sm:flex-row sm:gap-4">
-          <span>
-            Copyright © {new Date().getFullYear()}. Made with ♥
-          </span>
-          <a className="text-slate-100 hover:text-white" href="https://annhub.org/" target="_blank" rel="noopener">AnnHub.</a>{' '}
+          <span>Copyright © {new Date().getFullYear()}. Made with ♥</span>
+          <a className="text-slate-100 hover:text-white" href="https://annhub.org/" target="_blank" rel="noopener">
+            AnnHub.
+          </a>{' '}
           <span className="hidden text-slate-500 sm:inline">|</span>
           <a className="text-slate-100 hover:text-white" href="https://annhub.org/privacy-policy.html">
             Privacy Policy

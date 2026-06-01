@@ -1,7 +1,6 @@
 import { Logger } from '../../utils/logger'
 import { ServiceContext } from '../service-context'
 
-
 export class RuntimeHandler {
   private serviceContext: ServiceContext
   private pingListener?: (message: any, sender: chrome.runtime.MessageSender, sendResponse: (response: any) => void) => boolean
@@ -11,7 +10,6 @@ export class RuntimeHandler {
     this.serviceContext = ServiceContext.getInstance()
   }
 
-
   registerListeners(): void {
     Logger.info('[RuntimeHandler] Registering runtime listeners...')
 
@@ -20,7 +18,7 @@ export class RuntimeHandler {
         Logger.info('[RuntimeHandler] Received PING, service worker is active')
         sendResponse({
           success: true,
-          ...this.serviceContext.getDetailedStatus()
+          ...this.serviceContext.getDetailedStatus(),
         })
         return true
       }
@@ -28,7 +26,6 @@ export class RuntimeHandler {
       return false
     }
     browser.runtime.onMessage.addListener(this.pingListener)
-
 
     this.startupListener = async () => {
       try {
@@ -52,7 +49,6 @@ export class RuntimeHandler {
 
     Logger.info('[RuntimeHandler] Runtime listeners registered successfully')
   }
-
 
   removeListeners(): void {
     Logger.info('[RuntimeHandler] Removing runtime listeners...')
