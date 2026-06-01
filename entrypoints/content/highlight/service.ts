@@ -7,340 +7,317 @@ import { generateId, hash } from '../../../utils/helpers'
 import { MixedSelectionContent } from '../../../types/dom'
 import { findTextRangeInElement } from '../annotation-core/text-range'
 
-
 export class HighlightService {
-    private static instance: HighlightService | null = null
-    private domManager: HighlightDOMManager
-    private isInitialized = false
+  private static instance: HighlightService | null = null
+  private domManager: HighlightDOMManager
+  private isInitialized = false
 
-    private constructor() {
-        this.domManager = HighlightDOMManager.getInstance()
-        this.initializeEventListeners()
+  private constructor() {
+    this.domManager = HighlightDOMManager.getInstance()
+    this.initializeEventListeners()
+  }
+
+  static getInstance(): HighlightService {
+    if (!HighlightService.instance) {
+      HighlightService.instance = new HighlightService()
     }
+    return HighlightService.instance
+  }
 
-    static getInstance(): HighlightService {
-        if (!HighlightService.instance) {
-            HighlightService.instance = new HighlightService()
-        }
-        return HighlightService.instance
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return
+
+    try {
+      // await this.storage.initialize()
+
+      await this.restorePageHighlights()
+
+      this.isInitialized = true
+      Logger.info('[HighlightService] Initialized successfully')
+    } catch (error) {
+      Logger.error('[HighlightService] Failed to initialize:', error)
+      throw error
     }
+  }
 
-    async initialize(): Promise<void> {
-        if (this.isInitialized) return
+  private initializeEventListeners(): void {
+    window.addEventListener('ann-highlight-color-updated', async (event: Event) => {
+      const customEvent = event as CustomEvent
+      const { highlightId, newColor } = customEvent.detail
+      await this.updateHighlightColor(highlightId, newColor)
+    })
 
-        try {
+    window.addEventListener('ann-highlight-deleted', async (event: Event) => {
+      const customEvent = event as CustomEvent
+      const { highlightId } = customEvent.detail
+      await this.deleteHighlight(highlightId)
+    })
+  }
 
-            // await this.storage.initialize()
+  async createHighlight(range: Range, color: string = '#ffeb3b', userNote?: string): Promise<HighlightResult> {
+    try {
+      const text = range.toString().trim()
+      if (!text) {
+        return { success: false, error: 'No text selected' }
+      }
+      const rect = range.getBoundingClientRect()
+      const textHash = hash(text)
+      const selector = HighlightDOMManager.generateSelector(range)
+      const context = HighlightDOMManager.getTextContext(range)
+      const sourceUrl = HighlightDOMManager.findSourceUrl(range)
 
+      const highlight: HighlightRecord = {
+        id: generateId(),
+        url: window.location.href,
+        domain: window.location.hostname,
+        selector,
+        originalText: text,
+        textHash,
+        color,
+        timestamp: Date.now(),
+        lastModified: Date.now(),
+        position: {
+          x: rect.left,
+          y: rect.top,
+          width: rect.width,
+          height: rect.height,
+        },
+        context,
+        status: 'active',
+        user_note: userNote || undefined,
+        metadata: {
+          pageTitle: document.title,
+          pageUrl: window.location.href,
+          sourceUrl: sourceUrl || undefined,
+        },
+      }
 
-            await this.restorePageHighlights()
+      const saveResult = await MessageUtils.sendMessage({
+        type: 'SAVE_HIGHLIGHT',
+        data: highlight,
+      })
+      if (!saveResult.success) {
+        return saveResult
+      }
 
-            this.isInitialized = true
-            Logger.info('[HighlightService] Initialized successfully')
-        } catch (error) {
-            Logger.error('[HighlightService] Failed to initialize:', error)
-            throw error
-        }
-    }
-
-
-    private initializeEventListeners(): void {
-
-        window.addEventListener('ann-highlight-color-updated', async (event: Event) => {
-            const customEvent = event as CustomEvent
-            const { highlightId, newColor } = customEvent.detail
-            await this.updateHighlightColor(highlightId, newColor)
-        })
-
-
-        window.addEventListener('ann-highlight-deleted', async (event: Event) => {
-            const customEvent = event as CustomEvent
-            const { highlightId } = customEvent.detail
-            await this.deleteHighlight(highlightId)
-        })
-    }
-
-
-    async createHighlight(range: Range, color: string = '#ffeb3b', userNote?: string): Promise<HighlightResult> {
-        try {
-            const text = range.toString().trim()
-            if (!text) {
-                return { success: false, error: 'No text selected' }
-            }
-            const rect = range.getBoundingClientRect()
-            const textHash = hash(text)
-            const selector = HighlightDOMManager.generateSelector(range)
-            const context = HighlightDOMManager.getTextContext(range)
-            const sourceUrl = HighlightDOMManager.findSourceUrl(range)
-
-            const highlight: HighlightRecord = {
-                id: generateId(),
-                url: window.location.href,
-                domain: window.location.hostname,
-                selector,
-                originalText: text,
-                textHash,
-                color,
-                timestamp: Date.now(),
-                lastModified: Date.now(),
-                position: {
-                    x: rect.left,
-                    y: rect.top,
-                    width: rect.width,
-                    height: rect.height
-                },
-                context,
-                status: 'active',
-                user_note: userNote || undefined,
-                metadata: {
-                    pageTitle: document.title,
-                    pageUrl: window.location.href,
-                    sourceUrl: sourceUrl || undefined
-                }
-            }
-
-
-            const saveResult = await MessageUtils.sendMessage({
-                type: 'SAVE_HIGHLIGHT',
-                data: highlight
-            })
-            if (!saveResult.success) {
-                return saveResult
-            }
-
-            const elements = this.domManager.createHighlight(range, color, saveResult.data.id)
-            if (elements.length === 0) {
-
-                // await this.storage.deleteHighlight(saveResult.data.id)
-                await MessageUtils.sendMessage({
-                    type: 'DELETE_HIGHLIGHT',
-                    data: {
-                        id: saveResult.data.id
-                    }
-                })
-                return { success: false, error: 'Failed to create DOM highlight' }
-            }
-
-            Logger.info(`[HighlightService] Created highlight: ${saveResult.data.id}`)
-            return saveResult
-
-        } catch (error) {
-            Logger.error('[HighlightService] Failed to create highlight:', error)
-            return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-        }
-    }
-
-
-    async updateHighlightColor(highlightId: string, newColor: string): Promise<HighlightResult> {
-        try {
-
-            const updateResult = await MessageUtils.sendMessage({
-                type: 'UPDATE_HIGHLIGHT',
-                data: {
-                    id: highlightId,
-                    color: newColor
-                }
-            })
-            if (!updateResult.success) {
-                return updateResult
-            }
-
-
-            this.domManager.updateHighlightColor(highlightId, newColor)
-
-            Logger.info(`[HighlightService] Updated highlight color: ${highlightId} -> ${newColor}`)
-            return updateResult
-
-        } catch (error) {
-            Logger.error('[HighlightService] Failed to update highlight color:', error)
-            return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-        }
-    }
-
-
-    async deleteHighlight(highlightId: string): Promise<HighlightResult> {
-        try {
-
-            this.domManager.removeHighlight(highlightId)
-
-
-            const deleteResult = await MessageUtils.sendMessage({
-                type: 'DELETE_HIGHLIGHT',
-                data: {
-                    id: highlightId
-                }
-            })
-
-            Logger.info(`[HighlightService] Deleted highlight: ${highlightId}`)
-            return deleteResult
-
-        } catch (error) {
-            Logger.error('[HighlightService] Failed to delete highlight:', error)
-            return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
-        }
-    }
-
-
-    async restorePageHighlights(): Promise<void> {
-        try {
-            const highlights = await MessageUtils.sendMessage<HighlightRecord[]>({
-                type: 'GET_CURRENT_PAGE_HIGHLIGHTS',
-                url: window.location.href,
-            })
-            Logger.debug('restorePageHighlights', highlights)
-            if (!highlights.success) {
-                Logger.error('[HighlightService] Failed to get current page highlights:', highlights.error)
-                return
-            }
-            Logger.info(`[HighlightService] Restoring ${highlights.data?.length} highlights`)
-
-            // First pass: try to restore immediately
-            let pending = (highlights.data || []).filter(h => !this.tryRestoreHighlight(h))
-
-            // Retry pending highlights with increasing delays (for SPA dynamic content)
-            const retryDelays = [1000, 2000, 3000]
-            for (let attempt = 0; attempt < retryDelays.length && pending.length > 0; attempt++) {
-                Logger.info(`[HighlightService] ${pending.length} highlights pending, retrying in ${retryDelays[attempt]}ms (attempt ${attempt + 1}/${retryDelays.length})`)
-                await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]))
-                pending = pending.filter(h => !this.tryRestoreHighlight(h))
-            }
-
-            if (pending.length > 0) {
-                Logger.warn(`[HighlightService] Could not restore ${pending.length} highlights after retries:`, pending.map(h => h.id))
-            }
-
-            Logger.info('[HighlightService] Page highlights restored')
-        } catch (error) {
-            Logger.error('[HighlightService] Failed to restore page highlights:', error)
-        }
-    }
-
-
-    /**
-     * Attempt to restore a single highlight. Returns true if successful.
-     */
-    private tryRestoreHighlight(highlight: HighlightRecord): boolean {
-        try {
-            const range = this.findTextRangeSync(highlight)
-            if (!range) {
-                return false
-            }
-            this.domManager.createHighlight(range, highlight.color, highlight.id)
-            Logger.info(`[HighlightService] Restored highlight: ${highlight.id}`)
-            return true
-        } catch (error) {
-            Logger.error(`[HighlightService] Failed to restore highlight ${highlight.id}:`, error)
-            return false
-        }
-    }
-
-
-    /**
-     * Synchronous version of findTextRange — searches in priority order:
-     *   1. Platform-rule source container (for cross-page detail-page restoration)
-     *   2. Stored CSS selector (best-case re-anchor on same page)
-     *   3. document.body fallback (SPA / dynamic content where selector breaks)
-     *
-     * All searches run through annotation-core `findTextRangeInElement` with the
-     * `manual-highlight` intent so extension UI / nested markers / contenteditable
-     * regions are skipped uniformly. See docs/annotation-architecture-refactor.md §11 risk 4.
-     */
-    private findTextRangeSync(highlight: HighlightRecord): Range | null {
-        const { originalText, context, selector } = highlight
-
-        try {
-            const sourceContainer = HighlightDOMManager.findSourceContainer(highlight.metadata?.sourceUrl)
-            if (sourceContainer) {
-                const range = findTextRangeInElement(sourceContainer, originalText, context, { intent: 'manual-highlight' })
-                if (range) return range
-            }
-
-            // Then try selector-scoped search
-            if (selector) {
-                try {
-                    const elements = document.querySelectorAll(selector)
-                    for (const element of Array.from(elements)) {
-                        const range = findTextRangeInElement(element, originalText, context, { intent: 'manual-highlight' })
-                        if (range) return range
-                    }
-                } catch {
-                    // Selector may contain invalid CSS characters (e.g. Tailwind's md:pt-[60px])
-                    // Fall through to body search
-                }
-            }
-
-            // Last resort: full-body search (handles SPA pages where selector is too generic)
-            const range = findTextRangeInElement(document.body, originalText, context, { intent: 'manual-highlight' })
-            if (range) return range
-
-            return null
-        } catch (error) {
-            Logger.error('[HighlightService] Error finding text range:', error)
-            return null
-        }
-    }
-
-
-    async getCurrentPageHighlights(): Promise<HighlightRecord[]> {
-        const response = await MessageUtils.sendMessage<HighlightRecord[]>({
-            type: 'GET_CURRENT_PAGE_HIGHLIGHTS',
-            url: window.location.href,
-        })
-        if (!response.success) {
-            Logger.error('[HighlightService] Failed to get current page highlights:', response.error)
-            return []
-        }
-        return response.data || []
-    }
-
-
-    async clearAllHighlights(): Promise<void> {
-
-        this.domManager.clearAllHighlights()
-
-
+      const elements = this.domManager.createHighlight(range, color, saveResult.data.id)
+      if (elements.length === 0) {
+        // await this.storage.deleteHighlight(saveResult.data.id)
         await MessageUtils.sendMessage({
-            type: 'CLEAR_ALL_HIGHLIGHTS',
+          type: 'DELETE_HIGHLIGHT',
+          data: {
+            id: saveResult.data.id,
+          },
         })
+        return { success: false, error: 'Failed to create DOM highlight' }
+      }
 
-        Logger.info('[HighlightService] All highlights cleared')
+      Logger.info(`[HighlightService] Created highlight: ${saveResult.data.id}`)
+      return saveResult
+    } catch (error) {
+      Logger.error('[HighlightService] Failed to create highlight:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
+  }
 
+  async updateHighlightColor(highlightId: string, newColor: string): Promise<HighlightResult> {
+    try {
+      const updateResult = await MessageUtils.sendMessage({
+        type: 'UPDATE_HIGHLIGHT',
+        data: {
+          id: highlightId,
+          color: newColor,
+        },
+      })
+      if (!updateResult.success) {
+        return updateResult
+      }
 
-    async getHighlightStats(): Promise<{
-        storage: { total: number; active: number; archived: number; deleted: number }
-        dom: { total: number; colors: Record<string, number> }
-    }> {
-        const storageStats = await MessageUtils.sendMessage<HighlightStatsResponse>({
-            type: 'GET_HIGHLIGHT_STATS',
-        })
-        if (!storageStats.success) {
-            Logger.error('[HighlightService] Failed to get highlight stats:', storageStats.error)
-            return { storage: { total: 0, active: 0, archived: 0, deleted: 0 }, dom: { total: 0, colors: {} } }
-        }
-        const domStats = this.domManager.getHighlightStats()
+      this.domManager.updateHighlightColor(highlightId, newColor)
 
-        return {
-            storage: storageStats.data || { total: 0, active: 0, archived: 0, deleted: 0 },
-            dom: domStats
-        }
+      Logger.info(`[HighlightService] Updated highlight color: ${highlightId} -> ${newColor}`)
+      return updateResult
+    } catch (error) {
+      Logger.error('[HighlightService] Failed to update highlight color:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
+  }
 
-    getSelectionInfo(selection: Selection): {
-        text: string
-        hasText: boolean
-        hasImages: boolean
-        imageCount: number
-        mixedContent: MixedSelectionContent
-    } {
-        const mixedContent = this.domManager.extractMixedSelectionContent(selection)
+  async deleteHighlight(highlightId: string): Promise<HighlightResult> {
+    try {
+      this.domManager.removeHighlight(highlightId)
 
-        return {
-            text: mixedContent.text,
-            hasText: mixedContent.hasText,
-            hasImages: mixedContent.hasImages,
-            imageCount: mixedContent.images.length,
-            mixedContent
-        }
+      const deleteResult = await MessageUtils.sendMessage({
+        type: 'DELETE_HIGHLIGHT',
+        data: {
+          id: highlightId,
+        },
+      })
+
+      Logger.info(`[HighlightService] Deleted highlight: ${highlightId}`)
+      return deleteResult
+    } catch (error) {
+      Logger.error('[HighlightService] Failed to delete highlight:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
+  }
+
+  async restorePageHighlights(): Promise<void> {
+    try {
+      const highlights = await MessageUtils.sendMessage<HighlightRecord[]>({
+        type: 'GET_CURRENT_PAGE_HIGHLIGHTS',
+        url: window.location.href,
+      })
+      Logger.debug('restorePageHighlights', highlights)
+      if (!highlights.success) {
+        Logger.error('[HighlightService] Failed to get current page highlights:', highlights.error)
+        return
+      }
+      Logger.info(`[HighlightService] Restoring ${highlights.data?.length} highlights`)
+
+      // First pass: try to restore immediately
+      let pending = (highlights.data || []).filter(h => !this.tryRestoreHighlight(h))
+
+      // Retry pending highlights with increasing delays (for SPA dynamic content)
+      const retryDelays = [1000, 2000, 3000]
+      for (let attempt = 0; attempt < retryDelays.length && pending.length > 0; attempt++) {
+        Logger.info(`[HighlightService] ${pending.length} highlights pending, retrying in ${retryDelays[attempt]}ms (attempt ${attempt + 1}/${retryDelays.length})`)
+        await new Promise(resolve => setTimeout(resolve, retryDelays[attempt]))
+        pending = pending.filter(h => !this.tryRestoreHighlight(h))
+      }
+
+      if (pending.length > 0) {
+        Logger.warn(
+          `[HighlightService] Could not restore ${pending.length} highlights after retries:`,
+          pending.map(h => h.id),
+        )
+      }
+
+      Logger.info('[HighlightService] Page highlights restored')
+    } catch (error) {
+      Logger.error('[HighlightService] Failed to restore page highlights:', error)
+    }
+  }
+
+  /**
+   * Attempt to restore a single highlight. Returns true if successful.
+   */
+  private tryRestoreHighlight(highlight: HighlightRecord): boolean {
+    try {
+      const range = this.findTextRangeSync(highlight)
+      if (!range) {
+        return false
+      }
+      this.domManager.createHighlight(range, highlight.color, highlight.id)
+      Logger.info(`[HighlightService] Restored highlight: ${highlight.id}`)
+      return true
+    } catch (error) {
+      Logger.error(`[HighlightService] Failed to restore highlight ${highlight.id}:`, error)
+      return false
+    }
+  }
+
+  /**
+   * Synchronous version of findTextRange — searches in priority order:
+   *   1. Platform-rule source container (for cross-page detail-page restoration)
+   *   2. Stored CSS selector (best-case re-anchor on same page)
+   *   3. document.body fallback (SPA / dynamic content where selector breaks)
+   *
+   * All searches run through annotation-core `findTextRangeInElement` with the
+   * `manual-highlight` intent so extension UI / nested markers / contenteditable
+   * regions are skipped uniformly. See docs/annotation-architecture-refactor.md §11 risk 4.
+   */
+  private findTextRangeSync(highlight: HighlightRecord): Range | null {
+    const { originalText, context, selector } = highlight
+
+    try {
+      const sourceContainer = HighlightDOMManager.findSourceContainer(highlight.metadata?.sourceUrl)
+      if (sourceContainer) {
+        const range = findTextRangeInElement(sourceContainer, originalText, context, { intent: 'manual-highlight' })
+        if (range) return range
+      }
+
+      // Then try selector-scoped search
+      if (selector) {
+        try {
+          const elements = document.querySelectorAll(selector)
+          for (const element of Array.from(elements)) {
+            const range = findTextRangeInElement(element, originalText, context, { intent: 'manual-highlight' })
+            if (range) return range
+          }
+        } catch {
+          // Selector may contain invalid CSS characters (e.g. Tailwind's md:pt-[60px])
+          // Fall through to body search
+        }
+      }
+
+      // Last resort: full-body search (handles SPA pages where selector is too generic)
+      const range = findTextRangeInElement(document.body, originalText, context, { intent: 'manual-highlight' })
+      if (range) return range
+
+      return null
+    } catch (error) {
+      Logger.error('[HighlightService] Error finding text range:', error)
+      return null
+    }
+  }
+
+  async getCurrentPageHighlights(): Promise<HighlightRecord[]> {
+    const response = await MessageUtils.sendMessage<HighlightRecord[]>({
+      type: 'GET_CURRENT_PAGE_HIGHLIGHTS',
+      url: window.location.href,
+    })
+    if (!response.success) {
+      Logger.error('[HighlightService] Failed to get current page highlights:', response.error)
+      return []
+    }
+    return response.data || []
+  }
+
+  async clearAllHighlights(): Promise<void> {
+    this.domManager.clearAllHighlights()
+
+    await MessageUtils.sendMessage({
+      type: 'CLEAR_ALL_HIGHLIGHTS',
+    })
+
+    Logger.info('[HighlightService] All highlights cleared')
+  }
+
+  async getHighlightStats(): Promise<{
+    storage: { total: number; active: number; archived: number; deleted: number }
+    dom: { total: number; colors: Record<string, number> }
+  }> {
+    const storageStats = await MessageUtils.sendMessage<HighlightStatsResponse>({
+      type: 'GET_HIGHLIGHT_STATS',
+    })
+    if (!storageStats.success) {
+      Logger.error('[HighlightService] Failed to get highlight stats:', storageStats.error)
+      return { storage: { total: 0, active: 0, archived: 0, deleted: 0 }, dom: { total: 0, colors: {} } }
+    }
+    const domStats = this.domManager.getHighlightStats()
+
+    return {
+      storage: storageStats.data || { total: 0, active: 0, archived: 0, deleted: 0 },
+      dom: domStats,
+    }
+  }
+
+  getSelectionInfo(selection: Selection): {
+    text: string
+    hasText: boolean
+    hasImages: boolean
+    imageCount: number
+    mixedContent: MixedSelectionContent
+  } {
+    const mixedContent = this.domManager.extractMixedSelectionContent(selection)
+
+    return {
+      text: mixedContent.text,
+      hasText: mixedContent.hasText,
+      hasImages: mixedContent.hasImages,
+      imageCount: mixedContent.images.length,
+      mixedContent,
+    }
+  }
 }

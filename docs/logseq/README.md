@@ -156,14 +156,14 @@ interface LogseqSyncResult {
 
 ## 6. 消息协议
 
-| 消息类型 | 方向 | 说明 |
-| --- | --- | --- |
+| 消息类型                 | 方向             | 说明                     |
+| ------------------------ | ---------------- | ------------------------ |
 | `LOGSEQ_TEST_CONNECTION` | UI -> background | 测试 Logseq 服务器连通性 |
-| `LOGSEQ_GET_CONFIG` | UI -> background | 获取 Logseq 配置 |
-| `LOGSEQ_SET_CONFIG` | UI -> background | 更新 Logseq 配置 |
-| `LOGSEQ_SYNC_HIGHLIGHT` | UI -> background | 同步单条高亮 |
-| `LOGSEQ_SYNC_CLIP` | UI -> background | 同步单条 Clip |
-| `LOGSEQ_SYNC_ALL` | UI -> background | 批量同步 active 高亮 |
+| `LOGSEQ_GET_CONFIG`      | UI -> background | 获取 Logseq 配置         |
+| `LOGSEQ_SET_CONFIG`      | UI -> background | 更新 Logseq 配置         |
+| `LOGSEQ_SYNC_HIGHLIGHT`  | UI -> background | 同步单条高亮             |
+| `LOGSEQ_SYNC_CLIP`       | UI -> background | 同步单条 Clip            |
+| `LOGSEQ_SYNC_ALL`        | UI -> background | 批量同步 active 高亮     |
 
 ## 7. 同步策略
 
@@ -256,8 +256,8 @@ await client.appendBlockInPage(pageUuid, '#annhub [[Title]] [source](url)', {
 
 属性命名统一使用 camelCase：
 
-| 用途 | 当前格式 | 历史兼容 |
-| --- | --- | --- |
+| 用途           | 当前格式   | 历史兼容    |
+| -------------- | ---------- | ----------- |
 | AnnHub 记录 ID | `annhubId` | `annhub-id` |
 
 ## 11. 使用流程

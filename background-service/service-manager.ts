@@ -3,24 +3,17 @@ import { ServiceContext, SupportedServices } from './service-context'
 import MessageUtils from '../utils/message'
 import { ResponseMessage } from '../types/messages'
 
-
 export interface IService {
-
   readonly name: SupportedServices
-
 
   initialize(): Promise<void>
 
-
   getMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>>
-
 
   isInitialized(): boolean
 
-
   cleanup?(): Promise<void>
 }
-
 
 export class ServiceManager {
   private static instance: ServiceManager
@@ -39,7 +32,6 @@ export class ServiceManager {
     return ServiceManager.instance
   }
 
-
   registerService(service: IService): void {
     if (this.services.has(service.name)) {
       Logger.warn(`[ServiceManager] Service ${service.name} is already registered, replacing...`)
@@ -50,16 +42,13 @@ export class ServiceManager {
     Logger.info(`[ServiceManager] Service ${service.name} registered`)
   }
 
-
   registerServices(services: IService[]): void {
     services.forEach(service => this.registerService(service))
   }
 
-
   getService<T extends IService>(name: string): T | undefined {
     return this.services.get(name) as T
   }
-
 
   async initializeServices(): Promise<void> {
     return this.initializeServicesInternal(false)
@@ -75,7 +64,6 @@ export class ServiceManager {
       this.serviceContext.startInitialization()
       Logger.info(`[ServiceManager] Starting initialization of ${this.services.size} services`)
 
-
       const initOrder = ['config', 'highlight', 'vocabulary']
 
       for (const serviceName of initOrder) {
@@ -85,13 +73,11 @@ export class ServiceManager {
         }
       }
 
-
       for (const [name, service] of this.services) {
         if (!initOrder.includes(name)) {
           await this.initializeService(service, forceReinitialize)
         }
       }
-
 
       this.registerMessageHandlers()
 
@@ -102,7 +88,6 @@ export class ServiceManager {
       throw error
     }
   }
-
 
   private async initializeService(service: IService, forceReinitialize = false): Promise<void> {
     try {
@@ -123,7 +108,6 @@ export class ServiceManager {
     }
   }
 
-
   private registerMessageHandlers(): void {
     if (this.messageHandlersRegistered) {
       Logger.info('[ServiceManager] Message handlers already registered, skipping...')
@@ -133,17 +117,13 @@ export class ServiceManager {
     try {
       const allHandlers: Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> = {}
 
-
       for (const [serviceName, service] of this.services) {
         const handlers = service.getMessageHandlers()
         Object.assign(allHandlers, handlers)
         Logger.info(`[ServiceManager] Collected ${Object.keys(handlers).length} message handlers from service ${serviceName}`)
       }
 
-
-      browser.runtime.onMessage.addListener(
-        MessageUtils.createMessageHandler(allHandlers)
-      )
+      browser.runtime.onMessage.addListener(MessageUtils.createMessageHandler(allHandlers))
 
       this.messageHandlersRegistered = true
       Logger.info(`[ServiceManager] Registered ${Object.keys(allHandlers).length} total message handlers`)
@@ -152,7 +132,6 @@ export class ServiceManager {
       throw error
     }
   }
-
 
   async restartServices(): Promise<void> {
     try {
@@ -179,7 +158,6 @@ export class ServiceManager {
     }
   }
 
-
   async cleanup(): Promise<void> {
     Logger.info('[ServiceManager] Cleaning up all services...')
 
@@ -195,7 +173,6 @@ export class ServiceManager {
     }
   }
 
-
   getServiceStatus(): Record<string, boolean> {
     const status: Record<string, boolean> = {}
     for (const [name, service] of this.services) {
@@ -204,9 +181,7 @@ export class ServiceManager {
     return status
   }
 
-
   isAllServicesReady(): boolean {
-    return this.serviceContext.isReady() &&
-      Array.from(this.services.values()).every(service => service.isInitialized())
+    return this.serviceContext.isReady() && Array.from(this.services.values()).every(service => service.isInitialized())
   }
-} 
+}

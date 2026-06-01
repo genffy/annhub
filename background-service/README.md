@@ -3,6 +3,7 @@
 ## Core Components
 
 ### 1. BackgroundServiceManager
+
 - **File**: `background-service/index.ts`
 - **Responsibility**: Manage all services and event handlers
 - **Features**:
@@ -11,6 +12,7 @@
   - Provide a unified status query interface
 
 ### 2. ServiceManager
+
 - **File**: `background-service/service-manager.ts`
 - **Responsibility**: Manage the lifecycle of all services
 - **Features**:
@@ -19,6 +21,7 @@
   - Service status monitoring
 
 ### 3. EventHandlerManager
+
 - **File**: `background-service/event-handlers/index.ts`
 - **Responsibility**: Manage all extension event listeners and handlers
 - **Features**:
@@ -27,6 +30,7 @@
   - Event listener lifecycle management
 
 ### 4. ServiceContext
+
 - **File**: `background-service/service-context.ts`
 - **Responsibility**: Manage service status and error information
 - **Features**:
@@ -37,6 +41,7 @@
 ## Service Architecture
 
 ### Service Interface (IService)
+
 All services must implement the following interface:
 
 ```typescript
@@ -58,17 +63,20 @@ export interface IService {
 ## Event Handlers
 
 ### 1. CommandHandler
+
 - **Responsibility**: Handle shortcut commands
 - **Events**: `browser.commands.onCommand`
 
 ### 2. RuntimeHandler
+
 - **Responsibility**: Handle runtime events
-- **Events**: 
+- **Events**:
   - PING message handling
   - Extension icon click
   - Browser startup
 
 ### 3. InstallationHandler
+
 - **Responsibility**: Handle installation and update events
 - **Events**: `browser.runtime.onInstalled`
 - **Features**:
@@ -155,4 +163,4 @@ background-service/
     ├── config/
     ├── translation/
     └── highlight/
-``` 
+```

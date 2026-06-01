@@ -60,9 +60,7 @@ function getTwitterStatusLinks(container: Element, origin: string): TwitterStatu
   if (container instanceof HTMLAnchorElement) links.push(container)
   links.push(...Array.from(container.querySelectorAll('a[href]')))
 
-  return links
-    .map(link => parseTwitterStatusHref(getHref(link), origin))
-    .filter((item): item is TwitterStatusHref => Boolean(item))
+  return links.map(link => parseTwitterStatusHref(getHref(link), origin)).filter((item): item is TwitterStatusHref => Boolean(item))
 }
 
 export function extractTwitterPermalink(container: Element, origin: string): string | null {
@@ -160,9 +158,7 @@ const X_PLATFORM_RULE: AnnotationPlatformRule = {
   findContainerBySourceUrl: findTwitterContainerByPermalink,
 }
 
-const PLATFORM_RULES: AnnotationPlatformRule[] = [
-  X_PLATFORM_RULE,
-]
+const PLATFORM_RULES: AnnotationPlatformRule[] = [X_PLATFORM_RULE]
 
 export function getActiveAnnotationPlatformRule(url = new URL(window.location.href)): AnnotationPlatformRule | null {
   return PLATFORM_RULES.find(rule => rule.match(url)) ?? null

@@ -1,10 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import {
-  collectTextNodes,
-  createRangeFromTextIndex,
-  findBestTextMatch,
-  findTextRangeInElement,
-} from '../text-range'
+import { collectTextNodes, createRangeFromTextIndex, findBestTextMatch, findTextRangeInElement } from '../text-range'
 
 function setupDOM(html: string): void {
   document.body.innerHTML = html
@@ -63,12 +58,7 @@ describe('annotation text range helpers', () => {
   it('respects manual-highlight intent: skips text inside existing annotation markers', () => {
     setupDOM('<main><p>Alpha ubiquitous beta.</p><p><span data-highlight-id="x">ubiquitous</span></p></main>')
 
-    const range = findTextRangeInElement(
-      document.querySelector('main') as Element,
-      'ubiquitous',
-      {},
-      { intent: 'manual-highlight' },
-    )
+    const range = findTextRangeInElement(document.querySelector('main') as Element, 'ubiquitous', {}, { intent: 'manual-highlight' })
 
     // The first ubiquitous (in plain <p>) should be matched, not the one already wrapped
     expect(range?.toString()).toBe('ubiquitous')
@@ -78,12 +68,7 @@ describe('annotation text range helpers', () => {
   it('respects auto-vocab intent: skips link/button text', () => {
     setupDOM('<main><a href="#">ubiquitous link</a><p>ubiquitous content</p></main>')
 
-    const range = findTextRangeInElement(
-      document.querySelector('main') as Element,
-      'ubiquitous',
-      {},
-      { intent: 'auto-vocab' },
-    )
+    const range = findTextRangeInElement(document.querySelector('main') as Element, 'ubiquitous', {}, { intent: 'auto-vocab' })
 
     expect(range?.toString()).toBe('ubiquitous')
     expect(range?.startContainer.parentElement?.tagName).toBe('P')

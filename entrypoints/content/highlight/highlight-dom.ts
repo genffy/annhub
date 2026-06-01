@@ -2,59 +2,49 @@ import { HighlightColor } from '../../../types/highlight'
 import { MixedSelectionContent } from '../../../types/dom'
 import { Logger } from '../../../utils/logger'
 import {
-    extractTwitterPermalink,
-    findTwitterContainerByPermalink,
-    findTwitterPermalinkContainer,
-    getActiveAnnotationPlatformRule,
-    TWEET_STATUS_PREFIX_RE,
-    TWEET_STATUS_RE,
+  extractTwitterPermalink,
+  findTwitterContainerByPermalink,
+  findTwitterPermalinkContainer,
+  getActiveAnnotationPlatformRule,
+  TWEET_STATUS_PREFIX_RE,
+  TWEET_STATUS_RE,
 } from '../annotation-core/platform-rules'
 import { wrapRange, unwrapMarker } from '../annotation-core/markers'
 import { shouldSkipElement } from '../annotation-core/dom-policy'
 
 // ── Twitter / X ─────────────────────────────────────────────────────────────
-export {
-    extractTwitterPermalink,
-    findTwitterContainerByPermalink,
-    findTwitterPermalinkContainer,
-    TWEET_STATUS_PREFIX_RE,
-    TWEET_STATUS_RE,
-}
+export { extractTwitterPermalink, findTwitterContainerByPermalink, findTwitterPermalinkContainer, TWEET_STATUS_PREFIX_RE, TWEET_STATUS_RE }
 
 export class HighlightDOMManager {
-    private static instance: HighlightDOMManager | null = null
-    private highlightElements: Map<string, HTMLElement[]> = new Map()
+  private static instance: HighlightDOMManager | null = null
+  private highlightElements: Map<string, HTMLElement[]> = new Map()
 
+  private readonly DEFAULT_COLORS: HighlightColor[] = [
+    { name: 'Yellow', value: '#ffeb3b', textColor: '#000000' },
+    { name: 'Green', value: '#4caf50', textColor: '#ffffff' },
+    { name: 'Blue', value: '#2196f3', textColor: '#ffffff' },
+    { name: 'Pink', value: '#e91e63', textColor: '#ffffff' },
+    { name: 'Orange', value: '#ff9800', textColor: '#000000' },
+    { name: 'Purple', value: '#9c27b0', textColor: '#ffffff' },
+  ]
 
-    private readonly DEFAULT_COLORS: HighlightColor[] = [
-        { name: 'Yellow', value: '#ffeb3b', textColor: '#000000' },
-        { name: 'Green', value: '#4caf50', textColor: '#ffffff' },
-        { name: 'Blue', value: '#2196f3', textColor: '#ffffff' },
-        { name: 'Pink', value: '#e91e63', textColor: '#ffffff' },
-        { name: 'Orange', value: '#ff9800', textColor: '#000000' },
-        { name: 'Purple', value: '#9c27b0', textColor: '#ffffff' }
-    ]
+  private constructor() {
+    this.initializeStyles()
+  }
 
-    private constructor() {
-        this.initializeStyles()
+  static getInstance(): HighlightDOMManager {
+    if (!HighlightDOMManager.instance) {
+      HighlightDOMManager.instance = new HighlightDOMManager()
     }
+    return HighlightDOMManager.instance
+  }
 
-    static getInstance(): HighlightDOMManager {
-        if (!HighlightDOMManager.instance) {
-            HighlightDOMManager.instance = new HighlightDOMManager()
-        }
-        return HighlightDOMManager.instance
-    }
+  private initializeStyles(): void {
+    const style = document.createElement('style')
+    style.id = 'ann-highlight-styles'
+    document.head.appendChild(style)
 
-
-    private initializeStyles(): void {
-
-        const style = document.createElement('style')
-        style.id = 'ann-highlight-styles'
-        document.head.appendChild(style)
-
-
-        const css = `
+    const css = `
             .ann-highlight {
                 position: relative;
                 border-radius: 2px;
@@ -144,308 +134,261 @@ export class HighlightDOMManager {
             }
         `
 
-        style.textContent = css
-    }
+    style.textContent = css
+  }
 
+  createHighlight(range: Range, color: string, highlightId: string): HTMLElement[] {
+    const highlightElements: HTMLElement[] = []
 
-    createHighlight(range: Range, color: string, highlightId: string): HTMLElement[] {
-        const highlightElements: HTMLElement[] = []
+    try {
+      const textNodes = this.getTextNodesInRange(range)
 
-        try {
+      textNodes.forEach(textNode => {
+        const nodeRange = document.createRange()
+        nodeRange.selectNodeContents(textNode)
 
-            const textNodes = this.getTextNodesInRange(range)
+        let startOffset = 0
+        let endOffset = textNode.textContent?.length || 0
 
-            textNodes.forEach((textNode) => {
-
-                const nodeRange = document.createRange()
-                nodeRange.selectNodeContents(textNode)
-
-
-                let startOffset = 0
-                let endOffset = textNode.textContent?.length || 0
-
-
-                if (textNode === range.startContainer) {
-                    startOffset = range.startOffset
-                }
-
-
-                if (textNode === range.endContainer) {
-                    endOffset = range.endOffset
-                }
-
-
-                if (startOffset > 0 || endOffset < (textNode.textContent?.length || 0)) {
-
-                    if (startOffset > 0) {
-                        textNode.splitText(startOffset)
-
-                        const nextNode = textNode.nextSibling as Text
-                        if (nextNode && nextNode.nodeType === Node.TEXT_NODE) {
-
-                            const newLength = endOffset - startOffset
-                            if (newLength < (nextNode.textContent?.length || 0)) {
-
-                                nextNode.splitText(newLength)
-                            }
-
-                            this.wrapTextNode(nextNode, color, highlightId, highlightElements)
-                        }
-                    } else if (endOffset < (textNode.textContent?.length || 0)) {
-
-                        textNode.splitText(endOffset)
-
-                        this.wrapTextNode(textNode, color, highlightId, highlightElements)
-                    }
-                } else {
-
-                    this.wrapTextNode(textNode, color, highlightId, highlightElements)
-                }
-            })
-
-
-            this.highlightElements.set(highlightId, highlightElements)
-
-            Logger.info(`[HighlightDOMManager] Created highlight ${highlightId} with ${highlightElements.length} elements`)
-
-        } catch (error) {
-            Logger.error('[HighlightDOMManager] Failed to create highlight:', error)
+        if (textNode === range.startContainer) {
+          startOffset = range.startOffset
         }
 
-        return highlightElements
-    }
-
-
-    private wrapTextNode(textNode: Text, color: string, highlightId: string, highlightElements: HTMLElement[]): void {
-        const parent = textNode.parentNode
-        if (!parent) return
-
-        // Respect manual-highlight DOM policy: skip extension UI / nested annotation markers / contenteditable
-        if (parent instanceof Element && shouldSkipElement(parent, 'manual-highlight')) {
-            Logger.debug('[HighlightDOMManager] Skipping wrap (manual-highlight policy)', parent.tagName)
-            return
+        if (textNode === range.endContainer) {
+          endOffset = range.endOffset
         }
 
-        const range = document.createRange()
-        range.selectNodeContents(textNode)
+        if (startOffset > 0 || endOffset < (textNode.textContent?.length || 0)) {
+          if (startOffset > 0) {
+            textNode.splitText(startOffset)
 
-        const span = wrapRange(range, {
-            tagName: 'span',
-            className: 'ann-highlight',
-            attributes: {
-                'data-highlight-id': highlightId,
-                'data-highlight-color': color,
-            },
-        })
+            const nextNode = textNode.nextSibling as Text
+            if (nextNode && nextNode.nodeType === Node.TEXT_NODE) {
+              const newLength = endOffset - startOffset
+              if (newLength < (nextNode.textContent?.length || 0)) {
+                nextNode.splitText(newLength)
+              }
 
-        if (!span) return
-
-        span.style.backgroundColor = color
-        span.style.color = this.getContrastColor(color)
-
-        const tooltip = document.createElement('div')
-        tooltip.className = 'ann-highlight-tooltip'
-        tooltip.textContent = `Highlight (${new Date().toLocaleDateString()})`
-        tooltip.style.top = '-30px'
-        tooltip.style.left = '0'
-        span.appendChild(tooltip)
-
-        span.addEventListener('contextmenu', (e) => {
-            e.preventDefault()
-            this.showContextMenu(e, highlightId)
-        })
-
-        highlightElements.push(span)
-    }
-
-
-    removeHighlight(highlightId: string): void {
-        const elements = this.highlightElements.get(highlightId)
-        if (!elements) return
-
-        elements.forEach(element => {
-            // Strip non-content children (e.g. tooltip) before unwrapping so they don't bleed into the document flow.
-            element.querySelectorAll('.ann-highlight-tooltip').forEach(tooltip => tooltip.remove())
-            unwrapMarker(element)
-        })
-
-        this.highlightElements.delete(highlightId)
-        Logger.info(`[HighlightDOMManager] Removed highlight ${highlightId}`)
-    }
-
-
-    updateHighlightColor(highlightId: string, newColor: string): void {
-        const elements = this.highlightElements.get(highlightId)
-        if (!elements) return
-
-        elements.forEach(element => {
-            element.style.backgroundColor = newColor
-            element.style.color = this.getContrastColor(newColor)
-            element.setAttribute('data-highlight-color', newColor)
-        })
-
-        Logger.info(`[HighlightDOMManager] Updated highlight ${highlightId} color to ${newColor}`)
-    }
-
-
-    private getTextNodesInRange(range: Range): Text[] {
-        const textNodes: Text[] = []
-
-
-        if (range.collapsed) {
-            return textNodes
-        }
-
-
-        const startContainer = range.startContainer
-        const endContainer = range.endContainer
-
-
-        if (startContainer === endContainer && startContainer.nodeType === Node.TEXT_NODE) {
-            textNodes.push(startContainer as Text)
-            return textNodes
-        }
-
-
-        const walker = document.createTreeWalker(
-            range.commonAncestorContainer,
-            NodeFilter.SHOW_TEXT,
-            {
-                acceptNode: (node) => {
-
-                    if (node.nodeType === Node.TEXT_NODE) {
-
-                        if (node === startContainer || node === endContainer) {
-                            return NodeFilter.FILTER_ACCEPT
-                        }
-
-                        try {
-
-                            const nodeRange = document.createRange()
-                            nodeRange.selectNodeContents(node)
-
-
-
-                            const nodeBeforeRange = range.compareBoundaryPoints(Range.START_TO_END, nodeRange) <= 0
-
-                            const nodeAfterRange = range.compareBoundaryPoints(Range.END_TO_START, nodeRange) >= 0
-
-
-                            if (!nodeBeforeRange && !nodeAfterRange) {
-                                return NodeFilter.FILTER_ACCEPT
-                            }
-
-
-                            nodeRange.detach()
-                        } catch (error) {
-                            Logger.warn('[HighlightDOMManager] Error comparing ranges:', error)
-
-                            try {
-                                return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
-                            } catch {
-                                return NodeFilter.FILTER_REJECT
-                            }
-                        }
-                    }
-                    return NodeFilter.FILTER_REJECT
-                }
+              this.wrapTextNode(nextNode, color, highlightId, highlightElements)
             }
-        )
+          } else if (endOffset < (textNode.textContent?.length || 0)) {
+            textNode.splitText(endOffset)
 
-        let node: Text | null
-        while (node = walker.nextNode() as Text) {
-            textNodes.push(node)
+            this.wrapTextNode(textNode, color, highlightId, highlightElements)
+          }
+        } else {
+          this.wrapTextNode(textNode, color, highlightId, highlightElements)
         }
+      })
 
+      this.highlightElements.set(highlightId, highlightElements)
 
-        if (startContainer.nodeType === Node.TEXT_NODE && !textNodes.includes(startContainer as Text)) {
-            textNodes.unshift(startContainer as Text)
-        }
-        if (endContainer.nodeType === Node.TEXT_NODE &&
-            endContainer !== startContainer &&
-            !textNodes.includes(endContainer as Text)) {
-            textNodes.push(endContainer as Text)
-        }
+      Logger.info(`[HighlightDOMManager] Created highlight ${highlightId} with ${highlightElements.length} elements`)
+    } catch (error) {
+      Logger.error('[HighlightDOMManager] Failed to create highlight:', error)
+    }
 
+    return highlightElements
+  }
 
-        textNodes.sort((a, b) => {
-            const position = a.compareDocumentPosition(b)
-            if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
-                return -1
-            } else if (position & Node.DOCUMENT_POSITION_PRECEDING) {
-                return 1
+  private wrapTextNode(textNode: Text, color: string, highlightId: string, highlightElements: HTMLElement[]): void {
+    const parent = textNode.parentNode
+    if (!parent) return
+
+    // Respect manual-highlight DOM policy: skip extension UI / nested annotation markers / contenteditable
+    if (parent instanceof Element && shouldSkipElement(parent, 'manual-highlight')) {
+      Logger.debug('[HighlightDOMManager] Skipping wrap (manual-highlight policy)', parent.tagName)
+      return
+    }
+
+    const range = document.createRange()
+    range.selectNodeContents(textNode)
+
+    const span = wrapRange(range, {
+      tagName: 'span',
+      className: 'ann-highlight',
+      attributes: {
+        'data-highlight-id': highlightId,
+        'data-highlight-color': color,
+      },
+    })
+
+    if (!span) return
+
+    span.style.backgroundColor = color
+    span.style.color = this.getContrastColor(color)
+
+    const tooltip = document.createElement('div')
+    tooltip.className = 'ann-highlight-tooltip'
+    tooltip.textContent = `Highlight (${new Date().toLocaleDateString()})`
+    tooltip.style.top = '-30px'
+    tooltip.style.left = '0'
+    span.appendChild(tooltip)
+
+    span.addEventListener('contextmenu', e => {
+      e.preventDefault()
+      this.showContextMenu(e, highlightId)
+    })
+
+    highlightElements.push(span)
+  }
+
+  removeHighlight(highlightId: string): void {
+    const elements = this.highlightElements.get(highlightId)
+    if (!elements) return
+
+    elements.forEach(element => {
+      // Strip non-content children (e.g. tooltip) before unwrapping so they don't bleed into the document flow.
+      element.querySelectorAll('.ann-highlight-tooltip').forEach(tooltip => tooltip.remove())
+      unwrapMarker(element)
+    })
+
+    this.highlightElements.delete(highlightId)
+    Logger.info(`[HighlightDOMManager] Removed highlight ${highlightId}`)
+  }
+
+  updateHighlightColor(highlightId: string, newColor: string): void {
+    const elements = this.highlightElements.get(highlightId)
+    if (!elements) return
+
+    elements.forEach(element => {
+      element.style.backgroundColor = newColor
+      element.style.color = this.getContrastColor(newColor)
+      element.setAttribute('data-highlight-color', newColor)
+    })
+
+    Logger.info(`[HighlightDOMManager] Updated highlight ${highlightId} color to ${newColor}`)
+  }
+
+  private getTextNodesInRange(range: Range): Text[] {
+    const textNodes: Text[] = []
+
+    if (range.collapsed) {
+      return textNodes
+    }
+
+    const startContainer = range.startContainer
+    const endContainer = range.endContainer
+
+    if (startContainer === endContainer && startContainer.nodeType === Node.TEXT_NODE) {
+      textNodes.push(startContainer as Text)
+      return textNodes
+    }
+
+    const walker = document.createTreeWalker(range.commonAncestorContainer, NodeFilter.SHOW_TEXT, {
+      acceptNode: node => {
+        if (node.nodeType === Node.TEXT_NODE) {
+          if (node === startContainer || node === endContainer) {
+            return NodeFilter.FILTER_ACCEPT
+          }
+
+          try {
+            const nodeRange = document.createRange()
+            nodeRange.selectNodeContents(node)
+
+            const nodeBeforeRange = range.compareBoundaryPoints(Range.START_TO_END, nodeRange) <= 0
+
+            const nodeAfterRange = range.compareBoundaryPoints(Range.END_TO_START, nodeRange) >= 0
+
+            if (!nodeBeforeRange && !nodeAfterRange) {
+              return NodeFilter.FILTER_ACCEPT
             }
-            return 0
-        })
 
-        return textNodes
-    }
+            nodeRange.detach()
+          } catch (error) {
+            Logger.warn('[HighlightDOMManager] Error comparing ranges:', error)
 
-    private getContrastColor(backgroundColor: string): string {
-
-        const hex = backgroundColor.replace('#', '')
-
-
-        const r = parseInt(hex.substr(0, 2), 16)
-        const g = parseInt(hex.substr(2, 2), 16)
-        const b = parseInt(hex.substr(4, 2), 16)
-
-
-        const brightness = (r * 299 + g * 587 + b * 114) / 1000
-
-
-        return brightness > 128 ? '#000000' : '#ffffff'
-    }
-
-
-    private showContextMenu(event: MouseEvent, highlightId: string): void {
-
-        const existingMenu = document.querySelector('.ann-highlight-menu')
-        if (existingMenu) {
-            existingMenu.remove()
-        }
-
-
-        const menu = document.createElement('div')
-        menu.className = 'ann-highlight-menu visible'
-        menu.style.left = `${event.pageX}px`
-        menu.style.top = `${event.pageY}px`
-
-
-        const menuItems = [
-            { text: 'Change Color', action: () => this.showColorPicker(highlightId) },
-            { text: 'Copy Text', action: () => this.copyHighlightText(highlightId) },
-            { text: 'Delete', action: () => this.deleteHighlight(highlightId), className: 'delete' }
-        ]
-
-        menuItems.forEach(item => {
-            const button = document.createElement('button')
-            button.className = `ann-highlight-menu-item ${item.className || ''}`
-            button.textContent = item.text
-            button.addEventListener('click', () => {
-                item.action()
-                menu.remove()
-            })
-            menu.appendChild(button)
-        })
-
-        document.body.appendChild(menu)
-
-
-        const closeMenu = (e: MouseEvent) => {
-            if (!menu.contains(e.target as Node)) {
-                menu.remove()
-                document.removeEventListener('click', closeMenu)
+            try {
+              return range.intersectsNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
+            } catch {
+              return NodeFilter.FILTER_REJECT
             }
+          }
         }
-        setTimeout(() => document.addEventListener('click', closeMenu), 10)
+        return NodeFilter.FILTER_REJECT
+      },
+    })
+
+    let node: Text | null
+    while ((node = walker.nextNode() as Text)) {
+      textNodes.push(node)
     }
 
+    if (startContainer.nodeType === Node.TEXT_NODE && !textNodes.includes(startContainer as Text)) {
+      textNodes.unshift(startContainer as Text)
+    }
+    if (endContainer.nodeType === Node.TEXT_NODE && endContainer !== startContainer && !textNodes.includes(endContainer as Text)) {
+      textNodes.push(endContainer as Text)
+    }
 
-    private showColorPicker(highlightId: string): void {
-        const colorPicker = document.createElement('div')
-        colorPicker.className = 'ann-highlight-color-picker'
-        colorPicker.style.cssText = `
+    textNodes.sort((a, b) => {
+      const position = a.compareDocumentPosition(b)
+      if (position & Node.DOCUMENT_POSITION_FOLLOWING) {
+        return -1
+      } else if (position & Node.DOCUMENT_POSITION_PRECEDING) {
+        return 1
+      }
+      return 0
+    })
+
+    return textNodes
+  }
+
+  private getContrastColor(backgroundColor: string): string {
+    const hex = backgroundColor.replace('#', '')
+
+    const r = parseInt(hex.substr(0, 2), 16)
+    const g = parseInt(hex.substr(2, 2), 16)
+    const b = parseInt(hex.substr(4, 2), 16)
+
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000
+
+    return brightness > 128 ? '#000000' : '#ffffff'
+  }
+
+  private showContextMenu(event: MouseEvent, highlightId: string): void {
+    const existingMenu = document.querySelector('.ann-highlight-menu')
+    if (existingMenu) {
+      existingMenu.remove()
+    }
+
+    const menu = document.createElement('div')
+    menu.className = 'ann-highlight-menu visible'
+    menu.style.left = `${event.pageX}px`
+    menu.style.top = `${event.pageY}px`
+
+    const menuItems = [
+      { text: 'Change Color', action: () => this.showColorPicker(highlightId) },
+      { text: 'Copy Text', action: () => this.copyHighlightText(highlightId) },
+      { text: 'Delete', action: () => this.deleteHighlight(highlightId), className: 'delete' },
+    ]
+
+    menuItems.forEach(item => {
+      const button = document.createElement('button')
+      button.className = `ann-highlight-menu-item ${item.className || ''}`
+      button.textContent = item.text
+      button.addEventListener('click', () => {
+        item.action()
+        menu.remove()
+      })
+      menu.appendChild(button)
+    })
+
+    document.body.appendChild(menu)
+
+    const closeMenu = (e: MouseEvent) => {
+      if (!menu.contains(e.target as Node)) {
+        menu.remove()
+        document.removeEventListener('click', closeMenu)
+      }
+    }
+    setTimeout(() => document.addEventListener('click', closeMenu), 10)
+  }
+
+  private showColorPicker(highlightId: string): void {
+    const colorPicker = document.createElement('div')
+    colorPicker.className = 'ann-highlight-color-picker'
+    colorPicker.style.cssText = `
             position: fixed;
             top: 50%;
             left: 50%;
@@ -461,9 +404,9 @@ export class HighlightDOMManager {
             flex-wrap: wrap;
         `
 
-        this.DEFAULT_COLORS.forEach(color => {
-            const colorButton = document.createElement('button')
-            colorButton.style.cssText = `
+    this.DEFAULT_COLORS.forEach(color => {
+      const colorButton = document.createElement('button')
+      colorButton.style.cssText = `
                 width: 32px;
                 height: 32px;
                 border: 2px solid #ddd;
@@ -472,400 +415,367 @@ export class HighlightDOMManager {
                 cursor: pointer;
                 transition: transform 0.2s ease;
             `
-            colorButton.addEventListener('click', () => {
-                this.updateHighlightColor(highlightId, color.value)
-                colorPicker.remove()
+      colorButton.addEventListener('click', () => {
+        this.updateHighlightColor(highlightId, color.value)
+        colorPicker.remove()
 
-                this.dispatchColorUpdateEvent(highlightId, color.value)
+        this.dispatchColorUpdateEvent(highlightId, color.value)
+      })
+      colorButton.addEventListener('mouseenter', () => {
+        colorButton.style.transform = 'scale(1.1)'
+      })
+      colorButton.addEventListener('mouseleave', () => {
+        colorButton.style.transform = 'scale(1)'
+      })
+      colorPicker.appendChild(colorButton)
+    })
+
+    document.body.appendChild(colorPicker)
+
+    const closePicker = (e: MouseEvent) => {
+      if (!colorPicker.contains(e.target as Node)) {
+        colorPicker.remove()
+        document.removeEventListener('click', closePicker)
+      }
+    }
+    setTimeout(() => document.addEventListener('click', closePicker), 10)
+  }
+
+  private copyHighlightText(highlightId: string): void {
+    const elements = this.highlightElements.get(highlightId)
+    if (!elements) return
+
+    const text = elements.map(el => el.textContent || '').join('')
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        Logger.info(`[HighlightDOMManager] Copied highlight text: ${text}`)
+      })
+      .catch(err => {
+        Logger.error('[HighlightDOMManager] Failed to copy text:', err)
+      })
+  }
+
+  private deleteHighlight(highlightId: string): void {
+    this.removeHighlight(highlightId)
+
+    this.dispatchDeleteEvent(highlightId)
+  }
+
+  private dispatchColorUpdateEvent(highlightId: string, newColor: string): void {
+    const event = new CustomEvent('ann-highlight-color-updated', {
+      detail: { highlightId, newColor },
+    })
+    window.dispatchEvent(event)
+  }
+
+  private dispatchDeleteEvent(highlightId: string): void {
+    const event = new CustomEvent('ann-highlight-deleted', {
+      detail: { highlightId },
+    })
+    window.dispatchEvent(event)
+  }
+
+  clearAllHighlights(): void {
+    this.highlightElements.forEach((_, highlightId) => {
+      this.removeHighlight(highlightId)
+    })
+    this.highlightElements.clear()
+    Logger.info('[HighlightDOMManager] Cleared all highlights')
+  }
+
+  getHighlightStats(): { total: number; colors: Record<string, number> } {
+    const colors: Record<string, number> = {}
+    let total = 0
+
+    this.highlightElements.forEach(elements => {
+      total++
+      const color = elements[0]?.getAttribute('data-highlight-color') || '#ffeb3b'
+      colors[color] = (colors[color] || 0) + 1
+    })
+
+    return { total, colors }
+  }
+
+  static generateSelector(range: Range): string {
+    const container = range.commonAncestorContainer
+    const element = container.nodeType === Node.TEXT_NODE ? container.parentElement : (container as Element)
+
+    if (!element) return ''
+
+    let selector = element.tagName.toLowerCase()
+
+    // Prefer stable data-testid attribute (works across page navigations on SPAs)
+    const testId = element.getAttribute('data-testid')
+    if (testId) {
+      selector = `[data-testid="${testId}"]`
+      return selector
+    }
+
+    // Skip dynamic/random-looking IDs (e.g. x.com's id__xxxxx)
+    if (element.id && !this.isDynamicId(element.id)) {
+      selector += `#${element.id}`
+    } else if (element.className && typeof element.className === 'string') {
+      // Filter out utility-first CSS classes with special characters (e.g. Tailwind's md:pt-[60px])
+      const classes = element.className
+        .split(' ')
+        .map(c => c.trim())
+        .filter(c => c && !/[:\[\]()!@]/.test(c))
+      if (classes.length > 0) {
+        selector += `.${classes.join('.')}`
+      }
+    }
+
+    return selector
+  }
+
+  /**
+   * Detect IDs that look dynamically generated and are unlikely to be stable
+   * across page loads. Patterns: id__xxxx, react-generated, random hex/base64, etc.
+   */
+  static isDynamicId(id: string): boolean {
+    // x.com pattern: id__<random>
+    if (/^id__[a-z0-9]+$/i.test(id)) return true
+    // Common SPA patterns: :r0:, :r1a:, etc. (React)
+    if (/^:r[a-z0-9]*:$/i.test(id)) return true
+    // Long random-looking strings (16+ hex/alphanum chars with no clear word)
+    if (/^[a-f0-9]{16,}$/i.test(id)) return true
+    return false
+  }
+
+  /**
+   * Find the detail/permalink URL for the selected text.
+   *
+   * Flow:
+   * 1. Check annotation-core platform rules for a site-specific rule that
+   *    matches the current URL.
+   * 2. Otherwise, fall back to the generic heuristic (walk up to article-like container,
+   *    pick the best <a> link).
+   */
+  static findSourceUrl(range: Range): string | null {
+    const currentUrl = new URL(window.location.href)
+    const currentOrigin = currentUrl.origin
+    const currentPath = currentUrl.pathname
+
+    const container = range.commonAncestorContainer
+    const startElement = container.nodeType === Node.TEXT_NODE ? container.parentElement : (container as Element)
+
+    if (!startElement) return null
+
+    // Try site-specific rules first
+    const matchedRule = getActiveAnnotationPlatformRule(currentUrl)
+    if (matchedRule) {
+      const source = matchedRule.findSourceFromElement(startElement, currentOrigin)
+      if (source.sourceUrl) return source.sourceUrl
+    }
+
+    // Generic fallback: walk up to article-like container
+    const articleContainer = this.findGenericContainer(startElement)
+    if (!articleContainer) return null
+
+    return this.extractGenericPermalink(articleContainer, currentOrigin, currentPath)
+  }
+
+  static findSourceContainer(sourceUrl?: string): Element | null {
+    if (!sourceUrl) return null
+
+    try {
+      const currentUrl = new URL(window.location.href)
+      const source = new URL(sourceUrl)
+      const matchedRule = getActiveAnnotationPlatformRule(currentUrl)
+      if (!matchedRule || !matchedRule.match(source)) {
+        return null
+      }
+
+      return matchedRule.findContainerBySourceUrl(sourceUrl, currentUrl.origin)
+    } catch {
+      return null
+    }
+  }
+
+  /**
+   * Generic container detection — used when no site-specific rule matches.
+   * Prefers <article> and elements with role/data-testid hinting at content items,
+   * falls back to <li> / <section>.
+   */
+  private static findGenericContainer(startElement: Element): Element | null {
+    const STRONG_TAGS = new Set(['ARTICLE'])
+    const FALLBACK_TAGS = new Set(['SECTION', 'LI'])
+    const CONTENT_INDICATORS = ['article', 'tweet', 'post', 'item', 'entry', 'card']
+
+    let fallback: Element | null = null
+    let el: Element | null = startElement
+
+    while (el && el !== document.body) {
+      const tag = el.tagName
+      if (STRONG_TAGS.has(tag)) return el
+
+      const role = el.getAttribute('role')
+      const testId = el.getAttribute('data-testid') || ''
+      if (CONTENT_INDICATORS.some(k => role === k || testId.includes(k))) return el
+
+      if (!fallback && FALLBACK_TAGS.has(tag)) fallback = el
+
+      el = el.parentElement
+    }
+    return fallback
+  }
+
+  /**
+   * Generic permalink extraction — scan links in the container and pick the
+   * most likely detail/permalink URL using path-depth heuristics.
+   */
+  private static extractGenericPermalink(container: Element, origin: string, currentPath: string): string | null {
+    const currentUrl = window.location.href
+    const links = container.querySelectorAll('a[href]')
+    let bestUrl: string | null = null
+
+    for (const link of Array.from(links)) {
+      const href = (link as HTMLAnchorElement).href
+      if (!href) continue
+
+      if (href.startsWith('javascript:') || href === currentUrl || href === currentUrl + '#' || href.startsWith('#')) {
+        continue
+      }
+
+      const linkText = (link.textContent || '').trim()
+      if (linkText.length <= 2 && !link.querySelector('time')) continue
+
+      try {
+        const linkUrl = new URL(href)
+
+        if (linkUrl.origin === origin && linkUrl.pathname !== currentPath) {
+          const linkSegments = linkUrl.pathname.split('/').filter(Boolean).length
+          const currentSegments = currentPath.split('/').filter(Boolean).length
+          if (linkSegments > currentSegments) {
+            bestUrl = href
+            break
+          }
+          if (!bestUrl) bestUrl = href
+        }
+
+        if (!bestUrl && linkUrl.origin !== origin) {
+          bestUrl = href
+        }
+      } catch {
+        continue
+      }
+    }
+
+    return bestUrl
+  }
+
+  static getTextContext(range: Range, contextLength: number = 50): { before: string; after: string } {
+    const container = range.commonAncestorContainer
+    const fullText = container.textContent || ''
+    const startOffset = range.startOffset
+    const endOffset = range.endOffset
+
+    const before = fullText.substring(Math.max(0, startOffset - contextLength), startOffset)
+    const after = fullText.substring(endOffset, Math.min(fullText.length, endOffset + contextLength))
+
+    return { before, after }
+  }
+
+  extractMixedSelectionContent(selection: Selection): MixedSelectionContent {
+    const result: MixedSelectionContent = {
+      text: '',
+      images: [],
+      hasText: false,
+      hasImages: false,
+      totalElements: 0,
+    }
+
+    if (!selection || selection.rangeCount === 0) {
+      return result
+    }
+
+    const range = selection.getRangeAt(0)
+    const text = selection.toString().trim()
+
+    if (text && text.length > 0) {
+      result.text = text
+      result.hasText = true
+    }
+
+    const addedImageSrcs = new Set<string>()
+
+    try {
+      const rangeRect = range.getBoundingClientRect()
+      const allImages = document.querySelectorAll('img')
+
+      allImages.forEach(img => {
+        const imgRect = img.getBoundingClientRect()
+
+        if (this.isRectOverlapping(imgRect, rangeRect) || this.isRectContained(imgRect, rangeRect)) {
+          const imgSrc = img.src || img.dataset.src || ''
+          const imgKey = `${imgSrc}-${img.alt}-${Math.round(imgRect.x)}-${Math.round(imgRect.y)}`
+
+          if (!addedImageSrcs.has(imgKey)) {
+            addedImageSrcs.add(imgKey)
+            result.images.push({
+              element: img,
+              src: imgSrc,
+              alt: img.alt || '',
+              rect: imgRect,
             })
-            colorButton.addEventListener('mouseenter', () => {
-                colorButton.style.transform = 'scale(1.1)'
+            result.hasImages = true
+          }
+        }
+      })
+    } catch (error) {
+      Logger.warn('Error checking image overlap:', error)
+    }
+
+    try {
+      const container = range.commonAncestorContainer
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT, {
+        acceptNode: node => {
+          try {
+            if (range.intersectsNode && range.intersectsNode(node)) {
+              return NodeFilter.FILTER_ACCEPT
+            }
+            return NodeFilter.FILTER_SKIP
+          } catch {
+            return NodeFilter.FILTER_SKIP
+          }
+        },
+      })
+
+      let node: Element | null
+      while ((node = walker.nextNode() as Element)) {
+        result.totalElements++
+
+        if (node.tagName === 'IMG') {
+          const img = node as HTMLImageElement
+          const imgRect = img.getBoundingClientRect()
+          const imgSrc = img.src || img.dataset.src || ''
+          const imgKey = `${imgSrc}-${img.alt}-${Math.round(imgRect.x)}-${Math.round(imgRect.y)}`
+
+          if (!addedImageSrcs.has(imgKey)) {
+            addedImageSrcs.add(imgKey)
+            result.images.push({
+              element: img,
+              src: imgSrc,
+              alt: img.alt || '',
+              rect: imgRect,
             })
-            colorButton.addEventListener('mouseleave', () => {
-                colorButton.style.transform = 'scale(1)'
-            })
-            colorPicker.appendChild(colorButton)
-        })
-
-        document.body.appendChild(colorPicker)
-
-
-        const closePicker = (e: MouseEvent) => {
-            if (!colorPicker.contains(e.target as Node)) {
-                colorPicker.remove()
-                document.removeEventListener('click', closePicker)
-            }
+            result.hasImages = true
+          }
         }
-        setTimeout(() => document.addEventListener('click', closePicker), 10)
+      }
+    } catch (error) {
+      Logger.warn('Error traversing selection nodes:', error)
     }
 
-
-    private copyHighlightText(highlightId: string): void {
-        const elements = this.highlightElements.get(highlightId)
-        if (!elements) return
-
-        const text = elements.map(el => el.textContent || '').join('')
-        navigator.clipboard.writeText(text).then(() => {
-            Logger.info(`[HighlightDOMManager] Copied highlight text: ${text}`)
-        }).catch(err => {
-            Logger.error('[HighlightDOMManager] Failed to copy text:', err)
-        })
-    }
-
-
-    private deleteHighlight(highlightId: string): void {
-        this.removeHighlight(highlightId)
-
-        this.dispatchDeleteEvent(highlightId)
-    }
-
-
-    private dispatchColorUpdateEvent(highlightId: string, newColor: string): void {
-        const event = new CustomEvent('ann-highlight-color-updated', {
-            detail: { highlightId, newColor }
-        })
-        window.dispatchEvent(event)
-    }
-
-
-    private dispatchDeleteEvent(highlightId: string): void {
-        const event = new CustomEvent('ann-highlight-deleted', {
-            detail: { highlightId }
-        })
-        window.dispatchEvent(event)
-    }
-
-
-    clearAllHighlights(): void {
-        this.highlightElements.forEach((_, highlightId) => {
-            this.removeHighlight(highlightId)
-        })
-        this.highlightElements.clear()
-        Logger.info('[HighlightDOMManager] Cleared all highlights')
-    }
-
-
-    getHighlightStats(): { total: number; colors: Record<string, number> } {
-        const colors: Record<string, number> = {}
-        let total = 0
-
-        this.highlightElements.forEach((elements) => {
-            total++
-            const color = elements[0]?.getAttribute('data-highlight-color') || '#ffeb3b'
-            colors[color] = (colors[color] || 0) + 1
-        })
-
-        return { total, colors }
-    }
-
-
-    static generateSelector(range: Range): string {
-        const container = range.commonAncestorContainer
-        const element = container.nodeType === Node.TEXT_NODE
-            ? container.parentElement
-            : container as Element
-
-        if (!element) return ''
-
-        let selector = element.tagName.toLowerCase()
-
-        // Prefer stable data-testid attribute (works across page navigations on SPAs)
-        const testId = element.getAttribute('data-testid')
-        if (testId) {
-            selector = `[data-testid="${testId}"]`
-            return selector
-        }
-
-        // Skip dynamic/random-looking IDs (e.g. x.com's id__xxxxx)
-        if (element.id && !this.isDynamicId(element.id)) {
-            selector += `#${element.id}`
-        } else if (element.className && typeof element.className === 'string') {
-            // Filter out utility-first CSS classes with special characters (e.g. Tailwind's md:pt-[60px])
-            const classes = element.className.split(' ')
-                .map(c => c.trim())
-                .filter(c => c && !/[:\[\]()!@]/.test(c))
-            if (classes.length > 0) {
-                selector += `.${classes.join('.')}`
-            }
-        }
-
-        return selector
-    }
-
-    /**
-     * Detect IDs that look dynamically generated and are unlikely to be stable
-     * across page loads. Patterns: id__xxxx, react-generated, random hex/base64, etc.
-     */
-    static isDynamicId(id: string): boolean {
-        // x.com pattern: id__<random>
-        if (/^id__[a-z0-9]+$/i.test(id)) return true
-        // Common SPA patterns: :r0:, :r1a:, etc. (React)
-        if (/^:r[a-z0-9]*:$/i.test(id)) return true
-        // Long random-looking strings (16+ hex/alphanum chars with no clear word)
-        if (/^[a-f0-9]{16,}$/i.test(id)) return true
-        return false
-    }
-
-    /**
-     * Find the detail/permalink URL for the selected text.
-     *
-     * Flow:
-     * 1. Check annotation-core platform rules for a site-specific rule that
-     *    matches the current URL.
-     * 2. Otherwise, fall back to the generic heuristic (walk up to article-like container,
-     *    pick the best <a> link).
-     */
-    static findSourceUrl(range: Range): string | null {
-        const currentUrl = new URL(window.location.href)
-        const currentOrigin = currentUrl.origin
-        const currentPath = currentUrl.pathname
-
-        const container = range.commonAncestorContainer
-        const startElement = container.nodeType === Node.TEXT_NODE
-            ? container.parentElement
-            : container as Element
-
-        if (!startElement) return null
-
-        // Try site-specific rules first
-        const matchedRule = getActiveAnnotationPlatformRule(currentUrl)
-        if (matchedRule) {
-            const source = matchedRule.findSourceFromElement(startElement, currentOrigin)
-            if (source.sourceUrl) return source.sourceUrl
-        }
-
-        // Generic fallback: walk up to article-like container
-        const articleContainer = this.findGenericContainer(startElement)
-        if (!articleContainer) return null
-
-        return this.extractGenericPermalink(articleContainer, currentOrigin, currentPath)
-    }
-
-    static findSourceContainer(sourceUrl?: string): Element | null {
-        if (!sourceUrl) return null
-
-        try {
-            const currentUrl = new URL(window.location.href)
-            const source = new URL(sourceUrl)
-            const matchedRule = getActiveAnnotationPlatformRule(currentUrl)
-            if (!matchedRule || !matchedRule.match(source)) {
-                return null
-            }
-
-            return matchedRule.findContainerBySourceUrl(sourceUrl, currentUrl.origin)
-        } catch {
-            return null
-        }
-    }
-
-    /**
-     * Generic container detection — used when no site-specific rule matches.
-     * Prefers <article> and elements with role/data-testid hinting at content items,
-     * falls back to <li> / <section>.
-     */
-    private static findGenericContainer(startElement: Element): Element | null {
-        const STRONG_TAGS = new Set(['ARTICLE'])
-        const FALLBACK_TAGS = new Set(['SECTION', 'LI'])
-        const CONTENT_INDICATORS = ['article', 'tweet', 'post', 'item', 'entry', 'card']
-
-        let fallback: Element | null = null
-        let el: Element | null = startElement
-
-        while (el && el !== document.body) {
-            const tag = el.tagName
-            if (STRONG_TAGS.has(tag)) return el
-
-            const role = el.getAttribute('role')
-            const testId = el.getAttribute('data-testid') || ''
-            if (CONTENT_INDICATORS.some(k => role === k || testId.includes(k))) return el
-
-            if (!fallback && FALLBACK_TAGS.has(tag)) fallback = el
-
-            el = el.parentElement
-        }
-        return fallback
-    }
-
-    /**
-     * Generic permalink extraction — scan links in the container and pick the
-     * most likely detail/permalink URL using path-depth heuristics.
-     */
-    private static extractGenericPermalink(
-        container: Element, origin: string, currentPath: string
-    ): string | null {
-        const currentUrl = window.location.href
-        const links = container.querySelectorAll('a[href]')
-        let bestUrl: string | null = null
-
-        for (const link of Array.from(links)) {
-            const href = (link as HTMLAnchorElement).href
-            if (!href) continue
-
-            if (href.startsWith('javascript:') ||
-                href === currentUrl ||
-                href === currentUrl + '#' ||
-                href.startsWith('#')) {
-                continue
-            }
-
-            const linkText = (link.textContent || '').trim()
-            if (linkText.length <= 2 && !link.querySelector('time')) continue
-
-            try {
-                const linkUrl = new URL(href)
-
-                if (linkUrl.origin === origin && linkUrl.pathname !== currentPath) {
-                    const linkSegments = linkUrl.pathname.split('/').filter(Boolean).length
-                    const currentSegments = currentPath.split('/').filter(Boolean).length
-                    if (linkSegments > currentSegments) {
-                        bestUrl = href
-                        break
-                    }
-                    if (!bestUrl) bestUrl = href
-                }
-
-                if (!bestUrl && linkUrl.origin !== origin) {
-                    bestUrl = href
-                }
-            } catch { continue }
-        }
-
-        return bestUrl
-    }
-
-    static getTextContext(range: Range, contextLength: number = 50): { before: string; after: string } {
-        const container = range.commonAncestorContainer
-        const fullText = container.textContent || ''
-        const startOffset = range.startOffset
-        const endOffset = range.endOffset
-
-        const before = fullText.substring(Math.max(0, startOffset - contextLength), startOffset)
-        const after = fullText.substring(endOffset, Math.min(fullText.length, endOffset + contextLength))
-
-        return { before, after }
-    }
-
-
-    extractMixedSelectionContent(selection: Selection): MixedSelectionContent {
-        const result: MixedSelectionContent = {
-            text: '',
-            images: [],
-            hasText: false,
-            hasImages: false,
-            totalElements: 0
-        }
-
-        if (!selection || selection.rangeCount === 0) {
-            return result
-        }
-
-        const range = selection.getRangeAt(0)
-        const text = selection.toString().trim()
-
-
-        if (text && text.length > 0) {
-            result.text = text
-            result.hasText = true
-        }
-
-
-        const addedImageSrcs = new Set<string>()
-
-
-        try {
-            const rangeRect = range.getBoundingClientRect()
-            const allImages = document.querySelectorAll('img')
-
-            allImages.forEach(img => {
-                const imgRect = img.getBoundingClientRect()
-
-
-                if (this.isRectOverlapping(imgRect, rangeRect) ||
-                    this.isRectContained(imgRect, rangeRect)) {
-
-                    const imgSrc = img.src || img.dataset.src || ''
-                    const imgKey = `${imgSrc}-${img.alt}-${Math.round(imgRect.x)}-${Math.round(imgRect.y)}`
-
-
-                    if (!addedImageSrcs.has(imgKey)) {
-                        addedImageSrcs.add(imgKey)
-                        result.images.push({
-                            element: img,
-                            src: imgSrc,
-                            alt: img.alt || '',
-                            rect: imgRect
-                        })
-                        result.hasImages = true
-                    }
-                }
-            })
-        } catch (error) {
-            Logger.warn('Error checking image overlap:', error)
-        }
-
-
-        try {
-            const container = range.commonAncestorContainer
-            const walker = document.createTreeWalker(
-                container,
-                NodeFilter.SHOW_ELEMENT,
-                {
-                    acceptNode: (node) => {
-
-                        try {
-                            if (range.intersectsNode && range.intersectsNode(node)) {
-                                return NodeFilter.FILTER_ACCEPT
-                            }
-                            return NodeFilter.FILTER_SKIP
-                        } catch {
-                            return NodeFilter.FILTER_SKIP
-                        }
-                    }
-                }
-            )
-
-            let node: Element | null
-            while (node = walker.nextNode() as Element) {
-                result.totalElements++
-
-                if (node.tagName === 'IMG') {
-                    const img = node as HTMLImageElement
-                    const imgRect = img.getBoundingClientRect()
-                    const imgSrc = img.src || img.dataset.src || ''
-                    const imgKey = `${imgSrc}-${img.alt}-${Math.round(imgRect.x)}-${Math.round(imgRect.y)}`
-
-                    if (!addedImageSrcs.has(imgKey)) {
-                        addedImageSrcs.add(imgKey)
-                        result.images.push({
-                            element: img,
-                            src: imgSrc,
-                            alt: img.alt || '',
-                            rect: imgRect
-                        })
-                        result.hasImages = true
-                    }
-                }
-            }
-        } catch (error) {
-            Logger.warn('Error traversing selection nodes:', error)
-        }
-
-        return result
-    }
-
-
-    private isRectOverlapping(rect1: DOMRect, rect2: DOMRect): boolean {
-        return !(rect1.right < rect2.left ||
-            rect1.left > rect2.right ||
-            rect1.bottom < rect2.top ||
-            rect1.top > rect2.bottom)
-    }
-
-
-    private isRectContained(rect1: DOMRect, rect2: DOMRect): boolean {
-        return rect1.left >= rect2.left &&
-            rect1.right <= rect2.right &&
-            rect1.top >= rect2.top &&
-            rect1.bottom <= rect2.bottom
-    }
+    return result
+  }
+
+  private isRectOverlapping(rect1: DOMRect, rect2: DOMRect): boolean {
+    return !(rect1.right < rect2.left || rect1.left > rect2.right || rect1.bottom < rect2.top || rect1.top > rect2.bottom)
+  }
+
+  private isRectContained(rect1: DOMRect, rect2: DOMRect): boolean {
+    return rect1.left >= rect2.left && rect1.right <= rect2.right && rect1.top >= rect2.top && rect1.bottom <= rect2.bottom
+  }
 }

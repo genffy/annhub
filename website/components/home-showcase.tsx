@@ -123,16 +123,15 @@ export default function HomeShowcase() {
             <p className="mb-5 inline-flex border-l-2 border-[#673AB8] bg-white/55 px-3 py-2 text-[13px] font-extrabold uppercase tracking-[0.22em] text-[#673AB8] shadow-sm backdrop-blur">
               Showcase
             </p>
-            <h2 className="max-w-5xl text-[38px] font-extrabold leading-[0.96] sm:text-[60px] md:text-[86px] lg:text-[96px]">
-              The same reading loop, shown from every angle.
-            </h2>
+            <h2 className="max-w-5xl text-[38px] font-extrabold leading-[0.96] sm:text-[60px] md:text-[86px] lg:text-[96px]">The same reading loop, shown from every angle.</h2>
           </div>
           <div className="max-w-xl lg:justify-self-end">
             <p className="text-[15px] leading-7 text-[#1E2B3A]/74 sm:text-[16px] md:text-[18px] md:leading-8">
-              The hero starts with the browser moment; the showcase unfolds the same system: highlight, clip, label vocabulary, and tune the reading workflow before the footer closes the page.
+              The hero starts with the browser moment; the showcase unfolds the same system: highlight, clip, label vocabulary, and tune the reading workflow before the footer
+              closes the page.
             </p>
             <div className="mt-6 grid grid-cols-3 gap-2">
-              {metrics.map((metric) => (
+              {metrics.map(metric => (
                 <div key={metric.label} className="rounded-md border border-[#1E2B3A]/10 bg-white/72 px-2 py-4 text-center shadow-sm backdrop-blur sm:px-3">
                   <div className="text-[26px] font-extrabold leading-none text-[#673AB8] md:text-2xl">{metric.value}</div>
                   <div className="mt-2 text-[10px] font-bold uppercase tracking-[0.12em] text-[#1E2B3A]/55 sm:text-[11px]">{metric.label}</div>
@@ -142,24 +141,19 @@ export default function HomeShowcase() {
           </div>
         </motion.div>
 
-        <motion.div
-          {...fadeUp}
-          className="mt-12 overflow-hidden rounded-lg border border-[#1E2B3A]/10 bg-[#1E2B3A] shadow-2xl shadow-[#1E2B3A]/20 md:mt-16"
-        >
+        <motion.div {...fadeUp} className="mt-12 overflow-hidden rounded-lg border border-[#1E2B3A]/10 bg-[#1E2B3A] shadow-2xl shadow-[#1E2B3A]/20 md:mt-16">
           <div className="grid lg:grid-cols-[0.82fr_1.18fr]">
             <div className="flex flex-col justify-between gap-7 p-6 text-white sm:gap-8 md:p-10">
               <div>
                 <p className="mb-4 text-[13px] font-extrabold uppercase tracking-[0.22em] text-[#F5C542]">Chrome ready</p>
-                <h3 className="max-w-xl text-[30px] font-extrabold leading-tight sm:text-[44px] md:text-[56px]">
-                  A consistent install moment.
-                </h3>
+                <h3 className="max-w-xl text-[30px] font-extrabold leading-tight sm:text-[44px] md:text-[56px]">A consistent install moment.</h3>
                 <p className="mt-5 max-w-lg text-[15px] leading-7 text-white/72 sm:text-base">
                   The marquee and promo tiles stay visible as the anchor, while the screenshots unpack the real extension surfaces around them.
                 </p>
               </div>
 
               <div className="grid gap-3 text-sm font-bold text-white/78">
-                {showcaseItems.slice(0, 4).map((item) => (
+                {showcaseItems.slice(0, 4).map(item => (
                   <div key={item.title} className="flex items-center gap-3 rounded-md bg-white/7 px-3 py-3">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.accent }} />
                     <span>{item.title}</span>

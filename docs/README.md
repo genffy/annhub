@@ -6,11 +6,11 @@
 
 ## 文档索引
 
-| 文档 | 说明 |
-| --- | --- |
-| [生词标注模块说明](./label/README.md) | 生词标注的当前实现基线、策略、数据契约和测试覆盖。 |
-| [Logseq 本地同步模块说明](./logseq/README.md) | Logseq 本地 HTTP Server 同步实现、数据格式、消息协议和排障要点。 |
-| [标注架构重构计划](./annotation-architecture-refactor.md) | 高亮标注与生词标注共享 annotation core 的分阶段重构方案。 |
+| 文档                                                      | 说明                                                             |
+| --------------------------------------------------------- | ---------------------------------------------------------------- |
+| [生词标注模块说明](./label/README.md)                     | 生词标注的当前实现基线、策略、数据契约和测试覆盖。               |
+| [Logseq 本地同步模块说明](./logseq/README.md)             | Logseq 本地 HTTP Server 同步实现、数据格式、消息协议和排障要点。 |
+| [标注架构重构计划](./annotation-architecture-refactor.md) | 高亮标注与生词标注共享 annotation core 的分阶段重构方案。        |
 
 ## 维护约定
 

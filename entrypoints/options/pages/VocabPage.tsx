@@ -15,7 +15,14 @@ import {
   type CEFRLevel,
 } from '../../../types/vocabulary'
 import { Card, CheckboxField, Field, PageHeader, SelectInput, SettingsSection, StatusMessage, TextareaInput, TextInput } from '../components/ui'
-import { CUSTOM_LLM_PROVIDER_ID, findLlmProviderEndpoint, findLlmProviderPreset, getLlmProviderEndpoint, LLM_PROVIDER_PRESETS, normalizeLlmModelOptions } from '../../../utils/llm-provider-presets'
+import {
+  CUSTOM_LLM_PROVIDER_ID,
+  findLlmProviderEndpoint,
+  findLlmProviderPreset,
+  getLlmProviderEndpoint,
+  LLM_PROVIDER_PRESETS,
+  normalizeLlmModelOptions,
+} from '../../../utils/llm-provider-presets'
 
 type MessageType = 'success' | 'error'
 const MASKED_SECRET_VALUE = '****************'
@@ -116,28 +123,31 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
     setTimeout(() => setMessage(null), 3500)
   }, [])
 
-  const buildLlmConfigPayload = useCallback((includeMaskedApiKey = false): Partial<LlmConfig> => {
-    const payload: Partial<LlmConfig> = {
-      provider: llmConfig.provider,
-      apiMode: llmConfig.apiMode,
-      providerPresetId: llmConfig.providerPresetId || CUSTOM_LLM_PROVIDER_ID,
-      providerEndpointId: llmConfig.providerEndpointId,
-      customProviderName: llmConfig.customProviderName,
-      baseUrl: llmConfig.baseUrl.trim(),
-      model: llmConfig.model.trim(),
-      modelsEndpoint: llmConfig.modelsEndpoint?.trim() || undefined,
-      omitTemperature: llmConfig.omitTemperature,
-      requestTimeoutMs: llmConfig.requestTimeoutMs,
-      maxTokens: llmConfig.maxTokens,
-      systemPrompt: llmConfig.systemPrompt,
-    }
+  const buildLlmConfigPayload = useCallback(
+    (includeMaskedApiKey = false): Partial<LlmConfig> => {
+      const payload: Partial<LlmConfig> = {
+        provider: llmConfig.provider,
+        apiMode: llmConfig.apiMode,
+        providerPresetId: llmConfig.providerPresetId || CUSTOM_LLM_PROVIDER_ID,
+        providerEndpointId: llmConfig.providerEndpointId,
+        customProviderName: llmConfig.customProviderName,
+        baseUrl: llmConfig.baseUrl.trim(),
+        model: llmConfig.model.trim(),
+        modelsEndpoint: llmConfig.modelsEndpoint?.trim() || undefined,
+        omitTemperature: llmConfig.omitTemperature,
+        requestTimeoutMs: llmConfig.requestTimeoutMs,
+        maxTokens: llmConfig.maxTokens,
+        systemPrompt: llmConfig.systemPrompt,
+      }
 
-    if (!isApiKeyMasked || includeMaskedApiKey) {
-      payload.apiKey = isApiKeyMasked ? undefined : llmConfig.apiKey.trim()
-    }
+      if (!isApiKeyMasked || includeMaskedApiKey) {
+        payload.apiKey = isApiKeyMasked ? undefined : llmConfig.apiKey.trim()
+      }
 
-    return payload
-  }, [isApiKeyMasked, llmConfig])
+      return payload
+    },
+    [isApiKeyMasked, llmConfig],
+  )
 
   const handleProviderPresetChange = (providerPresetId: string) => {
     const preset = findLlmProviderPreset(providerPresetId)
@@ -524,16 +534,8 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
           label="Feedback target book"
           hint={`Defaults to the first Category ID (${defaultLearningCategoryId || 'not set'}). Pending events: ${learningSyncState?.learningPendingCount ?? 0}${learningSyncState?.learningLastError ? `, last error: ${learningSyncState.learningLastError}` : ''}`}
         >
-          <SelectInput
-            name="learningCategoryId"
-            value={effectiveLearningCategoryId}
-            onChange={e => setSelectedLearningCategoryId(e.target.value)}
-          >
-            {defaultLearningCategoryId ? (
-              <option value={defaultLearningCategoryId}>Default ({defaultLearningCategoryId})</option>
-            ) : (
-              <option value="">Select a book...</option>
-            )}
+          <SelectInput name="learningCategoryId" value={effectiveLearningCategoryId} onChange={e => setSelectedLearningCategoryId(e.target.value)}>
+            {defaultLearningCategoryId ? <option value={defaultLearningCategoryId}>Default ({defaultLearningCategoryId})</option> : <option value="">Select a book...</option>}
             {learningCategories.map(category => (
               <option key={category.id} value={category.id}>
                 {category.name} ({category.id})
@@ -555,15 +557,8 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
       </SettingsSection>
 
       <SettingsSection title="Mastered Book">
-        <Field
-          label="Fully mastered book"
-          hint={`Skip stores words here and removes them from the feedback book. Current: ${effectiveMasteredCategoryId || 'not set'}`}
-        >
-          <SelectInput
-            name="masteredCategoryId"
-            value={effectiveMasteredCategoryId}
-            onChange={e => setSelectedMasteredCategoryId(e.target.value)}
-          >
+        <Field label="Fully mastered book" hint={`Skip stores words here and removes them from the feedback book. Current: ${effectiveMasteredCategoryId || 'not set'}`}>
+          <SelectInput name="masteredCategoryId" value={effectiveMasteredCategoryId} onChange={e => setSelectedMasteredCategoryId(e.target.value)}>
             <option value="">Select a book...</option>
             {learningCategories.map(category => (
               <option key={category.id} value={category.id}>
@@ -596,7 +591,10 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
         {activePreset?.endpointVariants?.length ? (
           <Field
             label="Endpoint"
-            hint={activeEndpoint?.description || `${activeEndpoint?.region ?? activePreset.region ?? 'Global'} endpoint, ${activeEndpoint?.apiMode ?? activePreset.apiMode ?? 'openai-compatible'}`}
+            hint={
+              activeEndpoint?.description ||
+              `${activeEndpoint?.region ?? activePreset.region ?? 'Global'} endpoint, ${activeEndpoint?.apiMode ?? activePreset.apiMode ?? 'openai-compatible'}`
+            }
           >
             <SelectInput
               name="llmProviderEndpoint"
@@ -704,12 +702,22 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
             {isTestingLlm ? 'Testing...' : 'Test Connection'}
           </Button>
           {activePreset?.apiKeyUrl && (
-            <a className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-slate-600 hover:text-slate-950" href={activePreset.apiKeyUrl} target="_blank" rel="noreferrer">
+            <a
+              className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-slate-600 hover:text-slate-950"
+              href={activePreset.apiKeyUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
               Get API key
             </a>
           )}
           {activePreset?.docsUrl && (
-            <a className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-slate-600 hover:text-slate-950" href={activePreset.docsUrl} target="_blank" rel="noreferrer">
+            <a
+              className="inline-flex h-9 items-center rounded-md px-3 text-sm font-medium text-slate-600 hover:text-slate-950"
+              href={activePreset.docsUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
               Docs
             </a>
           )}

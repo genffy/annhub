@@ -61,7 +61,12 @@ const Navbar = async () => {
                         {item}
                       </Link>
                     ))}
-                    <Link href={CHROME_WEB_STORE_URL} target="_blank" rel="noopener noreferrer" className="w-full px-6 py-2 mt-3 text-center text-white bg-indigo-600 rounded-md lg:ml-5">
+                    <Link
+                      href={CHROME_WEB_STORE_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="w-full px-6 py-2 mt-3 text-center text-white bg-indigo-600 rounded-md lg:ml-5"
+                    >
                       Get Started
                     </Link>
                   </>

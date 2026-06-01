@@ -87,7 +87,6 @@ function flashSelection(range: Range) {
   }
 }
 
-
 // ── Utility: is page ready ────────────────────────────────
 function isPageReady(): boolean {
   return document.readyState === 'complete' || document.readyState === 'interactive'
@@ -157,12 +156,8 @@ function Selection() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Alt+H or Cmd+Shift+H → toggle Mode B
-      const isMac = (navigator as any).userAgentData?.platform?.toUpperCase()?.includes('MAC')
-        ?? /mac/i.test(navigator.platform ?? '')
-      if (
-        (isMac && e.metaKey && e.shiftKey && e.key.toLowerCase() === 'h') ||
-        (!isMac && e.altKey && e.key.toLowerCase() === 'h')
-      ) {
+      const isMac = (navigator as any).userAgentData?.platform?.toUpperCase()?.includes('MAC') ?? /mac/i.test(navigator.platform ?? '')
+      if ((isMac && e.metaKey && e.shiftKey && e.key.toLowerCase() === 'h') || (!isMac && e.altKey && e.key.toLowerCase() === 'h')) {
         e.preventDefault()
         modeManager.toggle()
         return
@@ -185,8 +180,12 @@ function Selection() {
       }
       if (message.type === 'LOCATE_HIGHLIGHT') {
         locateHighlight(message.data.highlightId)
-          .then(() => {/* handled */ })
-          .catch(() => {/* silently fail */ })
+          .then(() => {
+            /* handled */
+          })
+          .catch(() => {
+            /* silently fail */
+          })
       }
     }
     chrome.runtime.onMessage.addListener(handler)
@@ -218,9 +217,7 @@ function Selection() {
       // Ignore clicks inside our own UI — use composedPath() to
       // traverse shadow DOM boundaries (e.target is retargeted).
       const path = e.composedPath() as HTMLElement[]
-      const insideAnnUI = path.some(
-        el => el instanceof HTMLElement && el.hasAttribute?.('data-ann-ui')
-      )
+      const insideAnnUI = path.some(el => el instanceof HTMLElement && el.hasAttribute?.('data-ann-ui'))
       if (insideAnnUI) return
 
       setTimeout(() => {
@@ -305,7 +302,7 @@ function Selection() {
         Logger.error('[Selection] Mode B capture failed:', error)
       }
     },
-    [clipService, highlightService]
+    [clipService, highlightService],
   )
 
   // ── Mode A action dispatcher ──
@@ -327,11 +324,7 @@ function Selection() {
         }
         case 'add-note': {
           const rangeCopy = selectionRange.cloneRange()
-          const clip = await clipService.captureSelection(
-            selectionRange,
-            'Mode A',
-            extra?.note
-          )
+          const clip = await clipService.captureSelection(selectionRange, 'Mode A', extra?.note)
           if (clip) {
             // Persist highlight to IndexedDB + apply DOM <mark>
             await highlightService.createHighlight(rangeCopy, '#ffeb3b', extra?.note)
@@ -350,7 +343,7 @@ function Selection() {
         }
       }
     },
-    [selectionRange, clipService, highlightService]
+    [selectionRange, clipService, highlightService],
   )
 
   // ── Dismiss hover menu ──
@@ -366,9 +359,7 @@ function Selection() {
       // e.target is retargeted to the shadow host when the event crosses
       // the shadow boundary, so closest('[data-ann-ui]') would fail.
       const path = e.composedPath() as HTMLElement[]
-      const insideAnnUI = path.some(
-        el => el instanceof HTMLElement && el.hasAttribute?.('data-ann-ui')
-      )
+      const insideAnnUI = path.some(el => el instanceof HTMLElement && el.hasAttribute?.('data-ann-ui'))
       if (insideAnnUI) return
       if (menuVisible) {
         dismissMenu()
@@ -383,23 +374,14 @@ function Selection() {
       {/* Mode A: Hover Menu */}
       {menuVisible && selectionRange && !isHighlighterMode && (
         <div data-ann-ui="hover-menu" style={{ pointerEvents: 'auto' }}>
-          <HoverMenu
-            position={menuPosition}
-            selectedRange={selectionRange}
-            actions={actions}
-            onAction={handleAction}
-            onDismiss={dismissMenu}
-          />
+          <HoverMenu position={menuPosition} selectedRange={selectionRange} actions={actions} onAction={handleAction} onDismiss={dismissMenu} />
         </div>
       )}
 
       {/* Mode B: Highlighter Capsule */}
       {isHighlighterMode && (
         <div data-ann-ui="capsule" style={{ pointerEvents: 'auto' }}>
-          <HighlighterCapsule
-            captureCount={captureCount}
-            onExit={() => modeManager.setMode(false)}
-          />
+          <HighlighterCapsule captureCount={captureCount} onExit={() => modeManager.setMode(false)} />
         </div>
       )}
     </>

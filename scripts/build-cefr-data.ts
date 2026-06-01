@@ -24,7 +24,10 @@ function isValidCEFR(s: string): s is CEFRLevel {
 }
 
 function normalizeWord(w: string): string {
-  return w.toLowerCase().replace(/[^\w'-]/g, '').trim()
+  return w
+    .toLowerCase()
+    .replace(/[^\w'-]/g, '')
+    .trim()
 }
 
 // ── 1. Load Oxford 5000 ─────────────────────────────────────────────────────
@@ -120,7 +123,10 @@ for (const level of ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'] as CEFRLevel[]) {
     // Write words as a compact array, ~10 words per line
     lines.push(`  ${level}: [`)
     for (let i = 0; i < words.length; i += 10) {
-      const chunk = words.slice(i, i + 10).map(w => `'${w.replace(/'/g, "\\'")}'`).join(',')
+      const chunk = words
+        .slice(i, i + 10)
+        .map(w => `'${w.replace(/'/g, "\\'")}'`)
+        .join(',')
       lines.push(`    ${chunk},`)
     }
     lines.push(`  ],`)

@@ -22,150 +22,139 @@ import { LogseqConfig } from '../../../types/logseq'
  */
 
 function formatDate(ts: number | string): string {
-    const d = typeof ts === 'string' ? new Date(ts) : new Date(ts)
-    const yyyy = d.getFullYear()
-    const mm = String(d.getMonth() + 1).padStart(2, '0')
-    const dd = String(d.getDate()).padStart(2, '0')
-    return `${yyyy}-${mm}-${dd}`
+  const d = typeof ts === 'string' ? new Date(ts) : new Date(ts)
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
 }
 
 function getJournalPageName(ts: number | string): string {
-    return formatDate(ts)
+  return formatDate(ts)
 }
 
 function sanitizeTag(tag: string): string {
-    let cleaned = tag.trim()
-    if (!cleaned.startsWith('#')) {
-        cleaned = '#' + cleaned
-    }
-    return cleaned.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5#-]/g, '')
+  let cleaned = tag.trim()
+  if (!cleaned.startsWith('#')) {
+    cleaned = '#' + cleaned
+  }
+  return cleaned.replace(/[^a-zA-Z0-9_\u4e00-\u9fa5#-]/g, '')
 }
 
-function buildTagsString(
-    config: Pick<LogseqConfig, 'customTags' | 'autoTagDomain'>,
-    domain?: string
-): string {
-    const tags = ['#annhub']
+function buildTagsString(config: Pick<LogseqConfig, 'customTags' | 'autoTagDomain'>, domain?: string): string {
+  const tags = ['#annhub']
 
-    if (config.customTags.trim()) {
-        const custom = config.customTags
-            .split(',')
-            .map(t => sanitizeTag(t))
-            .filter(Boolean)
-        tags.push(...custom)
-    }
+  if (config.customTags.trim()) {
+    const custom = config.customTags
+      .split(',')
+      .map(t => sanitizeTag(t))
+      .filter(Boolean)
+    tags.push(...custom)
+  }
 
-    if (config.autoTagDomain && domain) {
-        const domainTag = '#' + domain.replace(/[./]/g, '_')
-        tags.push(domainTag)
-    }
+  if (config.autoTagDomain && domain) {
+    const domainTag = '#' + domain.replace(/[./]/g, '_')
+    tags.push(domainTag)
+  }
 
-    return tags.join(' ')
+  return tags.join(' ')
 }
 
 function sanitizePageTitle(title: string): string {
-    return title
-        .replace(/[\[\]]/g, '') // Remove brackets that might break links
-        .replace(/\s+/g, ' ')
-        .trim()
-        .substring(0, 100)
+  return title
+    .replace(/[\[\]]/g, '') // Remove brackets that might break links
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 100)
 }
 
 export interface FormattedJournalBlock {
-    journalPage: string // e.g., "2025-01-15"
-    content: string // Main block content with tags and link
-    properties: Record<string, string> // Block properties for metadata
-    children?: string[] // Child blocks (quote, note, etc.)
+  journalPage: string // e.g., "2025-01-15"
+  content: string // Main block content with tags and link
+  properties: Record<string, string> // Block properties for metadata
+  children?: string[] // Child blocks (quote, note, etc.)
 }
 
 export class LogseqFormatter {
-    /**
-     * Format a highlight record for journal sync.
-     *
-     * Block structure:
-     *   #annhub [[Page Title]] [🔗](https://...)
-     *     annhubId:: hl_xxx
-     *   - > highlighted text
-     *   - 💭 user note
-     */
-    static formatHighlight(
-        record: HighlightRecord,
-        config: Pick<LogseqConfig, 'customTags' | 'autoTagDomain'>
-    ): FormattedJournalBlock {
-        const journalPage = getJournalPageName(record.timestamp)
-        const pageTitle = sanitizePageTitle(record.metadata?.pageTitle || record.domain)
-        const sourceUrl = record.metadata?.sourceUrl || record.metadata?.pageUrl || record.url
-        const tags = buildTagsString(config, record.domain)
+  /**
+   * Format a highlight record for journal sync.
+   *
+   * Block structure:
+   *   #annhub [[Page Title]] [🔗](https://...)
+   *     annhubId:: hl_xxx
+   *   - > highlighted text
+   *   - 💭 user note
+   */
+  static formatHighlight(record: HighlightRecord, config: Pick<LogseqConfig, 'customTags' | 'autoTagDomain'>): FormattedJournalBlock {
+    const journalPage = getJournalPageName(record.timestamp)
+    const pageTitle = sanitizePageTitle(record.metadata?.pageTitle || record.domain)
+    const sourceUrl = record.metadata?.sourceUrl || record.metadata?.pageUrl || record.url
+    const tags = buildTagsString(config, record.domain)
 
-        // Main block: tags + page link + clickable source link
-        const content = `${tags} [[${pageTitle}]] [🔗](${sourceUrl})`
+    // Main block: tags + page link + clickable source link
+    const content = `${tags} [[${pageTitle}]] [🔗](${sourceUrl})`
 
-        // Only keep annhubId for duplicate detection
-        const properties: Record<string, string> = {
-            'annhubId': record.id,
-        }
-
-        // Highlight quote as first child block
-        const quoteContent = `> ${record.originalText.trim()}`
-
-        // Build children array
-        const children: string[] = [quoteContent]
-        if (record.user_note?.trim()) {
-            children.push(`💭 ${record.user_note.trim()}`)
-        }
-
-        return {
-            journalPage,
-            content,
-            properties,
-            children,
-        }
+    // Only keep annhubId for duplicate detection
+    const properties: Record<string, string> = {
+      annhubId: record.id,
     }
 
-    /**
-     * Format a clip record for journal sync.
-     */
-    static formatClip(
-        record: ClipRecord,
-        config: Pick<LogseqConfig, 'customTags' | 'autoTagDomain'>
-    ): FormattedJournalBlock {
-        const journalPage = getJournalPageName(record.capture_time)
-        const pageTitle = sanitizePageTitle(record.source_title || '')
-        const sourceUrl = record.source_detail_url || record.source_url
-        const url = new URL(sourceUrl)
-        const tags = buildTagsString(config, url.hostname)
+    // Highlight quote as first child block
+    const quoteContent = `> ${record.originalText.trim()}`
 
-        // Main block: tags + page link + clickable source link
-        const content = pageTitle
-            ? `${tags} [[${pageTitle}]] [🔗](${sourceUrl})`
-            : `${tags} [🔗](${sourceUrl})`
-
-        // Only keep annhubId for duplicate detection
-        const properties: Record<string, string> = {
-            'annhubId': record.id,
-        }
-
-        // Clip content as child block
-        const clipContent = `> ${record.content.trim()}`
-
-        // Build children array
-        const children: string[] = [clipContent]
-        if (record.user_note?.trim()) {
-            children.push(`💭 ${record.user_note.trim()}`)
-        }
-
-        return {
-            journalPage,
-            content,
-            properties,
-            children,
-        }
+    // Build children array
+    const children: string[] = [quoteContent]
+    if (record.user_note?.trim()) {
+      children.push(`💭 ${record.user_note.trim()}`)
     }
 
-    /**
-     * Get the journal page name for a record.
-     */
-    static getJournalPageName(ts: number | string): string {
-        return getJournalPageName(ts)
+    return {
+      journalPage,
+      content,
+      properties,
+      children,
     }
+  }
+
+  /**
+   * Format a clip record for journal sync.
+   */
+  static formatClip(record: ClipRecord, config: Pick<LogseqConfig, 'customTags' | 'autoTagDomain'>): FormattedJournalBlock {
+    const journalPage = getJournalPageName(record.capture_time)
+    const pageTitle = sanitizePageTitle(record.source_title || '')
+    const sourceUrl = record.source_detail_url || record.source_url
+    const url = new URL(sourceUrl)
+    const tags = buildTagsString(config, url.hostname)
+
+    // Main block: tags + page link + clickable source link
+    const content = pageTitle ? `${tags} [[${pageTitle}]] [🔗](${sourceUrl})` : `${tags} [🔗](${sourceUrl})`
+
+    // Only keep annhubId for duplicate detection
+    const properties: Record<string, string> = {
+      annhubId: record.id,
+    }
+
+    // Clip content as child block
+    const clipContent = `> ${record.content.trim()}`
+
+    // Build children array
+    const children: string[] = [clipContent]
+    if (record.user_note?.trim()) {
+      children.push(`💭 ${record.user_note.trim()}`)
+    }
+
+    return {
+      journalPage,
+      content,
+      properties,
+      children,
+    }
+  }
+
+  /**
+   * Get the journal page name for a record.
+   */
+  static getJournalPageName(ts: number | string): string {
+    return getJournalPageName(ts)
+  }
 }

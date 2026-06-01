@@ -96,7 +96,7 @@ export class BackgroundServiceManager {
       initialized: this.isInitialized,
       serviceContext: this.serviceContext.getDetailedStatus(),
       serviceManager: this.serviceManager.getServiceStatus(),
-      allReady: this.serviceManager.isAllServicesReady()
+      allReady: this.serviceManager.isAllServicesReady(),
     }
   }
 
@@ -129,4 +129,4 @@ export { HighlightService } from './services/highlight'
 export { LogseqService } from './services/logseq'
 export { VocabularyService } from './services/vocabulary'
 
-export default BackgroundServiceManager.getInstance() 
+export default BackgroundServiceManager.getInstance()

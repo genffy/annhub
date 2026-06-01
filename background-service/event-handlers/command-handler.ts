@@ -4,7 +4,7 @@ import { ANN_SELECTION_KEY } from '../../constants'
 export class CommandHandler {
   private commandListener?: (command: string) => void
 
-  constructor() { }
+  constructor() {}
 
   registerListeners(): void {
     Logger.info('[CommandHandler] Registering command listeners...')
@@ -41,7 +41,7 @@ export class CommandHandler {
       try {
         await browser.tabs.sendMessage(tab.id, {
           type: 'TRIGGER_SCREENSHOT',
-          command: ANN_SELECTION_KEY
+          command: ANN_SELECTION_KEY,
         })
         Logger.info('[CommandHandler] Screenshot command sent to content script')
       } catch (error) {
@@ -51,10 +51,12 @@ export class CommandHandler {
           await browser.scripting.executeScript({
             target: { tabId: tab.id },
             func: () => {
-              window.dispatchEvent(new CustomEvent('ann-screenshot-trigger', {
-                detail: { command: 'capture-screenshot' }
-              }))
-            }
+              window.dispatchEvent(
+                new CustomEvent('ann-screenshot-trigger', {
+                  detail: { command: 'capture-screenshot' },
+                }),
+              )
+            },
           })
           Logger.info('[CommandHandler] Screenshot event dispatched via script injection')
         } catch (injectionError) {
@@ -77,4 +79,4 @@ export class CommandHandler {
 
     Logger.info('[CommandHandler] Command listeners removed successfully')
   }
-} 
+}

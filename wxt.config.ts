@@ -17,17 +17,8 @@ export default defineConfig({
     description: '__MSG_extDescription__',
     version: extensionVersion,
     default_locale: 'en',
-    permissions: [
-      'storage',
-      'activeTab',
-      'tabs',
-      'commands',
-      'sidePanel',
-      'alarms'
-    ],
-    host_permissions: [
-      '<all_urls>',
-    ],
+    permissions: ['storage', 'activeTab', 'tabs', 'commands', 'sidePanel', 'alarms'],
+    host_permissions: ['<all_urls>'],
     action: {
       default_title: '__MSG_extName__',
       default_popup: 'popup/index.html',
@@ -44,19 +35,19 @@ export default defineConfig({
       [ANN_SELECTION_KEY]: {
         suggested_key: {
           default: 'Ctrl+Shift+S',
-          mac: 'Command+Shift+S'
+          mac: 'Command+Shift+S',
         },
         description: 'Capture selected text area for annotation',
-        global: false
+        global: false,
       },
       'toggle-highlighter': {
         suggested_key: {
           default: 'Alt+H',
-          mac: 'Command+Shift+H'
+          mac: 'Command+Shift+H',
         },
         description: 'Toggle highlighter / machine-gun capture mode',
-        global: false
-      }
+        global: false,
+      },
     },
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline';",
@@ -70,15 +61,12 @@ export default defineConfig({
   },
   webExt: {
     disabled: true,
-    chromiumArgs: ['--user-data-dir=./.wxt/browser-data']
+    chromiumArgs: ['--user-data-dir=./.wxt/browser-data'],
   },
   vite: () => ({
     server: {
       cors: {
-        origin: [
-          /^chrome-extension:\/\/[a-p]{32}$/,
-          /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/,
-        ],
+        origin: [/^chrome-extension:\/\/[a-p]{32}$/, /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/],
       },
     },
   }),

@@ -73,17 +73,14 @@ export function collectTextNodes(element: Element, options: CollectTextNodesOpti
     NodeFilter.SHOW_TEXT,
     intent
       ? {
-          acceptNode: (node) =>
-            isAnnotatableTextNode(node, intent)
-              ? NodeFilter.FILTER_ACCEPT
-              : NodeFilter.FILTER_REJECT,
+          acceptNode: node => (isAnnotatableTextNode(node, intent) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
         }
       : null,
   )
 
   const textNodes: Text[] = []
   let node: Text | null
-  while (node = walker.nextNode() as Text) {
+  while ((node = walker.nextNode() as Text)) {
     textNodes.push(node)
   }
 
@@ -169,12 +166,7 @@ export function createRangeFromTextIndex(textNodes: Text[], startIndex: number, 
   return range
 }
 
-export function findTextRangeInElement(
-  element: Element,
-  targetText: string,
-  context: TextContext = {},
-  options: FindTextRangeOptions = {},
-): Range | null {
+export function findTextRangeInElement(element: Element, targetText: string, context: TextContext = {}, options: FindTextRangeOptions = {}): Range | null {
   const textNodes = collectTextNodes(element, { intent: options.intent })
   const fullText = textNodes.map(node => node.textContent || '').join('')
   const match = findBestTextMatchRange(fullText, targetText, context)
