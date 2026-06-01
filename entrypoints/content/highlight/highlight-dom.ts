@@ -1,160 +1,25 @@
 import { HighlightColor } from '../../../types/highlight'
 import { MixedSelectionContent } from '../../../types/dom'
 import { Logger } from '../../../utils/logger'
-
-/**
- * Site-specific rule for finding the permalink URL of a content item.
- *
- * `findSourceUrl` iterates through registered rules in order. The first rule
- * whose `match` returns true is used; its `containerSelector`, `containerFilter`,
- * and `extractPermalink` drive the entire lookup.
- */
-interface SitePermalinkRule {
-    /** Human-readable name, for debugging */
-    name: string
-    /** Return true if this rule applies to the current page */
-    match: (url: URL) => boolean
-    /** CSS selector(s) to walk up and locate the content container */
-    containerSelector: string
-    /** Optional extra check on the candidate container element */
-    containerFilter?: (el: Element) => boolean
-    /** Optional site-specific container lookup from the exact selection node */
-    findContainer?: (startElement: Element, origin: string) => Element | null
-    /**
-     * Extract the permalink from the located container.
-     * Return a full URL string, or null to fall through to the default logic.
-     */
-    extractPermalink: (container: Element, origin: string) => string | null
-}
+import {
+    extractTwitterPermalink,
+    findTwitterContainerByPermalink,
+    findTwitterPermalinkContainer,
+    getActiveAnnotationPlatformRule,
+    TWEET_STATUS_PREFIX_RE,
+    TWEET_STATUS_RE,
+} from '../annotation-core/platform-rules'
+import { wrapRange, unwrapMarker } from '../annotation-core/markers'
+import { shouldSkipElement } from '../annotation-core/dom-policy'
 
 // ── Twitter / X ─────────────────────────────────────────────────────────────
-export const TWEET_STATUS_RE = /^\/[^/]+\/status\/\d+$/
-export const TWEET_STATUS_PREFIX_RE = /^\/[^/]+\/status\/\d+/
-const TWITTER_HOST_RE = /^(x\.com|twitter\.com)$/i
-
-type TwitterStatusHref = {
-    url: string
-    path: string
-    isExact: boolean
+export {
+    extractTwitterPermalink,
+    findTwitterContainerByPermalink,
+    findTwitterPermalinkContainer,
+    TWEET_STATUS_PREFIX_RE,
+    TWEET_STATUS_RE,
 }
-
-function parseTwitterStatusHref(href: string | null | undefined, origin: string): TwitterStatusHref | null {
-    if (!href) return null
-
-    try {
-        const url = new URL(href, origin)
-        if (!TWITTER_HOST_RE.test(url.hostname)) return null
-
-        const match = url.pathname.match(TWEET_STATUS_PREFIX_RE)
-        if (!match) return null
-
-        return {
-            url: `${origin}${match[0]}`,
-            path: match[0],
-            isExact: TWEET_STATUS_RE.test(url.pathname),
-        }
-    } catch {
-        return null
-    }
-}
-
-function getHref(el: Element): string | null {
-    return el instanceof HTMLAnchorElement ? el.getAttribute('href') || el.href : null
-}
-
-function getTwitterStatusLinks(container: Element, origin: string): TwitterStatusHref[] {
-    const links: Element[] = []
-    if (container instanceof HTMLAnchorElement) links.push(container)
-    links.push(...Array.from(container.querySelectorAll('a[href]')))
-
-    return links
-        .map(link => parseTwitterStatusHref(getHref(link), origin))
-        .filter((item): item is TwitterStatusHref => Boolean(item))
-}
-
-export function extractTwitterPermalink(container: Element, origin: string): string | null {
-    // Strategy 1: <a> wrapping a <time> element — most reliable
-    const timeEl = container.querySelector('time')
-    if (timeEl) {
-        const timeLink = timeEl.closest('a[href]') as HTMLAnchorElement | null
-        if (timeLink) {
-            const status = parseTwitterStatusHref(getHref(timeLink), origin)
-            if (status) return status.url
-        }
-    }
-
-    // Strategy 2 & 3: scan links for /{user}/status/{id}
-    let fallback: string | null = null
-
-    for (const status of getTwitterStatusLinks(container, origin)) {
-        if (status.isExact) return status.url
-        if (!fallback) fallback = status.url
-    }
-    return fallback
-}
-
-export function findTwitterPermalinkContainer(startElement: Element, origin: string): Element | null {
-    let el: Element | null = startElement
-
-    while (el && el !== document.body) {
-        const ownStatus = parseTwitterStatusHref(getHref(el), origin)
-        if (ownStatus) return el
-
-        const role = el.getAttribute('role')
-        const isTweetBoundary = el.matches('article, [data-testid="tweet"]')
-        const isQuotedTweetCard = role === 'link'
-
-        if ((isQuotedTweetCard || isTweetBoundary) && extractTwitterPermalink(el, origin)) {
-            return el
-        }
-
-        if (isTweetBoundary) break
-        el = el.parentElement
-    }
-
-    return null
-}
-
-export function findTwitterContainerByPermalink(sourceUrl: string, origin: string): Element | null {
-    const target = parseTwitterStatusHref(sourceUrl, origin)
-    if (!target) return null
-
-    const links = Array.from(document.querySelectorAll('a[href]'))
-
-    for (const link of links) {
-        const status = parseTwitterStatusHref(getHref(link), origin)
-        if (!status || status.path !== target.path) continue
-
-        let el: Element | null = link
-        while (el && el !== document.body) {
-            if (el.getAttribute('role') === 'link') return el
-            if (el.matches('article, [data-testid="tweet"]')) return el
-            el = el.parentElement
-        }
-
-        return link
-    }
-
-    return null
-}
-
-// ── Rule registry ───────────────────────────────────────────────────────────
-const SITE_PERMALINK_RULES: SitePermalinkRule[] = [
-    {
-        name: 'twitter',
-        match: (url) => /^(x\.com|twitter\.com)$/i.test(url.hostname),
-        containerSelector: 'article, [data-testid="tweet"]',
-        findContainer: findTwitterPermalinkContainer,
-        extractPermalink: extractTwitterPermalink,
-    },
-    // To add a new site, append a rule here. Example:
-    // {
-    //     name: 'hackernews',
-    //     match: (url) => url.hostname === 'news.ycombinator.com',
-    //     containerSelector: 'tr.athing',
-    //     extractPermalink: (container, origin) => { ... },
-    // },
-]
 
 export class HighlightDOMManager {
     private static instance: HighlightDOMManager | null = null
@@ -352,15 +217,31 @@ export class HighlightDOMManager {
 
 
     private wrapTextNode(textNode: Text, color: string, highlightId: string, highlightElements: HTMLElement[]): void {
-        const span = document.createElement('span')
-        span.className = 'ann-highlight'
-        span.setAttribute('data-highlight-id', highlightId)
-        span.setAttribute('data-highlight-color', color)
+        const parent = textNode.parentNode
+        if (!parent) return
+
+        // Respect manual-highlight DOM policy: skip extension UI / nested annotation markers / contenteditable
+        if (parent instanceof Element && shouldSkipElement(parent, 'manual-highlight')) {
+            Logger.debug('[HighlightDOMManager] Skipping wrap (manual-highlight policy)', parent.tagName)
+            return
+        }
+
+        const range = document.createRange()
+        range.selectNodeContents(textNode)
+
+        const span = wrapRange(range, {
+            tagName: 'span',
+            className: 'ann-highlight',
+            attributes: {
+                'data-highlight-id': highlightId,
+                'data-highlight-color': color,
+            },
+        })
+
+        if (!span) return
+
         span.style.backgroundColor = color
-
-
         span.style.color = this.getContrastColor(color)
-
 
         const tooltip = document.createElement('div')
         tooltip.className = 'ann-highlight-tooltip'
@@ -369,19 +250,12 @@ export class HighlightDOMManager {
         tooltip.style.left = '0'
         span.appendChild(tooltip)
 
-
         span.addEventListener('contextmenu', (e) => {
             e.preventDefault()
             this.showContextMenu(e, highlightId)
         })
 
-
-        const parent = textNode.parentNode
-        if (parent) {
-            parent.insertBefore(span, textNode)
-            span.appendChild(textNode)
-            highlightElements.push(span)
-        }
+        highlightElements.push(span)
     }
 
 
@@ -390,15 +264,9 @@ export class HighlightDOMManager {
         if (!elements) return
 
         elements.forEach(element => {
-            const parent = element.parentNode
-            if (parent) {
-
-                while (element.firstChild) {
-                    parent.insertBefore(element.firstChild, element)
-                }
-
-                parent.removeChild(element)
-            }
+            // Strip non-content children (e.g. tooltip) before unwrapping so they don't bleed into the document flow.
+            element.querySelectorAll('.ann-highlight-tooltip').forEach(tooltip => tooltip.remove())
+            unwrapMarker(element)
         })
 
         this.highlightElements.delete(highlightId)
@@ -742,8 +610,8 @@ export class HighlightDOMManager {
      * Find the detail/permalink URL for the selected text.
      *
      * Flow:
-     * 1. Check SITE_PERMALINK_RULES for a site-specific rule that matches the current URL.
-     *    If matched, use its containerSelector + extractPermalink to get the result.
+     * 1. Check annotation-core platform rules for a site-specific rule that
+     *    matches the current URL.
      * 2. Otherwise, fall back to the generic heuristic (walk up to article-like container,
      *    pick the best <a> link).
      */
@@ -760,16 +628,10 @@ export class HighlightDOMManager {
         if (!startElement) return null
 
         // Try site-specific rules first
-        const matchedRule = SITE_PERMALINK_RULES.find(r => r.match(currentUrl))
+        const matchedRule = getActiveAnnotationPlatformRule(currentUrl)
         if (matchedRule) {
-            const ruleContainer = matchedRule.findContainer
-                ? matchedRule.findContainer(startElement, currentOrigin)
-                : this.findContainerBySelector(
-                    startElement, matchedRule.containerSelector, matchedRule.containerFilter
-                )
-            if (ruleContainer) {
-                return matchedRule.extractPermalink(ruleContainer, currentOrigin)
-            }
+            const source = matchedRule.findSourceFromElement(startElement, currentOrigin)
+            if (source.sourceUrl) return source.sourceUrl
         }
 
         // Generic fallback: walk up to article-like container
@@ -785,33 +647,15 @@ export class HighlightDOMManager {
         try {
             const currentUrl = new URL(window.location.href)
             const source = new URL(sourceUrl)
-            if (!TWITTER_HOST_RE.test(currentUrl.hostname) || !TWITTER_HOST_RE.test(source.hostname)) {
+            const matchedRule = getActiveAnnotationPlatformRule(currentUrl)
+            if (!matchedRule || !matchedRule.match(source)) {
                 return null
             }
 
-            return findTwitterContainerByPermalink(sourceUrl, currentUrl.origin)
+            return matchedRule.findContainerBySourceUrl(sourceUrl, currentUrl.origin)
         } catch {
             return null
         }
-    }
-
-    /**
-     * Walk up from `startElement` and return the first ancestor matching the
-     * given CSS selector. Optionally run `filter` for extra validation.
-     */
-    private static findContainerBySelector(
-        startElement: Element,
-        selector: string,
-        filter?: (el: Element) => boolean
-    ): Element | null {
-        let el: Element | null = startElement
-        while (el && el !== document.body) {
-            if (el.matches(selector) && (!filter || filter(el))) {
-                return el
-            }
-            el = el.parentElement
-        }
-        return null
     }
 
     /**

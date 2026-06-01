@@ -31,18 +31,31 @@ annhub/
 │   │   ├── mode-manager.ts         # 全局模式单例（非 React 依赖）
 │   │   ├── clip-service.ts         # 前端 Clip 采集服务
 │   │   ├── content.css             # Shadow DOM 动画 keyframes
+│   │   ├── annotation-core/        # 高亮与生词共享的标注底座（见 §5.9）
+│   │   │   ├── types.ts            # AnnotationIntent / ContentSource / AnnotationPlatformRule
+│   │   │   ├── platform-rules.ts   # 站点规则中心（X/Twitter permalink 识别）
+│   │   │   ├── dom-policy.ts       # DOM 跳过/可标注判定（按 intent 区分）
+│   │   │   ├── text-range.ts       # 文本节点收集 + Range 定位/匹配
+│   │   │   ├── markers.ts          # 通用 wrap/unwrap/cleanup（span/ruby）
+│   │   │   └── __tests__/          # Vitest 单元测试
 │   │   ├── highlight/
-│   │   │   ├── highlight-dom.ts    # DOM 操作：创建/移除高亮、selector 生成、sourceUrl 提取
+│   │   │   ├── highlight-dom.ts    # HighlightDOMManager；sourceUrl 委托 annotation-core
 │   │   │   ├── service.ts          # 高亮业务逻辑：创建、恢复（含重试）、删除
 │   │   │   └── __tests__/          # Vitest 单元测试
 │   │   └── vocab-label/            # 英文生词标注（操作宿主 DOM）
-│   │       ├── index.ts            # 入口：配置检查、快照获取、MutationObserver
+│   │       ├── index.ts            # 入口：配置/快照/profile + 混合观察器（见 §5.5）
 │   │       ├── detect-page.ts      # 英文页检测 + 域名白名单
+│   │       ├── content-scope.ts    # 内容根解析 + 可标注块收集（排除 nav/aside 等）
+│   │       ├── platform-rules.ts   # annotation-core 平台规则的 vocab 适配层
+│   │       ├── dom-policy.ts       # annotation-core/dom-policy 的兼容 re-export
+│   │       ├── cefr-data.ts        # 自动生成的 CEFR 分级词表（Oxford 5000 + CEFR-J）
+│   │       ├── frequency-filter.ts # 按用户 CEFR 水平过滤高频词
+│   │       ├── viewport.ts         # 视口窗口判定（±50% 视口）
 │   │       ├── annotate.ts         # TreeWalker + 两阶段逆序标注
 │   │       ├── styles.ts           # 宿主样式注入/移除
 │   │       └── __tests__/          # Vitest 单元测试
 │   ├── background/
-│   │   └── index.ts                # Service Worker 入口，快捷键/图标点击监听
+│   │   └── index.ts                # Service Worker 入口
 │   ├── options/                    # 设置页
 │   │   ├── App.tsx                 # 路由：Highlights / Words / Settings
 │   │   └── pages/VocabPage.tsx     # Vocab + LLM + Eudic + 白名单配置
@@ -51,9 +64,14 @@ annhub/
 │   ├── popup/                      # 弹出窗口
 │   └── sidepanel/                  # 侧边栏
 ├── background-service/
-│   ├── index.ts                    # BackgroundServiceManager
+│   ├── index.ts                    # BackgroundServiceManager（注册服务 + 事件监听）
 │   ├── service-context.ts          # 服务状态上下文（registeredServices 模式）
 │   ├── service-manager.ts          # ServiceManager（含 forceReinitialize restart）
+│   ├── event-handlers/             # 浏览器事件监听（见 §5.10）
+│   │   ├── index.ts                # EventHandlerManager 单例
+│   │   ├── command-handler.ts      # 快捷键命令（截图触发）
+│   │   ├── installation-handler.ts # onInstalled 安装/升级
+│   │   └── runtime-handler.ts      # onMessage PING / onStartup
 │   ├── __tests__/                  # ServiceManager 单元测试
 │   └── services/
 │       ├── config/                 # ConfigService
@@ -62,11 +80,11 @@ annhub/
 │       │   ├── message-handles.ts      # 消息处理器
 │       │   └── __tests__/              # Vitest 单元测试
 │       ├── clip.ts                     # Clip 后台服务（chrome.storage.local）
-│       ├── logseq/                     # Logseq 同步服务
+│       ├── logseq/                     # Logseq 同步服务（client/formatter/sync）
 │       ├── vocabulary/                 # VocabularyService
-│       │   ├── index.ts                # 欧路同步 + chrome.alarms + resolveGloss
-│       │   ├── message-handles.ts      # vocab/llm 消息处理器（含权限校验）
-│       │   └── __tests__/              # 配置 merge 回归测试
+│       │   ├── index.ts                # 欧路同步 + 生词学习 + chrome.alarms + resolveGloss
+│       │   ├── message-handles.ts      # vocab/llm/learning 消息处理器（含权限校验）
+│       │   └── __tests__/              # 配置 merge + learning 回归测试
 │       └── llm/                        # LLM 抽象层
 │           ├── types.ts                # ILlmClient, ChatInput
 │           ├── openai-compatible.ts    # OpenAICompatibleLlmService
@@ -79,11 +97,16 @@ annhub/
 │   ├── highlight.ts                # HighlightRecord, HighlightQuery 等
 │   ├── clip.ts                     # ClipRecord
 │   ├── action.ts                   # HoverMenuAction
-│   └── messages.ts                 # 消息协议类型（含 vocab/llm 消息）
+│   ├── dom.ts                      # DOM 相关共享类型
+│   ├── logseq.ts                   # Logseq 配置/同步类型
+│   └── messages.ts                 # 消息协议类型（含 vocab/llm/learning/screenshot）
 ├── utils/
 │   ├── eudic-openapi.ts            # 欧路 API 封装（fetchCategories, fetchAllWords）
+│   ├── llm-provider-presets.ts     # LLM 厂商预设
+│   ├── helpers/                    # 通用辅助函数
 │   ├── message/index.ts            # 消息发送/创建工具
 │   └── logger.ts                   # 日志工具
+├── constants.ts                    # ANN_SELECTION_KEY 等常量
 ├── e2e/                            # Playwright E2E 测试
 │   ├── fixtures.ts                 # 自定义 fixture（扩展加载）
 │   ├── helpers.ts                  # 辅助函数（service worker 交互、导航）
@@ -148,7 +171,9 @@ interface ClipRecord {
 
 ### 5.1 站点规则体系（Site Permalink Rules）
 
-`highlight-dom.ts` 中维护一个 `SITE_PERMALINK_RULES` 数组，用于在列表/Feed 页面提取内容项的详情永久链接：
+> 站点规则现已统一收敛到 `annotation-core/platform-rules.ts`（见 §5.9）。`highlight-dom.ts` 的 `findSourceUrl/findSourceContainer` 通过 `getActiveAnnotationPlatformRule` 委托到 core，并 re-export `extractTwitterPermalink` 等工具以兼容旧导入路径。下文描述其设计思路。
+
+平台规则用于在列表/Feed 页面提取内容项的详情永久链接：
 
 ```
 findSourceUrl(range)
@@ -204,12 +229,19 @@ SPA 页面内容可能延迟渲染，`restorePageHighlights` 采用递增延迟�
 
 `entrypoints/content/vocab-label/` 在宿主 DOM（非 Shadow Root）中完成英文生词标注：
 
-- **检测**：`detect-page.ts` 通过 `document.documentElement.lang` + 拉丁字母占比判定英文页
-- **标注流程**：TreeWalker 扫描文本节点 → 正则匹配英文单词 → 跳过常见词/已掌握词 → 本地释义(exp)或 LLM 释义 → 逆序包裹 `<ruby>` 或 `<span>` 避免 offset 漂移
-- **幂等标记**：`data-ann-vocab="1"`，提供 `cleanupAnnotations()` 可回收
-- **增量**：`MutationObserver + debounce(1000ms)` 处理 SPA 动态内容
+- **检测**：`detect-page.ts` 通过 `document.documentElement.lang` + 拉丁字母占比（> 0.7）判定英文页；`shouldAnnotateDomain` 做域名白名单匹配（支持 `*` 通配）
+- **内容范围**：`content-scope.ts` 综合 Readability、语义选择器（`main/article/[role=main]`）和内容密度评分解析内容根，`collectAnnotatableBlocks` 收集块并排除 header/nav/footer/sidebar/comment
+- **分级过滤**：`cefr-data.ts` 内嵌 CEFR 分级词表（Oxford 5000 + CEFR-J），`frequency-filter.ts` 按用户 CEFR 水平过滤掉已掌握的高频词
+- **标注流程**：TreeWalker 扫描文本节点 → 正则匹配英文单词 → 跳过常见词/已掌握词 → 本地释义(exp)或 LLM 释义 → 逆序包裹 `<ruby>` 或 `<span>` 避免 offset 漂移（底层用 `annotation-core/markers.ts`）
+- **混合观察器**（`index.ts`）：不再是单一 MutationObserver，而是三者协同——
+  1. `IntersectionObserver`（rootMargin 50%）：滚动时把进入视口的块入队
+  2. `MutationObserver`（childList/characterData，250ms 防抖）：处理 SPA 动态内容
+  3. scroll/resize 视口监听（180ms 防抖）：`reconcileVisibleBlocks` 重新收集
+  入队块经 `scheduleFlush`（idle callback，约 40 块/批）批量标注，仅标注视口窗口内的块
+- **学习反馈**：右键标注弹出 `known/skip/addToVocab` 菜单，发送 `RECORD_VOCAB_LEARNING_EVENT`（见 §5.11）
+- **幂等标记**：`data-ann-vocab="1"`，提供 `destroyVocabLabel()` 可回收
 - **LLM-only 模式**：无欧路 snapshot 时 fallback 空快照，仍可通过 LLM 标注
-- **TODO（隐私策略）**：细化“哪些内容可发送到 LLM”的策略，避免默认把所有候选上下文外发
+- **TODO（隐私策略）**：细化"哪些内容可发送到 LLM"的策略，避免默认把所有候选上下文外发
 
 ### 5.6 LLM 抽象
 
@@ -222,20 +254,54 @@ SPA 页面内容可能延迟渲染，`restorePageHighlights` 采用递增延迟�
 
 ### 5.7 消息协议
 
-Content Script 与 Background Service Worker 通过 `chrome.runtime.sendMessage` 通信：
+Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMessage` 通信，所有类型定义在 `types/messages.ts`。写类消息（配置/学习/Eudic 写入）要求 `isExtensionPageSender`（扩展页上下文）校验。
+
+**高亮 / 采集**
 
 | 消息类型 | 方向 | 说明 |
 |---------|------|------|
-| `SAVE_HIGHLIGHT` | content → background | 保存高亮记录到 IndexedDB |
-| `GET_CURRENT_PAGE_HIGHLIGHTS` | content → background | 获取当前页面高亮（含 sourceUrl 匹配） |
+| `SAVE_HIGHLIGHT` / `UPDATE_HIGHLIGHT` / `DELETE_HIGHLIGHT` | content/UI → background | 高亮记录增改删（IndexedDB） |
+| `GET_HIGHLIGHTS` / `GET_CURRENT_PAGE_HIGHLIGHTS` / `GET_HIGHLIGHT_STATS` | content/UI → background | 查询高亮（含 sourceUrl 匹配）与统计 |
+| `CLEAR_ALL_HIGHLIGHTS` / `LOCATE_HIGHLIGHT` | UI → background | 清空 / 定位并导航到高亮所在页面 |
 | `SAVE_CLIP` | content → background | 保存采集记录到 chrome.storage.local |
-| `TOGGLE_HIGHLIGHTER_MODE` | background → content | 切换荧光笔模式 |
-| `LOCATE_HIGHLIGHT` | UI → background | 定位并导航到高亮所在页面 |
-| `GET_VOCAB_CONFIG` / `SET_VOCAB_CONFIG` | UI → background | 读写生词标注配置（GET 为脱敏返回，不回传 token 明文） |
-| `GET_LLM_CONFIG` / `SET_LLM_CONFIG` | UI → background | 读写 LLM 配置（apiKey 不回传前端） |
-| `GET_VOCAB_SNAPSHOT` | content → background | 获取词库快照 |
-| `REFRESH_VOCAB` | UI → background | 触发欧路词库同步 |
-| `CONTEXT_GLOSS` | content → background | 请求单词上下文释义（exp → cache → LLM） |
+
+**生词标注 / 配置**
+
+| 消息类型 | 方向 | 说明 |
+|---------|------|------|
+| `GET_VOCAB_CONFIG` / `SET_VOCAB_CONFIG` | UI → background | 读写生词配置（GET 脱敏，不回传 token） |
+| `GET_VOCAB_SNAPSHOT` / `REFRESH_VOCAB` | content/UI → background | 获取词库快照 / 触发欧路同步 |
+| `CONTEXT_GLOSS` | content → background | 单词上下文释义（exp → cache → LLM） |
+
+**生词学习（见 §5.11）**
+
+| 消息类型 | 说明 |
+|---------|------|
+| `ENSURE_VOCAB_LEARNING_CATEGORY` / `SELECT_VOCAB_LEARNING_CATEGORY` | 确保/选择 learning 类别 |
+| `ENSURE_VOCAB_MASTERED_CATEGORY` / `SELECT_VOCAB_MASTERED_CATEGORY` | 确保/选择 mastered 类别 |
+| `RECORD_VOCAB_LEARNING_EVENT` / `FLUSH_VOCAB_LEARNING_PENDING` | 记录学习事件 / 刷新待同步队列 |
+| `GET_VOCAB_LEARNING_PROFILE` / `GET_VOCAB_LEARNING_SYNC_STATE` | 读取学习档案 / 同步状态 |
+| `SYNC_VOCAB_LEARNING_PROFILE` / `RESET_VOCAB_WORD_LEARNING` | 同步 learning 类别 / 重置单词 |
+
+**Eudic / LLM**
+
+| 消息类型 | 说明 |
+|---------|------|
+| `GET_EUDIC_CATEGORIES` / `CREATE_EUDIC_CATEGORY` / `RENAME_EUDIC_CATEGORY` / `DELETE_EUDIC_CATEGORY` | 欧路类别 CRUD |
+| `GET_EUDIC_WORDS` / `GET_EUDIC_WORD` / `ADD_EUDIC_WORD` / `DELETE_EUDIC_WORDS` | 欧路词条 CRUD |
+| `GET_LLM_CONFIG` / `SET_LLM_CONFIG` | 读写 LLM 配置（apiKey 不回传） |
+| `FETCH_LLM_MODELS` / `TEST_LLM_CONNECTION` | 拉取模型列表 / 连接测试 |
+
+**Logseq / 截图 / 系统**
+
+| 消息类型 | 说明 |
+|---------|------|
+| `LOGSEQ_GET_CONFIG` / `LOGSEQ_SET_CONFIG` / `LOGSEQ_TEST_CONNECTION` | Logseq 配置与连接测试 |
+| `LOGSEQ_SYNC_ALL` / `LOGSEQ_SYNC_HIGHLIGHT` / `LOGSEQ_SYNC_CLIP` | Logseq 同步 |
+| `TRIGGER_SCREENSHOT` / `CAPTURE_VISIBLE_TAB` / `SCREENSHOT_CAPTURED` / `SCREENSHOT_ERROR` | 截图采集（见 §5.12，链路未完全实现） |
+| `TOGGLE_HIGHLIGHTER_MODE` | background → content：切换荧光笔模式 |
+| `PING` / `GET_STATUS` / `GET_VERSION` / `INITIALIZE` | 健康检查与状态 |
+| `GET_STORAGE` / `SET_STORAGE` / `CLEAR_STORAGE` | 通用存储读写 |
 
 ### 5.8 快捷键
 
@@ -243,8 +309,47 @@ Content Script 与 Background Service Worker 通过 `chrome.runtime.sendMessage`
 |--------|------|------|
 | `Alt+H` | Windows/Linux | 切换荧光笔模式 |
 | `Cmd+Shift+H` | macOS | 切换荧光笔模式 |
+| `Ctrl+Shift+S` / `Cmd+Shift+S` | Win·Linux / macOS | 截图采集触发（`ANN_SELECTION_KEY`，见 §5.12） |
 | `Esc` | 全平台 | 退出 Mode B / 关闭备注输入 |
 | `Enter` | 全平台 | 提交备注 |
+
+> 快捷键命令在 `wxt.config.ts` 的 `manifest.commands` 注册，由 `event-handlers/command-handler.ts` 监听 `browser.commands.onCommand` 派发。
+
+### 5.9 Content Annotation Core（共享标注底座）
+
+`entrypoints/content/annotation-core/` 是高亮与生词标注共享的"页面理解 + DOM 安全工具"层，各业务保留自己的决策：
+
+- `types.ts`：共享类型契约。`AnnotationIntent`（`'manual-highlight' | 'auto-vocab'`）、`ContentSource`、`AnnotationPlatformRule`（`match/resolveRoot/collectContentBlocks/findSourceFromElement/findContainerBySourceUrl`）
+- `platform-rules.ts`：站点规则中心，实现 X/Twitter 推文识别。`getActiveAnnotationPlatformRule(url)`、`extractTwitterPermalink`、`findTwitterPermalinkContainer`、`findTwitterContainerByPermalink`、`TWEET_STATUS_RE/_PREFIX_RE`
+- `dom-policy.ts`：按 `AnnotationIntent` 决定节点可否标注。`shouldSkipElement/shouldSkipTextNode/isAnnotatableTextNode`、`findNearestRescanContainer/findNearestAnnotatableBlock`、`isWithin(Vocab|Annotation)Marker`、`isShortUiLabel/isSkippableText`、`clearDomPolicyCaches`。同时识别 `data-ann-vocab` 与 `data-highlight-id`，防止重复包裹
+- `text-range.ts`：文本/Range 工具。`collectTextNodes`、`findBestTextMatch`、`findTextRangeInElement`、`createRangeFromTextIndex`，支持归一化匹配与上下文回退
+- `markers.ts`：通用包裹/拆除。`wrapRange`（`surroundContents` 失败回退 `extractContents + insertNode`）、`unwrapMarker`（特殊处理 ruby/rt/rp）、`cleanupMarkers`
+
+兼容关系：`highlight/highlight-dom.ts` 是独立 `HighlightDOMManager`，仅 re-export core 的 Twitter 工具并委托 `findSourceUrl`；`vocab-label/platform-rules.ts` 是把 core 规则适配成基于 hostname 接口的适配层；`vocab-label/dom-policy.ts` 是纯 re-export 兼容层。
+
+### 5.10 后台事件监听（Event Handlers）
+
+`background-service/event-handlers/` 把浏览器事件监听从服务逻辑中拆分出来，由 `EventHandlerManager` 单例统一 `registerEventListeners/removeEventListeners`，并装配全局 `onConnect`/`error`/`unhandledrejection` 兜底：
+
+- `command-handler.ts`：监听 `browser.commands.onCommand`，处理截图快捷键（见 §5.12）
+- `installation-handler.ts`：监听 `runtime.onInstalled`，按 reason 路由首装/升级（含 `migrateFromV1ToV2` 占位），失败时 `ServiceContext.markInitializationFailed`
+- `runtime-handler.ts`：监听 `runtime.onMessage` 的 `PING` 健康检查（合并 `getDetailedStatus()`）与 `runtime.onStartup`
+
+`BackgroundServiceManager.initialize()` 顺序：`registerServices` → `eventHandlerManager.registerEventListeners()` → `serviceManager.initializeServices()`；`cleanup()` 反向解绑。
+
+### 5.11 生词学习（Vocab Learning）
+
+`VocabularyService` 在词库同步之外维护一套学习状态，基于欧路类别落地：
+
+- **类别**：`ensureLearningCategory/selectLearningCategory` 与 `ensureMasteredCategory/selectMasteredCategory`，默认名 `AnnHub Learning` / `AnnHub Mastered`，id 持久化为 `vocabLearningCategoryId` / `vocabMasteredCategoryId`
+- **事件队列**：`recordLearningEvent` 计算 `targetStar`（known/skip→5，addToVocab/reset→1），立即更新本地 snapshot，push 到 `vocabLearningPendingEvents`，再 `flushLearningPendingEvents()` 调欧路 API；`skip` 会写入 mastered 类别并从 learning 类别删除
+- **同步**：`syncFromEudic`（全量，mastered 记为 star=5）、`syncLearningProfileFromEudic`（仅 learning 类别 + 叠加 pending）、`getLearningProfile(words?)` 返回 `{ stars, pendingCount }`
+
+### 5.12 截图采集（Screenshot Capture）
+
+`Ctrl+Shift+S`（`ANN_SELECTION_KEY = 'capture-selection'`）→ `command-handler.ts` 向活动 tab 发 `TRIGGER_SCREENSHOT`，失败回退到 `scripting.executeScript` 派发 `CustomEvent('ann-screenshot-trigger')`。
+
+> **现状**：`TRIGGER_SCREENSHOT` / `CAPTURE_VISIBLE_TAB` / `SCREENSHOT_CAPTURED` / `SCREENSHOT_ERROR` 目前仅有类型定义，content 与 background 侧均无运行时接收方——选区采集与 `tabs.captureVisibleTab` 尚未实现。属于在建功能。
 
 ---
 
@@ -261,14 +366,27 @@ npm run test:watch  # 监听模式
 
 | 文件 | 覆盖范围 |
 |------|---------|
-| `highlight/__tests__/highlight-dom.test.ts` | isDynamicId、generateSelector、正则、extractTwitterPermalink |
-| `highlight/__tests__/highlight-storage.test.ts` | getCurrentPageHighlights 的 sourceUrl 匹配和去重 |
-| `types/__tests__/vocabulary.test.ts` | normalizeWord 边界用例 |
+| `annotation-core/__tests__/platform-rules.test.ts` | 平台规则匹配、Twitter permalink 提取 |
+| `annotation-core/__tests__/dom-policy.test.ts` | 按 intent 的跳过/可标注判定、marker 识别 |
+| `annotation-core/__tests__/text-range.test.ts` | 文本节点收集、Range 定位与归一化匹配 |
+| `annotation-core/__tests__/markers.test.ts` | wrap/unwrap/cleanup（含 ruby 特殊处理） |
+| `highlight/__tests__/highlight-dom.test.ts` | isDynamicId、generateSelector、selector 稳定性 |
+| `highlight/__tests__/wrap-integration.test.ts` | wrapRange 接入、unwrapMarker 防 tooltip 泄漏、manual-highlight policy 跳过 contenteditable / 嵌套 marker |
+| `vocab-label/__tests__/annotate.test.ts` | 逆序 DOM 标注、exp 直接使用、阈值过滤、maxAnnotations |
+| `vocab-label/__tests__/detect-page.test.ts` | 英文页检测、域名白名单 |
+| `vocab-label/__tests__/content-scope.test.ts` | 内容根解析、可标注块收集、区块排除 |
+| `vocab-label/__tests__/frequency-filter.test.ts` | CEFR 分级过滤 |
+| `vocab-label/__tests__/viewport.test.ts` | 视口窗口判定 |
+| `vocab-label/__tests__/platform-rules.test.ts` | vocab 平台适配层 |
+| `background-service/__tests__/service-manager.test.ts` | restart cleanup + forceReinitialize、initOrder |
+| `services/highlight/__tests__/highlight-storage.test.ts` | getCurrentPageHighlights 的 sourceUrl 匹配和去重 |
 | `services/llm/__tests__/openai-compatible.test.ts` | endpoint 拼接、请求格式、错误处理、glossBatch |
 | `services/llm/__tests__/factory.test.ts` | 工厂分支 |
+| `services/logseq/__tests__/logseq-{client,formatter,sync}.test.ts` | Logseq 客户端、格式化、同步 |
 | `services/vocabulary/__tests__/vocabulary-config.test.ts` | getLlmConfig/setLlmConfig 配置 merge 策略 |
-| `content/vocab-label/__tests__/annotate.test.ts` | 逆序 DOM 标注、exp 直接使用、阈值过滤、maxAnnotations |
-| `background-service/__tests__/service-manager.test.ts` | restart cleanup + forceReinitialize、initOrder |
+| `services/vocabulary/__tests__/vocabulary-learning.test.ts` | 学习事件 targetStar、pending 队列、类别落地 |
+| `types/__tests__/vocabulary.test.ts` | normalizeWord 边界用例 |
+| `utils/__tests__/eudic-openapi.test.ts` | 欧路 API 封装 |
 
 ### E2E 测试（Playwright）
 
@@ -304,5 +422,7 @@ npx playwright test
 6. **测试 fixture 服务**：`e2e/test-server.ts` 优先从 `e2e/` 查找文件，fallback 到项目根目录
 7. **服务初始化**：`ServiceContext` 采用 `registeredServices` 集合判定就绪，只统计已注册服务
 8. **服务重启**：`restartServices()` 先调用各 service 的 `cleanup()`，再以 `forceReinitialize` 模式重新初始化
-9. **生词标注**：操作宿主 DOM（非 Shadow Root），标记 `data-ann-vocab="1"`，支持 `cleanupAnnotations()` 回收
+9. **生词标注**：操作宿主 DOM（非 Shadow Root），标记 `data-ann-vocab="1"`，支持 `destroyVocabLabel()` 回收
 10. **LLM 配置**：`getLlmConfig()` 采用非空值优先 merge，空字符串和 `undefined` 不覆盖已有存储值
+11. **共享标注逻辑**：高亮/生词共用的页面理解与 DOM 工具放 `annotation-core/`，业务侧只保留各自决策；旧路径以 re-export/适配层兼容
+12. **文档同步（强制）**：每次完成任务后，必须同步更新受影响的文档（`AGENTS.md`、`CLAUDE.md`、`docs/`、`README.md`），保持代码与文档一致。新增/删除模块、改动消息协议、调整快捷键或测试结构时，对应章节须一并更新；任务未同步文档不算完成
