@@ -5,11 +5,19 @@ on:
   workflow_call:
     outputs:
       artifact-name:
-        description: "Name of the uploaded artifact"
+        description: 'Name of the uploaded artifact'
         value: ${{ jobs.build.outputs.artifact-name }}
       zip-name:
-        description: "Chrome Web Store package file name"
+        description: 'Chrome Web Store package file name'
         value: ${{ jobs.build.outputs.zip-name }}
+
+permissions:
+  artifact-metadata: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -26,7 +34,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
@@ -58,7 +65,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.package_meta.outputs.artifact-name }}
-          path: .output/chrome-mv3/
+          path: .output/${{ steps.package_meta.outputs.zip-name }}
           if-no-files-found: error
-          retention-days: 30
-          include-hidden-files: true 
+          retention-days: 1

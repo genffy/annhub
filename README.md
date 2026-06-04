@@ -241,6 +241,13 @@ npm run website:start
 ### 文档网站
 - 构建输出: `website/.next/`
 
+## GitHub Actions 与存储费用
+
+- `Build Extension` workflow 只上传 `.output/{package-name}-{version}-chrome.zip`，artifact 保留 1 天，用于 workflow 间传递。
+- `Release Extensions` workflow 在 `v*` tag 上复用构建 workflow，下载 zip 后直接作为 GitHub Release asset 发布；长期下载入口是 Release，不是 Actions artifact。
+- 构建 workflow 不启用 npm Actions cache，避免 tag/ref 维度缓存长期占用 Actions cache storage。
+- 如需清理历史占用，在 GitHub Actions 手动运行 `Cleanup Actions Storage` workflow，可删除超过指定天数的 artifacts，并可删除 Actions dependency caches。
+
 ## 技术栈
 
 ### 扩展
