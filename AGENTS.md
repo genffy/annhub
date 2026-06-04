@@ -84,6 +84,7 @@ annhub/
 │   ├── eudic-openapi.ts            # 欧路 API 封装（fetchCategories, fetchAllWords）
 │   ├── message/index.ts            # 消息发送/创建工具
 │   └── logger.ts                   # 日志工具
+├── .github/workflows/              # GitHub Actions：扩展构建、发布、Actions storage 清理
 ├── e2e/                            # Playwright E2E 测试
 │   ├── fixtures.ts                 # 自定义 fixture（扩展加载）
 │   ├── helpers.ts                  # 辅助函数（service worker 交互、导航）
@@ -246,6 +247,15 @@ Content Script 与 Background Service Worker 通过 `chrome.runtime.sendMessage`
 | `Esc` | 全平台 | 退出 Mode B / 关闭备注输入 |
 | `Enter` | 全平台 | 提交备注 |
 
+### 5.9 GitHub Actions Storage 策略
+
+`.github/workflows/` 维护扩展构建、发布与 Actions storage 清理：
+
+- `build-extension.yml`：`workflow_dispatch` / `workflow_call` 构建 Chrome MV3 扩展，执行 `npm ci`、`npm run compile`、`npm run zip`；只上传 `.output/{package-name}-{version}-chrome.zip` 作为 workflow 间传递 artifact，`retention-days: 1`
+- `release.yml`：tag `v*` 触发，复用 `build-extension.yml`，下载 zip 后直接校验并上传到 GitHub Release；不再重新打包下载到的目录
+- `cleanup-actions-storage.yml`：手动触发，用 `GITHUB_TOKEN` 删除超过输入天数的 workflow artifacts，并可选择删除所有 Actions dependency caches
+- 构建 workflow 不启用 `actions/setup-node` 的 npm cache；release 通常跑在 tag ref 上，cache 复用价值低且会占用 Actions cache storage
+
 ---
 
 ## 六、测试
@@ -306,3 +316,4 @@ npx playwright test
 8. **服务重启**：`restartServices()` 先调用各 service 的 `cleanup()`，再以 `forceReinitialize` 模式重新初始化
 9. **生词标注**：操作宿主 DOM（非 Shadow Root），标记 `data-ann-vocab="1"`，支持 `cleanupAnnotations()` 回收
 10. **LLM 配置**：`getLlmConfig()` 采用非空值优先 merge，空字符串和 `undefined` 不覆盖已有存储值
+11. **Actions storage 控制**：临时构建 artifact 只保留 1 天，发布包以 GitHub Release asset 为准；不要在 release/tag 构建中恢复 npm cache，历史 artifacts/caches 通过手动 `Cleanup Actions Storage` workflow 清理

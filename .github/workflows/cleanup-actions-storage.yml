@@ -1,0 +1,85 @@
+name: Cleanup Actions Storage
+
+on:
+  workflow_dispatch:
+    inputs:
+      artifact_retention_days:
+        description: 'Delete workflow artifacts older than this many days; 0 deletes all artifacts'
+        required: true
+        default: '1'
+      delete_caches:
+        description: 'Delete all GitHub Actions dependency caches'
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  actions: write
+  artifact-metadata: write
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Delete expired artifacts and optional caches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ARTIFACT_RETENTION_DAYS: ${{ inputs.artifact_retention_days }}
+          DELETE_CACHES: ${{ inputs.delete_caches }}
+        run: |
+          set -euo pipefail
+
+          case "$ARTIFACT_RETENTION_DAYS" in
+            ''|*[!0-9]*)
+              echo "::error::artifact_retention_days must be a non-negative integer"
+              exit 1
+              ;;
+          esac
+
+          cutoff_epoch="$(date -u -d "${ARTIFACT_RETENTION_DAYS} days ago" +%s)"
+          deleted_artifacts=0
+          artifact_rows="$(
+            gh api --paginate "repos/${REPO}/actions/artifacts?per_page=100" \
+              --jq '.artifacts[] | [.id, .name, .created_at] | @tsv'
+          )"
+
+          if [[ -n "$artifact_rows" ]]; then
+            while IFS=$'\t' read -r artifact_id artifact_name created_at; do
+              created_epoch="$(date -u -d "$created_at" +%s)"
+              if (( created_epoch < cutoff_epoch )); then
+                echo "Deleting artifact ${artifact_id}: ${artifact_name} (${created_at})"
+                gh api --method DELETE "repos/${REPO}/actions/artifacts/${artifact_id}"
+                deleted_artifacts=$((deleted_artifacts + 1))
+              fi
+            done <<< "$artifact_rows"
+          fi
+
+          echo "Deleted ${deleted_artifacts} artifact(s)."
+
+          if [[ "$DELETE_CACHES" != "true" ]]; then
+            echo "Skipped cache cleanup."
+            exit 0
+          fi
+
+          deleted_caches=0
+          cache_rows="$(
+            gh api --paginate "repos/${REPO}/actions/caches?per_page=100" \
+              --jq '.actions_caches[] | [.id, .key, .ref, .last_accessed_at] | @tsv'
+          )"
+
+          if [[ -n "$cache_rows" ]]; then
+            while IFS=$'\t' read -r cache_id cache_key cache_ref last_accessed_at; do
+              echo "Deleting cache ${cache_id}: ${cache_key} (${cache_ref}, last accessed ${last_accessed_at})"
+              gh api --method DELETE "repos/${REPO}/actions/caches/${cache_id}"
+              deleted_caches=$((deleted_caches + 1))
+            done <<< "$cache_rows"
+          fi
+
+          echo "Deleted ${deleted_caches} cache(s)."
