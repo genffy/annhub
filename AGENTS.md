@@ -31,7 +31,7 @@ annhub/
 │   │   ├── mode-manager.ts         # 全局模式单例（非 React 依赖）
 │   │   ├── clip-service.ts         # 前端 Clip 采集服务
 │   │   ├── content.css             # Shadow DOM 动画 keyframes
-│   │   ├── annotation-core/        # 高亮与生词共享的标注底座（见 §5.9）
+│   │   ├── annotation-core/        # 高亮与生词共享的标注底座（见 §5.10）
 │   │   │   ├── types.ts            # AnnotationIntent / ContentSource / AnnotationPlatformRule
 │   │   │   ├── platform-rules.ts   # 站点规则中心（X/Twitter permalink 识别）
 │   │   │   ├── dom-policy.ts       # DOM 跳过/可标注判定（按 intent 区分）
@@ -69,7 +69,7 @@ annhub/
 │   ├── index.ts                    # BackgroundServiceManager（注册服务 + 事件监听）
 │   ├── service-context.ts          # 服务状态上下文（registeredServices 模式）
 │   ├── service-manager.ts          # ServiceManager（含 forceReinitialize restart）
-│   ├── event-handlers/             # 浏览器事件监听（见 §5.10）
+│   ├── event-handlers/             # 浏览器事件监听（见 §5.11）
 │   │   ├── index.ts                # EventHandlerManager 单例
 │   │   ├── command-handler.ts      # 快捷键命令（截图触发）
 │   │   ├── installation-handler.ts # onInstalled 安装/升级
@@ -174,7 +174,7 @@ interface ClipRecord {
 
 ### 5.1 站点规则体系（Site Permalink Rules）
 
-> 站点规则现已统一收敛到 `annotation-core/platform-rules.ts`（见 §5.9）。`highlight-dom.ts` 的 `findSourceUrl/findSourceContainer` 通过 `getActiveAnnotationPlatformRule` 委托到 core，并 re-export `extractTwitterPermalink` 等工具以兼容旧导入路径。下文描述其设计思路。
+> 站点规则现已统一收敛到 `annotation-core/platform-rules.ts`（见 §5.10）。`highlight-dom.ts` 的 `findSourceUrl/findSourceContainer` 通过 `getActiveAnnotationPlatformRule` 委托到 core，并 re-export `extractTwitterPermalink` 等工具以兼容旧导入路径。下文描述其设计思路。
 
 平台规则用于在列表/Feed 页面提取内容项的详情永久链接：
 
@@ -247,7 +247,7 @@ SPA 页面内容可能延迟渲染，`restorePageHighlights` 采用递增延迟�
   2. `MutationObserver`（childList/characterData，250ms 防抖）：处理 SPA 动态内容
   3. scroll/resize 视口监听（180ms 防抖）：`reconcileVisibleBlocks` 重新收集
      入队块经 `scheduleFlush`（idle callback，约 40 块/批）批量标注，仅标注视口窗口内的块
-- **学习反馈**：右键标注弹出 `known/skip/addToVocab` 菜单，发送 `RECORD_VOCAB_LEARNING_EVENT`（见 §5.11）
+- **学习反馈**：右键标注弹出 `known/skip/addToVocab` 菜单，发送 `RECORD_VOCAB_LEARNING_EVENT`（见 §5.12）
 - **幂等标记**：`data-ann-vocab="1"`，提供 `destroyVocabLabel()` 可回收
 - **LLM-only 模式**：无欧路 snapshot 时 fallback 空快照，仍可通过 LLM 标注
 - **TODO（隐私策略）**：细化"哪些内容可发送到 LLM"的策略，避免默认把所有候选上下文外发
@@ -282,7 +282,7 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 | `GET_VOCAB_SNAPSHOT` / `REFRESH_VOCAB`  | content/UI → background | 获取词库快照 / 触发欧路同步            |
 | `CONTEXT_GLOSS`                         | content → background    | 单词上下文释义（exp → cache → LLM）    |
 
-**生词学习（见 §5.11）**
+**生词学习（见 §5.12）**
 
 | 消息类型                                                            | 说明                          |
 | ------------------------------------------------------------------- | ----------------------------- |
@@ -307,7 +307,7 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 | ----------------------------------------------------------------------------------------- | ------------------------------------ |
 | `LOGSEQ_GET_CONFIG` / `LOGSEQ_SET_CONFIG` / `LOGSEQ_TEST_CONNECTION`                      | Logseq 配置与连接测试                |
 | `LOGSEQ_SYNC_ALL` / `LOGSEQ_SYNC_HIGHLIGHT` / `LOGSEQ_SYNC_CLIP`                          | Logseq 同步                          |
-| `TRIGGER_SCREENSHOT` / `CAPTURE_VISIBLE_TAB` / `SCREENSHOT_CAPTURED` / `SCREENSHOT_ERROR` | 截图采集（见 §5.12，链路未完全实现） |
+| `TRIGGER_SCREENSHOT` / `CAPTURE_VISIBLE_TAB` / `SCREENSHOT_CAPTURED` / `SCREENSHOT_ERROR` | 截图采集（见 §5.13，链路未完全实现） |
 | `TOGGLE_HIGHLIGHTER_MODE`                                                                 | background → content：切换荧光笔模式 |
 | `PING` / `GET_STATUS` / `GET_VERSION` / `INITIALIZE`                                      | 健康检查与状态                       |
 | `GET_STORAGE` / `SET_STORAGE` / `CLEAR_STORAGE`                                           | 通用存储读写                         |
@@ -318,7 +318,7 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 | ------------------------------ | ----------------- | --------------------------------------------- |
 | `Alt+H`                        | Windows/Linux     | 切换荧光笔模式                                |
 | `Cmd+Shift+H`                  | macOS             | 切换荧光笔模式                                |
-| `Ctrl+Shift+S` / `Cmd+Shift+S` | Win·Linux / macOS | 截图采集触发（`ANN_SELECTION_KEY`，见 §5.12） |
+| `Ctrl+Shift+S` / `Cmd+Shift+S` | Win·Linux / macOS | 截图采集触发（`ANN_SELECTION_KEY`，见 §5.13） |
 | `Esc`                          | 全平台            | 退出 Mode B / 关闭备注输入                    |
 | `Enter`                        | 全平台            | 提交备注                                      |
 
