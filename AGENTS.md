@@ -53,7 +53,8 @@ annhub/
 │   │       ├── dom-policy.ts       # annotation-core/dom-policy 的兼容 re-export
 │   │       ├── cefr-data.ts        # 自动生成的 CEFR 分级词表（Oxford 5000 + CEFR-J，遗留次级信号）
 │   │       ├── frequency-band-data.ts # 自动生成的通用语料词频带（OpenSubtitles 50k，band 1..7）
-│   │       ├── frequency-filter.ts # 难度门：按词频带过滤；表外长尾词默认不标
+│   │       ├── written-frequency-data.ts # 书面/学术高频词 baseline（修正字幕语料口语偏差，S3）
+│   │       ├── frequency-filter.ts # 难度门：按词频带过滤 + 书面高频 baseline；长尾词交 domain-filter
 │   │       ├── viewport.ts         # 视口窗口判定（±50% 视口）
 │   │       ├── annotate.ts         # TreeWalker + 两阶段逆序标注
 │   │       ├── styles.ts           # 宿主样式注入/移除
@@ -240,6 +241,7 @@ SPA 页面内容可能延迟渲染，`restorePageHighlights` 采用递增延迟�
 - **难度门（精准选词）**：核心信号是 `frequency-band-data.ts` 内嵌的通用语料词频带（OpenSubtitles 50k，band 1=最高频…7=最低频），`frequency-filter.ts` 的 `shouldFilterByLevel` 据此判定——
   - 词频带 ≤ 用户 CEFR 对应阈值（高频/简单）→ 过滤（不标）；
   - 在表内且带位高于阈值的真·中低频词才进入候选。`cefr-data.ts` 的 CEFR 小表保留为遗留次级信号（`shouldFilterByCEFRLevel`）。
+- **书面/学术高频 baseline（S3，修复 B10）**：OpenSubtitles 是口语语料，系统性低估书面词——`furthermore`/`whereas`/`paradigm`/`methodology` 落到高"稀有"带被当生词，而 `gonna`/`dude` 却 band 1。`written-frequency-data.ts#isWrittenHighFrequencyWord`（NGSL + AWL sublist 1–2 + 学术连接词，~200 词）在查 band **之前**命中即视为"已知书面词"跳过；刻意排除真·难词（`epistemic`/`ubiquitous`）。该表同时纳入句首专名门与 lemma 词典。
 - **领域术语过滤（L2，见 `docs/vocab-word-selection-research.md`）**：**不在词频表的长尾词不再一刀切跳过**。`annotation-core/domain-filter.ts` 的 `isLikelyDomainTerm`（本地 Weirdness 思路）判定——页面内重复出现（≥ 重复阈值，默认 3）或 ACRONYM/CamelCase 的长尾词 → 判为领域术语/专名（跳过）；只出现一两次的稀有词 → 判为真生词（保留标注）。`annotate.ts` 每趟用 `buildDomainStats` 构建页面词频统计，经 `shouldFilterByCandidate` 应用。修复旧逻辑把真·学术/专业生词（`perfunctory`/`epistemic`）静默丢弃的问题。
 - **词形还原**：查表前先用 `annotation-core/lemmatize.ts` 的 `pickLemma` 把屈折形态（running→run、studied→study、mice→mouse）归一到词元，再查欧路快照与词频表；DOM Range 仍用原始 token 的 offset，词元只用于查表。
 - **专有名词过滤**：`isLikelyProperNounCandidate` 在大小写启发式（ACRONYM / camelCase / 句中大写）基础上，对句首 Title-case 词额外用词频信号判别——其词元不在词频表则判为专名跳过，修掉旧逻辑句首专名逃逸的问题。
@@ -402,7 +404,8 @@ npm run test:watch  # 监听模式
 | `vocab-label/__tests__/annotate.test.ts`                           | 逆序 DOM 标注、exp 直接使用、阈值过滤、maxAnnotations                                                    |
 | `vocab-label/__tests__/detect-page.test.ts`                        | 英文页检测、域名白名单                                                                                   |
 | `vocab-label/__tests__/content-scope.test.ts`                      | 内容根解析、可标注块收集、区块排除                                                                       |
-| `vocab-label/__tests__/frequency-filter.test.ts`                   | 词频带难度门、长尾词默认不标、CEFR 遗留信号                                                              |
+| `vocab-label/__tests__/frequency-filter.test.ts`                   | 词频带难度门、长尾词默认不标、CEFR 遗留信号、书面高频 baseline                                           |
+| `vocab-label/__tests__/written-frequency-data.test.ts`             | 书面/学术高频词命中、真·难词刻意排除                                                                     |
 | `vocab-label/__tests__/viewport.test.ts`                           | 视口窗口判定                                                                                             |
 | `vocab-label/__tests__/platform-rules.test.ts`                     | vocab 平台适配层                                                                                         |
 | `background-service/__tests__/service-manager.test.ts`             | restart cleanup + forceReinitialize、initOrder                                                           |

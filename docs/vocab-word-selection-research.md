@@ -20,6 +20,14 @@
 **短期主线(本次优先):L3 用户个人词汇建模** —— 这是当前架构里"最缺、杠杆最高、纯本地可做"的一层。配合 L2 领域过滤补刀,即可显著减少"误标 + 漏标"。
 **长期主线:L3(数据沉淀) + L4(上下文模型/LLM)并重,分阶段迁移到服务端。**
 
+> **本地短期实现进度(分支 `feat/vocab-word-selection-research`)**:
+>
+> - ✅ **S1 / L3** 个人词汇记忆模型(`word-memory.ts`,召回概率衰减)
+> - ✅ **S2 / L2** 领域术语过滤(`domain-filter.ts`,本地 Weirdness,修复长尾漏标 B1)
+> - ✅ **S3 / L1** 书面/学术高频 baseline(`written-frequency-data.ts`,修复字幕语料口语偏差 B10)
+> - ✅ **S4 / L4** LLM 参与选词(`selectAndGloss`,默认关闭,可选开)
+>   四层治本逻辑均已落地;服务端长期方案(T1/T2/T3)见 §5,尚未开工。
+
 ---
 
 ## 1. 代码现状锚点(瓶颈定位)
@@ -48,7 +56,7 @@
 | **B7**  | LLM 不参与选词              | `vocabulary/index.ts` `resolveGloss` 仅翻译                       | 最廉价智力没用在"该不该标"                                                                                                                   |
 | **B8**  | LLM 上下文极窄              | prompt 仅注入单句,不带 CEFR/已知词/主题                           | 无法 WSD/领域识别/个性化                                                                                                                     |
 | **B9**  | 无领域识别                  | 全工程无 topic/domain 模块                                        | 同阈值打天下;字幕语料偏口语,科技/学术词全被当长尾                                                                                            |
-| **B10** | 频率源是字幕语料            | `scripts/data/opensubtitles-en-50k.txt`                           | `furthermore`/`paradigm` 偏生词,`gonna`/`dude` 却 band 1                                                                                     |
+| **B10** | 频率源是字幕语料            | `scripts/data/opensubtitles-en-50k.txt`                           | `furthermore`/`paradigm` 偏生词,`gonna`/`dude` 却 band 1（✅ S3 已修复:书面高频 baseline 前置判定）                                          |
 | **B11** | `glossBatch` 已实现但未启用 | `OpenAICompatibleLlmService.glossBatch` vs `annotate.ts` 仍逐词   | 接入即降延迟/成本,且天然适合"批量挑词"                                                                                                       |
 
 **现有个性化数据资产(L3 的地基,已存在):**
@@ -160,11 +168,21 @@ annotateScore(word, ctx) =
 
 **工程成本**:中(已完成)。**精度收益**:高(同时治"误标术语"和"漏标真生词")。
 
-### 阶段 S3 词频数据升级(修复 B10)
+### 阶段 S3 词频数据升级(修复 B10)— ✅ 已实现(书面高频 baseline 路线)
 
-- 用 **wordfreq 的多语料 Zipf** 或叠加 **NGSL/COCA** 替换/补充纯 OpenSubtitles。
-- 重跑 `scripts/build-frequency-data.ts`(源数据换/混合),band 切分改用 Zipf 阈值。
-- **工程成本**:低(只动构建脚本 + 重新生成 `frequency-band-data.ts`)。**收益**:中(减少口语偏差)。
+> 实现于 `feat/vocab-word-selection-research`。代码:`written-frequency-data.ts`(内置书面/学术高频词 baseline)、`frequency-filter.ts`(`shouldFilterByLevel` 前置判定)、`annotate.ts`(候选门 + 专名门 + lemma 词典纳入)。测试:`written-frequency-data.test.ts`(5)、`frequency-filter.test.ts` 新增 2 例、`annotate.test.ts` S3 例。
+
+**问题(B10)**:OpenSubtitles 是口语/对话语料,系统性低估**书面/学术高频词**——`furthermore`(band 4)、`whereas`(band 4)、`paradigm`(band 6)、`methodology`(band 6)被当生词标注,而口语高频 `gonna`/`dude`/`yeah` 却是 band 1。
+
+**已落地做法(纯本地、零联网)**:沙箱环境无法跑 Python/下载 wordfreq,改用**内置高精度书面高频词表**(NGSL + AWL sublist 1–2 + 学术连接词/话语标记,~200 词):
+
+1. `written-frequency-data.ts#isWrittenHighFrequencyWord`:lookup-only 词集,命中即视为"已知书面词"。
+2. `shouldFilterByLevel` 在查 band **之前**先判:命中书面高频表 → 直接跳过(不标),不受其被字幕语料抬高的 band 影响。
+3. `annotate.ts` 三处纳入:候选难度门(`shouldFilterByCandidate`)、句首专名门(书面高频词不再被误判专名)、lemma 词典(屈折形态能归一到书面词)。
+4. **刻意排除真·难词**(`epistemic`/`perfunctory`/`ubiquitous`)——它们仍应被标注,保证不误伤真生词。
+
+**为何不换 wordfreq**:wordfreq 已停止维护(数据停在 ~2018),且需 Python 运行时;内置精炼词表针对性修正口语偏差、零依赖、可控。后续若要全面升级仍可走"重跑 build 脚本换多语料 Zipf"的原方案。
+**工程成本**:低(已完成)。**收益**:中(消除书面高频词的口语偏差误标)。
 
 ### 阶段 S4 LLM 参与选词(B7/B8)— ✅ 已实现(默认关闭)
 

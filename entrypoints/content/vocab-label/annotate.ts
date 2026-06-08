@@ -1,7 +1,7 @@
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
 import { type VocabSnapshot, type VocabEntry, type GlossResult, normalizeWord } from '../../../types/vocabulary'
-import { shouldFilterByLevel, getWordFrequencyBand, type CEFRLevel } from './frequency-filter'
+import { shouldFilterByLevel, getWordFrequencyBand, isWrittenHighFrequencyWord, type CEFRLevel } from './frequency-filter'
 import { ANNOTATABLE_BLOCK_SELECTOR } from './content-scope'
 import { isWithinViewportWindowByRect } from './viewport'
 import { clearDomPolicyCaches, shouldSkipTextNode } from './dom-policy'
@@ -125,8 +125,10 @@ function isLikelyProperNounCandidate(word: string, text: string, startOffset: nu
 
   // Sentence-start Title-case word: ambiguous (could be an ordinary word that
   // simply starts a sentence). Treat it as a proper noun only when its lemma is
-  // absent from the general-corpus frequency table — i.e. not common vocabulary.
-  const lemma = pickLemma(word.toLowerCase(), w => getWordFrequencyBand(w) !== null)
+  // absent from BOTH the general-corpus frequency table and the written-high-frequency
+  // list — i.e. not common spoken nor written vocabulary.
+  const lemma = pickLemma(word.toLowerCase(), w => getWordFrequencyBand(w) !== null || isWrittenHighFrequencyWord(w))
+  if (isWrittenHighFrequencyWord(lemma)) return false
   return getWordFrequencyBand(lemma) === null
 }
 
@@ -339,9 +341,9 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
 
     if (!wordNorm || wordNorm.length < 3) continue
 
-    // Resolve inflected forms to a base lemma for all lookups (Eudic snapshot,
-    // frequency table). DOM offsets below still use the original token.
-    const lemmaNorm = pickLemma(wordNorm, w => Boolean(ctx.snapshot.entries[w]) || getWordFrequencyBand(w) !== null)
+    // Resolve inflected forms to a base lemma for all lookups (Eudic snapshot, frequency
+    // table, written-high-frequency list). DOM offsets below still use the original token.
+    const lemmaNorm = pickLemma(wordNorm, w => Boolean(ctx.snapshot.entries[w]) || getWordFrequencyBand(w) !== null || isWrittenHighFrequencyWord(w))
 
     const entry = ctx.snapshot.entries[lemmaNorm] ?? ctx.snapshot.entries[wordNorm]
     const effectiveStar = getEffectiveStar(ctx, lemmaNorm, entry)
@@ -376,6 +378,10 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
  *   general words are now allowed through — fixing the core "real unknowns dropped" bug.
  */
 function shouldFilterByCandidate(lemmaNorm: string, surface: string, ctx: AnnotationContext, domainStats: DomainTermStats): boolean {
+  // Written/academic high-frequency words are "known" regardless of (spoken-corpus) band
+  // or table membership — skip them before any band/domain logic (S3, research doc B10).
+  if (isWrittenHighFrequencyWord(lemmaNorm)) return true
+
   const band = getWordFrequencyBand(lemmaNorm)
   if (band !== null) {
     return shouldFilterByLevel(lemmaNorm, ctx.userCEFRLevel)

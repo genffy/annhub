@@ -744,6 +744,26 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     expect(annotatedWords).not.toContain('mitochondria')
   })
 
+  it('does not annotate written/academic high-frequency words (S3 subtitle-bias fix)', async () => {
+    // "furthermore"/"methodology" are rare in the subtitle corpus but written-register
+    // staples → must NOT be annotated. "ubiquitous" (a real unknown) still is.
+    setupDOM('<p>Furthermore the methodology remains ubiquitous.</p>')
+
+    mockSendMessage.mockImplementation(async (msg: any) => {
+      if (msg.type !== 'CONTEXT_GLOSS') return { success: false }
+      return { success: true, data: { gloss: '释义', source: 'llm' } }
+    })
+
+    const ctx = makeCtx({ userCEFRLevel: 'B1' })
+    await annotateVisibleText(ctx)
+
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab], span[data-ann-vocab]')).map(el => el.firstChild?.textContent?.toLowerCase())
+
+    expect(annotatedWords).not.toContain('furthermore')
+    expect(annotatedWords).not.toContain('methodology')
+    expect(annotatedWords).toContain('ubiquitous')
+  })
+
   it('drops candidates the LLM marks not-unfamiliar when llmWordSelectionEnabled (S4)', async () => {
     setupDOM('<p>The ubiquitous phenomenon emerged.</p>')
 
