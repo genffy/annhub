@@ -5,6 +5,15 @@ on:
     tags:
       - 'v*' # eg：v2.0.0
 
+permissions:
+  actions: read
+  artifact-metadata: read
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     uses: ./.github/workflows/build-extension.yml
@@ -21,12 +30,11 @@ jobs:
           name: ${{ needs.build.outputs.artifact-name }}
           path: ./release-assets
 
-      - name: Package release asset
+      - name: Verify release asset
         run: |
           set -euo pipefail
-          test -f ./release-assets/manifest.json
-          (cd ./release-assets && zip -qr "../${{ needs.build.outputs.zip-name }}" .)
-          unzip -l "./${{ needs.build.outputs.zip-name }}" manifest.json
+          test -f "./release-assets/${{ needs.build.outputs.zip-name }}"
+          unzip -l "./release-assets/${{ needs.build.outputs.zip-name }}" manifest.json
 
       - name: Extract version from tag
         id: get_version
@@ -48,6 +56,6 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-          files: ./${{ needs.build.outputs.zip-name }}
+          files: ./release-assets/${{ needs.build.outputs.zip-name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

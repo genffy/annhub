@@ -31,7 +31,7 @@ annhub/
 │   │   ├── mode-manager.ts         # 全局模式单例（非 React 依赖）
 │   │   ├── clip-service.ts         # 前端 Clip 采集服务
 │   │   ├── content.css             # Shadow DOM 动画 keyframes
-│   │   ├── annotation-core/        # 高亮与生词共享的标注底座（见 §5.9）
+│   │   ├── annotation-core/        # 高亮与生词共享的标注底座（见 §5.10）
 │   │   │   ├── types.ts            # AnnotationIntent / ContentSource / AnnotationPlatformRule
 │   │   │   ├── platform-rules.ts   # 站点规则中心（X/Twitter permalink 识别）
 │   │   │   ├── dom-policy.ts       # DOM 跳过/可标注判定（按 intent 区分）
@@ -69,7 +69,7 @@ annhub/
 │   ├── index.ts                    # BackgroundServiceManager（注册服务 + 事件监听）
 │   ├── service-context.ts          # 服务状态上下文（registeredServices 模式）
 │   ├── service-manager.ts          # ServiceManager（含 forceReinitialize restart）
-│   ├── event-handlers/             # 浏览器事件监听（见 §5.10）
+│   ├── event-handlers/             # 浏览器事件监听（见 §5.11）
 │   │   ├── index.ts                # EventHandlerManager 单例
 │   │   ├── command-handler.ts      # 快捷键命令（截图触发）
 │   │   ├── installation-handler.ts # onInstalled 安装/升级
@@ -108,6 +108,7 @@ annhub/
 │   ├── helpers/                    # 通用辅助函数
 │   ├── message/index.ts            # 消息发送/创建工具
 │   └── logger.ts                   # 日志工具
+├── .github/workflows/              # GitHub Actions：扩展构建、发布、Actions storage 清理
 ├── constants.ts                    # ANN_SELECTION_KEY 等常量
 ├── e2e/                            # Playwright E2E 测试
 │   ├── fixtures.ts                 # 自定义 fixture（扩展加载）
@@ -173,7 +174,7 @@ interface ClipRecord {
 
 ### 5.1 站点规则体系（Site Permalink Rules）
 
-> 站点规则现已统一收敛到 `annotation-core/platform-rules.ts`（见 §5.9）。`highlight-dom.ts` 的 `findSourceUrl/findSourceContainer` 通过 `getActiveAnnotationPlatformRule` 委托到 core，并 re-export `extractTwitterPermalink` 等工具以兼容旧导入路径。下文描述其设计思路。
+> 站点规则现已统一收敛到 `annotation-core/platform-rules.ts`（见 §5.10）。`highlight-dom.ts` 的 `findSourceUrl/findSourceContainer` 通过 `getActiveAnnotationPlatformRule` 委托到 core，并 re-export `extractTwitterPermalink` 等工具以兼容旧导入路径。下文描述其设计思路。
 
 平台规则用于在列表/Feed 页面提取内容项的详情永久链接：
 
@@ -246,7 +247,7 @@ SPA 页面内容可能延迟渲染，`restorePageHighlights` 采用递增延迟�
   2. `MutationObserver`（childList/characterData，250ms 防抖）：处理 SPA 动态内容
   3. scroll/resize 视口监听（180ms 防抖）：`reconcileVisibleBlocks` 重新收集
      入队块经 `scheduleFlush`（idle callback，约 40 块/批）批量标注，仅标注视口窗口内的块
-- **学习反馈**：右键标注弹出 `known/skip/addToVocab` 菜单，发送 `RECORD_VOCAB_LEARNING_EVENT`（见 §5.11）
+- **学习反馈**：右键标注弹出 `known/skip/addToVocab` 菜单，发送 `RECORD_VOCAB_LEARNING_EVENT`（见 §5.12）
 - **幂等标记**：`data-ann-vocab="1"`，提供 `destroyVocabLabel()` 可回收
 - **LLM-only 模式**：无欧路 snapshot 时 fallback 空快照，仍可通过 LLM 标注
 - **TODO（隐私策略）**：细化"哪些内容可发送到 LLM"的策略，避免默认把所有候选上下文外发
@@ -281,7 +282,7 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 | `GET_VOCAB_SNAPSHOT` / `REFRESH_VOCAB`  | content/UI → background | 获取词库快照 / 触发欧路同步            |
 | `CONTEXT_GLOSS`                         | content → background    | 单词上下文释义（exp → cache → LLM）    |
 
-**生词学习（见 §5.11）**
+**生词学习（见 §5.12）**
 
 | 消息类型                                                            | 说明                          |
 | ------------------------------------------------------------------- | ----------------------------- |
@@ -306,7 +307,7 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 | ----------------------------------------------------------------------------------------- | ------------------------------------ |
 | `LOGSEQ_GET_CONFIG` / `LOGSEQ_SET_CONFIG` / `LOGSEQ_TEST_CONNECTION`                      | Logseq 配置与连接测试                |
 | `LOGSEQ_SYNC_ALL` / `LOGSEQ_SYNC_HIGHLIGHT` / `LOGSEQ_SYNC_CLIP`                          | Logseq 同步                          |
-| `TRIGGER_SCREENSHOT` / `CAPTURE_VISIBLE_TAB` / `SCREENSHOT_CAPTURED` / `SCREENSHOT_ERROR` | 截图采集（见 §5.12，链路未完全实现） |
+| `TRIGGER_SCREENSHOT` / `CAPTURE_VISIBLE_TAB` / `SCREENSHOT_CAPTURED` / `SCREENSHOT_ERROR` | 截图采集（见 §5.13，链路未完全实现） |
 | `TOGGLE_HIGHLIGHTER_MODE`                                                                 | background → content：切换荧光笔模式 |
 | `PING` / `GET_STATUS` / `GET_VERSION` / `INITIALIZE`                                      | 健康检查与状态                       |
 | `GET_STORAGE` / `SET_STORAGE` / `CLEAR_STORAGE`                                           | 通用存储读写                         |
@@ -317,13 +318,22 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 | ------------------------------ | ----------------- | --------------------------------------------- |
 | `Alt+H`                        | Windows/Linux     | 切换荧光笔模式                                |
 | `Cmd+Shift+H`                  | macOS             | 切换荧光笔模式                                |
-| `Ctrl+Shift+S` / `Cmd+Shift+S` | Win·Linux / macOS | 截图采集触发（`ANN_SELECTION_KEY`，见 §5.12） |
+| `Ctrl+Shift+S` / `Cmd+Shift+S` | Win·Linux / macOS | 截图采集触发（`ANN_SELECTION_KEY`，见 §5.13） |
 | `Esc`                          | 全平台            | 退出 Mode B / 关闭备注输入                    |
 | `Enter`                        | 全平台            | 提交备注                                      |
 
 > 快捷键命令在 `wxt.config.ts` 的 `manifest.commands` 注册，由 `event-handlers/command-handler.ts` 监听 `browser.commands.onCommand` 派发。
 
-### 5.9 Content Annotation Core（共享标注底座）
+### 5.9 GitHub Actions Storage 策略
+
+`.github/workflows/` 维护扩展构建、发布与 Actions storage 清理：
+
+- `build-extension.yml`：`workflow_dispatch` / `workflow_call` 构建 Chrome MV3 扩展，执行 `npm ci`、`npm run compile`、`npm run zip`；只上传 `.output/{package-name}-{version}-chrome.zip` 作为 workflow 间传递 artifact，`retention-days: 1`
+- `release.yml`：tag `v*` 触发，复用 `build-extension.yml`，下载 zip 后直接校验并上传到 GitHub Release；不再重新打包下载到的目录
+- `cleanup-actions-storage.yml`：手动触发，用 `GITHUB_TOKEN` 删除超过输入天数的 workflow artifacts，并可选择删除所有 Actions dependency caches
+- 构建 workflow 不启用 `actions/setup-node` 的 npm cache；release 通常跑在 tag ref 上，cache 复用价值低且会占用 Actions cache storage
+
+### 5.10 Content Annotation Core（共享标注底座）
 
 `entrypoints/content/annotation-core/` 是高亮与生词标注共享的"页面理解 + DOM 安全工具"层，各业务保留自己的决策：
 
@@ -335,17 +345,17 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 
 兼容关系：`highlight/highlight-dom.ts` 是独立 `HighlightDOMManager`，仅 re-export core 的 Twitter 工具并委托 `findSourceUrl`；`vocab-label/platform-rules.ts` 是把 core 规则适配成基于 hostname 接口的适配层；`vocab-label/dom-policy.ts` 是纯 re-export 兼容层。
 
-### 5.10 后台事件监听（Event Handlers）
+### 5.11 后台事件监听（Event Handlers）
 
 `background-service/event-handlers/` 把浏览器事件监听从服务逻辑中拆分出来，由 `EventHandlerManager` 单例统一 `registerEventListeners/removeEventListeners`，并装配全局 `onConnect`/`error`/`unhandledrejection` 兜底：
 
-- `command-handler.ts`：监听 `browser.commands.onCommand`，处理截图快捷键（见 §5.12）
+- `command-handler.ts`：监听 `browser.commands.onCommand`，处理截图快捷键（见 §5.13）
 - `installation-handler.ts`：监听 `runtime.onInstalled`，按 reason 路由首装/升级（含 `migrateFromV1ToV2` 占位），失败时 `ServiceContext.markInitializationFailed`
 - `runtime-handler.ts`：监听 `runtime.onMessage` 的 `PING` 健康检查（合并 `getDetailedStatus()`）与 `runtime.onStartup`
 
 `BackgroundServiceManager.initialize()` 顺序：`registerServices` → `eventHandlerManager.registerEventListeners()` → `serviceManager.initializeServices()`；`cleanup()` 反向解绑。
 
-### 5.11 生词学习（Vocab Learning）
+### 5.12 生词学习（Vocab Learning）
 
 `VocabularyService` 在词库同步之外维护一套学习状态，基于欧路类别落地：
 
@@ -353,7 +363,7 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 - **事件队列**：`recordLearningEvent` 计算 `targetStar`（known/skip→5，addToVocab/reset→1），立即更新本地 snapshot，push 到 `vocabLearningPendingEvents`，再 `flushLearningPendingEvents()` 调欧路 API；`skip` 会写入 mastered 类别并从 learning 类别删除
 - **同步**：`syncFromEudic`（全量，mastered 记为 star=5）、`syncLearningProfileFromEudic`（仅 learning 类别 + 叠加 pending）、`getLearningProfile(words?)` 返回 `{ stars, pendingCount }`
 
-### 5.12 截图采集（Screenshot Capture）
+### 5.13 截图采集（Screenshot Capture）
 
 `Ctrl+Shift+S`（`ANN_SELECTION_KEY = 'capture-selection'`）→ `command-handler.ts` 向活动 tab 发 `TRIGGER_SCREENSHOT`，失败回退到 `scripting.executeScript` 派发 `CustomEvent('ann-screenshot-trigger')`。
 
@@ -433,5 +443,6 @@ npx playwright test
 8. **服务重启**：`restartServices()` 先调用各 service 的 `cleanup()`，再以 `forceReinitialize` 模式重新初始化
 9. **生词标注**：操作宿主 DOM（非 Shadow Root），标记 `data-ann-vocab="1"`，支持 `destroyVocabLabel()` 回收
 10. **LLM 配置**：`getLlmConfig()` 采用非空值优先 merge，空字符串和 `undefined` 不覆盖已有存储值
-11. **共享标注逻辑**：高亮/生词共用的页面理解与 DOM 工具放 `annotation-core/`，业务侧只保留各自决策；旧路径以 re-export/适配层兼容
-12. **文档同步（强制）**：每次完成任务后，必须同步更新受影响的文档（`AGENTS.md`、`CLAUDE.md`、`docs/`、`README.md`），保持代码与文档一致。新增/删除模块、改动消息协议、调整快捷键或测试结构时，对应章节须一并更新；任务未同步文档不算完成
+11. **Actions storage 控制**：临时构建 artifact 只保留 1 天，发布包以 GitHub Release asset 为准；不要在 release/tag 构建中恢复 npm cache，历史 artifacts/caches 通过手动 `Cleanup Actions Storage` workflow 清理
+12. **共享标注逻辑**：高亮/生词共用的页面理解与 DOM 工具放 `annotation-core/`，业务侧只保留各自决策；旧路径以 re-export/适配层兼容
+13. **文档同步（强制）**：每次完成任务后，必须同步更新受影响的文档（`AGENTS.md`、`CLAUDE.md`、`docs/`、`README.md`），保持代码与文档一致。新增/删除模块、改动消息协议、调整快捷键或测试结构时，对应章节须一并更新；任务未同步文档不算完成
