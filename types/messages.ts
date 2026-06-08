@@ -315,6 +315,11 @@ export interface ResetVocabWordLearningMessage extends BaseMessage {
   language?: string
 }
 
+export interface RecordVocabExposuresMessage extends BaseMessage {
+  type: 'RECORD_VOCAB_EXPOSURES'
+  words: string[]
+}
+
 export type UIToBackgroundMessage =
   | GetHighlightsMessage
   | SaveHighlightMessage
@@ -366,6 +371,7 @@ export type UIToBackgroundMessage =
   | GetVocabLearningSyncStateMessage
   | GetVocabLearningProfileMessage
   | ResetVocabWordLearningMessage
+  | RecordVocabExposuresMessage
 
 export type BackgroundToUIMessage =
   | ResponseMessage<HighlightRecord[]>

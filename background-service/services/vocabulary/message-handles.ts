@@ -323,4 +323,14 @@ export const messageHandlers: Record<string, (message: any, sender: chrome.runti
       return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
     }
   },
+
+  RECORD_VOCAB_EXPOSURES: async (message: any): Promise<ResponseMessage> => {
+    try {
+      const service = VocabularyService.getInstance()
+      const result = await service.recordWordExposures(Array.isArray(message.words) ? message.words : [])
+      return MessageUtils.createResponse(true, result)
+    } catch (error) {
+      return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+    }
+  },
 }

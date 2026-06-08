@@ -63,6 +63,15 @@ Choosing _which_ words to gloss lives in `entrypoints/content/vocab-label/`. The
 - Inflected forms are resolved with `annotation-core/lemmatize.ts#pickLemma` before any table lookup (Eudic snapshot + frequency); DOM ranges still use original token offsets.
 - When changing word frequency data, rerun `npx tsx scripts/build-frequency-data.ts` (source list under `scripts/data/`).
 
+### User vocabulary memory (recall-probability model)
+
+Beyond the static frequency gate, AnnHub models whether the user _still_ knows each word (research in `docs/vocab-word-selection-research.md`, layer "L3"):
+
+- `annotation-core/word-memory.ts` is a pure FSRS/Half-Life-Regression-inspired model: each word has `{seenCount, lastSeenAt, stability}`; `recallProbability = 2^(-elapsedDays/stability)`. Passive exposure grows `stability` (spacing effect); explicit `known`/`skip` jump it to long-term; `unknown`/`addToVocab` shrink it. `recallToStar` maps recall → the legacy 1..5 star scale so existing scoring is untouched.
+- Persistence lives in `VocabularyService` under storage key `vocabWordMemory` (separate from the Eudic snapshot). `recordWordExposures(words)` accrues `seen` events; `recordLearningEvent` also updates memory on explicit feedback.
+- `getLearningProfile()` folds recall-derived star into the returned `stars` map via `max(eudicStar, recallStar)` — an explicit Eudic "known" is never weakened, but passively re-seen words climb toward "known" and stop being annotated.
+- The content script reports exposures fire-and-forget after each annotation pass (`annotate.ts#reportWordExposures` → `RECORD_VOCAB_EXPOSURES` message).
+
 ## Conventions
 
 - **Docs stay in sync (required)**: after completing any task, update the affected docs (`AGENTS.md`, `CLAUDE.md`, `docs/`, `README.md`) in the same change. Adding/removing modules, changing the message protocol, shortcuts, or test layout must update the corresponding sections. A task is not done until docs match the code.

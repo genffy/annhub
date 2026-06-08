@@ -173,6 +173,21 @@ export interface VocabSyncState {
 
 export type VocabLearningEventType = 'seen' | 'reveal' | 'known' | 'unknown' | 'suppress' | 'skip' | 'addToVocab' | 'reset'
 
+/**
+ * Per-word memory state for the local recall-probability model (see
+ * entrypoints/content/annotation-core/word-memory.ts). Persisted in chrome.storage.local
+ * keyed by normalized word. Decouples "user vocabulary modeling" from the Eudic-derived
+ * snapshot so passive exposure (annotated-but-not-clicked) can decay knowledge over time.
+ */
+export interface WordMemoryRecord {
+  seenCount: number
+  lastSeenAt: number
+  stability: number
+  star?: number
+}
+
+export type WordMemoryStore = Record<string, WordMemoryRecord>
+
 export interface VocabLearningEvent {
   word: string
   eventType: VocabLearningEventType

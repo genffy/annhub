@@ -241,6 +241,7 @@ SPA 页面内容可能延迟渲染，`restorePageHighlights` 采用递增延迟�
   - 仅在表内且带位高于阈值的真·中低频词才进入候选。`cefr-data.ts` 的 CEFR 小表保留为遗留次级信号（`shouldFilterByCEFRLevel`）。
 - **词形还原**：查表前先用 `annotation-core/lemmatize.ts` 的 `pickLemma` 把屈折形态（running→run、studied→study、mice→mouse）归一到词元，再查欧路快照与词频表；DOM Range 仍用原始 token 的 offset，词元只用于查表。
 - **专有名词过滤**：`isLikelyProperNounCandidate` 在大小写启发式（ACRONYM / camelCase / 句中大写）基础上，对句首 Title-case 词额外用词频信号判别——其词元不在词频表则判为专名跳过，修掉旧逻辑句首专名逃逸的问题。
+- **个人词汇记忆模型（L3，见 `docs/vocab-word-selection-research.md`）**：`annotation-core/word-memory.ts` 是 FSRS/Half-Life-Regression 思路的轻量纯函数模型，每词记 `{seenCount, lastSeenAt, stability}`，`recallProbability = 2^(-elapsedDays/stability)`；被动曝光增长 stability（间隔效应），`known/skip` 跃升为长期，`unknown/addToVocab` 收缩。`recallToStar` 把召回概率映射回 1..5 star 兼容既有打分。`VocabularyService` 以 `vocabWordMemory` 存储键独立持久化（与欧路 snapshot 解耦）；`getLearningProfile` 用 `max(欧路 star, 召回 star)` 合并——显式"已知"不被削弱，但被动反复出现的词会爬向"已知"而停止标注。标注完成后 `annotate.ts#reportWordExposures` 发 `RECORD_VOCAB_EXPOSURES` 事件累计曝光（fire-and-forget）。
 - **标注流程**：TreeWalker 扫描文本节点 → 正则匹配英文单词 → 词形还原查表 → 难度门/专名过滤 → 本地释义(exp)或 LLM 释义 → 逆序包裹 `<ruby>` 或 `<span>` 避免 offset 漂移（底层用 `annotation-core/markers.ts`）
 - **混合观察器**（`index.ts`）：不再是单一 MutationObserver，而是三者协同——
   1. `IntersectionObserver`（rootMargin 50%）：滚动时把进入视口的块入队
@@ -284,13 +285,14 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 
 **生词学习（见 §5.12）**
 
-| 消息类型                                                            | 说明                          |
-| ------------------------------------------------------------------- | ----------------------------- |
-| `ENSURE_VOCAB_LEARNING_CATEGORY` / `SELECT_VOCAB_LEARNING_CATEGORY` | 确保/选择 learning 类别       |
-| `ENSURE_VOCAB_MASTERED_CATEGORY` / `SELECT_VOCAB_MASTERED_CATEGORY` | 确保/选择 mastered 类别       |
-| `RECORD_VOCAB_LEARNING_EVENT` / `FLUSH_VOCAB_LEARNING_PENDING`      | 记录学习事件 / 刷新待同步队列 |
-| `GET_VOCAB_LEARNING_PROFILE` / `GET_VOCAB_LEARNING_SYNC_STATE`      | 读取学习档案 / 同步状态       |
-| `SYNC_VOCAB_LEARNING_PROFILE` / `RESET_VOCAB_WORD_LEARNING`         | 同步 learning 类别 / 重置单词 |
+| 消息类型                                                            | 说明                           |
+| ------------------------------------------------------------------- | ------------------------------ |
+| `ENSURE_VOCAB_LEARNING_CATEGORY` / `SELECT_VOCAB_LEARNING_CATEGORY` | 确保/选择 learning 类别        |
+| `ENSURE_VOCAB_MASTERED_CATEGORY` / `SELECT_VOCAB_MASTERED_CATEGORY` | 确保/选择 mastered 类别        |
+| `RECORD_VOCAB_LEARNING_EVENT` / `FLUSH_VOCAB_LEARNING_PENDING`      | 记录学习事件 / 刷新待同步队列  |
+| `GET_VOCAB_LEARNING_PROFILE` / `GET_VOCAB_LEARNING_SYNC_STATE`      | 读取学习档案 / 同步状态        |
+| `SYNC_VOCAB_LEARNING_PROFILE` / `RESET_VOCAB_WORD_LEARNING`         | 同步 learning 类别 / 重置单词  |
+| `RECORD_VOCAB_EXPOSURES`                                            | 累计被动曝光到词汇记忆模型(L3) |
 
 **Eudic / LLM**
 
@@ -389,6 +391,7 @@ npm run test:watch  # 监听模式
 | `annotation-core/__tests__/text-range.test.ts`                     | 文本节点收集、Range 定位与归一化匹配                                                                     |
 | `annotation-core/__tests__/markers.test.ts`                        | wrap/unwrap/cleanup（含 ruby 特殊处理）                                                                  |
 | `annotation-core/__tests__/lemmatize.test.ts`                      | 词形还原候选、pickLemma 词典消歧、不规则词                                                               |
+| `annotation-core/__tests__/word-memory.test.ts`                    | 召回概率衰减、曝光间隔效应、known/skip/unknown 反馈、star 映射                                           |
 | `highlight/__tests__/highlight-dom.test.ts`                        | isDynamicId、generateSelector、selector 稳定性                                                           |
 | `highlight/__tests__/wrap-integration.test.ts`                     | wrapRange 接入、unwrapMarker 防 tooltip 泄漏、manual-highlight policy 跳过 contenteditable / 嵌套 marker |
 | `vocab-label/__tests__/annotate.test.ts`                           | 逆序 DOM 标注、exp 直接使用、阈值过滤、maxAnnotations                                                    |

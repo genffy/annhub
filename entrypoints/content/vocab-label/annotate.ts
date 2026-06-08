@@ -503,6 +503,7 @@ export async function annotateVisibleText(ctx: AnnotationContext, options?: Anno
   })
 
   // Apply from the end of each text node so earlier wraps do not invalidate later offsets.
+  const appliedWords = new Set<string>()
   for (const item of applyOrder) {
     try {
       const range = document.createRange()
@@ -514,13 +515,35 @@ export async function annotateVisibleText(ctx: AnnotationContext, options?: Anno
       } else {
         wrapWordWithUnderline(range, item)
       }
+      appliedWords.add(item.wordNorm)
       appliedCount++
     } catch {
       // Node may be modified externally between collect/apply phases.
     }
   }
 
+  if (appliedWords.size > 0) {
+    reportWordExposures(appliedWords)
+  }
+
   return appliedCount
+}
+
+/**
+ * Fire-and-forget: record passive exposures so repeatedly-annotated words climb the
+ * recall-probability curve and eventually stop being annotated (S1 user memory model).
+ */
+function reportWordExposures(words: Set<string>): void {
+  try {
+    const result = MessageUtils.sendMessage({
+      type: 'RECORD_VOCAB_EXPOSURES',
+      words: Array.from(words),
+    })
+    // Non-critical; memory accrual can miss a page without harm.
+    void Promise.resolve(result).catch(() => {})
+  } catch {
+    // Ignore: messaging may be unavailable in some contexts.
+  }
 }
 
 function extractShortGloss(exp: string): string {

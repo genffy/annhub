@@ -448,4 +448,59 @@ describe('VocabularyService learning sync and queue', () => {
     expect(pending[0].word).toBe('robust')
     expect(pending[0].star).toBe(1)
   })
+
+  describe('word memory (recall-probability model)', () => {
+    it('recordWordExposures accrues exposures and persists memory store', async () => {
+      const svc = VocabularyService.getInstance()
+
+      const result = await svc.recordWordExposures(['Robust', 'robust', 'phenomenon'])
+
+      // "Robust"/"robust" normalize to the same key → 2 unique words.
+      expect(result.updated).toBe(2)
+      const store = mockStorage.get('vocabWordMemory')
+      expect(store.robust.seenCount).toBe(1)
+      expect(store.phenomenon.seenCount).toBe(1)
+    })
+
+    it('repeated exposures grow a word toward known and raise its learning-profile star', async () => {
+      const svc = VocabularyService.getInstance()
+
+      for (let i = 0; i < 14; i++) {
+        await svc.recordWordExposures(['ubiquitous'])
+      }
+
+      const profile = await svc.getLearningProfile(['ubiquitous'])
+      // No Eudic snapshot entry, but passive exposure has raised the recall-derived star.
+      expect(profile.stars.ubiquitous).toBeGreaterThanOrEqual(4)
+    })
+
+    it('getLearningProfile takes the max of Eudic star and recall star', async () => {
+      mockStorage.set('vocabSnapshot', {
+        version: '1.0',
+        updatedAt: Date.now(),
+        entries: {
+          robust: { proficiency: 2, star: 2, exp: '强健的' },
+        },
+      })
+      const svc = VocabularyService.getInstance()
+
+      // A single fresh exposure → recall ~1 → recall star 5, which should win over star 2.
+      await svc.recordWordExposures(['robust'])
+
+      const profile = await svc.getLearningProfile(['robust'])
+      expect(profile.stars.robust).toBe(5)
+    })
+
+    it('explicit "known" feedback writes long-term memory alongside the Eudic star', async () => {
+      fetchCategoriesMock.mockResolvedValue([{ id: 'learn-cat-1', language: 'en', name: 'AnnHub Learning' }])
+      addWordMock.mockResolvedValue(undefined)
+      const svc = VocabularyService.getInstance()
+
+      await svc.recordLearningEvent({ word: 'robust', eventType: 'known' })
+
+      const store = mockStorage.get('vocabWordMemory')
+      expect(store.robust).toBeDefined()
+      expect(store.robust.stability).toBeGreaterThanOrEqual(180)
+    })
+  })
 })

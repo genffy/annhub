@@ -21,7 +21,9 @@ import {
   VocabLearningPendingEvent,
   LlmConnectionTestResult,
   LlmModelOption,
+  WordMemoryStore,
 } from '../../../types/vocabulary'
+import { applyEvent, recallProbability, recallToStar, type WordMemory, type WordMemoryEventType } from '../../../entrypoints/content/annotation-core/word-memory'
 import { findLlmProviderEndpoint, findLlmProviderPreset, normalizeLlmModelOptions } from '../../../utils/llm-provider-presets'
 import {
   EudicCategory,
@@ -49,6 +51,7 @@ const STORAGE_KEYS = {
   vocabLearningCategoryId: 'vocabLearningCategoryId',
   vocabMasteredCategoryId: 'vocabMasteredCategoryId',
   vocabLearningPendingEvents: 'vocabLearningPendingEvents',
+  vocabWordMemory: 'vocabWordMemory',
 } as const
 
 const ALARM_NAME = 'vocab-sync'
@@ -643,6 +646,9 @@ export class VocabularyService implements IService {
     const targetStar = this.resolveTargetStar(event, currentStar)
     await this.upsertWordLearningState(word, targetStar)
 
+    // Update the local recall-probability memory in parallel with the Eudic-bound star.
+    await this.applyWordMemoryEvent(word, this.mapLearningEventToMemory(event.eventType))
+
     const pending = await this.getPendingLearningEvents()
     const now = Date.now()
     const pendingEvent: VocabLearningPendingEvent = {
@@ -753,6 +759,8 @@ export class VocabularyService implements IService {
   async getLearningProfile(words?: string[]): Promise<{ stars: Record<string, number>; pendingCount: number }> {
     const snapshot = await this.getSnapshot(words)
     const pending = await this.getPendingLearningEvents()
+    const memoryStore = await this.getWordMemoryStore()
+    const now = Date.now()
     const filterSet = words && words.length > 0 ? new Set(words.map(normalizeWord).filter(Boolean)) : null
 
     const stars: Record<string, number> = {}
@@ -768,6 +776,17 @@ export class VocabularyService implements IService {
       if (eventType === 'unknown' || eventType === 'reveal') continue
       if (filterSet && !filterSet.has(event.word)) continue
       stars[event.word] = this.normalizeStar(event.star)
+    }
+
+    // Fold in the local recall-probability memory. Passive exposure (seen but not
+    // clicked) decays/grows independently of Eudic star, so a word repeatedly shown
+    // climbs toward "known" and stops being annotated. We take the MAX of the
+    // snapshot/pending star and the recall-derived star so an explicit Eudic "known"
+    // is never weakened, but passive learning can still raise a word's effective star.
+    for (const [word, memory] of Object.entries(memoryStore)) {
+      if (filterSet && !filterSet.has(word)) continue
+      const recallStar = recallToStar(recallProbability(memory, now))
+      stars[word] = Math.max(stars[word] ?? 1, recallStar)
     }
 
     return { stars, pendingCount: pending.length }
@@ -880,6 +899,65 @@ export class VocabularyService implements IService {
     const result = await chrome.storage.local.get(STORAGE_KEYS.glossCache)
     const raw = result[STORAGE_KEYS.glossCache] as Record<string, GlossCacheEntry> | undefined
     return raw ?? {}
+  }
+
+  // ── Word memory (local recall-probability model) ──
+
+  private async getWordMemoryStore(): Promise<WordMemoryStore> {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.vocabWordMemory)
+    const raw = result[STORAGE_KEYS.vocabWordMemory] as WordMemoryStore | undefined
+    return raw ?? {}
+  }
+
+  private async setWordMemoryStore(store: WordMemoryStore): Promise<void> {
+    await chrome.storage.local.set({ [STORAGE_KEYS.vocabWordMemory]: store })
+  }
+
+  /**
+   * Record a batch of passive exposures ("seen") for words annotated on a page.
+   * Grows each word's memory stability so repeatedly-shown words stop being annotated.
+   */
+  async recordWordExposures(words: string[]): Promise<{ updated: number }> {
+    const normalized = Array.from(new Set(words.map(normalizeWord).filter(Boolean)))
+    if (normalized.length === 0) return { updated: 0 }
+
+    const store = await this.getWordMemoryStore()
+    const now = Date.now()
+    for (const word of normalized) {
+      store[word] = applyEvent(store[word], 'seen', now)
+    }
+    await this.setWordMemoryStore(store)
+    return { updated: normalized.length }
+  }
+
+  /** Apply an explicit feedback event to a word's memory. */
+  private async applyWordMemoryEvent(word: string, eventType: WordMemoryEventType): Promise<WordMemory> {
+    const store = await this.getWordMemoryStore()
+    const now = Date.now()
+    const next = applyEvent(store[word], eventType, now)
+    store[word] = next
+    await this.setWordMemoryStore(store)
+    return next
+  }
+
+  private mapLearningEventToMemory(eventType: VocabLearningEvent['eventType'] | undefined): WordMemoryEventType {
+    switch (this.normalizeLearningEventType(eventType)) {
+      case 'known':
+        return 'known'
+      case 'skip':
+        return 'skip'
+      case 'unknown':
+        return 'unknown'
+      case 'addToVocab':
+        return 'addToVocab'
+      case 'reset':
+        return 'reset'
+      case 'reveal':
+        return 'reveal'
+      case 'seen':
+      default:
+        return 'seen'
+    }
   }
 
   private async getLearningCategoryId(): Promise<string> {
