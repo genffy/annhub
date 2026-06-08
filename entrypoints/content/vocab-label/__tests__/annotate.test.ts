@@ -723,4 +723,24 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     const llmWords = llmCalls.map((c: any[]) => c[0].word.toLowerCase())
     expect(llmWords).toContain('ubiquitous')
   })
+
+  it('annotates a one-off long-tail unknown but skips a page-recurring domain term (S2)', async () => {
+    // "mitochondria" is absent from the general corpus (long tail). Repeated 3x it reads
+    // as this page's domain keyword → skipped. "perfunctory" appears once → genuine
+    // unknown → annotated. Old behaviour dropped BOTH (band===null → skip).
+    setupDOM('<p>The mitochondria divides. A mitochondria fuses. Each mitochondria moves with perfunctory ease.</p>')
+
+    mockSendMessage.mockImplementation(async (msg: any) => {
+      if (msg.type !== 'CONTEXT_GLOSS') return { success: false }
+      return { success: true, data: { gloss: '释义', source: 'llm' } }
+    })
+
+    const ctx = makeCtx({ userCEFRLevel: 'B1' })
+    await annotateVisibleText(ctx)
+
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab], span[data-ann-vocab]')).map(el => el.firstChild?.textContent?.toLowerCase())
+
+    expect(annotatedWords).toContain('perfunctory')
+    expect(annotatedWords).not.toContain('mitochondria')
+  })
 })

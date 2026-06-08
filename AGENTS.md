@@ -37,6 +37,8 @@ annhub/
 │   │   │   ├── dom-policy.ts       # DOM 跳过/可标注判定（按 intent 区分）
 │   │   │   ├── text-range.ts       # 文本节点收集 + Range 定位/匹配
 │   │   │   ├── lemmatize.ts         # 轻量词形还原（屈折→词元，仅用于查表）
+│   │   │   ├── word-memory.ts       # 个人词汇记忆模型（召回概率衰减，L3）
+│   │   │   ├── domain-filter.ts     # 领域术语检测（本地 Weirdness，L2）
 │   │   │   ├── markers.ts          # 通用 wrap/unwrap/cleanup（span/ruby）
 │   │   │   └── __tests__/          # Vitest 单元测试
 │   │   ├── highlight/
@@ -237,8 +239,8 @@ SPA 页面内容可能延迟渲染，`restorePageHighlights` 采用递增延迟�
 - **内容范围**：`content-scope.ts` 综合 Readability、语义选择器（`main/article/[role=main]`）和内容密度评分解析内容根，`collectAnnotatableBlocks` 收集块并排除 header/nav/footer/sidebar/comment
 - **难度门（精准选词）**：核心信号是 `frequency-band-data.ts` 内嵌的通用语料词频带（OpenSubtitles 50k，band 1=最高频…7=最低频），`frequency-filter.ts` 的 `shouldFilterByLevel` 据此判定——
   - 词频带 ≤ 用户 CEFR 对应阈值（高频/简单）→ 过滤（不标）；
-  - **不在词频表的长尾词**（专有名词 / 领域术语 / 拼写噪声）→ **默认过滤（不标）**，这是与旧逻辑相反的关键默认值；
-  - 仅在表内且带位高于阈值的真·中低频词才进入候选。`cefr-data.ts` 的 CEFR 小表保留为遗留次级信号（`shouldFilterByCEFRLevel`）。
+  - 在表内且带位高于阈值的真·中低频词才进入候选。`cefr-data.ts` 的 CEFR 小表保留为遗留次级信号（`shouldFilterByCEFRLevel`）。
+- **领域术语过滤（L2，见 `docs/vocab-word-selection-research.md`）**：**不在词频表的长尾词不再一刀切跳过**。`annotation-core/domain-filter.ts` 的 `isLikelyDomainTerm`（本地 Weirdness 思路）判定——页面内重复出现（≥ 重复阈值，默认 3）或 ACRONYM/CamelCase 的长尾词 → 判为领域术语/专名（跳过）；只出现一两次的稀有词 → 判为真生词（保留标注）。`annotate.ts` 每趟用 `buildDomainStats` 构建页面词频统计，经 `shouldFilterByCandidate` 应用。修复旧逻辑把真·学术/专业生词（`perfunctory`/`epistemic`）静默丢弃的问题。
 - **词形还原**：查表前先用 `annotation-core/lemmatize.ts` 的 `pickLemma` 把屈折形态（running→run、studied→study、mice→mouse）归一到词元，再查欧路快照与词频表；DOM Range 仍用原始 token 的 offset，词元只用于查表。
 - **专有名词过滤**：`isLikelyProperNounCandidate` 在大小写启发式（ACRONYM / camelCase / 句中大写）基础上，对句首 Title-case 词额外用词频信号判别——其词元不在词频表则判为专名跳过，修掉旧逻辑句首专名逃逸的问题。
 - **个人词汇记忆模型（L3，见 `docs/vocab-word-selection-research.md`）**：`annotation-core/word-memory.ts` 是 FSRS/Half-Life-Regression 思路的轻量纯函数模型，每词记 `{seenCount, lastSeenAt, stability}`，`recallProbability = 2^(-elapsedDays/stability)`；被动曝光增长 stability（间隔效应），`known/skip` 跃升为长期，`unknown/addToVocab` 收缩。`recallToStar` 把召回概率映射回 1..5 star 兼容既有打分。`VocabularyService` 以 `vocabWordMemory` 存储键独立持久化（与欧路 snapshot 解耦）；`getLearningProfile` 用 `max(欧路 star, 召回 star)` 合并——显式"已知"不被削弱，但被动反复出现的词会爬向"已知"而停止标注。标注完成后 `annotate.ts#reportWordExposures` 发 `RECORD_VOCAB_EXPOSURES` 事件累计曝光（fire-and-forget）。
@@ -392,6 +394,7 @@ npm run test:watch  # 监听模式
 | `annotation-core/__tests__/markers.test.ts`                        | wrap/unwrap/cleanup（含 ruby 特殊处理）                                                                  |
 | `annotation-core/__tests__/lemmatize.test.ts`                      | 词形还原候选、pickLemma 词典消歧、不规则词                                                               |
 | `annotation-core/__tests__/word-memory.test.ts`                    | 召回概率衰减、曝光间隔效应、known/skip/unknown 反馈、star 映射                                           |
+| `annotation-core/__tests__/domain-filter.test.ts`                  | 领域术语检测：页面重复词跳过、单次稀有词保留、ACRONYM/CamelCase                                          |
 | `highlight/__tests__/highlight-dom.test.ts`                        | isDynamicId、generateSelector、selector 稳定性                                                           |
 | `highlight/__tests__/wrap-integration.test.ts`                     | wrapRange 接入、unwrapMarker 防 tooltip 泄漏、manual-highlight policy 跳过 contenteditable / 嵌套 marker |
 | `vocab-label/__tests__/annotate.test.ts`                           | 逆序 DOM 标注、exp 直接使用、阈值过滤、maxAnnotations                                                    |

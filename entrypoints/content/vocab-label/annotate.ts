@@ -7,6 +7,7 @@ import { isWithinViewportWindowByRect } from './viewport'
 import { clearDomPolicyCaches, shouldSkipTextNode } from './dom-policy'
 import { cleanupMarkers, unwrapMarker, wrapRange } from '../annotation-core/markers'
 import { pickLemma } from '../annotation-core/lemmatize'
+import { createDomainTermStats, isLikelyDomainTerm, recordPageToken, type DomainTermStats } from '../annotation-core/domain-filter'
 
 const MARKER_ATTR = 'data-ann-vocab'
 const WORD_RE = /\b[a-zA-Z]{2,}\b/g
@@ -320,7 +321,7 @@ function calculateCandidateScore(ctx: AnnotationContext, lemmaNorm: string, entr
   return score
 }
 
-function collectMatches(textNode: Text, ctx: AnnotationContext, pending: PendingItem[], candidateLimit: number): void {
+function collectMatches(textNode: Text, ctx: AnnotationContext, pending: PendingItem[], candidateLimit: number, domainStats: DomainTermStats): void {
   const text = textNode.textContent
   if (!text) return
   const skipStarThreshold = getSkipStarThreshold(ctx)
@@ -346,7 +347,7 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
 
     if (!entry && isLikelyProperNounCandidate(word, text, match.index, match.index + word.length)) continue
 
-    if (!entry && shouldFilterByLevel(lemmaNorm, ctx.userCEFRLevel)) continue
+    if (!entry && shouldFilterByCandidate(lemmaNorm, word, ctx, domainStats)) continue
 
     const score = calculateCandidateScore(ctx, lemmaNorm, entry, effectiveStar)
 
@@ -362,6 +363,41 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
       effectiveStar,
     })
   }
+}
+
+/**
+ * Difficulty/domain gate for a candidate without a Eudic entry.
+ *
+ * - In-table words: defer to the frequency band gate (too-easy → skip).
+ * - Long-tail words (band === null): instead of the old blanket skip, ask the
+ *   domain-term detector. Page-recurring jargon / acronyms are skipped; one-off rare
+ *   general words are now allowed through — fixing the core "real unknowns dropped" bug.
+ */
+function shouldFilterByCandidate(lemmaNorm: string, surface: string, ctx: AnnotationContext, domainStats: DomainTermStats): boolean {
+  const band = getWordFrequencyBand(lemmaNorm)
+  if (band !== null) {
+    return shouldFilterByLevel(lemmaNorm, ctx.userCEFRLevel)
+  }
+  // Long-tail: domain term → skip; genuine rare word → annotate.
+  return isLikelyDomainTerm(lemmaNorm, surface, domainStats)
+}
+
+/** Build per-page term-frequency stats (lemmatized) used by the domain-term detector. */
+function buildDomainStats(textNodes: Text[]): DomainTermStats {
+  const stats = createDomainTermStats()
+  for (const textNode of textNodes) {
+    const text = textNode.textContent
+    if (!text) continue
+    WORD_RE.lastIndex = 0
+    let match: RegExpExecArray | null
+    while ((match = WORD_RE.exec(text)) !== null) {
+      const wordNorm = normalizeWord(match[0])
+      if (!wordNorm || wordNorm.length < 3) continue
+      const lemmaNorm = pickLemma(wordNorm, w => getWordFrequencyBand(w) !== null)
+      recordPageToken(stats, lemmaNorm)
+    }
+  }
+  return stats
 }
 
 function collectTextNodes(roots: Element[], contentRoot?: Element, restrictToFeedArticles = false): Text[] {
@@ -475,9 +511,13 @@ export async function annotateVisibleText(ctx: AnnotationContext, options?: Anno
   const pending: PendingItem[] = []
   const candidateLimit = Math.max(budget * 6, 60)
 
+  // Build page-level term-frequency stats once, so the domain-term detector can tell
+  // page-recurring jargon from one-off genuine unknowns (S2).
+  const domainStats = buildDomainStats(textNodes)
+
   for (const textNode of textNodes) {
     if (pending.length >= candidateLimit) break
-    collectMatches(textNode, ctx, pending, candidateLimit)
+    collectMatches(textNode, ctx, pending, candidateLimit, domainStats)
   }
 
   if (pending.length === 0) return 0

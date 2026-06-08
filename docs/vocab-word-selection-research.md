@@ -37,19 +37,19 @@
   → resolvePendingGlosses(每词一次 CONTEXT_GLOSS,最多 12/batch)→ wrap
 ```
 
-| #       | 瓶颈                        | 代码锚点                                                          | 后果                                                                                    |
-| ------- | --------------------------- | ----------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| **B1**  | 长尾词一刀切跳过            | `frequency-filter.ts` `band===null → return true`                 | 50k 表外的**真正学术/专业生词**(`mitochondria`/`epistemic`)被**静默丢弃**——核心漏标来源 |
-| **B2**  | CEFR→band 是线性平移表      | `frequency-filter.ts` `CEFR_KNOWN_BAND_THRESHOLD`(A1=1…C2=6)      | 假设词汇按频率单调展开;无领域/主题维度                                                  |
-| **B3**  | 词形还原仅后缀规则+命中过滤 | `annotation-core/lemmatize.ts` `pickLemma`/`lemmaCandidates`      | 不规则词仅 ~100 条;`-ing/-ed` 歧义靠"在表里"裁决,可能误判 lemma → band 错               |
-| **B4**  | 专名启发式纯规则            | `annotate.ts` `isLikelyProperNounCandidate`                       | 句首大写词依赖频率表存在性,假阳性吞掉真生词                                             |
-| **B5**  | 候选打分维度极少            | `annotate.ts` `calculateCandidateScore`(仅 Eudic 条目/level/star) | 无难度梯度、上下文显著性、TF-IDF、首现、最近接触次数                                    |
-| **B6**  | 已知词非概率化              | `VocabSnapshot.entries[w].star`(1..5 枚举)                        | 无"接触→熟练"衰减,全靠用户右键 known                                                    |
-| **B7**  | LLM 不参与选词              | `vocabulary/index.ts` `resolveGloss` 仅翻译                       | 最廉价智力没用在"该不该标"                                                              |
-| **B8**  | LLM 上下文极窄              | prompt 仅注入单句,不带 CEFR/已知词/主题                           | 无法 WSD/领域识别/个性化                                                                |
-| **B9**  | 无领域识别                  | 全工程无 topic/domain 模块                                        | 同阈值打天下;字幕语料偏口语,科技/学术词全被当长尾                                       |
-| **B10** | 频率源是字幕语料            | `scripts/data/opensubtitles-en-50k.txt`                           | `furthermore`/`paradigm` 偏生词,`gonna`/`dude` 却 band 1                                |
-| **B11** | `glossBatch` 已实现但未启用 | `OpenAICompatibleLlmService.glossBatch` vs `annotate.ts` 仍逐词   | 接入即降延迟/成本,且天然适合"批量挑词"                                                  |
+| #       | 瓶颈                        | 代码锚点                                                          | 后果                                                                                                                                         |
+| ------- | --------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **B1**  | 长尾词一刀切跳过            | `frequency-filter.ts` `band===null → return true`                 | 50k 表外的**真正学术/专业生词**(`perfunctory`/`epistemic`)被**静默丢弃**——核心漏标来源（✅ S2 已修复:改由 domain-filter 区分术语 vs 真生词） |
+| **B2**  | CEFR→band 是线性平移表      | `frequency-filter.ts` `CEFR_KNOWN_BAND_THRESHOLD`(A1=1…C2=6)      | 假设词汇按频率单调展开;无领域/主题维度                                                                                                       |
+| **B3**  | 词形还原仅后缀规则+命中过滤 | `annotation-core/lemmatize.ts` `pickLemma`/`lemmaCandidates`      | 不规则词仅 ~100 条;`-ing/-ed` 歧义靠"在表里"裁决,可能误判 lemma → band 错                                                                    |
+| **B4**  | 专名启发式纯规则            | `annotate.ts` `isLikelyProperNounCandidate`                       | 句首大写词依赖频率表存在性,假阳性吞掉真生词                                                                                                  |
+| **B5**  | 候选打分维度极少            | `annotate.ts` `calculateCandidateScore`(仅 Eudic 条目/level/star) | 无难度梯度、上下文显著性、TF-IDF、首现、最近接触次数                                                                                         |
+| **B6**  | 已知词非概率化              | `VocabSnapshot.entries[w].star`(1..5 枚举)                        | 无"接触→熟练"衰减,全靠用户右键 known                                                                                                         |
+| **B7**  | LLM 不参与选词              | `vocabulary/index.ts` `resolveGloss` 仅翻译                       | 最廉价智力没用在"该不该标"                                                                                                                   |
+| **B8**  | LLM 上下文极窄              | prompt 仅注入单句,不带 CEFR/已知词/主题                           | 无法 WSD/领域识别/个性化                                                                                                                     |
+| **B9**  | 无领域识别                  | 全工程无 topic/domain 模块                                        | 同阈值打天下;字幕语料偏口语,科技/学术词全被当长尾                                                                                            |
+| **B10** | 频率源是字幕语料            | `scripts/data/opensubtitles-en-50k.txt`                           | `furthermore`/`paradigm` 偏生词,`gonna`/`dude` 却 band 1                                                                                     |
+| **B11** | `glossBatch` 已实现但未启用 | `OpenAICompatibleLlmService.glossBatch` vs `annotate.ts` 仍逐词   | 接入即降延迟/成本,且天然适合"批量挑词"                                                                                                       |
 
 **现有个性化数据资产(L3 的地基,已存在):**
 
@@ -141,18 +141,24 @@ annotateScore(word, ctx) =
 
 **工程成本**:中(已完成)。**精度收益**:高(直接消除"反复标已熟词")。
 
-### 阶段 S2 领域术语过滤(修复 B1+B9,补刀误标)
+### 阶段 S2 领域术语过滤(修复 B1+B9,补刀误标)— ✅ 已实现
+
+> 实现于 `feat/vocab-word-selection-research`。代码:`annotation-core/domain-filter.ts`(纯检测)、`annotate.ts`(`buildDomainStats` + `shouldFilterByCandidate` 接入)。测试:`domain-filter.test.ts`(9)、`annotate.test.ts` 新增 S2 用例。
 
 **目标**:行业术语/专有名词不再被当生词;真正生词不再被一刀切丢弃。
-**做法**(本地化 Weirdness 思路,无需 Python/PyATE):
+**已落地做法**(本地化 Weirdness 思路,无需 Python/PyATE):
 
-1. 用**页面内 TF 对比通用语料频率**计算每个长尾词的"领域特异度":
-   `weirdness(w) = pageFreq(w) / generalFreq(w)`(generalFreq 来自现有 band 表/wordfreq)。
-2. 高 weirdness + 页面内重复出现 + 大写/CamelCase → 判为**领域术语/专名**(降分,默认不标或单独样式)。
-3. 低 weirdness 的长尾词(页面里只出现一两次、通用语料也罕见)→ **更可能是真生词,保留标注**——直接修复 B1。
-4. 可选:内置小型领域关键词词典(医学/法律/CS)做粗粒度主题判定,切换阈值。
+1. 每趟标注先用 `buildDomainStats` 扫一遍可见文本节点,建立**页面内 lemma 词频统计**(per-page TF)。
+2. 对**不在通用词频表的长尾词**(band===null)调用 `isLikelyDomainTerm`:
+   - 页面内重复出现 ≥ 阈值(默认 3)→ 判为**领域术语/主题词**(跳过);
+   - ACRONYM / CamelCase → 判为专名/产品名(跳过);
+   - 否则(只出现一两次的稀有词)→ **判为真生词,保留标注**——直接修复 B1 核心漏标。
+3. 在表内的词仍走原 `shouldFilterByLevel` 频率难度门(逻辑不变)。
 
-**工程成本**:中。**精度收益**:高(同时治"误标术语"和"漏标真生词")。
+**与旧逻辑的关键反转**:`band===null → return true`(一刀切丢弃)被替换为"领域术语 vs 真生词"的判别。`mitochondria` 在生物文里重复 → 跳过;`perfunctory` 偶现一次 → 标注。
+**后续可演进**:阈值化的页面 TF 是 Weirdness 的近似;长期可叠加内置领域关键词词典做主题判定、或服务端 PyATE 级术语抽取(见 T2)。
+
+**工程成本**:中(已完成)。**精度收益**:高(同时治"误标术语"和"漏标真生词")。
 
 ### 阶段 S3 词频数据升级(修复 B10)
 
