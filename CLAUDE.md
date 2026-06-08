@@ -78,6 +78,8 @@ Beyond the static frequency gate, AnnHub models whether the user _still_ knows e
 
 `docs/vocab-word-selection-research.md` layer "L4". When `VocabConfig.llmWordSelectionEnabled` is on, candidates the local gate picked (and that have no Eudic entry) are sent via `SELECT_AND_GLOSS` to `VocabularyService.selectAndGloss` → `OpenAICompatibleLlmService.selectAndGloss`. The prompt injects the user's CEFR level + each word's sentence so the LLM judges _whether the word is genuinely unfamiliar to this reader_ and glosses it in one round-trip. Not-unfamiliar words are dropped (`annotate.ts#applyLlmWordSelection`); unfamiliar ones reuse the LLM's gloss (no separate `CONTEXT_GLOSS`). Eudic-known/cache-hit words resolve locally without an LLM call; on LLM-unavailable or parse failure the local selection is kept (never blanks a page). Costs tokens per page, hence opt-in.
 
+> Server-side roadmap (not yet implemented): `docs/vocab-server-memory-model-design.md` freezes the T1 contract — a backend-agnostic REST + event schema for uploading anonymized `WordMemory` events and fetching per-word recall from a server-trained HLR/FSRS model. The local model stays the offline source of truth; the server is an optional, opt-in enhancement.
+
 ## Conventions
 
 - **Docs stay in sync (required)**: after completing any task, update the affected docs (`AGENTS.md`, `CLAUDE.md`, `docs/`, `README.md`) in the same change. Adding/removing modules, changing the message protocol, shortcuts, or test layout must update the corresponding sections. A task is not done until docs match the code.
