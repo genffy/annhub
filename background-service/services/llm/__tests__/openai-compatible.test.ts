@@ -348,4 +348,75 @@ describe('OpenAICompatibleLlmService', () => {
       expect(result).toEqual({ test: '' })
     })
   })
+
+  describe('selectAndGloss', () => {
+    it('parses per-word unfamiliar verdicts and glosses', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({
+            choices: [
+              {
+                message: {
+                  content: '{"perfunctory": {"unfamiliar": true, "gloss": "敷衍的"}, "table": {"unfamiliar": false, "gloss": ""}}',
+                },
+              },
+            ],
+          }),
+        }),
+      )
+
+      const service = new OpenAICompatibleLlmService(mockConfig)
+      const result = await service.selectAndGloss({
+        candidates: [
+          { word: 'perfunctory', sentence: 'He gave a perfunctory nod.' },
+          { word: 'table', sentence: 'Put it on the table.' },
+        ],
+        targetLanguage: 'zh-CN',
+        cefrLevel: 'B1',
+      })
+
+      expect(result.perfunctory).toEqual({ unfamiliar: true, gloss: '敷衍的' })
+      expect(result.table).toEqual({ unfamiliar: false, gloss: '' })
+    })
+
+    it('injects the CEFR level into the prompt', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: '{}' } }] }),
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const service = new OpenAICompatibleLlmService(mockConfig)
+      await service.selectAndGloss({
+        candidates: [{ word: 'epistemic', sentence: 'An epistemic claim.' }],
+        targetLanguage: 'zh-CN',
+        cefrLevel: 'C1',
+      })
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+      const userContent = body.messages.find((m: any) => m.role === 'user').content
+      expect(userContent).toContain('C1')
+      expect(userContent).toContain('epistemic')
+    })
+
+    it('defaults every candidate to not-unfamiliar on parse failure', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({ choices: [{ message: { content: 'garbage not json' } }] }),
+        }),
+      )
+
+      const service = new OpenAICompatibleLlmService(mockConfig)
+      const result = await service.selectAndGloss({
+        candidates: [{ word: 'foo', sentence: 'A foo.' }],
+        targetLanguage: 'zh-CN',
+      })
+
+      expect(result.foo).toEqual({ unfamiliar: false, gloss: '' })
+    })
+  })
 })

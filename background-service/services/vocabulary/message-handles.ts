@@ -209,6 +209,17 @@ export const messageHandlers: Record<string, (message: any, sender: chrome.runti
     }
   },
 
+  SELECT_AND_GLOSS: async (message: any): Promise<ResponseMessage> => {
+    try {
+      const service = VocabularyService.getInstance()
+      const candidates = Array.isArray(message.candidates) ? message.candidates : []
+      const result = await service.selectAndGloss(candidates, message.targetLanguage)
+      return MessageUtils.createResponse(true, result)
+    } catch (error) {
+      return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+    }
+  },
+
   ENSURE_VOCAB_LEARNING_CATEGORY: async (message: any): Promise<ResponseMessage> => {
     try {
       const service = VocabularyService.getInstance()

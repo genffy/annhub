@@ -503,4 +503,42 @@ describe('VocabularyService learning sync and queue', () => {
       expect(store.robust.stability).toBeGreaterThanOrEqual(180)
     })
   })
+
+  describe('selectAndGloss (S4 LLM word selection)', () => {
+    it('resolves Eudic-known words locally as unfamiliar with their exp, no LLM call', async () => {
+      mockStorage.set('vocabSnapshot', {
+        version: '1.0',
+        updatedAt: Date.now(),
+        entries: { robust: { proficiency: 2, star: 2, exp: '强健的' } },
+      })
+      const svc = VocabularyService.getInstance()
+
+      const result = await svc.selectAndGloss([{ word: 'robust', sentence: 'A robust system.' }])
+
+      expect(result.robust).toEqual({ unfamiliar: true, gloss: '强健的' })
+    })
+
+    it('keeps local selection (unfamiliar) when LLM is not configured', async () => {
+      // No llmConfig in storage → not ready. Selection enabled or not, undecided words
+      // default to unfamiliar so the local gate still annotates them.
+      mockStorage.set('vocabConfig', {
+        enabled: true,
+        adaptiveLearningEnabled: true,
+        annotationAggressiveness: 'balanced',
+        llmWordSelectionEnabled: true,
+        eudicToken: 'NIS token-123',
+        eudicCategoryIds: ['seed-cat'],
+        masteryThreshold: 3,
+        syncPeriodMinutes: 60,
+        maxAnnotationsPerPage: 200,
+        cefrLevel: 'B1',
+        domainWhitelist: { enabled: false, domains: [] },
+      })
+      const svc = VocabularyService.getInstance()
+
+      const result = await svc.selectAndGloss([{ word: 'epistemic', sentence: 'An epistemic claim.' }])
+
+      expect(result.epistemic).toEqual({ unfamiliar: true, gloss: '' })
+    })
+  })
 })

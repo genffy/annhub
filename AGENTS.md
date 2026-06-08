@@ -244,7 +244,8 @@ SPA 页面内容可能延迟渲染，`restorePageHighlights` 采用递增延迟�
 - **词形还原**：查表前先用 `annotation-core/lemmatize.ts` 的 `pickLemma` 把屈折形态（running→run、studied→study、mice→mouse）归一到词元，再查欧路快照与词频表；DOM Range 仍用原始 token 的 offset，词元只用于查表。
 - **专有名词过滤**：`isLikelyProperNounCandidate` 在大小写启发式（ACRONYM / camelCase / 句中大写）基础上，对句首 Title-case 词额外用词频信号判别——其词元不在词频表则判为专名跳过，修掉旧逻辑句首专名逃逸的问题。
 - **个人词汇记忆模型（L3，见 `docs/vocab-word-selection-research.md`）**：`annotation-core/word-memory.ts` 是 FSRS/Half-Life-Regression 思路的轻量纯函数模型，每词记 `{seenCount, lastSeenAt, stability}`，`recallProbability = 2^(-elapsedDays/stability)`；被动曝光增长 stability（间隔效应），`known/skip` 跃升为长期，`unknown/addToVocab` 收缩。`recallToStar` 把召回概率映射回 1..5 star 兼容既有打分。`VocabularyService` 以 `vocabWordMemory` 存储键独立持久化（与欧路 snapshot 解耦）；`getLearningProfile` 用 `max(欧路 star, 召回 star)` 合并——显式"已知"不被削弱，但被动反复出现的词会爬向"已知"而停止标注。标注完成后 `annotate.ts#reportWordExposures` 发 `RECORD_VOCAB_EXPOSURES` 事件累计曝光（fire-and-forget）。
-- **标注流程**：TreeWalker 扫描文本节点 → 正则匹配英文单词 → 词形还原查表 → 难度门/专名过滤 → 本地释义(exp)或 LLM 释义 → 逆序包裹 `<ruby>` 或 `<span>` 避免 offset 漂移（底层用 `annotation-core/markers.ts`）
+- **LLM 参与选词（L4 / S4，可选，默认关闭）**：`VocabConfig.llmWordSelectionEnabled` 开启后，本地难度门选出的无 Eudic 词条候选会经 `annotate.ts#applyLlmWordSelection` 发 `SELECT_AND_GLOSS` 给后台。`VocabularyService.selectAndGloss` 调用 `OpenAICompatibleLlmService.selectAndGloss`——prompt 注入用户 CEFR 等级 + 每词所在句子，让 LLM 判定"对该读者是否真正陌生（unfamiliar）"并同时给释义，一次往返完成"挑词 + 释义"。不陌生的词被丢弃，陌生词复用 LLM 返回的释义（省去单独 `CONTEXT_GLOSS`）。Eudic 已有词/缓存命中走本地、不调 LLM;LLM 不可用或解析失败时保留本地选择（不致整页空白）。
+- **标注流程**：TreeWalker 扫描文本节点 → 正则匹配英文单词 → 词形还原查表 → 难度门/专名/领域过滤 → 个人记忆门 →（可选）LLM 选词 → 本地释义(exp)或 LLM 释义 → 逆序包裹 `<ruby>` 或 `<span>` 避免 offset 漂移（底层用 `annotation-core/markers.ts`）
 - **混合观察器**（`index.ts`）：不再是单一 MutationObserver，而是三者协同——
   1. `IntersectionObserver`（rootMargin 50%）：滚动时把进入视口的块入队
   2. `MutationObserver`（childList/characterData，250ms 防抖）：处理 SPA 动态内容
@@ -259,7 +260,7 @@ SPA 页面内容可能延迟渲染，`restorePageHighlights` 采用递增延迟�
 
 `background-service/services/llm/` 提供与厂商无关的 LLM 接口：
 
-- `ILlmClient`：`completeChat(input) → string`，可选 `glossBatch`
+- `ILlmClient`：`completeChat(input) → string`，可选 `glossBatch`、`selectAndGloss`（S4：注入 CEFR + 句子上下文，判定每词是否陌生并给释义）
 - `OpenAICompatibleLlmService`：智能 endpoint 拼接（`/vN` 已有则不补 `/v1`）；支持 GLM、DeepSeek、OpenAI 等
 - `createLlmClient(config)`：工厂函数，当前仅 `openai-compatible` 分支
 - 配置 merge：`getLlmConfig()` 采用非空值优先策略，空字符串不覆盖已存储值
@@ -284,6 +285,7 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 | `GET_VOCAB_CONFIG` / `SET_VOCAB_CONFIG` | UI → background         | 读写生词配置（GET 脱敏，不回传 token） |
 | `GET_VOCAB_SNAPSHOT` / `REFRESH_VOCAB`  | content/UI → background | 获取词库快照 / 触发欧路同步            |
 | `CONTEXT_GLOSS`                         | content → background    | 单词上下文释义（exp → cache → LLM）    |
+| `SELECT_AND_GLOSS`                      | content → background    | S4：LLM 一次性判定候选是否陌生并给释义 |
 
 **生词学习（见 §5.12）**
 
@@ -405,7 +407,7 @@ npm run test:watch  # 监听模式
 | `vocab-label/__tests__/platform-rules.test.ts`                     | vocab 平台适配层                                                                                         |
 | `background-service/__tests__/service-manager.test.ts`             | restart cleanup + forceReinitialize、initOrder                                                           |
 | `services/highlight/__tests__/highlight-storage.test.ts`           | getCurrentPageHighlights 的 sourceUrl 匹配和去重                                                         |
-| `services/llm/__tests__/openai-compatible.test.ts`                 | endpoint 拼接、请求格式、错误处理、glossBatch                                                            |
+| `services/llm/__tests__/openai-compatible.test.ts`                 | endpoint 拼接、请求格式、错误处理、glossBatch、selectAndGloss（CEFR 注入/解析/兜底）                     |
 | `services/llm/__tests__/factory.test.ts`                           | 工厂分支                                                                                                 |
 | `services/logseq/__tests__/logseq-{client,formatter,sync}.test.ts` | Logseq 客户端、格式化、同步                                                                              |
 | `services/vocabulary/__tests__/vocabulary-config.test.ts`          | getLlmConfig/setLlmConfig 配置 merge 策略                                                                |

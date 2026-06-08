@@ -884,6 +884,78 @@ export class VocabularyService implements IService {
     Logger.info(`[VocabularyService] Alarm set: every ${period} minutes`)
   }
 
+  /**
+   * S4: LLM-assisted word selection + gloss. Given candidate words (each with its
+   * sentence), ask the LLM which are genuinely unfamiliar to the user's CEFR level and
+   * gloss them in one round-trip. Words already in the Eudic snapshot or gloss cache are
+   * resolved locally. Returns word → { unfamiliar, gloss }.
+   */
+  async selectAndGloss(candidates: Array<{ word: string; sentence: string }>, targetLanguage = 'zh-CN'): Promise<Record<string, { unfamiliar: boolean; gloss: string }>> {
+    const result: Record<string, { unfamiliar: boolean; gloss: string }> = {}
+    if (candidates.length === 0) return result
+
+    const config = await this.getVocabConfig()
+    const llmConfig = await this.getLlmRuntimeConfig()
+    const llmReady = Boolean(llmConfig.baseUrl && llmConfig.apiKey && llmConfig.model)
+
+    const toAsk: Array<{ word: string; sentence: string }> = []
+
+    const snapshot = await this.getSnapshot()
+    const cache = await this.getGlossCache()
+    for (const c of candidates) {
+      const wordNorm = normalizeWord(c.word)
+      const exp = snapshot?.entries[wordNorm]?.exp
+      if (exp) {
+        // Eudic learning-list word: still worth showing → unfamiliar, with its exp.
+        result[c.word] = { unfamiliar: true, gloss: exp }
+        continue
+      }
+      const cacheKey = `${wordNorm}:${this.hashSentence(c.sentence)}`
+      const cached = cache[cacheKey]
+      if (cached && Date.now() - cached.updatedAt < GLOSS_CACHE_TTL) {
+        result[c.word] = { unfamiliar: true, gloss: cached.gloss }
+        continue
+      }
+      toAsk.push(c)
+    }
+
+    if (toAsk.length === 0) return result
+
+    if (!llmReady || !config.llmWordSelectionEnabled) {
+      // No LLM / selection disabled: leave LLM-undecided candidates as unfamiliar so the
+      // caller's local gate (which already selected them) still annotates them.
+      for (const c of toAsk) result[c.word] = { unfamiliar: true, gloss: '' }
+      return result
+    }
+
+    try {
+      const client = createLlmClient(llmConfig)
+      if (!client.selectAndGloss) {
+        for (const c of toAsk) result[c.word] = { unfamiliar: true, gloss: '' }
+        return result
+      }
+      const verdicts = await client.selectAndGloss({
+        candidates: toAsk,
+        targetLanguage,
+        cefrLevel: config.cefrLevel,
+      })
+      for (const c of toAsk) {
+        const v = verdicts[c.word] ?? { unfamiliar: false, gloss: '' }
+        result[c.word] = v
+        if (v.unfamiliar && v.gloss) {
+          const cacheKey = `${normalizeWord(c.word)}:${this.hashSentence(c.sentence)}`
+          cache[cacheKey] = { gloss: v.gloss, updatedAt: Date.now() }
+        }
+      }
+      await chrome.storage.local.set({ [STORAGE_KEYS.glossCache]: cache })
+    } catch (error) {
+      Logger.error('[VocabularyService] selectAndGloss failed:', error)
+      for (const c of toAsk) result[c.word] = { unfamiliar: true, gloss: '' }
+    }
+
+    return result
+  }
+
   private hashSentence(sentence: string): string {
     let hash = 0
     const str = sentence.toLowerCase().trim()

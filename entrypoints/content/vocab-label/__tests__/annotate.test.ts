@@ -743,4 +743,32 @@ describe('annotateVisibleText — reverse-order DOM mutation', () => {
     expect(annotatedWords).toContain('perfunctory')
     expect(annotatedWords).not.toContain('mitochondria')
   })
+
+  it('drops candidates the LLM marks not-unfamiliar when llmWordSelectionEnabled (S4)', async () => {
+    setupDOM('<p>The ubiquitous phenomenon emerged.</p>')
+
+    mockSendMessage.mockImplementation(async (msg: any) => {
+      if (msg.type === 'SELECT_AND_GLOSS') {
+        const data: Record<string, { unfamiliar: boolean; gloss: string }> = {}
+        for (const c of msg.candidates as Array<{ word: string }>) {
+          // LLM keeps "ubiquitous" as a real unknown, drops "phenomenon" as familiar.
+          data[c.word] = c.word.toLowerCase() === 'ubiquitous' ? { unfamiliar: true, gloss: '无处不在' } : { unfamiliar: false, gloss: '' }
+        }
+        return { success: true, data }
+      }
+      return { success: false }
+    })
+
+    const ctx = makeCtx({ userCEFRLevel: 'A1', llmWordSelectionEnabled: true })
+    await annotateVisibleText(ctx)
+
+    const annotatedWords = Array.from(document.querySelectorAll('ruby[data-ann-vocab], span[data-ann-vocab]')).map(el => el.firstChild?.textContent?.toLowerCase())
+
+    expect(annotatedWords).toContain('ubiquitous')
+    expect(annotatedWords).not.toContain('phenomenon')
+
+    // The LLM-provided gloss should be reused without a separate CONTEXT_GLOSS round-trip.
+    const contextGlossCalls = mockSendMessage.mock.calls.filter((c: any[]) => c[0]?.type === 'CONTEXT_GLOSS')
+    expect(contextGlossCalls.length).toBe(0)
+  })
 })

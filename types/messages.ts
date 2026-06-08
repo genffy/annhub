@@ -254,6 +254,12 @@ export interface ContextGlossMessage extends BaseMessage {
   targetLanguage?: string
 }
 
+export interface SelectAndGlossMessage extends BaseMessage {
+  type: 'SELECT_AND_GLOSS'
+  candidates: Array<{ word: string; sentence: string }>
+  targetLanguage?: string
+}
+
 export interface FetchLlmModelsMessage extends BaseMessage {
   type: 'FETCH_LLM_MODELS'
   config?: Partial<LlmConfig>
@@ -361,6 +367,7 @@ export type UIToBackgroundMessage =
   | DeleteEudicWordsMessage
   | GetEudicWordMessage
   | ContextGlossMessage
+  | SelectAndGlossMessage
   | EnsureVocabLearningCategoryMessage
   | SelectVocabLearningCategoryMessage
   | EnsureVocabMasteredCategoryMessage

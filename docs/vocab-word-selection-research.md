@@ -166,14 +166,22 @@ annotateScore(word, ctx) =
 - 重跑 `scripts/build-frequency-data.ts`(源数据换/混合),band 切分改用 Zipf 阈值。
 - **工程成本**:低(只动构建脚本 + 重新生成 `frequency-band-data.ts`)。**收益**:中(减少口语偏差)。
 
-### 阶段 S4 LLM 参与选词 + glossBatch 接入(B7/B8/B11)
+### 阶段 S4 LLM 参与选词(B7/B8)— ✅ 已实现(默认关闭)
 
-- 启用已实现的 `glossBatch`(B11),`resolvePendingGlosses` 改批量。
-- prompt 注入:用户 CEFR、已知词样本、页面主题、邻句 → 让 LLM 一次性"**从候选里挑出对该用户真正陌生的词并给义**"(WSD + 个性化 + 降 round-trip)。
-- 短期仍走用户自带的 OpenAI 兼容端点(`OpenAICompatibleLlmService`),成本由用户承担,作为"高精度可选档"。
-- **工程成本**:低-中(接口已存在)。**收益**:高(精度天花板),但有 token 成本/延迟,设为可选增强而非默认全量。
+> 实现于 `feat/vocab-word-selection-research`。代码:`llm/types.ts`(`selectAndGloss` 接口 + `LlmWordVerdict`)、`openai-compatible.ts`(`selectAndGloss` 实现)、`VocabularyService.selectAndGloss`、`annotate.ts#applyLlmWordSelection`、`VocabConfig.llmWordSelectionEnabled` + 设置页开关。测试:`openai-compatible.test.ts` 新增 3 例、`annotate.test.ts` S4 例、`vocabulary-learning.test.ts` 2 例。
 
-**本地短期落地顺序**:S1 → S2 → S3 → S4(S1 与 S2 是治本两刀)。
+**目标**:让 LLM 参与"该不该标"(WSD + 个性化),而非只翻译。
+**已落地做法**:
+
+1. 新接口 `selectAndGloss(candidates, cefrLevel)`:一次往返**同时**判定每个候选对该用户是否"真正陌生(unfamiliar)"**并**给释义。prompt 注入用户 CEFR + 每词所在句子。
+2. `annotate.ts`:本地难度门(L1/L2/L3)先选出候选;若 `llmWordSelectionEnabled` 开启,无 Eudic 词条的候选经 `SELECT_AND_GLOSS` 交 LLM 精选——不陌生的丢弃,陌生的复用 LLM 释义(省去单独 `CONTEXT_GLOSS`)。
+3. 缓存/Eudic 命中走本地不调 LLM;LLM 不可用或解析失败 → 保留本地选择(不致整页空白)。
+4. **默认关闭**,设置页 "LLM word selection (experimental)" 开关开启;成本由用户自带端点承担,作为高精度可选档。
+
+**未接入项**:`glossBatch`(B11)仍未在主链路使用——`selectAndGloss` 已覆盖"批量挑词+释义",`glossBatch` 留作纯批量翻译的备用接口。
+**工程成本**:低-中(已完成)。**收益**:高(精度天花板),但有 token 成本/延迟。
+
+**本地短期落地顺序**:S1 → S2 → S3 → S4。**已完成:S1、S2、S4;待做:S3(词频源升级)。**
 
 ---
 

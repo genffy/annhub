@@ -535,6 +535,7 @@ export async function initVocabLabel(): Promise<void> {
     adaptiveLearningEnabled: config.adaptiveLearningEnabled !== false,
     annotationAggressiveness: config.annotationAggressiveness ?? 'balanced',
     pendingStarOverlay: learningProfile?.stars ?? {},
+    llmWordSelectionEnabled: config.llmWordSelectionEnabled === true,
   }
 
   Logger.info('[VocabLabel] Starting annotation with strict content root...')

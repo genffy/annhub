@@ -73,6 +73,10 @@ Beyond the static frequency gate, AnnHub models whether the user _still_ knows e
 - `getLearningProfile()` folds recall-derived star into the returned `stars` map via `max(eudicStar, recallStar)` — an explicit Eudic "known" is never weakened, but passively re-seen words climb toward "known" and stop being annotated.
 - The content script reports exposures fire-and-forget after each annotation pass (`annotate.ts#reportWordExposures` → `RECORD_VOCAB_EXPOSURES` message).
 
+### LLM-assisted word selection (optional, off by default)
+
+`docs/vocab-word-selection-research.md` layer "L4". When `VocabConfig.llmWordSelectionEnabled` is on, candidates the local gate picked (and that have no Eudic entry) are sent via `SELECT_AND_GLOSS` to `VocabularyService.selectAndGloss` → `OpenAICompatibleLlmService.selectAndGloss`. The prompt injects the user's CEFR level + each word's sentence so the LLM judges _whether the word is genuinely unfamiliar to this reader_ and glosses it in one round-trip. Not-unfamiliar words are dropped (`annotate.ts#applyLlmWordSelection`); unfamiliar ones reuse the LLM's gloss (no separate `CONTEXT_GLOSS`). Eudic-known/cache-hit words resolve locally without an LLM call; on LLM-unavailable or parse failure the local selection is kept (never blanks a page). Costs tokens per page, hence opt-in.
+
 ## Conventions
 
 - **Docs stay in sync (required)**: after completing any task, update the affected docs (`AGENTS.md`, `CLAUDE.md`, `docs/`, `README.md`) in the same change. Adding/removing modules, changing the message protocol, shortcuts, or test layout must update the corresponding sections. A task is not done until docs match the code.

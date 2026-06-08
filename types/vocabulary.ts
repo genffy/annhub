@@ -6,6 +6,8 @@ export interface VocabConfig {
   enabled: boolean
   adaptiveLearningEnabled: boolean
   annotationAggressiveness: 'review-light' | 'balanced' | 'aggressive'
+  /** When true, the LLM also decides which candidates are genuinely unfamiliar (S4). */
+  llmWordSelectionEnabled: boolean
   eudicToken: string
   eudicCategoryIds: string[]
   masteryThreshold: number
@@ -22,6 +24,7 @@ export const defaultVocabConfig: VocabConfig = {
   enabled: false,
   adaptiveLearningEnabled: true,
   annotationAggressiveness: 'balanced',
+  llmWordSelectionEnabled: false,
   eudicToken: '',
   eudicCategoryIds: [],
   masteryThreshold: 3,

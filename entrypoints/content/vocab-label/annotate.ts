@@ -26,6 +26,8 @@ interface AnnotationContext {
   adaptiveLearningEnabled?: boolean
   annotationAggressiveness?: 'review-light' | 'balanced' | 'aggressive'
   pendingStarOverlay?: Record<string, number>
+  /** S4: route candidates through the LLM to decide which are genuinely unfamiliar. */
+  llmWordSelectionEnabled?: boolean
 }
 
 interface AnnotateOptions {
@@ -428,10 +430,60 @@ function collectTextNodes(roots: Element[], contentRoot?: Element, restrictToFee
   return nodes
 }
 
+/**
+ * S4: ask the background LLM service which entry-less candidates are genuinely
+ * unfamiliar to the user, dropping the rest and pre-filling glosses for survivors.
+ * Items backed by a Eudic entry bypass the LLM (already chosen). On failure the LLM
+ * service defaults to keeping items, so this never silently blanks a page.
+ */
+async function applyLlmWordSelection(pending: PendingItem[]): Promise<PendingItem[]> {
+  const askable = pending.filter(item => !item.entry)
+  if (askable.length === 0) return pending
+
+  // De-dupe by word+sentence to minimize tokens; first item carries the gloss back.
+  const byKey = new Map<string, { word: string; sentence: string }>()
+  for (const item of askable) {
+    const key = `${item.wordNorm}:${hashSentence(item.sentence)}`
+    if (!byKey.has(key)) byKey.set(key, { word: item.word, sentence: item.sentence })
+  }
+
+  let verdicts: Record<string, { unfamiliar: boolean; gloss: string }> = {}
+  try {
+    const res = await MessageUtils.sendMessage({
+      type: 'SELECT_AND_GLOSS',
+      candidates: Array.from(byKey.values()),
+    })
+    if (res.success && res.data) {
+      verdicts = res.data as Record<string, { unfamiliar: boolean; gloss: string }>
+    }
+  } catch (e) {
+    Logger.warn('[VocabLabel] LLM word selection failed, keeping local selection:', e)
+    return pending
+  }
+
+  const kept: PendingItem[] = []
+  for (const item of pending) {
+    if (item.entry) {
+      kept.push(item)
+      continue
+    }
+    const v = verdicts[item.word]
+    // No verdict (e.g. trimmed by token budget) → keep, defer to local gate.
+    if (!v || v.unfamiliar) {
+      if (v?.gloss) item.gloss = v.gloss
+      kept.push(item)
+    }
+  }
+  return kept
+}
+
 async function resolvePendingGlosses(pending: PendingItem[]): Promise<void> {
   const groupedByCacheKey = new Map<string, PendingItem[]>()
   const groupedMeta = new Map<string, { word: string; sentence: string }>()
   for (const item of pending) {
+    // Already glossed (e.g. by the S4 LLM selection pass) → nothing to resolve.
+    if (item.gloss) continue
+
     if (item.entry?.exp) {
       item.gloss = extractShortGloss(item.entry.exp)
       continue
@@ -523,7 +575,15 @@ export async function annotateVisibleText(ctx: AnnotationContext, options?: Anno
   if (pending.length === 0) return 0
 
   pending.sort((a, b) => b.score - a.score || a.effectiveStar - b.effectiveStar)
-  const selectedPending = pending.slice(0, budget)
+  let selectedPending = pending.slice(0, budget)
+
+  // S4: optional LLM word-selection pass. The local gate already chose candidates; the
+  // LLM refines "which are genuinely unfamiliar" (and glosses them) for entry-less words.
+  if (ctx.llmWordSelectionEnabled) {
+    selectedPending = await applyLlmWordSelection(selectedPending)
+    if (selectedPending.length === 0) return 0
+  }
+
   await resolvePendingGlosses(selectedPending)
 
   let appliedCount = 0

@@ -430,6 +430,12 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
           checked={vocabConfig.adaptiveLearningEnabled}
           onChange={checked => setVocabConfig(prev => ({ ...prev, adaptiveLearningEnabled: checked }))}
         />
+        <CheckboxField
+          label="LLM word selection (experimental)"
+          hint="Use the configured LLM to pick which words are genuinely unfamiliar for your level and gloss them. Improves precision but consumes tokens per page."
+          checked={vocabConfig.llmWordSelectionEnabled}
+          onChange={checked => setVocabConfig(prev => ({ ...prev, llmWordSelectionEnabled: checked }))}
+        />
         <Field label="Annotation aggressiveness">
           <SelectInput
             name="annotationAggressiveness"
