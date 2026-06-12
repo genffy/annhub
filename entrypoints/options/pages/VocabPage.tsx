@@ -9,6 +9,7 @@ import {
   LlmConnectionTestResult,
   LlmModelOption,
   VocabSyncState,
+  VocabMemorySyncState,
   defaultVocabConfig,
   defaultLlmConfig,
   parseDomainWhitelistInput,
@@ -43,6 +44,7 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
   const [isSyncing, setIsSyncing] = useState(false)
   const [message, setMessage] = useState<{ text: string; type: MessageType } | null>(null)
   const [learningSyncState, setLearningSyncState] = useState<VocabSyncState | null>(null)
+  const [memorySyncState, setMemorySyncState] = useState<VocabMemorySyncState | null>(null)
   const [learningCategories, setLearningCategories] = useState<Array<{ id: string; name: string }>>([])
   const [selectedLearningCategoryId, setSelectedLearningCategoryId] = useState('')
   const [selectedMasteredCategoryId, setSelectedMasteredCategoryId] = useState('')
@@ -58,10 +60,11 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
   useEffect(() => {
     const load = async () => {
       try {
-        const [vocabRes, llmRes, learningStateRes] = await Promise.all([
+        const [vocabRes, llmRes, learningStateRes, memoryStateRes] = await Promise.all([
           MessageUtils.sendMessage({ type: 'GET_VOCAB_CONFIG' }),
           MessageUtils.sendMessage({ type: 'GET_LLM_CONFIG' }),
           MessageUtils.sendMessage({ type: 'GET_VOCAB_LEARNING_SYNC_STATE' }),
+          MessageUtils.sendMessage({ type: 'GET_VOCAB_MEMORY_SYNC_STATE' }),
         ])
 
         if (vocabRes.success && vocabRes.data) {
@@ -103,6 +106,10 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
           setLearningSyncState(state)
           setSelectedLearningCategoryId(state.learningCategoryId ?? '')
           setSelectedMasteredCategoryId(state.masteredCategoryId ?? '')
+        }
+
+        if (memoryStateRes.success && memoryStateRes.data) {
+          setMemorySyncState(memoryStateRes.data as VocabMemorySyncState)
         }
 
         if (vocabRes.success && vocabRes.data && (vocabRes.data as VocabConfigPublic).hasEudicToken) {
@@ -412,6 +419,45 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
       showMessage('Mastered book selected')
     } catch {
       showMessage('Failed to select mastered book', 'error')
+    }
+  }
+
+  const refreshMemorySyncState = useCallback(async () => {
+    const res = await MessageUtils.sendMessage({ type: 'GET_VOCAB_MEMORY_SYNC_STATE' })
+    if (res.success && res.data) {
+      setMemorySyncState(res.data as VocabMemorySyncState)
+    }
+  }, [])
+
+  const handleFlushMemoryEvents = async () => {
+    try {
+      const res = await MessageUtils.sendMessage<{ accepted: number; pendingCount: number; skipped?: boolean }>({ type: 'FLUSH_VOCAB_MEMORY_EVENTS' })
+      if (res.success && res.data) {
+        await refreshMemorySyncState()
+        if (res.data.skipped) {
+          showMessage('Memory sync is off or no endpoint set — events are queued locally', 'error')
+        } else {
+          showMessage(`Uploaded ${res.data.accepted} events (${res.data.pendingCount} pending)`)
+        }
+      } else {
+        showMessage('Memory sync failed: ' + (res.error || 'Unknown error'), 'error')
+      }
+    } catch {
+      showMessage('Memory sync failed', 'error')
+    }
+  }
+
+  const handleClearMemoryQueue = async () => {
+    try {
+      const res = await MessageUtils.sendMessage({ type: 'CLEAR_VOCAB_MEMORY_QUEUE' })
+      if (res.success) {
+        await refreshMemorySyncState()
+        showMessage('Local memory event queue cleared')
+      } else {
+        showMessage('Failed to clear queue: ' + (res.error || 'Unknown error'), 'error')
+      }
+    } catch {
+      showMessage('Failed to clear queue', 'error')
     }
   }
 
@@ -752,6 +798,39 @@ export default function VocabPage({ embedded = false }: VocabPageProps) {
             rows={3}
             placeholder="Custom system instructions for the LLM..."
           />
+        </Field>
+      </SettingsSection>
+
+      <SettingsSection title="Cross-device Memory Sync (experimental)">
+        <CheckboxField
+          label="Enable memory sync"
+          hint="Opt-in. Uploads only anonymized word memory (lemma + interaction type + time + counts) to your endpoint for cross-device recall — never sentences, URLs, or page content. Off = fully local."
+          checked={vocabConfig.memorySyncEnabled}
+          onChange={checked => setVocabConfig(prev => ({ ...prev, memorySyncEnabled: checked }))}
+        />
+        <Field label="Sync endpoint" hint="Backend-agnostic base URL (e.g. https://api.example.com). Leave blank to queue locally without sending.">
+          <TextInput
+            name="vocabMemorySyncEndpoint"
+            type="text"
+            value={vocabConfig.memorySyncEndpoint}
+            onChange={e => setVocabConfig(prev => ({ ...prev, memorySyncEndpoint: e.target.value }))}
+            placeholder="https://api.example.com"
+          />
+        </Field>
+        <Field
+          label="Queue status"
+          hint={`Pending events: ${memorySyncState?.pendingCount ?? 0}. Device: ${memorySyncState?.deviceId ?? 'not assigned yet'}.${
+            memorySyncState?.lastError ? ` Last error: ${memorySyncState.lastError}` : ''
+          }`}
+        >
+          <div className="flex gap-2">
+            <Button type="button" variant="secondary" onClick={handleFlushMemoryEvents}>
+              Sync Now
+            </Button>
+            <Button type="button" variant="secondary" onClick={handleClearMemoryQueue}>
+              Clear Local Queue
+            </Button>
+          </div>
         </Field>
       </SettingsSection>
 

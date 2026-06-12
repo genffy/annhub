@@ -344,4 +344,36 @@ export const messageHandlers: Record<string, (message: any, sender: chrome.runti
       return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
     }
   },
+
+  GET_VOCAB_MEMORY_SYNC_STATE: async (): Promise<ResponseMessage> => {
+    try {
+      const service = VocabularyService.getInstance()
+      const state = await service.getMemorySyncState()
+      return MessageUtils.createResponse(true, state)
+    } catch (error) {
+      return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+    }
+  },
+
+  FLUSH_VOCAB_MEMORY_EVENTS: async (_message: any, sender: chrome.runtime.MessageSender): Promise<ResponseMessage> => {
+    if (!isExtensionPageSender(sender)) return forbiddenResponse()
+    try {
+      const service = VocabularyService.getInstance()
+      const result = await service.flushMemoryEvents()
+      return MessageUtils.createResponse(true, result)
+    } catch (error) {
+      return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+    }
+  },
+
+  CLEAR_VOCAB_MEMORY_QUEUE: async (_message: any, sender: chrome.runtime.MessageSender): Promise<ResponseMessage> => {
+    if (!isExtensionPageSender(sender)) return forbiddenResponse()
+    try {
+      const service = VocabularyService.getInstance()
+      const result = await service.clearMemoryQueue()
+      return MessageUtils.createResponse(true, result)
+    } catch (error) {
+      return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+    }
+  },
 }

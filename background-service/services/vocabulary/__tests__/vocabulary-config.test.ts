@@ -49,6 +49,8 @@ const VOCAB_ENV_DEFAULTS: VocabConfig = {
   adaptiveLearningEnabled: true,
   annotationAggressiveness: 'balanced',
   llmWordSelectionEnabled: false,
+  memorySyncEnabled: false,
+  memorySyncEndpoint: '',
   eudicToken: 'NIS env-token-123',
   eudicCategoryIds: ['0', 'env-cat-1'],
   masteryThreshold: 3,

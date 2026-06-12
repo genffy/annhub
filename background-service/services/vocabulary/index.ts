@@ -22,8 +22,15 @@ import {
   LlmConnectionTestResult,
   LlmModelOption,
   WordMemoryStore,
+  MemoryEvent,
+  MemoryEventType,
+  RecallState,
+  RecallStateCache,
+  VocabSyncIdentity,
+  VocabMemorySyncState,
 } from '../../../types/vocabulary'
 import { applyEvent, recallProbability, recallToStar, type WordMemory, type WordMemoryEventType } from '../../../entrypoints/content/annotation-core/word-memory'
+import { MemorySyncClient, MEMORY_EVENT_BATCH_LIMIT } from './memory-sync'
 import { findLlmProviderEndpoint, findLlmProviderPreset, normalizeLlmModelOptions } from '../../../utils/llm-provider-presets'
 import {
   EudicCategory,
@@ -52,10 +59,23 @@ const STORAGE_KEYS = {
   vocabMasteredCategoryId: 'vocabMasteredCategoryId',
   vocabLearningPendingEvents: 'vocabLearningPendingEvents',
   vocabWordMemory: 'vocabWordMemory',
+  // T1-B: memory sync (server personalization). See docs/vocab-server-memory-model-design.md §2.3.
+  vocabMemoryEventQueue: 'vocabMemoryEventQueue',
+  vocabRecallCache: 'vocabRecallCache',
+  vocabSyncIdentity: 'vocabSyncIdentity',
+  vocabMemorySyncState: 'vocabMemorySyncState',
 } as const
 
 const ALARM_NAME = 'vocab-sync'
+const MEMORY_SYNC_ALARM_NAME = 'vocab-memory-sync'
 const GLOSS_CACHE_TTL = 7 * 24 * 60 * 60 * 1000 // 7 days
+const DAY_MS = 24 * 60 * 60 * 1000
+/** Recall-cache staleness window; past this the local estimate is used instead (design §5). */
+const RECALL_CACHE_TTL_MS = 24 * 60 * 60 * 1000 // 24 hours
+/** Bound the offline event queue so storage can't grow without limit; oldest events drop first. */
+const MAX_QUEUED_MEMORY_EVENTS = 5000
+/** Background flush cadence for queued memory events (independent of the Eudic sync alarm). */
+const MEMORY_SYNC_PERIOD_MINUTES = 15
 const DEFAULT_LEARNING_CATEGORY_NAME = 'AnnHub Learning'
 const DEFAULT_MASTERED_CATEGORY_NAME = 'AnnHub Mastered'
 
@@ -97,6 +117,11 @@ export class VocabularyService implements IService {
         await this.setupAlarm(config.syncPeriodMinutes)
       }
 
+      // T1-B: periodic memory-event flush (opt-in, independent of Eudic sync).
+      if (config.memorySyncEnabled) {
+        await this.setupMemorySyncAlarm()
+      }
+
       // Listen for alarm
       if (this.alarmListener) {
         chrome.alarms.onAlarm.removeListener(this.alarmListener)
@@ -105,6 +130,10 @@ export class VocabularyService implements IService {
         if (alarm.name === ALARM_NAME) {
           this.syncFromEudic().catch(err => {
             Logger.error('[VocabularyService] Alarm sync failed:', err)
+          })
+        } else if (alarm.name === MEMORY_SYNC_ALARM_NAME) {
+          this.flushMemoryEvents().catch(err => {
+            Logger.error('[VocabularyService] Memory sync flush failed:', err)
           })
         }
       }
@@ -179,6 +208,15 @@ export class VocabularyService implements IService {
         await this.setupAlarm(merged.syncPeriodMinutes)
       } else {
         await chrome.alarms.clear(ALARM_NAME)
+      }
+    }
+
+    // Toggle the memory-sync flush alarm when opt-in changes.
+    if (config.memorySyncEnabled !== undefined) {
+      if (merged.memorySyncEnabled) {
+        await this.setupMemorySyncAlarm()
+      } else {
+        await chrome.alarms.clear(MEMORY_SYNC_ALARM_NAME)
       }
     }
   }
@@ -789,6 +827,31 @@ export class VocabularyService implements IService {
       stars[word] = Math.max(stars[word] ?? 1, recallStar)
     }
 
+    // T1-B: fold in server-computed recall (cached). Preferred-but-never-weakening: like the
+    // local recall above it only ever raises a word's star (max), so an explicit Eudic "known"
+    // is safe. Stale entries (past TTL) are ignored and fall back to the local estimate.
+    const recallCache = await this.getRecallCache()
+    for (const [word, state] of Object.entries(recallCache)) {
+      if (filterSet && !filterSet.has(word)) continue
+      const serverStar = this.recallStarFromState(state, now)
+      if (serverStar !== null) stars[word] = Math.max(stars[word] ?? 1, serverStar)
+    }
+
+    // When opt-in and an endpoint is configured, refresh recall for requested words that are
+    // missing/expired in the cache — fire-and-forget so the annotation hot path never blocks.
+    if (filterSet) {
+      const config = await this.getVocabConfig()
+      if (config.memorySyncEnabled && config.memorySyncEndpoint.trim()) {
+        const toRefresh = Array.from(filterSet).filter(word => {
+          const cached = recallCache[word]
+          return !cached || now - cached.computedAt > RECALL_CACHE_TTL_MS
+        })
+        if (toRefresh.length > 0) {
+          void this.refreshRecallStates(toRefresh).catch(() => {})
+        }
+      }
+    }
+
     return { stars, pendingCount: pending.length }
   }
 
@@ -882,6 +945,12 @@ export class VocabularyService implements IService {
     const period = Math.max(1, periodInMinutes)
     await chrome.alarms.create(ALARM_NAME, { periodInMinutes: period })
     Logger.info(`[VocabularyService] Alarm set: every ${period} minutes`)
+  }
+
+  private async setupMemorySyncAlarm(): Promise<void> {
+    await chrome.alarms.clear(MEMORY_SYNC_ALARM_NAME)
+    await chrome.alarms.create(MEMORY_SYNC_ALARM_NAME, { periodInMinutes: MEMORY_SYNC_PERIOD_MINUTES })
+    Logger.info(`[VocabularyService] Memory sync alarm set: every ${MEMORY_SYNC_PERIOD_MINUTES} minutes`)
   }
 
   /**
@@ -995,10 +1064,15 @@ export class VocabularyService implements IService {
 
     const store = await this.getWordMemoryStore()
     const now = Date.now()
+    const drafts: Array<Omit<MemoryEvent, 'deviceId'>> = []
     for (const word of normalized) {
-      store[word] = applyEvent(store[word], 'seen', now)
+      const prev = store[word]
+      const next = applyEvent(prev, 'seen', now)
+      store[word] = next
+      drafts.push(this.buildMemoryEventDraft(word, 'seen', prev, next, now))
     }
     await this.setWordMemoryStore(store)
+    await this.maybeEnqueueMemoryEvents(drafts)
     return { updated: normalized.length }
   }
 
@@ -1006,9 +1080,16 @@ export class VocabularyService implements IService {
   private async applyWordMemoryEvent(word: string, eventType: WordMemoryEventType): Promise<WordMemory> {
     const store = await this.getWordMemoryStore()
     const now = Date.now()
-    const next = applyEvent(store[word], eventType, now)
+    const prev = store[word]
+    const next = applyEvent(prev, eventType, now)
     store[word] = next
     await this.setWordMemoryStore(store)
+
+    // Mirror the explicit feedback into the memory-sync queue (reset is local-only, never sent).
+    const syncType = this.wordMemoryEventToSyncType(eventType)
+    if (syncType) {
+      await this.maybeEnqueueMemoryEvents([this.buildMemoryEventDraft(word, syncType, prev, next, now)])
+    }
     return next
   }
 
@@ -1030,6 +1111,206 @@ export class VocabularyService implements IService {
       default:
         return 'seen'
     }
+  }
+
+  // ── Memory sync (T1-B: anonymized event queue + backend-agnostic client stub) ──
+  // Source of truth stays the local WordMemory store above. This layer mirrors interactions
+  // into an offline queue and (opt-in, when an endpoint is set) uploads them / caches the
+  // server's recall. Contract: docs/vocab-server-memory-model-design.md.
+
+  /** Build the upload payload for one interaction, deriving HLR-style features from memory. */
+  private buildMemoryEventDraft(lemma: string, type: MemoryEventType, prev: WordMemory | undefined, next: WordMemory, now: number): Omit<MemoryEvent, 'deviceId'> {
+    return {
+      eventId: `${now}_${Math.random().toString(36).slice(2, 10)}`,
+      lemma,
+      type,
+      ts: now,
+      deltaDays: prev ? Math.max(0, (now - prev.lastSeenAt) / DAY_MS) : 0,
+      seenCount: next.seenCount,
+      localRecall: prev ? recallProbability(prev, now) : 1,
+    }
+  }
+
+  /** Map a local memory event type to its upload type; `reset` is local-only (returns null). */
+  private wordMemoryEventToSyncType(eventType: WordMemoryEventType): MemoryEventType | null {
+    return eventType === 'reset' ? null : eventType
+  }
+
+  /**
+   * Append drafts to the offline queue — only when the user has opted in. Stamps the anonymous
+   * deviceId, bounds the queue (oldest drop first), and records the pending count. No network.
+   */
+  private async maybeEnqueueMemoryEvents(drafts: Array<Omit<MemoryEvent, 'deviceId'>>): Promise<void> {
+    if (drafts.length === 0) return
+    const config = await this.getVocabConfig()
+    if (!config.memorySyncEnabled) return
+
+    const identity = await this.getSyncIdentity()
+    const events: MemoryEvent[] = drafts.map(draft => ({ ...draft, deviceId: identity.deviceId }))
+    const queue = await this.getMemoryEventQueue()
+    const combined = queue.concat(events)
+    const trimmed = combined.length > MAX_QUEUED_MEMORY_EVENTS ? combined.slice(combined.length - MAX_QUEUED_MEMORY_EVENTS) : combined
+    await this.setMemoryEventQueue(trimmed)
+    await this.setMemorySyncState({ pendingCount: trimmed.length })
+  }
+
+  private async getMemoryEventQueue(): Promise<MemoryEvent[]> {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.vocabMemoryEventQueue)
+    const raw = result[STORAGE_KEYS.vocabMemoryEventQueue] as MemoryEvent[] | undefined
+    return Array.isArray(raw) ? raw : []
+  }
+
+  private async setMemoryEventQueue(queue: MemoryEvent[]): Promise<void> {
+    await chrome.storage.local.set({ [STORAGE_KEYS.vocabMemoryEventQueue]: queue })
+  }
+
+  private async getRecallCache(): Promise<RecallStateCache> {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.vocabRecallCache)
+    const raw = result[STORAGE_KEYS.vocabRecallCache] as RecallStateCache | undefined
+    return raw ?? {}
+  }
+
+  private async setRecallCache(cache: RecallStateCache): Promise<void> {
+    await chrome.storage.local.set({ [STORAGE_KEYS.vocabRecallCache]: cache })
+  }
+
+  /** Recall-derived star from a cached server state, decayed to `now`. null = stale → use local. */
+  private recallStarFromState(state: RecallState, now: number): number | null {
+    if (now - state.computedAt > RECALL_CACHE_TTL_MS) return null
+    let recall = state.recall
+    const stability = state.dsr?.stability
+    if (typeof stability === 'number' && stability > 0) {
+      const elapsedDays = Math.max(0, (now - state.computedAt) / DAY_MS)
+      recall = recall * Math.pow(2, -elapsedDays / stability)
+    }
+    return recallToStar(Math.min(1, Math.max(0, recall)))
+  }
+
+  private generateDeviceId(): string {
+    const cryptoApi = (globalThis as any).crypto
+    if (cryptoApi?.randomUUID) return `anon-${cryptoApi.randomUUID()}`
+    return `anon-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+  }
+
+  /** Lazily create + persist an anonymous device id (no PII; design §4). */
+  private async getSyncIdentity(): Promise<VocabSyncIdentity> {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.vocabSyncIdentity)
+    const stored = result[STORAGE_KEYS.vocabSyncIdentity] as VocabSyncIdentity | undefined
+    if (stored?.deviceId) return stored
+    const identity: VocabSyncIdentity = { deviceId: this.generateDeviceId() }
+    await chrome.storage.local.set({ [STORAGE_KEYS.vocabSyncIdentity]: identity })
+    await this.setMemorySyncState({ deviceId: identity.deviceId })
+    return identity
+  }
+
+  async getMemorySyncState(): Promise<VocabMemorySyncState> {
+    const result = await chrome.storage.local.get([STORAGE_KEYS.vocabMemorySyncState, STORAGE_KEYS.vocabMemoryEventQueue, STORAGE_KEYS.vocabSyncIdentity])
+    const stored = result[STORAGE_KEYS.vocabMemorySyncState] as VocabMemorySyncState | undefined
+    const queue = (result[STORAGE_KEYS.vocabMemoryEventQueue] as MemoryEvent[] | undefined) ?? []
+    const identity = result[STORAGE_KEYS.vocabSyncIdentity] as VocabSyncIdentity | undefined
+    return {
+      pendingCount: queue.length,
+      lastSyncAt: stored?.lastSyncAt ?? 0,
+      lastStatus: stored?.lastStatus ?? 'idle',
+      lastError: stored?.lastError,
+      deviceId: identity?.deviceId ?? stored?.deviceId,
+    }
+  }
+
+  private async setMemorySyncState(partial: Partial<VocabMemorySyncState>): Promise<void> {
+    const result = await chrome.storage.local.get(STORAGE_KEYS.vocabMemorySyncState)
+    const current = (result[STORAGE_KEYS.vocabMemorySyncState] as VocabMemorySyncState | undefined) ?? {
+      pendingCount: 0,
+      lastSyncAt: 0,
+      lastStatus: 'idle' as const,
+    }
+    await chrome.storage.local.set({ [STORAGE_KEYS.vocabMemorySyncState]: { ...current, ...partial } })
+  }
+
+  /**
+   * Flush queued events to the server in idempotent batches. No-op (skipped) unless opt-in and
+   * an endpoint is configured. On per-batch success the sent eventIds are pruned and progress is
+   * persisted; failures keep the remaining queue for the next attempt (never throws).
+   */
+  async flushMemoryEvents(): Promise<{ accepted: number; duplicates: number; pendingCount: number; skipped?: boolean }> {
+    const config = await this.getVocabConfig()
+    const queue = await this.getMemoryEventQueue()
+
+    if (!config.memorySyncEnabled || !config.memorySyncEndpoint.trim()) {
+      await this.setMemorySyncState({ pendingCount: queue.length, lastStatus: 'idle' })
+      return { accepted: 0, duplicates: 0, pendingCount: queue.length, skipped: true }
+    }
+    if (queue.length === 0) {
+      await this.setMemorySyncState({ pendingCount: 0, lastStatus: 'ok', lastSyncAt: Date.now(), lastError: undefined })
+      return { accepted: 0, duplicates: 0, pendingCount: 0 }
+    }
+
+    const identity = await this.getSyncIdentity()
+    const client = new MemorySyncClient({
+      endpoint: config.memorySyncEndpoint,
+      deviceId: identity.deviceId,
+      authToken: identity.accountId,
+    })
+
+    let remaining = [...queue]
+    let accepted = 0
+    let duplicates = 0
+    try {
+      while (remaining.length > 0) {
+        const batch = remaining.slice(0, MEMORY_EVENT_BATCH_LIMIT)
+        const res = await client.flushEvents(batch)
+        accepted += res.accepted
+        duplicates += res.duplicates
+        const sentIds = new Set(batch.map(event => event.eventId))
+        remaining = remaining.filter(event => !sentIds.has(event.eventId))
+        // Persist incrementally so a mid-loop failure keeps prior progress.
+        await this.setMemoryEventQueue(remaining)
+        await this.setMemorySyncState({ pendingCount: remaining.length })
+      }
+      await this.setMemorySyncState({ pendingCount: 0, lastStatus: 'ok', lastSyncAt: Date.now(), lastError: undefined })
+      return { accepted, duplicates, pendingCount: 0 }
+    } catch (error) {
+      await this.setMemoryEventQueue(remaining)
+      await this.setMemorySyncState({
+        pendingCount: remaining.length,
+        lastStatus: 'error',
+        lastSyncAt: Date.now(),
+        lastError: error instanceof Error ? error.message : String(error),
+      })
+      Logger.warn('[VocabularyService] Memory event flush failed', error)
+      return { accepted, duplicates, pendingCount: remaining.length }
+    }
+  }
+
+  /** Fetch + cache server recall for the given lemmas (opt-in). Swallows errors. */
+  private async refreshRecallStates(lemmas: string[]): Promise<void> {
+    const unique = Array.from(new Set(lemmas.map(normalizeWord).filter(Boolean)))
+    if (unique.length === 0) return
+    const config = await this.getVocabConfig()
+    if (!config.memorySyncEnabled || !config.memorySyncEndpoint.trim()) return
+
+    const identity = await this.getSyncIdentity()
+    const client = new MemorySyncClient({
+      endpoint: config.memorySyncEndpoint,
+      deviceId: identity.deviceId,
+      authToken: identity.accountId,
+    })
+    try {
+      const { states } = await client.fetchRecall(unique)
+      if (states.length === 0) return
+      const cache = await this.getRecallCache()
+      for (const state of states) cache[state.lemma] = state
+      await this.setRecallCache(cache)
+    } catch (error) {
+      Logger.warn('[VocabularyService] Recall fetch failed', error)
+    }
+  }
+
+  /** GDPR-friendly local clear: empty the offline queue without touching the WordMemory model. */
+  async clearMemoryQueue(): Promise<{ pendingCount: number }> {
+    await this.setMemoryEventQueue([])
+    await this.setMemorySyncState({ pendingCount: 0, lastStatus: 'idle' })
+    return { pendingCount: 0 }
   }
 
   private async getLearningCategoryId(): Promise<string> {
@@ -1195,6 +1476,7 @@ export class VocabularyService implements IService {
 
   async cleanup(): Promise<void> {
     await chrome.alarms.clear(ALARM_NAME)
+    await chrome.alarms.clear(MEMORY_SYNC_ALARM_NAME)
     if (this.alarmListener) {
       chrome.alarms.onAlarm.removeListener(this.alarmListener)
       this.alarmListener = null

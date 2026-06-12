@@ -1,6 +1,6 @@
 # T1 — 服务端个性化记忆模型:设计契约(后端无关)
 
-> 状态:**设计契约,尚未实现服务端**。分支 `feat/vocab-word-selection-research`。
+> 状态:**契约冻结(T1-A)+ 本地事件队列/同步客户端 stub 已落地(T1-B)。服务端尚未实现(T1-C 起)**。分支 `feat/vocab-word-selection-research`。
 > 上游背景见 `docs/vocab-word-selection-research.md` §5「服务端长期商业化方案」L3 / T1。
 > 本文目标:把"本地 ↔ 服务端"的**数据契约、同步协议、隐私边界、降级策略**定死,使服务端选型(自建 / Serverless / 任意栈)可后置,且本地代码可以先按契约预留。
 
@@ -201,10 +201,21 @@ Response 200:
 ## 7. 里程碑拆分(T1 落地时)
 
 1. **T1-A(本文)**:契约冻结 ✅
-2. **T1-B**:本地事件队列 + 同步客户端 stub(打到可配置端点,默认关闭;无服务端时纯排队)。
+2. **T1-B**:本地事件队列 + 同步客户端 stub(打到可配置端点,默认关闭;无服务端时纯排队)✅
 3. **T1-C**:最小服务端(选型后)——实现 `/events` 幂等入库 + `/recall` 先用 FSRS 默认参数(不训练),跑通端到端。
 4. **T1-D**:服务端周期性按事件历史拟合个性化 HLR/FSRS,回传训练后的 recall;灰度 `modelVersion`。
 5. **T2**:上下文难度(CWI/LCP)与 LLM 词义级 CEFR 离线标注(见 research §5 T2)。
+
+### T1-B 实现说明(已落地,纯本地)
+
+> 代码:`types/vocabulary.ts`(`MemoryEvent`/`RecallState`/`VocabSyncIdentity`/`VocabMemorySyncState` + `memorySyncEnabled`/`memorySyncEndpoint` 配置)、`services/vocabulary/memory-sync.ts`(`MemorySyncClient`,后端无关)、`services/vocabulary/index.ts`(队列/身份/flush/recall 合并/独立 alarm)、`message-handles.ts` + `types/messages.ts`(`GET_VOCAB_MEMORY_SYNC_STATE` / `FLUSH_VOCAB_MEMORY_EVENTS` / `CLEAR_VOCAB_MEMORY_QUEUE`)、设置页 `VocabPage.tsx`(开关 + 端点 + 队列状态 + Sync/Clear)。测试:`memory-sync.test.ts`(7)、`vocabulary-learning.test.ts` 新增 10 例。
+
+与 §2.3/§6 的两处对齐(实现时的具体取舍):
+
+1. **存储键拆分**:§2.3 的合并键 `vocabMemorySyncConfig { enabled, endpoint, lastSyncAt }` 落地为——用户配置 `enabled`/`endpoint` 进 `VocabConfig.memorySyncEnabled` / `memorySyncEndpoint`(与 §6 一致,复用既有 config 脱敏/设置页/`SET_VOCAB_CONFIG` 管线),运行态 `pendingCount/lastSyncAt/lastStatus/lastError/deviceId` 进独立键 `vocabMemorySyncState`(镜像既有 `vocabSyncState`)。其余键 `vocabMemoryEventQueue` / `vocabRecallCache` / `vocabSyncIdentity` 如契约 §2.3。
+2. **recall 拉取时机(热路径安全)**:§5 的"`getLearningProfile` 按需拉取"实现为——`getLearningProfile` **只同步读** `vocabRecallCache`(`max` 折叠、TTL 24h、有 `dsr.stability` 时按公式衰减到 now),对缺失/过期的本页候选词触发 **fire-and-forget** 后台 `fetchRecall`,**绝不在标注热路径上等待网络**。开关关闭或无端点时该后台拉取整体跳过。
+
+其他实现细节:事件入队仅在 `memorySyncEnabled` 时发生(默认关 = 零数据采集);队列上界 `MAX_QUEUED_MEMORY_EVENTS=5000`(超出丢最旧);flush 按 `MEMORY_EVENT_BATCH_LIMIT=500` 分批、幂等(按 `eventId`)、逐批裁剪并持久化进度、失败保留队列且记 `lastError`(不抛、不阻断);`reset` 事件为本地操作不上报;匿名 `deviceId` 首次 `crypto.randomUUID()` 生成(带降级)。
 
 ---
 

@@ -247,6 +247,7 @@ SPA 页面内容可能延迟渲染，`restorePageHighlights` 采用递增延迟�
 - **专有名词过滤**：`isLikelyProperNounCandidate` 在大小写启发式（ACRONYM / camelCase / 句中大写）基础上，对句首 Title-case 词额外用词频信号判别——其词元不在词频表则判为专名跳过，修掉旧逻辑句首专名逃逸的问题。
 - **个人词汇记忆模型（L3，见 `docs/vocab-word-selection-research.md`）**：`annotation-core/word-memory.ts` 是 FSRS/Half-Life-Regression 思路的轻量纯函数模型，每词记 `{seenCount, lastSeenAt, stability}`，`recallProbability = 2^(-elapsedDays/stability)`；被动曝光增长 stability（间隔效应），`known/skip` 跃升为长期，`unknown/addToVocab` 收缩。`recallToStar` 把召回概率映射回 1..5 star 兼容既有打分。`VocabularyService` 以 `vocabWordMemory` 存储键独立持久化（与欧路 snapshot 解耦）；`getLearningProfile` 用 `max(欧路 star, 召回 star)` 合并——显式"已知"不被削弱，但被动反复出现的词会爬向"已知"而停止标注。标注完成后 `annotate.ts#reportWordExposures` 发 `RECORD_VOCAB_EXPOSURES` 事件累计曝光（fire-and-forget）。
 - **LLM 参与选词（L4 / S4，可选，默认关闭）**：`VocabConfig.llmWordSelectionEnabled` 开启后，本地难度门选出的无 Eudic 词条候选会经 `annotate.ts#applyLlmWordSelection` 发 `SELECT_AND_GLOSS` 给后台。`VocabularyService.selectAndGloss` 调用 `OpenAICompatibleLlmService.selectAndGloss`——prompt 注入用户 CEFR 等级 + 每词所在句子，让 LLM 判定"对该读者是否真正陌生（unfamiliar）"并同时给释义，一次往返完成"挑词 + 释义"。不陌生的词被丢弃，陌生词复用 LLM 返回的释义（省去单独 `CONTEXT_GLOSS`）。Eudic 已有词/缓存命中走本地、不调 LLM;LLM 不可用或解析失败时保留本地选择（不致整页空白）。
+- **跨设备记忆同步（T1-B，可选，默认关闭，见 `docs/vocab-server-memory-model-design.md`）**：把本地 `WordMemory` 的交互镜像成匿名 `MemoryEvent`（仅词元 + 交互类型 + 时间 + 计数，**绝不含句子/URL/页面内容**）写入离线队列 `vocabMemoryEventQueue`。开关 `VocabConfig.memorySyncEnabled` + 端点 `memorySyncEndpoint`；关或无端点 = 纯本地排队。`recordWordExposures` 入队 `seen`、`recordLearningEvent` 入队显式反馈（`reset` 不上报）。`services/vocabulary/memory-sync.ts` 的 `MemorySyncClient`（后端无关 stub）按 §3 契约 `POST /v1/memory/events`(幂等批 ≤500) 上传、`POST /v1/memory/recall` 拉回每词召回；`flushMemoryEvents` 由独立 alarm `vocab-memory-sync`(15min) 或设置页"Sync Now"触发，成功按 eventId 裁剪队列、失败保留。`getLearningProfile` 只读 `vocabRecallCache`（带 TTL 24h + dsr 衰减，仍走 `max` 不削弱显式已知），并对缺失/过期词触发 fire-and-forget 后台拉取，不阻塞标注热路径。匿名 `deviceId` 存 `vocabSyncIdentity`，运行态存 `vocabMemorySyncState`。**本地模型永远是离线真源**；服务端（T1-C 起）未实现。
 - **标注流程**：TreeWalker 扫描文本节点 → 正则匹配英文单词 → 词形还原查表 → 难度门/专名/领域过滤 → 个人记忆门 →（可选）LLM 选词 → 本地释义(exp)或 LLM 释义 → 逆序包裹 `<ruby>` 或 `<span>` 避免 offset 漂移（底层用 `annotation-core/markers.ts`）
 - **混合观察器**（`index.ts`）：不再是单一 MutationObserver，而是三者协同——
   1. `IntersectionObserver`（rootMargin 50%）：滚动时把进入视口的块入队
@@ -291,14 +292,16 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 
 **生词学习（见 §5.12）**
 
-| 消息类型                                                            | 说明                           |
-| ------------------------------------------------------------------- | ------------------------------ |
-| `ENSURE_VOCAB_LEARNING_CATEGORY` / `SELECT_VOCAB_LEARNING_CATEGORY` | 确保/选择 learning 类别        |
-| `ENSURE_VOCAB_MASTERED_CATEGORY` / `SELECT_VOCAB_MASTERED_CATEGORY` | 确保/选择 mastered 类别        |
-| `RECORD_VOCAB_LEARNING_EVENT` / `FLUSH_VOCAB_LEARNING_PENDING`      | 记录学习事件 / 刷新待同步队列  |
-| `GET_VOCAB_LEARNING_PROFILE` / `GET_VOCAB_LEARNING_SYNC_STATE`      | 读取学习档案 / 同步状态        |
-| `SYNC_VOCAB_LEARNING_PROFILE` / `RESET_VOCAB_WORD_LEARNING`         | 同步 learning 类别 / 重置单词  |
-| `RECORD_VOCAB_EXPOSURES`                                            | 累计被动曝光到词汇记忆模型(L3) |
+| 消息类型                                                            | 说明                                   |
+| ------------------------------------------------------------------- | -------------------------------------- |
+| `ENSURE_VOCAB_LEARNING_CATEGORY` / `SELECT_VOCAB_LEARNING_CATEGORY` | 确保/选择 learning 类别                |
+| `ENSURE_VOCAB_MASTERED_CATEGORY` / `SELECT_VOCAB_MASTERED_CATEGORY` | 确保/选择 mastered 类别                |
+| `RECORD_VOCAB_LEARNING_EVENT` / `FLUSH_VOCAB_LEARNING_PENDING`      | 记录学习事件 / 刷新待同步队列          |
+| `GET_VOCAB_LEARNING_PROFILE` / `GET_VOCAB_LEARNING_SYNC_STATE`      | 读取学习档案 / 同步状态                |
+| `SYNC_VOCAB_LEARNING_PROFILE` / `RESET_VOCAB_WORD_LEARNING`         | 同步 learning 类别 / 重置单词          |
+| `RECORD_VOCAB_EXPOSURES`                                            | 累计被动曝光到词汇记忆模型(L3)         |
+| `GET_VOCAB_MEMORY_SYNC_STATE`                                       | 读取 T1-B 记忆同步状态(队列/设备/错误) |
+| `FLUSH_VOCAB_MEMORY_EVENTS` / `CLEAR_VOCAB_MEMORY_QUEUE`            | 手动上传记忆事件 / 清空本地队列(GDPR)  |
 
 **Eudic / LLM**
 
@@ -311,14 +314,15 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 
 **Logseq / 截图 / 系统**
 
-| 消息类型                                                                                  | 说明                                 |
-| ----------------------------------------------------------------------------------------- | ------------------------------------ |
-| `LOGSEQ_GET_CONFIG` / `LOGSEQ_SET_CONFIG` / `LOGSEQ_TEST_CONNECTION`                      | Logseq 配置与连接测试                |
-| `LOGSEQ_SYNC_ALL` / `LOGSEQ_SYNC_HIGHLIGHT` / `LOGSEQ_SYNC_CLIP`                          | Logseq 同步                          |
-| `TRIGGER_SCREENSHOT` / `CAPTURE_VISIBLE_TAB` / `SCREENSHOT_CAPTURED` / `SCREENSHOT_ERROR` | 截图采集（见 §5.13，链路未完全实现） |
-| `TOGGLE_HIGHLIGHTER_MODE`                                                                 | background → content：切换荧光笔模式 |
-| `PING` / `GET_STATUS` / `GET_VERSION` / `INITIALIZE`                                      | 健康检查与状态                       |
-| `GET_STORAGE` / `SET_STORAGE` / `CLEAR_STORAGE`                                           | 通用存储读写                         |
+| 消息类型                                                                                  | 说明                                                                             |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `LOGSEQ_GET_CONFIG` / `LOGSEQ_SET_CONFIG` / `LOGSEQ_TEST_CONNECTION`                      | Logseq 配置与连接测试                                                            |
+| `LOGSEQ_SYNC_ALL` / `LOGSEQ_SYNC_HIGHLIGHT` / `LOGSEQ_SYNC_CLIP`                          | Logseq 同步                                                                      |
+| `TRIGGER_SCREENSHOT` / `CAPTURE_VISIBLE_TAB` / `SCREENSHOT_CAPTURED` / `SCREENSHOT_ERROR` | 截图采集（见 §5.13，链路未完全实现）                                             |
+| `TOGGLE_HIGHLIGHTER_MODE`                                                                 | background → content：切换荧光笔模式                                             |
+| `GET_STATUS` / `GET_VERSION` / `INITIALIZE`                                               | 系统状态/版本/(幂等)初始化：`ServiceManager.getSystemMessageHandlers()` 统一路由 |
+| `PING`                                                                                    | Service Worker 存活探针：`RuntimeHandler` 独立监听，回传 `getDetailedStatus()`   |
+| `GET_STORAGE` / `SET_STORAGE` / `CLEAR_STORAGE`                                           | 通用存储读写                                                                     |
 
 ### 5.8 快捷键
 
@@ -414,7 +418,8 @@ npm run test:watch  # 监听模式
 | `services/llm/__tests__/factory.test.ts`                           | 工厂分支                                                                                                 |
 | `services/logseq/__tests__/logseq-{client,formatter,sync}.test.ts` | Logseq 客户端、格式化、同步                                                                              |
 | `services/vocabulary/__tests__/vocabulary-config.test.ts`          | getLlmConfig/setLlmConfig 配置 merge 策略                                                                |
-| `services/vocabulary/__tests__/vocabulary-learning.test.ts`        | 学习事件 targetStar、pending 队列、类别落地                                                              |
+| `services/vocabulary/__tests__/vocabulary-learning.test.ts`        | 学习事件 targetStar、pending 队列、类别落地、记忆模型(L3)、T1-B 事件入队/flush/recall 合并/清队          |
+| `services/vocabulary/__tests__/memory-sync.test.ts`                | T1-B MemorySyncClient：events/recall 端点拼接、bearer、批量上限、状态归一化、错误处理                    |
 | `types/__tests__/vocabulary.test.ts`                               | normalizeWord 边界用例                                                                                   |
 | `utils/__tests__/eudic-openapi.test.ts`                            | 欧路 API 封装                                                                                            |
 

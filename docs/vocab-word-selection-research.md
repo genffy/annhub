@@ -26,7 +26,7 @@
 > - ✅ **S2 / L2** 领域术语过滤(`domain-filter.ts`,本地 Weirdness,修复长尾漏标 B1)
 > - ✅ **S3 / L1** 书面/学术高频 baseline(`written-frequency-data.ts`,修复字幕语料口语偏差 B10)
 > - ✅ **S4 / L4** LLM 参与选词(`selectAndGloss`,默认关闭,可选开)
->   四层治本逻辑均已落地;服务端长期方案(T1/T2/T3)见 §5,尚未开工。
+>   四层治本逻辑均已落地。服务端长期方案见 §5:**T1-A 契约冻结 + T1-B 本地事件队列/同步客户端 stub 已落地**(`memory-sync.ts`,默认关闭,无服务端时纯排队);T1-C 起(最小服务端/训练)与 T2 尚未开工。
 
 ---
 
@@ -230,7 +230,7 @@ annotateScore(word, ctx) =
 
 **迁移原则**:本地短期方案的数据 schema(`WordMemory`、weirdness 特征)从一开始就按服务端模型的输入格式预留,避免长期重做。
 
-> **T1 详细设计契约**(后端无关,接口/数据模型/隐私/降级)见 `docs/vocab-server-memory-model-design.md`。状态:契约冻结(T1-A),服务端未实现。
+> **T1 详细设计契约**(后端无关,接口/数据模型/隐私/降级)见 `docs/vocab-server-memory-model-design.md`。状态:契约冻结(T1-A)+ 本地事件队列/同步客户端 stub 已落地(T1-B,默认关闭、纯本地排队);服务端(T1-C 起)未实现。
 
 ---
 
