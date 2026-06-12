@@ -7,12 +7,13 @@ vi.mock('../../utils/logger', () => ({
 vi.mock('../../utils/message', () => ({
   default: {
     createMessageHandler: vi.fn(() => vi.fn()),
+    createResponse: vi.fn((success: boolean, data?: unknown, error?: string) => ({ type: 'RESPONSE', success, data, error })),
   },
 }))
 
 const addListenerMock = vi.fn()
 ;(globalThis as any).browser = {
-  runtime: { onMessage: { addListener: addListenerMock } },
+  runtime: { onMessage: { addListener: addListenerMock }, getManifest: () => ({ version: '9.9.9' }) },
 }
 ;(globalThis as any).chrome = {
   runtime: { onMessage: { addListener: addListenerMock } },
@@ -141,5 +142,65 @@ describe('ServiceManager — restartServices', () => {
     await sm.restartServices()
 
     expect(order).toEqual(['config', 'highlight', 'vocabulary', 'clip'])
+  })
+})
+
+describe('ServiceManager — system message handlers', () => {
+  beforeEach(() => {
+    ;(ServiceManager as any).instance = undefined
+    ;(ServiceContext as any).instance = undefined
+    addListenerMock.mockClear()
+  })
+
+  it('GET_STATUS reports per-service readiness and the manifest version', async () => {
+    const sm = ServiceManager.getInstance()
+    sm.registerServices([createMockService('config'), createMockService('highlight')])
+    await sm.initializeServices()
+
+    const handlers = (sm as any).getSystemMessageHandlers()
+    const res = await handlers.GET_STATUS({ type: 'GET_STATUS' }, {})
+
+    expect(res.success).toBe(true)
+    expect(res.data).toEqual({
+      isInitialized: true,
+      services: { config: true, highlight: true },
+      version: '9.9.9',
+    })
+  })
+
+  it('GET_VERSION returns the manifest version', async () => {
+    const sm = ServiceManager.getInstance()
+    const handlers = (sm as any).getSystemMessageHandlers()
+
+    const res = await handlers.GET_VERSION({ type: 'GET_VERSION' }, {})
+
+    expect(res).toMatchObject({ success: true, data: { version: '9.9.9' } })
+  })
+
+  it('INITIALIZE initializes services when not ready, then reports status', async () => {
+    const sm = ServiceManager.getInstance()
+    const svc = createMockService('config')
+    sm.registerService(svc)
+
+    const handlers = (sm as any).getSystemMessageHandlers()
+    const res = await handlers.INITIALIZE({ type: 'INITIALIZE' }, {})
+
+    expect(svc.initialize).toHaveBeenCalledTimes(1)
+    expect(res.success).toBe(true)
+    expect(res.data.isInitialized).toBe(true)
+  })
+
+  it('INITIALIZE is idempotent when services are already ready', async () => {
+    const sm = ServiceManager.getInstance()
+    const svc = createMockService('config')
+    sm.registerService(svc)
+    await sm.initializeServices()
+    expect(svc.initialize).toHaveBeenCalledTimes(1)
+
+    const handlers = (sm as any).getSystemMessageHandlers()
+    await handlers.INITIALIZE({ type: 'INITIALIZE' }, {})
+
+    // Already ready → no redundant re-init.
+    expect(svc.initialize).toHaveBeenCalledTimes(1)
   })
 })
