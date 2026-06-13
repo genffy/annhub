@@ -67,16 +67,14 @@ function escapeRegExp(value: string): string {
 }
 
 export function collectTextNodes(element: Element, options: CollectTextNodesOptions = {}): Text[] {
-  const intent = options.intent
-  const walker = document.createTreeWalker(
-    element,
-    NodeFilter.SHOW_TEXT,
-    intent
-      ? {
-          acceptNode: node => (isAnnotatableTextNode(node, intent) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
-        }
-      : null,
-  )
+  // Default to the conservative-but-not-over-restrictive 'manual-highlight' intent: callers
+  // that omit intent still skip unsafe nodes (script/style/hidden/existing markers) instead of
+  // matching text inside them. 'auto-vocab' layers the stricter vocab skips (links, short UI
+  // labels, non-natural-language tokens) on top.
+  const intent: AnnotationIntent = options.intent ?? 'manual-highlight'
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
+    acceptNode: node => (isAnnotatableTextNode(node, intent) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+  })
 
   const textNodes: Text[] = []
   let node: Text | null

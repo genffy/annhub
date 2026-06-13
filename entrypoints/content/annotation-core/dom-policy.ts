@@ -186,11 +186,6 @@ export function isVocabMarkerElement(node: Node | null): node is Element {
   return node instanceof Element && node.hasAttribute(VOCAB_MARKER_ATTR)
 }
 
-export function isWithinVocabMarker(node: Node | null): boolean {
-  const element = node instanceof Element ? node : (node?.parentElement ?? null)
-  return Boolean(element?.closest(`[${VOCAB_MARKER_ATTR}]`))
-}
-
 export function isWithinAnnotationMarker(node: Node | null): boolean {
   const element = node instanceof Element ? node : (node?.parentElement ?? null)
   return Boolean(element?.closest(`[${VOCAB_MARKER_ATTR}], [${HIGHLIGHT_MARKER_ATTR}]`))
@@ -267,7 +262,7 @@ export function isBlockLikeElement(el: Element): boolean {
   return isBlock
 }
 
-export function findNearestRescanContainer(startNode: Node, contentRoot: Element, intent: AnnotationIntent = 'auto-vocab'): Element | null {
+export function findNearestAnnotatableBlock(startNode: Node, contentRoot: Element, intent: AnnotationIntent = 'auto-vocab'): Element | null {
   const startElement = startNode.nodeType === Node.TEXT_NODE ? startNode.parentElement : startNode instanceof Element ? startNode : null
   if (!startElement || !contentRoot.contains(startElement) || shouldSkipElement(startElement, intent)) return null
 
@@ -281,8 +276,4 @@ export function findNearestRescanContainer(startNode: Node, contentRoot: Element
   }
 
   return contentRoot.contains(startElement) ? contentRoot : null
-}
-
-export function findNearestAnnotatableBlock(startNode: Node, contentRoot: Element, intent: AnnotationIntent = 'auto-vocab'): Element | null {
-  return findNearestRescanContainer(startNode, contentRoot, intent)
 }

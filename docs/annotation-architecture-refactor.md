@@ -11,6 +11,7 @@
 - Phase 3 已完成主体：高亮恢复 text range 与生词 marker wrap/unwrap/cleanup 已抽到 `annotation-core/text-range.ts` 和 `annotation-core/markers.ts`。
 - Phase 4 已完成（2026-06-01）：高亮**创建路径**也接入 `wrapRange/unwrapMarker`；`findTextRangeInElement` 支持 `intent` 参数，高亮恢复路径以 `manual-highlight` intent 真实消费 `dom-policy`；`manual-highlight` 与 `auto-vocab` policy 在生产代码中均有调用方，不再是 dead code。
 - 生词选词精准化（2026-06-01）：新增 `annotation-core/lemmatize.ts`（词形还原，仅用于查表）；难度门由小 CEFR 表换成通用语料词频带 `vocab-label/frequency-band-data.ts`（OpenSubtitles 50k，离线脚本 `scripts/build-frequency-data.ts` 生成），`frequency-filter.ts` 反转默认——**不在词频表的长尾词（专名/术语/噪声）默认不标**；`isLikelyProperNounCandidate` 增补词频信号修掉句首专名逃逸。数据契约未变。
+- 重构清理（2026-06-14，按 code review）：① 统一 X host 判断——permalink 解析（`parseTwitterStatusHref`）改用与规则匹配一致的子域名感知 `isXHost`，修掉"规则在子域名页面命中、却永远抽不到 permalink"的漂移，并删除冗余的 `TWITTER_HOST_RE`；② vocab 增量扫描的 marker 自触发判定接入共享 `isWithinAnnotationMarker`（同时识别高亮 marker），删除已无调用方的 `isWithinVocabMarker`，落实 §9 Phase 2「增量扫描使用共享 marker 判断」；③ `findNearestRescanContainer` 与其别名合并为单一公共名 `findNearestAnnotatableBlock`；④ `collectTextNodes` 默认 intent 改为 `manual-highlight`，省略 intent 的调用方不再误匹配 `script`/隐藏/已有 marker 内文本。数据契约未变。
 - 数据契约始终未改变：`HighlightRecord.metadata.sourceUrl`、`data-ann-vocab`、`data-highlight-id` 均保持原名和语义。
 
 > 与本文档配套的全局规则见 `AGENTS.md §七` 第 12 条"文档同步（强制）"与 `CLAUDE.md` "Docs stay in sync"：任何 annotation-core 行为或接口变更，**必须**同步更新本文档对应章节，否则任务不算完成。
@@ -169,8 +170,8 @@ X/Twitter rule 必须同时服务：
 暴露统一接口：
 
 ```typescript
-isAnnotatableTextNode(node: Node, intent: AnnotationIntent): boolean
-findNearestAnnotatableBlock(node: Node, intent: AnnotationIntent): Element | null
+isAnnotatableTextNode(node: Node, intent?: AnnotationIntent): boolean
+findNearestAnnotatableBlock(startNode: Node, contentRoot: Element, intent?: AnnotationIntent): Element | null
 isWithinAnnotationMarker(node: Node | null): boolean
 ```
 
@@ -197,7 +198,7 @@ type AnnotationIntent = 'manual-highlight' | 'auto-vocab'
 抽出 `text-range.ts`：
 
 ```typescript
-findTextRangeInElement(element: Element, text: string, context?: TextContext): Range | null
+findTextRangeInElement(element: Element, text: string, context?: TextContext, options?: { intent?: AnnotationIntent }): Range | null
 createRangeFromTextIndex(textNodes: Text[], start: number, length: number): Range | null
 getTextContext(range: Range): TextContext
 ```

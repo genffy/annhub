@@ -3,7 +3,6 @@ import type { AnnotationIntent, AnnotationPlatformRule, ContentSource } from './
 export const TWEET_STATUS_RE = /^\/[^/]+\/status\/\d+$/
 export const TWEET_STATUS_PREFIX_RE = /^\/[^/]+\/status\/\d+/
 
-const TWITTER_HOST_RE = /^(x\.com|twitter\.com)$/i
 const TWITTER_HOST_WITH_SUBDOMAIN_RE = /(^|\.)((x\.com)|(twitter\.com))$/i
 const X_TWEET_TEXT_SELECTOR = '[data-testid="tweetText"]'
 const X_TWEET_CONTAINER_SELECTOR = 'article, [data-testid="tweet"]'
@@ -40,7 +39,10 @@ function parseTwitterStatusHref(href: string | null | undefined, origin: string)
 
   try {
     const url = new URL(href, origin)
-    if (!TWITTER_HOST_RE.test(url.hostname)) return null
+    // Use the same subdomain-aware host check as the platform-rule matcher (isXHost),
+    // so permalink parsing works on every host the rule activates for (e.g. mobile.*),
+    // instead of silently rejecting links on subdomains.
+    if (!isXHost(url.hostname)) return null
 
     const match = url.pathname.match(TWEET_STATUS_PREFIX_RE)
     if (!match) return null
