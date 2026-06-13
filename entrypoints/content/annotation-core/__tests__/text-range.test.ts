@@ -74,15 +74,16 @@ describe('annotation text range helpers', () => {
     expect(range?.startContainer.parentElement?.tagName).toBe('P')
   })
 
-  it('collectTextNodes filters by intent', () => {
-    setupDOM('<main><a href="#">link text</a><p>article text</p></main>')
+  it('collectTextNodes applies a safe default intent (skips unsafe nodes) and filters by intent', () => {
+    setupDOM('<main><script>var a = 1</script><a href="#">link text</a><p>article text</p></main>')
     const root = document.querySelector('main') as Element
 
-    const all = collectTextNodes(root)
-    const autoVocab = collectTextNodes(root, { intent: 'auto-vocab' })
+    // No intent → default 'manual-highlight': always skips unsafe nodes (here <script>) but
+    // keeps links. 'auto-vocab' additionally skips link text.
+    const def = collectTextNodes(root).map(n => n.textContent)
+    const autoVocab = collectTextNodes(root, { intent: 'auto-vocab' }).map(n => n.textContent)
 
-    expect(all).toHaveLength(2)
-    expect(autoVocab).toHaveLength(1)
-    expect(autoVocab[0].textContent).toBe('article text')
+    expect(def).toEqual(['link text', 'article text'])
+    expect(autoVocab).toEqual(['article text'])
   })
 })

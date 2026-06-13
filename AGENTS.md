@@ -37,6 +37,8 @@ annhub/
 │   │   │   ├── dom-policy.ts       # DOM 跳过/可标注判定（按 intent 区分）
 │   │   │   ├── text-range.ts       # 文本节点收集 + Range 定位/匹配
 │   │   │   ├── lemmatize.ts         # 轻量词形还原（屈折→词元，仅用于查表）
+│   │   │   ├── word-memory.ts       # 个人词汇记忆模型（召回概率衰减，L3）
+│   │   │   ├── domain-filter.ts     # 领域术语检测（本地 Weirdness，L2）
 │   │   │   ├── markers.ts          # 通用 wrap/unwrap/cleanup（span/ruby）
 │   │   │   └── __tests__/          # Vitest 单元测试
 │   │   ├── highlight/
@@ -51,7 +53,8 @@ annhub/
 │   │       ├── dom-policy.ts       # annotation-core/dom-policy 的兼容 re-export
 │   │       ├── cefr-data.ts        # 自动生成的 CEFR 分级词表（Oxford 5000 + CEFR-J，遗留次级信号）
 │   │       ├── frequency-band-data.ts # 自动生成的通用语料词频带（OpenSubtitles 50k，band 1..7）
-│   │       ├── frequency-filter.ts # 难度门：按词频带过滤；表外长尾词默认不标
+│   │       ├── written-frequency-data.ts # 书面/学术高频词 baseline（修正字幕语料口语偏差，S3）
+│   │       ├── frequency-filter.ts # 难度门：按词频带过滤 + 书面高频 baseline；长尾词交 domain-filter
 │   │       ├── viewport.ts         # 视口窗口判定（±50% 视口）
 │   │       ├── annotate.ts         # TreeWalker + 两阶段逆序标注
 │   │       ├── styles.ts           # 宿主样式注入/移除
@@ -116,6 +119,7 @@ annhub/
 │   ├── test-server.ts              # 本地 HTTP fixture 服务器
 │   ├── test.html                   # 主测试页面
 │   ├── test-detail.html            # 详情页测试页面
+│   ├── vocab.html                  # 生词标注 fixture（频带已校准的难/易/书面/领域词）
 │   └── *.spec.ts                   # 测试用例
 ├── vitest.config.ts                # 单元测试配置
 ├── playwright.config.ts            # E2E 测试配置
@@ -237,11 +241,15 @@ SPA 页面内容可能延迟渲染，`restorePageHighlights` 采用递增延迟�
 - **内容范围**：`content-scope.ts` 综合 Readability、语义选择器（`main/article/[role=main]`）和内容密度评分解析内容根，`collectAnnotatableBlocks` 收集块并排除 header/nav/footer/sidebar/comment
 - **难度门（精准选词）**：核心信号是 `frequency-band-data.ts` 内嵌的通用语料词频带（OpenSubtitles 50k，band 1=最高频…7=最低频），`frequency-filter.ts` 的 `shouldFilterByLevel` 据此判定——
   - 词频带 ≤ 用户 CEFR 对应阈值（高频/简单）→ 过滤（不标）；
-  - **不在词频表的长尾词**（专有名词 / 领域术语 / 拼写噪声）→ **默认过滤（不标）**，这是与旧逻辑相反的关键默认值；
-  - 仅在表内且带位高于阈值的真·中低频词才进入候选。`cefr-data.ts` 的 CEFR 小表保留为遗留次级信号（`shouldFilterByCEFRLevel`）。
+  - 在表内且带位高于阈值的真·中低频词才进入候选。`cefr-data.ts` 的 CEFR 小表保留为遗留次级信号（`shouldFilterByCEFRLevel`）。
+- **书面/学术高频 baseline（S3，修复 B10）**：OpenSubtitles 是口语语料，系统性低估书面词——`furthermore`/`whereas`/`paradigm`/`methodology` 落到高"稀有"带被当生词，而 `gonna`/`dude` 却 band 1。`written-frequency-data.ts#isWrittenHighFrequencyWord`（NGSL + AWL sublist 1–2 + 学术连接词，~200 词）在查 band **之前**命中即视为"已知书面词"跳过；刻意排除真·难词（`epistemic`/`ubiquitous`）。该表同时纳入句首专名门与 lemma 词典。
+- **领域术语过滤（L2，见 `docs/vocab-word-selection-research.md`）**：**不在词频表的长尾词不再一刀切跳过**。`annotation-core/domain-filter.ts` 的 `isLikelyDomainTerm`（本地 Weirdness 思路）判定——页面内重复出现（≥ 重复阈值，默认 3）或 ACRONYM/CamelCase 的长尾词 → 判为领域术语/专名（跳过）；只出现一两次的稀有词 → 判为真生词（保留标注）。`annotate.ts` 每趟用 `buildDomainStats` 构建页面词频统计，经 `shouldFilterByCandidate` 应用。修复旧逻辑把真·学术/专业生词（`perfunctory`/`epistemic`）静默丢弃的问题。
 - **词形还原**：查表前先用 `annotation-core/lemmatize.ts` 的 `pickLemma` 把屈折形态（running→run、studied→study、mice→mouse）归一到词元，再查欧路快照与词频表；DOM Range 仍用原始 token 的 offset，词元只用于查表。
 - **专有名词过滤**：`isLikelyProperNounCandidate` 在大小写启发式（ACRONYM / camelCase / 句中大写）基础上，对句首 Title-case 词额外用词频信号判别——其词元不在词频表则判为专名跳过，修掉旧逻辑句首专名逃逸的问题。
-- **标注流程**：TreeWalker 扫描文本节点 → 正则匹配英文单词 → 词形还原查表 → 难度门/专名过滤 → 本地释义(exp)或 LLM 释义 → 逆序包裹 `<ruby>` 或 `<span>` 避免 offset 漂移（底层用 `annotation-core/markers.ts`）
+- **个人词汇记忆模型（L3，见 `docs/vocab-word-selection-research.md`）**：`annotation-core/word-memory.ts` 是 FSRS/Half-Life-Regression 思路的轻量纯函数模型，每词记 `{seenCount, lastSeenAt, stability}`，`recallProbability = 2^(-elapsedDays/stability)`；被动曝光增长 stability（间隔效应），`known/skip` 跃升为长期，`unknown/addToVocab` 收缩。`recallToStar` 把召回概率映射回 1..5 star 兼容既有打分。`VocabularyService` 以 `vocabWordMemory` 存储键独立持久化（与欧路 snapshot 解耦）；`getLearningProfile` 用 `max(欧路 star, 召回 star)` 合并——显式"已知"不被削弱，但被动反复出现的词会爬向"已知"而停止标注。标注完成后 `annotate.ts#reportWordExposures` 发 `RECORD_VOCAB_EXPOSURES` 事件累计曝光（fire-and-forget）。
+- **LLM 参与选词（L4 / S4，可选，默认关闭）**：`VocabConfig.llmWordSelectionEnabled` 开启后，本地难度门选出的无 Eudic 词条候选会经 `annotate.ts#applyLlmWordSelection` 发 `SELECT_AND_GLOSS` 给后台。`VocabularyService.selectAndGloss` 调用 `OpenAICompatibleLlmService.selectAndGloss`——prompt 注入用户 CEFR 等级 + 每词所在句子，让 LLM 判定"对该读者是否真正陌生（unfamiliar）"并同时给释义，一次往返完成"挑词 + 释义"。不陌生的词被丢弃，陌生词复用 LLM 返回的释义（省去单独 `CONTEXT_GLOSS`）。Eudic 已有词/缓存命中走本地、不调 LLM;LLM 不可用或解析失败时保留本地选择（不致整页空白）。
+- **跨设备记忆同步（T1-B，可选，默认关闭，见 `docs/vocab-server-memory-model-design.md`）**：把本地 `WordMemory` 的交互镜像成匿名 `MemoryEvent`（仅词元 + 交互类型 + 时间 + 计数，**绝不含句子/URL/页面内容**）写入离线队列 `vocabMemoryEventQueue`。开关 `VocabConfig.memorySyncEnabled` + 端点 `memorySyncEndpoint`；关或无端点 = 纯本地排队。`recordWordExposures` 入队 `seen`、`recordLearningEvent` 入队显式反馈（`reset` 不上报）。`services/vocabulary/memory-sync.ts` 的 `MemorySyncClient`（后端无关 stub）按 §3 契约 `POST /v1/memory/events`(幂等批 ≤500) 上传、`POST /v1/memory/recall` 拉回每词召回；`flushMemoryEvents` 由独立 alarm `vocab-memory-sync`(15min) 或设置页"Sync Now"触发，成功按 eventId 裁剪队列、失败保留。`getLearningProfile` 只读 `vocabRecallCache`（带 TTL 24h + dsr 衰减，仍走 `max` 不削弱显式已知），并对缺失/过期词触发 fire-and-forget 后台拉取，不阻塞标注热路径。匿名 `deviceId` 存 `vocabSyncIdentity`，运行态存 `vocabMemorySyncState`。**本地模型永远是离线真源**；服务端（T1-C 起）未实现。
+- **标注流程**：TreeWalker 扫描文本节点 → 正则匹配英文单词 → 词形还原查表 → 难度门/专名/领域过滤 → 个人记忆门 →（可选）LLM 选词 → 本地释义(exp)或 LLM 释义 → 逆序包裹 `<ruby>` 或 `<span>` 避免 offset 漂移（底层用 `annotation-core/markers.ts`）
 - **混合观察器**（`index.ts`）：不再是单一 MutationObserver，而是三者协同——
   1. `IntersectionObserver`（rootMargin 50%）：滚动时把进入视口的块入队
   2. `MutationObserver`（childList/characterData，250ms 防抖）：处理 SPA 动态内容
@@ -256,7 +264,7 @@ SPA 页面内容可能延迟渲染，`restorePageHighlights` 采用递增延迟�
 
 `background-service/services/llm/` 提供与厂商无关的 LLM 接口：
 
-- `ILlmClient`：`completeChat(input) → string`，可选 `glossBatch`
+- `ILlmClient`：`completeChat(input) → string`，可选 `glossBatch`、`selectAndGloss`（S4：注入 CEFR + 句子上下文，判定每词是否陌生并给释义）
 - `OpenAICompatibleLlmService`：智能 endpoint 拼接（`/vN` 已有则不补 `/v1`）；支持 GLM、DeepSeek、OpenAI 等
 - `createLlmClient(config)`：工厂函数，当前仅 `openai-compatible` 分支
 - 配置 merge：`getLlmConfig()` 采用非空值优先策略，空字符串不覆盖已存储值
@@ -281,16 +289,20 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 | `GET_VOCAB_CONFIG` / `SET_VOCAB_CONFIG` | UI → background         | 读写生词配置（GET 脱敏，不回传 token） |
 | `GET_VOCAB_SNAPSHOT` / `REFRESH_VOCAB`  | content/UI → background | 获取词库快照 / 触发欧路同步            |
 | `CONTEXT_GLOSS`                         | content → background    | 单词上下文释义（exp → cache → LLM）    |
+| `SELECT_AND_GLOSS`                      | content → background    | S4：LLM 一次性判定候选是否陌生并给释义 |
 
 **生词学习（见 §5.12）**
 
-| 消息类型                                                            | 说明                          |
-| ------------------------------------------------------------------- | ----------------------------- |
-| `ENSURE_VOCAB_LEARNING_CATEGORY` / `SELECT_VOCAB_LEARNING_CATEGORY` | 确保/选择 learning 类别       |
-| `ENSURE_VOCAB_MASTERED_CATEGORY` / `SELECT_VOCAB_MASTERED_CATEGORY` | 确保/选择 mastered 类别       |
-| `RECORD_VOCAB_LEARNING_EVENT` / `FLUSH_VOCAB_LEARNING_PENDING`      | 记录学习事件 / 刷新待同步队列 |
-| `GET_VOCAB_LEARNING_PROFILE` / `GET_VOCAB_LEARNING_SYNC_STATE`      | 读取学习档案 / 同步状态       |
-| `SYNC_VOCAB_LEARNING_PROFILE` / `RESET_VOCAB_WORD_LEARNING`         | 同步 learning 类别 / 重置单词 |
+| 消息类型                                                            | 说明                                   |
+| ------------------------------------------------------------------- | -------------------------------------- |
+| `ENSURE_VOCAB_LEARNING_CATEGORY` / `SELECT_VOCAB_LEARNING_CATEGORY` | 确保/选择 learning 类别                |
+| `ENSURE_VOCAB_MASTERED_CATEGORY` / `SELECT_VOCAB_MASTERED_CATEGORY` | 确保/选择 mastered 类别                |
+| `RECORD_VOCAB_LEARNING_EVENT` / `FLUSH_VOCAB_LEARNING_PENDING`      | 记录学习事件 / 刷新待同步队列          |
+| `GET_VOCAB_LEARNING_PROFILE` / `GET_VOCAB_LEARNING_SYNC_STATE`      | 读取学习档案 / 同步状态                |
+| `SYNC_VOCAB_LEARNING_PROFILE` / `RESET_VOCAB_WORD_LEARNING`         | 同步 learning 类别 / 重置单词          |
+| `RECORD_VOCAB_EXPOSURES`                                            | 累计被动曝光到词汇记忆模型(L3)         |
+| `GET_VOCAB_MEMORY_SYNC_STATE`                                       | 读取 T1-B 记忆同步状态(队列/设备/错误) |
+| `FLUSH_VOCAB_MEMORY_EVENTS` / `CLEAR_VOCAB_MEMORY_QUEUE`            | 手动上传记忆事件 / 清空本地队列(GDPR)  |
 
 **Eudic / LLM**
 
@@ -303,14 +315,15 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 
 **Logseq / 截图 / 系统**
 
-| 消息类型                                                                                  | 说明                                 |
-| ----------------------------------------------------------------------------------------- | ------------------------------------ |
-| `LOGSEQ_GET_CONFIG` / `LOGSEQ_SET_CONFIG` / `LOGSEQ_TEST_CONNECTION`                      | Logseq 配置与连接测试                |
-| `LOGSEQ_SYNC_ALL` / `LOGSEQ_SYNC_HIGHLIGHT` / `LOGSEQ_SYNC_CLIP`                          | Logseq 同步                          |
-| `TRIGGER_SCREENSHOT` / `CAPTURE_VISIBLE_TAB` / `SCREENSHOT_CAPTURED` / `SCREENSHOT_ERROR` | 截图采集（见 §5.13，链路未完全实现） |
-| `TOGGLE_HIGHLIGHTER_MODE`                                                                 | background → content：切换荧光笔模式 |
-| `PING` / `GET_STATUS` / `GET_VERSION` / `INITIALIZE`                                      | 健康检查与状态                       |
-| `GET_STORAGE` / `SET_STORAGE` / `CLEAR_STORAGE`                                           | 通用存储读写                         |
+| 消息类型                                                                                  | 说明                                                                             |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `LOGSEQ_GET_CONFIG` / `LOGSEQ_SET_CONFIG` / `LOGSEQ_TEST_CONNECTION`                      | Logseq 配置与连接测试                                                            |
+| `LOGSEQ_SYNC_ALL` / `LOGSEQ_SYNC_HIGHLIGHT` / `LOGSEQ_SYNC_CLIP`                          | Logseq 同步                                                                      |
+| `TRIGGER_SCREENSHOT` / `CAPTURE_VISIBLE_TAB` / `SCREENSHOT_CAPTURED` / `SCREENSHOT_ERROR` | 截图采集（见 §5.13，链路未完全实现）                                             |
+| `TOGGLE_HIGHLIGHTER_MODE`                                                                 | background → content：切换荧光笔模式                                             |
+| `GET_STATUS` / `GET_VERSION` / `INITIALIZE`                                               | 系统状态/版本/(幂等)初始化：`ServiceManager.getSystemMessageHandlers()` 统一路由 |
+| `PING`                                                                                    | Service Worker 存活探针：`RuntimeHandler` 独立监听，回传 `getDetailedStatus()`   |
+| `GET_STORAGE` / `SET_STORAGE` / `CLEAR_STORAGE`                                           | 通用存储读写                                                                     |
 
 ### 5.8 快捷键
 
@@ -382,30 +395,34 @@ npm run test:watch  # 监听模式
 
 测试文件与源码同目录，放在 `__tests__/` 下：
 
-| 文件                                                               | 覆盖范围                                                                                                 |
-| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `annotation-core/__tests__/platform-rules.test.ts`                 | 平台规则匹配、Twitter permalink 提取                                                                     |
-| `annotation-core/__tests__/dom-policy.test.ts`                     | 按 intent 的跳过/可标注判定、marker 识别                                                                 |
-| `annotation-core/__tests__/text-range.test.ts`                     | 文本节点收集、Range 定位与归一化匹配                                                                     |
-| `annotation-core/__tests__/markers.test.ts`                        | wrap/unwrap/cleanup（含 ruby 特殊处理）                                                                  |
-| `annotation-core/__tests__/lemmatize.test.ts`                      | 词形还原候选、pickLemma 词典消歧、不规则词                                                               |
-| `highlight/__tests__/highlight-dom.test.ts`                        | isDynamicId、generateSelector、selector 稳定性                                                           |
-| `highlight/__tests__/wrap-integration.test.ts`                     | wrapRange 接入、unwrapMarker 防 tooltip 泄漏、manual-highlight policy 跳过 contenteditable / 嵌套 marker |
-| `vocab-label/__tests__/annotate.test.ts`                           | 逆序 DOM 标注、exp 直接使用、阈值过滤、maxAnnotations                                                    |
-| `vocab-label/__tests__/detect-page.test.ts`                        | 英文页检测、域名白名单                                                                                   |
-| `vocab-label/__tests__/content-scope.test.ts`                      | 内容根解析、可标注块收集、区块排除                                                                       |
-| `vocab-label/__tests__/frequency-filter.test.ts`                   | 词频带难度门、长尾词默认不标、CEFR 遗留信号                                                              |
-| `vocab-label/__tests__/viewport.test.ts`                           | 视口窗口判定                                                                                             |
-| `vocab-label/__tests__/platform-rules.test.ts`                     | vocab 平台适配层                                                                                         |
-| `background-service/__tests__/service-manager.test.ts`             | restart cleanup + forceReinitialize、initOrder                                                           |
-| `services/highlight/__tests__/highlight-storage.test.ts`           | getCurrentPageHighlights 的 sourceUrl 匹配和去重                                                         |
-| `services/llm/__tests__/openai-compatible.test.ts`                 | endpoint 拼接、请求格式、错误处理、glossBatch                                                            |
-| `services/llm/__tests__/factory.test.ts`                           | 工厂分支                                                                                                 |
-| `services/logseq/__tests__/logseq-{client,formatter,sync}.test.ts` | Logseq 客户端、格式化、同步                                                                              |
-| `services/vocabulary/__tests__/vocabulary-config.test.ts`          | getLlmConfig/setLlmConfig 配置 merge 策略                                                                |
-| `services/vocabulary/__tests__/vocabulary-learning.test.ts`        | 学习事件 targetStar、pending 队列、类别落地                                                              |
-| `types/__tests__/vocabulary.test.ts`                               | normalizeWord 边界用例                                                                                   |
-| `utils/__tests__/eudic-openapi.test.ts`                            | 欧路 API 封装                                                                                            |
+| 文件                                                               | 覆盖范围                                                                                                                                                                         |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `annotation-core/__tests__/platform-rules.test.ts`                 | 平台规则匹配、Twitter permalink 提取                                                                                                                                             |
+| `annotation-core/__tests__/dom-policy.test.ts`                     | 按 intent 的跳过/可标注判定、marker 识别                                                                                                                                         |
+| `annotation-core/__tests__/text-range.test.ts`                     | 文本节点收集、Range 定位与归一化匹配                                                                                                                                             |
+| `annotation-core/__tests__/markers.test.ts`                        | wrap/unwrap/cleanup（含 ruby 特殊处理）                                                                                                                                          |
+| `annotation-core/__tests__/lemmatize.test.ts`                      | 词形还原候选、pickLemma 词典消歧、不规则词                                                                                                                                       |
+| `annotation-core/__tests__/word-memory.test.ts`                    | 召回概率衰减、曝光间隔效应、known/skip/unknown 反馈、star 映射                                                                                                                   |
+| `annotation-core/__tests__/domain-filter.test.ts`                  | 领域术语检测：页面重复词跳过、单次稀有词保留、ACRONYM/CamelCase                                                                                                                  |
+| `highlight/__tests__/highlight-dom.test.ts`                        | isDynamicId、generateSelector、selector 稳定性                                                                                                                                   |
+| `highlight/__tests__/wrap-integration.test.ts`                     | wrapRange 接入、unwrapMarker 防 tooltip 泄漏、manual-highlight policy 跳过 contenteditable / 嵌套 marker                                                                         |
+| `vocab-label/__tests__/annotate.test.ts`                           | 逆序 DOM 标注、exp 直接使用、阈值过滤、maxAnnotations                                                                                                                            |
+| `vocab-label/__tests__/detect-page.test.ts`                        | 英文页检测、域名白名单                                                                                                                                                           |
+| `vocab-label/__tests__/content-scope.test.ts`                      | 内容根解析、可标注块收集、区块排除                                                                                                                                               |
+| `vocab-label/__tests__/frequency-filter.test.ts`                   | 词频带难度门、长尾词默认不标、CEFR 遗留信号、书面高频 baseline                                                                                                                   |
+| `vocab-label/__tests__/written-frequency-data.test.ts`             | 书面/学术高频词命中、真·难词刻意排除                                                                                                                                             |
+| `vocab-label/__tests__/viewport.test.ts`                           | 视口窗口判定                                                                                                                                                                     |
+| `vocab-label/__tests__/platform-rules.test.ts`                     | vocab 平台适配层                                                                                                                                                                 |
+| `background-service/__tests__/service-manager.test.ts`             | restart cleanup + forceReinitialize、initOrder                                                                                                                                   |
+| `services/highlight/__tests__/highlight-storage.test.ts`           | getCurrentPageHighlights 的 sourceUrl 匹配和去重                                                                                                                                 |
+| `services/llm/__tests__/openai-compatible.test.ts`                 | endpoint 拼接、请求格式、错误处理、glossBatch、selectAndGloss（CEFR 注入/解析/兜底）、推理模型截断处理（空 content + finish_reason=length）与结构化调用 reasoning token headroom |
+| `services/llm/__tests__/factory.test.ts`                           | 工厂分支                                                                                                                                                                         |
+| `services/logseq/__tests__/logseq-{client,formatter,sync}.test.ts` | Logseq 客户端、格式化、同步                                                                                                                                                      |
+| `services/vocabulary/__tests__/vocabulary-config.test.ts`          | getLlmConfig/setLlmConfig 配置 merge 策略                                                                                                                                        |
+| `services/vocabulary/__tests__/vocabulary-learning.test.ts`        | 学习事件 targetStar、pending 队列、类别落地、记忆模型(L3)、T1-B 事件入队/flush/recall 合并/清队                                                                                  |
+| `services/vocabulary/__tests__/memory-sync.test.ts`                | T1-B MemorySyncClient：events/recall 端点拼接、bearer、批量上限、状态归一化、错误处理                                                                                            |
+| `types/__tests__/vocabulary.test.ts`                               | normalizeWord 边界用例                                                                                                                                                           |
+| `utils/__tests__/eudic-openapi.test.ts`                            | 欧路 API 封装                                                                                                                                                                    |
 
 ### E2E 测试（Playwright）
 
@@ -415,13 +432,14 @@ npx playwright test
 
 所有 E2E 相关文件（spec、fixture HTML、helpers）集中在 `e2e/` 目录：
 
-| 文件                          | 覆盖范围                        |
-| ----------------------------- | ------------------------------- |
-| `mode-a.spec.ts`              | Mode A 悬浮菜单交互             |
-| `mode-b.spec.ts`              | Mode B 静默采集                 |
-| `mode-switch.spec.ts`         | 模式切换                        |
-| `data-persistence.spec.ts`    | 高亮数据持久化                  |
-| `highlight-sourceurl.spec.ts` | selector 稳定性、sourceUrl 提取 |
+| 文件                          | 覆盖范围                                                                                                                                                                            |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode-a.spec.ts`              | Mode A 悬浮菜单交互                                                                                                                                                                 |
+| `mode-b.spec.ts`              | Mode B 静默采集                                                                                                                                                                     |
+| `mode-switch.spec.ts`         | 模式切换                                                                                                                                                                            |
+| `data-persistence.spec.ts`    | 高亮数据持久化                                                                                                                                                                      |
+| `highlight-sourceurl.spec.ts` | selector 稳定性、sourceUrl 提取                                                                                                                                                     |
+| `vocab-annotate.spec.ts`      | 生词选词全链路：L1 频带门 + S2 领域/真生词 + S3 书面高频跳过；S1 曝光累积记忆 + 召回抑制复标（含 seeded 因果对照）；T1-B 记忆事件入队（匿名 `seen`、隐私契约）；config 关闭则零标注 |
 
 ### 测试输出（已 gitignore）
 

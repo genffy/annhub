@@ -1,5 +1,6 @@
 import { getCEFRLevel, type CEFRLevel } from './cefr-data'
 import { getWordFrequencyBand } from './frequency-band-data'
+import { isWrittenHighFrequencyWord } from './written-frequency-data'
 
 export type { CEFRLevel } from './cefr-data'
 
@@ -29,17 +30,20 @@ const CEFR_KNOWN_BAND_THRESHOLD: Record<CEFRLevel, number> = {
  * Whether a word should be filtered out (NOT annotated) for the given user level.
  *
  * Filter (skip) when the word is:
- *  - too easy: in the general-corpus frequency table at a band <= the user's known threshold, OR
- *  - long-tail: absent from the frequency table entirely (rank beyond the top-N), which is
- *    overwhelmingly proper nouns, domain jargon, or spelling noise — not learnable vocabulary.
+ *  - written/academic high-frequency: a word the subtitle corpus under-counts but that a
+ *    written-literate learner already knows (furthermore, methodology) — skip regardless
+ *    of its inflated band. This corrects the spoken-corpus bias (research doc B10).
+ *  - too easy: in the general-corpus frequency table at a band <= the user's known threshold.
  *
- * Annotate (do NOT filter) only the in-table words above the user's threshold band — i.e.
- * genuinely mid/low-frequency general vocabulary the user plausibly doesn't know yet.
- *
- * This inverts the previous behaviour, where out-of-table words were let through by default.
+ * Long-tail words (absent from the table) are NOT decided here anymore; the caller routes
+ * them through domain-term detection (annotation-core/domain-filter.ts).
  */
 export function shouldFilterByLevel(word: string, userLevel: CEFRLevel): boolean {
   if (!word) return true
+
+  // Written/academic high-frequency words are "known" even though the spoken corpus ranks
+  // them as rare. Skip them so connectives/academic staples are not annotated as unknown.
+  if (isWrittenHighFrequencyWord(word)) return true
 
   const band = getWordFrequencyBand(word)
   if (band === null) return true // long-tail: default to NOT annotating
@@ -61,3 +65,4 @@ export function isHighFrequencyWord(word: string): boolean {
 }
 
 export { getCEFRLevel, getWordFrequencyBand }
+export { isWrittenHighFrequencyWord }

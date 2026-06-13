@@ -1,12 +1,13 @@
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
 import { type VocabSnapshot, type VocabEntry, type GlossResult, normalizeWord } from '../../../types/vocabulary'
-import { shouldFilterByLevel, getWordFrequencyBand, type CEFRLevel } from './frequency-filter'
+import { shouldFilterByLevel, getWordFrequencyBand, isWrittenHighFrequencyWord, type CEFRLevel } from './frequency-filter'
 import { ANNOTATABLE_BLOCK_SELECTOR } from './content-scope'
 import { isWithinViewportWindowByRect } from './viewport'
 import { clearDomPolicyCaches, shouldSkipTextNode } from './dom-policy'
 import { cleanupMarkers, unwrapMarker, wrapRange } from '../annotation-core/markers'
 import { pickLemma } from '../annotation-core/lemmatize'
+import { createDomainTermStats, isLikelyDomainTerm, recordPageToken, type DomainTermStats } from '../annotation-core/domain-filter'
 
 const MARKER_ATTR = 'data-ann-vocab'
 const WORD_RE = /\b[a-zA-Z]{2,}\b/g
@@ -25,6 +26,8 @@ interface AnnotationContext {
   adaptiveLearningEnabled?: boolean
   annotationAggressiveness?: 'review-light' | 'balanced' | 'aggressive'
   pendingStarOverlay?: Record<string, number>
+  /** S4: route candidates through the LLM to decide which are genuinely unfamiliar. */
+  llmWordSelectionEnabled?: boolean
 }
 
 interface AnnotateOptions {
@@ -122,8 +125,10 @@ function isLikelyProperNounCandidate(word: string, text: string, startOffset: nu
 
   // Sentence-start Title-case word: ambiguous (could be an ordinary word that
   // simply starts a sentence). Treat it as a proper noun only when its lemma is
-  // absent from the general-corpus frequency table — i.e. not common vocabulary.
-  const lemma = pickLemma(word.toLowerCase(), w => getWordFrequencyBand(w) !== null)
+  // absent from BOTH the general-corpus frequency table and the written-high-frequency
+  // list — i.e. not common spoken nor written vocabulary.
+  const lemma = pickLemma(word.toLowerCase(), w => getWordFrequencyBand(w) !== null || isWrittenHighFrequencyWord(w))
+  if (isWrittenHighFrequencyWord(lemma)) return false
   return getWordFrequencyBand(lemma) === null
 }
 
@@ -320,7 +325,7 @@ function calculateCandidateScore(ctx: AnnotationContext, lemmaNorm: string, entr
   return score
 }
 
-function collectMatches(textNode: Text, ctx: AnnotationContext, pending: PendingItem[], candidateLimit: number): void {
+function collectMatches(textNode: Text, ctx: AnnotationContext, pending: PendingItem[], candidateLimit: number, domainStats: DomainTermStats): void {
   const text = textNode.textContent
   if (!text) return
   const skipStarThreshold = getSkipStarThreshold(ctx)
@@ -336,9 +341,9 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
 
     if (!wordNorm || wordNorm.length < 3) continue
 
-    // Resolve inflected forms to a base lemma for all lookups (Eudic snapshot,
-    // frequency table). DOM offsets below still use the original token.
-    const lemmaNorm = pickLemma(wordNorm, w => Boolean(ctx.snapshot.entries[w]) || getWordFrequencyBand(w) !== null)
+    // Resolve inflected forms to a base lemma for all lookups (Eudic snapshot, frequency
+    // table, written-high-frequency list). DOM offsets below still use the original token.
+    const lemmaNorm = pickLemma(wordNorm, w => Boolean(ctx.snapshot.entries[w]) || getWordFrequencyBand(w) !== null || isWrittenHighFrequencyWord(w))
 
     const entry = ctx.snapshot.entries[lemmaNorm] ?? ctx.snapshot.entries[wordNorm]
     const effectiveStar = getEffectiveStar(ctx, lemmaNorm, entry)
@@ -346,7 +351,7 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
 
     if (!entry && isLikelyProperNounCandidate(word, text, match.index, match.index + word.length)) continue
 
-    if (!entry && shouldFilterByLevel(lemmaNorm, ctx.userCEFRLevel)) continue
+    if (!entry && shouldFilterByCandidate(lemmaNorm, word, ctx, domainStats)) continue
 
     const score = calculateCandidateScore(ctx, lemmaNorm, entry, effectiveStar)
 
@@ -362,6 +367,45 @@ function collectMatches(textNode: Text, ctx: AnnotationContext, pending: Pending
       effectiveStar,
     })
   }
+}
+
+/**
+ * Difficulty/domain gate for a candidate without a Eudic entry.
+ *
+ * - In-table words: defer to the frequency band gate (too-easy → skip).
+ * - Long-tail words (band === null): instead of the old blanket skip, ask the
+ *   domain-term detector. Page-recurring jargon / acronyms are skipped; one-off rare
+ *   general words are now allowed through — fixing the core "real unknowns dropped" bug.
+ */
+function shouldFilterByCandidate(lemmaNorm: string, surface: string, ctx: AnnotationContext, domainStats: DomainTermStats): boolean {
+  // Written/academic high-frequency words are "known" regardless of (spoken-corpus) band
+  // or table membership — skip them before any band/domain logic (S3, research doc B10).
+  if (isWrittenHighFrequencyWord(lemmaNorm)) return true
+
+  const band = getWordFrequencyBand(lemmaNorm)
+  if (band !== null) {
+    return shouldFilterByLevel(lemmaNorm, ctx.userCEFRLevel)
+  }
+  // Long-tail: domain term → skip; genuine rare word → annotate.
+  return isLikelyDomainTerm(lemmaNorm, surface, domainStats)
+}
+
+/** Build per-page term-frequency stats (lemmatized) used by the domain-term detector. */
+function buildDomainStats(textNodes: Text[]): DomainTermStats {
+  const stats = createDomainTermStats()
+  for (const textNode of textNodes) {
+    const text = textNode.textContent
+    if (!text) continue
+    WORD_RE.lastIndex = 0
+    let match: RegExpExecArray | null
+    while ((match = WORD_RE.exec(text)) !== null) {
+      const wordNorm = normalizeWord(match[0])
+      if (!wordNorm || wordNorm.length < 3) continue
+      const lemmaNorm = pickLemma(wordNorm, w => getWordFrequencyBand(w) !== null)
+      recordPageToken(stats, lemmaNorm)
+    }
+  }
+  return stats
 }
 
 function collectTextNodes(roots: Element[], contentRoot?: Element, restrictToFeedArticles = false): Text[] {
@@ -392,10 +436,60 @@ function collectTextNodes(roots: Element[], contentRoot?: Element, restrictToFee
   return nodes
 }
 
+/**
+ * S4: ask the background LLM service which entry-less candidates are genuinely
+ * unfamiliar to the user, dropping the rest and pre-filling glosses for survivors.
+ * Items backed by a Eudic entry bypass the LLM (already chosen). On failure the LLM
+ * service defaults to keeping items, so this never silently blanks a page.
+ */
+async function applyLlmWordSelection(pending: PendingItem[]): Promise<PendingItem[]> {
+  const askable = pending.filter(item => !item.entry)
+  if (askable.length === 0) return pending
+
+  // De-dupe by word+sentence to minimize tokens; first item carries the gloss back.
+  const byKey = new Map<string, { word: string; sentence: string }>()
+  for (const item of askable) {
+    const key = `${item.wordNorm}:${hashSentence(item.sentence)}`
+    if (!byKey.has(key)) byKey.set(key, { word: item.word, sentence: item.sentence })
+  }
+
+  let verdicts: Record<string, { unfamiliar: boolean; gloss: string }> = {}
+  try {
+    const res = await MessageUtils.sendMessage({
+      type: 'SELECT_AND_GLOSS',
+      candidates: Array.from(byKey.values()),
+    })
+    if (res.success && res.data) {
+      verdicts = res.data as Record<string, { unfamiliar: boolean; gloss: string }>
+    }
+  } catch (e) {
+    Logger.warn('[VocabLabel] LLM word selection failed, keeping local selection:', e)
+    return pending
+  }
+
+  const kept: PendingItem[] = []
+  for (const item of pending) {
+    if (item.entry) {
+      kept.push(item)
+      continue
+    }
+    const v = verdicts[item.word]
+    // No verdict (e.g. trimmed by token budget) → keep, defer to local gate.
+    if (!v || v.unfamiliar) {
+      if (v?.gloss) item.gloss = v.gloss
+      kept.push(item)
+    }
+  }
+  return kept
+}
+
 async function resolvePendingGlosses(pending: PendingItem[]): Promise<void> {
   const groupedByCacheKey = new Map<string, PendingItem[]>()
   const groupedMeta = new Map<string, { word: string; sentence: string }>()
   for (const item of pending) {
+    // Already glossed (e.g. by the S4 LLM selection pass) → nothing to resolve.
+    if (item.gloss) continue
+
     if (item.entry?.exp) {
       item.gloss = extractShortGloss(item.entry.exp)
       continue
@@ -475,15 +569,27 @@ export async function annotateVisibleText(ctx: AnnotationContext, options?: Anno
   const pending: PendingItem[] = []
   const candidateLimit = Math.max(budget * 6, 60)
 
+  // Build page-level term-frequency stats once, so the domain-term detector can tell
+  // page-recurring jargon from one-off genuine unknowns (S2).
+  const domainStats = buildDomainStats(textNodes)
+
   for (const textNode of textNodes) {
     if (pending.length >= candidateLimit) break
-    collectMatches(textNode, ctx, pending, candidateLimit)
+    collectMatches(textNode, ctx, pending, candidateLimit, domainStats)
   }
 
   if (pending.length === 0) return 0
 
   pending.sort((a, b) => b.score - a.score || a.effectiveStar - b.effectiveStar)
-  const selectedPending = pending.slice(0, budget)
+  let selectedPending = pending.slice(0, budget)
+
+  // S4: optional LLM word-selection pass. The local gate already chose candidates; the
+  // LLM refines "which are genuinely unfamiliar" (and glosses them) for entry-less words.
+  if (ctx.llmWordSelectionEnabled) {
+    selectedPending = await applyLlmWordSelection(selectedPending)
+    if (selectedPending.length === 0) return 0
+  }
+
   await resolvePendingGlosses(selectedPending)
 
   let appliedCount = 0
@@ -503,6 +609,7 @@ export async function annotateVisibleText(ctx: AnnotationContext, options?: Anno
   })
 
   // Apply from the end of each text node so earlier wraps do not invalidate later offsets.
+  const appliedWords = new Set<string>()
   for (const item of applyOrder) {
     try {
       const range = document.createRange()
@@ -514,13 +621,35 @@ export async function annotateVisibleText(ctx: AnnotationContext, options?: Anno
       } else {
         wrapWordWithUnderline(range, item)
       }
+      appliedWords.add(item.wordNorm)
       appliedCount++
     } catch {
       // Node may be modified externally between collect/apply phases.
     }
   }
 
+  if (appliedWords.size > 0) {
+    reportWordExposures(appliedWords)
+  }
+
   return appliedCount
+}
+
+/**
+ * Fire-and-forget: record passive exposures so repeatedly-annotated words climb the
+ * recall-probability curve and eventually stop being annotated (S1 user memory model).
+ */
+function reportWordExposures(words: Set<string>): void {
+  try {
+    const result = MessageUtils.sendMessage({
+      type: 'RECORD_VOCAB_EXPOSURES',
+      words: Array.from(words),
+    })
+    // Non-critical; memory accrual can miss a page without harm.
+    void Promise.resolve(result).catch(() => {})
+  } catch {
+    // Ignore: messaging may be unavailable in some contexts.
+  }
 }
 
 function extractShortGloss(exp: string): string {

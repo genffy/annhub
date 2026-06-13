@@ -1,12 +1,12 @@
 export {
   clearDomPolicyCaches,
-  findNearestRescanContainer,
+  findNearestAnnotatableBlock,
   hasDirectTextNode,
   isBlockLikeElement,
   isShortUiLabel,
   isSkippableText,
   isVocabMarkerElement,
-  isWithinVocabMarker,
+  isWithinAnnotationMarker,
   shouldSkipElement,
   shouldSkipTextNode,
 } from '../annotation-core/dom-policy'

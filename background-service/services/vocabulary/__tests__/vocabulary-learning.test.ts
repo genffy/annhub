@@ -448,4 +448,226 @@ describe('VocabularyService learning sync and queue', () => {
     expect(pending[0].word).toBe('robust')
     expect(pending[0].star).toBe(1)
   })
+
+  describe('word memory (recall-probability model)', () => {
+    it('recordWordExposures accrues exposures and persists memory store', async () => {
+      const svc = VocabularyService.getInstance()
+
+      const result = await svc.recordWordExposures(['Robust', 'robust', 'phenomenon'])
+
+      // "Robust"/"robust" normalize to the same key → 2 unique words.
+      expect(result.updated).toBe(2)
+      const store = mockStorage.get('vocabWordMemory')
+      expect(store.robust.seenCount).toBe(1)
+      expect(store.phenomenon.seenCount).toBe(1)
+    })
+
+    it('repeated exposures grow a word toward known and raise its learning-profile star', async () => {
+      const svc = VocabularyService.getInstance()
+
+      for (let i = 0; i < 14; i++) {
+        await svc.recordWordExposures(['ubiquitous'])
+      }
+
+      const profile = await svc.getLearningProfile(['ubiquitous'])
+      // No Eudic snapshot entry, but passive exposure has raised the recall-derived star.
+      expect(profile.stars.ubiquitous).toBeGreaterThanOrEqual(4)
+    })
+
+    it('getLearningProfile takes the max of Eudic star and recall star', async () => {
+      mockStorage.set('vocabSnapshot', {
+        version: '1.0',
+        updatedAt: Date.now(),
+        entries: {
+          robust: { proficiency: 2, star: 2, exp: '强健的' },
+        },
+      })
+      const svc = VocabularyService.getInstance()
+
+      // A single fresh exposure → recall ~1 → recall star 5, which should win over star 2.
+      await svc.recordWordExposures(['robust'])
+
+      const profile = await svc.getLearningProfile(['robust'])
+      expect(profile.stars.robust).toBe(5)
+    })
+
+    it('explicit "known" feedback writes long-term memory alongside the Eudic star', async () => {
+      fetchCategoriesMock.mockResolvedValue([{ id: 'learn-cat-1', language: 'en', name: 'AnnHub Learning' }])
+      addWordMock.mockResolvedValue(undefined)
+      const svc = VocabularyService.getInstance()
+
+      await svc.recordLearningEvent({ word: 'robust', eventType: 'known' })
+
+      const store = mockStorage.get('vocabWordMemory')
+      expect(store.robust).toBeDefined()
+      expect(store.robust.stability).toBeGreaterThanOrEqual(180)
+    })
+  })
+
+  describe('memory sync (T1-B event queue + client stub)', () => {
+    function enableMemorySync(endpoint = '') {
+      mockStorage.set('vocabConfig', {
+        ...mockStorage.get('vocabConfig'),
+        memorySyncEnabled: true,
+        memorySyncEndpoint: endpoint,
+      })
+    }
+
+    it('does not queue events when memory sync is disabled (default)', async () => {
+      const svc = VocabularyService.getInstance()
+
+      await svc.recordWordExposures(['robust', 'phenomenon'])
+
+      expect(mockStorage.get('vocabMemoryEventQueue')).toBeUndefined()
+    })
+
+    it('queues anonymized "seen" events on exposure when opted in', async () => {
+      enableMemorySync()
+      const svc = VocabularyService.getInstance()
+
+      await svc.recordWordExposures(['Robust', 'phenomenon'])
+
+      const queue = mockStorage.get('vocabMemoryEventQueue')
+      expect(queue).toHaveLength(2)
+      expect(queue.every((e: any) => e.type === 'seen')).toBe(true)
+      expect(queue.map((e: any) => e.lemma).sort()).toEqual(['phenomenon', 'robust'])
+      // deviceId stamped, no sentence/url fields present (privacy).
+      expect(queue[0].deviceId).toMatch(/^anon-/)
+      expect(queue[0]).not.toHaveProperty('sentence')
+      const state = await svc.getMemorySyncState()
+      expect(state.pendingCount).toBe(2)
+    })
+
+    it('queues explicit feedback but never the local-only "reset"', async () => {
+      fetchCategoriesMock.mockResolvedValue([{ id: 'learn-cat-1', language: 'en', name: 'AnnHub Learning' }])
+      addWordMock.mockResolvedValue(undefined)
+      enableMemorySync()
+      const svc = VocabularyService.getInstance()
+
+      await svc.recordLearningEvent({ word: 'robust', eventType: 'known' })
+      await svc.resetWordLearning('robust')
+
+      const queue = mockStorage.get('vocabMemoryEventQueue')
+      // Only the "known" event is uploaded; the reset stays local.
+      expect(queue).toHaveLength(1)
+      expect(queue[0]).toMatchObject({ lemma: 'robust', type: 'known' })
+    })
+
+    it('flushMemoryEvents is skipped (queue retained) when no endpoint is set', async () => {
+      enableMemorySync('')
+      const svc = VocabularyService.getInstance()
+      await svc.recordWordExposures(['robust'])
+
+      const result = await svc.flushMemoryEvents()
+
+      expect(result.skipped).toBe(true)
+      expect(result.pendingCount).toBe(1)
+      expect(mockStorage.get('vocabMemoryEventQueue')).toHaveLength(1)
+    })
+
+    it('flushMemoryEvents uploads and prunes the queue on success', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: () => Promise.resolve({ accepted: 1, duplicates: 0 }) })
+      global.fetch = fetchMock as any
+      enableMemorySync('https://api.example.com')
+      const svc = VocabularyService.getInstance()
+      await svc.recordWordExposures(['robust'])
+
+      const result = await svc.flushMemoryEvents()
+
+      expect(fetchMock).toHaveBeenCalledOnce()
+      expect(result).toMatchObject({ accepted: 1, pendingCount: 0 })
+      expect(mockStorage.get('vocabMemoryEventQueue')).toEqual([])
+      const state = await svc.getMemorySyncState()
+      expect(state.lastStatus).toBe('ok')
+    })
+
+    it('flushMemoryEvents keeps the queue and records the error on failure', async () => {
+      global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: () => Promise.resolve({}) }) as any
+      enableMemorySync('https://api.example.com')
+      const svc = VocabularyService.getInstance()
+      await svc.recordWordExposures(['robust'])
+
+      const result = await svc.flushMemoryEvents()
+
+      expect(result.pendingCount).toBe(1)
+      expect(mockStorage.get('vocabMemoryEventQueue')).toHaveLength(1)
+      const state = await svc.getMemorySyncState()
+      expect(state.lastStatus).toBe('error')
+      expect(state.lastError).toMatch(/HTTP 500/)
+    })
+
+    it('getLearningProfile folds cached server recall (preferred, never weakening)', async () => {
+      mockStorage.set('vocabRecallCache', {
+        robust: { lemma: 'robust', recall: 0.98, computedAt: Date.now(), modelVersion: 'hlr-test' },
+      })
+      const svc = VocabularyService.getInstance()
+
+      const profile = await svc.getLearningProfile(['robust'])
+
+      // recall 0.98 → star 5 via recallToStar, with no Eudic entry.
+      expect(profile.stars.robust).toBe(5)
+    })
+
+    it('ignores stale recall-cache entries (past TTL)', async () => {
+      mockStorage.set('vocabRecallCache', {
+        robust: { lemma: 'robust', recall: 0.98, computedAt: Date.now() - 48 * 60 * 60 * 1000, modelVersion: 'hlr-test' },
+      })
+      const svc = VocabularyService.getInstance()
+
+      const profile = await svc.getLearningProfile(['robust'])
+
+      // Stale → server recall ignored, falls back to default star 1.
+      expect(profile.stars.robust ?? 1).toBe(1)
+    })
+
+    it('clearMemoryQueue empties the offline queue', async () => {
+      enableMemorySync()
+      const svc = VocabularyService.getInstance()
+      await svc.recordWordExposures(['robust', 'phenomenon'])
+      expect(mockStorage.get('vocabMemoryEventQueue')).toHaveLength(2)
+
+      const result = await svc.clearMemoryQueue()
+
+      expect(result.pendingCount).toBe(0)
+      expect(mockStorage.get('vocabMemoryEventQueue')).toEqual([])
+    })
+  })
+
+  describe('selectAndGloss (S4 LLM word selection)', () => {
+    it('resolves Eudic-known words locally as unfamiliar with their exp, no LLM call', async () => {
+      mockStorage.set('vocabSnapshot', {
+        version: '1.0',
+        updatedAt: Date.now(),
+        entries: { robust: { proficiency: 2, star: 2, exp: '强健的' } },
+      })
+      const svc = VocabularyService.getInstance()
+
+      const result = await svc.selectAndGloss([{ word: 'robust', sentence: 'A robust system.' }])
+
+      expect(result.robust).toEqual({ unfamiliar: true, gloss: '强健的' })
+    })
+
+    it('keeps local selection (unfamiliar) when LLM is not configured', async () => {
+      // No llmConfig in storage → not ready. Selection enabled or not, undecided words
+      // default to unfamiliar so the local gate still annotates them.
+      mockStorage.set('vocabConfig', {
+        enabled: true,
+        adaptiveLearningEnabled: true,
+        annotationAggressiveness: 'balanced',
+        llmWordSelectionEnabled: true,
+        eudicToken: 'NIS token-123',
+        eudicCategoryIds: ['seed-cat'],
+        masteryThreshold: 3,
+        syncPeriodMinutes: 60,
+        maxAnnotationsPerPage: 200,
+        cefrLevel: 'B1',
+        domainWhitelist: { enabled: false, domains: [] },
+      })
+      const svc = VocabularyService.getInstance()
+
+      const result = await svc.selectAndGloss([{ word: 'epistemic', sentence: 'An epistemic claim.' }])
+
+      expect(result.epistemic).toEqual({ unfamiliar: true, gloss: '' })
+    })
+  })
 })

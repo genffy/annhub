@@ -155,10 +155,8 @@ export interface GetStatusMessage extends BaseMessage {
 
 export interface SystemStatus {
   isInitialized: boolean
-  services: {
-    highlight: boolean
-    config: boolean
-  }
+  /** Per-service readiness, keyed by service name (config/highlight/clip/logseq/vocabulary). */
+  services: Record<string, boolean>
   version: string
 }
 
@@ -254,6 +252,12 @@ export interface ContextGlossMessage extends BaseMessage {
   targetLanguage?: string
 }
 
+export interface SelectAndGlossMessage extends BaseMessage {
+  type: 'SELECT_AND_GLOSS'
+  candidates: Array<{ word: string; sentence: string }>
+  targetLanguage?: string
+}
+
 export interface FetchLlmModelsMessage extends BaseMessage {
   type: 'FETCH_LLM_MODELS'
   config?: Partial<LlmConfig>
@@ -315,6 +319,23 @@ export interface ResetVocabWordLearningMessage extends BaseMessage {
   language?: string
 }
 
+export interface RecordVocabExposuresMessage extends BaseMessage {
+  type: 'RECORD_VOCAB_EXPOSURES'
+  words: string[]
+}
+
+export interface GetVocabMemorySyncStateMessage extends BaseMessage {
+  type: 'GET_VOCAB_MEMORY_SYNC_STATE'
+}
+
+export interface FlushVocabMemoryEventsMessage extends BaseMessage {
+  type: 'FLUSH_VOCAB_MEMORY_EVENTS'
+}
+
+export interface ClearVocabMemoryQueueMessage extends BaseMessage {
+  type: 'CLEAR_VOCAB_MEMORY_QUEUE'
+}
+
 export type UIToBackgroundMessage =
   | GetHighlightsMessage
   | SaveHighlightMessage
@@ -356,6 +377,7 @@ export type UIToBackgroundMessage =
   | DeleteEudicWordsMessage
   | GetEudicWordMessage
   | ContextGlossMessage
+  | SelectAndGlossMessage
   | EnsureVocabLearningCategoryMessage
   | SelectVocabLearningCategoryMessage
   | EnsureVocabMasteredCategoryMessage
@@ -366,6 +388,10 @@ export type UIToBackgroundMessage =
   | GetVocabLearningSyncStateMessage
   | GetVocabLearningProfileMessage
   | ResetVocabWordLearningMessage
+  | RecordVocabExposuresMessage
+  | GetVocabMemorySyncStateMessage
+  | FlushVocabMemoryEventsMessage
+  | ClearVocabMemoryQueueMessage
 
 export type BackgroundToUIMessage =
   | ResponseMessage<HighlightRecord[]>

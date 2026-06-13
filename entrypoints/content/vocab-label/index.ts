@@ -4,7 +4,7 @@ import { annotateVisibleText, cleanupAnnotations, resetVocabLabelRuntimeState, g
 import { collectAnnotatableBlocks, resolveContentRoot, ANNOTATABLE_BLOCK_SELECTOR, isExcludedSection } from './content-scope'
 import { getActivePlatformRule, type VocabPlatformRule } from './platform-rules'
 import { isElementWithinViewportWindow } from './viewport'
-import { findNearestRescanContainer, isWithinVocabMarker } from './dom-policy'
+import { findNearestAnnotatableBlock, isWithinAnnotationMarker } from './dom-policy'
 import { unwrapMarker } from '../annotation-core/markers'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
@@ -316,7 +316,7 @@ function removeViewportListeners(): void {
 
 function collectBlocksFromNode(node: Node): Element[] {
   if (!activeContentRoot) return []
-  if (isWithinVocabMarker(node)) return []
+  if (isWithinAnnotationMarker(node)) return []
 
   if (activePlatformRule) {
     const element = node.nodeType === Node.TEXT_NODE ? node.parentElement : node instanceof Element ? node : null
@@ -328,7 +328,7 @@ function collectBlocksFromNode(node: Node): Element[] {
   }
 
   const collected = new Set<Element>()
-  const rescanContainer = findNearestRescanContainer(node, activeContentRoot)
+  const rescanContainer = findNearestAnnotatableBlock(node, activeContentRoot)
   if (rescanContainer && !isExcludedSection(rescanContainer)) {
     collected.add(rescanContainer)
   }
@@ -459,7 +459,7 @@ function setupMutationObserver(root: Element): void {
       for (const mutation of mutations) {
         if (mutation.type === 'childList') {
           mutation.addedNodes.forEach(node => {
-            if (isWithinVocabMarker(node)) return
+            if (isWithinAnnotationMarker(node)) return
             collectBlocksFromNode(node).forEach(block => {
               candidates.add(block)
             })
@@ -467,7 +467,7 @@ function setupMutationObserver(root: Element): void {
         }
 
         if (mutation.type === 'characterData') {
-          if (isWithinVocabMarker(mutation.target)) return
+          if (isWithinAnnotationMarker(mutation.target)) return
           collectBlocksFromNode(mutation.target).forEach(block => {
             candidates.add(block)
           })
@@ -535,6 +535,7 @@ export async function initVocabLabel(): Promise<void> {
     adaptiveLearningEnabled: config.adaptiveLearningEnabled !== false,
     annotationAggressiveness: config.annotationAggressiveness ?? 'balanced',
     pendingStarOverlay: learningProfile?.stars ?? {},
+    llmWordSelectionEnabled: config.llmWordSelectionEnabled === true,
   }
 
   Logger.info('[VocabLabel] Starting annotation with strict content root...')

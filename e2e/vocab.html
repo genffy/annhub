@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AnnHub Vocab Annotation Fixture</title>
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 16px;
+        line-height: 1.7;
+      }
+    </style>
+  </head>
+  <body>
+    <!--
+      E2E fixture for the vocab word-selection pipeline (docs/vocab-word-selection-research.md).
+      Word choices are deliberate and verified against the frequency band data so the
+      content script's gates are deterministically observable:
+
+        * EASY (band 1, <= B1 threshold)  -> NOT annotated  (L1 frequency gate)
+        * RARE UNKNOWN (band null, once)   -> annotated      (S2: genuine long-tail unknown)
+        * WRITTEN/ACADEMIC HF              -> NOT annotated  (S3: written-frequency baseline)
+        * DOMAIN TERM (repeated >= 3x)     -> NOT annotated  (S2: page-recurring jargon)
+
+      Keep content above the fold and rare words lowercase + mid-sentence (so the
+      proper-noun heuristic does not swallow them). No <article> / "content" classes,
+      so resolveContentRoot() picks <main> and collects the <p> blocks directly.
+    -->
+    <main>
+      <h1>A short reading sample for the annotator</h1>
+
+      <!-- EASY: people / water / school / family / important / different are band 1. -->
+      <p data-testid="vocab-easy">
+        Every morning the people in this small town walk to school, drink water with
+        their family, and learn why it is important to respect how different other
+        places can be.
+      </p>
+
+      <!-- RARE UNKNOWNS: each appears exactly once, lowercase, mid-sentence. -->
+      <p data-testid="vocab-rare">
+        During the audit she gave only a perfunctory review, choosing to obfuscate the
+        totals before the soporific committee could defenestrate her perspicacious
+        deputy.
+      </p>
+
+      <!-- epistemic (rare, once) + furthermore/methodology/paradigm/whereas (written HF)
+           + mitochondria repeated four times (domain term). -->
+      <p data-testid="vocab-mixed">
+        An epistemic question matters here; furthermore, the methodology follows a
+        familiar paradigm, whereas earlier work did not. The mitochondria power each
+        cell, the mitochondria divide often, damaged mitochondria trigger disease, and
+        so the mitochondria remain central to modern biology.
+      </p>
+    </main>
+  </body>
+</html>

@@ -1,7 +1,7 @@
 import { Logger } from '../utils/logger'
 import { ServiceContext, SupportedServices } from './service-context'
 import MessageUtils from '../utils/message'
-import { ResponseMessage } from '../types/messages'
+import { ResponseMessage, SystemStatus } from '../types/messages'
 
 export interface IService {
   readonly name: SupportedServices
@@ -123,6 +123,11 @@ export class ServiceManager {
         Logger.info(`[ServiceManager] Collected ${Object.keys(handlers).length} message handlers from service ${serviceName}`)
       }
 
+      // System-level handlers (cross-service status), owned by the manager rather than any one
+      // service. Routed through the same registry so there is a single authoritative responder —
+      // unlike the PING heartbeat in RuntimeHandler, which lives on a separate onMessage listener.
+      Object.assign(allHandlers, this.getSystemMessageHandlers())
+
       browser.runtime.onMessage.addListener(MessageUtils.createMessageHandler(allHandlers))
 
       this.messageHandlersRegistered = true
@@ -183,5 +188,36 @@ export class ServiceManager {
 
   isAllServicesReady(): boolean {
     return this.serviceContext.isReady() && Array.from(this.services.values()).every(service => service.isInitialized())
+  }
+
+  private buildSystemStatus(): SystemStatus {
+    return {
+      isInitialized: this.isAllServicesReady(),
+      services: this.getServiceStatus(),
+      version: browser.runtime.getManifest().version,
+    }
+  }
+
+  /**
+   * Cross-service system messages. These complete the typed health/status protocol declared in
+   * `types/messages.ts` (previously declared but unrouted → "Unknown message type"). `PING` stays
+   * in `RuntimeHandler` as the lower-level service-worker-aliveness probe.
+   */
+  private getSystemMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
+    return {
+      GET_STATUS: async (): Promise<ResponseMessage<SystemStatus>> => {
+        return MessageUtils.createResponse<SystemStatus>(true, this.buildSystemStatus())
+      },
+      GET_VERSION: async (): Promise<ResponseMessage<{ version: string }>> => {
+        return MessageUtils.createResponse(true, { version: browser.runtime.getManifest().version })
+      },
+      INITIALIZE: async (): Promise<ResponseMessage<SystemStatus>> => {
+        // Idempotent recovery: only (re)initialize when not already ready, then report status.
+        if (!this.isAllServicesReady()) {
+          await this.initializeServices()
+        }
+        return MessageUtils.createResponse<SystemStatus>(true, this.buildSystemStatus())
+      },
+    }
   }
 }

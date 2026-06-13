@@ -91,18 +91,8 @@ export const messageHandlers = {
     }
   },
 
-  // GET_STATUS: async (): Promise<ResponseMessage<SystemStatus>> => {
-  //     try {
-  //         const status: SystemStatus = {
-  //             isInitialized: Object.values(servicesInitialized).every(Boolean),
-  //             services: servicesInitialized,
-  //             version: browser.runtime.getManifest().version
-  //         }
-  //         return MessageUtils.createResponse(true, status)
-  //     } catch (error) {
-  //         return MessageUtils.createResponse<SystemStatus>(false, undefined, error instanceof Error ? error.message : 'Unknown error')
-  //     }
-  // },
+  // Note: GET_STATUS / GET_VERSION / INITIALIZE are system-level handlers owned by
+  // ServiceManager.getSystemMessageHandlers() (cross-service status), not this service.
 
   LOCATE_HIGHLIGHT: async (message: LocateHighlightMessage): Promise<ResponseMessage> => {
     try {

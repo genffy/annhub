@@ -66,6 +66,22 @@ describe('frequency-filter — frequency-band difficulty gate', () => {
     it('filters empty string', () => {
       expect(shouldFilterByLevel('', 'B1')).toBe(true)
     })
+
+    it('filters written/academic high-frequency words despite their inflated subtitle band (S3)', () => {
+      // "furthermore"/"paradigm"/"methodology" rank as rare (band 4-6) in OpenSubtitles
+      // but are written-register staples → treated as known for every level.
+      for (const level of ALL_LEVELS) {
+        expect(shouldFilterByLevel('furthermore', level)).toBe(true)
+        expect(shouldFilterByLevel('paradigm', level)).toBe(true)
+        expect(shouldFilterByLevel('methodology', level)).toBe(true)
+      }
+    })
+
+    it('still annotates genuinely hard academic words not on the written list', () => {
+      for (const level of ALL_LEVELS) {
+        expect(shouldFilterByLevel('ubiquitous', level)).toBe(false)
+      }
+    })
   })
 
   describe('shouldFilterByCEFRLevel (legacy small-table signal)', () => {
