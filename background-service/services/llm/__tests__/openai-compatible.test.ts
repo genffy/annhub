@@ -99,6 +99,24 @@ describe('OpenAICompatibleLlmService', () => {
       await expect(service.completeChat({ user: 'test' })).rejects.toThrow('LLM response missing content')
     })
 
+    it('reports truncation distinctly when a reasoning model returns empty content with finish_reason=length', async () => {
+      // GLM-5/Z1, DeepSeek-R1, o-series etc. spend the budget on hidden reasoning first; too
+      // small a max_tokens yields finish_reason="length" + empty content. Must not be confused
+      // with a genuinely empty response.
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({
+          ok: true,
+          json: async () => ({
+            choices: [{ message: { content: '', reasoning_content: 'lots of thinking…' }, finish_reason: 'length' }],
+          }),
+        }),
+      )
+
+      const service = new OpenAICompatibleLlmService(mockConfig)
+      await expect(service.completeChat({ user: 'test' })).rejects.toThrow('max_tokens too low')
+    })
+
     it('throws when config is incomplete', async () => {
       const incompleteConfig: LlmConfig = { ...mockConfig, apiKey: '' }
       const service = new OpenAICompatibleLlmService(incompleteConfig)
@@ -327,6 +345,20 @@ describe('OpenAICompatibleLlmService', () => {
       expect(result).toEqual({ hello: '你好', world: '世界' })
     })
 
+    it('budgets reasoning-token headroom so reasoning models are not truncated', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: '{}' } }] }),
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const service = new OpenAICompatibleLlmService(mockConfig)
+      await service.glossBatch({ sentence: 'A short sentence.', words: ['alpha', 'beta'], targetLanguage: 'zh-CN' })
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+      expect(body.max_tokens).toBeGreaterThanOrEqual(1024)
+    })
+
     it('returns empty strings when JSON parsing fails', async () => {
       vi.stubGlobal(
         'fetch',
@@ -401,7 +433,27 @@ describe('OpenAICompatibleLlmService', () => {
       expect(userContent).toContain('epistemic')
     })
 
-    it('defaults every candidate to not-unfamiliar on parse failure', async () => {
+    it('budgets reasoning-token headroom so reasoning models emit content, not just reasoning', async () => {
+      const mockFetch = vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: '{}' } }] }),
+      })
+      vi.stubGlobal('fetch', mockFetch)
+
+      const service = new OpenAICompatibleLlmService(mockConfig)
+      await service.selectAndGloss({
+        candidates: [{ word: 'epistemic', sentence: 'An epistemic claim.' }],
+        targetLanguage: 'zh-CN',
+        cefrLevel: 'C2',
+      })
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body)
+      // A single candidate previously budgeted only max(64, 40)=64 tokens — exhausted by
+      // reasoning before any JSON content. Now it carries reasoning headroom.
+      expect(body.max_tokens).toBeGreaterThanOrEqual(1024)
+    })
+
+    it('keeps the local selection (unfamiliar:true) on parse failure so the page is not blanked', async () => {
       vi.stubGlobal(
         'fetch',
         vi.fn().mockResolvedValue({
@@ -416,7 +468,8 @@ describe('OpenAICompatibleLlmService', () => {
         targetLanguage: 'zh-CN',
       })
 
-      expect(result.foo).toEqual({ unfamiliar: false, gloss: '' })
+      // Malformed response → degrade to the local gate's selection (annotate), not drop.
+      expect(result.foo).toEqual({ unfamiliar: true, gloss: '' })
     })
   })
 })

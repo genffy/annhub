@@ -208,7 +208,7 @@ Response 200:
 
 ### T1-B 实现说明(已落地,纯本地)
 
-> 代码:`types/vocabulary.ts`(`MemoryEvent`/`RecallState`/`VocabSyncIdentity`/`VocabMemorySyncState` + `memorySyncEnabled`/`memorySyncEndpoint` 配置)、`services/vocabulary/memory-sync.ts`(`MemorySyncClient`,后端无关)、`services/vocabulary/index.ts`(队列/身份/flush/recall 合并/独立 alarm)、`message-handles.ts` + `types/messages.ts`(`GET_VOCAB_MEMORY_SYNC_STATE` / `FLUSH_VOCAB_MEMORY_EVENTS` / `CLEAR_VOCAB_MEMORY_QUEUE`)、设置页 `VocabPage.tsx`(开关 + 端点 + 队列状态 + Sync/Clear)。测试:`memory-sync.test.ts`(7)、`vocabulary-learning.test.ts` 新增 10 例。
+> 代码:`types/vocabulary.ts`(`MemoryEvent`/`RecallState`/`VocabSyncIdentity`/`VocabMemorySyncState` + `memorySyncEnabled`/`memorySyncEndpoint` 配置)、`services/vocabulary/memory-sync.ts`(`MemorySyncClient`,后端无关)、`services/vocabulary/index.ts`(队列/身份/flush/recall 合并/独立 alarm)、`message-handles.ts` + `types/messages.ts`(`GET_VOCAB_MEMORY_SYNC_STATE` / `FLUSH_VOCAB_MEMORY_EVENTS` / `CLEAR_VOCAB_MEMORY_QUEUE`)、设置页 `VocabPage.tsx`(开关 + 端点 + 队列状态 + Sync/Clear)。测试:`memory-sync.test.ts`(7)、`vocabulary-learning.test.ts` 新增 10 例;E2E:`e2e/vocab-annotate.spec.ts` 在真实扩展运行时验证开启后匿名 `seen` 事件入队、`deviceId` 为 `anon-` 前缀、事件不含句子/URL/页面内容(隐私契约 §4)。
 
 与 §2.3/§6 的两处对齐(实现时的具体取舍):
 

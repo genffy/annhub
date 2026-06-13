@@ -24,6 +24,7 @@ npx vitest run -t "name"              # run tests matching a name
 
 npm run build && npx playwright test  # E2E (Playwright) — build extension first
 npx playwright test e2e/mode-a.spec.ts   # single E2E spec
+npx playwright test e2e/vocab-annotate.spec.ts  # vocab selection pipeline E2E (L1/S2/S3 + S1 recall + T1-B)
 ```
 
 The landing-page site lives in `website/` (separate Next.js app, its own deps): `npm run website:dev`.
@@ -76,7 +77,7 @@ Beyond the static frequency gate, AnnHub models whether the user _still_ knows e
 
 ### LLM-assisted word selection (optional, off by default)
 
-`docs/vocab-word-selection-research.md` layer "L4". When `VocabConfig.llmWordSelectionEnabled` is on, candidates the local gate picked (and that have no Eudic entry) are sent via `SELECT_AND_GLOSS` to `VocabularyService.selectAndGloss` → `OpenAICompatibleLlmService.selectAndGloss`. The prompt injects the user's CEFR level + each word's sentence so the LLM judges _whether the word is genuinely unfamiliar to this reader_ and glosses it in one round-trip. Not-unfamiliar words are dropped (`annotate.ts#applyLlmWordSelection`); unfamiliar ones reuse the LLM's gloss (no separate `CONTEXT_GLOSS`). Eudic-known/cache-hit words resolve locally without an LLM call; on LLM-unavailable or parse failure the local selection is kept (never blanks a page). Costs tokens per page, hence opt-in.
+`docs/vocab-word-selection-research.md` layer "L4". When `VocabConfig.llmWordSelectionEnabled` is on, candidates the local gate picked (and that have no Eudic entry) are sent via `SELECT_AND_GLOSS` to `VocabularyService.selectAndGloss` → `OpenAICompatibleLlmService.selectAndGloss`. The prompt injects the user's CEFR level + each word's sentence so the LLM judges _whether the word is genuinely unfamiliar to this reader_ and glosses it in one round-trip. Not-unfamiliar words are dropped (`annotate.ts#applyLlmWordSelection`); unfamiliar ones reuse the LLM's gloss (no separate `CONTEXT_GLOSS`). Eudic-known/cache-hit words resolve locally without an LLM call; on LLM-unavailable or parse failure the local selection is kept (never blanks a page). Costs tokens per page, hence opt-in. The structured JSON calls (`selectAndGloss`/`glossBatch`) budget reasoning-token headroom (`min(4096, 1024 + n×coeff)`) so reasoning models (GLM-5/Z1, DeepSeek-R1, o-series) aren't truncated into an empty `content` — which previously made S4 silently fall back to the local selection — and `completeChat` reports `finish_reason=length` truncation distinctly.
 
 ### Cross-device memory sync (T1-B, optional, off by default)
 

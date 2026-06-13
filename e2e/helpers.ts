@@ -202,3 +202,80 @@ export async function clearClipsFromServiceWorker(context: any): Promise<void> {
     })
   })
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Vocab word-selection pipeline helpers
+// (docs/vocab-word-selection-research.md, docs/vocab-server-memory-model-design.md)
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * URL for the vocab annotation fixture page served by the E2E test server.
+ */
+export function getVocabPageUrl(): string {
+  return 'http://localhost:8173/vocab.html'
+}
+
+/**
+ * Navigate to vocab.html and wait for the extension content script to attach.
+ */
+export async function navigateToVocabPage(page: Page): Promise<void> {
+  await page.goto(getVocabPageUrl())
+  await page.waitForSelector('ann-selection', { state: 'attached', timeout: 5000 })
+}
+
+/**
+ * Write a partial VocabConfig into the extension's chrome.storage.local via the service
+ * worker. The background merges this partial over defaults (VocabularyService.getVocabConfig),
+ * so `{ enabled: true, ... }` is enough to turn vocab labeling on for the next navigation.
+ * Must be called BEFORE navigating — the content script reads config once at init.
+ */
+export async function setVocabConfigViaServiceWorker(context: any, partial: Record<string, unknown>): Promise<void> {
+  const sw = await ensureServiceWorker(context)
+  await sw.evaluate((cfg: Record<string, unknown>) => {
+    return new Promise<void>(resolve => {
+      chrome.storage.local.set({ vocabConfig: cfg }, () => resolve())
+    })
+  }, partial)
+}
+
+/**
+ * Read arbitrary keys from the extension's chrome.storage.local via the service worker.
+ * Used to assert on the word-memory model + memory-sync queue the background owns.
+ */
+export async function getStorageViaServiceWorker(context: any, keys: string[]): Promise<Record<string, any>> {
+  const sw = await ensureServiceWorker(context)
+  return sw.evaluate((k: string[]) => {
+    return new Promise<Record<string, any>>(resolve => {
+      chrome.storage.local.get(k, (result: any) => resolve(result || {}))
+    })
+  }, keys)
+}
+
+/**
+ * Write arbitrary keys into the extension's chrome.storage.local via the service worker.
+ * Used to seed the local recall model (vocabWordMemory) before a navigation so the read
+ * path can be exercised deterministically without depending on fire-and-forget timing.
+ */
+export async function setStorageViaServiceWorker(context: any, entries: Record<string, unknown>): Promise<void> {
+  const sw = await ensureServiceWorker(context)
+  await sw.evaluate((e: Record<string, unknown>) => {
+    return new Promise<void>(resolve => {
+      chrome.storage.local.set(e, () => resolve())
+    })
+  }, entries)
+}
+
+/**
+ * Collect the annotated lemmas from the host DOM. The vocab labeler wraps each chosen word
+ * in a `[data-ann-vocab]` element carrying `data-ann-vocab-word` = the normalized lemma.
+ */
+export async function getAnnotatedWords(page: Page): Promise<string[]> {
+  return page.$$eval('[data-ann-vocab][data-ann-vocab-word]', els => els.map(el => (el as HTMLElement).dataset.annVocabWord || '').filter(Boolean))
+}
+
+/**
+ * Wait until the vocab labeler has wrapped at least `min` words (host DOM markers).
+ */
+export async function waitForVocabAnnotations(page: Page, min = 1, timeout = 12000): Promise<void> {
+  await page.waitForFunction((m: number) => document.querySelectorAll('[data-ann-vocab]').length >= m, min, { timeout })
+}

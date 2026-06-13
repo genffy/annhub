@@ -26,6 +26,7 @@
 > - ✅ **S2 / L2** 领域术语过滤(`domain-filter.ts`,本地 Weirdness,修复长尾漏标 B1)
 > - ✅ **S3 / L1** 书面/学术高频 baseline(`written-frequency-data.ts`,修复字幕语料口语偏差 B10)
 > - ✅ **S4 / L4** LLM 参与选词(`selectAndGloss`,默认关闭,可选开)
+> - ✅ **E2E 全链路**(`e2e/vocab-annotate.spec.ts`,5 例)在真实扩展运行时(content script → `VocabularyService` → `chrome.storage`)验证:L1 频带门 + S2 领域/真生词区分 + S3 书面高频跳过的选词结果;S1 曝光累积 `vocabWordMemory` 并经召回抑制复标(含 seeded 因果对照);T1-B 开启后匿名 `seen` 事件入队且符合隐私契约。S4 另经 chrome-devtools MCP 接真实 LLM 端点验证,并修复了推理模型 `max_tokens` 截断导致 S4 静默失效的 bug(见 §阶段 S4)。
 >   四层治本逻辑均已落地。服务端长期方案见 §5:**T1-A 契约冻结 + T1-B 本地事件队列/同步客户端 stub 已落地**(`memory-sync.ts`,默认关闭,无服务端时纯排队);T1-C 起(最小服务端/训练)与 T2 尚未开工。
 
 ---
@@ -195,6 +196,8 @@ annotateScore(word, ctx) =
 2. `annotate.ts`:本地难度门(L1/L2/L3)先选出候选;若 `llmWordSelectionEnabled` 开启,无 Eudic 词条的候选经 `SELECT_AND_GLOSS` 交 LLM 精选——不陌生的丢弃,陌生的复用 LLM 释义(省去单独 `CONTEXT_GLOSS`)。
 3. 缓存/Eudic 命中走本地不调 LLM;LLM 不可用或解析失败 → 保留本地选择(不致整页空白)。
 4. **默认关闭**,设置页 "LLM word selection (experimental)" 开关开启;成本由用户自带端点承担,作为高精度可选档。
+
+**推理模型适配(MCP 端到端实测发现并修复)**:结构化 JSON 调用(`selectAndGloss`/`glossBatch`)原先把 `max_tokens` 按 ~40 token/词封顶。推理模型(GLM-5/Z1、DeepSeek-R1、o 系列)会先消耗隐藏的 reasoning token,小预算被"思考"耗尽 → `content` 为空且 `finish_reason="length"` → `completeChat` 抛 "missing content" → `VocabularyService.selectAndGloss` 兜底返回全部 `unfamiliar:true`/空释义,**S4 静默失效**(单测因 mock HTTP 未覆盖此交互)。修复(`openai-compatible.ts`):为这两类结构化调用预留 reasoning headroom(`min(4096, 1024 + 词数×系数)`),并让 `completeChat` 对"空 content + `finish_reason=length`"给出明确的截断错误(便于排障/连通性测试)。已用真实 GLM-5-turbo 端点经 chrome-devtools MCP 验证:修复前 6 词统一回退为 `unfamiliar:true`/空释义,修复后返回差异化判定(`cat`/`happy` 等不陌生)并对判为陌生的词给出释义(如 `defenestrate`→"彻底废除")。
 
 **未接入项**:`glossBatch`(B11)仍未在主链路使用——`selectAndGloss` 已覆盖"批量挑词+释义",`glossBatch` 留作纯批量翻译的备用接口。
 **工程成本**:低-中(已完成)。**收益**:高(精度天花板),但有 token 成本/延迟。

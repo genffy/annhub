@@ -119,6 +119,7 @@ annhub/
 │   ├── test-server.ts              # 本地 HTTP fixture 服务器
 │   ├── test.html                   # 主测试页面
 │   ├── test-detail.html            # 详情页测试页面
+│   ├── vocab.html                  # 生词标注 fixture（频带已校准的难/易/书面/领域词）
 │   └── *.spec.ts                   # 测试用例
 ├── vitest.config.ts                # 单元测试配置
 ├── playwright.config.ts            # E2E 测试配置
@@ -394,34 +395,34 @@ npm run test:watch  # 监听模式
 
 测试文件与源码同目录，放在 `__tests__/` 下：
 
-| 文件                                                               | 覆盖范围                                                                                                 |
-| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| `annotation-core/__tests__/platform-rules.test.ts`                 | 平台规则匹配、Twitter permalink 提取                                                                     |
-| `annotation-core/__tests__/dom-policy.test.ts`                     | 按 intent 的跳过/可标注判定、marker 识别                                                                 |
-| `annotation-core/__tests__/text-range.test.ts`                     | 文本节点收集、Range 定位与归一化匹配                                                                     |
-| `annotation-core/__tests__/markers.test.ts`                        | wrap/unwrap/cleanup（含 ruby 特殊处理）                                                                  |
-| `annotation-core/__tests__/lemmatize.test.ts`                      | 词形还原候选、pickLemma 词典消歧、不规则词                                                               |
-| `annotation-core/__tests__/word-memory.test.ts`                    | 召回概率衰减、曝光间隔效应、known/skip/unknown 反馈、star 映射                                           |
-| `annotation-core/__tests__/domain-filter.test.ts`                  | 领域术语检测：页面重复词跳过、单次稀有词保留、ACRONYM/CamelCase                                          |
-| `highlight/__tests__/highlight-dom.test.ts`                        | isDynamicId、generateSelector、selector 稳定性                                                           |
-| `highlight/__tests__/wrap-integration.test.ts`                     | wrapRange 接入、unwrapMarker 防 tooltip 泄漏、manual-highlight policy 跳过 contenteditable / 嵌套 marker |
-| `vocab-label/__tests__/annotate.test.ts`                           | 逆序 DOM 标注、exp 直接使用、阈值过滤、maxAnnotations                                                    |
-| `vocab-label/__tests__/detect-page.test.ts`                        | 英文页检测、域名白名单                                                                                   |
-| `vocab-label/__tests__/content-scope.test.ts`                      | 内容根解析、可标注块收集、区块排除                                                                       |
-| `vocab-label/__tests__/frequency-filter.test.ts`                   | 词频带难度门、长尾词默认不标、CEFR 遗留信号、书面高频 baseline                                           |
-| `vocab-label/__tests__/written-frequency-data.test.ts`             | 书面/学术高频词命中、真·难词刻意排除                                                                     |
-| `vocab-label/__tests__/viewport.test.ts`                           | 视口窗口判定                                                                                             |
-| `vocab-label/__tests__/platform-rules.test.ts`                     | vocab 平台适配层                                                                                         |
-| `background-service/__tests__/service-manager.test.ts`             | restart cleanup + forceReinitialize、initOrder                                                           |
-| `services/highlight/__tests__/highlight-storage.test.ts`           | getCurrentPageHighlights 的 sourceUrl 匹配和去重                                                         |
-| `services/llm/__tests__/openai-compatible.test.ts`                 | endpoint 拼接、请求格式、错误处理、glossBatch、selectAndGloss（CEFR 注入/解析/兜底）                     |
-| `services/llm/__tests__/factory.test.ts`                           | 工厂分支                                                                                                 |
-| `services/logseq/__tests__/logseq-{client,formatter,sync}.test.ts` | Logseq 客户端、格式化、同步                                                                              |
-| `services/vocabulary/__tests__/vocabulary-config.test.ts`          | getLlmConfig/setLlmConfig 配置 merge 策略                                                                |
-| `services/vocabulary/__tests__/vocabulary-learning.test.ts`        | 学习事件 targetStar、pending 队列、类别落地、记忆模型(L3)、T1-B 事件入队/flush/recall 合并/清队          |
-| `services/vocabulary/__tests__/memory-sync.test.ts`                | T1-B MemorySyncClient：events/recall 端点拼接、bearer、批量上限、状态归一化、错误处理                    |
-| `types/__tests__/vocabulary.test.ts`                               | normalizeWord 边界用例                                                                                   |
-| `utils/__tests__/eudic-openapi.test.ts`                            | 欧路 API 封装                                                                                            |
+| 文件                                                               | 覆盖范围                                                                                                                                                                         |
+| ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `annotation-core/__tests__/platform-rules.test.ts`                 | 平台规则匹配、Twitter permalink 提取                                                                                                                                             |
+| `annotation-core/__tests__/dom-policy.test.ts`                     | 按 intent 的跳过/可标注判定、marker 识别                                                                                                                                         |
+| `annotation-core/__tests__/text-range.test.ts`                     | 文本节点收集、Range 定位与归一化匹配                                                                                                                                             |
+| `annotation-core/__tests__/markers.test.ts`                        | wrap/unwrap/cleanup（含 ruby 特殊处理）                                                                                                                                          |
+| `annotation-core/__tests__/lemmatize.test.ts`                      | 词形还原候选、pickLemma 词典消歧、不规则词                                                                                                                                       |
+| `annotation-core/__tests__/word-memory.test.ts`                    | 召回概率衰减、曝光间隔效应、known/skip/unknown 反馈、star 映射                                                                                                                   |
+| `annotation-core/__tests__/domain-filter.test.ts`                  | 领域术语检测：页面重复词跳过、单次稀有词保留、ACRONYM/CamelCase                                                                                                                  |
+| `highlight/__tests__/highlight-dom.test.ts`                        | isDynamicId、generateSelector、selector 稳定性                                                                                                                                   |
+| `highlight/__tests__/wrap-integration.test.ts`                     | wrapRange 接入、unwrapMarker 防 tooltip 泄漏、manual-highlight policy 跳过 contenteditable / 嵌套 marker                                                                         |
+| `vocab-label/__tests__/annotate.test.ts`                           | 逆序 DOM 标注、exp 直接使用、阈值过滤、maxAnnotations                                                                                                                            |
+| `vocab-label/__tests__/detect-page.test.ts`                        | 英文页检测、域名白名单                                                                                                                                                           |
+| `vocab-label/__tests__/content-scope.test.ts`                      | 内容根解析、可标注块收集、区块排除                                                                                                                                               |
+| `vocab-label/__tests__/frequency-filter.test.ts`                   | 词频带难度门、长尾词默认不标、CEFR 遗留信号、书面高频 baseline                                                                                                                   |
+| `vocab-label/__tests__/written-frequency-data.test.ts`             | 书面/学术高频词命中、真·难词刻意排除                                                                                                                                             |
+| `vocab-label/__tests__/viewport.test.ts`                           | 视口窗口判定                                                                                                                                                                     |
+| `vocab-label/__tests__/platform-rules.test.ts`                     | vocab 平台适配层                                                                                                                                                                 |
+| `background-service/__tests__/service-manager.test.ts`             | restart cleanup + forceReinitialize、initOrder                                                                                                                                   |
+| `services/highlight/__tests__/highlight-storage.test.ts`           | getCurrentPageHighlights 的 sourceUrl 匹配和去重                                                                                                                                 |
+| `services/llm/__tests__/openai-compatible.test.ts`                 | endpoint 拼接、请求格式、错误处理、glossBatch、selectAndGloss（CEFR 注入/解析/兜底）、推理模型截断处理（空 content + finish_reason=length）与结构化调用 reasoning token headroom |
+| `services/llm/__tests__/factory.test.ts`                           | 工厂分支                                                                                                                                                                         |
+| `services/logseq/__tests__/logseq-{client,formatter,sync}.test.ts` | Logseq 客户端、格式化、同步                                                                                                                                                      |
+| `services/vocabulary/__tests__/vocabulary-config.test.ts`          | getLlmConfig/setLlmConfig 配置 merge 策略                                                                                                                                        |
+| `services/vocabulary/__tests__/vocabulary-learning.test.ts`        | 学习事件 targetStar、pending 队列、类别落地、记忆模型(L3)、T1-B 事件入队/flush/recall 合并/清队                                                                                  |
+| `services/vocabulary/__tests__/memory-sync.test.ts`                | T1-B MemorySyncClient：events/recall 端点拼接、bearer、批量上限、状态归一化、错误处理                                                                                            |
+| `types/__tests__/vocabulary.test.ts`                               | normalizeWord 边界用例                                                                                                                                                           |
+| `utils/__tests__/eudic-openapi.test.ts`                            | 欧路 API 封装                                                                                                                                                                    |
 
 ### E2E 测试（Playwright）
 
@@ -431,13 +432,14 @@ npx playwright test
 
 所有 E2E 相关文件（spec、fixture HTML、helpers）集中在 `e2e/` 目录：
 
-| 文件                          | 覆盖范围                        |
-| ----------------------------- | ------------------------------- |
-| `mode-a.spec.ts`              | Mode A 悬浮菜单交互             |
-| `mode-b.spec.ts`              | Mode B 静默采集                 |
-| `mode-switch.spec.ts`         | 模式切换                        |
-| `data-persistence.spec.ts`    | 高亮数据持久化                  |
-| `highlight-sourceurl.spec.ts` | selector 稳定性、sourceUrl 提取 |
+| 文件                          | 覆盖范围                                                                                                                                                                            |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `mode-a.spec.ts`              | Mode A 悬浮菜单交互                                                                                                                                                                 |
+| `mode-b.spec.ts`              | Mode B 静默采集                                                                                                                                                                     |
+| `mode-switch.spec.ts`         | 模式切换                                                                                                                                                                            |
+| `data-persistence.spec.ts`    | 高亮数据持久化                                                                                                                                                                      |
+| `highlight-sourceurl.spec.ts` | selector 稳定性、sourceUrl 提取                                                                                                                                                     |
+| `vocab-annotate.spec.ts`      | 生词选词全链路：L1 频带门 + S2 领域/真生词 + S3 书面高频跳过；S1 曝光累积记忆 + 召回抑制复标（含 seeded 因果对照）；T1-B 记忆事件入队（匿名 `seen`、隐私契约）；config 关闭则零标注 |
 
 ### 测试输出（已 gitignore）
 

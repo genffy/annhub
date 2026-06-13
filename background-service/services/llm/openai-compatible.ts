@@ -7,6 +7,15 @@ const MODELS_PATH_RE = /\/models\/?$/
 const OPENAI_COMPAT_BASE_RE = /\/(?:v\d+(?:beta)?|openai|compatible-mode)\/?$/
 const DEFAULT_LLM_REQUEST_TIMEOUT_MS = 30000
 
+// Reasoning models (e.g. GLM-5/Z1, DeepSeek-R1, OpenAI o-series) spend hidden reasoning
+// tokens out of the SAME completion budget before emitting any visible `content`. A tight
+// `max_tokens` (e.g. words×30) is exhausted by that reasoning, so the response returns
+// finish_reason="length" with an EMPTY content field — which would otherwise look like a
+// failed/empty answer. For our structured JSON calls (glossBatch / selectAndGloss) we budget
+// generous headroom on top of the answer-size estimate, capped to a sane ceiling.
+const REASONING_TOKEN_HEADROOM = 1024
+const MAX_STRUCTURED_COMPLETION_TOKENS = 4096
+
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, timeoutMs: number): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -126,15 +135,22 @@ export class OpenAICompatibleLlmService implements ILlmClient {
     }
 
     const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>
+      choices?: Array<{ message?: { content?: string }; finish_reason?: string }>
     }
 
-    const content = data.choices?.[0]?.message?.content
+    const choice = data.choices?.[0]
+    const content = choice?.message?.content?.trim()
     if (!content) {
+      // A reasoning model can burn the entire token budget on hidden reasoning and return
+      // empty content with finish_reason="length". Report that distinctly so callers (and the
+      // settings "test connection") point at max_tokens rather than a generic empty response.
+      if (choice?.finish_reason === 'length') {
+        throw new Error('LLM response truncated before any content was produced (max_tokens too low for this model)')
+      }
       throw new Error('LLM response missing content')
     }
 
-    return content.trim()
+    return content
   }
 
   async listModels(): Promise<LlmModelOption[]> {
@@ -182,7 +198,7 @@ export class OpenAICompatibleLlmService implements ILlmClient {
       system: systemPrompt,
       user: userPrompt,
       temperature: 0.3,
-      maxTokens: input.words.length * 30,
+      maxTokens: Math.min(MAX_STRUCTURED_COMPLETION_TOKENS, REASONING_TOKEN_HEADROOM + input.words.length * 96),
     })
 
     try {
@@ -203,8 +219,11 @@ export class OpenAICompatibleLlmService implements ILlmClient {
    * Ask the LLM to BOTH pick which candidates are genuinely unfamiliar to a reader at
    * `cefrLevel` AND gloss them — folding word selection into the gloss round-trip (S4).
    * Candidates may come from different sentences; each is judged in its own context.
-   * Returns word → {unfamiliar, gloss}. On parse failure, defaults every word to
-   * unfamiliar:false (i.e. trust the local gate, do not annotate) to avoid noise.
+   * Returns word → {unfamiliar, gloss}. On parse failure we KEEP the local gate's selection
+   * (every word → unfamiliar:true, empty gloss) so a malformed response degrades to plain
+   * local annotation rather than blanking the page — matching the LLM-unavailable path and
+   * the "never blanks a page" guarantee. (A successfully-parsed response that simply omits a
+   * word still treats it as not-unfamiliar.)
    */
   async selectAndGloss(input: LlmSelectAndGlossInput): Promise<Record<string, LlmWordVerdict>> {
     const systemPrompt = this.config.systemPrompt || '你是一位精通英语与目标语言的语言学习助教，擅长根据读者水平和上下文判断哪些词对其陌生，并给出准确简洁的释义。'
@@ -225,13 +244,16 @@ export class OpenAICompatibleLlmService implements ILlmClient {
       system: systemPrompt,
       user: userPrompt,
       temperature: 0.2,
-      maxTokens: Math.max(64, input.candidates.length * 40),
+      maxTokens: Math.min(MAX_STRUCTURED_COMPLETION_TOKENS, REASONING_TOKEN_HEADROOM + input.candidates.length * 160),
     })
 
+    // A malformed/garbage response must not silently drop the whole page's candidates: keep
+    // the local gate's selection (unfamiliar:true), glossed later via the normal path. Mirrors
+    // the LLM-unavailable fallback and the "never blanks a page" guarantee.
     const fallback = (): Record<string, LlmWordVerdict> => {
       const result: Record<string, LlmWordVerdict> = {}
       for (const c of input.candidates) {
-        result[c.word] = { unfamiliar: false, gloss: '' }
+        result[c.word] = { unfamiliar: true, gloss: '' }
       }
       return result
     }
