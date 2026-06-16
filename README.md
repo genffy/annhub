@@ -271,7 +271,7 @@ npm run website:start
 - **LLM**: OpenAI Compatible API（支持 GLM、DeepSeek 等）
 - **词库**: 欧路词典 Open API + chrome.alarms 定时同步
 - **测试**: Vitest (单元) + Playwright (E2E)
-- **工具库**: fabric.js, html2canvas, nanoid 等
+- **工具库**: nanoid、crypto-js、idb、@mozilla/readability、lucide-react 等
 
 ### 文档网站
 

@@ -13,7 +13,10 @@ Requires Node.js >= 24 (see `.node-version`). Package manager is npm.
 ```bash
 npm run dev              # dev mode (Chrome), load .output/chrome-mv3 at chrome://extensions
 npm run dev:firefox      # dev mode (Firefox)
-npm run build            # production build
+npm run build            # production build (Chrome)
+npm run build:firefox    # production build (Firefox)
+npm run zip              # production zip → .output/*.zip (for Chrome Web Store / release)
+npm run zip:firefox      # production zip (Firefox)
 npm run compile          # tsc --noEmit type check
 npm run format           # prettier write
 
@@ -22,24 +25,26 @@ npm run test:watch       # Vitest watch mode
 npx vitest run path/to/file.test.ts   # run a single test file
 npx vitest run -t "name"              # run tests matching a name
 
-npm run build && npx playwright test  # E2E (Playwright) — build extension first
+npm run build && npx playwright test  # E2E (Playwright) — build extension first (alias: npm run test:e2e)
 npx playwright test e2e/mode-a.spec.ts   # single E2E spec
 npx playwright test e2e/vocab-annotate.spec.ts  # vocab selection pipeline E2E (L1/S2/S3 + S1 recall + T1-B)
 ```
 
 The landing-page site lives in `website/` (separate Next.js app, its own deps): `npm run website:dev`.
 
+`npm install` runs `postinstall: wxt prepare`, which generates `.wxt/` types — that's why the `@/` path alias and `wxt/browser` imports resolve. If imports ever fail to resolve, run `npx wxt prepare`.
+
 ## Architecture
 
 Three runtime layers communicate via `chrome.runtime.sendMessage`. All message types are defined in `types/messages.ts` (`UIToBackgroundMessage` union); always add new messages there.
 
 1. **UI entrypoints** (`entrypoints/{popup,sidepanel,options,words}`) — React 19 + Zustand + React Router. Talk to background through `utils/message`.
-2. **Background Service Worker** (`background-service/`) — `BackgroundServiceManager` owns singleton services: Config, Highlight (IndexedDB via `idb`), Clip (`chrome.storage.local`), Logseq, Vocabulary (Eudic sync + `chrome.alarms`), and an LLM abstraction (`services/llm/`, `ILlmClient` → `OpenAICompatibleLlmService`).
+2. **Background Service Worker** (`background-service/`) — `BackgroundServiceManager` owns singleton services: Config, Highlight (IndexedDB via `idb`), Clip (`chrome.storage.local`), Logseq, Vocabulary (Eudic sync + `chrome.alarms`), and an LLM abstraction (`services/llm/`, `ILlmClient` → `OpenAICompatibleLlmService`). Browser-event wiring (`commands`, `runtime.onInstalled`/`onStartup`, `PING`) lives in `background-service/event-handlers/` (`EventHandlerManager`) — add a new `chrome.*` listener there, not in `index.ts` (see AGENTS.md §5.11).
 3. **Content Script** (`entrypoints/content/`) — two surfaces: a **Shadow-DOM UI** (`index.tsx`, HoverMenu, Capsule, `highlight/*`) and **host-DOM vocab labeling** (`vocab-label/*`, operates directly on the page, marks nodes with `data-ann-vocab="1"`).
 
 ### Two interaction modes
 
-- **Mode A (precision)**: select text → HoverMenu pops up → capture/note/highlight. Highlight color `#ffeb3b`.
+- **Mode A (precision)**: select text → HoverMenu pops up → capture/note/highlight. Highlight color `#ffeb3b`. The `capture-selection` command (`Ctrl+Shift+S` / `Cmd+Shift+S`) fires screenshot capture on the active tab — the screenshot path is WIP (types only, no runtime handler yet; see AGENTS.md §5.13).
 - **Mode B (machine-gun)**: toggle with `Alt+H` / `Cmd+Shift+H` / toolbar icon → selecting auto-captures, count shown in top-right Capsule, `Esc` exits. Color `#FFF8B4`.
 
 `mode-manager.ts` is a non-React singleton tracking the active mode.

@@ -384,7 +384,22 @@ Content Script / UI 与 Background Service Worker 通过 `chrome.runtime.sendMes
 
 ---
 
-## 六、测试
+## 六、命令与测试
+
+### 构建与开发命令
+
+```bash
+npm run dev              # 开发模式 (Chrome)，加载 .output/chrome-mv3
+npm run dev:firefox      # 开发模式 (Firefox)
+npm run build            # 生产构建 (Chrome)
+npm run build:firefox    # 生产构建 (Firefox)
+npm run zip              # 生产 zip → .output/*.zip（上架/发布用）
+npm run zip:firefox      # 生产 zip (Firefox)
+npm run compile          # tsc --noEmit 类型检查
+npm run format           # prettier 格式化
+```
+
+> `npm install` 触发 `postinstall: wxt prepare` 生成 `.wxt/` 类型（`@/` 别名与 `wxt/browser` 导入依赖它）。导入解析失败时跑 `npx wxt prepare`。落地页在 `website/`（独立 Next.js 应用）：`npm run website:dev`。
 
 ### 单元测试（Vitest + jsdom）
 
