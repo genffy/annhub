@@ -13,7 +13,10 @@ Requires Node.js >= 24 (see `.node-version`). Package manager is npm.
 ```bash
 npm run dev              # dev mode (Chrome), load .output/chrome-mv3 at chrome://extensions
 npm run dev:firefox      # dev mode (Firefox)
-npm run build            # production build
+npm run build            # production build (Chrome)
+npm run build:firefox    # production build (Firefox)
+npm run zip              # production zip → .output/*.zip (for Chrome Web Store / release)
+npm run zip:firefox      # production zip (Firefox)
 npm run compile          # tsc --noEmit type check
 npm run format           # prettier write
 
@@ -22,24 +25,26 @@ npm run test:watch       # Vitest watch mode
 npx vitest run path/to/file.test.ts   # run a single test file
 npx vitest run -t "name"              # run tests matching a name
 
-npm run build && npx playwright test  # E2E (Playwright) — build extension first
+npm run build && npx playwright test  # E2E (Playwright) — build extension first (alias: npm run test:e2e)
 npx playwright test e2e/mode-a.spec.ts   # single E2E spec
 npx playwright test e2e/vocab-annotate.spec.ts  # vocab selection pipeline E2E (L1/S2/S3 + S1 recall + T1-B)
 ```
 
 The landing-page site lives in `website/` (separate Next.js app, its own deps): `npm run website:dev`.
 
+`npm install` runs `postinstall: wxt prepare`, which generates `.wxt/` types — that's why the `@/` path alias and `wxt/browser` imports resolve. If imports ever fail to resolve, run `npx wxt prepare`.
+
 ## Architecture
 
 Three runtime layers communicate via `chrome.runtime.sendMessage`. All message types are defined in `types/messages.ts` (`UIToBackgroundMessage` union); always add new messages there.
 
 1. **UI entrypoints** (`entrypoints/{popup,sidepanel,options,words}`) — React 19 + Zustand + React Router. Talk to background through `utils/message`.
-2. **Background Service Worker** (`background-service/`) — `BackgroundServiceManager` owns singleton services: Config, Highlight (IndexedDB via `idb`), Clip (`chrome.storage.local`), Logseq, Vocabulary (Eudic sync + `chrome.alarms`), and an LLM abstraction (`services/llm/`, `ILlmClient` → `OpenAICompatibleLlmService`).
+2. **Background Service Worker** (`background-service/`) — `BackgroundServiceManager` owns singleton services: Config, Highlight (IndexedDB via `idb`), Clip (`chrome.storage.local`), Logseq, Vocabulary (Eudic sync + `chrome.alarms`), and an LLM abstraction (`services/llm/`, `ILlmClient` → `OpenAICompatibleLlmService`). Browser-event wiring (`commands`, `runtime.onInstalled`/`onStartup`, `PING`) lives in `background-service/event-handlers/` (`EventHandlerManager`) — add a new `chrome.*` listener there, not in `index.ts` (see AGENTS.md §5.11).
 3. **Content Script** (`entrypoints/content/`) — two surfaces: a **Shadow-DOM UI** (`index.tsx`, HoverMenu, Capsule, `highlight/*`) and **host-DOM vocab labeling** (`vocab-label/*`, operates directly on the page, marks nodes with `data-ann-vocab="1"`).
 
 ### Two interaction modes
 
-- **Mode A (precision)**: select text → HoverMenu pops up → capture/note/highlight. Highlight color `#ffeb3b`.
+- **Mode A (precision)**: select text → HoverMenu pops up → capture/note/highlight. Highlight color `#ffeb3b`. The `capture-selection` command (`Ctrl+Shift+S` / `Cmd+Shift+S`) fires screenshot capture on the active tab — the screenshot path is WIP (types only, no runtime handler yet; see AGENTS.md §5.13).
 - **Mode B (machine-gun)**: toggle with `Alt+H` / `Cmd+Shift+H` / toolbar icon → selecting auto-captures, count shown in top-right Capsule, `Esc` exits. Color `#FFF8B4`.
 
 `mode-manager.ts` is a non-React singleton tracking the active mode.
@@ -83,7 +88,7 @@ Beyond the static frequency gate, AnnHub models whether the user _still_ knows e
 
 `docs/vocab-server-memory-model-design.md` layer "T1". When `VocabConfig.memorySyncEnabled` is on, `VocabularyService` mirrors each word interaction into an anonymized `MemoryEvent` (lemma + interaction type + time + counts only — never the sentence, URL, or page content) in the offline queue `vocabMemoryEventQueue`. `recordWordExposures` enqueues `seen`; `recordLearningEvent` enqueues explicit feedback (`reset` is local-only, never sent). `services/vocabulary/memory-sync.ts`'s `MemorySyncClient` is a backend-agnostic stub implementing the frozen REST contract: `POST /v1/memory/events` (idempotent batches ≤500) and `POST /v1/memory/recall`. `flushMemoryEvents()` runs on a dedicated `vocab-memory-sync` alarm (15 min) or the settings "Sync Now" button — pruning the queue by `eventId` on success, keeping it on failure. `getLearningProfile()` only _reads_ `vocabRecallCache` (TTL 24h, dsr decay, folded via `max` so an explicit "known" is never weakened) and fires a fire-and-forget background recall fetch for missing/expired words — the annotation hot path never waits on the network. With no endpoint configured it pure-queues locally. New storage keys: `vocabMemoryEventQueue`, `vocabRecallCache`, `vocabSyncIdentity` (anonymous `deviceId`), `vocabMemorySyncState`. New messages: `GET_VOCAB_MEMORY_SYNC_STATE`, `FLUSH_VOCAB_MEMORY_EVENTS`, `CLEAR_VOCAB_MEMORY_QUEUE`.
 
-> Server-side roadmap (built through T1-B only): the contract is frozen (T1-A) and the local event queue + backend-agnostic sync-client stub are implemented (T1-B). Not yet built — the minimal server (T1-C: idempotent `/events` ingest + `/recall`), server-side HLR/FSRS training (T1-D), and context-difficulty / LLM word-sense CEFR (T2). The local model stays the offline source of truth; the server is an optional, opt-in enhancement.
+> Server-side roadmap (T1-C/T1-D done): the contract is frozen (T1-A), the local event queue + backend-agnostic sync-client stub are implemented (T1-B), and the minimal server — idempotent `POST /v1/memory/events` ingest + `POST|GET /v1/memory/recall` with a default FSRS-lite model (T1-C) plus Half-Life Regression training via `POST /v1/memory/train` (T1-D) — is implemented in Python under `server/` (FastAPI + SQLite; `python -m annhub_memory.runner serve`, `pytest` 68 green; see `server/README.md`). Not yet built: T2 context-difficulty / LLM word-sense CEFR, and true cross-device `accountId` aggregation (recall/training are currently scoped by anonymous `deviceId`). The local model stays the offline source of truth; the server is an optional, opt-in enhancement.
 
 ## Conventions
 

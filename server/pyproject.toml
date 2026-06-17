@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "annhub-memory"
+version = "0.1.0"
+description = "AnnHub vocabulary memory-sync server (T1-C/T1-D): idempotent event ingest + HLR recall."
+requires-python = ">=3.11"
+readme = "README.md"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.34",
+  "pydantic>=2.10",
+]
+
+[project.optional-dependencies]
+dev = ["httpx>=0.28", "pytest>=8.3"]
+
+[project.scripts]
+annhub-memory = "annhub_memory.runner:main"
+
+[tool.setuptools.packages.find]
+include = ["annhub_memory*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-ra -q"
+filterwarnings = [
+  # FastAPI/Pydantic may emit deprecation hints; keep test output clean but do not hide errors.
+  "ignore::DeprecationWarning",
+]

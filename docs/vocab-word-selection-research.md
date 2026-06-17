@@ -27,7 +27,7 @@
 > - ✅ **S3 / L1** 书面/学术高频 baseline(`written-frequency-data.ts`,修复字幕语料口语偏差 B10)
 > - ✅ **S4 / L4** LLM 参与选词(`selectAndGloss`,默认关闭,可选开)
 > - ✅ **E2E 全链路**(`e2e/vocab-annotate.spec.ts`,5 例)在真实扩展运行时(content script → `VocabularyService` → `chrome.storage`)验证:L1 频带门 + S2 领域/真生词区分 + S3 书面高频跳过的选词结果;S1 曝光累积 `vocabWordMemory` 并经召回抑制复标(含 seeded 因果对照);T1-B 开启后匿名 `seen` 事件入队且符合隐私契约。S4 另经 chrome-devtools MCP 接真实 LLM 端点验证,并修复了推理模型 `max_tokens` 截断导致 S4 静默失效的 bug(见 §阶段 S4)。
->   四层治本逻辑均已落地。服务端长期方案见 §5:**T1-A 契约冻结 + T1-B 本地事件队列/同步客户端 stub 已落地**(`memory-sync.ts`,默认关闭,无服务端时纯排队);T1-C 起(最小服务端/训练)与 T2 尚未开工。
+>   四层治本逻辑均已落地。服务端长期方案见 §5:**T1-A 契约冻结 + T1-B 本地事件队列/同步客户端 stub 已落地**(`memory-sync.ts`,默认关闭,无服务端时纯排队);**T1-C/T1-D 最小服务端(`/events`+`/recall`+HLR 训练)已用 Python 实现于 `server/`(FastAPI + SQLite,`pytest` 68 绿)**;T2(上下文难度/LLM 词义 CEFR)尚未开工。
 
 ---
 
@@ -217,7 +217,7 @@ annotateScore(word, ctx) =
 - 商业化锚点:跨设备同步、学习报告、记忆曲线——天然订阅价值。
 - **为什么先行**:数据需要时间沉淀;越早收集越早形成壁垒(护城河)。
 
-> **详细设计契约见 §7「T1 服务端契约」(后端无关,接口先行,尚未实现服务端)。**
+> **详细设计契约见 `docs/vocab-server-memory-model-design.md`(后端无关,接口先行;服务端 T1-C/T1-D 已用 Python 实现于 `server/`)。**
 
 ### 阶段 T2 上下文难度模型 + LLM 选词(对应 L4,后随)
 
@@ -233,7 +233,7 @@ annotateScore(word, ctx) =
 
 **迁移原则**:本地短期方案的数据 schema(`WordMemory`、weirdness 特征)从一开始就按服务端模型的输入格式预留,避免长期重做。
 
-> **T1 详细设计契约**(后端无关,接口/数据模型/隐私/降级)见 `docs/vocab-server-memory-model-design.md`。状态:契约冻结(T1-A)+ 本地事件队列/同步客户端 stub 已落地(T1-B,默认关闭、纯本地排队);服务端(T1-C 起)未实现。
+> **T1 详细设计契约**(后端无关,接口/数据模型/隐私/降级)见 `docs/vocab-server-memory-model-design.md`。状态:契约冻结(T1-A)+ 本地事件队列/同步客户端 stub 已落地(T1-B,默认关闭、纯本地排队)+ 最小服务端 `/events`+`/recall`+HLR 训练已实现(T1-C/T1-D,Python `server/`);T2 与跨设备 `accountId` 聚合待做。
 
 ---
 
