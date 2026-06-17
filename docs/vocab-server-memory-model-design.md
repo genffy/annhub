@@ -1,6 +1,6 @@
 # T1 — 服务端个性化记忆模型:设计契约(后端无关)
 
-> 状态:**契约冻结(T1-A)+ 本地事件队列/同步客户端 stub 已落地(T1-B)。服务端尚未实现(T1-C 起)**。分支 `feat/vocab-word-selection-research`。
+> 状态:**契约冻结(T1-A)+ 本地事件队列/同步客户端 stub 已落地(T1-B)+ 最小服务端 `/events`+`/recall` 与 HLR 训练已实现(T1-C/T1-D,Python,见 `server/`)**。剩余:T2 上下文难度/LLM 词义 CEFR、跨设备 `accountId` 聚合。分支 `feat/vocab-word-selection-research`。
 > 上游背景见 `docs/vocab-word-selection-research.md` §5「服务端长期商业化方案」L3 / T1。
 > 本文目标:把"本地 ↔ 服务端"的**数据契约、同步协议、隐私边界、降级策略**定死,使服务端选型(自建 / Serverless / 任意栈)可后置,且本地代码可以先按契约预留。
 
@@ -202,8 +202,8 @@ Response 200:
 
 1. **T1-A(本文)**:契约冻结 ✅
 2. **T1-B**:本地事件队列 + 同步客户端 stub(打到可配置端点,默认关闭;无服务端时纯排队)✅
-3. **T1-C**:最小服务端(选型后)——实现 `/events` 幂等入库 + `/recall` 先用 FSRS 默认参数(不训练),跑通端到端。
-4. **T1-D**:服务端周期性按事件历史拟合个性化 HLR/FSRS,回传训练后的 recall;灰度 `modelVersion`。
+3. **T1-C**:最小服务端——实现 `/events` 幂等入库 + `/recall` 先用 FSRS 默认参数(不训练),跑通端到端。✅(Python,`server/`,见下方实现说明)
+4. **T1-D**:服务端按事件历史拟合个性化 HLR,回传训练后的 recall;`modelVersion` 灰度。✅(同上,`POST /v1/memory/train` + CLI)
 5. **T2**:上下文难度(CWI/LCP)与 LLM 词义级 CEFR 离线标注(见 research §5 T2)。
 
 ### T1-B 实现说明(已落地,纯本地)
@@ -217,11 +217,29 @@ Response 200:
 
 其他实现细节:事件入队仅在 `memorySyncEnabled` 时发生(默认关 = 零数据采集);队列上界 `MAX_QUEUED_MEMORY_EVENTS=5000`(超出丢最旧);flush 按 `MEMORY_EVENT_BATCH_LIMIT=500` 分批、幂等(按 `eventId`)、逐批裁剪并持久化进度、失败保留队列且记 `lastError`(不抛、不阻断);`reset` 事件为本地操作不上报;匿名 `deviceId` 首次 `crypto.randomUUID()` 生成(带降级)。
 
+### T1-C / T1-D 实现说明(已落地,Python `server/`)
+
+> 代码:`server/annhub_memory/`(FastAPI + SQLite + Pydantic),测试:`server/tests/`(68 例,`pytest` 全绿)。详见 `server/README.md`。选型决策(对应 §8 开放问题 1):**Python + FastAPI + SQLite**——零外部服务、单文件可移植、契约无关;`store.py` 是存储抽象,换 Postgres 不影响上层。
+
+与 §2–§5 契约的对齐点:
+
+1. **REST 一一对应**:`POST /v1/memory/events`(幂等、返回 `{accepted, duplicates, serverTime}`)、`POST|GET /v1/memory/recall`(返回 `{states, modelVersion, ttlSeconds}`,未覆盖词省略)、`DELETE /v1/memory/events?deviceId=`(GDPR 擦除,§4)。所有请求 `Authorization: Bearer <deviceId|token>`。
+2. **Pydantic schema 即契约镜像**:`schemas.py` 的 `MemoryEvent`/`RecallState` 字段与 `types/vocabulary.ts` 完全一致(camelCase 直传,无别名)。`MemoryEvent` 字段集合被 `tests/test_privacy.py` 结构化断言为**只含** `{eventId, lemma, type, ts, deltaDays, seenCount, localRecall, domain, deviceId}`——句子/URL/页面内容在 schema 层就不存在,即使客户端误传也被 Pydantic 丢弃不入库。
+3. **幂等在存储层**:`events` 表主键 = `(device_id, event_id)`,`INSERT OR IGNORE` 去重;同设备重发幂等,跨设备偶发相同 eventId 互不干扰。`accepted/duplicates` 计数由实际插入行数得出。
+4. **recall 单一真源 = events 表**:recall 状态**按需从事件计算**(`model.compute_snapshot`),从不落盘,故不可能过期;只有训练后的 HLR 权重持久化(`model_meta` 表)。
+5. **两种估计器,同一召回公式**:都产出 stability(半衰期,天),都用 `recall = 2^(-elapsedDays / stability)`(与本地 `word-memory.ts` 同式)——开启同步**不会削弱显式 known**。
+   - `DefaultParams`(T1-C):确定性逐事件更新,克隆 `word-memory.ts` 常量(`SEEN_STABILITY_GROWTH=1.6`、`KNOWN_STABILITY=180`、`UNKNOWN_STABILITY=0.5` 等),冷启动 server recall ≈ 本地 recall。`modelVersion = "fsrs-default-v1"`。
+   - `TrainedParams`(T1-D):`half-life = 2^(θ·[1, ln(1+seen), correct_frac])`,梯度下降在显式反馈事件上最小化交叉熵(`known/skip`→label 1,`unknown/addToVocab/reveal`→label 0,零间隔的首事件不带遗忘信号被剔除)。训练后 `modelVersion` 翻为 `"hlr-v1"`,recall 改用拟合权重。
+6. **冷启动安全**(对应 §8 开放问题 2):显式反馈样本 < `ANNHUB_MIN_EVENTS_TO_TRAIN`(默认 20)时 `train` 返回 `trained:false` 并保留默认模型(零惊喜),recall 继续走 FSRS 默认参数。
+7. **顺序无关**(§3.1):`compute_snapshot` 总按 `(ts, event_id)` 重排事件回放,不依赖调用方传入顺序。
+8. **身份范围**:recall/训练按请求 `deviceId` 匿名聚合。真正的跨设备 `accountId` 合并是已记录的下一步(§8),不改契约,只改传给 `pick_params` 的 scope key。
+9. **触发训练**:`POST /v1/memory/train?deviceId=`(admin,同 bearer 鉴权)或 CLI `python -m annhub_memory.runner train --device …`(周期性拟合由运维侧 cron/调度器编排,服务本身无状态可水平扩展)。
+
 ---
 
 ## 8. 开放问题(实现前需定)
 
-- 服务端选型:Serverless(Cloudflare Workers + D1/KV)vs Node+Postgres vs 蹭欧路同步。**本文设计对三者均兼容**,留待 T1-C 决策。
-- 训练频率与冷启动:新用户无历史时,`/recall` 回退 FSRS 默认参数 or 直接不覆盖(用本地)?倾向后者,零惊喜。
+- ~~服务端选型:Serverless(Cloudflare Workers + D1/KV)vs Node+Postgres vs 蹭欧路同步。~~ **已决策(T1-C):Python + FastAPI + SQLite(`server/`);契约无关。** 横向写扩展时换 `store.py` 为 Postgres 即可。
+- 训练频率与冷启动:新用户无历史时,`/recall` 回退 FSRS 默认参数 or 直接不覆盖(用本地)?**已实现:样本不足 `MIN_EVENTS_TO_TRAIN` 时保留默认 FSRS 参数(零惊喜);recall 永远覆盖本地(本地按 TTL + dsr.stability 自衰减)。**
 - `domain` 标签来源:复用 S2 的领域信号还是独立分类器?粒度多粗才不泄露隐私?
 - 计费边界:免费档(纯本地 S1–S4)vs 订阅档(跨设备 + 训练模型 + 报告)的功能切分。
