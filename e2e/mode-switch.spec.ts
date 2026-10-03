@@ -18,13 +18,12 @@ test.describe('Mode Switching', () => {
     await navigateToTestPage(page)
   })
 
-  test('🖍️ button in hover menu enters Mode B', async ({ page }) => {
+  test('Alt+H shortcut enters Mode B from a selection', async ({ page }) => {
     await tripleClickSelect(page, '[data-testid="english-hello"]')
-    const hoverMenu = await waitForHoverMenu(page)
+    await waitForHoverMenu(page)
 
-    // Click highlighter button (3rd action)
-    const highlighterBtn = hoverMenu.locator('button').nth(2)
-    await clickShadowButton(highlighterBtn)
+    // v2 menu has no Mode B toggle — the shortcut is the entry point (PRD §10).
+    await pressToggleHighlighter(page)
     await page.waitForTimeout(500)
 
     // Capsule should appear

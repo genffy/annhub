@@ -11,7 +11,6 @@ import {
 } from '../../../types/messages'
 import { HighlightStorage } from './highlight-storage'
 import { HighlightRecord } from '../../../types/highlight'
-import { LogseqSyncService } from '../logseq/logseq-sync'
 
 export const messageHandlers = {
   GET_HIGHLIGHTS: async (message: GetHighlightsMessage): Promise<ResponseMessage> => {
@@ -30,10 +29,6 @@ export const messageHandlers = {
         return MessageUtils.createResponse(false, undefined, saveResult.error)
       }
 
-      const logseqSync = LogseqSyncService.getInstance()
-      if (logseqSync.isAutoSyncEnabled() && saveResult.data) {
-        logseqSync.syncHighlight(saveResult.data).catch(() => {})
-      }
 
       return MessageUtils.createResponse(true, saveResult.data)
     } catch (error) {

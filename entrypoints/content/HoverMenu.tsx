@@ -41,7 +41,7 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
 
   // Focus input when note expands
   useEffect(() => {
-    if (expandedAction === 'add-note' && inputRef.current) {
+    if (expandedAction && inputRef.current) {
       inputRef.current.focus()
     }
   }, [expandedAction])
@@ -81,7 +81,7 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
         setExpandedAction(prev => (prev === action.id ? null : action.id))
         return
       }
-      // 'instant' or 'toggle'
+      // 'instant' | 'toggle' | 'dialog' — dialog/toggle parents own dismissal
       onAction(action.id)
       if (action.type === 'instant') {
         setShowSuccess(true)
@@ -96,7 +96,7 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
 
   const handleNoteSubmit = useCallback(() => {
     if (noteText.trim()) {
-      onAction('add-note', { note: noteText.trim() })
+      onAction(expandedAction!, { note: noteText.trim() })
       setNoteText('')
       setExpandedAction(null)
       setShowSuccess(true)
@@ -105,7 +105,7 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
         onDismiss()
       }, 600)
     }
-  }, [noteText, onAction, onDismiss])
+  }, [noteText, expandedAction, onAction, onDismiss])
 
   const handleNoteKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -216,7 +216,7 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
         </div>
 
         {/* Expandable note input */}
-        {expandedAction === 'add-note' && (
+        {expandedAction && (
           <div
             style={{
               display: 'flex',

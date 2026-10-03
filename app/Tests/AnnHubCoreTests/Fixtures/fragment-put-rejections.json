@@ -1,0 +1,267 @@
+[
+  {
+    "name": "wrong-schema-version",
+    "expectedCode": "SCHEMA_VERSION_UNSUPPORTED",
+    "body": {
+      "deviceId": "device_1",
+      "fragment": {
+        "schemaVersion": 3,
+        "id": "eDiLZ7Nxg_6Q",
+        "captureRevision": 1,
+        "kind": "concept",
+        "content": "hawkish pivot",
+        "normalizedContent": "hawkish pivot",
+        "context": {
+          "excerpt": "Investors rotated out of bonds after the Fed signalled a hawkish pivot on rates.",
+          "sourceUrl": "https://www.wsj.com/articles/fed-hawkish-pivot",
+          "sourceHost": "wsj.com",
+          "sourceTitle": "WSJ — Fed coverage",
+          "locator": {
+            "type": "none"
+          },
+          "capturedAt": 1769000000000
+        },
+        "processing": {
+          "guess": "紧缩立场的转变",
+          "verified": {
+            "confirmedAt": 1768999999000,
+            "source": "source-material",
+            "summary": "指向更紧缩的货币政策立场"
+          },
+          "use": "在下周的宏观复盘里解释债券抛售。"
+        },
+        "tags": [
+          "fed",
+          "macro"
+        ],
+        "detail": {
+          "definition": "央行转向更紧缩政策",
+          "boundaries": [
+            "不等于加息本身"
+          ]
+        },
+        "createdAt": 1769000000000,
+        "updatedAt": 1769000000000
+      }
+    }
+  },
+  {
+    "name": "media-clip-bad-range",
+    "expectedCode": "LOCATOR_INVALID",
+    "body": {
+      "deviceId": "device_1",
+      "fragment": {
+        "schemaVersion": 4,
+        "id": "XrjLmqIJmR4G",
+        "captureRevision": 1,
+        "kind": "media-clip",
+        "content": "主持人总结了三条要点",
+        "normalizedContent": "主持人总结了三条要点",
+        "context": {
+          "excerpt": "主持人总结了三条要点（00:12–00:45 的转写节选），谈到了利率路径与通胀黏性。",
+          "sourceUrl": "https://example.com/podcast/42",
+          "sourceHost": "example.com",
+          "sourceTitle": "Macro Pod #42",
+          "locator": {
+            "type": "time",
+            "startMs": 45000,
+            "endMs": 45000
+          },
+          "capturedAt": 1769000000000
+        },
+        "processing": {
+          "verified": {
+            "confirmedAt": 1768999999400,
+            "source": "source-material",
+            "summary": "三条要点：利率、通胀、衰退概率"
+          },
+          "use": "写下周宏观简报的利率段落时引用。"
+        },
+        "tags": [
+          "podcast"
+        ],
+        "detail": {
+          "startMs": 45000,
+          "endMs": 45000
+        },
+        "createdAt": 1769000000000,
+        "updatedAt": 1769000000000
+      }
+    }
+  },
+  {
+    "name": "missing-verification",
+    "expectedCode": "VERIFIED_REQUIRED",
+    "body": {
+      "deviceId": "device_1",
+      "fragment": {
+        "schemaVersion": 4,
+        "id": "eDiLZ7Nxg_6Q",
+        "captureRevision": 1,
+        "kind": "concept",
+        "content": "hawkish pivot",
+        "normalizedContent": "hawkish pivot",
+        "context": {
+          "excerpt": "Investors rotated out of bonds after the Fed signalled a hawkish pivot on rates.",
+          "sourceUrl": "https://www.wsj.com/articles/fed-hawkish-pivot",
+          "sourceHost": "wsj.com",
+          "sourceTitle": "WSJ — Fed coverage",
+          "locator": {
+            "type": "none"
+          },
+          "capturedAt": 1769000000000
+        },
+        "processing": {
+          "guess": "x",
+          "use": "用于验证。"
+        },
+        "tags": [
+          "fed",
+          "macro"
+        ],
+        "detail": {
+          "definition": "央行转向更紧缩政策",
+          "boundaries": [
+            "不等于加息本身"
+          ]
+        },
+        "createdAt": 1769000000000,
+        "updatedAt": 1769000000000
+      }
+    }
+  },
+  {
+    "name": "use-copies-content",
+    "expectedCode": "USE_COPIES_CONTENT",
+    "body": {
+      "deviceId": "device_1",
+      "fragment": {
+        "schemaVersion": 4,
+        "id": "eDiLZ7Nxg_6Q",
+        "captureRevision": 1,
+        "kind": "concept",
+        "content": "hawkish pivot",
+        "normalizedContent": "hawkish pivot",
+        "context": {
+          "excerpt": "Investors rotated out of bonds after the Fed signalled a hawkish pivot on rates.",
+          "sourceUrl": "https://www.wsj.com/articles/fed-hawkish-pivot",
+          "sourceHost": "wsj.com",
+          "sourceTitle": "WSJ — Fed coverage",
+          "locator": {
+            "type": "none"
+          },
+          "capturedAt": 1769000000000
+        },
+        "processing": {
+          "verified": {
+            "confirmedAt": 1769000000000,
+            "source": "manual"
+          },
+          "use": "hawkish pivot"
+        },
+        "tags": [
+          "fed",
+          "macro"
+        ],
+        "detail": {
+          "definition": "央行转向更紧缩政策",
+          "boundaries": [
+            "不等于加息本身"
+          ]
+        },
+        "createdAt": 1769000000000,
+        "updatedAt": 1769000000000
+      }
+    }
+  },
+  {
+    "name": "llm-without-model-meta",
+    "expectedCode": "VERIFIED_LLM_META_REQUIRED",
+    "body": {
+      "deviceId": "device_1",
+      "fragment": {
+        "schemaVersion": 4,
+        "id": "eDiLZ7Nxg_6Q",
+        "captureRevision": 1,
+        "kind": "concept",
+        "content": "hawkish pivot",
+        "normalizedContent": "hawkish pivot",
+        "context": {
+          "excerpt": "Investors rotated out of bonds after the Fed signalled a hawkish pivot on rates.",
+          "sourceUrl": "https://www.wsj.com/articles/fed-hawkish-pivot",
+          "sourceHost": "wsj.com",
+          "sourceTitle": "WSJ — Fed coverage",
+          "locator": {
+            "type": "none"
+          },
+          "capturedAt": 1769000000000
+        },
+        "processing": {
+          "verified": {
+            "confirmedAt": 1769000000000,
+            "source": "llm"
+          },
+          "use": "用于验证。"
+        },
+        "tags": [
+          "fed",
+          "macro"
+        ],
+        "detail": {
+          "definition": "央行转向更紧缩政策",
+          "boundaries": [
+            "不等于加息本身"
+          ]
+        },
+        "createdAt": 1769000000000,
+        "updatedAt": 1769000000000
+      }
+    }
+  },
+  {
+    "name": "source-host-mismatch",
+    "expectedCode": "SOURCE_HOST_MISMATCH",
+    "body": {
+      "deviceId": "device_1",
+      "fragment": {
+        "schemaVersion": 4,
+        "id": "eDiLZ7Nxg_6Q",
+        "captureRevision": 1,
+        "kind": "concept",
+        "content": "hawkish pivot",
+        "normalizedContent": "hawkish pivot",
+        "context": {
+          "excerpt": "Investors rotated out of bonds after the Fed signalled a hawkish pivot on rates.",
+          "sourceUrl": "https://www.wsj.com/articles/fed-hawkish-pivot",
+          "sourceHost": "ft.com",
+          "sourceTitle": "WSJ — Fed coverage",
+          "locator": {
+            "type": "none"
+          },
+          "capturedAt": 1769000000000
+        },
+        "processing": {
+          "guess": "紧缩立场的转变",
+          "verified": {
+            "confirmedAt": 1768999999000,
+            "source": "source-material",
+            "summary": "指向更紧缩的货币政策立场"
+          },
+          "use": "在下周的宏观复盘里解释债券抛售。"
+        },
+        "tags": [
+          "fed",
+          "macro"
+        ],
+        "detail": {
+          "definition": "央行转向更紧缩政策",
+          "boundaries": [
+            "不等于加息本身"
+          ]
+        },
+        "createdAt": 1769000000000,
+        "updatedAt": 1769000000000
+      }
+    }
+  }
+]

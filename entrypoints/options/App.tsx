@@ -1,27 +1,17 @@
 import './App.css'
 import { i18n } from '#i18n'
-import { BookOpen, Highlighter, Settings, Sparkles } from 'lucide-react'
+import { Settings, Sparkles } from 'lucide-react'
 
-import HighlightPage from './pages/HighlightPage'
 import SettingsPage from './pages/SettingsPage'
-import WordsManagementPage from './pages/WordsManagementPage'
 
 import { useRouter, Route } from './hooks/useRouter'
 
 function App() {
-  const routes: Route[] = [
-    { path: '/words', component: WordsManagementPage },
-    { path: '/highlights', component: HighlightPage },
-    { path: '/settings', component: SettingsPage },
-  ]
+  const routes: Route[] = [{ path: '/settings', component: SettingsPage }]
 
-  const { currentPath, currentRoute, navigate, isActive } = useRouter(routes, '/words')
+  const { currentPath, currentRoute, navigate, isActive } = useRouter(routes, '/settings')
 
-  const menuItems = [
-    { id: 'words', label: i18n.t('options.menus.words.label'), icon: BookOpen, path: '/words' },
-    { id: 'highlights', label: i18n.t('options.menus.highlights.label'), icon: Highlighter, path: '/highlights' },
-    { id: 'settings', label: i18n.t('options.menus.settings.label'), icon: Settings, path: '/settings' },
-  ]
+  const menuItems = [{ id: 'settings', label: '设置', icon: Settings, path: '/settings' }]
 
   const renderCurrentPage = () => {
     if (!currentRoute) return null
@@ -29,12 +19,10 @@ function App() {
     const Component = currentRoute.component
 
     switch (currentPath) {
-      case '/highlights':
-      case '/words':
       case '/settings':
         return <Component />
       default:
-        return null
+        return <SettingsPage />
     }
   }
 
@@ -82,7 +70,7 @@ function App() {
   )
 }
 
-function NavItem({ active, icon: Icon, label, onClick }: { active: boolean; icon: typeof Highlighter; label: string; onClick: () => void }) {
+function NavItem({ active, icon: Icon, label, onClick }: { active: boolean; icon: typeof Settings; label: string; onClick: () => void }) {
   return (
     <button
       type="button"

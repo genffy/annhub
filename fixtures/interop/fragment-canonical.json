@@ -1,0 +1,14 @@
+{
+  "concept": {
+    "canonical": "{\"captureRevision\":1,\"content\":\"hawkish pivot\",\"context\":{\"capturedAt\":1769000000000,\"excerpt\":\"Investors rotated out of bonds after the Fed signalled a hawkish pivot on rates.\",\"locator\":{\"type\":\"none\"},\"sourceHost\":\"wsj.com\",\"sourceTitle\":\"WSJ — Fed coverage\",\"sourceUrl\":\"https://www.wsj.com/articles/fed-hawkish-pivot\"},\"createdAt\":1769000000000,\"detail\":{\"boundaries\":[\"不等于加息本身\"],\"definition\":\"央行转向更紧缩政策\"},\"id\":\"eDiLZ7Nxg_6Q\",\"kind\":\"concept\",\"normalizedContent\":\"hawkish pivot\",\"processing\":{\"guess\":\"紧缩立场的转变\",\"use\":\"在下周的宏观复盘里解释债券抛售。\",\"verified\":{\"confirmedAt\":1768999999000,\"source\":\"source-material\",\"summary\":\"指向更紧缩的货币政策立场\"}},\"schemaVersion\":4,\"tags\":[\"fed\",\"macro\"],\"updatedAt\":1769000000000}",
+    "sha256": "30c85e70e6e200cf61eb668e9767b7ca3a5ab2b1f84c5a5ba241a3eb5a61a668"
+  },
+  "visual": {
+    "canonical": "{\"captureRevision\":1,\"content\":\"净值曲线在加息后出现三次深回撤\",\"context\":{\"capturedAt\":1768999995000,\"excerpt\":\"净值曲线在加息后出现三次深回撤（见截图）。\",\"locator\":{\"assetId\":\"asset_fix1\",\"type\":\"image\"},\"sourceHost\":\"example.com\",\"sourceTitle\":\"Performance review\",\"sourceUrl\":\"https://example.com/performance\"},\"createdAt\":1769000000000,\"detail\":{\"attachmentIds\":[\"asset_fix1\"]},\"id\":\"RruKgJsHbg0V\",\"kind\":\"visual\",\"normalizedContent\":\"净值曲线在加息后出现三次深回撤\",\"processing\":{\"use\":\"用于下周风险复盘的图示。\",\"verified\":{\"confirmedAt\":1768999999200,\"source\":\"source-material\"}},\"schemaVersion\":4,\"tags\":[\"chart\"],\"updatedAt\":1769000000000}",
+    "sha256": "d92a70438ba122dc16c2a2388a26b07bebcdc17fb44c48e56077771028a3f524"
+  },
+  "mediaClip": {
+    "canonical": "{\"captureRevision\":1,\"content\":\"主持人总结了三条要点\",\"context\":{\"capturedAt\":1769000000000,\"excerpt\":\"主持人总结了三条要点（00:12–00:45 的转写节选），谈到了利率路径与通胀黏性。\",\"locator\":{\"endMs\":45000,\"startMs\":12000,\"type\":\"time\"},\"sourceHost\":\"example.com\",\"sourceTitle\":\"Macro Pod #42\",\"sourceUrl\":\"https://example.com/podcast/42\"},\"createdAt\":1769000000000,\"detail\":{\"endMs\":45000,\"startMs\":12000},\"id\":\"XrjLmqIJmR4G\",\"kind\":\"media-clip\",\"normalizedContent\":\"主持人总结了三条要点\",\"processing\":{\"use\":\"写下周宏观简报的利率段落时引用。\",\"verified\":{\"confirmedAt\":1768999999400,\"source\":\"source-material\",\"summary\":\"三条要点：利率、通胀、衰退概率\"}},\"schemaVersion\":4,\"tags\":[\"podcast\"],\"updatedAt\":1769000000000}",
+    "sha256": "032eb7464bdf1d36c3c1677764f84ae366e176f570b596ae39ab597d39286f38"
+  }
+}

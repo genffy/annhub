@@ -1,4 +1,13 @@
-import { ILlmClient, ChatInput, LlmSelectAndGlossInput, LlmWordVerdict } from './types'
+import {
+  ILlmClient,
+  ChatInput,
+  LlmSelectAndGlossInput,
+  LlmWordVerdict,
+  LlmGlossChunkInput,
+  LlmChunkGloss,
+  LlmSimplifyInput,
+  LlmToddlerSimplification,
+} from './types'
 import { LlmConfig, LlmModelOption } from '../../../types/vocabulary'
 import { Logger } from '../../../utils/logger'
 
@@ -275,5 +284,90 @@ export class OpenAICompatibleLlmService implements ILlmClient {
       Logger.error('[LLM] Failed to parse selectAndGloss response:', raw)
       return fallback()
     }
+  }
+
+  /**
+   * Gloss a captured multi-word chunk in its sentence context (L2 Verify step).
+   * Unlike the word-selection paths, there is no local fallback gloss — on parse
+   * failure we throw so the capture modal degrades to dictionary/manual entry
+   * with an explicit source label, never writing raw LLM text into business fields.
+   */
+  async glossChunk(input: LlmGlossChunkInput): Promise<LlmChunkGloss> {
+    const systemPrompt = this.config.systemPrompt || '你是一位精通英语与目标语言的语言学习助教，擅长解释英语语块（搭配、短语、习语）在真实语境中的含义。'
+
+    const target = input.targetLanguage || '中文'
+    const userPrompt =
+      `语块："${input.chunk}"\n所在句子：\n"""\n${input.sentence}\n"""\n\n` +
+      `请解释该语块在上述语境中的含义。要求：\n` +
+      `1. 英文释义（meaningEn）不超过 300 字符，忠实于语境。\n` +
+      `2. ${target}释义（meaningCn）不超过 300 字符。\n` +
+      `3. examples：最多 3 条英文例句，每条不超过 300 字符。\n` +
+      `4. collocations：最多 5 条常见搭配，每条不超过 100 字符。\n` +
+      `5. 仅输出 JSON 对象，格式为 {"meaningEn": "...", "meaningCn": "...", "examples": ["..."], "collocations": ["..."]}。不要输出任何其他内容。`
+
+    const raw = await this.completeChat({
+      system: systemPrompt,
+      user: userPrompt,
+      temperature: 0.3,
+      maxTokens: Math.min(MAX_STRUCTURED_COMPLETION_TOKENS, REASONING_TOKEN_HEADROOM + 600),
+    })
+
+    const jsonMatch = raw.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      Logger.error('[LLM] Failed to parse glossChunk response:', raw)
+      throw new Error('LLM gloss response could not be parsed')
+    }
+    const parsed = JSON.parse(jsonMatch[0]) as Partial<LlmChunkGloss>
+    const strArray = (v: unknown, cap: number): string[] =>
+      Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x.trim()).slice(0, cap) : []
+    const gloss: LlmChunkGloss = {
+      meaningEn: typeof parsed.meaningEn === 'string' ? parsed.meaningEn.trim().slice(0, 300) : '',
+      meaningCn: typeof parsed.meaningCn === 'string' ? parsed.meaningCn.trim().slice(0, 300) : '',
+      examples: strArray(parsed.examples, 3),
+      collocations: strArray(parsed.collocations, 5),
+    }
+    if (!gloss.meaningEn && !gloss.meaningCn) {
+      throw new Error('LLM gloss response contained no usable meaning')
+    }
+    return gloss
+  }
+
+  /**
+   * Family Mode (extension-prd §3.5.1): rewrite a chunk as an expression a
+   * ~1.5-year-old can understand, plus an action the parent can act out.
+   * Light, display-only result — the full family script lives in the App.
+   */
+  async simplifyForToddler(input: LlmSimplifyInput): Promise<LlmToddlerSimplification> {
+    const systemPrompt =
+      this.config.systemPrompt || '你是一位幼儿英语启蒙老师，擅长把成人语言转化为幼儿能理解的超简表达，并设计家长可以带做的动作。'
+    const context = input.sentence ? `\n原句："""\n${input.sentence}\n"""` : ''
+    const userPrompt =
+      `语块："${input.chunk}"${context}\n\n` +
+      `请把它转化为 1.5 岁幼儿能理解的英文表达和一个动作提示。要求：\n` +
+      `1. expression：不超过 8 个英文词，词汇限于幼儿先掌握的名词/动词/拟声词。\n` +
+      `2. actionHint：一句话中文动作提示，家长可以带孩子边说边做。\n` +
+      `3. 仅输出 JSON 对象，格式为 {"expression": "...", "actionHint": "..."}。不要输出任何其他内容。`
+
+    const raw = await this.completeChat({
+      system: systemPrompt,
+      user: userPrompt,
+      temperature: 0.5,
+      maxTokens: Math.min(MAX_STRUCTURED_COMPLETION_TOKENS, REASONING_TOKEN_HEADROOM + 300),
+    })
+
+    const jsonMatch = raw.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      Logger.error('[LLM] Failed to parse simplifyForToddler response:', raw)
+      throw new Error('LLM toddler simplification could not be parsed')
+    }
+    const parsed = JSON.parse(jsonMatch[0]) as Partial<LlmToddlerSimplification>
+    const result: LlmToddlerSimplification = {
+      expression: typeof parsed.expression === 'string' ? parsed.expression.trim().slice(0, 120) : '',
+      actionHint: typeof parsed.actionHint === 'string' ? parsed.actionHint.trim().slice(0, 200) : '',
+    }
+    if (!result.expression) {
+      throw new Error('LLM toddler simplification contained no expression')
+    }
+    return result
   }
 }

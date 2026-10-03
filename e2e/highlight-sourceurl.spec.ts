@@ -26,9 +26,13 @@ test.describe('Highlight — sourceUrl & stable selectors', () => {
     await tripleClickSelect(page, '[data-testid="tweet-body-1"]')
     const hoverMenu = await waitForHoverMenu(page)
 
-    // Collect the highlight via Mode A
-    const collectBtn = hoverMenu.locator('button').first()
+    // Highlight via Mode A — expandable action: submit the note row.
+    const collectBtn = hoverMenu.locator('button', { hasText: '高亮' })
     await clickShadowButton(collectBtn)
+    const noteInput = hoverMenu.locator('input')
+    await expect(noteInput).toBeVisible()
+    await noteInput.fill('稳定选择器')
+    await hoverMenu.locator('button', { hasText: '↵' }).click()
     await waitForHoverMenuHidden(page)
     await page.waitForTimeout(1500)
 

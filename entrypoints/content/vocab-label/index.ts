@@ -1,5 +1,6 @@
 import { isEnglishPage, shouldAnnotateDomain } from './detect-page'
 import { injectVocabStyles, removeVocabStyles } from './styles'
+import { initVocabTooltip, destroyVocabTooltip } from './tooltip'
 import { annotateVisibleText, cleanupAnnotations, resetVocabLabelRuntimeState, getSkipStarThreshold, getAnnotationSentence } from './annotate'
 import { collectAnnotatableBlocks, resolveContentRoot, ANNOTATABLE_BLOCK_SELECTOR, isExcludedSection } from './content-scope'
 import { getActivePlatformRule, type VocabPlatformRule } from './platform-rules'
@@ -520,6 +521,7 @@ export async function initVocabLabel(): Promise<void> {
 
   isRunning = true
   injectVocabStyles()
+  initVocabTooltip()
   activePlatformRule = getActivePlatformRule()
 
   const emptySnapshot: VocabSnapshot = { version: '1.0', updatedAt: 0, entries: {} }
@@ -591,6 +593,7 @@ export function destroyVocabLabel(): void {
   cleanupAnnotations()
   resetVocabLabelRuntimeState()
   removeVocabStyles()
+  destroyVocabTooltip()
 
   isRunning = false
 }

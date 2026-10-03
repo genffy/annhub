@@ -19,9 +19,10 @@ export interface HoverMenuAction {
   enabled: boolean
   /**
    * Action handler.
-   * - For simple actions, return void.
-   * - For actions that expand inline UI (like "Add Note"), the component
-   *   manages its own expanded state internally.
+   * - 'instant':    fire-and-forget; shows ✅ flash then dismisses.
+   * - 'expandable': reveals inline UI on click (e.g. "Add Note").
+   * - 'toggle':     enters a different mode (e.g. Highlighter); parent owns dismissal.
+   * - 'dialog':     opens a dialog (e.g. capture modal); parent owns dismissal.
    */
-  type: 'instant' | 'expandable' | 'toggle'
+  type: 'instant' | 'expandable' | 'toggle' | 'dialog'
 }

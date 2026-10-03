@@ -43,3 +43,17 @@ coverage/
 .claude/docs/**/*.gif
 .claude/docs/**/*.webp
 .claude/docs/**/*.svg
+# App build output
+app/dist/
+
+# Apple build artifacts
+app/.build/
+app/DerivedData/
+*.xcuserstate
+app/AnnHub.xcodeproj/xcuserdata/
+demo-screenshots/
+
+# Python (server/)
+.venv/
+__pycache__/
+.pytest_cache/

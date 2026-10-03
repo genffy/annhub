@@ -16,6 +16,7 @@ const contentTypes: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml',
+  '.wav': 'audio/wav',
 }
 
 const server = http.createServer((req, res) => {

@@ -16,6 +16,38 @@ export function injectVocabStyles(): void {
             user-select: none;
             pointer-events: none;
         }
+        .ann-vocab-tooltip {
+            position: fixed;
+            z-index: 2147483647;
+            display: none;
+            max-width: 280px;
+            padding: 8px 10px;
+            background: #1e1e1e;
+            color: #e8e8e8;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 10px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.35);
+            font-size: 13px;
+            line-height: 1.5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        .ann-vocab-tooltip-word {
+            font-weight: 600;
+        }
+        .ann-vocab-tooltip-gloss {
+            color: #b8b8b8;
+            margin-top: 2px;
+        }
+        .ann-vocab-tooltip-link {
+            display: inline-block;
+            margin-top: 6px;
+            color: #7ab8ff;
+            text-decoration: none;
+            font-size: 12px;
+        }
+        .ann-vocab-tooltip-link:hover {
+            text-decoration: underline;
+        }
         .ann-vocab-underline {
             text-decoration: underline;
             text-decoration-color: #e91e63;

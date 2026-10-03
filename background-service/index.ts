@@ -5,8 +5,9 @@ import { ServiceContext } from './service-context'
 import { ConfigService } from './services/config'
 import { HighlightService } from './services/highlight'
 import { ClipService } from './services/clip'
-import { LogseqService } from './services/logseq'
 import { VocabularyService } from './services/vocabulary'
+import { FragmentService } from './services/fragment'
+import { ScreenshotService } from './services/screenshot'
 
 export class BackgroundServiceManager {
   private static instance: BackgroundServiceManager
@@ -58,8 +59,9 @@ export class BackgroundServiceManager {
       ConfigService.getInstance(),
       HighlightService.getInstance(),
       ClipService.getInstance(),
-      LogseqService.getInstance(),
       VocabularyService.getInstance(),
+      FragmentService.getInstance(),
+      ScreenshotService.getInstance(),
     ]
 
     this.serviceManager.registerServices(services)
@@ -126,7 +128,8 @@ export { EventHandlerManager } from './event-handlers'
 export { ServiceContext } from './service-context'
 export { ConfigService } from './services/config'
 export { HighlightService } from './services/highlight'
-export { LogseqService } from './services/logseq'
 export { VocabularyService } from './services/vocabulary'
+export { FragmentService } from './services/fragment'
+export { ScreenshotService } from './services/screenshot'
 
 export default BackgroundServiceManager.getInstance()

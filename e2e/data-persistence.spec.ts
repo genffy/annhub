@@ -3,6 +3,7 @@
  */
 import { test, expect } from './fixtures'
 import {
+  getHighlightsFromServiceWorker,
   navigateToTestPage,
   selectText,
   tripleClickSelect,
@@ -24,7 +25,7 @@ test.describe('Data Persistence — ClipRecord Schema', () => {
     await tripleClickSelect(page, '[data-testid="english-hello"]')
     const hoverMenu = await waitForHoverMenu(page)
 
-    const collectBtn = hoverMenu.locator('button').first()
+    const collectBtn = hoverMenu.locator('button', { hasText: '剪藏' })
     await clickShadowButton(collectBtn)
     await page.waitForTimeout(1500)
 
@@ -42,11 +43,11 @@ test.describe('Data Persistence — ClipRecord Schema', () => {
     expect(clip.content.length).toBeGreaterThan(0)
   })
 
-  test('Mode A note saves ClipRecord with user_note', async ({ page, context }) => {
+  test('Mode A 高亮 with note saves the note on the highlight (no clip)', async ({ page, context }) => {
     await tripleClickSelect(page, '[data-testid="english-tech"]')
     const hoverMenu = await waitForHoverMenu(page)
 
-    const noteBtn = hoverMenu.locator('button').nth(1)
+    const noteBtn = hoverMenu.locator('button', { hasText: '高亮' })
     await clickShadowButton(noteBtn)
     await page.waitForTimeout(300)
 
@@ -56,10 +57,10 @@ test.describe('Data Persistence — ClipRecord Schema', () => {
     await page.keyboard.press('Enter')
     await page.waitForTimeout(1500)
 
-    const clips = await getClipsFromServiceWorker(context)
-    expect(clips.length).toBeGreaterThanOrEqual(1)
-    expect(clips[0].user_note).toBe('我的测试备注')
-    expect(clips[0].mode_used).toBe('Mode A')
+    const [highlights, clips] = await Promise.all([getHighlightsFromServiceWorker(context), getClipsFromServiceWorker(context)])
+    expect(highlights.length).toBeGreaterThanOrEqual(1)
+    expect(highlights[0].user_note).toBe('我的测试备注')
+    expect(clips).toHaveLength(0)
   })
 
   test('Mode B capture saves ClipRecord', async ({ page, context }) => {
@@ -78,7 +79,7 @@ test.describe('Data Persistence — ClipRecord Schema', () => {
     await tripleClickSelect(page, '[data-testid="english-hello"]')
     const hoverMenu = await waitForHoverMenu(page)
 
-    const collectBtn = hoverMenu.locator('button').first()
+    const collectBtn = hoverMenu.locator('button', { hasText: '剪藏' })
     await clickShadowButton(collectBtn)
     await page.waitForTimeout(1500)
 

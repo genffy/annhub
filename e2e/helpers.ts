@@ -240,7 +240,7 @@ export async function setVocabConfigViaServiceWorker(context: any, partial: Reco
 
 /**
  * Read arbitrary keys from the extension's chrome.storage.local via the service worker.
- * Used to assert on the word-memory model + memory-sync queue the background owns.
+ * Used to assert on the word-memory model the background owns.
  */
 export async function getStorageViaServiceWorker(context: any, keys: string[]): Promise<Record<string, any>> {
   const sw = await ensureServiceWorker(context)
@@ -278,4 +278,174 @@ export async function getAnnotatedWords(page: Page): Promise<string[]> {
  */
 export async function waitForVocabAnnotations(page: Page, min = 1, timeout = 12000): Promise<void> {
   await page.waitForFunction((m: number) => document.querySelectorAll('[data-ann-vocab]').length >= m, min, { timeout })
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Fragment capture (L1/L2) helpers
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * URL for the fragment capture fixture page served by the E2E test server.
+ */
+export function getFragmentPageUrl(): string {
+  return 'http://localhost:8173/fragment.html'
+}
+
+export async function navigateToFragmentPage(page: Page): Promise<void> {
+  await page.goto(getFragmentPageUrl())
+  await page.waitForSelector('ann-selection', { state: 'attached', timeout: 5000 })
+  await page.waitForTimeout(500)
+}
+
+/**
+ * Wait for the capture modal inside the shadow DOM and return its card locator.
+ */
+export async function waitForCaptureModal(page: Page, timeout = 5000): Promise<Locator> {
+  const modal = getAnnShadowRoot(page).locator('[data-ann-ui="capture-modal"]')
+  await modal.waitFor({ state: 'attached', timeout })
+  return modal
+}
+
+/**
+ * Write the capture config (deepMode) directly — must run BEFORE the modal opens.
+ */
+export async function setCaptureConfigViaServiceWorker(context: any, config: { deepMode: boolean }): Promise<void> {
+  const sw = await ensureServiceWorker(context)
+  await sw.evaluate((cfg: { deepMode: boolean }) => {
+    return new Promise<void>(resolve => {
+      chrome.storage.local.set({ fragmentCaptureConfigV2: cfg }, () => resolve())
+    })
+  }, config)
+}
+
+/**
+ * Read fragments from the extension's fragment-store (IndexedDB v3) via its service worker.
+ * Opens WITHOUT an explicit version on purpose: a versioned open from the test would create
+ * an empty DB at the target version if none exists yet, which suppresses the store's own
+ * upgrade callback (stores never get created). Unversioned opens never interfere with it.
+ */
+export async function getFragmentsFromServiceWorker(context: any): Promise<any[]> {
+  const sw = await ensureServiceWorker(context)
+  return sw.evaluate(() => {
+    return new Promise<any[]>(resolve => {
+      const request = indexedDB.open('fragment-store')
+      request.onerror = () => resolve([])
+      request.onsuccess = () => {
+        const db = request.result
+        if (!db.objectStoreNames.contains('fragments')) {
+          db.close()
+          return resolve([])
+        }
+        const tx = db.transaction('fragments', 'readonly')
+        const getAll = tx.objectStore('fragments').getAll()
+        getAll.onsuccess = () => {
+          db.close()
+          resolve(getAll.result || [])
+        }
+        getAll.onerror = () => resolve([])
+      }
+    })
+  })
+}
+
+/** Clear the whole learning core (all five stores) via the service worker. See the version note above. */
+export async function clearFragmentStoreViaServiceWorker(context: any): Promise<void> {
+  const sw = await ensureServiceWorker(context)
+  await sw.evaluate(() => {
+    return new Promise<void>(resolve => {
+      const request = indexedDB.open('fragment-store')
+      request.onerror = () => resolve()
+      request.onsuccess = () => {
+        const db = request.result
+        const stores = ['fragments', 'reviewLogs', 'writingTasks', 'relations', 'outboxEvents', 'assets', 'screenshots', 'relationSuppressions', 'localDeletions'].filter(s => db.objectStoreNames.contains(s))
+        if (stores.length === 0) {
+          db.close()
+          return resolve()
+        }
+        const tx = db.transaction(stores, 'readwrite')
+        for (const store of stores) tx.objectStore(store).clear()
+        tx.oncomplete = () => {
+          db.close()
+          resolve()
+        }
+        tx.onerror = () => resolve()
+      }
+    })
+  })
+}
+
+/**
+ * Drive the full UI capture flow (standard mode) and return once the modal
+ * closes. Verification is an explicit confirmation — no LLM involved.
+ */
+export async function captureFragmentViaUi(page: Page, opts: { kind?: string; use?: string } = {}): Promise<void> {
+  await selectText(page, '[data-testid="fragment-target"]')
+  const hoverMenu = await waitForHoverMenu(page)
+  await clickShadowButton(hoverMenu.locator('button', { hasText: 'Fragment' }))
+  const modal = await waitForCaptureModal(page)
+
+  // Kind selection happens BEFORE confirming — editing the kind afterwards
+  // would clear the confirmation (fragments.md §7).
+  if (opts.kind) await modal.getByTestId(`kind-${opts.kind}`).click()
+
+  // 核验 step: confirm against the source material
+  await modal.getByRole('button', { name: '已回看原文，确认' }).click()
+  await modal.getByRole('button', { name: '去应用 →' }).click()
+
+  // 应用 step
+  await modal.locator('textarea[placeholder="写下准备如何使用、验证或迁移（必填）"]').fill(opts.use ?? '用在下周的宏观复盘文章里。')
+  await modal.getByRole('button', { name: '保存到碎片库' }).click()
+  await getAnnShadowRoot(page).locator('[data-ann-ui="capture-modal"]').waitFor({ state: 'detached', timeout: 5000 })
+}
+
+/** Read the delivery outbox (fragment + asset pending tasks) via the service worker. */
+export async function getOutboxFromServiceWorker(context: any): Promise<any[]> {
+  const sw = await ensureServiceWorker(context)
+  return sw.evaluate(() => {
+    return new Promise<any[]>(resolve => {
+      const request = indexedDB.open('fragment-store')
+      request.onerror = () => resolve([])
+      request.onsuccess = () => {
+        const db = request.result
+        if (!db.objectStoreNames.contains('outboxEvents')) {
+          db.close()
+          return resolve([])
+        }
+        const tx = db.transaction('outboxEvents', 'readonly')
+        const getAll = tx.objectStore('outboxEvents').getAll()
+        getAll.onsuccess = () => {
+          db.close()
+          resolve(getAll.result || [])
+        }
+        getAll.onerror = () => resolve([])
+      }
+    })
+  })
+}
+
+/** Read screenshot-library records + asset metadata (bytes stay as Blobs). */
+export async function getScreenshotsFromServiceWorker(context: any): Promise<any[]> {
+  const sw = await ensureServiceWorker(context)
+  return sw.evaluate(() => {
+    return new Promise<any[]>(resolve => {
+      const request = indexedDB.open('fragment-store')
+      request.onerror = () => resolve([])
+      request.onsuccess = () => {
+        const db = request.result
+        if (!db.objectStoreNames.contains('screenshots')) {
+          db.close()
+          return resolve([])
+        }
+        const tx = db.transaction(['screenshots', 'assets'], 'readonly')
+        const getAll = tx.objectStore('screenshots').getAll()
+        const assets = tx.objectStore('assets').getAll()
+        tx.oncomplete = () => {
+          const metaById = new Map((assets.result || []).map((a: any) => [a.metadata.id, a.metadata]))
+          db.close()
+          resolve((getAll.result || []).map((s: any) => ({ ...s, asset: metaById.get(s.assetId) })))
+        }
+        tx.onerror = () => resolve([])
+      }
+    })
+  })
 }

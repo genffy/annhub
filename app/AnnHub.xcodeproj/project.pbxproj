@@ -1,0 +1,341 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		366A43256F6F403028A226DE /* AnnHubCore in Frameworks */ = {isa = PBXBuildFile; productRef = 99C53A3E7B882DD662360CBB /* AnnHubCore */; };
+		9DB18FA5AE40657A3ABAB6FE /* DesktopViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94F58B9CD84A57002C22198D /* DesktopViews.swift */; };
+		A2BC9117256D553CC7AB360D /* RelationsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB33D7FBB553644DB7D972D /* RelationsViews.swift */; };
+		AF7DE9AD482CDD3B83277B16 /* AnnHubDesktopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4370A1B2705988FDCE2AF2D /* AnnHubDesktopApp.swift */; };
+		D29DF38C130F2EAF5FFA9BC2 /* OutputWorkshopViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4933244298D31F72AB611C11 /* OutputWorkshopViews.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		4933244298D31F72AB611C11 /* OutputWorkshopViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputWorkshopViews.swift; sourceTree = "<group>"; };
+		6018321CF83F0673C6669CF7 /* app */ = {isa = PBXFileReference; lastKnownFileType = folder; name = app; path = .; sourceTree = SOURCE_ROOT; };
+		8BB33D7FBB553644DB7D972D /* RelationsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationsViews.swift; sourceTree = "<group>"; };
+		9315F5C46D1527B9149E658B /* AnnHubDesktop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AnnHubDesktop.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		94F58B9CD84A57002C22198D /* DesktopViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopViews.swift; sourceTree = "<group>"; };
+		B4370A1B2705988FDCE2AF2D /* AnnHubDesktopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnHubDesktopApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		0A6B80720036D1B84912157D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				366A43256F6F403028A226DE /* AnnHubCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		23FB3B12E42523B1523D057E /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				6018321CF83F0673C6669CF7 /* app */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		2CC7C1BDF37914DD20199C65 /* Desktop */ = {
+			isa = PBXGroup;
+			children = (
+				B4370A1B2705988FDCE2AF2D /* AnnHubDesktopApp.swift */,
+				94F58B9CD84A57002C22198D /* DesktopViews.swift */,
+				4933244298D31F72AB611C11 /* OutputWorkshopViews.swift */,
+				8BB33D7FBB553644DB7D972D /* RelationsViews.swift */,
+			);
+			path = Desktop;
+			sourceTree = "<group>";
+		};
+		544CDCF781C63A69DDA925BB = {
+			isa = PBXGroup;
+			children = (
+				2CC7C1BDF37914DD20199C65 /* Desktop */,
+				23FB3B12E42523B1523D057E /* Packages */,
+				55DA2BE5B66A7F714D539254 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		55DA2BE5B66A7F714D539254 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9315F5C46D1527B9149E658B /* AnnHubDesktop.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		52643904588535EC72D59692 /* AnnHubDesktop */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = DC4977E3938C647B462FCF19 /* Build configuration list for PBXNativeTarget "AnnHubDesktop" */;
+			buildPhases = (
+				5E82D24F742394DC92518CB6 /* Sources */,
+				0A6B80720036D1B84912157D /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = AnnHubDesktop;
+			packageProductDependencies = (
+				99C53A3E7B882DD662360CBB /* AnnHubCore */,
+			);
+			productName = AnnHubDesktop;
+			productReference = 9315F5C46D1527B9149E658B /* AnnHubDesktop.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		77134E1807A83C25E6A079FD /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = CE32562F711DEA60EB622F52 /* Build configuration list for PBXProject "AnnHub" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 544CDCF781C63A69DDA925BB;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				C5950FB018D5F0B7468F0F33 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 55DA2BE5B66A7F714D539254 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				52643904588535EC72D59692 /* AnnHubDesktop */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		5E82D24F742394DC92518CB6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AF7DE9AD482CDD3B83277B16 /* AnnHubDesktopApp.swift in Sources */,
+				9DB18FA5AE40657A3ABAB6FE /* DesktopViews.swift in Sources */,
+				D29DF38C130F2EAF5FFA9BC2 /* OutputWorkshopViews.swift in Sources */,
+				A2BC9117256D553CC7AB360D /* RelationsViews.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		3CD8DAE739542DC05C2E5294 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LSUIElement = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.annhub.desktop;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		65B3A0154A2732DA5B15C5FA /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				LSUIElement = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.annhub.desktop;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		73DE9B5C90C06DD0614FB08E /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.4;
+				MARKETING_VERSION = 0.5.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Release;
+		};
+		838613967C9E8DA30BD54BD7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_IDENTITY = "";
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.4;
+				MARKETING_VERSION = 0.5.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.10;
+			};
+			name = Debug;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CE32562F711DEA60EB622F52 /* Build configuration list for PBXProject "AnnHub" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				838613967C9E8DA30BD54BD7 /* Debug */,
+				73DE9B5C90C06DD0614FB08E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		DC4977E3938C647B462FCF19 /* Build configuration list for PBXNativeTarget "AnnHubDesktop" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				3CD8DAE739542DC05C2E5294 /* Debug */,
+				65B3A0154A2732DA5B15C5FA /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		C5950FB018D5F0B7468F0F33 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		99C53A3E7B882DD662360CBB /* AnnHubCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = AnnHubCore;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 77134E1807A83C25E6A079FD /* Project object */;
+}

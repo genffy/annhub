@@ -5,6 +5,12 @@ import HighlighterCapsule from './HighlighterCapsule'
 import modeManager from './mode-manager'
 import { ClipService } from './clip-service'
 import { HighlightService } from './highlight/service'
+import { HighlightDOMManager } from './highlight/highlight-dom'
+import CaptureModal from './capture/CaptureModal'
+import { buildCaptureDraft, type CaptureDraft } from './capture/capture-context'
+import MediaCaptureModal from './media/MediaCaptureModal'
+import { detectMediaTargets, type MediaTarget } from './media/detect'
+import { enterScreenshotMode } from './screenshot'
 import MessageUtils from '../../utils/message'
 import { Logger } from '../../utils/logger'
 import { HighlightRecord } from '../../types/highlight'
@@ -38,35 +44,100 @@ function injectHostStyles() {
 
 // ── Default hover menu actions (extensible) ───────────────
 function getDefaultActions(): HoverMenuAction[] {
+  // extension PRD §2.1: exactly four actions, icon + short text, in this order.
   return [
     {
-      id: 'direct-collect',
-      label: 'Collect',
-      icon: '🎯',
-      desc: 'Collect selected text',
+      id: 'save-fragment',
+      label: 'Fragment',
+      icon: '🧠',
+      desc: '打开采集 Modal，进入学习核心',
       order: 1,
       enabled: true,
-      type: 'instant',
+      type: 'dialog',
     },
     {
-      id: 'add-note',
-      label: 'Note',
-      icon: '💬',
-      desc: 'Add a note before saving',
+      id: 'highlight',
+      label: '高亮',
+      icon: '🖍️',
+      desc: '创建视觉标记，可添加备注',
       order: 2,
       enabled: true,
       type: 'expandable',
     },
     {
-      id: 'enter-highlighter',
-      label: 'Highlighter',
-      icon: '🖍️',
-      desc: 'Enter highlighter mode (Alt+H)',
+      id: 'clip',
+      label: '剪藏',
+      icon: '🔖',
+      desc: '快速保存原文和上下文，不进入复习',
       order: 3,
       enabled: true,
-      type: 'toggle',
+      type: 'instant',
+    },
+    {
+      id: 'screenshot',
+      label: '截图',
+      icon: '📸',
+      desc: '进入区域或元素截图',
+      order: 4,
+      enabled: true,
+      type: 'instant',
+    },
+    {
+      id: 'save-media-clip',
+      label: '媒体片段',
+      icon: '🎬',
+      desc: '截取视频/音频时间区间并转写（R4）',
+      order: 5,
+      // Only offered on pages with captureable media (roadmap R4.2).
+      enabled: false,
+      type: 'dialog',
     },
   ]
+}
+
+// ── Build the L1 capture draft (context fields) from a selection Range ──
+function draftFromRange(range: Range): CaptureDraft {
+  const container = range.commonAncestorContainer
+  const fullText = container.textContent || ''
+  const selected = range.toString()
+
+  let start = 0
+  let end = fullText.length
+  if (container.nodeType === Node.TEXT_NODE) {
+    start = range.startOffset
+    end = range.endOffset
+  } else {
+    const idx = fullText.indexOf(selected)
+    if (idx !== -1) {
+      start = idx
+      end = idx + selected.length
+    }
+  }
+
+  let sourceUrl = window.location.href
+  try {
+    sourceUrl = HighlightDOMManager.findSourceUrl(range) || window.location.href
+  } catch (err) {
+    Logger.warn('[Selection] Failed to extract source URL:', err)
+  }
+
+  const draft = buildCaptureDraft({
+    content: selected,
+    containerText: fullText,
+    selectionStart: start,
+    selectionEnd: end,
+    sourceUrl,
+    sourceTitle: document.title,
+  })
+  // 网页载体默认带 DOM 定位符（capture.md §4/§6）：复用高亮链路的稳定
+  // selector 规则；生成失败回落 none，不阻塞保存。
+  try {
+    const selector = HighlightDOMManager.generateSelector(range)
+    if (selector && selector.length <= 2000) draft.locator = { type: 'dom', selector }
+  } catch (err) {
+    Logger.warn('[Selection] DOM locator generation failed, falling back to none:', err)
+  }
+  return draft
 }
 
 // ── Flash green feedback on the selected text ─────────────
@@ -118,10 +189,16 @@ function Selection() {
   const [menuVisible, setMenuVisible] = useState(false)
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
   const [selectionRange, setSelectionRange] = useState<Range | null>(null)
-  const [actions] = useState<HoverMenuAction[]>(getDefaultActions)
+  const [actions, setActions] = useState<HoverMenuAction[]>(getDefaultActions)
 
   // ── Mode B state ──
   const [captureCount, setCaptureCount] = useState(0)
+
+  // ── Chunk capture (L2 modal) state ──
+  const [capture, setCapture] = useState<{ draft: CaptureDraft; range: Range | null; deepMode: boolean } | null>(null)
+
+  // ── Media capture (R4.2) state ──
+  const [mediaTargets, setMediaTargets] = useState<MediaTarget[] | null>(null)
 
   // ── Initialize services ──
   useEffect(() => {
@@ -167,6 +244,7 @@ function Selection() {
         modeManager.setMode(false)
         return
       }
+
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
@@ -187,9 +265,20 @@ function Selection() {
             /* silently fail */
           })
       }
+      if (message.type === 'TRIGGER_SCREENSHOT') {
+        enterScreenshotMode()
+      }
     }
     chrome.runtime.onMessage.addListener(handler)
     return () => chrome.runtime.onMessage.removeListener(handler)
+  }, [])
+
+  // ── Screenshot fallback trigger: background dispatches this CustomEvent when
+  // tabs.sendMessage has no receiver (e.g. cold frame) — docs/v2/screenshot.md.
+  useEffect(() => {
+    const handler = () => enterScreenshotMode()
+    window.addEventListener('ann-screenshot-trigger', handler)
+    return () => window.removeEventListener('ann-screenshot-trigger', handler)
   }, [])
 
   // ── Calculate menu position near selection end ──
@@ -243,6 +332,9 @@ function Selection() {
           // ── Mode A: show hover menu ──
           const rect = range.getBoundingClientRect()
           const pos = computeMenuPosition(rect)
+          const media = detectMediaTargets()
+          setMediaTargets(media)
+          setActions(prev => prev.map(a => (a.id === 'save-media-clip' ? { ...a, enabled: media.length > 0 } : a)))
           setMenuPosition(pos)
           setSelectionRange(selection.getRangeAt(0))
           setMenuVisible(true)
@@ -311,31 +403,49 @@ function Selection() {
       if (!selectionRange) return
 
       switch (actionId) {
-        case 'direct-collect': {
+        case 'save-fragment': {
+          const rangeClone = selectionRange.cloneRange()
+          const draft = draftFromRange(selectionRange)
+          dismissMenu()
+          window.getSelection()?.removeAllRanges()
+          let deepMode = false
+          try {
+            const response = await MessageUtils.sendMessage({ type: 'GET_CAPTURE_CONFIG' })
+            deepMode = !!(response.success && (response.data as { deepMode?: boolean })?.deepMode)
+          } catch (err) {
+            Logger.warn('[Selection] Failed to read capture config, defaulting to standard mode:', err)
+          }
+          setCapture({ draft, range: rangeClone, deepMode })
+          break
+        }
+        case 'highlight': {
+          // Highlight only: visual mark + optional note; never a ReviewState (PRD §3.2).
           const rangeCopy = selectionRange.cloneRange()
+          await highlightService.createHighlight(rangeCopy, '#ffeb3b', extra?.note)
+          flashSelection(rangeCopy)
+          window.getSelection()?.removeAllRanges()
+          dismissMenu()
+          break
+        }
+        case 'clip': {
+          // Clip only: fast save, no processing, no highlight (PRD §3.3).
           const clip = await clipService.captureSelection(selectionRange, 'Mode A')
-          if (clip) {
-            // Persist highlight to IndexedDB + apply DOM <mark>
-            await highlightService.createHighlight(rangeCopy)
-            flashSelection(rangeCopy)
-          }
+          if (clip) flashSelection(selectionRange.cloneRange())
           window.getSelection()?.removeAllRanges()
+          dismissMenu()
           break
         }
-        case 'add-note': {
-          const rangeCopy = selectionRange.cloneRange()
-          const clip = await clipService.captureSelection(selectionRange, 'Mode A', extra?.note)
-          if (clip) {
-            // Persist highlight to IndexedDB + apply DOM <mark>
-            await highlightService.createHighlight(rangeCopy, '#ffeb3b', extra?.note)
-            flashSelection(rangeCopy)
-          }
+        case 'screenshot': {
+          dismissMenu()
           window.getSelection()?.removeAllRanges()
+          enterScreenshotMode()
           break
         }
-        case 'enter-highlighter': {
-          modeManager.setMode(true)
+        case 'save-media-clip': {
+          const media = mediaTargets ?? detectMediaTargets()
+          dismissMenu()
           window.getSelection()?.removeAllRanges()
+          if (media.length > 0) setMediaTargets(media)
           break
         }
         default: {
@@ -351,6 +461,17 @@ function Selection() {
     setMenuVisible(false)
     setSelectionRange(null)
   }, [])
+
+  // Esc closes the bare hover menu (PRD §10); the capture modal and the
+  // note input stop propagation first, so this never fights them.
+  useEffect(() => {
+    if (!menuVisible) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !modeManager.getMode()) dismissMenu()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [menuVisible, dismissMenu])
 
   // ── Handle blank click dismiss ──
   useEffect(() => {
@@ -382,6 +503,34 @@ function Selection() {
       {isHighlighterMode && (
         <div data-ann-ui="capsule" style={{ pointerEvents: 'auto' }}>
           <HighlighterCapsule captureCount={captureCount} onExit={() => modeManager.setMode(false)} />
+        </div>
+      )}
+
+      {/* R4.2 media-clip capture modal */}
+      {mediaTargets && mediaTargets.length > 0 && (
+        <div data-ann-ui="media-capture-wrapper" style={{ pointerEvents: 'auto' }}>
+          <MediaCaptureModal
+            targets={mediaTargets}
+            sourceUrl={window.location.href}
+            sourceTitle={document.title}
+            onClose={() => setMediaTargets(null)}
+          />
+        </div>
+      )}
+
+      {/* L2 capture modal (收藏为语块) */}
+      {capture && (
+        <div data-ann-ui="capture-modal-wrapper" style={{ pointerEvents: 'auto' }}>
+          <CaptureModal
+            draft={capture.draft}
+            deepMode={capture.deepMode}
+            selectedRange={capture.range}
+            createHighlight={async range => {
+              const result = await highlightService.createHighlight(range)
+              return result.success && result.data ? result.data.id : null
+            }}
+            onClose={() => setCapture(null)}
+          />
         </div>
       )}
     </>

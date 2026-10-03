@@ -32,11 +32,9 @@ const BASE_CONFIG = {
   maxAnnotationsPerPage: 200,
   domainWhitelist: { enabled: false, domains: [] },
   llmWordSelectionEnabled: false,
-  memorySyncEnabled: false,
-  memorySyncEndpoint: '',
 }
 
-test.describe('Vocab word-selection pipeline (S1–S3, T1-B)', () => {
+test.describe('Vocab word-selection pipeline (S1–S3)', () => {
   test('selects genuine unknowns; skips easy / written-HF / domain words', async ({ context, page }) => {
     await setVocabConfigViaServiceWorker(context, BASE_CONFIG)
     await navigateToVocabPage(page)
@@ -127,43 +125,6 @@ test.describe('Vocab word-selection pipeline (S1–S3, T1-B)', () => {
     for (const w of UNSEEN) {
       expect(annotated.has(w), `expected un-seeded unknown "${w}" still annotated`).toBe(true)
     }
-  })
-
-  test('T1-B: opt-in memory sync queues anonymized `seen` events (no endpoint -> local queue only)', async ({ context, page }) => {
-    await setVocabConfigViaServiceWorker(context, { ...BASE_CONFIG, memorySyncEnabled: true })
-    await navigateToVocabPage(page)
-    await waitForVocabAnnotations(page, RARE_UNKNOWNS.length)
-
-    // The queue fills fire-and-forget alongside the word-memory write.
-    await expect
-      .poll(
-        async () => {
-          const { vocabMemoryEventQueue } = await getStorageViaServiceWorker(context, ['vocabMemoryEventQueue'])
-          return Array.isArray(vocabMemoryEventQueue) ? vocabMemoryEventQueue.length : 0
-        },
-        { timeout: 8000 },
-      )
-      .toBeGreaterThanOrEqual(RARE_UNKNOWNS.length)
-
-    const { vocabMemoryEventQueue, vocabSyncIdentity } = await getStorageViaServiceWorker(context, ['vocabMemoryEventQueue', 'vocabSyncIdentity'])
-    const events = vocabMemoryEventQueue as Array<Record<string, unknown>>
-
-    const lemmas = new Set(events.map(e => e.lemma))
-    for (const w of RARE_UNKNOWNS) {
-      expect(lemmas.has(w), `expected a queued memory event for "${w}"`).toBe(true)
-    }
-
-    // Privacy contract (design §4): events carry only lemma + type + time + counts + anon
-    // deviceId — never the sentence, URL, or any page content.
-    for (const ev of events) {
-      expect(ev.type).toBe('seen')
-      expect(typeof ev.eventId).toBe('string')
-      expect(String(ev.deviceId)).toMatch(/^anon-/)
-      expect(ev).not.toHaveProperty('sentence')
-      expect(ev).not.toHaveProperty('url')
-      expect(ev).not.toHaveProperty('text')
-    }
-    expect(String(vocabSyncIdentity?.deviceId)).toMatch(/^anon-/)
   })
 
   test('disabled config performs no annotation', async ({ context, page }) => {

@@ -35,24 +35,25 @@ test.describe('Mode B — Machine-Gun Mode (Silent Capture)', () => {
 
   test('capsule shows capture count after selection', async ({ page }) => {
     await selectText(page, '[data-testid="english-hello"]')
-    await page.waitForTimeout(800)
 
     const capsule = await waitForCapsule(page)
-    const capsuleText = await capsule.evaluate((el: Element) => el.textContent || '')
-    // Should contain "1" as the capture count
-    expect(capsuleText).toMatch(/\b1\b/)
+    // Poll instead of a fixed sleep: the capture pipeline (message → storage →
+    // capsule count) is async and can exceed any fixed wait under load.
+    await expect
+      .poll(async () => capsule.evaluate((el: Element) => el.textContent || ''))
+      .toMatch(/\b1\b/)
   })
 
   test('multiple captures increment counter', async ({ page }) => {
     await selectText(page, '[data-testid="english-hello"]')
-    await page.waitForTimeout(800)
+    const capsule = await waitForCapsule(page)
+    await expect
+      .poll(async () => capsule.evaluate((el: Element) => el.textContent || ''))
+      .toMatch(/\b1\b/)
 
     await selectText(page, '[data-testid="english-tech"]')
-    await page.waitForTimeout(800)
-
-    const capsule = await waitForCapsule(page)
-    const capsuleText = await capsule.evaluate((el: Element) => el.textContent || '')
-    // Should contain "2" as the capture count
-    expect(capsuleText).toMatch(/\b2\b/)
+    await expect
+      .poll(async () => capsule.evaluate((el: Element) => el.textContent || ''))
+      .toMatch(/\b2\b/)
   })
 })

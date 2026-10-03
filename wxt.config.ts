@@ -17,8 +17,8 @@ export default defineConfig({
     description: '__MSG_extDescription__',
     version: extensionVersion,
     default_locale: 'en',
-    permissions: ['storage', 'activeTab', 'tabs', 'commands', 'sidePanel', 'alarms'],
-    host_permissions: ['<all_urls>'],
+    permissions: ['storage', 'activeTab', 'tabs', 'commands', 'sidePanel', 'alarms', 'downloads', 'scripting'],
+    host_permissions: ['http://127.0.0.1:8765/*', '<all_urls>'],
     action: {
       default_title: '__MSG_extName__',
       default_popup: 'popup/index.html',

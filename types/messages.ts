@@ -1,7 +1,14 @@
 import { HighlightRecord, HighlightQuery } from './highlight'
 import { ClipRecord } from './clip'
-import { LogseqConfig, LogseqSyncResult } from './logseq'
 import { VocabConfig, LlmConfig, VocabLearningEvent, VocabSyncState } from './vocabulary'
+import type {
+  FragmentKind,
+  FragmentRecord,
+  ScreenshotRecord,
+  ImageAsset,
+} from '../learning-core/types'
+import type { FragmentPatch } from '../learning-core/fragment-store'
+import type { FragmentQuery, FragmentQueryResult } from '../learning-core/query'
 
 export type RequiredFields<T, K extends keyof T> = Required<Pick<T, K>> & Partial<Omit<T, K>>
 
@@ -114,32 +121,51 @@ export interface TriggerScreenshotMessage extends BaseMessage {
   command: string
 }
 
-export interface LogseqTestConnectionMessage extends BaseMessage {
-  type: 'LOGSEQ_TEST_CONNECTION'
+/**
+ * Content → background: persist a processed screenshot, download a PNG, or
+ * both. See docs/v2/screenshot.md.
+ */
+export interface SaveScreenshotMessage extends BaseMessage {
+  type: 'SAVE_SCREENSHOT'
+  data: {
+    /** Preferred transport: processed PNG bytes (storage.md §3.5). */
+    bytes?: Blob
+    /** Legacy transport, still used by the download-only path. */
+    dataUrl?: string
+    filename: string
+    mimeType?: ImageAsset['mimeType']
+    persist?: boolean
+    download?: boolean
+    sourceUrl?: string
+    sourceTitle?: string
+    capturedAt?: number
+  }
 }
 
-export interface LogseqGetConfigMessage extends BaseMessage {
-  type: 'LOGSEQ_GET_CONFIG'
+/** Content → background: fetch a cross-origin resource as a dataUrl (host permissions bypass page CORS). Used to inline images for element capture. */
+export interface FetchResourceMessage extends BaseMessage {
+  type: 'FETCH_RESOURCE'
+  data: { url: string }
 }
 
-export interface LogseqSetConfigMessage extends BaseMessage {
-  type: 'LOGSEQ_SET_CONFIG'
-  config: Partial<LogseqConfig>
+/** Screenshot library entry: record + asset metadata (bytes stay in the asset store). */
+export type ScreenshotLibraryItem = ScreenshotRecord & { asset: ImageAsset }
+
+/** UI → background: list / delete screenshot library items. */
+export interface GetScreenshotsMessage extends BaseMessage {
+  type: 'GET_SCREENSHOTS'
 }
 
-export interface LogseqSyncHighlightMessage extends BaseMessage {
-  type: 'LOGSEQ_SYNC_HIGHLIGHT'
-  data: HighlightRecord
+export interface DeleteScreenshotMessage extends BaseMessage {
+  type: 'DELETE_SCREENSHOT'
+  data: { id: string }
 }
 
-export interface LogseqSyncClipMessage extends BaseMessage {
-  type: 'LOGSEQ_SYNC_CLIP'
-  data: ClipRecord
-}
 
-export interface LogseqSyncAllMessage extends BaseMessage {
-  type: 'LOGSEQ_SYNC_ALL'
-}
+
+
+
+
 
 export interface InitializeMessage extends BaseMessage {
   type: 'INITIALIZE'
@@ -155,7 +181,7 @@ export interface GetStatusMessage extends BaseMessage {
 
 export interface SystemStatus {
   isInitialized: boolean
-  /** Per-service readiness, keyed by service name (config/highlight/clip/logseq/vocabulary). */
+  /** Per-service readiness, keyed by service name (config/highlight/clip/logseq/vocabulary/fragment). */
   services: Record<string, boolean>
   version: string
 }
@@ -324,19 +350,139 @@ export interface RecordVocabExposuresMessage extends BaseMessage {
   words: string[]
 }
 
-export interface GetVocabMemorySyncStateMessage extends BaseMessage {
-  type: 'GET_VOCAB_MEMORY_SYNC_STATE'
+// ── Fragment capture (L1 + L2) messages ──
+
+/** Capture-time input for any enabled kind; the shared factory assembles + validates the record (docs/v2/fragments.md). */
+export interface SaveFragmentInput {
+  kind: FragmentKind
+  content: string
+  excerpt: string
+  sourceUrl: string
+  sourceTitle?: string
+  locator?: FragmentRecord['context']['locator']
+  guess?: string
+  verified: FragmentRecord['processing']['verified']
+  use: string
+  tags?: string[]
+  detail: unknown
 }
 
-export interface FlushVocabMemoryEventsMessage extends BaseMessage {
-  type: 'FLUSH_VOCAB_MEMORY_EVENTS'
+export interface SaveFragmentMessage extends BaseMessage {
+  type: 'SAVE_FRAGMENT'
+  input: SaveFragmentInput
+  /** Set when the user confirmed "save as a new context anyway" on a duplicate. */
+  force?: boolean
 }
 
-export interface ClearVocabMemoryQueueMessage extends BaseMessage {
-  type: 'CLEAR_VOCAB_MEMORY_QUEUE'
+export interface FragmentSaveResponse {
+  fragment?: FragmentRecord
+  duplicateOf?: FragmentRecord
+}
+
+export interface GetFragmentsMessage extends BaseMessage {
+  type: 'GET_FRAGMENTS'
+  query?: FragmentQuery
+}
+
+export interface UpdateFragmentMessage extends BaseMessage {
+  type: 'UPDATE_FRAGMENT'
+  id: string
+  /** Capture-field patch; protected-field edits must carry a fresh verification. */
+  patch: FragmentPatch
+}
+
+export interface DeleteFragmentMessage extends BaseMessage {
+  type: 'DELETE_FRAGMENT'
+  id: string
+}
+
+export interface GetFragmentStatsMessage extends BaseMessage {
+  type: 'GET_FRAGMENT_STATS'
+}
+
+export interface FragmentStatsResponse {
+  total: number
+  newThisWeek: number
+}
+
+export interface CheckFragmentDuplicateMessage extends BaseMessage {
+  type: 'CHECK_FRAGMENT_DUPLICATE'
+  content: string
+  excerpt: string
+  sourceUrl: string
+}
+
+
+/** Desktop direct connection (storage §6): read/write config, ping, one-shot sync. */
+export interface GetDirectConnectConfigMessage extends BaseMessage {
+  type: 'GET_DESKTOP_DIRECT_CONNECT'
+}
+
+export interface SetDirectConnectConfigMessage extends BaseMessage {
+  type: 'SET_DESKTOP_DIRECT_CONNECT'
+  config: { endpoint?: string; token?: string; autoSync?: boolean }
+}
+
+export interface FlushDesktopDirectConnectMessage extends BaseMessage {
+  type: 'FLUSH_DESKTOP_DIRECT_CONNECT'
+}
+
+/** The single user export runs page-side (entrypoints/export-content.ts): Blobs cannot cross runtime messaging. */
+
+export interface CaptureConfig {
+  /** Deep mode adds the 理解 (guess) step to the capture modal (extension PRD §4.2). */
+  deepMode: boolean
+}
+
+/** Desktop-synced writing tasks (R3.2 display + ZIP). */
+export interface GetWritingTasksMessage extends BaseMessage {
+  type: 'GET_WRITING_TASKS'
+}
+
+/** Visible sync conflict/skip reports (storage.md §9). */
+export interface GetSyncReportsMessage extends BaseMessage {
+  type: 'GET_SYNC_REPORTS'
+}
+
+/** Content → background: the sender's tab id (draft keys need tab identity, PRD §9). */
+export interface GetTabIdMessage extends BaseMessage {
+  type: 'GET_TAB_ID'
+}
+
+/** Orphan asset report + cleanup (storage.md §10). */
+export interface GetOrphanAssetsMessage extends BaseMessage {
+  type: 'GET_ORPHAN_ASSETS'
+}
+
+export interface CleanupOrphanAssetsMessage extends BaseMessage {
+  type: 'CLEANUP_ORPHAN_ASSETS'
+}
+
+/** Capture funnel counters — events only, never content (roadmap R1.4). */
+export interface GetCaptureMetricsMessage extends BaseMessage {
+  type: 'GET_CAPTURE_METRICS'
+}
+
+export interface RecordCaptureMetricMessage extends BaseMessage {
+  type: 'RECORD_CAPTURE_METRIC'
+  event: 'modal-opened' | 'reached-verify' | 'reached-apply' | 'saved' | 'exited'
+  step?: string
+}
+
+export interface GetCaptureConfigMessage extends BaseMessage {
+  type: 'GET_CAPTURE_CONFIG'
+}
+
+export interface SetCaptureConfigMessage extends BaseMessage {
+  type: 'SET_CAPTURE_CONFIG'
+  config: Partial<CaptureConfig>
 }
 
 export type UIToBackgroundMessage =
+  | SaveScreenshotMessage
+  | FetchResourceMessage
+  | GetScreenshotsMessage
+  | DeleteScreenshotMessage
   | GetHighlightsMessage
   | SaveHighlightMessage
   | UpdateHighlightMessage
@@ -354,12 +500,6 @@ export type UIToBackgroundMessage =
   | ClearAllHighlightsMessage
   | SaveClipMessage
   | ToggleHighlighterModeMessage
-  | LogseqTestConnectionMessage
-  | LogseqGetConfigMessage
-  | LogseqSetConfigMessage
-  | LogseqSyncHighlightMessage
-  | LogseqSyncClipMessage
-  | LogseqSyncAllMessage
   | GetVocabConfigMessage
   | SetVocabConfigMessage
   | GetLlmConfigMessage
@@ -389,18 +529,36 @@ export type UIToBackgroundMessage =
   | GetVocabLearningProfileMessage
   | ResetVocabWordLearningMessage
   | RecordVocabExposuresMessage
-  | GetVocabMemorySyncStateMessage
-  | FlushVocabMemoryEventsMessage
-  | ClearVocabMemoryQueueMessage
+  | SaveFragmentMessage
+  | GetFragmentsMessage
+  | UpdateFragmentMessage
+  | DeleteFragmentMessage
+  | GetFragmentStatsMessage
+  | CheckFragmentDuplicateMessage
+  | GetDirectConnectConfigMessage
+  | SetDirectConnectConfigMessage
+  | FlushDesktopDirectConnectMessage
+  | GetTabIdMessage
+  | GetOrphanAssetsMessage
+  | CleanupOrphanAssetsMessage
+  | GetWritingTasksMessage
+  | GetSyncReportsMessage
+  | GetCaptureMetricsMessage
+  | RecordCaptureMetricMessage
+  | GetCaptureConfigMessage
+  | SetCaptureConfigMessage
 
 export type BackgroundToUIMessage =
   | ResponseMessage<HighlightRecord[]>
   | ResponseMessage<HighlightRecord>
   | ResponseMessage<HighlightStatsResponse>
   | ResponseMessage<SystemStatus>
-  | ResponseMessage<LogseqConfig>
-  | ResponseMessage<LogseqSyncResult>
   | ResponseMessage<VocabSyncState>
+  | ResponseMessage<FragmentSaveResponse>
+  | ResponseMessage<FragmentQueryResult>
+  | ResponseMessage<FragmentStatsResponse>
+  | ResponseMessage<ScreenshotLibraryItem[]>
+  | ResponseMessage<CaptureConfig>
   | ResponseMessage<any>
   | ScreenshotCapturedMessage
   | ScreenshotErrorMessage
