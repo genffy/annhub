@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "chrome-devtools-annhub": {
+      "type": "stdio",
+      "command": "sh",
+      "args": [
+        "-c",
+        "NPX=$(command -v npx || echo \"$HOME/.local/share/fnm/aliases/default/bin/npx\"); exec \"$NPX\" -y chrome-devtools-mcp@latest --chromeArg=--load-extension=\"$(git rev-parse --show-toplevel)/.output/chrome-mv3\" --categoryExtensions=true"
+      ],
+      "timeoutMs": 60000
+    }
+  }
+}
