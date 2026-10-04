@@ -19,7 +19,9 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    // WXT 0.21 turns this on by default; the existing code indexes arrays and records freely.
+    "noUncheckedIndexedAccess": false
     /* shadcn/ui path mapping */
     // "baseUrl": ".",
   },
