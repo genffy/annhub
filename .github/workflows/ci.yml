@@ -1,0 +1,212 @@
+name: CI
+
+# The merge gate. Every job runs on pull requests, on pushes to main and in the merge queue;
+# `ci-pass` is the single status that branch protection requires.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  workflow_call:
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  extension:
+    name: Extension (format, lint, types, unit, build, E2E)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run compile
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Documentation links
+        run: npm run check:docs
+
+      - name: Swift fixtures match the TypeScript source
+        run: |
+          scripts/sync-interop-fixtures.sh
+          git diff --exit-code -- app/Tests/AnnHubCoreTests/Fixtures
+
+      - name: Build
+        run: npm run build
+
+      - name: Verify the extension package
+        run: |
+          set -euo pipefail
+          test -f .output/chrome-mv3/manifest.json
+          node -e "const m=require('./.output/chrome-mv3/manifest.json'); if(m.manifest_version!==3) throw new Error('not MV3'); console.log(m.name, m.version)"
+
+      - name: Install the browser for E2E
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E
+        run: npx playwright test
+
+      - name: Keep the Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  website:
+    name: Website (types, build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+  swift-format:
+    name: Swift format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    # A fixed toolchain, so formatting does not drift whenever Xcode changes.
+    container: swift:6.0.3-noble
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Lint
+        working-directory: app
+        run: swift format lint --configuration .swift-format --strict --recursive Sources Tests Desktop Package.swift
+
+  macos:
+    name: macOS (Core tests, Desktop build)
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Core tests
+        working-directory: app
+        run: swift test
+
+      - name: Set up XcodeGen
+        uses: ./.github/actions/setup-xcodegen
+
+      - name: Generate the Xcode project
+        working-directory: app
+        run: xcodegen generate
+
+      - name: Build Desktop (unsigned)
+        working-directory: app
+        run: |
+          set -o pipefail
+          mkdir -p build
+          xcodebuild build \
+            -project AnnHub.xcodeproj \
+            -scheme AnnHubDesktop \
+            -destination 'platform=macOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build/xcodebuild.log
+
+      - name: Check the built bundle
+        working-directory: app
+        run: |
+          set -euo pipefail
+          app="build/Build/Products/Debug/AnnHubDesktop.app"
+          plist="$app/Contents/Info.plist"
+          # A menu-bar app: this key only lands in a generated Info.plist via INFOPLIST_KEY_LSUIElement.
+          test "$(/usr/libexec/PlistBuddy -c 'Print :LSUIElement' "$plist")" = "true"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")" = "com.annhub.desktop"
+          test -f "$app/Contents/Resources/PrivacyInfo.xcprivacy"
+
+      - name: Keep the build log on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: xcodebuild-log
+          path: app/build/xcodebuild.log
+          retention-days: 7
+          if-no-files-found: ignore
+
+  ci-pass:
+    name: ci-pass
+    if: always()
+    needs: [extension, website, swift-format, macos]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Every job must have succeeded
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -Eq '"(failure|cancelled|skipped)"'; then
+            echo "A required job did not succeed." >&2
+            exit 1
+          fi

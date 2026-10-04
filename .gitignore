@@ -45,6 +45,7 @@ coverage/
 .claude/docs/**/*.svg
 # App build output
 app/dist/
+app/build/
 
 # Apple build artifacts
 app/.build/

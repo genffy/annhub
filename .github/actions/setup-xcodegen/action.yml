@@ -1,0 +1,32 @@
+name: Set up XcodeGen
+description: Install a pinned XcodeGen release, verified against its SHA-256, and put it on PATH.
+
+# XcodeGen is not preinstalled on GitHub's macOS runners. Downloading the release asset and
+# checking its digest keeps the project generator pinned, unlike `brew install` (latest bottle).
+# To update: change the version and the digest together (`shasum -a 256 xcodegen.zip`).
+inputs:
+  version:
+    description: XcodeGen release (no leading v)
+    default: '2.46.0'
+  sha256:
+    description: SHA-256 of xcodegen.zip for that release
+    default: '4d9e34b62172d645eed6457cac13fc222569974098ef4ee9c3368bedf0196806'
+
+runs:
+  using: composite
+  steps:
+    - name: Download and verify XcodeGen
+      shell: bash
+      env:
+        XCODEGEN_VERSION: ${{ inputs.version }}
+        XCODEGEN_SHA256: ${{ inputs.sha256 }}
+      # The only thing written to GITHUB_PATH is a fixed directory under RUNNER_TEMP.
+      run: | # zizmor: ignore[github-env]
+        set -euo pipefail
+        curl --fail --silent --show-error --location --retry 3 \
+          --output "$RUNNER_TEMP/xcodegen.zip" \
+          "https://github.com/yonaskolb/XcodeGen/releases/download/${XCODEGEN_VERSION}/xcodegen.zip"
+        echo "${XCODEGEN_SHA256}  $RUNNER_TEMP/xcodegen.zip" | shasum -a 256 --check -
+        unzip -q "$RUNNER_TEMP/xcodegen.zip" -d "$RUNNER_TEMP"
+        PREFIX="$RUNNER_TEMP/xcodegen-install" bash "$RUNNER_TEMP/xcodegen/install.sh"
+        echo "$RUNNER_TEMP/xcodegen-install/bin" >> "$GITHUB_PATH"

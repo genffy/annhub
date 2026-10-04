@@ -1,0 +1,9 @@
+# Review requests go to the maintainer; CI, release and dependency changes are the supply-chain surface.
+*                       @genffy
+/.github/               @genffy
+/.claude/               @genffy
+/package.json           @genffy
+/package-lock.json      @genffy
+/website/package.json   @genffy
+/app/project.yml        @genffy
+/app/Support/           @genffy
