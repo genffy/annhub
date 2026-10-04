@@ -1,14 +1,12 @@
 import createMiddleware from 'next-intl/middleware'
 
+// Next.js 16 calls this file convention `proxy`. Every page lives under its locale prefix.
 export default createMiddleware({
-  // A list of all locales that are supported
   locales: ['en', 'zh-CN'],
-
-  // If this locale is matched, pathnames work without a prefix (e.g. `/about`)
   defaultLocale: 'zh-CN',
 })
 
 export const config = {
-  // Skip all paths that should not be internationalized
+  // Skip paths that are not pages: API, build output, the static legal pages and anything with a file extension.
   matcher: ['/((?!api|_next|privacy-policy/?$|terms-of-service/?$|.*\\..*).*)'],
 }
