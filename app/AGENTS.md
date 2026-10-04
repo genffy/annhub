@@ -16,9 +16,14 @@
 
 ```bash
 cd app && swift test
-cd app && xcodegen generate
+cd app && swift format lint --configuration .swift-format --strict --recursive Sources Tests Desktop Package.swift
+cd app && xcodegen generate   # brew install xcodegen；AnnHub.xcodeproj 是生成物，不入库
 cd app && xcodebuild -project AnnHub.xcodeproj -scheme AnnHubDesktop \
   -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
 ```
 
-`project.yml` 是 XcodeGen 输入，`AnnHub.xcodeproj` 随仓库提交：增删 `Desktop/` 下的文件时同步它，或重新运行 xcodegen。Core 规则或 SQLite 变化跑 Swift tests；Desktop 流程变化额外构建应用并跑相关 UI / 流程测试。
+`project.yml` 是 XcodeGen 输入，也是 Info.plist 键（`INFOPLIST_KEY_*`，裸的 `LSUIElement` 设置不生效）、hardened runtime 和 entitlements 的唯一来源；`Support/` 放 entitlements（App Sandbox + 本机监听）和隐私清单。Core 规则或 SQLite 变化跑 Swift tests；Desktop 流程变化额外构建应用并跑相关 UI / 流程测试。
+
+格式由 `swift format`（Swift 6.0 工具链自带）和 `.swift-format` 决定；`swift format --configuration .swift-format --recursive --in-place Sources Tests Desktop Package.swift` 一次修复。CI 的 Linux 任务用固定的 Swift 6.0.3 镜像做格式检查，避免随 Xcode 升级漂移。
+
+发布构建需要 Developer ID 签名和公证，流程与所需 secrets 见 [发布与供应链](../docs/releasing.md)。

@@ -13,7 +13,9 @@ package-lock.json
 
 # Byte-exact cross-language fixtures (the Swift side compares them verbatim)
 fixtures
-app
+app/Tests/AnnHubCoreTests/Fixtures
+app/AnnHub.xcodeproj
+app/.build
 
 # Generated or vendored data
 entrypoints/content/vocab-label/frequency-band-data.ts
