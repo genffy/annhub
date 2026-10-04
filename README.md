@@ -129,10 +129,19 @@ npm run build && npx playwright test
 
 ```bash
 cd app
-swift test
+swift test                        # Core：领域规则、SQLite、本地服务（含真实 socket）
 xcodegen generate                 # AnnHub.xcodeproj 由 project.yml 生成，不入库
 xcodebuild -project AnnHub.xcodeproj -scheme AnnHubDesktop \
   -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
+xcodebuild -project AnnHub.xcodeproj -scheme AnnHubDesktop \
+  -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO   # Desktop：模型、命令面板、窗口、视图渲染
+```
+
+扩展与真实运行的 Desktop 进程之间的两端连测（仅 macOS；先构建扩展和 Desktop，找不到 Desktop 构建时自动跳过，`ANNHUB_DESKTOP_APP` 可指定 `.app`）：
+
+```bash
+npm run build
+npx playwright test e2e/desktop-two-end.spec.ts
 ```
 
 ## 数据原则
