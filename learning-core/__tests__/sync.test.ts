@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { applyDesktopChanges, type DesktopChange } from '../sync'
+import { fragmentWireHash, toFragmentWire } from '../wire'
 import { makeFragment, NOW } from './helpers'
 
 const f1 = makeFragment({ id: 'f1', tags: ['fed'] })
@@ -108,5 +109,41 @@ describe('field-domain merge (storage.md §9)', () => {
     expect(result.reviewLogs).toHaveLength(1)
     expect(result.reports).toHaveLength(1)
     expect(result.reports[0]!.reason).toBe('STALE_REVIEW')
+  })
+})
+
+describe('applying a Desktop review leaves the capture-field hash alone (storage.md §8)', () => {
+  const rated = (reviewedAt: number): DesktopChange => ({
+    type: 'review.rated',
+    fragmentId: 'f1',
+    review: { ...f1.review, state: 'review', repetitions: 1, intervalDays: 1, lastReviewedAt: reviewedAt, nextReviewAt: reviewedAt + 86_400_000 },
+    log: {
+      id: `log_${reviewedAt}`,
+      target: { type: 'fragment', fragmentId: 'f1' },
+      rating: 'good',
+      reviewedAt,
+      previousIntervalDays: 0,
+      nextIntervalDays: 1,
+      usedHint: false,
+      schedulerVersion: 'four-tier-v1',
+    },
+  })
+
+  it('keeps updatedAt, so the same captureRevision still hashes to what Desktop stored', async () => {
+    const before = await fragmentWireHash(toFragmentWire(f1))
+    // The review is applied well after the fragment was captured and delivered.
+    const result = applyDesktopChanges([rated(NOW + 3_600_000)], { ...localState, now: NOW + 7_200_000 })
+    const merged = result.fragments[0]!
+
+    expect(merged.captureRevision).toBe(f1.captureRevision)
+    expect(merged.updatedAt).toBe(f1.updatedAt)
+    expect(await fragmentWireHash(toFragmentWire(merged))).toBe(before)
+  })
+
+  it('a later review of an already-reviewed fragment still does not move it', async () => {
+    const first = applyDesktopChanges([rated(NOW + 1_000)], localState).fragments[0]!
+    const second = applyDesktopChanges([rated(NOW + 2_000)], { ...localState, fragments: [first], now: NOW + 9_000 }).fragments[0]!
+    expect(second.updatedAt).toBe(f1.updatedAt)
+    expect(await fragmentWireHash(toFragmentWire(second))).toBe(await fragmentWireHash(toFragmentWire(f1)))
   })
 })

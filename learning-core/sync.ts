@@ -105,8 +105,12 @@ export function applyDesktopChanges(changes: DesktopChange[], local: ApplyLocalS
         // and surface the same-domain conflict in the visible report (§9).
         const isNewer = !existing.review.lastReviewedAt || change.log.reviewedAt >= existing.review.lastReviewedAt
         if (isNewer) {
-          byId.set(change.fragmentId, { ...existing, review: change.review, updatedAt: now })
-          result.fragments.push({ ...existing, review: change.review, updatedAt: now })
+          // `updatedAt` is part of the capture-field hash (wire.ts); a review does not edit those
+          // fields, so bumping it here made this copy hash differently from what Desktop stored
+          // for the same captureRevision, and a re-delivery then conflicted (409).
+          const updated = { ...existing, review: change.review }
+          byId.set(change.fragmentId, updated)
+          result.fragments.push(updated)
           result.fragmentIds.push(change.fragmentId)
         } else {
           result.reports.push({
