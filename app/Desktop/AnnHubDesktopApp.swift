@@ -463,12 +463,23 @@ struct MenuBarPanel: View {
     }
 }
 
-// MARK: - Hub server (thin NWListener transport; protocol logic in DesktopHub)
+// MARK: - Hub server (thin NWListener transport; protocol logic in AnnHubCore)
 
+/// Moves bytes. What may be read, from whom and how much is decided by `HubRequestFramer` and
+/// `DesktopHub.preflight` in Core, where it is unit-tested; this class only bounds time and
+/// connection count, which need a socket.
 final class HubServer: @unchecked Sendable {
+    /// A request that has not arrived in full by then is dropped (a client trickling bytes).
+    private static let requestDeadline: TimeInterval = 20
+    /// Simultaneous connections. The extension delivers one item at a time.
+    private static let maxConnections = 32
+    private static let receiveChunkBytes = 64 * 1024
+
     private let port: UInt16
     private let hub: DesktopHub
     private var listener: NWListener?
+    private let connectionLock = NSLock()
+    private var activeConnections = Set<ObjectIdentifier>()
 
     init(port: UInt16, hub: DesktopHub) {
         self.port = port
@@ -503,95 +514,76 @@ final class HubServer: @unchecked Sendable {
         var errorDescription: String? { "无法监听 127.0.0.1:8765（端口被占用？）" }
     }
 
-    private func handle(connection: NWConnection) {
-        connection.start(queue: .global())
-        receive(connection: connection, buffer: Data())
+    /// Per-connection state, mutated in place so a 10 MB upload is not copied chunk by chunk.
+    private final class ConnectionState {
+        var framer: HubRequestFramer
+        let deadline: DispatchWorkItem
+
+        init(framer: HubRequestFramer, deadline: DispatchWorkItem) {
+            self.framer = framer
+            self.deadline = deadline
+        }
     }
 
-    private func receive(connection: NWConnection, buffer: Data) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 1 << 20) {
+    private func admit(_ connection: NWConnection) -> Bool {
+        connectionLock.lock()
+        defer { connectionLock.unlock() }
+        guard activeConnections.count < Self.maxConnections else { return false }
+        activeConnections.insert(ObjectIdentifier(connection))
+        return true
+    }
+
+    private func forget(_ connection: NWConnection) {
+        connectionLock.lock()
+        defer { connectionLock.unlock() }
+        activeConnections.remove(ObjectIdentifier(connection))
+    }
+
+    private func handle(connection: NWConnection) {
+        guard admit(connection) else {
+            connection.cancel()
+            return
+        }
+        connection.stateUpdateHandler = { [weak self, weak connection] state in
+            guard let connection else { return }
+            switch state {
+            case .cancelled, .failed:
+                self?.forget(connection)
+            default:
+                break
+            }
+        }
+        let deadline = DispatchWorkItem { [weak connection] in connection?.cancel() }
+        DispatchQueue.global().asyncAfter(deadline: .now() + Self.requestDeadline, execute: deadline)
+        connection.start(queue: .global())
+        receive(connection: connection, state: ConnectionState(framer: HubRequestFramer(hub: hub), deadline: deadline))
+    }
+
+    private func receive(connection: NWConnection, state: ConnectionState) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: Self.receiveChunkBytes) {
             [weak self] data, _, isComplete, error in
             guard let self else { return }
-            var buffer = buffer + (data ?? Data())
-            if let headerEnd = buffer.range(of: Data("\r\n\r\n".utf8)) {
-                let head = String(data: buffer[buffer.startIndex..<headerEnd.lowerBound], encoding: .utf8) ?? ""
-                let headers = Self.parseHeaders(head)
-                let method = Self.requestMethod(head)
-                // The extension's GETs (fetch, no body) carry no
-                // Content-Length — only body-carrying methods must declare
-                // it. A PUT/POST without the header used to be treated as an
-                // empty body and silently 422; reject it instead.
-                guard let lengthText = headers["content-length"],
-                    let contentLength = Int(lengthText.trimmingCharacters(in: .whitespaces)),
-                    contentLength >= 0
-                else {
-                    if Self.methodCarriesBody(method) {
-                        self.send(connection: connection, response: .json(400, ["error": "length required"]))
-                        return
-                    }
-                    let request = Self.parse(head: head, body: Data())
-                    self.send(connection: connection, response: self.hub.handle(request))
-                    return
-                }
-                let bodyStart = headerEnd.upperBound
-                let received = buffer.distance(from: bodyStart, to: buffer.endIndex)
-                if received >= contentLength {
-                    // Body = the FIRST contentLength bytes AFTER the header
-                    // block (buffer.suffix(contentLength) would instead grab
-                    // the tail — wrong once extra bytes trail the body).
-                    let bodyEnd = buffer.index(bodyStart, offsetBy: contentLength)
-                    let request = Self.parse(head: head, body: Data(buffer[bodyStart..<bodyEnd]))
-                    let response = self.hub.handle(request)
+            if let data, !data.isEmpty {
+                switch state.framer.feed(data) {
+                case .reject(let response):
+                    state.deadline.cancel()
                     self.send(connection: connection, response: response)
                     return
+                case .request(let request):
+                    state.deadline.cancel()
+                    self.send(connection: connection, response: self.hub.handle(request))
+                    return
+                case .needMore:
+                    break
                 }
             }
             if error == nil && !isComplete {
-                self.receive(connection: connection, buffer: buffer)
+                self.receive(connection: connection, state: state)
             } else {
+                state.deadline.cancel()
                 connection.cancel()
             }
         }
-    }
-
-    static func requestMethod(_ head: String) -> String {
-        let requestLine = head.split(separator: "\r\n").first?.split(separator: " ") ?? []
-        return requestLine.isEmpty ? "GET" : String(requestLine[0])
-    }
-
-    /// PUT/POST carry protocol bodies and MUST declare Content-Length; GET
-    /// (health / changes) is legitimately bodyless.
-    static func methodCarriesBody(_ method: String) -> Bool {
-        method.uppercased() == "PUT" || method.uppercased() == "POST"
-    }
-
-    static func parseHeaders(_ head: String) -> [String: String] {
-        var headers: [String: String] = [:]
-        for line in head.split(separator: "\r\n").dropFirst() {
-            let parts = line.split(separator: ":", maxSplits: 1)
-            if parts.count == 2 {
-                headers[parts[0].lowercased()] = parts[1].trimmingCharacters(in: .whitespaces)
-            }
-        }
-        return headers
-    }
-
-    static func parse(head: String, body: Data) -> HubRequest {
-        let lines = head.split(separator: "\r\n").map(String.init)
-        let requestLine = lines.first?.split(separator: " ") ?? []
-        let method = requestLine.count > 0 ? String(requestLine[0]) : "GET"
-        let path = requestLine.count > 1 ? String(requestLine[1]) : "/"
-        var headers = parseHeaders(head)
-        var bearer: String?
-        if let authorization = headers.removeValue(forKey: "authorization"),
-            authorization.lowercased().hasPrefix("bearer ")
-        {
-            bearer = String(authorization.dropFirst(7))
-        }
-        return HubRequest(
-            method: method, path: path, bearerToken: bearer,
-            headers: headers, body: body.isEmpty ? nil : body
-        )
     }
 
     private func send(connection: NWConnection, response: HubResponse) {
@@ -614,12 +606,15 @@ final class HubServer: @unchecked Sendable {
         case 201: return "Created"
         case 400: return "Bad Request"
         case 401: return "Unauthorized"
+        case 403: return "Forbidden"
         case 404: return "Not Found"
         case 409: return "Conflict"
         case 410: return "Gone"
         case 413: return "Payload Too Large"
         case 422: return "Unprocessable Entity"
+        case 431: return "Request Header Fields Too Large"
         case 500: return "Internal Server Error"
+        case 501: return "Not Implemented"
         default: return "OK"
         }
     }
