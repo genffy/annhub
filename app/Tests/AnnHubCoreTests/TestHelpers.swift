@@ -123,6 +123,13 @@ func freshStore() throws -> FragmentStore {
     try FragmentStore(path: ":memory:", deviceId: "swift-device")
 }
 
+/// A file of the app target found in the source tree (`Support/Info.plist`, `project.yml`), located
+/// from the test file that asks: tests read the template the build fills, not a copy of it.
+func appSourceFile(_ relativePath: String, file: StaticString = #filePath) -> URL {
+    URL(fileURLWithPath: "\(file)").deletingLastPathComponent().deletingLastPathComponent()
+        .deletingLastPathComponent().appending(path: relativePath)
+}
+
 // ── fixture loading (Bundle.module "Fixtures") ──────────────────────────
 
 func fixtureData(_ name: String) throws -> Data {

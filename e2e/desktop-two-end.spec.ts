@@ -6,12 +6,12 @@
  * screenshot converted into a `visual` fragment. The Desktop is the built macOS app, started as a
  * child process on its own data directory and a free loopback port. Everything between them is the
  * real service worker `fetch` over a real socket; the Desktop's own SQLite file is read back to
- * check what arrived. The Desktop serves only the published extension's origin; the unpacked build
- * under test is named to it with `extensionIds`. macOS only; skipped when the app has not been built.
+ * check what arrived. The Desktop serves only the extension ids it was configured with; the unpacked
+ * build under test is named to it with `extensionIds`. macOS only; skipped when the app has not been built.
  */
 import { fileURLToPath } from 'node:url'
 import { test, expect } from './fixtures'
-import { DESKTOP_SKIP_REASON, desktopAvailable, PUBLISHED_EXTENSION_ID, RunningDesktop } from './desktop'
+import { builtInExtensionIds, DESKTOP_SKIP_REASON, desktopAvailable, RunningDesktop } from './desktop'
 import {
   captureFragmentViaUi,
   clearFragmentStoreViaServiceWorker,
@@ -25,6 +25,7 @@ import {
 } from './helpers'
 import type { BrowserContext, Page } from '@playwright/test'
 import fs from 'node:fs'
+import http from 'node:http'
 import path from 'node:path'
 
 interface Reply<T = unknown> {
@@ -406,14 +407,14 @@ test.describe('extension ↔ Desktop — the real app over loopback', () => {
 
   // ── who may talk to it ────────────────────────────────────────────────
 
-  test('an extension that is not the published one is refused (403) until the Desktop is told to allow it', async ({ page, context, extensionId }) => {
-    test.skip(extensionId === PUBLISHED_EXTENSION_ID, 'this build carries the store key, so it is the published extension')
+  test('an extension the Desktop was not configured for is refused (403) until it is added', async ({ page, context, extensionId }) => {
+    test.skip(builtInExtensionIds().includes(extensionId), 'this build carries the store key, so it is an extension the Desktop is configured for')
     await clearFragmentStoreViaServiceWorker(context)
     await setCaptureConfigViaServiceWorker(context, { deepMode: false })
     await navigateToFragmentPage(page)
     await captureFragmentViaUi(page, { kind: 'concept', use: USE_CONCEPT })
 
-    // A Desktop that knows only the published id: the right code is not enough from another origin.
+    // A Desktop that knows only the ids of its build: the right code is not enough from another origin.
     desktop = await RunningDesktop.start()
     await page.goto(`chrome-extension://${extensionId}/library.html`)
     await connect(page, desktop)
@@ -428,11 +429,31 @@ test.describe('extension ↔ Desktop — the real app over loopback', () => {
     expect(state.recentDeliveryStatuses).toEqual([403])
     await desktop.stop()
 
-    // The same build, named at launch (what this suite does everywhere else), is served.
+    // The same build, added through the environment (what this suite does everywhere else), is served.
     desktop = await RunningDesktop.start({ extensionIds: [extensionId] })
     await connect(page, desktop)
     expect(await flush(page)).toMatchObject({ deliveredFragments: 1, authFailed: false, errors: [] })
     expect((await desktop.waitForState(s => s.fragmentCount === 1)).fragmentCount).toBe(1)
+  })
+
+  test('the Desktop serves the extension id its build was configured with, and others only when told', async () => {
+    const [configured] = builtInExtensionIds()
+    expect(configured).toMatch(/^[a-p]{32}$/) // the Info.plist entry the build filled
+    const other = 'p'.repeat(32)
+    // `fetch` would refuse to send an Origin of its own choosing; a request made by hand says what Chrome says.
+    const healthFrom = (endpoint: string, id: string) =>
+      new Promise<number>((resolve, reject) => {
+        http.get(`${endpoint}/health`, { headers: { Origin: `chrome-extension://${id}` } }, res => (res.resume(), resolve(res.statusCode ?? 0))).on('error', reject)
+      })
+
+    desktop = await RunningDesktop.start()
+    expect(await healthFrom(desktop.endpoint, configured)).toBe(200) // no help at run time
+    expect(await healthFrom(desktop.endpoint, other)).toBe(403)
+    await desktop.stop()
+
+    desktop = await RunningDesktop.start({ extensionIds: [other] })
+    expect(await healthFrom(desktop.endpoint, other)).toBe(200) // ANNHUB_EXTENSION_IDS adds ...
+    expect(await healthFrom(desktop.endpoint, configured)).toBe(200) // ... and never takes the build's own away
   })
 
   test('a web page cannot write to the Desktop, even holding the pairing code', async ({ page }) => {

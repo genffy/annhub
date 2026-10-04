@@ -8,10 +8,11 @@ import XCTest
 final class HubFramingTests: XCTestCase {
     private let token = "pair-token-1"
 
-    private let publishedId = "jpooljigbeplpgciohfjklgbfdfnnmfn"
+    /// The extension this hub is configured for; the real id comes from the build, not from code.
+    private let extensionId = String(repeating: "a", count: 32)
 
-    private func makeHub(allowedExtensionIds: Set<String> = DesktopHub.publishedExtensionIds) throws -> DesktopHub {
-        DesktopHub(store: try freshStore(), pairToken: token, allowedExtensionIds: allowedExtensionIds)
+    private func makeHub(allowedExtensionIds: Set<String>? = nil) throws -> DesktopHub {
+        DesktopHub(store: try freshStore(), pairToken: token, allowedExtensionIds: allowedExtensionIds ?? [extensionId])
     }
 
     private func head(
@@ -203,46 +204,49 @@ final class HubFramingTests: XCTestCase {
         }
     }
 
-    func testOnlyThePublishedExtensionAndNonBrowserClientsAreServed() throws {
+    func testOnlyTheConfiguredExtensionAndNonBrowserClientsAreServed() throws {
         for origin in [
             "https://evil.example", "http://127.0.0.1:8765", "http://localhost", "null", "file://",
-            "chrome-extension://", "chrome-extension://\(publishedId)/x",
+            "chrome-extension://", "chrome-extension://\(extensionId)/x",
             // Another extension, a look-alike id, and the right id with something appended.
-            "chrome-extension://abcdefghijklmnopabcdefghijklmnop", "chrome-extension://\(publishedId)x",
-            "chrome-extension://x\(publishedId)", "CHROME-EXTENSION://\(publishedId)",
+            "chrome-extension://abcdefghijklmnopabcdefghijklmnop", "chrome-extension://\(extensionId)x",
+            "chrome-extension://x\(extensionId)", "CHROME-EXTENSION://\(extensionId)",
         ] {
             var framer = HubRequestFramer(hub: try makeHub())
             let response = rejection(framer.feed(head(origin: origin)))
             XCTAssertEqual(response?.status, 403, origin)
             XCTAssertEqual(response?.errorField(), "forbidden origin")
         }
-        for origin in [nil, "chrome-extension://\(publishedId)"] {
+        for origin in [nil, "chrome-extension://\(extensionId)"] {
             var framer = HubRequestFramer(hub: try makeHub())
             XCTAssertTrue(isAccepted(framer.feed(head(origin: origin))), "\(origin ?? "no Origin")")
         }
     }
 
-    func testTheHubIsPinnedToTheStoreIdByDefault() throws {
-        XCTAssertEqual(DesktopHub.publishedExtensionIds, ["jpooljigbeplpgciohfjklgbfdfnnmfn"])
+    // No id is built into the code: a hub that was given none serves no browser extension, whatever
+    // its origin looks like, and says why. The ids come from ExtensionAllowlist.
+    func testAHubGivenNoIdsFailsClosed() throws {
         let hub = DesktopHub(store: try freshStore(), pairToken: token)
         var framer = HubRequestFramer(hub: hub)
-        XCTAssertEqual(rejection(framer.feed(head(origin: "chrome-extension://someotherextension")))?.status, 403)
+        XCTAssertEqual(rejection(framer.feed(head(origin: "chrome-extension://\(extensionId)")))?.status, 403)
+        var nonBrowser = HubRequestFramer(hub: hub)
+        XCTAssertTrue(isAccepted(nonBrowser.feed(head(origin: nil))), "scripts and curl send no Origin")
     }
 
     func testAnEmptyAllowlistAdmitsNoBrowserExtensionAtAll() throws {
         let hub = try makeHub(allowedExtensionIds: [])
         var framer = HubRequestFramer(hub: hub)
-        XCTAssertEqual(rejection(framer.feed(head(origin: "chrome-extension://\(publishedId)")))?.status, 403)
+        XCTAssertEqual(rejection(framer.feed(head(origin: "chrome-extension://\(extensionId)")))?.status, 403)
         var nonBrowser = HubRequestFramer(hub: hub)
         XCTAssertTrue(isAccepted(nonBrowser.feed(head(origin: nil))))
     }
 
     func testAnAdditionalIdCanBeAllowedExplicitly() throws {
-        let hub = try makeHub(allowedExtensionIds: DesktopHub.publishedExtensionIds.union(["devbuildid"]))
+        let hub = try makeHub(allowedExtensionIds: [extensionId, "devbuildid"])
         var dev = HubRequestFramer(hub: hub)
         XCTAssertTrue(isAccepted(dev.feed(head(origin: "chrome-extension://devbuildid"))))
-        var published = HubRequestFramer(hub: hub)
-        XCTAssertTrue(isAccepted(published.feed(head(origin: "chrome-extension://\(publishedId)"))))
+        var configured = HubRequestFramer(hub: hub)
+        XCTAssertTrue(isAccepted(configured.feed(head(origin: "chrome-extension://\(extensionId)"))))
     }
 
     func testRefusalsDoNotCountAsAnExtensionConnection() throws {

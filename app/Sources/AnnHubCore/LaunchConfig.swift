@@ -15,7 +15,9 @@
 //   --annhub-diagnostics=DIR      SIGUSR1 writes DIR/state.json, SIGUSR2 writes DIR/window.png
 //                                 (what a harness reads from a running instance; nothing is sent anywhere)
 //   --annhub-allow-extension=ID   also serve this extension id (repeatable; automation that loads
-//                                 an unpacked extension, whose id is not the published one)
+//                                 an unpacked extension, whose id is not the published one). The
+//                                 ANNHUB_EXTENSION_IDS environment variable does the same
+//                                 (ExtensionAllowlist.swift)
 //   --annhub-no-notifications     never talk to the notification center
 
 import Foundation

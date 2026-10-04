@@ -101,6 +101,11 @@ func scenarioCRecords(now: Int = T0) throws -> [FragmentRecord] {
 
 // ── an isolated model ────────────────────────────────────────────────────
 
+/// The extension the Desktop tests are configured for. The real id comes from the build (the app's
+/// Info.plist), which an unhosted test bundle does not have, so the harness names one the way
+/// automation does (`--annhub-allow-extension`).
+let testExtensionId = String(repeating: "a", count: 32)
+
 @MainActor
 struct Harness {
     let model: DesktopModel
@@ -131,7 +136,8 @@ func makeHarness(
     for record in fragments {
         try store.upsertFragment(record, deviceId: "ext-test", payloadHash: "h-\(record.id)")
     }
-    let config = config ?? DesktopLaunchConfig(port: 0, notificationsEnabled: false)
+    let config =
+        config ?? DesktopLaunchConfig(port: 0, extraExtensionIds: [testExtensionId], notificationsEnabled: false)
     let model = DesktopModel(
         store: store, defaults: defaults, config: config, storeError: storeError, clock: { clock.now })
     return Harness(model: model, store: store, defaults: defaults, suite: suite, clock: clock)
@@ -155,8 +161,8 @@ func waitUntil(timeout: TimeInterval = 8, _ message: String = "", condition: () 
 struct HubClient {
     let port: UInt16
     let token: String
-    /// What Chrome sends from the published extension; the hub serves no other extension (storage.md §8).
-    var origin: String? = "chrome-extension://" + (DesktopHub.publishedExtensionIds.first ?? "")
+    /// What Chrome sends from the configured extension; the hub serves no other one (storage.md §8).
+    var origin: String? = "chrome-extension://" + testExtensionId
 
     private var session: URLSession {
         let configuration = URLSessionConfiguration.ephemeral

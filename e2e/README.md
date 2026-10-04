@@ -24,7 +24,7 @@ cd .. && npx playwright test e2e/desktop-two-end.spec.ts
 
 `ANNHUB_DESKTOP_APP` 指向别处的 `AnnHubDesktop.app`。`e2e/desktop.ts` 以独立的数据目录、偏好域和空闲端口启动应用（`--annhub-data-dir` / `--annhub-defaults-suite` / `--annhub-port=0`），用 `SIGUSR1` 取状态快照；不会读写用户自己的 Desktop 数据，新增用到应用进程的用例必须同样隔离。Desktop 里的点击（评分、删除）无头环境做不到，用例用直接改它的数据库来代替，并在注释里写明。
 
-Desktop 的本机服务只放行已发布扩展的 ID；fixture 加载的未打包扩展 ID 不同，所以和扩展交互的用例要用 `RunningDesktop.start({ extensionIds: [extensionId] })`（对应启动参数 `--annhub-allow-extension`）。不传就是在验证“其他扩展被拒绝（403）”。
+Desktop 的本机服务只放行构建时配置的扩展 ID（读自 App 的 Info.plist，`builtInExtensionIds()` 可以读到）；fixture 加载的未打包扩展 ID 不同，所以和扩展交互的用例要用 `RunningDesktop.start({ extensionIds: [extensionId] })`，它通过环境变量 `ANNHUB_EXTENSION_IDS` 告诉 Desktop（每次都会显式设置，不继承你 shell 里的值）。不传就是在验证“其他扩展被拒绝（403）”。
 
 Desktop 的界面随系统语言（D-15）。`e2e/desktop.ts` 用 `ANNHUB_UI_LANGUAGE` 把它固定为中文（`language: 'en'` 换成英文），所以敲进命令面板的词不依赖运行这台 Mac 的语言。
 

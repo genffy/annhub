@@ -26,8 +26,17 @@ export function desktopApp(): string | undefined {
 
 export const desktopAvailable = (): boolean => process.platform === 'darwin' && desktopApp() !== undefined
 
-/** The only extension the Desktop serves unless a launch names more (DesktopHub.publishedExtensionIds). */
-export const PUBLISHED_EXTENSION_ID = 'jpooljigbeplpgciohfjklgbfdfnnmfn'
+/**
+ * The extension ids the built app was configured with: the `AnnHubExtensionIds` entry of its
+ * Info.plist, which the build fills from ANNHUB_EXTENSION_IDS (default: the published extension).
+ * Read from the app rather than written here, so the suite follows whatever the build says.
+ */
+export function builtInExtensionIds(): string[] {
+  const app = desktopApp()
+  if (!app) return []
+  const raw = execFileSync('/usr/bin/plutil', ['-extract', 'AnnHubExtensionIds', 'raw', '-o', '-', path.join(app, 'Contents/Info.plist')], { encoding: 'utf8' })
+  return raw.split(/[\s,]+/).filter(Boolean)
+}
 
 export const DESKTOP_SKIP_REASON = 'needs the built macOS Desktop: cd app && xcodegen generate && xcodebuild -scheme AnnHubDesktop build (or set ANNHUB_DESKTOP_APP)'
 
@@ -64,8 +73,9 @@ export interface StartOptions {
    */
   language?: 'zh' | 'en'
   /**
-   * Extension ids the hub serves besides the published one. The unpacked build under test has a
-   * different id, and the Desktop refuses any browser origin that is not allowed (storage.md §8).
+   * Extension ids the hub serves besides the ones its build was configured with, passed in the
+   * ANNHUB_EXTENSION_IDS environment variable. The unpacked build under test has an id of its own,
+   * and the Desktop refuses any browser origin that is not configured (storage.md §8).
    */
   extensionIds?: string[]
 }
@@ -107,12 +117,12 @@ export class RunningDesktop {
       `--annhub-ready-file=${readyFile}`,
       `--annhub-diagnostics=${path.join(dir, 'diag')}`,
       '--annhub-no-notifications',
-      ...(options.extensionIds ?? []).map(id => `--annhub-allow-extension=${id}`),
       ...(options.window ? [] : ['--annhub-no-window']),
     ]
     const child = spawn(path.join(app, 'Contents/MacOS/AnnHubDesktop'), args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, ANNHUB_UI_LANGUAGE: options.language ?? 'zh' },
+      // Always set, so a value exported in the developer's shell for building cannot leak into a run.
+      env: { ...process.env, ANNHUB_UI_LANGUAGE: options.language ?? 'zh', ANNHUB_EXTENSION_IDS: (options.extensionIds ?? []).join(',') },
     })
     const captured = { text: '' }
     child.stdout?.on('data', chunk => (captured.text += String(chunk)))

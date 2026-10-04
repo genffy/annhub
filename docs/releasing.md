@@ -42,9 +42,11 @@
 
 #### 扩展 ID 与本地联调
 
-已发布扩展的 ID 是 `jpooljigbeplpgciohfjklgbfdfnnmfn`。Desktop 的本机服务只接受 `Origin: chrome-extension://<这个 ID>` 的浏览器请求（`DesktopHub.publishedExtensionIds`，[存储契约 §8](v2/storage.md)），其他扩展和网页都会被拒绝。
+已发布扩展的 ID 是 `jpooljigbeplpgciohfjklgbfdfnnmfn`。Desktop 的本机服务只接受 `Origin: chrome-extension://<已配置的 ID>` 的浏览器请求（[存储契约 §8](v2/storage.md)），其他扩展和网页都会被拒绝。
 
-本地加载的未打包构建 ID 不同，所以连不上 Desktop。联调时把商店后台“程序包 → 查看公钥”里的公钥放进环境变量再构建，构建会把它写进清单的 `key`，未打包的扩展就拿到同一个 ID：
+已配置的 ID 不写在代码里，由构建决定：环境变量 `ANNHUB_EXTENSION_IDS`（逗号分隔，也可以写成 `xcodebuild … ANNHUB_EXTENSION_IDS=…`）会被写进 App 的 Info.plist，没有设置时用 `app/Support/Info.plist` 里的默认值，也就是上面的发布 ID。换了商店条目，只需要在发布构建时设置这个变量。运行中的 Desktop 还会再并上同名环境变量和启动参数 `--annhub-allow-extension=<id>`（只增不减），测试和自动化用它放行未打包扩展。
+
+本地加载的未打包构建 ID 不同，所以连不上 Desktop。联调时可以二选一：让 Desktop 多认一个 ID（`ANNHUB_EXTENSION_IDS=<未打包扩展的 ID> open …` 或启动参数），或者把商店后台“程序包 → 查看公钥”里的公钥放进环境变量再构建扩展，构建会把它写进清单的 `key`，未打包的扩展就拿到同一个 ID：
 
 ```bash
 ANNHUB_EXTENSION_KEY='MIIBIjANBg…' npm run build

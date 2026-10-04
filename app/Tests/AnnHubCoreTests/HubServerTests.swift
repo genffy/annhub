@@ -42,8 +42,9 @@ private final class StateLog: @unchecked Sendable {
     }
 }
 
-/// The only browser origin the hub serves unless told otherwise (storage.md §8).
-private let publishedOrigin = "chrome-extension://" + (DesktopHub.publishedExtensionIds.first ?? "")
+/// The extension the test hubs are configured for; the real id comes from the build (storage.md §8).
+private let testExtensionId = String(repeating: "a", count: 32)
+private let allowedOrigin = "chrome-extension://" + testExtensionId
 
 private struct RunningHub {
     let store: FragmentStore
@@ -63,7 +64,7 @@ private func startHub(
     token: String = "TEST-PAIR-CODE"
 ) throws -> RunningHub {
     let store = try freshStore()
-    let hub = DesktopHub(store: store, pairToken: token)
+    let hub = DesktopHub(store: store, pairToken: token, allowedExtensionIds: [testExtensionId])
     let server = HubServer(hub: hub, port: port, limits: limits)
     let log = StateLog()
     server.onStateChange = { log.record($0) }
@@ -242,7 +243,7 @@ final class HubServerSocketTests: XCTestCase {
 
         let put = request(
             hub, "PUT", "/v1/fragments/\(id)", token: hub.token,
-            headers: ["Content-Type": "application/json", "Origin": publishedOrigin], body: body)
+            headers: ["Content-Type": "application/json", "Origin": allowedOrigin], body: body)
         let first = try await send(put)
         XCTAssertEqual(first.status, 201)
         XCTAssertEqual(first.json["revision"] as? Int, 1)
@@ -411,11 +412,11 @@ final class HubServerSocketTests: XCTestCase {
 
     // ── who may talk to it, on the wire ───────────────────────────────────
 
-    func testOnlyThePublishedExtensionAndPlainClientsAreServed() async throws {
+    func testOnlyTheConfiguredExtensionAndPlainClientsAreServed() async throws {
         let hub = try startHub()
         defer { hub.stop() }
-        let published = try await send(request(hub, "GET", "/health", headers: ["Origin": publishedOrigin]))
-        XCTAssertEqual(published.status, 200)
+        let configured = try await send(request(hub, "GET", "/health", headers: ["Origin": allowedOrigin]))
+        XCTAssertEqual(configured.status, 200)
         let plain = try await send(request(hub, "GET", "/health"))
         XCTAssertEqual(plain.status, 200, "curl and scripts send no Origin")
 
@@ -431,7 +432,7 @@ final class HubServerSocketTests: XCTestCase {
         let store = try freshStore()
         let extra = String(repeating: "a", count: 32)
         let hub = DesktopHub(
-            store: store, pairToken: "T", allowedExtensionIds: DesktopHub.publishedExtensionIds.union([extra]))
+            store: store, pairToken: "T", allowedExtensionIds: [testExtensionId, extra])
         let server = HubServer(hub: hub, port: 0)
         server.start()
         defer { server.stop() }

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  The rest of Info.plist is generated from the INFOPLIST_KEY_* build settings in project.yml;
+	  Xcode merges this file into it. Only what a build setting cannot express lives here.
+
+	  The browser extensions the Desktop's local service serves (docs/v2/storage.md §8), comma
+	  separated. The default is the id of the published AnnHub extension. A build serves other ids
+	  when ANNHUB_EXTENSION_IDS is set for xcodebuild, as an environment variable or as
+	  ANNHUB_EXTENSION_IDS=... on its command line; a running app adds to this list from the same
+	  environment variable (ExtensionAllowlist.swift).
+	-->
+	<key>AnnHubExtensionIds</key>
+	<string>$(ANNHUB_EXTENSION_IDS:default=jpooljigbeplpgciohfjklgbfdfnnmfn)</string>
+
+</dict>
+</plist>

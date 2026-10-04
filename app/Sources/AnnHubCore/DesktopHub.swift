@@ -97,14 +97,15 @@ public final class DesktopHub: @unchecked Sendable {
     public private(set) var eventsStats = EventsStats()
     private let deliveryRingCapacity = 50
     private let lock = NSLock()
-    /// Extension ids allowed to call the hub from a browser (storage.md §8). Web pages never are,
-    /// and an empty set admits no extension at all.
+    /// Extension ids allowed to call the hub from a browser (storage.md §8; `ExtensionAllowlist`
+    /// gathers them from the build and the environment). Web pages never are, and an empty set
+    /// admits no extension at all.
     let allowedExtensionIds: Set<String>
 
     /// `pairToken` restores the persisted code; nil or empty generates a new one.
     public init(
         store: FragmentStore, pairToken: String? = nil,
-        allowedExtensionIds: Set<String> = DesktopHub.publishedExtensionIds
+        allowedExtensionIds: Set<String> = []
     ) {
         self.store = store
         self.allowedExtensionIds = allowedExtensionIds

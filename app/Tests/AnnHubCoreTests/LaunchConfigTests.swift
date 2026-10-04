@@ -38,8 +38,8 @@ final class LaunchConfigTests: XCTestCase {
         XCTAssertFalse(config.notificationsEnabled)
     }
 
-    // The published extension is always served; an unpacked build under test is not, unless the
-    // harness names its id (storage.md §8). Several ids may be named.
+    // The extension the build is configured for is served; an unpacked build under test has
+    // another id and is not, unless the harness names it (storage.md §8). Several ids may be named.
     func testExtraExtensionIdsAreCollectedAndEmptyOnesIgnored() {
         XCTAssertEqual(DesktopLaunchConfig.parse(["AnnHubDesktop"]).extraExtensionIds, [])
         let config = DesktopLaunchConfig.parse([

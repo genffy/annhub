@@ -225,23 +225,42 @@ final class DesktopModelHubTests: DesktopTestCase {
         XCTAssertNil(h.model.lastConnectionAt, "and it is not the extension connecting")
     }
 
-    func testAnotherExtensionIsRefusedUnlessTheLaunchNamesIt() async throws {
+    func testOnlyTheConfiguredExtensionsAreAdmitted() async throws {
         let other = String(repeating: "b", count: 32)
-        let strict = try harness()
-        var refused = try await strict.startHub()
-        refused.origin = "chrome-extension://" + other
-        let strictStatus = try await refused.put(try makeRecord())
-        XCTAssertEqual(strictStatus, 403, "an unpacked build has its own id")
+        let configured = try harness()  // the harness names testExtensionId, as automation would
+        var client = try await configured.startHub()
+        client.origin = "chrome-extension://" + other
+        let refused = try await client.put(try makeRecord())
+        XCTAssertEqual(refused, 403, "an unpacked build has an id of its own")
+        client.origin = "chrome-extension://" + testExtensionId
+        let admitted = try await client.put(try makeRecord(content: "Second"))
+        XCTAssertEqual(admitted, 201)
 
+        // A launch that names another id (--annhub-allow-extension) serves that one, and only what it names.
         let named = try harness(
             config: DesktopLaunchConfig(port: 0, extraExtensionIds: [other], notificationsEnabled: false))
-        var client = try await named.startHub()
-        client.origin = "chrome-extension://" + other
-        let namedStatus = try await client.put(try makeRecord())
-        XCTAssertEqual(namedStatus, 201, "--annhub-allow-extension admits the build under test")
-        client.origin = "chrome-extension://" + (DesktopHub.publishedExtensionIds.first ?? "")
-        let publishedStatus = try await client.put(try makeRecord(content: "Second"))
-        XCTAssertEqual(publishedStatus, 201, "and the published extension is still served")
+        var namedClient = try await named.startHub()
+        namedClient.origin = "chrome-extension://" + other
+        let namedStatus = try await namedClient.put(try makeRecord())
+        XCTAssertEqual(namedStatus, 201, "the build under test is admitted once its id is named")
+        namedClient.origin = "chrome-extension://" + testExtensionId
+        let unnamed = try await namedClient.put(try makeRecord(content: "Third"))
+        XCTAssertEqual(unnamed, 403)
+    }
+
+    // The same list can come from the environment: what a shell, a script or a CI job sets for the app.
+    func testExtensionIdsInTheEnvironmentAreAdmittedAtLaunch() async throws {
+        let fromEnvironment = String(repeating: "c", count: 32)
+        setenv(ExtensionAllowlist.environmentKey, fromEnvironment, 1)
+        defer { unsetenv(ExtensionAllowlist.environmentKey) }
+        let h = try harness(config: DesktopLaunchConfig(port: 0, notificationsEnabled: false))
+        var client = try await h.startHub()
+        client.origin = "chrome-extension://" + fromEnvironment
+        let admitted = try await client.put(try makeRecord())
+        XCTAssertEqual(admitted, 201)
+        client.origin = "chrome-extension://" + testExtensionId
+        let notListed = try await client.put(try makeRecord(content: "Second"))
+        XCTAssertEqual(notListed, 403, "this harness named no launch argument, so only the environment's id counts")
     }
 
     // ── automation hooks ─────────────────────────────────────────────────

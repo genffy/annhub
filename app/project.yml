@@ -38,6 +38,9 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Support/AnnHubDesktop.entitlements
         # Info.plist keys generated from build settings carry the INFOPLIST_KEY_ prefix; a bare
         # `LSUIElement` setting is ignored.
+        # What the INFOPLIST_KEY_ settings cannot express (the extension ids the hub serves) is in
+        # this file; Xcode merges it into the generated Info.plist.
+        INFOPLIST_FILE: Support/Info.plist
         INFOPLIST_KEY_LSUIElement: 'YES'
         INFOPLIST_KEY_CFBundleDisplayName: AnnHub
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity

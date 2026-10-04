@@ -189,11 +189,13 @@ final class DesktopModel: ObservableObject {
         // Pairing (storage.md §8): Desktop generates the code and remembers it
         // across launches; the user types it into the extension.
         let stored = defaults.string(forKey: Self.pairTokenDefaultsKey) ?? ""
-        // Only the published extension may call the hub from a browser (storage.md §8); automation
-        // that loads an unpacked build names that build's id on the command line.
-        let hub = DesktopHub(
-            store: store, pairToken: stored,
-            allowedExtensionIds: DesktopHub.publishedExtensionIds.union(config.extraExtensionIds))
+        // Only the configured extension ids may call the hub from a browser (storage.md §8): the
+        // build's own, plus any a test or automation adds for the unpacked build it loads.
+        let allowlist = ExtensionAllowlist.admitted(extra: config.extraExtensionIds)
+        for entry in allowlist.rejected {
+            NSLog("AnnHub: ignoring \"%@\" in the extension id list: it is not a Chrome extension id", entry)
+        }
+        let hub = DesktopHub(store: store, pairToken: stored, allowedExtensionIds: allowlist.ids)
         self.hub = hub
         self.pairToken = hub.pairToken
         let storedLimit = defaults.integer(forKey: Self.dailyLimitDefaultsKey)
