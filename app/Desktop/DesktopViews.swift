@@ -272,30 +272,72 @@ struct LibraryView: View {
 
     @State private var search = ""
     @State private var kindFilter: Set<String> = []
+    @State private var hostFilter: Set<String> = []
     @State private var tagFilter: Set<String> = []
+    @State private var statusFilter: Set<ReviewStatus> = []
+    /// Pages accumulate through the stable cursor (search.md §3).
+    @State private var items: [FragmentRecord] = []
+    @State private var total = 0
+    @State private var nextCursor: String?
     @State private var selection = Set<FragmentRecord.ID>()
-    @State private var detail: FragmentRecord?
+    @State private var detailSheet: FragmentRecord?
     @State private var confirmDelete: FragmentRecord?
     @State private var pairCodeCopied = false
     /// Hidden columns (desktop.md §4.2), persisted in UserDefaults.
     @State private var hiddenColumns: Set<LibraryColumn> = []
 
     private static let hiddenColumnsKey = "annhub.desktop.libraryHiddenColumns"
+    /// Below this width the detail column becomes a sheet (desktop.md §4.1).
+    private static let threeColumnMinWidth: CGFloat = 860
+    /// Chips beyond the most frequent few stay reachable through search.
+    private static let maxFilterOptions = 12
 
-    private var queryResult: FragmentQueryResult {
-        runFragmentQuery(model.fragments, query: FragmentQuery(
+    private var hasActiveFilters: Bool {
+        !search.isEmpty || !kindFilter.isEmpty || !hostFilter.isEmpty || !tagFilter.isEmpty || !statusFilter.isEmpty
+    }
+
+    private func makeQuery(cursor: String?) -> FragmentQuery {
+        FragmentQuery(
             search: search,
             kinds: kindFilter.isEmpty ? nil : Array(kindFilter),
-            tags: tagFilter.isEmpty ? nil : Array(tagFilter)
-        ))
+            hosts: hostFilter.isEmpty ? nil : Array(hostFilter),
+            tags: tagFilter.isEmpty ? nil : Array(tagFilter),
+            cursor: cursor
+        )
     }
 
-    private var allKinds: [String] {
-        collectKinds(model.fragments)
+    /// Review status is Desktop-local truth, applied before the shared query.
+    private var pool: [FragmentRecord] {
+        filterByReviewStatus(model.fragments, statuses: statusFilter, now: nowMs())
     }
 
-    private var allTags: [String] {
-        collectTags(model.fragments)
+    private func refresh() {
+        let result = runFragmentQuery(pool, query: makeQuery(cursor: nil))
+        items = result.items
+        total = result.total
+        nextCursor = result.nextCursor
+        let visible = Set(result.items.map(\.id))
+        selection = selection.filter { visible.contains($0) }
+    }
+
+    private func loadMore() {
+        guard let cursor = nextCursor else { return }
+        let result = runFragmentQuery(pool, query: makeQuery(cursor: cursor))
+        items.append(contentsOf: result.items)
+        nextCursor = result.nextCursor
+    }
+
+    private func clearFilters() {
+        search = ""
+        kindFilter = []
+        hostFilter = []
+        tagFilter = []
+        statusFilter = []
+    }
+
+    private var selectedFragment: FragmentRecord? {
+        guard selection.count == 1, let id = selection.first else { return nil }
+        return items.first { $0.id == id }
     }
 
     var body: some View {
@@ -339,58 +381,18 @@ struct LibraryView: View {
         .padding(32)
     }
 
+    /// Three columns (desktop.md §4.1): filters | list | detail. A narrow window
+    /// drops the detail column; the detail then opens as a sheet.
     private var library: some View {
-        VStack(spacing: 0) {
-            filterBar
-            Table(queryResult.items, selection: $selection) {
-                TableColumn("内容", value: \.content)
-                TableColumn("类型") { row in Text(kindLabel(row.kind)).font(.caption) }
-                if !hiddenColumns.contains(.source) {
-                    TableColumn("来源", value: \.context.sourceHost).width(min: 90)
-                }
-                if !hiddenColumns.contains(.tags) {
-                    TableColumn("标签") { row in
-                        Text(row.tags.joined(separator: "、")).font(.caption).lineLimit(1)
-                    }
-                }
-                if !hiddenColumns.contains(.review) {
-                    TableColumn("复习") { row in Text(reviewLabel(row)).font(.caption) }
-                }
-                if !hiddenColumns.contains(.capturedAt) {
-                    TableColumn("采集时间") { row in
-                        Text(Date(timeIntervalSince1970: Double(row.context.capturedAt) / 1000), style: .date)
-                            .font(.caption)
-                    }
-                }
-            }
-            .contextMenu(forSelectionType: FragmentRecord.ID.self) { ids in
-                if let id = ids.first, let fragment = model.fragments.first(where: { $0.id == id }) {
-                    Button("删除本地副本…", role: .destructive) {
-                        confirmDelete = fragment
-                    }
-                }
-            } primaryAction: { ids in
-                if let id = ids.first {
-                    detail = model.fragments.first { $0.id == id }
-                }
-            }
-            .confirmationDialog(
-                "删除本地副本？",
-                isPresented: Binding(
-                    get: { confirmDelete != nil },
-                    set: { if !$0 { confirmDelete = nil } }
-                ),
-                titleVisibility: .visible
-            ) {
-                Button("删除本地副本（复习日志一并删除，扩展重试将被拒绝）", role: .destructive) {
-                    if let fragment = confirmDelete {
-                        model.deleteLocal(fragment.id)
-                    }
-                    confirmDelete = nil
-                }
-            } message: {
-                if let fragment = confirmDelete {
-                    Text(fragment.content)
+        GeometryReader { proxy in
+            let detailColumn = proxy.size.width >= Self.threeColumnMinWidth
+            HStack(spacing: 0) {
+                filterSidebar.frame(width: 170)
+                Divider()
+                listColumn(detailAsColumn: detailColumn)
+                if detailColumn {
+                    Divider()
+                    detailPanel.frame(width: 320)
                 }
             }
         }
@@ -416,9 +418,170 @@ struct LibraryView: View {
                 }
             }
         }
-        .onAppear { loadHiddenColumns() }
-        .sheet(item: $detail) { fragment in
+        .onAppear {
+            loadHiddenColumns()
+            refresh()
+        }
+        .onChange(of: search) { refresh() }
+        .onChange(of: kindFilter) { refresh() }
+        .onChange(of: hostFilter) { refresh() }
+        .onChange(of: tagFilter) { refresh() }
+        .onChange(of: statusFilter) { refresh() }
+        .onChange(of: model.revision) { refresh() }
+        .sheet(item: $detailSheet) { fragment in
             FragmentDetailSheet(fragment: fragment).frame(minWidth: 560, minHeight: 480)
+        }
+        .confirmationDialog(
+            "删除本地副本？",
+            isPresented: Binding(
+                get: { confirmDelete != nil },
+                set: { if !$0 { confirmDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除本地副本（复习日志一并删除，扩展重试将被拒绝）", role: .destructive) {
+                if let fragment = confirmDelete {
+                    model.deleteLocal(fragment.id)
+                }
+                confirmDelete = nil
+            }
+        } message: {
+            if let fragment = confirmDelete {
+                Text(fragment.content)
+            }
+        }
+    }
+
+    // ── left: filters ────────────────────────────────────────────────────
+
+    private var filterSidebar: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                filterGroup("类型", options: collectKinds(model.fragments), label: kindLabel, selection: $kindFilter)
+                filterGroup(
+                    "复习", options: ReviewStatus.allCases, label: { $0.label }, selection: $statusFilter
+                )
+                filterGroup(
+                    "来源", options: Array(collectHosts(model.fragments).prefix(Self.maxFilterOptions)),
+                    label: { $0 }, selection: $hostFilter
+                )
+                filterGroup(
+                    "标签", options: Array(collectTags(model.fragments).prefix(Self.maxFilterOptions)),
+                    label: { "#\($0)" }, selection: $tagFilter
+                )
+                if hasActiveFilters {
+                    Button("清除筛选", action: clearFilters)
+                        .controlSize(.small)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+    }
+
+    @ViewBuilder
+    private func filterGroup<T: Hashable>(
+        _ title: String, options: [T], label: @escaping (T) -> String, selection: Binding<Set<T>>
+    ) -> some View {
+        if !options.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title).font(.subheadline.bold()).foregroundStyle(.secondary)
+                ForEach(options, id: \.self) { option in
+                    Toggle(label(option), isOn: Binding(
+                        get: { selection.wrappedValue.contains(option) },
+                        set: { on in
+                            if on { selection.wrappedValue.insert(option) } else { selection.wrappedValue.remove(option) }
+                        }
+                    ))
+                    .toggleStyle(.checkbox)
+                    .lineLimit(1)
+                }
+            }
+        }
+    }
+
+    // ── middle: list ─────────────────────────────────────────────────────
+
+    private func listColumn(detailAsColumn: Bool) -> some View {
+        VStack(spacing: 0) {
+            if items.isEmpty {
+                VStack(spacing: 10) {
+                    Text("没有符合条件的碎片").foregroundStyle(.secondary)
+                    if hasActiveFilters {
+                        Button("清除筛选", action: clearFilters)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                table(detailAsColumn: detailAsColumn)
+            }
+            Divider()
+            HStack {
+                Text("已显示 \(items.count) / 符合 \(total) / 共 \(model.fragments.count) 条")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                if nextCursor != nil {
+                    Button("显示更多", action: loadMore).controlSize(.small)
+                }
+            }
+            .padding(.horizontal, 12).padding(.vertical, 6)
+        }
+    }
+
+    private func table(detailAsColumn: Bool) -> some View {
+        Table(items, selection: $selection) {
+            TableColumn("内容", value: \.content)
+            TableColumn("类型") { row in Text(kindLabel(row.kind)).font(.caption) }
+            if !hiddenColumns.contains(.source) {
+                TableColumn("来源", value: \.context.sourceHost).width(min: 90)
+            }
+            if !hiddenColumns.contains(.tags) {
+                TableColumn("标签") { row in
+                    Text(row.tags.joined(separator: "、")).font(.caption).lineLimit(1)
+                }
+            }
+            if !hiddenColumns.contains(.review) {
+                TableColumn("复习") { row in
+                    Text(reviewStatus(of: row, now: nowMs()).label).font(.caption)
+                }
+            }
+            if !hiddenColumns.contains(.capturedAt) {
+                TableColumn("采集时间") { row in
+                    Text(Date(timeIntervalSince1970: Double(row.context.capturedAt) / 1000), style: .date)
+                        .font(.caption)
+                }
+            }
+        }
+        .contextMenu(forSelectionType: FragmentRecord.ID.self) { ids in
+            if let id = ids.first, let fragment = items.first(where: { $0.id == id }) {
+                if !detailAsColumn {
+                    Button("查看详情") { detailSheet = fragment }
+                }
+                Button("删除本地副本…", role: .destructive) {
+                    confirmDelete = fragment
+                }
+            }
+        } primaryAction: { ids in
+            // The detail column already shows the selection; only the narrow
+            // layout needs the sheet.
+            if !detailAsColumn, let id = ids.first {
+                detailSheet = items.first { $0.id == id }
+            }
+        }
+    }
+
+    // ── right: detail ────────────────────────────────────────────────────
+
+    @ViewBuilder
+    private var detailPanel: some View {
+        if let fragment = selectedFragment {
+            FragmentDetailView(fragment: fragment, onDelete: { confirmDelete = fragment })
+                .id(fragment.id)
+        } else {
+            Text("选择一条碎片查看详情")
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -443,69 +606,16 @@ struct LibraryView: View {
             forKey: Self.hiddenColumnsKey
         )
     }
-
-    private func reviewLabel(_ fragment: FragmentRecord) -> String {
-        let due = fragment.review.nextReviewAt <= nowMs()
-        switch fragment.review.state {
-        case .new: return due ? "新到期" : "新建"
-        case .learning: return "学习中"
-        case .review: return due ? "已到期" : "复习中"
-        case .relearning: return due ? "重新到期" : "重学中"
-        }
-    }
-
-    private var filterBar: some View {
-        HStack(spacing: 8) {
-            ForEach(allKinds, id: \.self) { kind in
-                FilterChip(label: kindLabel(kind), isOn: kindFilter.contains(kind)) {
-                    toggle(&kindFilter, kind)
-                }
-            }
-            if !allTags.isEmpty {
-                Divider().frame(height: 16)
-                ForEach(allTags, id: \.self) { tag in
-                    FilterChip(label: "#\(tag)", isOn: tagFilter.contains(tag)) {
-                        toggle(&tagFilter, tag)
-                    }
-                }
-            }
-            Spacer()
-            Text("\(queryResult.total)/\(model.fragments.count)")
-                .font(.caption).foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 12).padding(.vertical, 6)
-    }
-
-    private func toggle(_ set: inout Set<String>, _ value: String) {
-        if set.contains(value) { set.remove(value) } else { set.insert(value) }
-    }
-}
-
-struct FilterChip: View {
-    let label: String
-    let isOn: Bool
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            Text(label)
-                .font(.caption)
-                .padding(.horizontal, 8).padding(.vertical, 3)
-                .background(
-                    isOn ? Color.annBrand.opacity(0.28) : Color(nsColor: .controlBackgroundColor),
-                    in: Capsule()
-                )
-        }
-        .buttonStyle(.plain)
-    }
 }
 
 // ── 碎片详情（顺序按 desktop.md §4.3：加工在前，原文在后）──────────────
 
-struct FragmentDetailSheet: View {
+/// The detail column of the library, and the body of the sheet in a narrow
+/// window. R1 capture fields are read-only; Desktop can delete its own copy.
+struct FragmentDetailView: View {
     @EnvironmentObject var model: DesktopModel
-    @Environment(\.dismiss) private var dismiss
     let fragment: FragmentRecord
+    var onDelete: (() -> Void)?
 
     var body: some View {
         ScrollView {
@@ -610,12 +720,15 @@ struct FragmentDetailSheet: View {
                         }
                     }
                 }
+
+                // Desktop deletes only its own copy (desktop.md §4.4).
+                if let onDelete {
+                    Divider()
+                    Button("删除本地副本…", role: .destructive, action: onDelete)
+                }
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) { Button("关闭") { dismiss() } }
         }
     }
 
@@ -661,6 +774,19 @@ struct FragmentDetailSheet: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 4)
+    }
+}
+
+/// The same detail as a sheet (Today's recent writes; the library in a narrow window).
+struct FragmentDetailSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let fragment: FragmentRecord
+
+    var body: some View {
+        FragmentDetailView(fragment: fragment)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("关闭") { dismiss() } }
+            }
     }
 }
 
@@ -1047,44 +1173,59 @@ struct SystemView: View {
     }
 
     /// Folded by default: the home of this page shows only what needs attention.
+    /// (Grouped: a ViewBuilder block holds at most ten children.)
     private var technicalSection: some View {
         Section {
             DisclosureGroup("技术信息", isExpanded: $technicalExpanded) {
-                LabeledContent("服务地址") { Text("http://127.0.0.1:8765") }
-                LabeledContent("设备") {
-                    Text(model.store.deviceId).font(.system(.caption, design: .monospaced))
-                }
-                LabeledContent("数据库版本") { Text("Fragment schema v4") }
-                LabeledContent("契约版本") { Text(DesktopHub.apiVersion) }
-                LabeledContent("本地碎片") { Text("\(model.stats.fragments)") }
-                LabeledContent("复习日志") { Text("\(model.stats.reviewLogs)") }
-                LabeledContent("图片资产") { Text("\(model.stats.assets)") }
-                LabeledContent("本地删除标记") { Text("\(model.stats.deletions)") }
-
-                Divider()
-                // R3 双向同步 (storage.md §9) and the sync conflict report.
-                LabeledContent("待扩展拉取的变更") {
-                    Text("\(model.syncInfo.pendingChanges)")
-                        .foregroundStyle(model.syncInfo.pendingChanges > 0 ? .orange : .secondary)
-                }
-                LabeledContent("已拉取游标") { Text("\(model.syncInfo.pulledCursor)") }
-                LabeledContent("最近扩展拉取") {
-                    Text(model.syncInfo.lastPulledAt.map(relativeAgo) ?? "暂无")
-                }
-                LabeledContent("/v1/events 接收") {
-                    Text("接收 \(model.syncInfo.events.received) · 应用 \(model.syncInfo.events.applied) · 重复 \(model.syncInfo.events.duplicates) · 跳过 \(model.syncInfo.events.skipped)")
-                        .font(.caption)
-                }
-
-                Divider()
-                let failures = model.recentDeliveries.filter { $0.status >= 300 }
-                if failures.isEmpty {
-                    Text("没有交付错误。").font(.footnote).foregroundStyle(.secondary)
-                } else {
-                    Text("交付错误明细").font(.subheadline.bold())
-                    ForEach(Array(failures.suffix(8).reversed().enumerated()), id: \.offset) { _, outcome in
-                        deliveryRow(outcome)
+                Group {
+                    LabeledContent("服务地址") { Text("http://127.0.0.1:8765") }
+                    LabeledContent("设备") {
+                        Text(model.store.deviceId).font(.system(.caption, design: .monospaced))
                     }
+                    LabeledContent("数据库版本") { Text("Fragment schema v4") }
+                    LabeledContent("契约版本") { Text(DesktopHub.apiVersion) }
+                }
+                Group {
+                    LabeledContent("本地碎片") { Text("\(model.stats.fragments)") }
+                    LabeledContent("复习日志") { Text("\(model.stats.reviewLogs)") }
+                    LabeledContent("图片资产") { Text("\(model.stats.assets)") }
+                    LabeledContent("本地删除标记") { Text("\(model.stats.deletions)") }
+                }
+                Divider()
+                syncInfoRows
+                Divider()
+                deliveryFailureRows
+            }
+        }
+    }
+
+    /// R3 双向同步 (storage.md §9) and the sync conflict report.
+    private var syncInfoRows: some View {
+        Group {
+            LabeledContent("待扩展拉取的变更") {
+                Text("\(model.syncInfo.pendingChanges)")
+                    .foregroundStyle(model.syncInfo.pendingChanges > 0 ? Color.orange : Color.secondary)
+            }
+            LabeledContent("已拉取游标") { Text("\(model.syncInfo.pulledCursor)") }
+            LabeledContent("最近扩展拉取") {
+                Text(model.syncInfo.lastPulledAt.map(relativeAgo) ?? "暂无")
+            }
+            LabeledContent("/v1/events 接收") {
+                Text("接收 \(model.syncInfo.events.received) · 应用 \(model.syncInfo.events.applied) · 重复 \(model.syncInfo.events.duplicates) · 跳过 \(model.syncInfo.events.skipped)")
+                    .font(.caption)
+            }
+        }
+    }
+
+    private var deliveryFailureRows: some View {
+        let failures = model.recentDeliveries.filter { $0.status >= 300 }
+        return Group {
+            if failures.isEmpty {
+                Text("没有交付错误。").font(.footnote).foregroundStyle(.secondary)
+            } else {
+                Text("交付错误明细").font(.subheadline.bold())
+                ForEach(Array(failures.suffix(8).reversed().enumerated()), id: \.offset) { _, outcome in
+                    deliveryRow(outcome)
                 }
             }
         }

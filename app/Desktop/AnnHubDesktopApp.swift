@@ -160,6 +160,8 @@ final class DesktopModel: ObservableObject {
     @Published private(set) var pairToken: String
     /// Fragments the extension delivered (excludes demo seeds); refreshed by reload().
     @Published private(set) var deliveredFragmentCount = 0
+    /// Bumped by every reload() so views that cache a query result can refresh it.
+    @Published private(set) var revision = 0
 
     let store: FragmentStore
     let hub: DesktopHub
@@ -257,6 +259,7 @@ final class DesktopModel: ObservableObject {
         }.count
         syncPairToken()
         pruneFinishedSession()
+        revision += 1
     }
 
     // ── derived state ────────────────────────────────────────────────────

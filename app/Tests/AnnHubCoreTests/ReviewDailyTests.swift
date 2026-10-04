@@ -153,4 +153,33 @@ final class ReviewDailyTests: XCTestCase {
         XCTAssertEqual(kindLabel("media-clip"), "媒体片段")
         XCTAssertEqual(kindLabel("future-kind"), "future-kind")
     }
+
+    // ── review status filter ─────────────────────────────────────────────
+
+    func testReviewStatusIsExclusiveAndDueWins() {
+        func fragment(_ id: String, phase: ReviewPhase, dueAt: Int) -> FragmentRecord {
+            var record = makeFragment(id: id)
+            record.review.state = phase
+            record.review.nextReviewAt = dueAt
+            return record
+        }
+        let later = now + 1000
+        let all = [
+            fragment("new-due", phase: .new, dueAt: now),
+            fragment("new-later", phase: .new, dueAt: later),
+            fragment("again-later", phase: .relearning, dueAt: later),
+            fragment("learning-later", phase: .learning, dueAt: later),
+            fragment("review-later", phase: .review, dueAt: later),
+            fragment("review-due", phase: .review, dueAt: now - 5),
+        ]
+        XCTAssertEqual(all.map { reviewStatus(of: $0, now: now) }, [.due, .new, .learning, .learning, .scheduled, .due])
+        XCTAssertEqual(ReviewStatus.allCases.map(\.label), ["到期", "新建", "学习中", "复习中"])
+
+        XCTAssertEqual(filterByReviewStatus(all, statuses: [], now: now).count, 6, "empty set = no filter")
+        XCTAssertEqual(filterByReviewStatus(all, statuses: [.due], now: now).map(\.id), ["new-due", "review-due"])
+        XCTAssertEqual(
+            filterByReviewStatus(all, statuses: [.new, .scheduled], now: now).map(\.id),
+            ["new-later", "review-later"], "values within a dimension combine with OR"
+        )
+    }
 }
