@@ -1,87 +1,19 @@
-// The Desktop hub's HTTP transport: a thin Network.framework shim in front of
-// DesktopHub. Every protocol rule lives in DesktopHub (unit-testable without
-// sockets); this file only frames HTTP/1.1 on a loopback socket and enforces the
-// limits a local server needs — header/body size caps and an idle timeout.
+// The Desktop hub's socket: a thin Network.framework shim in front of DesktopHub.
 //
-// It listens on 127.0.0.1 only (storage.md §8) and closes every connection after
-// one response (`Connection: close`).
+// What may be read, from whom and how much is decided by `HubRequestFramer` and
+// `DesktopHub.preflight` (HubHTTP.swift), from the header block alone; the protocol itself is
+// DesktopHub. This file only moves bytes on a loopback socket and owns what needs a socket:
+// the listener's real state, a bound on time and on connections, and closing a refused
+// connection so the client can still read why.
+//
+// It listens on 127.0.0.1 only (storage.md §8) and closes every connection after one response
+// (`Connection: close`).
 
 import Foundation
 import Network
 
-// ── HTTP framing (pure, no sockets) ──────────────────────────────────────
-
-/// A parsed request line and header block. Header names are lowercased.
-struct HTTPHead: Equatable {
-    var method: String
-    var path: String
-    var headers: [String: String]
-    var contentLength: Int?
-
-    var carriesBody: Bool {
-        method == "PUT" || method == "POST"
-    }
-
-    var bearerToken: String? {
-        guard let authorization = headers["authorization"],
-            authorization.lowercased().hasPrefix("bearer ")
-        else { return nil }
-        return String(authorization.dropFirst("bearer ".count)).trimmingCharacters(in: .whitespaces)
-    }
-}
-
-enum HTTPHeadResult: Equatable {
-    case incomplete
-    case head(HTTPHead, bodyStart: Int)
-    case malformed
-    case headersTooLarge
-}
-
-enum HTTPFraming {
-    private static let terminator = Data("\r\n\r\n".utf8)
-
-    /// Looks for a complete header block at the start of `buffer`. Only the first
-    /// `maxHeaderBytes` are searched, so a client that never sends a blank line
-    /// cannot make the server buffer without bound.
-    static func parseHead(_ buffer: Data, maxHeaderBytes: Int) -> HTTPHeadResult {
-        let window = buffer.prefix(maxHeaderBytes + terminator.count)
-        guard let end = window.range(of: terminator) else {
-            return buffer.count > maxHeaderBytes ? .headersTooLarge : .incomplete
-        }
-        guard let text = String(data: buffer[buffer.startIndex..<end.lowerBound], encoding: .utf8) else {
-            return .malformed
-        }
-        let lines = text.components(separatedBy: "\r\n")
-        let requestLine = (lines.first ?? "").split(separator: " ", omittingEmptySubsequences: true)
-        guard requestLine.count == 3, requestLine[2].hasPrefix("HTTP/1."),
-            requestLine[0].allSatisfy({ $0.isASCII && $0.isUppercase }),
-            requestLine[1].hasPrefix("/")
-        else { return .malformed }
-
-        var headers: [String: String] = [:]
-        var contentLength: Int?
-        for line in lines.dropFirst() {
-            guard let colon = line.firstIndex(of: ":") else { return .malformed }
-            let name = line[..<colon].trimmingCharacters(in: .whitespaces).lowercased()
-            let value = line[line.index(after: colon)...].trimmingCharacters(in: .whitespaces)
-            guard !name.isEmpty else { return .malformed }
-            if name == "content-length" {
-                // Digits only; two different lengths are a framing ambiguity.
-                guard !value.isEmpty, value.allSatisfy(\.isASCIIDigit), let length = Int(value) else {
-                    return .malformed
-                }
-                if let existing = contentLength, existing != length { return .malformed }
-                contentLength = length
-            }
-            headers[name] = value
-        }
-        let head = HTTPHead(
-            method: String(requestLine[0]), path: String(requestLine[1]),
-            headers: headers, contentLength: contentLength
-        )
-        return .head(head, bodyStart: buffer.distance(from: buffer.startIndex, to: end.upperBound))
-    }
-
+/// Writes the one response a connection gets.
+enum HubResponseWriter {
     static func reasonPhrase(_ status: Int) -> String {
         switch status {
         case 200: return "OK"
@@ -98,6 +30,7 @@ enum HTTPFraming {
         case 422: return "Unprocessable Entity"
         case 431: return "Request Header Fields Too Large"
         case 500: return "Internal Server Error"
+        case 501: return "Not Implemented"
         default: return "Status \(status)"
         }
     }
@@ -115,12 +48,6 @@ enum HTTPFraming {
     }
 }
 
-extension Character {
-    fileprivate var isASCIIDigit: Bool { isASCII && isNumber }
-}
-
-// ── the server ───────────────────────────────────────────────────────────
-
 public final class HubServer: @unchecked Sendable {
     public enum State: Equatable, Sendable {
         case idle
@@ -135,20 +62,14 @@ public final class HubServer: @unchecked Sendable {
     }
 
     public struct Limits: Equatable, Sendable {
-        public var maxHeaderBytes: Int
-        /// Larger than the biggest legitimate body (an image at MAX_IMAGE_BYTES) so
-        /// the hub's own 413 still answers an image that is merely over the limit.
-        public var maxBodyBytes: Int
-        public var idleTimeout: TimeInterval
+        /// A request that has not arrived in full by then is dropped (a client trickling bytes).
+        public var requestDeadline: TimeInterval
+        /// Simultaneous connections. The extension delivers one item at a time.
+        public var maxConnections: Int
 
-        public init(
-            maxHeaderBytes: Int = 16 * 1024,
-            maxBodyBytes: Int = MAX_IMAGE_BYTES + 64 * 1024,
-            idleTimeout: TimeInterval = 30
-        ) {
-            self.maxHeaderBytes = maxHeaderBytes
-            self.maxBodyBytes = maxBodyBytes
-            self.idleTimeout = idleTimeout
+        public init(requestDeadline: TimeInterval = 20, maxConnections: Int = 32) {
+            self.requestDeadline = requestDeadline
+            self.maxConnections = maxConnections
         }
     }
 
@@ -163,8 +84,9 @@ public final class HubServer: @unchecked Sendable {
 
     /// Called on a hub queue whenever the listener's state changes. Set before `start()`.
     public var onStateChange: (@Sendable (State) -> Void)?
-    /// Called on a hub queue after every request has been answered. Keep it cheap.
-    public var onRequestHandled: (@Sendable (HubRequest, HubResponse) -> Void)?
+    /// Called on a hub queue after every request has been answered, including the ones refused
+    /// from their header block (the request is nil for those: it was never read). Keep it cheap.
+    public var onRequestHandled: (@Sendable (HubRequest?, HubResponse) -> Void)?
 
     /// `port` 0 asks the system for a free one; read the real port from `.ready`.
     public init(hub: DesktopHub, port: UInt16 = DesktopLaunchConfig.defaultPort, limits: Limits = Limits()) {
@@ -273,10 +195,15 @@ public final class HubServer: @unchecked Sendable {
     }
 
     private func accept(_ connection: NWConnection) {
-        let handler = HubConnection(connection: connection, server: self)
         lock.lock()
-        connections[ObjectIdentifier(handler)] = handler
+        let admitted = connections.count < limits.maxConnections
+        let handler = admitted ? HubConnection(connection: connection, server: self) : nil
+        if let handler { connections[ObjectIdentifier(handler)] = handler }
         lock.unlock()
+        guard let handler else {
+            connection.cancel()
+            return
+        }
         handler.start()
     }
 
@@ -292,7 +219,12 @@ public final class HubServer: @unchecked Sendable {
         return response
     }
 
-    fileprivate var connectionLimits: Limits { limits }
+    fileprivate func refused(_ response: HubResponse) {
+        onRequestHandled?(nil, response)
+    }
+
+    fileprivate var framer: HubRequestFramer { HubRequestFramer(hub: hub) }
+    fileprivate var requestDeadline: TimeInterval { limits.requestDeadline }
     fileprivate var connectionQueue: DispatchQueue { queue }
 
     static func describe(_ error: Error, port: UInt16) -> String {
@@ -303,22 +235,19 @@ public final class HubServer: @unchecked Sendable {
     }
 }
 
-/// One accepted connection: reads a request, answers it once, closes.
+/// One accepted connection: feeds the framer, answers once, closes.
 private final class HubConnection: @unchecked Sendable {
     private let connection: NWConnection
     private weak var server: HubServer?
     private let queue: DispatchQueue
-    private let limits: HubServer.Limits
-    private var buffer = Data()
-    private var head: HTTPHead?
-    private var bodyStart = 0
-    private var idleTimer: DispatchWorkItem?
+    private var framer: HubRequestFramer
+    private var deadline: DispatchWorkItem?
     private var finished = false
 
     init(connection: NWConnection, server: HubServer) {
         self.connection = connection
         self.server = server
-        self.limits = server.connectionLimits
+        self.framer = server.framer
         // One serial queue per connection keeps its buffer single-threaded.
         self.queue = DispatchQueue(label: "annhub.hub.connection", target: server.connectionQueue)
     }
@@ -331,7 +260,9 @@ private final class HubConnection: @unchecked Sendable {
             }
         }
         connection.start(queue: queue)
-        armIdleTimer()
+        let work = DispatchWorkItem { [weak self] in self?.finish() }
+        deadline = work
+        queue.asyncAfter(deadline: .now() + (server?.requestDeadline ?? 20), execute: work)
         receive()
     }
 
@@ -342,17 +273,10 @@ private final class HubConnection: @unchecked Sendable {
     private func finish() {
         guard !finished else { return }
         finished = true
-        idleTimer?.cancel()
-        idleTimer = nil
+        deadline?.cancel()
+        deadline = nil
         connection.cancel()
         server?.release(self)
-    }
-
-    private func armIdleTimer() {
-        idleTimer?.cancel()
-        let timer = DispatchWorkItem { [weak self] in self?.finish() }
-        idleTimer = timer
-        queue.asyncAfter(deadline: .now() + limits.idleTimeout, execute: timer)
     }
 
     private func receive() {
@@ -360,84 +284,41 @@ private final class HubConnection: @unchecked Sendable {
             [weak self] data, _, isComplete, error in
             guard let self, !self.finished else { return }
             if let data, !data.isEmpty {
-                self.buffer.append(data)
-                self.armIdleTimer()
+                switch self.framer.feed(data) {
+                case .reject(let response):
+                    self.server?.refused(response)
+                    self.reject(response)
+                    return
+                case .request(let request):
+                    guard let response = self.server?.answer(request) else {
+                        self.finish()
+                        return
+                    }
+                    self.deadline?.cancel()
+                    self.connection.send(
+                        content: HubResponseWriter.serialize(response),
+                        completion: .contentProcessed { [weak self] _ in self?.finish() }
+                    )
+                    return
+                case .needMore:
+                    break
+                }
             }
-            if error != nil {
+            if error != nil || isComplete {
                 self.finish()
-                return
-            }
-            self.process(peerClosed: isComplete)
-        }
-    }
-
-    private func process(peerClosed: Bool) {
-        if head == nil {
-            switch HTTPFraming.parseHead(buffer, maxHeaderBytes: limits.maxHeaderBytes) {
-            case .incomplete:
-                continueOrClose(peerClosed)
-                return
-            case .malformed:
-                reject(.json(400, ["error": "bad request"]))
-                return
-            case .headersTooLarge:
-                reject(.json(431, ["error": "headers too large"]))
-                return
-            case .head(let parsed, let start):
-                if parsed.carriesBody && parsed.contentLength == nil {
-                    // PUT/POST carry protocol bodies and must declare their length;
-                    // a missing header used to look like an empty body and 422.
-                    reject(.json(411, ["error": "length required"]))
-                    return
-                }
-                if (parsed.contentLength ?? 0) > limits.maxBodyBytes {
-                    reject(.json(413, ["error": "payload too large"]))
-                    return
-                }
-                head = parsed
-                bodyStart = start
+            } else {
+                self.receive()
             }
         }
-        guard let head else { return }
-        let expected = head.contentLength ?? 0
-        let received = buffer.count - bodyStart
-        guard received >= expected else {
-            continueOrClose(peerClosed)
-            return
-        }
-        // The body is the first `expected` bytes after the header block; bytes that
-        // trail it (a pipelined request) are ignored, the connection closes after
-        // this response.
-        let body = expected > 0 ? Data(buffer[bodyStart..<(bodyStart + expected)]) : nil
-        let request = HubRequest(
-            method: head.method, path: head.path, bearerToken: head.bearerToken,
-            headers: head.headers.filter { $0.key != "authorization" }, body: body
-        )
-        guard let response = server?.answer(request) else {
-            finish()
-            return
-        }
-        connection.send(
-            content: HTTPFraming.serialize(response),
-            completion: .contentProcessed { [weak self] _ in self?.finish() }
-        )
     }
 
-    private func continueOrClose(_ peerClosed: Bool) {
-        if peerClosed {
-            finish()
-        } else {
-            receive()
-        }
-    }
-
-    /// An early rejection answers before the client finished sending. Closing at once
-    /// would reset the connection while its upload is still in flight and the client
-    /// would never see the status. Half-close after the response, then drain what the
-    /// client is still sending until it hangs up (or the idle timer fires).
+    /// An early refusal answers before the client finished sending. Closing at once would
+    /// reset the connection while its upload is still in flight and the client would never
+    /// see the status. Half-close after the response, then drain what the client is still
+    /// sending until it hangs up (or the request deadline fires).
     private func reject(_ response: HubResponse) {
         connection.send(
-            content: HTTPFraming.serialize(response),
+            content: HubResponseWriter.serialize(response),
             contentContext: .finalMessage,
             isComplete: true,
             completion: .contentProcessed { [weak self] _ in self?.drain() }

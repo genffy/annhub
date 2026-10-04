@@ -181,12 +181,6 @@ button.primary-outline {
   padding: 6px 12px;
 }
 
-.library-toolbar {
-  display: flex;
-  gap: 10px;
-  margin-top: 14px;
-}
-
 .library-search {
   flex: 1;
   border: 1px solid var(--ann-border);
@@ -334,22 +328,19 @@ button.primary-outline {
   border: 1px solid var(--ann-border);
   border-radius: 8px;
   overflow: hidden;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .fragment-summary {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  padding: 12px 14px;
+  margin: 0;
 }
 
 .fragment-headline {
   display: flex;
   align-items: baseline;
-  justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
 }
@@ -375,28 +366,9 @@ button.primary-outline {
   white-space: nowrap;
 }
 
-.badge-register-formal {
-  color: var(--ann-accent);
-  border-color: var(--ann-border);
-  background: var(--ann-accent-soft);
-}
-
-.badge-register-casual {
-  color: var(--ann-accent);
-  border-color: var(--ann-border);
-  background: var(--ann-accent-soft);
-}
-
-.fragment-cloze {
-  margin-top: 6px;
-  font-size: 14px;
-  line-height: 1.65;
-  color: var(--ann-text);
-  word-break: break-word;
-}
-
 .fragment-details {
   border-top: 1px solid var(--ann-border);
+  margin: 4px -14px -12px;
   padding: 10px 14px 12px;
   display: flex;
   flex-direction: column;

@@ -6,14 +6,15 @@
 ## 边界
 
 - `Sources/AnnHubCore/` 是 TypeScript `learning-core/` 的 Swift 对应实现，并管理 SQLite 与本地服务；`Desktop/` 是 macOS SwiftUI 客户端。领域规则放 Core，不在 View 中重写。
-- 当前导入导出和数据结构仍含早期契约。R1 的逐条本机写入、图片 BLOB、复习和页面目标分别以 [存储契约](../docs/v2/storage.md)、[Desktop PRD](../docs/v2/desktop.md) 为准；不要把目标描述当作已实现代码。
+- R1 的逐条本机写入、图片 BLOB、复习和页面目标分别以 [存储契约](../docs/v2/storage.md)、[Desktop PRD](../docs/v2/desktop.md) 为准；不要把目标描述当作已实现代码。
 - Desktop 一级导航是今日、碎片库、系统，偏好设置走标准设置窗口（Cmd+,）。输出工坊、知识关系与 Desktop 端 LLM 已随 D-10 从 Core、SQLite、同步事件和界面移除，不要恢复；Desktop 没有需要模型的能力，也就没有模型设置。
 - 配对码由 Desktop 生成并持久化，`/v1/pair` 只校验、不采纳客户端提交的值；重新生成会让旧连接失效，数据保留。
+- 本机 hub 的请求规则在 Core（`HubHTTP.swift`）：请求头 16 KB 上限、JSON 2 MiB 和图片 `MAX_IMAGE_BYTES` 的 body 上限、Host 必须是回环地址、浏览器 Origin 只放行 `chrome-extension://`、令牌，全部在读取 body 之前由请求头决定。`HubServer`（Core，`HubServer.swift`）只管字节、20 秒请求期限、并发连接数，以及监听的真实状态（就绪 / 失败 / 端口被占用）。改规则先改 Core 并补 `HubFramingTests`；改传输层要跑 `HubServerTests` 这类真实 socket 测试。浏览器来源只放行已发布扩展的 ID（`DesktopHub.publishedExtensionIds`），其他扩展和网页来源一律拒绝；本地构建要联调，用 `ANNHUB_EXTENSION_KEY` 让构建采用商店条目的 ID（见 [发布与供应链](../docs/releasing.md)）；自动化加载未打包的扩展时，用 `--annhub-allow-extension=<id>` 额外放行它的 ID。
+- `FragmentStore` 的一条 SQLite 连接被界面线程和 hub 的每请求线程共用。所有 public 方法持有同一把递归锁；需要“先读后写”原子的调用方（hub 的投递路径）用 `store.exclusive { }`。新增 store 方法必须先加锁，并发行为由 `ConcurrencyTests` 覆盖。`transaction` 可嵌套（同线程内后开的并入先开的），批量操作靠它组合单条操作。
+- `FragmentStore` 的所有读—改—写（评分、外部评分、交付）读 `storedFragment(id:)`，不读 `getFragment(id:)`：后者含 Desktop 本机标签编辑（`fragment_local_tags`，不回写扩展），写回会把它固化进扩展拥有的采集字段。
 - 每日建议量、会话收尾、本周成功提取数（M-18）、提醒设置、kind 名称、提示梯度各级内容、保存的视图、命令面板的检索与命令等有规则的逻辑放在 Core 并带测试；`Desktop/` 的 View 只渲染它们的结果。
-- 本地服务分两层：协议规则在 `DesktopHub`（无 socket 即可测），回环 HTTP 传输在 `HubServer`（带大小与空闲限制、真实的就绪/失败状态）。传输层改动要跑 `HubServerTests` 这类真实 socket 测试，不要只测 `DesktopHub`。
 - 主窗口由 `MainWindowController` 以 AppKit 管理，不用 SwiftUI `WindowGroup`：`LSUIElement` 应用不会自己创建那个窗口（正常启动会没有窗口）。窗口打开期间应用是常规应用（Dock、完整菜单栏，`⌘,` `⌘K` `⌘1…3` 是菜单项），最后一个窗口关闭后回到仅菜单栏，本地服务继续监听。
 - 复习卡的提示级数和揭示状态在 `DesktopModel.card`，随会话持久化并绑定到具体卡片；不要放回视图 `@State`，否则关闭面板就能“免费重试”，评分日志会高估掌握程度。评分只能在揭示后。
-- `FragmentStore` 的所有读—改—写（评分、外部评分、交付）读 `storedFragment(id:)`，不读 `getFragment(id:)`：后者含 Desktop 本机标签编辑（`fragment_local_tags`，不回写扩展），写回会把它固化进扩展拥有的采集字段。`transaction` 可重入并跨线程互斥，因为 Hub 的队列与主线程共用一个连接。
 - 共享契约变化时同步受影响的 TypeScript、Swift、IndexedDB / SQLite 和 `Tests/AnnHubCoreTests/Fixtures/`；验证双端同一 fixture。迁移策略按最新产品结论和实际数据决定。
 
 ## 构建与测试
@@ -38,7 +39,7 @@ cd app && xcodebuild -project AnnHub.xcodeproj -scheme AnnHubDesktop \
 
 ## 启动参数与隔离
 
-应用不带参数时用自己在 Application Support 里的数据和偏好；**任何会启动真实应用进程的自动化都必须传隔离参数**，否则会读写用户自己的库（曾经因此把演示数据写进了真实的库）。参数的定义与说明见 `Sources/AnnHubCore/LaunchConfig.swift`：
+应用不带参数时用自己在 Application Support 里的数据和偏好；**任何会启动真实应用进程的自动化都必须传隔离参数**，否则会读写用户自己的库。参数的定义与说明见 `Sources/AnnHubCore/LaunchConfig.swift`：
 
 | 参数                                                             | 作用                                                                                                                   |
 | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
@@ -49,7 +50,7 @@ cd app && xcodebuild -project AnnHub.xcodeproj -scheme AnnHubDesktop \
 | `--annhub-diagnostics=DIR`                                       | `SIGUSR1` 写 `state.json`（页面、计数、服务与窗口状态；先放 `keys.txt` 则先回放其中的按键），`SIGUSR2` 写 `window.png` |
 | `--annhub-no-window` / `--annhub-section=` / `--annhub-palette=` | 仅菜单栏启动 / 起始页面 / 预置 `⌘K` 查询                                                                               |
 | `--annhub-shot=PATH`                                             | 渲染主窗口为 PNG 后退出                                                                                                |
-| `--annhub-demo-seed`                                             | 往**空库**写演示数据；没有 `--annhub-data-dir` 时会被拒绝                                                              |
+| `--annhub-allow-extension=ID`                                    | 额外放行这个扩展 ID（可重复）；加载未打包扩展的自动化用，已发布的 ID 始终放行                                          |
 | `--annhub-no-notifications`                                      | 不使用通知中心                                                                                                         |
 
 诊断只含计数与状态，不含碎片正文和配对码；不带 `--annhub-diagnostics` 时没有任何对外出口。

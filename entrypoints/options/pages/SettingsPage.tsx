@@ -1,21 +1,22 @@
 /**
- * 设置页 — four blocks (extension PRD §2.2 / options-v2 alignment):
- *   1. Desktop 连接（配对、状态、待发送与重试）
- *   2. 采集偏好（深度模式）
- *   3. LLM 配置（可选加速器；Provider 直连）
- *   4. 数据管理（唯一的 Markdown ZIP 导出 + 存储概况）
- * Old English-specialty tabs (vocab/eudic/logseq/family mode) are removed per
- * roadmap R1.1; the vocab annotation layer itself stays dormant in content.
+ * Settings page — four blocks (extension PRD §2.2 / options-v2 alignment):
+ *   1. Desktop connection (pairing, status, pending items and retry)
+ *   2. Capture preferences (deep mode)
+ *   3. LLM settings (optional accelerator; direct Provider calls)
+ *   4. Data (the only Markdown ZIP export entry + storage overview)
  */
 import { useCallback, useEffect, useState } from 'react'
 import MessageUtils from '../../../utils/message'
-import type { LlmConfig } from '../../../types/vocabulary'
+import { uiCount, uiText } from '../../../utils/ui-text'
+import type { LlmConfigPublic } from '../../../types/llm'
 import { PageHeader, SettingsSection, StatusMessage } from '../components/ui'
 
 interface DirectConnectBlock {
-  config: { endpoint: string; token: string; autoSync: boolean }
+  config: { endpoint: string; autoSync: boolean; hasToken: boolean }
   status: { online: boolean; paired: boolean; detail: string; lastSyncAt?: number }
-  pending: { pendingFragments: number; pendingAssets: number }
+  pending: { pendingFragments: number; pendingAssets: number; rejected: number }
+  /** Items Desktop refused for good: kept in the queue, parked until the user decides. */
+  rejected: Array<{ eventId: string; kind: 'fragment' | 'asset'; targetId: string; code: string; status: number; at: number }>
   state: {
     lastError?: string
     lastResult?: { deliveredFragments: number; deliveredAssets: number }
@@ -24,10 +25,24 @@ interface DirectConnectBlock {
   }
 }
 
+const REJECTION_CODES = ['DESKTOP_DELETED', 'CONFLICT', 'TOO_LARGE', 'INVALID', 'REJECTED', 'DESKTOP_ERROR', 'LOCAL_INVALID'] as const
+
+const SYNC_REASONS = ['LOCAL_DELETED', 'DESKTOP_DELETED', 'UNKNOWN_FRAGMENT', 'STALE_REVIEW'] as const
+
+/** What a sync report's reason means for the user; a conflict code is shown as it is. */
+function syncReasonLabel(reason: string): string {
+  return (SYNC_REASONS as readonly string[]).includes(reason) ? uiText(`settings.syncReason.${reason as (typeof SYNC_REASONS)[number]}`) : reason
+}
+
+/** What a parked delivery's code means for the user; an unknown code is shown as it is. */
+function rejectionLabel(code: string): string {
+  return (REJECTION_CODES as readonly string[]).includes(code) ? uiText(`settings.reason.${code as (typeof REJECTION_CODES)[number]}`) : code
+}
+
 export default function SettingsPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader title="设置" description="Desktop 连接、采集偏好、LLM 与数据管理" />
+      <PageHeader title={uiText('library.nav.settings')} description={uiText('settings.description')} />
       <DesktopConnectionCard />
       <SyncPanelCard />
       <CapturePreferenceCard />
@@ -52,7 +67,6 @@ function DesktopConnectionCard() {
     if (response.success && response.data) {
       setBlock(response.data)
       setEndpoint(response.data.config.endpoint)
-      setToken(response.data.config.token)
       setAutoSync(response.data.config.autoSync)
     }
   }, [])
@@ -64,8 +78,40 @@ function DesktopConnectionCard() {
   const save = async () => {
     setBusy(true)
     try {
-      const response = await MessageUtils.sendMessage({ type: 'SET_DESKTOP_DIRECT_CONNECT', config: { endpoint, token, autoSync } })
-      setMessage(response.success ? { kind: 'success', text: '已保存 Desktop 连接配置' } : { kind: 'error', text: response.error || '保存失败' })
+      // The stored pairing code is never sent back to this page: an empty field keeps it.
+      const typed = token.trim()
+      const response = await MessageUtils.sendMessage({ type: 'SET_DESKTOP_DIRECT_CONNECT', config: { endpoint, autoSync, ...(typed ? { token: typed } : {}) } })
+      setMessage(response.success ? { kind: 'success', text: uiText('settings.desktop.saved') } : { kind: 'error', text: response.error || uiText('capture.error.saveFailed') })
+      if (response.success) setToken('')
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const unpair = async () => {
+    setBusy(true)
+    try {
+      const response = await MessageUtils.sendMessage({ type: 'SET_DESKTOP_DIRECT_CONNECT', config: { token: '' } })
+      setMessage(
+        response.success ? { kind: 'success', text: uiText('settings.desktop.unpaired') } : { kind: 'error', text: response.error || uiText('settings.desktop.unpairFailed') },
+      )
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const resolveRejected = async (action: 'retry' | 'dismiss') => {
+    if (action === 'dismiss' && !window.confirm(uiText('settings.rejected.confirmDismiss'))) return
+    setBusy(true)
+    try {
+      const response = await MessageUtils.sendMessage<{ count: number }>({ type: 'RESOLVE_REJECTED_DELIVERIES', action })
+      setMessage(
+        response.success
+          ? { kind: 'success', text: uiText(action === 'retry' ? 'settings.rejected.retried' : 'settings.rejected.dismissed', { count: response.data?.count ?? 0 }) }
+          : { kind: 'error', text: response.error || uiText('settings.rejected.failed') },
+      )
       await load()
     } finally {
       setBusy(false)
@@ -79,11 +125,11 @@ function DesktopConnectionCard() {
       if (response.success && response.data) {
         setMessage(
           response.data.errors.length
-            ? { kind: 'error', text: `交付存在错误：${response.data.errors[0]}` }
-            : { kind: 'success', text: `已交付 ${response.data.deliveredFragments} 条碎片、${response.data.deliveredAssets} 张图片` },
+            ? { kind: 'error', text: uiText('settings.desktop.deliveryErrors', { error: response.data.errors[0]! }) }
+            : { kind: 'success', text: uiText('settings.desktop.delivered', { fragments: response.data.deliveredFragments, assets: response.data.deliveredAssets }) },
         )
       } else {
-        setMessage({ kind: 'error', text: response.error || '交付失败' })
+        setMessage({ kind: 'error', text: response.error || uiText('settings.desktop.deliveryFailed') })
       }
       await load()
     } finally {
@@ -92,10 +138,10 @@ function DesktopConnectionCard() {
   }
 
   return (
-    <SettingsSection title="Desktop 连接" description="通过本机接口把碎片与图片逐条写入 macOS Desktop（127.0.0.1:8765）">
+    <SettingsSection title={uiText('settings.desktop.title')} description={uiText('settings.desktop.description')}>
       <div className="space-y-3 text-sm">
         <label className="block space-y-1">
-          <span className="text-xs text-ann-muted">接口地址</span>
+          <span className="text-xs text-ann-muted">{uiText('settings.desktop.endpoint')}</span>
           <input
             className="w-full rounded-md border border-ann-border px-3 py-2"
             value={endpoint}
@@ -104,42 +150,84 @@ function DesktopConnectionCard() {
           />
         </label>
         <label className="block space-y-1">
-          <span className="text-xs text-ann-muted">配对码（在 Desktop 的「系统」页复制）</span>
+          <span className="text-xs text-ann-muted">{uiText('settings.desktop.token')}</span>
           <input
             className="w-full rounded-md border border-ann-border px-3 py-2 font-mono"
+            type="password"
+            autoComplete="off"
+            data-testid="pair-token-input"
             value={token}
             onChange={e => setToken(e.target.value)}
-            placeholder="粘贴 Desktop 显示的配对码"
+            placeholder={uiText(block?.config.hasToken ? 'settings.secretKept' : 'settings.desktop.tokenPlaceholder')}
           />
         </label>
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={autoSync} onChange={e => setAutoSync(e.target.checked)} />
-          保存后自动逐条交付（失败时保留待发送队列）
+          {uiText('settings.desktop.autoSync')}
         </label>
         {block && (
           <div className="rounded-md bg-ann-alt p-3 text-xs text-ann-muted" data-testid="desktop-status">
             <div>
-              状态：<strong>{block.status.detail}</strong>
+              {uiText('settings.desktop.status')}
+              <strong>{block.status.detail}</strong>
             </div>
-            <div>
-              待发送：{block.pending.pendingFragments} 条碎片 · {block.pending.pendingAssets} 张图片
-            </div>
+            <div>{uiText('settings.desktop.pending', { fragments: block.pending.pendingFragments, assets: block.pending.pendingAssets })}</div>
             {block.state.lastResult && (
-              <div>
-                上次交付：{block.state.lastResult.deliveredFragments} 条 / {block.state.lastResult.deliveredAssets} 图
-              </div>
+              <div>{uiText('settings.desktop.lastDelivery', { fragments: block.state.lastResult.deliveredFragments, assets: block.state.lastResult.deliveredAssets })}</div>
             )}
-            {block.state.lastError && <div className="text-ann-danger">最近错误：{block.state.lastError}</div>}
+            {block.state.lastError && <div className="text-ann-danger">{uiText('settings.desktop.lastError', { error: block.state.lastError })}</div>}
+          </div>
+        )}
+        {block && block.rejected.length > 0 && (
+          <div className="space-y-2 rounded-md border border-ann-danger p-3 text-xs" data-testid="rejected-deliveries">
+            <div className="font-medium text-ann-danger">{uiText('settings.rejected.title', { count: block.pending.rejected })}</div>
+            <ul className="space-y-1 text-ann-muted">
+              {block.rejected.map(item => (
+                <li key={item.eventId} data-testid="rejected-item">
+                  {uiText(item.kind === 'asset' ? 'settings.rejected.asset' : 'settings.rejected.fragment')} <span className="font-mono">{item.targetId.slice(0, 14)}</span> ·{' '}
+                  {rejectionLabel(item.code)}
+                  {item.status > 0 ? uiText('settings.rejected.http', { status: item.status }) : ''}
+                </li>
+              ))}
+            </ul>
+            <div className="flex gap-2">
+              <button
+                className="rounded-md border border-ann-border px-3 py-1 disabled:opacity-50"
+                onClick={() => void resolveRejected('retry')}
+                disabled={busy}
+                data-testid="rejected-retry"
+              >
+                {uiText('settings.rejected.retry')}
+              </button>
+              <button
+                className="rounded-md border border-ann-border px-3 py-1 disabled:opacity-50"
+                onClick={() => void resolveRejected('dismiss')}
+                disabled={busy}
+                data-testid="rejected-dismiss"
+              >
+                {uiText('settings.rejected.dismiss')}
+              </button>
+            </div>
           </div>
         )}
         {message && <StatusMessage tone={message.kind === 'success' ? 'success' : 'error'}>{message.text}</StatusMessage>}
         <div className="flex gap-2">
           <button className="rounded-md bg-ann-accent px-4 py-2 text-sm text-ann-on-accent disabled:opacity-50" onClick={save} disabled={busy}>
-            保存配置
+            {uiText('settings.desktop.save')}
           </button>
-          <button className="rounded-md border border-ann-border px-4 py-2 text-sm disabled:opacity-50" onClick={flush} disabled={busy || !token} data-testid="flush-delivery">
-            立即交付待发送项
+          <button
+            className="rounded-md border border-ann-border px-4 py-2 text-sm disabled:opacity-50"
+            onClick={flush}
+            disabled={busy || !block?.config.hasToken}
+            data-testid="flush-delivery"
+          >
+            {uiText('settings.desktop.flush')}
           </button>
+          {block?.config.hasToken && (
+            <button className="rounded-md border border-ann-border px-4 py-2 text-sm disabled:opacity-50" onClick={unpair} disabled={busy} data-testid="unpair">
+              {uiText('settings.desktop.unpair')}
+            </button>
+          )}
         </div>
       </div>
     </SettingsSection>
@@ -163,31 +251,29 @@ function SyncPanelCard() {
   }, [load])
 
   return (
-    <SettingsSection title="双向同步" description="扩展会拉取 Desktop 回传的复习结果；无法应用的项目会出现在下面的报告中。">
+    <SettingsSection title={uiText('settings.sync.title')} description={uiText('settings.sync.description')}>
       <div className="space-y-3 text-sm">
         {state === null ? (
-          <div className="text-xs text-ann-muted">加载中…</div>
+          <div className="text-xs text-ann-muted">{uiText('common.loading')}</div>
         ) : (
           <div className="rounded-md bg-ann-alt p-3 text-xs text-ann-muted" data-testid="sync-state">
-            <div>上次拉取：{state.lastPullAt ? new Date(state.lastPullAt).toLocaleString() : '尚未同步'}</div>
+            <div>{uiText('settings.sync.lastPull', { time: state.lastPullAt ? new Date(state.lastPullAt).toLocaleString() : uiText('settings.sync.never') })}</div>
             {state.lastPull && (
               <>
-                <div>
-                  最近一批：应用 {state.lastPull.appliedChanges} 条变更，{state.lastPull.reports} 条报告
-                </div>
-                {state.lastPull.errors.length > 0 && <div className="text-ann-danger">错误：{state.lastPull.errors[0]}</div>}
+                <div>{uiText('settings.sync.lastBatch', { applied: state.lastPull.appliedChanges, reports: state.lastPull.reports })}</div>
+                {state.lastPull.errors.length > 0 && <div className="text-ann-danger">{uiText('settings.sync.error', { error: state.lastPull.errors[0]! })}</div>}
               </>
             )}
-            {!state.lastPull && <div>连接 Desktop 并点击上方的「立即交付待发送项」即可开始同步。</div>}
+            {!state.lastPull && <div>{uiText('settings.sync.start')}</div>}
           </div>
         )}
         {reports !== null && reports.length > 0 && (
           <div className="rounded-md border border-ann-border p-3 text-xs" data-testid="sync-reports">
-            <div className="mb-1 font-medium text-ann-text">同步报告（最近 {reports.length} 条）</div>
+            <div className="mb-1 font-medium text-ann-text">{uiText('settings.sync.reports', { count: reports.length })}</div>
             <ul className="list-disc space-y-1 pl-4 text-ann-muted">
               {reports.map(report => (
                 <li key={report.id}>
-                  {new Date(report.at).toLocaleString()} · {report.type} · {report.reason}
+                  {new Date(report.at).toLocaleString()} · {report.type} · {syncReasonLabel(report.reason)}
                   {report.detail ? ` · ${report.detail}` : ''}
                 </li>
               ))}
@@ -219,24 +305,28 @@ function MetricsCard() {
   }, [])
   if (!metrics) return null
   return (
-    <SettingsSection title="采集完成率（本地统计）" description="仅记录事件计数，不记录任何正文内容。">
+    <SettingsSection title={uiText('settings.metrics.title')} description={uiText('settings.metrics.description')}>
       <div className="grid grid-cols-2 gap-2 text-xs text-ann-muted sm:grid-cols-4" data-testid="capture-metrics">
-        <div className="rounded-md bg-ann-alt p-2">打开采集 {metrics.modalOpened}</div>
-        <div className="rounded-md bg-ann-alt p-2">到达核验 {metrics.reachedVerify}</div>
-        <div className="rounded-md bg-ann-alt p-2">到达应用 {metrics.reachedApply}</div>
-        <div className="rounded-md bg-ann-alt p-2">保存成功 {metrics.saved}</div>
+        <div className="rounded-md bg-ann-alt p-2">{uiText('settings.metrics.opened', { count: metrics.modalOpened })}</div>
+        <div className="rounded-md bg-ann-alt p-2">{uiText('settings.metrics.reachedVerify', { count: metrics.reachedVerify })}</div>
+        <div className="rounded-md bg-ann-alt p-2">{uiText('settings.metrics.reachedApply', { count: metrics.reachedApply })}</div>
+        <div className="rounded-md bg-ann-alt p-2">{uiText('settings.metrics.saved', { count: metrics.saved })}</div>
         {Object.keys(metrics.exited).length > 0 && (
           <div className="col-span-2 rounded-md bg-ann-alt p-2 sm:col-span-4">
-            退出阶段：
+            {uiText('settings.metrics.exitedAt')}
             {Object.entries(metrics.exited)
               .map(([step, count]) => `${step} × ${count}`)
-              .join('、')}
+              .join(uiText('settings.metrics.separator'))}
           </div>
         )}
         {metrics.exitedWithInput > 0 && (
           <div className="col-span-2 rounded-md bg-ann-alt p-2 sm:col-span-4" data-testid="safe-exit-metrics">
-            放弃时已有输入 {metrics.exitedWithInput} 次 · 改存高亮 {metrics.fallbacks.highlight} · 改存剪藏 {metrics.fallbacks.clip}（安全出口使用率{' '}
-            {Math.round(((metrics.fallbacks.highlight + metrics.fallbacks.clip) / metrics.exitedWithInput) * 100)}%）
+            {uiText('settings.metrics.safeExit', {
+              withInput: metrics.exitedWithInput,
+              highlight: metrics.fallbacks.highlight,
+              clip: metrics.fallbacks.clip,
+              rate: Math.round(((metrics.fallbacks.highlight + metrics.fallbacks.clip) / metrics.exitedWithInput) * 100),
+            })}
           </div>
         )}
       </div>
@@ -260,11 +350,15 @@ function OrphanAssetsCard() {
   }, [load])
 
   const cleanup = async () => {
-    if (orphans?.length && !window.confirm(`清理 ${orphans.length} 个孤儿图片资产？仅删除无引用且无待交付任务的图片。`)) return
+    if (orphans?.length && !window.confirm(uiText('settings.orphans.confirm', { count: orphans.length }))) return
     setBusy(true)
     try {
       const response = await MessageUtils.sendMessage<{ removed: number }>({ type: 'CLEANUP_ORPHAN_ASSETS' })
-      setMessage(response.success ? { kind: 'success', text: `已清理 ${response.data?.removed ?? 0} 个孤儿资产` } : { kind: 'error', text: response.error || '清理失败' })
+      setMessage(
+        response.success
+          ? { kind: 'success', text: uiText('settings.orphans.cleaned', { count: response.data?.removed ?? 0 }) }
+          : { kind: 'error', text: response.error || uiText('settings.orphans.failed') },
+      )
       await load()
     } finally {
       setBusy(false)
@@ -273,15 +367,19 @@ function OrphanAssetsCard() {
 
   if (orphans === null) return null
   return (
-    <SettingsSection title="孤儿图片资产" description="无任何截图集/碎片引用且无待交付任务的图片；可安全清理以释放空间。">
+    <SettingsSection title={uiText('settings.orphans.title')} description={uiText('settings.orphans.description')}>
       <div className="space-y-3 text-sm text-ann-muted" data-testid="orphan-assets">
-        <div>{orphans.length === 0 ? '没有孤儿资产。' : `${orphans.length} 个孤儿资产（如 ${(orphans.reduce((n, a) => n + a.byteLength, 0) / 1024 / 1024).toFixed(1)}MB）`}</div>
+        <div>
+          {orphans.length === 0
+            ? uiText('settings.orphans.none')
+            : uiText('settings.orphans.summary', { count: orphans.length, size: (orphans.reduce((n, a) => n + a.byteLength, 0) / 1024 / 1024).toFixed(1) })}
+        </div>
         {message && (
           <div>{message.kind === 'success' ? <StatusMessage tone="success">{message.text}</StatusMessage> : <StatusMessage tone="error">{message.text}</StatusMessage>}</div>
         )}
         {orphans.length > 0 && (
           <button className="rounded-md bg-ann-accent px-4 py-2 text-sm text-ann-on-accent disabled:opacity-50" onClick={cleanup} disabled={busy} data-testid="cleanup-orphans">
-            {busy ? '清理中…' : '清理孤儿资产'}
+            {uiText(busy ? 'settings.orphans.cleaning' : 'settings.orphans.cleanup')}
           </button>
         )}
       </div>
@@ -308,8 +406,8 @@ function CapturePreferenceCard() {
       const response = await MessageUtils.sendMessage({ type: 'SET_CAPTURE_CONFIG', config: { deepMode: next } })
       setMessage(
         response.success
-          ? { kind: 'success', text: next ? '已开启深度模式：采集时先写理解' : '已切换到标准模式：核验 → 应用' }
-          : { kind: 'error', text: response.error || '保存失败' },
+          ? { kind: 'success', text: uiText(next ? 'settings.capture.deepOn' : 'settings.capture.deepOff') }
+          : { kind: 'error', text: response.error || uiText('capture.error.saveFailed') },
       )
     } finally {
       setBusy(false)
@@ -317,10 +415,10 @@ function CapturePreferenceCard() {
   }
 
   return (
-    <SettingsSection title="采集偏好" description="深度模式在采集 Modal 增加「理解」步骤（理解 → 核验 → 应用）">
+    <SettingsSection title={uiText('settings.capture.title')} description={uiText('settings.capture.description')}>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={deepMode} onChange={e => void save(e.target.checked)} disabled={busy} data-testid="deep-mode-toggle" />
-        深度模式（全局默认；单次采集内也可切换）
+        {uiText('settings.capture.deepMode')}
       </label>
       {message && (
         <div className="mt-2">
@@ -332,37 +430,33 @@ function CapturePreferenceCard() {
 }
 
 function LlmCard() {
-  const [config, setConfig] = useState<LlmConfig | null>(null)
+  const [config, setConfig] = useState<LlmConfigPublic | null>(null)
+  // The stored key is never sent to this page: the field starts empty and an empty field keeps it.
+  const [apiKey, setApiKey] = useState('')
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    void (async () => {
-      const response = await MessageUtils.sendMessage<LlmConfig>({ type: 'GET_LLM_CONFIG' })
-      if (response.success && response.data) setConfig(response.data)
-    })()
+  const load = useCallback(async () => {
+    const response = await MessageUtils.sendMessage<LlmConfigPublic>({ type: 'GET_LLM_CONFIG' })
+    if (response.success && response.data) setConfig(response.data)
   }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
 
   if (!config) return null
 
-  const field = (label: string, key: keyof LlmConfig, placeholder: string, type = 'text') => (
-    <label className="block space-y-1">
-      <span className="text-xs text-ann-muted">{label}</span>
-      <input
-        type={type}
-        className="w-full rounded-md border border-ann-border px-3 py-2 font-mono text-xs"
-        value={String(config[key] ?? '')}
-        placeholder={placeholder}
-        onChange={e => setConfig({ ...config, [key]: e.target.value })}
-      />
-    </label>
-  )
+  const typedKey = apiKey.trim()
+  const formValues = { baseUrl: config.baseUrl, model: config.model, ...(typedKey ? { apiKey: typedKey } : {}) }
 
   const save = async () => {
     setBusy(true)
     try {
-      const response = await MessageUtils.sendMessage({ type: 'SET_LLM_CONFIG', config: { baseUrl: config.baseUrl, apiKey: config.apiKey, model: config.model } })
-      setMessage(response.success ? { kind: 'success', text: '已保存 LLM 配置' } : { kind: 'error', text: response.error || '保存失败' })
+      const response = await MessageUtils.sendMessage({ type: 'SET_LLM_CONFIG', config: formValues })
+      setMessage(response.success ? { kind: 'success', text: uiText('settings.llm.saved') } : { kind: 'error', text: response.error || uiText('capture.error.saveFailed') })
+      if (response.success) setApiKey('')
+      await load()
     } finally {
       setBusy(false)
     }
@@ -371,31 +465,47 @@ function LlmCard() {
   const test = async () => {
     setBusy(true)
     try {
-      const response = await MessageUtils.sendMessage<{ ok: boolean; modelCount?: number }>({
-        type: 'TEST_LLM_CONNECTION',
-        config: { baseUrl: config.baseUrl, apiKey: config.apiKey, model: config.model },
-      })
-      setMessage(response.success ? { kind: 'success', text: `连接可用（${response.data?.modelCount ?? 0} 个模型）` } : { kind: 'error', text: response.error || '连接失败' })
+      const response = await MessageUtils.sendMessage<{ ok: boolean; availableModels?: unknown[] }>({ type: 'TEST_LLM_CONNECTION', config: formValues })
+      setMessage(
+        response.success
+          ? { kind: 'success', text: response.data?.availableModels ? uiText('settings.llm.okModels', { count: response.data.availableModels.length }) : uiText('settings.llm.ok') }
+          : { kind: 'error', text: response.error || uiText('settings.llm.failed') },
+      )
     } finally {
       setBusy(false)
     }
   }
 
+  const textField = (label: string, value: string, placeholder: string, onChange: (value: string) => void, extra: { type?: string; testId?: string } = {}) => (
+    <label className="block space-y-1">
+      <span className="text-xs text-ann-muted">{label}</span>
+      <input
+        type={extra.type ?? 'text'}
+        autoComplete="off"
+        data-testid={extra.testId}
+        className="w-full rounded-md border border-ann-border px-3 py-2 font-mono text-xs"
+        value={value}
+        placeholder={placeholder}
+        onChange={e => onChange(e.target.value)}
+      />
+    </label>
+  )
+
   return (
-    <SettingsSection title="LLM 配置（可选）" description="核验建议等能力的可选加速器；关闭后采集、复习与导出全部可用。密钥只保存在本地。">
+    <SettingsSection title={uiText('settings.llm.title')} description={uiText('settings.llm.description')}>
       <div className="space-y-3 text-sm">
-        {field('Base URL（OpenAI 兼容）', 'baseUrl', 'https://api.example.com/v1')}
-        {field('API Key', 'apiKey', 'sk-…', 'password')}
-        {field('模型', 'model', 'gpt-…')}
+        {textField(uiText('settings.llm.baseUrl'), config.baseUrl, 'https://api.example.com/v1', baseUrl => setConfig({ ...config, baseUrl }), { testId: 'llm-base-url' })}
+        {textField('API Key', apiKey, config.hasApiKey ? uiText('settings.secretKept') : 'sk-…', setApiKey, { type: 'password', testId: 'llm-api-key' })}
+        {textField(uiText('settings.llm.model'), config.model, 'gpt-…', model => setConfig({ ...config, model }), { testId: 'llm-model' })}
         {message && (
           <div>{message.kind === 'success' ? <StatusMessage tone="success">{message.text}</StatusMessage> : <StatusMessage tone="error">{message.text}</StatusMessage>}</div>
         )}
         <div className="flex gap-2">
           <button className="rounded-md bg-ann-accent px-4 py-2 text-sm text-ann-on-accent disabled:opacity-50" onClick={save} disabled={busy}>
-            保存
+            {uiText('common.save')}
           </button>
-          <button className="rounded-md border border-ann-border px-4 py-2 text-sm disabled:opacity-50" onClick={test} disabled={busy || !config.baseUrl}>
-            测试连接
+          <button className="rounded-md border border-ann-border px-4 py-2 text-sm disabled:opacity-50" onClick={test} disabled={busy || !config.baseUrl} data-testid="llm-test">
+            {uiText('settings.llm.test')}
           </button>
         </div>
       </div>
@@ -414,14 +524,8 @@ function DataManagementCard() {
   }, [])
 
   return (
-    <SettingsSection title="数据管理" description="本地数据概况。「导出内容」的唯一入口在碎片库的更多菜单（Markdown + 原图 ZIP，不是数据库备份）。">
-      <div className="space-y-3 text-sm text-ann-muted">
-        {stats && (
-          <div>
-            本地学习核心：{stats.total} 条碎片（本周新增 {stats.newThisWeek}）
-          </div>
-        )}
-      </div>
+    <SettingsSection title={uiText('settings.data.title')} description={uiText('settings.data.description')}>
+      <div className="space-y-3 text-sm text-ann-muted">{stats && <div>{uiCount('settings.data.stats', stats.total, { added: stats.newThisWeek })}</div>}</div>
     </SettingsSection>
   )
 }

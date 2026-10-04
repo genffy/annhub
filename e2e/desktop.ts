@@ -26,6 +26,9 @@ export function desktopApp(): string | undefined {
 
 export const desktopAvailable = (): boolean => process.platform === 'darwin' && desktopApp() !== undefined
 
+/** The only extension the Desktop serves unless a launch names more (DesktopHub.publishedExtensionIds). */
+export const PUBLISHED_EXTENSION_ID = 'jpooljigbeplpgciohfjklgbfdfnnmfn'
+
 export const DESKTOP_SKIP_REASON = 'needs the built macOS Desktop: cd app && xcodegen generate && xcodebuild -scheme AnnHubDesktop build (or set ANNHUB_DESKTOP_APP)'
 
 /** What the Desktop reports about itself on SIGUSR1 (app/Desktop/Diagnostics.swift). */
@@ -53,6 +56,11 @@ export interface StartOptions {
   port?: number
   /** Open the main window like a normal launch (default: menu bar only). */
   window?: boolean
+  /**
+   * Extension ids the hub serves besides the published one. The unpacked build under test has a
+   * different id, and the Desktop refuses any browser origin that is not allowed (storage.md §8).
+   */
+  extensionIds?: string[]
 }
 
 export class RunningDesktop {
@@ -92,6 +100,7 @@ export class RunningDesktop {
       `--annhub-ready-file=${readyFile}`,
       `--annhub-diagnostics=${path.join(dir, 'diag')}`,
       '--annhub-no-notifications',
+      ...(options.extensionIds ?? []).map(id => `--annhub-allow-extension=${id}`),
       ...(options.window ? [] : ['--annhub-no-window']),
     ]
     const child = spawn(path.join(app, 'Contents/MacOS/AnnHubDesktop'), args, { stdio: ['ignore', 'pipe', 'pipe'] })

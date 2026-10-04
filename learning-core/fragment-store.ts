@@ -11,7 +11,7 @@
  * current contract's object stores only.
  */
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
-import type { FragmentRecord, ImageAsset, LocalDeletion, OutboxEvent, ReviewLog, ScreenshotRecord, SyncEventType } from './types'
+import type { FragmentRecord, ImageAsset, LocalDeletion, OutboxEvent, OutboxRejection, ReviewLog, ScreenshotRecord, SyncEventType } from './types'
 import { assertValid } from './validate'
 import { createFragment, newId, type CreateFragmentInput } from './factory'
 import { rateFragment, type ReviewRating } from './scheduler'
@@ -421,6 +421,43 @@ export class FragmentStore {
     await db.put('outboxEvents', { ...event, attempts: event.attempts + 1, lastAttemptAt: now })
   }
 
+  /** Counts a 5xx answer for this item; returns the new total. */
+  async markEventFailure(eventId: string): Promise<number> {
+    const db = await this.db_()
+    const event = await db.get('outboxEvents', eventId)
+    if (!event) return 0
+    const failures = (event.failures ?? 0) + 1
+    await db.put('outboxEvents', { ...event, failures })
+    return failures
+  }
+
+  /** Keeps the event but stops automatic retries; it stays visible until retried or dismissed. */
+  async rejectEvent(eventId: string, rejection: OutboxRejection): Promise<void> {
+    const db = await this.db_()
+    const event = await db.get('outboxEvents', eventId)
+    if (!event) return
+    await db.put('outboxEvents', { ...event, rejection })
+  }
+
+  async getRejectedEvents(): Promise<OutboxEvent[]> {
+    return (await this.getOutboxEvents()).filter(event => event.rejection)
+  }
+
+  /** The user asked to try again: rejected items rejoin the queue with a clean slate. */
+  async reopenRejectedEvents(): Promise<number> {
+    const db = await this.db_()
+    const tx = db.transaction('outboxEvents', 'readwrite')
+    let reopened = 0
+    for (const event of await tx.store.getAll()) {
+      if (!event.rejection) continue
+      const { rejection: _rejection, failures: _failures, ...rest } = event
+      await tx.store.put({ ...rest, attempts: 0 })
+      reopened++
+    }
+    await tx.done
+    return reopened
+  }
+
   /** Prunes events after the hub confirmed persistence (storage.md §3.4). */
   async pruneEvents(eventIds: string[]): Promise<void> {
     const db = await this.db_()
@@ -429,11 +466,14 @@ export class FragmentStore {
     await tx.done
   }
 
-  async getDeliveryStats(): Promise<{ pendingFragments: number; pendingAssets: number }> {
+  /** Pending counts exclude rejected items: those wait for the user, not for the next retry. */
+  async getDeliveryStats(): Promise<{ pendingFragments: number; pendingAssets: number; rejected: number }> {
     const events = await this.getOutboxEvents()
+    const waiting = events.filter(e => !e.rejection)
     return {
-      pendingFragments: events.filter(e => e.type === 'fragment.created' || e.type === 'fragment.updated').length,
-      pendingAssets: events.filter(e => e.type === 'asset.created').length,
+      pendingFragments: waiting.filter(e => e.type === 'fragment.created' || e.type === 'fragment.updated').length,
+      pendingAssets: waiting.filter(e => e.type === 'asset.created').length,
+      rejected: events.length - waiting.length,
     }
   }
 

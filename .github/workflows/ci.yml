@@ -56,7 +56,12 @@ jobs:
       - name: Swift fixtures match the TypeScript source
         run: |
           scripts/sync-interop-fixtures.sh
-          git diff --exit-code -- app/Tests/AnnHubCoreTests/Fixtures
+          # `git diff` ignores untracked files; status also catches a fixture the sync newly creates.
+          if [ -n "$(git status --porcelain -- app/Tests/AnnHubCoreTests/Fixtures)" ]; then
+            git status --short -- app/Tests/AnnHubCoreTests/Fixtures
+            echo "Swift fixtures are stale: run scripts/sync-interop-fixtures.sh and commit the result." >&2
+            exit 1
+          fi
 
       - name: Build
         run: npm run build
@@ -111,6 +116,9 @@ jobs:
 
       - name: Type check
         run: npx tsc --noEmit
+
+      - name: Lint
+        run: npm run lint
 
       - name: Build
         run: npm run build

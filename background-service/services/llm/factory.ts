@@ -1,5 +1,5 @@
 import type { ILlmClient } from './types'
-import type { LlmConfig } from '../../../types/vocabulary'
+import type { LlmConfig } from '../../../types/llm'
 import { OpenAICompatibleLlmService } from './openai-compatible'
 
 export function createLlmClient(config: LlmConfig): ILlmClient {

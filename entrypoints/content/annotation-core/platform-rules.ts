@@ -1,10 +1,9 @@
-import type { AnnotationIntent, AnnotationPlatformRule, ContentSource } from './types'
+import type { AnnotationPlatformRule, ContentSource } from './types'
 
 export const TWEET_STATUS_RE = /^\/[^/]+\/status\/\d+$/
 export const TWEET_STATUS_PREFIX_RE = /^\/[^/]+\/status\/\d+/
 
 const TWITTER_HOST_WITH_SUBDOMAIN_RE = /(^|\.)((x\.com)|(twitter\.com))$/i
-const X_TWEET_TEXT_SELECTOR = '[data-testid="tweetText"]'
 const X_TWEET_CONTAINER_SELECTOR = 'article, [data-testid="tweet"]'
 
 type TwitterStatusHref = {
@@ -15,19 +14,6 @@ type TwitterStatusHref = {
 
 function isXHost(hostname: string): boolean {
   return TWITTER_HOST_WITH_SUBDOMAIN_RE.test(hostname)
-}
-
-function uniqueElements(elements: Element[]): Element[] {
-  const seen = new Set<Element>()
-  const result: Element[] = []
-
-  for (const el of elements) {
-    if (!el.isConnected || seen.has(el)) continue
-    seen.add(el)
-    result.push(el)
-  }
-
-  return result
 }
 
 function getHref(el: Element): string | null {
@@ -129,27 +115,9 @@ export function findTwitterContainerByPermalink(sourceUrl: string, origin: strin
   return null
 }
 
-function collectXContentBlocks(root: Element, _intent: AnnotationIntent): Element[] {
-  const candidates: Element[] = []
-  const closestTweetText = root.closest(X_TWEET_TEXT_SELECTOR)
-
-  if (closestTweetText) {
-    candidates.push(closestTweetText)
-  }
-
-  if (root.matches(X_TWEET_TEXT_SELECTOR)) {
-    candidates.push(root)
-  }
-
-  candidates.push(...Array.from(root.querySelectorAll(X_TWEET_TEXT_SELECTOR)))
-  return uniqueElements(candidates)
-}
-
 const X_PLATFORM_RULE: AnnotationPlatformRule = {
   name: 'x',
   match: url => isXHost(url.hostname),
-  resolveRoot: () => document.querySelector('main') ?? document.body,
-  collectContentBlocks: collectXContentBlocks,
   findSourceFromElement: (element, origin): ContentSource => {
     const container = findTwitterPermalinkContainer(element, origin)
     return {

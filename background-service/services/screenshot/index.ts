@@ -11,6 +11,7 @@ import type { IService } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
+import { uiText } from '../../../utils/ui-text'
 import { quotaAvailable } from '../../../utils/storage-quota'
 import { FragmentStore } from '../../../learning-core/fragment-store'
 import { sha256Hex, MAX_IMAGE_BYTES } from '../../../learning-core/wire'
@@ -82,19 +83,19 @@ export class ScreenshotService implements IService {
               }
             }
           ).data
-          if (!download && !persist) throw new Error('未选择截图操作')
-          if (persist && !bytes && !dataUrl) throw new Error('缺少图片数据')
+          if (!download && !persist) throw new Error(uiText('shot.error.noAction'))
+          if (persist && !bytes && !dataUrl) throw new Error(uiText('shot.error.noData'))
 
           let library: { screenshot: ScreenshotRecord; asset: ImageAsset } | undefined
           if (persist) {
             const blob = bytes ?? dataUrlToBlob(dataUrl!)
             if (blob.size > MAX_IMAGE_BYTES) {
-              throw new Error(`图片超过 ${Math.round(MAX_IMAGE_BYTES / 1024 / 1024)}MB 上限（当前 ${Math.round(blob.size / 1024 / 1024)}MB）`)
+              throw new Error(uiText('shot.error.tooLarge', { limit: Math.round(MAX_IMAGE_BYTES / 1024 / 1024), size: Math.round(blob.size / 1024 / 1024) }))
             }
             // Quota guard (roadmap R1.4): report failure and keep the session
             // retryable — never show a successful save that wasn't persisted.
             if (!(await quotaAvailable(blob.size))) {
-              throw new Error('浏览器存储空间不足：截图未入库，可单独下载或清理旧截图后重试')
+              throw new Error(uiText('shot.error.quota'))
             }
             const digest = await sha256Hex(new Uint8Array(await blobBytes(blob)))
             const dimensions = await imageDimensions(blob)

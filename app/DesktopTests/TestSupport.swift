@@ -135,7 +135,8 @@ func waitUntil(timeout: TimeInterval = 8, _ message: String = "", condition: () 
 struct HubClient {
     let port: UInt16
     let token: String
-    var origin: String? = "chrome-extension://" + String(repeating: "a", count: 32)
+    /// What Chrome sends from the published extension; the hub serves no other extension (storage.md §8).
+    var origin: String? = "chrome-extension://" + (DesktopHub.publishedExtensionIds.first ?? "")
 
     private var session: URLSession {
         let configuration = URLSessionConfiguration.ephemeral

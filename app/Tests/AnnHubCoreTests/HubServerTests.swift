@@ -1,7 +1,9 @@
-// The hub's HTTP transport on a real loopback socket (storage.md §8): what the
-// extension actually sends over the wire, and the limits a local server needs.
-// Protocol rules are covered without sockets in HubPutTests / SyncEndpointTests;
-// these tests prove the bytes get from a TCP connection to those rules and back.
+// The hub's socket on a real loopback port (storage.md §8): what the extension actually sends over
+// the wire, the listener's real state, and how a refused connection is closed. What may be read —
+// header and body caps, Host, Origin, the token — is decided by HubRequestFramer and
+// DesktopHub.preflight and is covered without sockets in HubFramingTests; the protocol itself in
+// HubPutTests / SyncEndpointTests. These tests prove the bytes get from a TCP connection to those
+// rules and back.
 
 import Darwin
 import XCTest
@@ -13,7 +15,7 @@ import XCTest
 private final class StateLog: @unchecked Sendable {
     private let lock = NSLock()
     private var states: [HubServer.State] = []
-    private var handled: [(request: HubRequest, status: Int)] = []
+    private var handled: [(request: HubRequest?, status: Int)] = []
 
     func record(_ state: HubServer.State) {
         lock.lock()
@@ -21,7 +23,7 @@ private final class StateLog: @unchecked Sendable {
         states.append(state)
     }
 
-    func record(_ request: HubRequest, _ response: HubResponse) {
+    func record(_ request: HubRequest?, _ response: HubResponse) {
         lock.lock()
         defer { lock.unlock() }
         handled.append((request, response.status))
@@ -33,12 +35,15 @@ private final class StateLog: @unchecked Sendable {
         return states
     }
 
-    var requests: [(request: HubRequest, status: Int)] {
+    var requests: [(request: HubRequest?, status: Int)] {
         lock.lock()
         defer { lock.unlock() }
         return handled
     }
 }
+
+/// The only browser origin the hub serves unless told otherwise (storage.md §8).
+private let publishedOrigin = "chrome-extension://" + (DesktopHub.publishedExtensionIds.first ?? "")
 
 private struct RunningHub {
     let store: FragmentStore
@@ -154,7 +159,7 @@ private final class RawSocket {
 
     func send(_ text: String) { send(Data(text.utf8)) }
 
-    /// Reads until the peer closes or `timeout` passes without data.
+    /// Reads until the peer ends the connection (closed or reset) or `timeout` passes without data.
     func readToEnd(timeout: TimeInterval = 5) -> (data: Data, peerClosed: Bool) {
         var tv = timeval(tv_sec: Int(timeout), tv_usec: Int32((timeout - floor(timeout)) * 1_000_000))
         setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, socklen_t(MemoryLayout<timeval>.size))
@@ -163,7 +168,7 @@ private final class RawSocket {
         while true {
             let count = recv(fd, &chunk, chunk.count, 0)
             if count == 0 { return (out, true) }
-            if count < 0 { return (out, false) }
+            if count < 0 { return (out, errno == ECONNRESET) }
             out.append(chunk, count: count)
         }
     }
@@ -179,157 +184,23 @@ private func fixtureFragmentBody() throws -> (id: String, body: Data) {
     return (record.id, try putFragmentBody(deviceId: fixture.deviceId, fragment: fixture.fragment))
 }
 
-// ── framing (no sockets) ─────────────────────────────────────────────────
+// ── responses ────────────────────────────────────────────────────────────
 
-final class HTTPFramingTests: XCTestCase {
-    private func head(_ text: String, maxHeaderBytes: Int = 16 * 1024) -> HTTPHeadResult {
-        HTTPFraming.parseHead(Data(text.utf8), maxHeaderBytes: maxHeaderBytes)
-    }
-
-    func testIncompleteUntilTheBlankLine() {
-        XCTAssertEqual(head("GET /health HTTP/1.1\r\nHost: 127.0.0.1"), .incomplete)
-        XCTAssertEqual(head("GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\n"), .incomplete)
-    }
-
-    func testParsesMethodPathHeadersAndBodyOffset() throws {
-        let text =
-            "PUT /v1/fragments/abc HTTP/1.1\r\nHost: 127.0.0.1:8765\r\nAuthorization: Bearer ABCD-EFGH\r\n"
-            + "Content-Length: 5\r\nX-AnnHub-Sha256: ff\r\n\r\nhello"
-        guard case .head(let parsed, let bodyStart) = head(text) else { return XCTFail("expected a head") }
-        XCTAssertEqual(parsed.method, "PUT")
-        XCTAssertEqual(parsed.path, "/v1/fragments/abc")
-        XCTAssertEqual(parsed.contentLength, 5)
-        XCTAssertEqual(parsed.headers["x-annhub-sha256"], "ff")  // names are lowercased
-        XCTAssertEqual(parsed.bearerToken, "ABCD-EFGH")
-        XCTAssertTrue(parsed.carriesBody)
-        XCTAssertEqual(String(text.utf8.dropFirst(bodyStart))!, "hello")
-    }
-
-    func testBearerSchemeIsCaseInsensitiveAndOtherSchemesAreIgnored() throws {
-        func token(_ line: String) throws -> String? {
-            guard case .head(let parsed, _) = head("GET / HTTP/1.1\r\n\(line)\r\n\r\n") else {
-                throw XCTSkip("expected a head")
-            }
-            return parsed.bearerToken
-        }
-        XCTAssertEqual(try token("authorization: bearer TOKEN-1"), "TOKEN-1")
-        XCTAssertEqual(try token("Authorization: BEARER TOKEN-2"), "TOKEN-2")
-        XCTAssertNil(try token("Authorization: Basic dXNlcjpwYXNz"))
-    }
-
-    func testRejectsMalformedRequestsAndAmbiguousLengths() {
-        XCTAssertEqual(head("NOT HTTP\r\n\r\n"), .malformed)
-        XCTAssertEqual(head("get /health HTTP/1.1\r\n\r\n"), .malformed, "methods are uppercase")
-        XCTAssertEqual(head("GET health HTTP/1.1\r\n\r\n"), .malformed, "origin-form targets start with /")
-        XCTAssertEqual(head("GET /health SPDY/3\r\n\r\n"), .malformed)
-        XCTAssertEqual(head("GET / HTTP/1.1\r\nno colon here\r\n\r\n"), .malformed)
-        XCTAssertEqual(head("PUT / HTTP/1.1\r\nContent-Length: -1\r\n\r\n"), .malformed)
-        XCTAssertEqual(head("PUT / HTTP/1.1\r\nContent-Length: 12abc\r\n\r\n"), .malformed)
-        XCTAssertEqual(head("PUT / HTTP/1.1\r\nContent-Length: 5\r\nContent-Length: 6\r\n\r\n"), .malformed)
-        // Repeating the same length is harmless.
-        XCTAssertNotEqual(head("PUT / HTTP/1.1\r\nContent-Length: 5\r\nContent-Length: 5\r\n\r\n"), .malformed)
-    }
-
-    func testHeaderBlockIsBounded() {
-        let flood = "GET / HTTP/1.1\r\nX-Pad: " + String(repeating: "a", count: 2000)
-        XCTAssertEqual(head(flood, maxHeaderBytes: 1024), .headersTooLarge)
-        XCTAssertEqual(head(flood + "\r\n\r\n", maxHeaderBytes: 1024), .headersTooLarge)
-        XCTAssertEqual(head("GET / HTTP/1.1\r\nX-Pad: a", maxHeaderBytes: 1024), .incomplete)
-    }
-
-    func testBodylessMethodsDoNotNeedALength() throws {
-        guard case .head(let parsed, _) = head("GET /v1/changes?cursor=0 HTTP/1.1\r\n\r\n") else {
-            return XCTFail("expected a head")
-        }
-        XCTAssertFalse(parsed.carriesBody)
-        XCTAssertNil(parsed.contentLength)
-    }
-
+final class HubResponseWriterTests: XCTestCase {
     func testResponsesCarryTheRightStatusLineAndLength() {
-        let response = HTTPFraming.serialize(.json(403, ["error": "forbidden_origin"]))
+        let response = HubResponseWriter.serialize(.json(403, ["error": "forbidden origin"]))
         let text = String(decoding: response, as: UTF8.self)
         XCTAssertTrue(text.hasPrefix("HTTP/1.1 403 Forbidden\r\n"))
-        XCTAssertTrue(text.contains("Content-Length: \(#"{"error":"forbidden_origin"}"#.utf8.count)\r\n"))
+        XCTAssertTrue(text.contains("Content-Length: \(#"{"error":"forbidden origin"}"#.utf8.count)\r\n"))
         XCTAssertTrue(text.contains("Connection: close\r\n"))
-        XCTAssertTrue(text.hasSuffix(#"{"error":"forbidden_origin"}"#))
-        // Every status the hub can answer has a real reason phrase.
-        for status in [200, 201, 400, 401, 403, 404, 405, 409, 410, 411, 413, 422, 431, 500] {
-            XCTAssertFalse(HTTPFraming.reasonPhrase(status).hasPrefix("Status"), "\(status)")
+        XCTAssertFalse(text.lowercased().contains("access-control-"), "no CORS headers: a page may not read the reply")
+        XCTAssertTrue(text.hasSuffix(#"{"error":"forbidden origin"}"#))
+    }
+
+    func testEveryStatusTheHubCanAnswerHasARealReasonPhrase() {
+        for status in [200, 201, 400, 401, 403, 404, 405, 409, 410, 413, 422, 431, 500, 501] {
+            XCTAssertFalse(HubResponseWriter.reasonPhrase(status).hasPrefix("Status"), "\(status)")
         }
-    }
-}
-
-// ── the client rules (no sockets) ────────────────────────────────────────
-
-final class HubClientPolicyTests: XCTestCase {
-    private let extensionOrigin = "chrome-extension://" + String(repeating: "a", count: 32)
-
-    private func makeHub() throws -> DesktopHub {
-        DesktopHub(store: try freshStore(), pairToken: "GOOD-CODE")
-    }
-
-    func testLoopbackHostsOnly() {
-        for host in ["127.0.0.1", "127.0.0.1:8765", "localhost", "LOCALHOST:8765", "[::1]:8765", "[::1]"] {
-            XCTAssertTrue(DesktopHub.isLoopbackHost(host), host)
-        }
-        for host in ["evil.example", "evil.example:8765", "127.0.0.1.evil.example", "192.168.1.5:8765", "0.0.0.0"] {
-            XCTAssertFalse(DesktopHub.isLoopbackHost(host), host)
-        }
-    }
-
-    func testOnlyExtensionOriginsPass() {
-        XCTAssertTrue(DesktopHub.isExtensionOrigin(extensionOrigin))
-        XCTAssertFalse(DesktopHub.isExtensionOrigin("https://example.com"))
-        XCTAssertFalse(DesktopHub.isExtensionOrigin("null"))
-        XCTAssertFalse(DesktopHub.isExtensionOrigin("chrome-extension://short"))
-        XCTAssertFalse(DesktopHub.isExtensionOrigin("chrome-extension://" + String(repeating: "z", count: 32)))
-        XCTAssertFalse(DesktopHub.isExtensionOrigin(extensionOrigin + "/path"))
-    }
-
-    func testWebPageOriginIsRefusedEvenWithTheRightToken() throws {
-        let hub = try makeHub()
-        let response = hub.handle(
-            HubRequest(
-                method: "POST", path: "/v1/pair", bearerToken: "GOOD-CODE",
-                headers: ["Origin": "https://evil.example"]))
-        XCTAssertEqual(response.status, 403)
-        XCTAssertEqual(response.errorField(), "forbidden_origin")
-        XCTAssertNil(hub.lastPairedAt, "a refused request must not pair")
-    }
-
-    func testRefusedRequestsAreNeitherConnectionsNorDeliveries() throws {
-        let hub = try makeHub()
-        let attempt = HubRequest(
-            method: "PUT", path: "/v1/fragments/x", bearerToken: "GOOD-CODE",
-            headers: ["Origin": "https://evil.example"], body: Data("{}".utf8))
-        XCTAssertEqual(hub.handle(attempt).status, 403)
-        XCTAssertNil(hub.lastConnectionAt)
-        XCTAssertTrue(hub.recentDeliveries.isEmpty)
-    }
-
-    func testForeignHostIsRefusedAsDNSRebinding() throws {
-        let response = try makeHub().handle(
-            HubRequest(method: "GET", path: "/health", headers: ["Host": "evil.example:8765"]))
-        XCTAssertEqual(response.status, 403)
-        XCTAssertEqual(response.errorField(), "forbidden_host")
-    }
-
-    func testExtensionOriginAndPlainClientsPass() throws {
-        let hub = try makeHub()
-        XCTAssertEqual(
-            hub.handle(HubRequest(method: "GET", path: "/health", headers: ["Origin": extensionOrigin])).status, 200)
-        XCTAssertEqual(hub.handle(HubRequest(method: "GET", path: "/health")).status, 200, "curl sends no Origin")
-        XCTAssertEqual(
-            hub.handle(HubRequest(method: "GET", path: "/health", headers: ["Host": "127.0.0.1:8765"])).status, 200)
-    }
-
-    func testAPinnedExtensionExcludesOtherExtensions() throws {
-        let hub = try makeHub()
-        let other = "chrome-extension://" + String(repeating: "b", count: 32)
-        hub.allowedExtensionOrigins = [extensionOrigin]
-        XCTAssertEqual(
-            hub.handle(HubRequest(method: "GET", path: "/health", headers: ["Origin": extensionOrigin])).status, 200)
-        XCTAssertEqual(hub.handle(HubRequest(method: "GET", path: "/health", headers: ["Origin": other])).status, 403)
     }
 }
 
@@ -370,8 +241,8 @@ final class HubServerSocketTests: XCTestCase {
         XCTAssertEqual(pair.json["paired"] as? Bool, true)
 
         let put = request(
-            hub, "PUT", "/v1/fragments/\(id)", token: hub.token, headers: ["Content-Type": "application/json"],
-            body: body)
+            hub, "PUT", "/v1/fragments/\(id)", token: hub.token,
+            headers: ["Content-Type": "application/json", "Origin": publishedOrigin], body: body)
         let first = try await send(put)
         XCTAssertEqual(first.status, 201)
         XCTAssertEqual(first.json["revision"] as? Int, 1)
@@ -394,7 +265,7 @@ final class HubServerSocketTests: XCTestCase {
     func testAssetBytesSurviveTheWireIntact() async throws {
         let hub = try startHub()
         defer { hub.stop() }
-        let bytes = Data(DemoSeed.pngBytes)
+        let bytes = try fixtureData("asset.png")
         let response = try await send(
             request(
                 hub, "PUT", "/v1/assets/asset_wire_1", token: hub.token, headers: assetHeaders(bytes: bytes),
@@ -419,7 +290,9 @@ final class HubServerSocketTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(started), 30)
     }
 
-    func testAnImageOverTheLimitGets413FromTheHub() async throws {
+    // A refusal made from the header block goes out while the client is still uploading. These
+    // prove the client can still read the status — closing at once would reset the connection.
+    func testAnImageOverTheLimitIsAnswered413WhileItIsStillBeingSent() async throws {
         let hub = try startHub()
         defer { hub.stop() }
         let bytes = Data(count: MAX_IMAGE_BYTES + 1024)
@@ -431,25 +304,35 @@ final class HubServerSocketTests: XCTestCase {
         XCTAssertFalse(try hub.store.assetExists(id: "asset_huge"))
     }
 
-    func testARequestFarOverTheBodyCapIsRefusedBeforeItIsRead() async throws {
-        let hub = try startHub(limits: HubServer.Limits(maxBodyBytes: 4096))
+    func testAJSONBodyOverItsCapIsAnswered413BeforeItIsRead() async throws {
+        let hub = try startHub()
         defer { hub.stop() }
-        let body = Data(count: 512 * 1024)
-        // The client is still uploading when the 413 goes out; it must still read the
-        // status instead of seeing the connection reset.
+        let body = Data(count: HubRequestFramer.maxJSONBodyBytes + 512 * 1024)
         let response = try await send(
-            request(hub, "PUT", "/v1/assets/asset_x", token: hub.token, headers: assetHeaders(bytes: body), body: body))
+            request(
+                hub, "PUT", "/v1/fragments/frag_big", token: hub.token, headers: ["Content-Type": "application/json"],
+                body: body))
         XCTAssertEqual(response.status, 413)
-        XCTAssertFalse(try hub.store.assetExists(id: "asset_x"))
+        XCTAssertTrue(try hub.store.getFragments().isEmpty)
     }
 
-    func testAPutWithoutALengthIs411NotASilentEmptyBody() throws {
+    func testAnUnauthenticatedUploadGets401NotAnImmediateReset() async throws {
+        let hub = try startHub()
+        defer { hub.stop() }
+        let body = Data(count: 3 * 1024 * 1024)
+        let response = try await send(
+            request(hub, "PUT", "/v1/assets/asset_x", token: "WRONG", headers: assetHeaders(bytes: body), body: body))
+        XCTAssertEqual(response.status, 401)
+    }
+
+    func testAPutWithoutALengthIsRefusedNotTakenForAnEmptyBody() throws {
         let hub = try startHub()
         defer { hub.stop() }
         let socket = try RawSocket(port: hub.port)
         socket.send("PUT /v1/fragments/x HTTP/1.1\r\nHost: 127.0.0.1\r\nAuthorization: Bearer \(hub.token)\r\n\r\n")
         let reply = socket.readToEnd()
-        XCTAssertEqual(RawSocket.statusLine(of: reply.data), "HTTP/1.1 411 Length Required")
+        XCTAssertEqual(RawSocket.statusLine(of: reply.data), "HTTP/1.1 400 Bad Request")
+        XCTAssertTrue(String(decoding: reply.data, as: UTF8.self).contains("length required"))
     }
 
     func testNonHTTPBytesGet400() throws {
@@ -461,10 +344,11 @@ final class HubServerSocketTests: XCTestCase {
     }
 
     func testAnEndlessHeaderBlockIsCutOff() throws {
-        let hub = try startHub(limits: HubServer.Limits(maxHeaderBytes: 1024))
+        let hub = try startHub()
         defer { hub.stop() }
         let socket = try RawSocket(port: hub.port)
-        socket.send("GET /health HTTP/1.1\r\nX-Pad: " + String(repeating: "a", count: 4096))
+        socket.send(
+            "GET /health HTTP/1.1\r\nX-Pad: " + String(repeating: "a", count: HubRequestFramer.maxHeaderBytes * 2))
         XCTAssertEqual(
             RawSocket.statusLine(of: socket.readToEnd().data), "HTTP/1.1 431 Request Header Fields Too Large")
     }
@@ -500,39 +384,91 @@ final class HubServerSocketTests: XCTestCase {
         XCTAssertEqual(hub.log.requests.count, 1, "exactly one request is served per connection")
     }
 
-    func testASilentClientIsDroppedAfterTheIdleTimeout() throws {
-        let hub = try startHub(limits: HubServer.Limits(idleTimeout: 0.3))
+    func testASilentClientIsDroppedWhenTheRequestDeadlinePasses() throws {
+        let hub = try startHub(limits: HubServer.Limits(requestDeadline: 0.3))
         defer { hub.stop() }
         let socket = try RawSocket(port: hub.port)
         let started = Date()
         let reply = socket.readToEnd(timeout: 20)
         XCTAssertTrue(reply.peerClosed, "the hub should hang up on a client that sends nothing")
-        XCTAssertLessThan(Date().timeIntervalSince(started), 15, "far below the default 30 s idle timeout")
+        XCTAssertLessThan(Date().timeIntervalSince(started), 15, "far below the default 20 s deadline")
     }
 
-    func testWebPageAndForeignHostRequestsAreRefusedOnTheWire() async throws {
+    func testConnectionsBeyondTheCapAreTurnedAway() throws {
+        let hub = try startHub(limits: HubServer.Limits(requestDeadline: 20, maxConnections: 2))
+        defer { hub.stop() }
+        let first = try RawSocket(port: hub.port)
+        let second = try RawSocket(port: hub.port)
+        Thread.sleep(forTimeInterval: 0.3)  // both are admitted and idle
+        let third = try RawSocket(port: hub.port)
+        let started = Date()
+        let reply = third.readToEnd(timeout: 10)
+        XCTAssertTrue(reply.peerClosed, "a third simultaneous connection is closed at once")
+        XCTAssertTrue(reply.data.isEmpty)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 5)
+        withExtendedLifetime((first, second)) {}
+    }
+
+    // ── who may talk to it, on the wire ───────────────────────────────────
+
+    func testOnlyThePublishedExtensionAndPlainClientsAreServed() async throws {
         let hub = try startHub()
         defer { hub.stop() }
+        let published = try await send(request(hub, "GET", "/health", headers: ["Origin": publishedOrigin]))
+        XCTAssertEqual(published.status, 200)
+        let plain = try await send(request(hub, "GET", "/health"))
+        XCTAssertEqual(plain.status, 200, "curl and scripts send no Origin")
+
         let web = try await send(request(hub, "GET", "/health", headers: ["Origin": "https://evil.example"]))
         XCTAssertEqual(web.status, 403)
-        let fromExtension = try await send(
+        let other = try await send(
             request(
                 hub, "GET", "/health", headers: ["Origin": "chrome-extension://" + String(repeating: "p", count: 32)]))
-        XCTAssertEqual(fromExtension.status, 200)
+        XCTAssertEqual(other.status, 403, "another extension is not the AnnHub extension")
+    }
 
+    func testAnExplicitlyAllowedExtraIdIsServed() async throws {
+        let store = try freshStore()
+        let extra = String(repeating: "a", count: 32)
+        let hub = DesktopHub(
+            store: store, pairToken: "T", allowedExtensionIds: DesktopHub.publishedExtensionIds.union([extra]))
+        let server = HubServer(hub: hub, port: 0)
+        server.start()
+        defer { server.stop() }
+        let port = try waitForReady(server)
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(port)/health")!)
+        request.setValue("chrome-extension://" + extra, forHTTPHeaderField: "Origin")
+        let (_, response) = try await makeSession().data(for: request)
+        XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+    }
+
+    func testAForeignHostIsRefusedAsDNSRebinding() throws {
+        let hub = try startHub()
+        defer { hub.stop() }
         let socket = try RawSocket(port: hub.port)
         socket.send("GET /health HTTP/1.1\r\nHost: evil.example\r\n\r\n")
         XCTAssertEqual(RawSocket.statusLine(of: socket.readToEnd().data), "HTTP/1.1 403 Forbidden")
     }
 
-    func testEveryAnsweredRequestIsReportedOnce() async throws {
+    func testRefusalsDoNotCountAsAnExtensionConnection() async throws {
+        let hub = try startHub()
+        defer { hub.stop() }
+        _ = try await send(request(hub, "GET", "/health", headers: ["Origin": "https://evil.example"]))
+        XCTAssertNil(hub.hub.lastConnectionAt)
+    }
+
+    // ── reporting ─────────────────────────────────────────────────────────
+
+    func testEveryRequestIsReportedOnceIncludingTheRefusedOnes() async throws {
         let hub = try startHub()
         defer { hub.stop() }
         _ = try await send(request(hub, "GET", "/health"))
         _ = try await send(request(hub, "POST", "/v1/pair", token: "WRONG"))
+        _ = try await send(request(hub, "GET", "/health", headers: ["Origin": "https://evil.example"]))
         let handled = hub.log.requests
-        XCTAssertEqual(handled.map(\.request.path), ["/health", "/v1/pair"])
-        XCTAssertEqual(handled.map(\.status), [200, 401])
+        XCTAssertEqual(handled.map(\.status), [200, 401, 403])
+        XCTAssertEqual(
+            handled.map { $0.request?.path }, ["/health", "/v1/pair", nil], "a refusal never read a request")
     }
 
     func testAPortInUseIsReportedNotSwallowed() throws {

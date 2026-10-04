@@ -11,6 +11,7 @@
  *    contents inside our own clone, no restore needed.
  */
 
+import { uiText } from '../../../utils/ui-text'
 import { identitySelectorsForHost } from './detect'
 
 const OVERLAY_ATTR = 'data-ann-ui'
@@ -24,7 +25,7 @@ function isReplacedElement(el: Element): boolean {
 function makePlaceholder(doc: Document, circular: boolean): HTMLDivElement {
   const overlay = doc.createElement('div')
   overlay.setAttribute(OVERLAY_ATTR, OVERLAY_VALUE)
-  overlay.setAttribute('aria-label', '匿名')
+  overlay.setAttribute('aria-label', uiText('shot.anonymizePlaceholder'))
   overlay.style.setProperty('position', 'absolute', 'important')
   overlay.style.setProperty('inset', '0', 'important')
   overlay.style.setProperty('background', '#d1d5db', 'important')

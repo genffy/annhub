@@ -22,12 +22,11 @@ describe('canonicalJson (wire contract, mirrored in Swift)', () => {
     expect(canonicalJson({ list: [{ z: 1, a: [true, null] }] })).toBe('{"list":[{"a":[true,null],"z":1}]}')
   })
 
-  it('treats undefined like JSON.stringify: omitted from objects, null in arrays', () => {
+  it('omits object members holding undefined, as JSON.stringify does', () => {
     expect(canonicalJson({ a: undefined, b: 1 })).toBe('{"b":1}')
-    expect(canonicalJson({ list: [1, undefined, 3] })).toBe('{"list":[1,null,3]}')
     expect(canonicalJson({ nested: { gone: undefined } })).toBe('{"nested":{}}')
     // The canonical form is exactly what survives a trip over the wire.
-    const value = { a: undefined, b: [undefined, { c: undefined, d: 'x' }] }
+    const value = { a: undefined, b: [{ c: undefined, d: 'x' }] }
     expect(canonicalJson(value)).toBe(canonicalJson(JSON.parse(JSON.stringify(value))))
   })
 
@@ -100,5 +99,31 @@ describe('sha256Hex', () => {
 describe('delivery constants', () => {
   it('shares the image byte ceiling between ends', () => {
     expect(MAX_IMAGE_BYTES).toBe(10 * 1024 * 1024)
+  })
+})
+
+describe('undefined members (a fragment saved without the optional understanding)', () => {
+  it('are absent from canonical JSON, like in JSON.stringify and in Swift', async () => {
+    expect(canonicalJson({ b: 1, a: undefined, c: { d: undefined, e: 'x' } })).toBe('{"b":1,"c":{"e":"x"}}')
+    const withUndefined = makeFragment()
+    const processing = withUndefined.processing as { guess?: string }
+    processing.guess = undefined
+    const without = structuredClone(withUndefined)
+    delete (without.processing as { guess?: string }).guess
+    expect('guess' in withUndefined.processing).toBe(true)
+    expect(await fragmentWireHash(toFragmentWire(withUndefined))).toBe(await fragmentWireHash(toFragmentWire(without)))
+  })
+
+  it('hash exactly what the request body carries', async () => {
+    const f = makeFragment()
+    ;(f.processing as { guess?: string }).guess = undefined
+    const wire = toFragmentWire(f)
+    const received = JSON.parse(JSON.stringify(wire)) // what Desktop parses from the PUT body
+    expect(await fragmentWireHash(wire)).toBe(await fragmentWireHash(received))
+  })
+
+  it('still reject values that are not JSON at all', () => {
+    expect(() => canonicalJson({ a: () => 1 })).toThrow('unsupported')
+    expect(() => canonicalJson([undefined])).toThrow('unsupported')
   })
 })

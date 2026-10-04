@@ -11,7 +11,7 @@ export function getTestPageUrl(): string {
  * Programmatically select text contents of an element, then dispatch a single
  * mouseup event so the content script detects the selection exactly once.
  *
- * Using triple-click is NOT suitable for Mode B tests because it fires 3
+ * Using triple-click is NOT suitable for continuous highlight tests because it fires 3
  * mouseup events (one per click), each triggering a capture.
  */
 export async function selectText(page: Page, selector: string): Promise<void> {
@@ -30,7 +30,7 @@ export async function selectText(page: Page, selector: string): Promise<void> {
 
 /**
  * Select text via triple-click — fires 3 mouseup events.
- * Good for Mode A tests (hover menu), where redundant events don't matter
+ * Good for hover menu tests, where redundant events don't matter
  * since the menu only appears once per valid selection.
  */
 export async function tripleClickSelect(page: Page, selector: string): Promise<void> {
@@ -65,7 +65,7 @@ export async function waitForHoverMenu(page: Page, timeout = 5000): Promise<Loca
 }
 
 /**
- * Wait for the Mode B capsule to appear inside the shadow DOM.
+ * Wait for the continuous highlight capsule to appear inside the shadow DOM.
  */
 export async function waitForCapsule(page: Page, timeout = 5000): Promise<Locator> {
   const shadowHost = getAnnShadowRoot(page)
@@ -214,44 +214,11 @@ export async function clearClipsFromServiceWorker(context: any): Promise<void> {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Vocab word-selection pipeline helpers
-// (design docs removed from the tree, see git history: docs/vocab-word-selection-research.md,
-//  docs/vocab-server-memory-model-design.md)
+// chrome.storage.local access through the service worker
 // ────────────────────────────────────────────────────────────────────────────
 
 /**
- * URL for the vocab annotation fixture page served by the E2E test server.
- */
-export function getVocabPageUrl(): string {
-  return 'http://localhost:8173/vocab.html'
-}
-
-/**
- * Navigate to vocab.html and wait for the extension content script to attach.
- */
-export async function navigateToVocabPage(page: Page): Promise<void> {
-  await page.goto(getVocabPageUrl())
-  await page.waitForSelector('ann-selection', { state: 'attached', timeout: 5000 })
-}
-
-/**
- * Write a partial VocabConfig into the extension's chrome.storage.local via the service
- * worker. The background merges this partial over defaults (VocabularyService.getVocabConfig),
- * so `{ enabled: true, ... }` is enough to turn vocab labeling on for the next navigation.
- * Must be called BEFORE navigating — the content script reads config once at init.
- */
-export async function setVocabConfigViaServiceWorker(context: any, partial: Record<string, unknown>): Promise<void> {
-  const sw = await ensureServiceWorker(context)
-  await sw.evaluate((cfg: Record<string, unknown>) => {
-    return new Promise<void>(resolve => {
-      chrome.storage.local.set({ vocabConfig: cfg }, () => resolve())
-    })
-  }, partial)
-}
-
-/**
  * Read arbitrary keys from the extension's chrome.storage.local via the service worker.
- * Used to assert on the word-memory model the background owns.
  */
 export async function getStorageViaServiceWorker(context: any, keys: string[]): Promise<Record<string, any>> {
   const sw = await ensureServiceWorker(context)
@@ -263,9 +230,8 @@ export async function getStorageViaServiceWorker(context: any, keys: string[]): 
 }
 
 /**
- * Write arbitrary keys into the extension's chrome.storage.local via the service worker.
- * Used to seed the local recall model (vocabWordMemory) before a navigation so the read
- * path can be exercised deterministically without depending on fire-and-forget timing.
+ * Write arbitrary keys into the extension's chrome.storage.local via the service worker, to seed
+ * state (clips, settings) deterministically before a navigation.
  */
 export async function setStorageViaServiceWorker(context: any, entries: Record<string, unknown>): Promise<void> {
   const sw = await ensureServiceWorker(context)
@@ -274,21 +240,6 @@ export async function setStorageViaServiceWorker(context: any, entries: Record<s
       chrome.storage.local.set(e, () => resolve())
     })
   }, entries)
-}
-
-/**
- * Collect the annotated lemmas from the host DOM. The vocab labeler wraps each chosen word
- * in a `[data-ann-vocab]` element carrying `data-ann-vocab-word` = the normalized lemma.
- */
-export async function getAnnotatedWords(page: Page): Promise<string[]> {
-  return page.$$eval('[data-ann-vocab][data-ann-vocab-word]', els => els.map(el => (el as HTMLElement).dataset.annVocabWord || '').filter(Boolean))
-}
-
-/**
- * Wait until the vocab labeler has wrapped at least `min` words (host DOM markers).
- */
-export async function waitForVocabAnnotations(page: Page, min = 1, timeout = 12000): Promise<void> {
-  await page.waitForFunction((m: number) => document.querySelectorAll('[data-ann-vocab]').length >= m, min, { timeout })
 }
 
 // ────────────────────────────────────────────────────────────────────────────

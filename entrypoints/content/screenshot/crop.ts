@@ -3,6 +3,7 @@
  * Selection rects come from a fixed-position overlay, so they are already in
  * viewport CSS coordinates; the captured PNG's pixels are device pixels.
  */
+import { uiText } from '../../../utils/ui-text'
 
 export interface ViewportRect {
   x: number
@@ -35,7 +36,7 @@ export function computeCropSource(selection: ViewportRect, devicePixelRatio: num
   const sw = x1 - x0
   const sh = y1 - y0
   if (sw <= 0 || sh <= 0) {
-    throw new CropError('选区为空或完全在屏幕外')
+    throw new CropError(uiText('shot.error.emptySelection'))
   }
   return { sx: x0, sy: y0, sw, sh }
 }

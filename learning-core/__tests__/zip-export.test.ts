@@ -17,6 +17,7 @@ function exportInput(overrides: Partial<ExportInput> = {}): ExportInput {
   const screenshot: ScreenshotRecord = { id: 'shot_1', assetId: 'asset_fix1', sourceUrl: 'https://example.com/s', capturedAt: NOW }
   return {
     exportedAt: NOW,
+    lang: 'zh',
     fragments: [makeFragmentOf('visual'), makeFragment()],
     highlights: [{ id: 'hl_1', text: 'highlighted text', note: 'note', sourceUrl: 'https://example.com/s', createdAt: NOW }],
     clips: [{ id: 'clip_1', text: 'clip text', sourceUrl: 'https://example.com/s', createdAt: NOW }],
@@ -151,6 +152,27 @@ describe('buildExportZip (storage.md §7)', () => {
     expect(text).toContain('## 复习摘要')
     expect(text).toContain('状态：复习中（复习 2 次，遗忘 1 次）')
     expect(text).toContain('间隔 6 天')
+  })
+
+  it('words the headings and the README in the language the export was started in', async () => {
+    const reviewed = makeFragment({
+      id: 'frag_rev',
+      review: { ...makeFragment().review, state: 'review', repetitions: 2, lapses: 1, intervalDays: 6, lastReviewedAt: NOW, nextReviewAt: NOW + 6 * 86_400_000 },
+    })
+    const { blob } = await buildExportZip(exportInput({ lang: 'en', fragments: [reviewed], getAsset: async () => undefined }))
+    const bytes = await blobBytes(blob)
+    const text = readEntryText(bytes, 'fragments/frag_rev.md')
+    expect(text).toContain('## Page context')
+    expect(text).toContain('## Verification')
+    expect(text).toContain('State: Review (2 reviews, 1 lapses)')
+    expect(readEntryText(bytes, 'highlights/hl_1.md')).toContain('# Highlight')
+    expect(readEntryText(bytes, 'screenshots/shot_1.md')).toContain('Image missing')
+    const readme = readEntryText(bytes, 'README.md')
+    expect(readme).toContain('# AnnHub content export')
+    expect(readme).toContain('**Partial export**')
+    // Keys, paths and front matter never change with the language.
+    expect(text).toContain('annhub_id: "frag_rev"')
+    expect(readme).not.toMatch(/[一-龥]/)
   })
 
   it('crc32 guards content integrity', () => {

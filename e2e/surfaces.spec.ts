@@ -1,9 +1,16 @@
 /**
  * Extension surfaces (extension.md §2.2, §2.3, §5, D-11/D-12/D-13): toolbar
- * popup, the three first-level pages, the more menu, and the localized wording.
+ * popup, the three first-level pages, the more menu and the Chinese wording (English is covered by english-ui.spec.ts).
  */
 import { test, expect } from './fixtures'
-import { clearFragmentStoreViaServiceWorker, captureFragmentViaUi, navigateToFragmentPage, setCaptureConfigViaServiceWorker } from './helpers'
+import {
+  clearClipsFromServiceWorker,
+  clearFragmentStoreViaServiceWorker,
+  captureFragmentViaUi,
+  navigateToFragmentPage,
+  setCaptureConfigViaServiceWorker,
+  setStorageViaServiceWorker,
+} from './helpers'
 
 test.describe('toolbar popup (§2.3)', () => {
   test('shows the connection state and three entries, with no review block while unpaired', async ({ context, extensionId }) => {
@@ -64,6 +71,32 @@ test.describe('library navigation (§2.2, §5.1, D-13)', () => {
     await expect(page.getByTestId('fragment-list')).toBeVisible()
   })
 
+  test('剪藏列表 shows the saved clips and offers the upgrade into a fragment', async ({ page, context, extensionId }) => {
+    await setStorageViaServiceWorker(context, {
+      'ann-clips': [
+        {
+          id: 'clip_e2e_1',
+          source_url: 'https://example.com/post',
+          source_title: 'Example post',
+          capture_time: '2026-10-04T00:00:00.000Z',
+          content: 'A clipped sentence worth keeping.',
+          context_before: 'Before ',
+          context_after: ' after.',
+        },
+      ],
+    })
+    try {
+      await page.goto(`chrome-extension://${extensionId}/library.html#/clips`)
+      await expect(page.getByTestId('clip-card')).toHaveCount(1)
+      await expect(page.getByTestId('clip-card')).toContainText('A clipped sentence worth keeping.')
+      await expect(page.getByTestId('clip-empty')).toHaveCount(0)
+      await page.getByTestId('clip-upgrade').click()
+      await expect(page.locator('[data-ann-ui="capture-modal"]')).toContainText('A clipped sentence worth keeping.', { timeout: 10_000 })
+    } finally {
+      await clearClipsFromServiceWorker(context)
+    }
+  })
+
   test('settings page offers the same first-level pages', async ({ page, extensionId }) => {
     await page.goto(`chrome-extension://${extensionId}/options.html#/settings`)
     await expect(page.getByTestId('nav-library')).toBeVisible()
@@ -89,23 +122,5 @@ test.describe('library navigation (§2.2, §5.1, D-13)', () => {
     await expect(hint).toContainText('在 Desktop 的「系统」页复制配对码')
     await hint.getByTestId('connect-hint-dismiss').click()
     await expect(hint).toHaveCount(0)
-  })
-})
-
-test.describe('English UI wording (D-11)', () => {
-  test.use({ uiLocale: 'en-US' })
-
-  test('the first menu item and library strings say “Fragment”', async ({ page, context, extensionId }) => {
-    await clearFragmentStoreViaServiceWorker(context)
-    await page.goto(`chrome-extension://${extensionId}/library.html`)
-    await expect(page.getByTestId('fragment-search')).toHaveAttribute('placeholder', 'Search Fragments…')
-    await expect(page.getByTestId('onboarding-guide')).toContainText('Highlight ≠ Fragment')
-
-    await navigateToFragmentPage(page)
-    const { selectText, waitForHoverMenu } = await import('./helpers')
-    await selectText(page, '[data-testid="fragment-target"]')
-    const menu = await waitForHoverMenu(page)
-    await expect(menu.getByTestId('hover-action-save-fragment')).toContainText('Fragment')
-    await expect(menu.getByTestId('hover-action-clip')).toContainText('Clip')
   })
 })

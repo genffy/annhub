@@ -18,7 +18,6 @@ app/AnnHub.xcodeproj
 app/.build
 
 # Generated or vendored data
-entrypoints/content/vocab-label/frequency-band-data.ts
 scripts/data
 
 # Design prototype (hand-written HTML/JS, not part of the product build)
@@ -28,3 +27,4 @@ docs/design/v2/index.html
 
 # Static pages and test pages: whitespace is content here
 **/*.html
+website/next-env.d.ts

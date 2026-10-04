@@ -14,7 +14,8 @@
 //   --annhub-palette=TEXT         start with the ⌘K palette open on this query (screenshots)
 //   --annhub-diagnostics=DIR      SIGUSR1 writes DIR/state.json, SIGUSR2 writes DIR/window.png
 //                                 (what a harness reads from a running instance; nothing is sent anywhere)
-//   --annhub-demo-seed            fill an EMPTY store with demo fragments (needs --annhub-data-dir)
+//   --annhub-allow-extension=ID   also serve this extension id (repeatable; automation that loads
+//                                 an unpacked extension, whose id is not the published one)
 //   --annhub-no-notifications     never talk to the notification center
 
 import Foundation
@@ -32,7 +33,7 @@ public struct DesktopLaunchConfig: Equatable, Sendable {
     public var initialSection: String?
     public var diagnosticsDirectory: URL?
     public var initialPaletteQuery: String?
-    public var demoSeed: Bool
+    public var extraExtensionIds: [String]
     public var notificationsEnabled: Bool
 
     public init(
@@ -45,7 +46,7 @@ public struct DesktopLaunchConfig: Equatable, Sendable {
         initialSection: String? = nil,
         diagnosticsDirectory: URL? = nil,
         initialPaletteQuery: String? = nil,
-        demoSeed: Bool = false,
+        extraExtensionIds: [String] = [],
         notificationsEnabled: Bool = true
     ) {
         self.dataDirectory = dataDirectory
@@ -57,14 +58,8 @@ public struct DesktopLaunchConfig: Equatable, Sendable {
         self.initialSection = initialSection
         self.diagnosticsDirectory = diagnosticsDirectory
         self.initialPaletteQuery = initialPaletteQuery
-        self.demoSeed = demoSeed
+        self.extraExtensionIds = extraExtensionIds
         self.notificationsEnabled = notificationsEnabled
-    }
-
-    /// Demo rows are only ever written into a store the caller pointed at explicitly:
-    /// `--annhub-demo-seed` on its own would fill the user's real (empty) store.
-    public var demoSeedAllowed: Bool {
-        demoSeed && dataDirectory != nil
     }
 
     /// Where the SQLite file lives: the explicit directory, or the app's own folder in
@@ -83,8 +78,6 @@ public struct DesktopLaunchConfig: Equatable, Sendable {
             switch argument {
             case "--annhub-no-window":
                 config.openWindowAtLaunch = false
-            case "--annhub-demo-seed":
-                config.demoSeed = true
             case "--annhub-no-notifications":
                 config.notificationsEnabled = false
             default:
@@ -102,6 +95,8 @@ public struct DesktopLaunchConfig: Equatable, Sendable {
                     config.initialSection = value
                 } else if let value = value(of: "--annhub-palette=", in: argument) {
                     config.initialPaletteQuery = value
+                } else if let value = value(of: "--annhub-allow-extension=", in: argument), !value.isEmpty {
+                    config.extraExtensionIds.append(value)
                 } else if let value = value(of: "--annhub-diagnostics=", in: argument), !value.isEmpty {
                     config.diagnosticsDirectory = URL(fileURLWithPath: (value as NSString).expandingTildeInPath)
                 }

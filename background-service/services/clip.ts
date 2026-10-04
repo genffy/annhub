@@ -3,6 +3,7 @@ import type { IService } from '../service-manager'
 import type { ResponseMessage } from '../../types/messages'
 import { Logger } from '../../utils/logger'
 import MessageUtils from '../../utils/message'
+import { forbiddenResponse, isExtensionPageSender } from '../sender'
 
 const CLIPS_STORAGE_KEY = 'ann-clips'
 
@@ -45,6 +46,16 @@ export class ClipService implements IService {
           return MessageUtils.createResponse(true, clip)
         } catch (error) {
           Logger.error('[ClipService] Failed to save clip:', error)
+          return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+      },
+      // The library reads clips through here; the storage key stays private to this service.
+      GET_CLIPS: async (_message, sender) => {
+        if (!isExtensionPageSender(sender)) return forbiddenResponse()
+        try {
+          return MessageUtils.createResponse(true, await this.getClips())
+        } catch (error) {
+          Logger.error('[ClipService] Failed to read clips:', error)
           return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
         }
       },

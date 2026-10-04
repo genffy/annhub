@@ -47,7 +47,7 @@ describe('ServiceManager — restartServices', () => {
 
   it('calls cleanup on each service before re-initializing', async () => {
     const sm = ServiceManager.getInstance()
-    const svcA = createMockService('config')
+    const svcA = createMockService('clip')
     const svcB = createMockService('highlight')
 
     sm.registerServices([svcA, svcB])
@@ -66,7 +66,7 @@ describe('ServiceManager — restartServices', () => {
 
   it('re-initializes services even if isInitialized returns true', async () => {
     const sm = ServiceManager.getInstance()
-    const stubborn = createMockService('config')
+    const stubborn = createMockService('clip')
     // Override cleanup so initialized stays true after cleanup
     stubborn.cleanup = vi.fn(async () => {
       // intentionally NOT resetting initialized
@@ -91,7 +91,7 @@ describe('ServiceManager — restartServices', () => {
 
   it('normal initializeServices skips already-initialized services', async () => {
     const sm = ServiceManager.getInstance()
-    const svc = createMockService('config')
+    const svc = createMockService('clip')
 
     sm.registerService(svc)
     await sm.initializeServices()
@@ -106,7 +106,7 @@ describe('ServiceManager — restartServices', () => {
 
   it('continues restart even if one service cleanup throws', async () => {
     const sm = ServiceManager.getInstance()
-    const failing = createMockService('config')
+    const failing = createMockService('clip')
     failing.cleanup = vi.fn(async () => {
       throw new Error('cleanup boom')
     })
@@ -123,84 +123,37 @@ describe('ServiceManager — restartServices', () => {
     expect(healthy.cleanup).toHaveBeenCalledTimes(1)
   })
 
-  it('respects initOrder during restart', async () => {
+  it('initializes in registration order, also on restart', async () => {
     const sm = ServiceManager.getInstance()
     const order: string[] = []
 
-    const svcConfig = createMockService('config', { initSideEffect: () => order.push('config') })
-    const svcHighlight = createMockService('highlight', { initSideEffect: () => order.push('highlight') })
-    const svcVocab = createMockService('vocabulary', { initSideEffect: () => order.push('vocabulary') })
     const svcClip = createMockService('clip', { initSideEffect: () => order.push('clip') })
+    const svcLlm = createMockService('llm', { initSideEffect: () => order.push('llm') })
+    const svcHighlight = createMockService('highlight', { initSideEffect: () => order.push('highlight') })
 
-    sm.registerServices([svcClip, svcVocab, svcHighlight, svcConfig])
+    sm.registerServices([svcClip, svcLlm, svcHighlight])
     await sm.initializeServices()
-
-    // config, highlight, vocabulary are in initOrder; clip comes after
-    expect(order).toEqual(['config', 'highlight', 'vocabulary', 'clip'])
+    expect(order).toEqual(['clip', 'llm', 'highlight'])
 
     order.length = 0
     await sm.restartServices()
-
-    expect(order).toEqual(['config', 'highlight', 'vocabulary', 'clip'])
+    expect(order).toEqual(['clip', 'llm', 'highlight'])
   })
 })
 
-describe('ServiceManager — system message handlers', () => {
+describe('ServiceManager — navigation handler', () => {
   beforeEach(() => {
     ;(ServiceManager as any).instance = undefined
     ;(ServiceContext as any).instance = undefined
     addListenerMock.mockClear()
   })
 
-  it('GET_STATUS reports per-service readiness and the manifest version', async () => {
-    const sm = ServiceManager.getInstance()
-    sm.registerServices([createMockService('config'), createMockService('highlight')])
-    await sm.initializeServices()
+  it('refuses a page that is not one of ours', async () => {
+    const handlers = (ServiceManager.getInstance() as any).getNavigationHandlers()
 
-    const handlers = (sm as any).getSystemMessageHandlers()
-    const res = await handlers.GET_STATUS({ type: 'GET_STATUS' }, {})
+    const res = await handlers.OPEN_EXTENSION_PAGE({ type: 'OPEN_EXTENSION_PAGE', page: 'https://evil.example' }, {})
 
-    expect(res.success).toBe(true)
-    expect(res.data).toEqual({
-      isInitialized: true,
-      services: { config: true, highlight: true },
-      version: '9.9.9',
-    })
-  })
-
-  it('GET_VERSION returns the manifest version', async () => {
-    const sm = ServiceManager.getInstance()
-    const handlers = (sm as any).getSystemMessageHandlers()
-
-    const res = await handlers.GET_VERSION({ type: 'GET_VERSION' }, {})
-
-    expect(res).toMatchObject({ success: true, data: { version: '9.9.9' } })
-  })
-
-  it('INITIALIZE initializes services when not ready, then reports status', async () => {
-    const sm = ServiceManager.getInstance()
-    const svc = createMockService('config')
-    sm.registerService(svc)
-
-    const handlers = (sm as any).getSystemMessageHandlers()
-    const res = await handlers.INITIALIZE({ type: 'INITIALIZE' }, {})
-
-    expect(svc.initialize).toHaveBeenCalledTimes(1)
-    expect(res.success).toBe(true)
-    expect(res.data.isInitialized).toBe(true)
-  })
-
-  it('INITIALIZE is idempotent when services are already ready', async () => {
-    const sm = ServiceManager.getInstance()
-    const svc = createMockService('config')
-    sm.registerService(svc)
-    await sm.initializeServices()
-    expect(svc.initialize).toHaveBeenCalledTimes(1)
-
-    const handlers = (sm as any).getSystemMessageHandlers()
-    await handlers.INITIALIZE({ type: 'INITIALIZE' }, {})
-
-    // Already ready → no redundant re-init.
-    expect(svc.initialize).toHaveBeenCalledTimes(1)
+    expect(res.success).toBe(false)
+    expect(res.error).toContain('Unknown extension page')
   })
 })

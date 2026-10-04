@@ -37,8 +37,8 @@ final class HubPutTests: XCTestCase {
         XCTAssertEqual(object["status"] as? String, "ok")
         XCTAssertEqual(object["version"] as? Int, 2)
         XCTAssertEqual(object["apiVersion"] as? String, "fragment-put-v1")
-        XCTAssertEqual(object["deviceId"] as? String, "swift-device")
-        XCTAssertEqual(object["paired"] as? Bool, false)
+        // Unauthenticated, so nothing about this device or its pairing (storage.md §8).
+        XCTAssertEqual(Set(object.keys), ["status", "version", "apiVersion"])
     }
 
     func testHubGeneratesPairTokenWhenNoneIsStored() throws {
@@ -71,10 +71,6 @@ final class HubPutTests: XCTestCase {
         XCTAssertEqual(ok.status, 200)
         XCTAssertNotNil(hub.lastPairedAt)
         XCTAssertNotNil(hub.lastConnectionAt)
-
-        let health = hub.handle(HubRequest(method: "GET", path: "/health"))
-        let object = try XCTUnwrap((try? JSONSerialization.jsonObject(with: health.body)) as? [String: Any])
-        XCTAssertEqual(object["paired"] as? Bool, true)
     }
 
     func testRotatingTheTokenInvalidatesOldClientsAndKeepsData() throws {

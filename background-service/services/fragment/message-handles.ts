@@ -5,17 +5,8 @@
  */
 import MessageUtils from '../../../utils/message'
 import type { ResponseMessage } from '../../../types/messages'
+import { forbiddenResponse, isExtensionPageSender } from '../../sender'
 import { FragmentService } from './index'
-
-function isExtensionPageSender(sender: chrome.runtime.MessageSender): boolean {
-  const url = sender.url ?? ''
-  if (url.startsWith(chrome.runtime.getURL(''))) return true
-  return !sender.tab && sender.id === chrome.runtime.id
-}
-
-function forbiddenResponse(): ResponseMessage {
-  return MessageUtils.createResponse(false, undefined, 'Forbidden: extension page context required')
-}
 
 const fail = (error: unknown): ResponseMessage => MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
 
@@ -75,24 +66,19 @@ export const fragmentMessageHandlers: Record<string, (message: any, sender: chro
     }
   },
 
-  CHECK_FRAGMENT_DUPLICATE: async (message): Promise<ResponseMessage> => {
+  // The pairing code authorizes writes to the Desktop library, so it is never returned: pages see
+  // `hasToken`, and only extension pages may ask at all.
+  GET_DESKTOP_DIRECT_CONNECT: async (_message, sender): Promise<ResponseMessage> => {
+    if (!isExtensionPageSender(sender)) return forbiddenResponse()
     try {
-      const duplicateOf = await FragmentService.getInstance().findDuplicate(message.content, message.excerpt, message.sourceUrl)
-      return MessageUtils.createResponse(true, { duplicateOf })
-    } catch (error) {
-      return fail(error)
-    }
-  },
-
-  GET_DESKTOP_DIRECT_CONNECT: async (): Promise<ResponseMessage> => {
-    try {
-      const [config, status, pending, state] = await Promise.all([
-        FragmentService.getInstance().getDirectConnectConfig(),
+      const [config, status, pending, state, rejected] = await Promise.all([
+        FragmentService.getInstance().getPublicDirectConnectConfig(),
         FragmentService.getInstance().pingDirectConnect(),
         FragmentService.getInstance().getDeliveryStats(),
         FragmentService.getInstance().getDeliveryState(),
+        FragmentService.getInstance().getRejectedDeliveries(),
       ])
-      return MessageUtils.createResponse(true, { config, status, pending, state })
+      return MessageUtils.createResponse(true, { config, status, pending, state, rejected })
     } catch (error) {
       return fail(error)
     }
@@ -113,6 +99,18 @@ export const fragmentMessageHandlers: Record<string, (message: any, sender: chro
     try {
       const result = await FragmentService.getInstance().flushDeliveries()
       return MessageUtils.createResponse(true, result)
+    } catch (error) {
+      return fail(error)
+    }
+  },
+
+  RESOLVE_REJECTED_DELIVERIES: async (message, sender): Promise<ResponseMessage> => {
+    if (!isExtensionPageSender(sender)) return forbiddenResponse()
+    if (message.action !== 'retry' && message.action !== 'dismiss') {
+      return MessageUtils.createResponse(false, undefined, 'Unknown action')
+    }
+    try {
+      return MessageUtils.createResponse(true, await FragmentService.getInstance().resolveRejectedDeliveries(message.action))
     } catch (error) {
       return fail(error)
     }

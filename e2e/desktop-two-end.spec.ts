@@ -6,11 +6,12 @@
  * screenshot converted into a `visual` fragment. The Desktop is the built macOS app, started as a
  * child process on its own data directory and a free loopback port. Everything between them is the
  * real service worker `fetch` over a real socket; the Desktop's own SQLite file is read back to
- * check what arrived. macOS only; skipped when the app has not been built.
+ * check what arrived. The Desktop serves only the published extension's origin; the unpacked build
+ * under test is named to it with `extensionIds`. macOS only; skipped when the app has not been built.
  */
 import { fileURLToPath } from 'node:url'
 import { test, expect } from './fixtures'
-import { DESKTOP_SKIP_REASON, desktopAvailable, RunningDesktop } from './desktop'
+import { DESKTOP_SKIP_REASON, desktopAvailable, PUBLISHED_EXTENSION_ID, RunningDesktop } from './desktop'
 import {
   captureFragmentViaUi,
   clearFragmentStoreViaServiceWorker,
@@ -36,6 +37,7 @@ interface DeliveryResult {
   deliveredFragments: number
   deliveredAssets: number
   pruned: number
+  rejected: number
   errors: string[]
   authFailed: boolean
   unreachable: boolean
@@ -188,7 +190,7 @@ test.describe('extension ↔ Desktop — the real app over loopback', () => {
     expect(asset.byteLength).toBeGreaterThan(0)
 
     // Install and pair the Desktop later (examples.md §3.2): the code comes from the app.
-    desktop = await RunningDesktop.start()
+    desktop = await RunningDesktop.start({ extensionIds: [extensionId] })
     expect((await desktop.state()).fragmentCount).toBe(0)
     await page.goto(`chrome-extension://${extensionId}/library.html`)
     await connect(page, desktop)
@@ -254,7 +256,7 @@ test.describe('extension ↔ Desktop — the real app over loopback', () => {
   test('auto sync: a fragment saved after pairing reaches the Desktop with no further action', async ({ page, context, extensionId }) => {
     await clearFragmentStoreViaServiceWorker(context)
     await setCaptureConfigViaServiceWorker(context, { deepMode: false })
-    desktop = await RunningDesktop.start()
+    desktop = await RunningDesktop.start({ extensionIds: [extensionId] })
     await page.goto(`chrome-extension://${extensionId}/library.html`)
     await connect(page, desktop, { autoSync: true })
 
@@ -276,7 +278,7 @@ test.describe('extension ↔ Desktop — the real app over loopback', () => {
   test('the Desktop being closed loses nothing: the queue waits, then drains on the same address after a restart', async ({ page, context, extensionId }) => {
     await clearFragmentStoreViaServiceWorker(context)
     await setCaptureConfigViaServiceWorker(context, { deepMode: false })
-    desktop = await RunningDesktop.start()
+    desktop = await RunningDesktop.start({ extensionIds: [extensionId] })
     const { dir, port } = desktop
     await page.goto(`chrome-extension://${extensionId}/library.html`)
     await connect(page, desktop)
@@ -302,7 +304,7 @@ test.describe('extension ↔ Desktop — the real app over loopback', () => {
     expect(await getFragmentsFromServiceWorker(context)).toHaveLength(2) // and nothing was lost locally
 
     // Back on the same port with the same data: what arrived before the quit is still there.
-    desktop = await RunningDesktop.start({ dir, port })
+    desktop = await RunningDesktop.start({ dir, port, extensionIds: [extensionId] })
     expect(desktop.pairToken).toBeTruthy()
     const restarted = await desktop.state()
     expect(restarted.fragmentCount).toBe(1)
@@ -329,7 +331,7 @@ test.describe('extension ↔ Desktop — the real app over loopback', () => {
     await navigateToFragmentPage(page)
     await captureFragmentViaUi(page, { kind: 'concept', use: USE_CONCEPT })
 
-    desktop = await RunningDesktop.start()
+    desktop = await RunningDesktop.start({ extensionIds: [extensionId] })
     await page.goto(`chrome-extension://${extensionId}/library.html`)
     await connect(page, desktop, { token: 'WRONG-CODE-0000' })
     const refused = await flush(page)
@@ -350,7 +352,7 @@ test.describe('extension ↔ Desktop — the real app over loopback', () => {
   test('a fragment the Desktop deleted is not brought back by the extension, which keeps its own copy', async ({ page, context, extensionId }) => {
     await clearFragmentStoreViaServiceWorker(context)
     await setCaptureConfigViaServiceWorker(context, { deepMode: false })
-    desktop = await RunningDesktop.start()
+    desktop = await RunningDesktop.start({ extensionIds: [extensionId] })
     await page.goto(`chrome-extension://${extensionId}/library.html`)
     await connect(page, desktop)
     await navigateToFragmentPage(page)
@@ -365,18 +367,58 @@ test.describe('extension ↔ Desktop — the real app over loopback', () => {
       `delete from fragments where id = '${fragment.id}'; delete from review_logs where target_fragment_id = '${fragment.id}'; insert into fragment_deletions (fragment_id, deleted_at) values ('${fragment.id}', ${Date.now()});`,
     )
 
-    // The extension edits it and delivers the new revision: 410, the task ends, nothing returns.
+    // The extension edits it and delivers the new revision: 410. Nothing returns to the Desktop, and the
+    // task is not silently dropped either: it stays, marked rejected, for the user to see and dismiss.
     expect((await send(page, { type: 'UPDATE_FRAGMENT', id: fragment.id, patch: { use: '改写：不应让它复活。' } })).success).toBe(true)
     const result = await flush(page)
     expect(result.deliveredFragments).toBe(0)
-    expect(result.errors.join(' ')).toContain('已本地删除')
-    expect(await getOutboxFromServiceWorker(context)).toHaveLength(0) // 410 ends the retries for that id
+    expect(result.rejected).toBe(1)
+    expect(result.errors.join(' ')).toContain('已在 Desktop 本地删除')
+    const parked = await getOutboxFromServiceWorker(context)
+    expect(parked).toHaveLength(1)
+    expect(parked[0].rejection).toMatchObject({ code: 'DESKTOP_DELETED', status: 410 })
+    // A parked task is not retried by itself: the Desktop is not asked again.
+    const asked = (await desktop.state()).recentDeliveryStatuses.length
+    expect(await flush(page)).toMatchObject({ deliveredFragments: 0, rejected: 0, errors: [] })
+    expect((await desktop.state()).recentDeliveryStatuses).toHaveLength(asked)
+    // Dismissing it is the user's decision; then the queue is empty.
+    expect((await send(page, { type: 'RESOLVE_REJECTED_DELIVERIES', action: 'dismiss' })).success).toBe(true)
+    expect(await getOutboxFromServiceWorker(context)).toHaveLength(0)
     expect(desktop.sql<{ n: number }>('select count(*) n from fragments')[0].n).toBe(0)
     expect(desktop.sql<{ n: number }>(`select count(*) n from fragment_deletions where fragment_id = '${fragment.id}'`)[0].n).toBe(1)
     expect((await getFragmentsFromServiceWorker(context)).map(f => f.id)).toEqual([fragment.id]) // deletes never cross
   })
 
   // ── who may talk to it ────────────────────────────────────────────────
+
+  test('an extension that is not the published one is refused (403) until the Desktop is told to allow it', async ({ page, context, extensionId }) => {
+    test.skip(extensionId === PUBLISHED_EXTENSION_ID, 'this build carries the store key, so it is the published extension')
+    await clearFragmentStoreViaServiceWorker(context)
+    await setCaptureConfigViaServiceWorker(context, { deepMode: false })
+    await navigateToFragmentPage(page)
+    await captureFragmentViaUi(page, { kind: 'concept', use: USE_CONCEPT })
+
+    // A Desktop that knows only the published id: the right code is not enough from another origin.
+    desktop = await RunningDesktop.start()
+    await page.goto(`chrome-extension://${extensionId}/library.html`)
+    await connect(page, desktop)
+    const refused = await flush(page)
+    expect(refused.authFailed).toBe(true)
+    expect(refused.deliveredFragments).toBe(0)
+    expect(refused.errors.join(' ')).toContain('来源被拒绝')
+    expect((await getOutboxFromServiceWorker(context)).filter(e => e.type.startsWith('fragment.'))).toHaveLength(1) // kept, not parked
+    const state = await desktop.state()
+    expect(state.fragmentCount).toBe(0)
+    expect(state.hasConnected).toBe(false) // a refused origin is not "the extension connected"
+    expect(state.recentDeliveryStatuses).toEqual([403])
+    await desktop.stop()
+
+    // The same build, named at launch (what this suite does everywhere else), is served.
+    desktop = await RunningDesktop.start({ extensionIds: [extensionId] })
+    await connect(page, desktop)
+    expect(await flush(page)).toMatchObject({ deliveredFragments: 1, authFailed: false, errors: [] })
+    expect((await desktop.waitForState(s => s.fragmentCount === 1)).fragmentCount).toBe(1)
+  })
 
   test('a web page cannot write to the Desktop, even holding the pairing code', async ({ page }) => {
     desktop = await RunningDesktop.start()

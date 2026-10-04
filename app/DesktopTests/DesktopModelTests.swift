@@ -194,8 +194,27 @@ final class DesktopModelHubTests: XCTestCase {
         XCTAssertEqual(status9, 403)
         try await Task.sleep(for: .milliseconds(150))
         XCTAssertTrue(h.model.fragments.isEmpty)
-        XCTAssertTrue(h.model.recentDeliveries.isEmpty, "a refused request is not a delivery")
-        XCTAssertNil(h.model.lastConnectionAt, "nor a connection")
+        XCTAssertEqual(h.model.recentDeliveries.map(\.status), [403], "listed as refused, never as received")
+        XCTAssertNil(h.model.lastConnectionAt, "and it is not the extension connecting")
+    }
+
+    func testAnotherExtensionIsRefusedUnlessTheLaunchNamesIt() async throws {
+        let other = String(repeating: "b", count: 32)
+        let strict = try harness()
+        var refused = try await strict.startHub()
+        refused.origin = "chrome-extension://" + other
+        let strictStatus = try await refused.put(try makeRecord())
+        XCTAssertEqual(strictStatus, 403, "an unpacked build has its own id")
+
+        let named = try harness(
+            config: DesktopLaunchConfig(port: 0, extraExtensionIds: [other], notificationsEnabled: false))
+        var client = try await named.startHub()
+        client.origin = "chrome-extension://" + other
+        let namedStatus = try await client.put(try makeRecord())
+        XCTAssertEqual(namedStatus, 201, "--annhub-allow-extension admits the build under test")
+        client.origin = "chrome-extension://" + (DesktopHub.publishedExtensionIds.first ?? "")
+        let publishedStatus = try await client.put(try makeRecord(content: "Second"))
+        XCTAssertEqual(publishedStatus, 201, "and the published extension is still served")
     }
 
     // ── automation hooks ─────────────────────────────────────────────────
@@ -221,10 +240,9 @@ final class DesktopModelHubTests: XCTestCase {
     }
 
     func testTheModelNeverReachesTheUsersFilesUnderTest() throws {
-        // `live()` is what the app uses. Under XCTest it must not open Application Support or
-        // honour --annhub-demo-seed against a store the caller never named.
-        let model = DesktopModel.live(config: DesktopLaunchConfig(demoSeed: true))
-        XCTAssertTrue(model.fragments.isEmpty, "demo seed needs an explicit data directory")
+        // `live()` is what the app uses. Under XCTest it must not open Application Support.
+        let model = DesktopModel.live(config: DesktopLaunchConfig())
+        XCTAssertTrue(model.fragments.isEmpty, "an empty in-memory store, not the user's library")
         XCTAssertEqual(model.config.port, 0)
         XCTAssertFalse(model.config.notificationsEnabled)
         XCTAssertNil(model.storeError)

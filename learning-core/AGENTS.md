@@ -24,7 +24,7 @@
 ## 数据不变量
 
 - Fragment 写入和 OutboxEvent 同事务；评分时 Fragment.review、ReviewLog 和 OutboxEvent 同事务；`visual` 创建同事务追加资产交付任务。
-- 事件只在接收端确认后裁剪。
+- 事件只在接收端确认后裁剪；被接收端拒绝的事件保留并标记 `rejection`，由用户重试或忽略。`updatedAt` 属于采集字段哈希，复习结果的应用不得修改它。
 - 扩展删除是本地删除标记 + 清理待发送任务，绝不发送删除事件（[存储契约](../docs/v2/storage.md) §10）。
 - 核验（`processing.verified`）必填：修改 content/excerpt/sourceUrl/kind/核验来源后必须重新确认（confirmedAt 重置）。
 - 新增 Fragment kind 时同步 detail、校验、加工、复习、双端 fixture 和验收场景（清单见 [kinds.md §5](../docs/v2/kinds.md)）；不要只增加联合类型成员。

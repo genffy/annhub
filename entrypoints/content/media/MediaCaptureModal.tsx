@@ -2,13 +2,14 @@
  * MediaClip capture (R4.2, docs/v2/fragments.md 'media-clip'): grab a time
  * range from the page's <video>/<audio>, write the transcript by hand
  * (LLM optional later), and save a media-clip Fragment with a time locator.
- * Same verification discipline as the text capture modal: explicit 核验
- * confirmation, non-empty 应用 that is not a copy of content/excerpt.
+ * Same verification discipline as the text capture modal: explicit
+ * verification confirmation, non-empty “Apply” that is not a copy of content/excerpt.
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FragmentRecord } from '../../../learning-core/types'
 import type { SaveFragmentInput } from '../../../types/messages'
 import MessageUtils from '../../../utils/message'
+import { uiText } from '../../../utils/ui-text'
 import type { MediaTarget } from './detect'
 import CloseDialog, { type CloseChoice } from '../capture/CloseDialog'
 import { ThemeStyle } from '../capture/theme'
@@ -56,8 +57,8 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
   const content = summary.trim()
   const useInvalid = useMemo(() => {
     const use = useText.trim()
-    if (!use) return useText ? '应用不能为空' : ''
-    if (content && use === content) return '应用不能只复述摘要'
+    if (!use) return useText ? uiText('capture.use.empty') : ''
+    if (content && use === content) return uiText('media.use.repeatsSummary')
     return ''
   }, [useText, content])
 
@@ -75,7 +76,7 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
     onClose()
   }
 
-  // Closing with input asks first (extension.md §4.1); a media range has no page selection to convert, so only 继续编辑 / 放弃.
+  // Closing with input asks first (extension.md §4.1); a media range has no page selection to convert, so only keep editing / discard.
   const requestClose = () => {
     if (saveState === 'saving') return
     if (saved) return onClose()
@@ -107,7 +108,7 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
     setSaveState('saving')
     setSaveError('')
     try {
-      const excerpt = `${content}\n（${fmt(startMs!)}–${fmt(endMs!)} 转写节选）${transcript.trim() ? `\n${transcript.trim()}` : ''}${contextNote.trim() ? `\n${contextNote.trim()}` : ''}`
+      const excerpt = `${content}\n${uiText('media.excerptMarker', { range: `${fmt(startMs!)}–${fmt(endMs!)}` })}${transcript.trim() ? `\n${transcript.trim()}` : ''}${contextNote.trim() ? `\n${contextNote.trim()}` : ''}`
       const input: SaveFragmentInput = {
         kind: 'media-clip',
         content,
@@ -124,7 +125,7 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
         detail: { startMs: startMs!, endMs: endMs! },
       }
       const response = await MessageUtils.sendMessage({ type: 'SAVE_FRAGMENT', input, force })
-      if (!response.success) throw new Error(response.error || '保存失败')
+      if (!response.success) throw new Error(response.error || uiText('capture.error.saveFailed'))
       const data = (response.data ?? {}) as { fragment?: FragmentRecord; duplicateOf?: FragmentRecord }
       if (!data.fragment && data.duplicateOf) {
         setDuplicateOf(data.duplicateOf)
@@ -137,7 +138,7 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
       setTimeout(onClose, 700)
     } catch (error) {
       setSaveState('error')
-      setSaveError(error instanceof Error ? error.message : '保存失败')
+      setSaveError(error instanceof Error ? error.message : uiText('capture.error.saveFailed'))
     }
   }
 
@@ -145,7 +146,7 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
     return (
       <ModalShell>
         <div style={styles.success} data-ann-ui="media-capture-modal">
-          ✅ 已保存为「媒体片段」
+          {uiText('media.saved')}
         </div>
       </ModalShell>
     )
@@ -153,11 +154,11 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
 
   return (
     <ModalShell>
-      <div ref={cardRef} style={styles.card} data-ann-ui="media-capture-modal" role="dialog" aria-modal="true" aria-label="保存媒体片段" tabIndex={-1}>
+      <div ref={cardRef} style={styles.card} data-ann-ui="media-capture-modal" role="dialog" aria-modal="true" aria-label={uiText('media.title')} tabIndex={-1}>
         <div style={styles.header}>
-          <span style={{ fontWeight: 600 }}>保存媒体片段</span>
+          <span style={{ fontWeight: 600 }}>{uiText('media.title')}</span>
           <span style={styles.stepBadge}>media-clip</span>
-          <button style={styles.closeBtn} onClick={requestClose} title="关闭 (Esc)">
+          <button style={styles.closeBtn} onClick={requestClose} title={uiText('capture.closeButton.title')} aria-label={uiText('common.close')}>
             ✕
           </button>
         </div>
@@ -166,8 +167,8 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
           <select style={{ ...styles.select, marginTop: 8 }} value={targetIndex} onChange={e => setTargetIndex(Number(e.target.value))} data-testid="media-target-select">
             {targets.map((t, i) => (
               <option key={t.key} value={i}>
-                {t.kind === 'video' ? '视频' : '音频'}
-                {t.title ? `：${t.title.slice(0, 40)}` : ` #${i + 1}`}
+                {uiText(t.kind === 'video' ? 'media.target.video' : 'media.target.audio')}
+                {t.title ? `: ${t.title.slice(0, 40)}` : ` #${i + 1}`}
               </option>
             ))}
           </select>
@@ -175,35 +176,41 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
 
         <div style={styles.rangeRow}>
           <button style={styles.rangeBtn} onClick={() => void mark('start')} data-testid="media-mark-start">
-            设为起点
+            {uiText('media.markStart')}
           </button>
           <input
             style={styles.timeInput}
             type="number"
             min={0}
             step="0.1"
-            placeholder="起(秒)"
+            placeholder={uiText('media.startPlaceholder')}
             value={startMs !== null ? startMs / 1000 : ''}
             onChange={e => setStartMs(e.target.value === '' ? null : Math.max(0, Number(e.target.value) * 1000))}
             data-testid="media-start-input"
           />
-          <span style={styles.muted}>{rangeValid ? `${fmt(startMs!)} → ${fmt(endMs!)}` : target ? `时长 ${target.durationMs > 0 ? fmt(target.durationMs) : '未知'}` : ''}</span>
+          <span style={styles.muted}>
+            {rangeValid
+              ? `${fmt(startMs!)} → ${fmt(endMs!)}`
+              : target
+                ? uiText('media.duration', { duration: target.durationMs > 0 ? fmt(target.durationMs) : uiText('media.durationUnknown') })
+                : ''}
+          </span>
           <input
             style={styles.timeInput}
             type="number"
             min={0}
             step="0.1"
-            placeholder="止(秒)"
+            placeholder={uiText('media.endPlaceholder')}
             value={endMs !== null ? endMs / 1000 : ''}
             onChange={e => setEndMs(e.target.value === '' ? null : Math.max(0, Number(e.target.value) * 1000))}
             data-testid="media-end-input"
           />
           <button style={styles.rangeBtn} onClick={() => void mark('end')} data-testid="media-mark-end">
-            设为终点
+            {uiText('media.markEnd')}
           </button>
         </div>
 
-        <label style={styles.label}>要点摘要（必填，即这条碎片的核心内容）</label>
+        <label style={styles.label}>{uiText('media.summary.label')}</label>
         <textarea
           style={styles.textarea}
           rows={2}
@@ -213,21 +220,21 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
             setSummary(e.target.value)
             setVerified(null)
           }}
-          placeholder="这几十秒讲了什么值得记住的点？"
+          placeholder={uiText('media.summary.placeholder')}
           data-testid="media-summary"
         />
 
-        <label style={styles.label}>转写（手工记录/修正，可选）</label>
+        <label style={styles.label}>{uiText('media.transcript.label')}</label>
         <textarea
           style={styles.textarea}
           rows={4}
           value={transcript}
           onChange={e => setTranscript(e.target.value)}
-          placeholder="逐句或摘录式转写；后续可修正"
+          placeholder={uiText('media.transcript.placeholder')}
           data-testid="media-transcript"
         />
 
-        <label style={styles.label}>页面语境（可选）</label>
+        <label style={styles.label}>{uiText('media.context.label')}</label>
         <textarea
           style={styles.textarea}
           rows={2}
@@ -236,21 +243,24 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
             setContextNote(e.target.value)
             setVerified(null)
           }}
-          placeholder="这 段出现在什么讨论里？"
+          placeholder={uiText('media.context.placeholder')}
         />
 
         <div style={styles.verifyBlock}>
           <div className="filter-label" style={styles.label}>
-            核验 — 回放该时间段并确认转写
+            {uiText('media.verify.title')}
           </div>
           {verified ? (
             <div style={styles.verifiedNote}>
-              已确认核对（{verified.source === 'source-material' ? '回放原文' : '手工'}，{new Date(verified.confirmedAt).toLocaleTimeString()}）
+              {uiText('media.verify.note', {
+                source: uiText(verified.source === 'source-material' ? 'media.verify.sourceReplay' : 'media.verify.sourceManual'),
+                time: new Date(verified.confirmedAt).toLocaleTimeString(),
+              })}
             </div>
           ) : (
             <div style={styles.verifyRow}>
               <button style={styles.verifyBtn} disabled={!rangeValid} onClick={() => target?.replay(startMs ?? 0, endMs ?? undefined)} data-testid="media-replay">
-                ▶ 回放区间
+                {uiText('media.verify.replay')}
               </button>
               <button
                 style={styles.verifyBtn}
@@ -258,41 +268,41 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
                 onClick={() => setVerified({ confirmedAt: Date.now(), source: 'source-material' })}
                 data-testid="media-verify"
               >
-                已回放确认
+                {uiText('media.verify.replayed')}
               </button>
               <button style={styles.verifyBtn} onClick={() => setVerified({ confirmedAt: Date.now(), source: 'manual' })}>
-                手工核对后确认
+                {uiText('media.verify.manual')}
               </button>
             </div>
           )}
         </div>
 
-        <label style={styles.label}>应用（必填）</label>
+        <label style={styles.label}>{uiText('media.use.label')}</label>
         <textarea
           style={{ ...styles.textarea, borderColor: useInvalid ? '#e5484d' : undefined }}
           rows={2}
           value={useText}
           onChange={e => setUse(e.target.value)}
-          placeholder="准备在什么时候用这段内容？"
+          placeholder={uiText('media.use.placeholder')}
           data-testid="media-use"
         />
         {useInvalid && <div style={styles.useError}>{useInvalid}</div>}
 
-        <input style={styles.tagInput} placeholder="标签（逗号分隔，可选）" value={tags} onChange={e => setTags(e.target.value)} />
+        <input style={styles.tagInput} placeholder={uiText('capture.tags.placeholder')} value={tags} onChange={e => setTags(e.target.value)} />
 
         {duplicateOf && (
           <div style={styles.errorBanner}>
-            <span>已保存过相同内容的媒体片段。仍要保存？</span>
+            <span>{uiText('media.duplicate')}</span>
             <button style={styles.miniBtn} onClick={() => void save(true)}>
-              仍要保存
+              {uiText('capture.duplicate.force')}
             </button>
           </div>
         )}
-        {saveState === 'error' && <div style={styles.errorBanner}>保存失败：{saveError}。输入已保留，可直接重试。</div>}
+        {saveState === 'error' && <div style={styles.errorBanner}>{uiText('media.saveFailed', { error: saveError })}</div>}
 
         <div style={styles.actions}>
           <button style={styles.ghostBtn} onClick={requestClose} disabled={saveState === 'saving'}>
-            取消
+            {uiText('common.cancel')}
           </button>
           <button
             style={{ ...styles.primaryBtn, opacity: rangeValid && content && verified && !useInvalid ? 1 : 0.5 }}
@@ -300,7 +310,7 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
             disabled={!rangeValid || !content || !verified || !!useInvalid || saveState === 'saving'}
             data-testid="media-save"
           >
-            {saveState === 'saving' ? '保存中…' : '保存到碎片库'}
+            {uiText(saveState === 'saving' ? 'capture.saving' : 'capture.saveToLibrary')}
           </button>
         </div>
       </div>

@@ -123,11 +123,13 @@ extension FragmentStore {
 
     /// Fragments with at least one local edit (diagnostics and tests).
     public func locallyTaggedFragmentIds() throws -> [String] {
-        let stmt = try prepare("SELECT DISTINCT fragment_id FROM fragment_local_tags ORDER BY fragment_id")
-        defer { sqlite3_finalize(stmt) }
-        var out: [String] = []
-        while sqlite3_step(stmt) == SQLITE_ROW { out.append(columnText(stmt, 0)) }
-        return out
+        try exclusive {
+            let stmt = try prepare("SELECT DISTINCT fragment_id FROM fragment_local_tags ORDER BY fragment_id")
+            defer { sqlite3_finalize(stmt) }
+            var out: [String] = []
+            while sqlite3_step(stmt) == SQLITE_ROW { out.append(columnText(stmt, 0)) }
+            return out
+        }
     }
 
     // ── writes ───────────────────────────────────────────────────────────

@@ -5,8 +5,30 @@
  * hint shown BEFORE submitting. The data layer is more permissive than the form
  * (e.g. claim.stance is optional in storage but the form asks for it).
  */
+import { uiText, type UiLanguage } from '../../../utils/ui-text'
 import type { TextFragmentKind } from './capture-context'
 import { styles } from './styles'
+
+type DetailField =
+  | 'note'
+  | 'definition'
+  | 'boundaries'
+  | 'examples'
+  | 'counterExamples'
+  | 'stance'
+  | 'evidence'
+  | 'assumptions'
+  | 'steps'
+  | 'prerequisites'
+  | 'failureModes'
+  | 'rationale'
+  | 'alternatives'
+  | 'consequences'
+  | 'status'
+  | 'hypothesis'
+  | 'nextStep'
+  | 'answer'
+  | 'form'
 
 export interface DetailFormState {
   note: string
@@ -60,20 +82,20 @@ export const lines = (text: string): string[] =>
 
 /**
  * Client-side per-kind required-detail gate (extension PRD §4.4/§4.6): the
- * user sees a kind-specific Chinese hint BEFORE submitting, instead of the
- * server's stable error code afterwards.
+ * user sees a kind-specific hint BEFORE submitting, instead of the server's
+ * stable error code afterwards.
  */
-export function detailInvalidMessage(kind: TextFragmentKind, d: DetailFormState): string {
+export function detailInvalidMessage(kind: TextFragmentKind, d: DetailFormState, lang?: UiLanguage): string {
   switch (kind) {
     case 'claim':
-      return d.stance ? '' : '请先选择你的立场（支持 / 反对 / 存疑）'
+      return d.stance ? '' : uiText('detail.invalid.claim', {}, lang)
     case 'procedure':
-      return lines(d.steps).length > 0 ? '' : '至少写出一个步骤（每行一条）'
+      return lines(d.steps).length > 0 ? '' : uiText('detail.invalid.procedure', {}, lang)
     case 'decision':
-      return d.rationale.trim() ? '' : '请写决策理由（背景、约束与取舍）'
+      return d.rationale.trim() ? '' : uiText('detail.invalid.decision', {}, lang)
     case 'question':
-      if (d.status === 'answered') return d.answer.trim() ? '' : '已回答的问题需要写结论'
-      return d.hypothesis.trim() || d.nextStep.trim() ? '' : '写当前假设或下一步验证（至少一项）'
+      if (d.status === 'answered') return d.answer.trim() ? '' : uiText('detail.invalid.questionAnswered', {}, lang)
+      return d.hypothesis.trim() || d.nextStep.trim() ? '' : uiText('detail.invalid.question', {}, lang)
     default:
       return ''
   }
@@ -122,134 +144,128 @@ export function buildDetail(kind: TextFragmentKind, d: DetailFormState): unknown
   }
 }
 
-const STANCE_LABELS = { support: '支持', oppose: '反对', uncertain: '存疑' } as const
-const STATUS_LABELS = { open: '待验证', testing: '验证中', answered: '已回答' } as const
-const FORM_LABELS = { idea: '想法', reflection: '随感' } as const
-
-/** The labelled values the user typed for this kind — fed to the 改存 note and 复制我的输入. */
-export function detailEntries(kind: TextFragmentKind, d: DetailFormState): Array<[string, string]> {
+/** The labelled values the user typed for this kind — fed to the save-as note and “Copy my input”. */
+export function detailEntries(kind: TextFragmentKind, d: DetailFormState, lang?: UiLanguage): Array<[string, string]> {
   const fields: Array<[string, string]> = []
-  const add = (label: string, value: string) => {
-    if (value.trim()) fields.push([label, value.trim().replace(/\n+/g, '；')])
+  const field = (name: DetailField) => uiText(`detail.field.${name}`, {}, lang)
+  const add = (name: DetailField, value: string) => {
+    if (value.trim()) fields.push([field(name), value.trim().replace(/\n+/g, uiText('detail.valueSeparator', {}, lang))])
   }
   switch (kind) {
     case 'excerpt':
-      add('注释', d.note)
+      add('note', d.note)
       break
     case 'concept':
-      add('定义', d.definition)
-      add('适用边界', d.boundaries)
-      add('示例', d.examples)
-      add('反例', d.counterExamples)
+      add('definition', d.definition)
+      add('boundaries', d.boundaries)
+      add('examples', d.examples)
+      add('counterExamples', d.counterExamples)
       break
     case 'claim':
-      if (d.stance) add('立场', STANCE_LABELS[d.stance])
-      add('证据', d.evidence)
-      add('前提', d.assumptions)
+      if (d.stance) add('stance', uiText(`detail.stance.${d.stance}`, {}, lang))
+      add('evidence', d.evidence)
+      add('assumptions', d.assumptions)
       break
     case 'procedure':
-      add('步骤', d.steps)
-      add('适用条件', d.prerequisites)
-      add('失败模式', d.failureModes)
+      add('steps', d.steps)
+      add('prerequisites', d.prerequisites)
+      add('failureModes', d.failureModes)
       break
     case 'decision':
-      add('决策理由', d.rationale)
-      add('备选项', d.alternatives)
-      add('后果', d.consequences)
+      add('rationale', d.rationale)
+      add('alternatives', d.alternatives)
+      add('consequences', d.consequences)
       break
     case 'question':
-      add('状态', STATUS_LABELS[d.status])
-      add('当前假设', d.hypothesis)
-      add('证据', d.evidence)
-      add('下一步验证', d.nextStep)
-      add('结论', d.status === 'answered' ? d.answer : '')
+      // The default status is not “typed” input; keep only a deliberate one.
+      if (d.status !== 'open') add('status', uiText(`detail.status.${d.status}`, {}, lang))
+      add('hypothesis', d.hypothesis)
+      add('evidence', d.evidence)
+      add('nextStep', d.nextStep)
+      add('answer', d.status === 'answered' ? d.answer : '')
       break
     case 'inspiration':
-      add('形式', FORM_LABELS[d.form])
+      if (d.form !== 'idea') add('form', uiText(`detail.form.${d.form}`, {}, lang))
       break
   }
-  // The default-valued status/form are not “typed” input; keep only deliberate entries.
-  return fields.filter(
-    ([label, value]) => !(kind === 'question' && label === '状态' && value === STATUS_LABELS.open) && !(kind === 'inspiration' && label === '形式' && value === FORM_LABELS.idea),
-  )
+  return fields
 }
 
-/** Per-kind detail fields (extension PRD §4.4 必填 detail). */
+/** Per-kind detail fields (extension PRD §4.4 required detail). */
 export function DetailForm({ kind, detail, onChange }: { kind: TextFragmentKind; detail: DetailFormState; onChange: (next: DetailFormState) => void }) {
   const set = <K extends keyof DetailFormState>(key: K, value: DetailFormState[K]) => onChange({ ...detail, [key]: value })
-  const row = (label: string, key: keyof DetailFormState, placeholder?: string, required?: boolean) => (
+  const row = (label: string, key: keyof DetailFormState, placeholder?: string) => (
     <>
-      <label style={styles.label}>
-        {label}
-        {required ? '（必填）' : ''}
-      </label>
+      <label style={styles.label}>{label}</label>
       <textarea style={styles.textarea} rows={2} value={detail[key] as string} placeholder={placeholder} onChange={e => set(key, e.target.value as never)} />
     </>
   )
   switch (kind) {
     case 'excerpt':
-      return <>{row('为什么值得保留（注释，可选）', 'note')}</>
+      return <>{row(uiText('detail.label.excerpt.note'), 'note')}</>
     case 'concept':
       return (
         <>
-          {row('定义（可选）', 'definition')}
-          {row('适用边界（每行一条，可选）', 'boundaries')}
-          {row('示例（每行一条，可选）', 'examples')}
-          {row('反例（每行一条，可选）', 'counterExamples')}
+          {row(uiText('detail.label.definition'), 'definition')}
+          {row(uiText('detail.label.boundaries'), 'boundaries')}
+          {row(uiText('detail.label.examples'), 'examples')}
+          {row(uiText('detail.label.counterExamples'), 'counterExamples')}
         </>
       )
     case 'claim':
       return (
         <>
-          <label style={styles.label}>你的立场（必填）</label>
+          <label style={styles.label}>{uiText('detail.label.stance')}</label>
           <select style={styles.select} value={detail.stance} onChange={e => set('stance', e.target.value as DetailFormState['stance'])} data-testid="claim-stance">
-            <option value="">请选择…</option>
-            <option value="support">支持</option>
-            <option value="oppose">反对</option>
-            <option value="uncertain">存疑</option>
+            <option value="">{uiText('detail.choose')}</option>
+            <option value="support">{uiText('detail.stance.support')}</option>
+            <option value="oppose">{uiText('detail.stance.oppose')}</option>
+            <option value="uncertain">{uiText('detail.stance.uncertain')}</option>
           </select>
-          {row('证据（每行一条，可选）', 'evidence')}
-          {row('前提（每行一条，可选）', 'assumptions')}
+          {row(uiText('detail.label.evidence'), 'evidence')}
+          {row(uiText('detail.label.assumptions'), 'assumptions')}
         </>
       )
     case 'procedure':
       return (
         <>
-          {row('步骤（每行一条，至少一项）', 'steps', '第一步…', true)}
-          {row('适用条件（每行一条，可选）', 'prerequisites')}
-          {row('失败模式（每行一条，可选）', 'failureModes')}
+          {row(uiText('detail.label.steps'), 'steps', uiText('detail.placeholder.steps'))}
+          {row(uiText('detail.label.prerequisites'), 'prerequisites')}
+          {row(uiText('detail.label.failureModes'), 'failureModes')}
         </>
       )
     case 'decision':
       return (
         <>
-          {row('决策理由（必填）', 'rationale', '背景、约束与取舍')}
-          {row('备选项（每行一条，可选）', 'alternatives')}
-          {row('后果（每行一条，可选）', 'consequences')}
+          {row(uiText('detail.label.rationale'), 'rationale', uiText('detail.placeholder.rationale'))}
+          {row(uiText('detail.label.alternatives'), 'alternatives')}
+          {row(uiText('detail.label.consequences'), 'consequences')}
         </>
       )
-    case 'question':
+    case 'question': {
+      const placeholder = uiText(detail.status === 'answered' ? 'detail.placeholder.optional' : 'detail.placeholder.hypothesisOrNext')
       return (
         <>
-          <label style={styles.label}>状态</label>
+          <label style={styles.label}>{uiText('detail.field.status')}</label>
           <select style={styles.select} value={detail.status} onChange={e => set('status', e.target.value as DetailFormState['status'])} data-testid="question-status">
-            <option value="open">待验证</option>
-            <option value="testing">验证中</option>
-            <option value="answered">已回答</option>
+            <option value="open">{uiText('detail.status.open')}</option>
+            <option value="testing">{uiText('detail.status.testing')}</option>
+            <option value="answered">{uiText('detail.status.answered')}</option>
           </select>
-          {row('当前假设', 'hypothesis', detail.status === 'answered' ? '可选' : '假设或下一步至少填一项')}
-          {row('证据（每行一条，可选）', 'evidence')}
-          {row('下一步验证', 'nextStep', detail.status === 'answered' ? '可选' : '假设或下一步至少填一项')}
-          {detail.status === 'answered' && row('结论（已回答时必填）', 'answer')}
+          {row(uiText('detail.field.hypothesis'), 'hypothesis', placeholder)}
+          {row(uiText('detail.label.evidence'), 'evidence')}
+          {row(uiText('detail.field.nextStep'), 'nextStep', placeholder)}
+          {detail.status === 'answered' && row(uiText('detail.label.answer'), 'answer')}
         </>
       )
+    }
     case 'inspiration':
       return (
         <>
-          <label style={styles.label}>形式</label>
+          <label style={styles.label}>{uiText('detail.field.form')}</label>
           <select style={styles.select} value={detail.form} onChange={e => set('form', e.target.value as DetailFormState['form'])} data-testid="inspiration-form">
-            <option value="idea">想法</option>
-            <option value="reflection">随感</option>
+            <option value="idea">{uiText('detail.form.idea')}</option>
+            <option value="reflection">{uiText('detail.form.reflection')}</option>
           </select>
         </>
       )

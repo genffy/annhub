@@ -1,6 +1,6 @@
 /**
  * CaptureModal — the L2 three-step lock (docs/v2/processing.md §2, extension
- * PRD §4). Deep mode: 理解 -> 核验 -> 应用; standard mode: 核验 -> 应用.
+ * PRD §4). Deep mode: understand -> verify -> apply; standard mode: verify -> apply.
  *
  * Verification is an explicit user confirmation (time + source recorded,
  * summary/notes optional). Editing content / excerpt / source / kind or the
@@ -9,8 +9,8 @@
  * language token thresholds.
  *
  * Failure rules (processing.md §6, extension.md §9): save failure keeps every
- * input and offers 重试 / 复制我的输入 / 改存为剪藏 / 导出内容; closing with input
- * asks 继续编辑 / 改存为高亮 / 改存为剪藏 / 放弃; going back a step preserves all
+ * input and offers retry / copy my input / save as clip / export; closing with
+ * input asks keep editing / save as highlight / save as clip / discard; going back a step preserves all
  * content. Short-lived form state persists to chrome.storage.session (PRD §9)
  * keyed by tab + source url.
  */
@@ -19,7 +19,8 @@ import type { FragmentRecord, VerifiedResult, VerifiedSource } from '../../../le
 import type { SaveFragmentInput } from '../../../types/messages'
 import MessageUtils from '../../../utils/message'
 import { Logger } from '../../../utils/logger'
-import { KIND_LABELS, TEXT_KINDS } from '../../../utils/kind-labels'
+import { kindLabel, TEXT_KINDS } from '../../../utils/kind-labels'
+import { uiText } from '../../../utils/ui-text'
 import { splitExcerpt, type CaptureDraft, type TextFragmentKind } from './capture-context'
 import { copyableInput, fallbackNote, hasTypedInput, type RecoverableInput } from './capture-recovery'
 import CloseDialog, { type CloseChoice } from './CloseDialog'
@@ -46,7 +47,7 @@ export interface CaptureFallbacks {
 export interface CaptureModalProps {
   draft: CaptureDraft
   deepMode: boolean
-  /** Range clone used for "同时高亮原文", 回到原文 and the 改存 exits; null for library-origin drafts. */
+  /** Range clone used for “Also highlight the source”, “Back to source” and the save-as exits; null for library-origin drafts. */
   selectedRange: Range | null
   createHighlight: (range: Range) => Promise<string | null>
   /** In-page safe exits; absent for library-origin drafts (no page selection to convert). */
@@ -58,18 +59,7 @@ export interface CaptureModalProps {
 
 type Step = 'interpret' | 'verify' | 'apply'
 
-const STEP_LABELS: Record<Step, string> = { interpret: '理解', verify: '核验', apply: '应用' }
-
-/** Per-kind prompts (kinds.md §4 采集提问). */
-const KIND_PROMPTS: Record<TextFragmentKind, { interpret: string; apply: string; verifyHint: string }> = {
-  excerpt: { interpret: '为什么这段话值得保留？', apply: '你准备在哪个任务中引用或使用？', verifyHint: '回看原文和语境' },
-  concept: { interpret: '用自己的话解释它', apply: '它可以解释你当前哪个问题？', verifyHint: '对照定义、边界和示例' },
-  claim: { interpret: '你目前赞同吗？为什么？', apply: '你会用它支持、质疑或修正什么判断？', verifyHint: '检查证据和反例' },
-  procedure: { interpret: '先写出你记得的步骤', apply: '你准备在哪个任务中执行？', verifyHint: '对照完整流程与适用条件' },
-  decision: { interpret: '推断做出该决定的约束', apply: '以后用什么信号验证它？', verifyHint: '核对背景、备选项和后果' },
-  question: { interpret: '你当前的假设是什么？', apply: '下一步如何验证？', verifyHint: '整理已知证据和未知项' },
-  inspiration: { interpret: '这个想法从何而来？', apply: '准备在哪篇文章、哪个问题或下次思考中继续？', verifyHint: '区分观察、推测与反例' },
-}
+const stepLabel = (step: Step) => uiText(`capture.step.${step}`)
 
 interface FormState {
   kind: TextFragmentKind
@@ -83,18 +73,12 @@ interface FormState {
   summary: string
   notes: string
   verified: VerifiedResult | null
-  /** The source the next confirmation will record (原文 or 手工). */
+  /** The source the next confirmation will record (the source text or a manual check). */
   verifySource: VerifiedSource
   use: string
   tags: string
   highlight: boolean
   detail: DetailFormState
-}
-
-const VERIFIED_SOURCE_LABELS: Record<VerifiedSource, string> = {
-  'source-material': '原文材料',
-  'llm': 'LLM',
-  'manual': '手工核对',
 }
 
 /**
@@ -112,8 +96,8 @@ const SHORTCUT = `${isMac ? 'Cmd' : 'Ctrl'}+Enter`
 
 /** Save-time error codes → what the user can act on (UI never shows a raw exception, fragments.md §7). */
 function describeSaveError(error: string): string {
-  if (error.startsWith('QUOTA_EXCEEDED')) return '本地存储空间不足'
-  if (error.startsWith('ASSET_MISSING')) return '关联的图片已不在本地库'
+  if (error.startsWith('QUOTA_EXCEEDED')) return uiText('capture.error.quota')
+  if (error.startsWith('ASSET_MISSING')) return uiText('capture.error.assetMissing')
   return error
 }
 
@@ -139,7 +123,7 @@ async function copyText(text: string): Promise<boolean> {
 }
 
 export default function CaptureModal({ draft, deepMode, selectedRange, createHighlight, fallbacks, onClose, manualInspiration }: CaptureModalProps) {
-  // 深度模式是全局偏好，也可在单次 Modal 中临时切换（PRD §4.2）；切换不丢内容。
+  // Deep mode is a global preference that one capture can override (PRD §4.2); switching keeps the content.
   const [deepOverride, setDeepOverride] = useState<boolean | null>(null)
   const effectiveDeep = deepOverride ?? deepMode
   const steps: Step[] = effectiveDeep || manualInspiration ? ['interpret', 'verify', 'apply'] : ['verify', 'apply']
@@ -273,7 +257,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
 
   const recoverable: RecoverableInput = useMemo(
     () => ({
-      kindLabel: KIND_LABELS[form.kind],
+      kindLabel: kindLabel(form.kind),
       content: form.content,
       excerpt: manualInspiration ? form.background : form.excerpt,
       sourceUrl: form.sourceUrl,
@@ -299,7 +283,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
     [recoverable, form, draft],
   )
 
-  const prompts = KIND_PROMPTS[form.kind]
+  const prompt = (part: 'interpret' | 'apply' | 'verifyHint') => uiText(`capture.prompt.${form.kind}.${part}`)
 
   // Editing protected fields clears the confirmation (fragments.md §7).
   const editProtected = () => {
@@ -308,9 +292,9 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
 
   const useInvalid = (() => {
     const use = form.use.trim()
-    if (!use) return form.use ? '应用不能为空' : ''
-    if (use === form.content.trim()) return '应用不能只复述原文'
-    if (use === form.excerpt.trim()) return '应用不能照抄上下文'
+    if (!use) return form.use ? uiText('capture.use.empty') : ''
+    if (use === form.content.trim()) return uiText('capture.use.repeatsContent')
+    if (use === form.excerpt.trim()) return uiText('capture.use.repeatsContext')
     return ''
   })()
 
@@ -350,7 +334,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
         const saved = target === 'highlight' ? await fallbacks.highlight(range.cloneRange(), note) : await fallbacks.clip(range.cloneRange(), note)
         if (!saved) return false
       } catch (error) {
-        Logger.warn(`[CaptureModal] 改存为${target} failed:`, error)
+        Logger.warn(`[CaptureModal] save as ${target} failed:`, error)
         return false
       }
       finishExit(target)
@@ -379,7 +363,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
       setCloseError('')
       const ok = await convertTo(choice)
       setCloseBusy(false)
-      if (!ok) setCloseError(`改存为${choice === 'highlight' ? '高亮' : '剪藏'}失败，输入仍然保留，可继续编辑或重试。`)
+      if (!ok) setCloseError(uiText(choice === 'highlight' ? 'capture.exit.highlightFailed' : 'capture.exit.clipFailed'))
     },
     [convertTo, finishExit, onClose],
   )
@@ -391,7 +375,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
     if (stepIndex > steps.length - 1) setStepIndex(steps.length - 1)
   }, [stepIndex, steps.length])
   const goBack = () => {
-    if (stepIndex > 0) setStepIndex(stepIndex - 1) // 返回上一步保留全部内容
+    if (stepIndex > 0) setStepIndex(stepIndex - 1) // going back keeps all content
   }
 
   const backgroundMissing = manualInspiration && !form.background.trim()
@@ -418,7 +402,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestClose, closeDialogOpen, collapsed, step, form])
 
-  // ── 回到原文: collapse into a bottom bar, scroll to and mark the selection ──
+  // ── Back to source: collapse into a bottom bar, scroll to and mark the selection ──
   const rangeAvailable = !!rangeRef.current
   const backToSource = () => {
     if (rangeRef.current) setCollapsed(true)
@@ -500,7 +484,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
     setCopied('idle')
     try {
       const response = await MessageUtils.sendMessage({ type: 'SAVE_FRAGMENT', input: buildInput(), force })
-      if (!response.success) throw new Error(response.error || '保存失败')
+      if (!response.success) throw new Error(response.error || uiText('capture.error.saveFailed'))
       const data = (response.data ?? {}) as { fragment?: FragmentRecord; duplicateOf?: FragmentRecord }
       if (!data.fragment && data.duplicateOf) {
         setDuplicateOf(data.duplicateOf)
@@ -521,7 +505,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
       }
     } catch (error) {
       setSaveState('error')
-      setSaveError(describeSaveError(error instanceof Error ? error.message : '保存失败'))
+      setSaveError(describeSaveError(error instanceof Error ? error.message : uiText('capture.error.saveFailed')))
     }
   }
 
@@ -546,16 +530,16 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
     return (
       <ModalShell>
         <div style={styles.success} data-ann-ui="capture-modal" role="status">
-          <div>已保存为「{KIND_LABELS[savedKind]}」</div>
+          <div>{uiText('capture.saved', { kind: kindLabel(savedKind) })}</div>
           {highlightFailed && (
             <div style={{ fontSize: '13px' }} data-testid="highlight-failed">
-              碎片已保存，但创建高亮失败。
+              {uiText('capture.highlightFailed')}
             </div>
           )}
           <div style={styles.successActions}>
             {highlightFailed && (
               <button style={styles.successLink} onClick={retryHighlight} data-testid="retry-highlight">
-                重试高亮
+                {uiText('capture.retryHighlight')}
               </button>
             )}
             <button
@@ -565,10 +549,10 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
                 onClose()
               }}
             >
-              在碎片库查看
+              {uiText('capture.viewInLibrary')}
             </button>
             <button style={styles.successPrimary} onClick={onClose}>
-              继续阅读
+              {uiText('capture.keepReading')}
             </button>
           </div>
         </div>
@@ -580,7 +564,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
     return (
       <ModalShell>
         <div style={styles.success} data-ann-ui="capture-modal" role="status" data-testid="fallback-done">
-          已改存为{fallbackDone === 'highlight' ? '高亮' : '剪藏'} · 不进入复习，输入已作为备注保留
+          {uiText(fallbackDone === 'highlight' ? 'capture.exit.highlightDone' : 'capture.exit.clipDone')}
         </div>
       </ModalShell>
     )
@@ -589,17 +573,17 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
   if (collapsed) {
     return (
       <ModalShell collapsed>
-        <div style={styles.collapsedBar} data-ann-ui="capture-modal" role="region" aria-label="采集窗口已收起" data-testid="capture-collapsed">
-          <span style={{ flex: 1 }}>已回到原文 · 已填写的内容都保留着</span>
+        <div style={styles.collapsedBar} data-ann-ui="capture-modal" role="region" aria-label={uiText('capture.collapsed.aria')} data-testid="capture-collapsed">
+          <span style={{ flex: 1 }}>{uiText('capture.collapsed.text')}</span>
           <button ref={expandRef} style={styles.primaryBtn} onClick={() => setCollapsed(false)} data-testid="capture-expand">
-            展开
+            {uiText('capture.collapsed.expand')}
           </button>
         </div>
       </ModalShell>
     )
   }
 
-  const windowTitle = manualInspiration ? '新建灵感' : form.sourceTitle || draft.sourceHost
+  const windowTitle = manualInspiration ? uiText('capture.newInspiration') : form.sourceTitle || draft.sourceHost
   const verifyOpen = step === 'verify'
 
   return (
@@ -610,39 +594,44 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
         data-ann-ui="capture-modal"
         role="dialog"
         aria-modal="true"
-        aria-label={`${windowTitle}，${KIND_LABELS[form.kind]}，当前步骤：${STEP_LABELS[step]}`}
+        aria-label={uiText('capture.aria.window', { title: windowTitle, kind: kindLabel(form.kind), step: stepLabel(step) })}
         tabIndex={-1}
       >
-        {/* header: source title + host + 回到原文 (PRD §4.1) */}
+        {/* header: source title + host + back to source (PRD §4.1) */}
         <div style={styles.header}>
           <span style={styles.title} title={windowTitle}>
             {windowTitle}
           </span>
-          <button style={styles.closeBtn} onClick={requestClose} title="关闭 (Esc)" aria-label="关闭">
+          <button style={styles.closeBtn} onClick={requestClose} title={uiText('capture.closeButton.title')} aria-label={uiText('common.close')}>
             ✕
           </button>
         </div>
         <div style={styles.sourceLine}>
           {!manualInspiration && <span style={styles.host}>{draft.sourceHost}</span>}
           {!manualInspiration && (rangeAvailable || /^https?:/i.test(form.sourceUrl)) && (
-            <button style={styles.linkBtn} onClick={backToSource} data-testid="back-to-source" title={rangeAvailable ? '收起窗口并回到页面中的选区' : '在新标签页打开来源'}>
-              回到原文
+            <button
+              style={styles.linkBtn}
+              onClick={backToSource}
+              data-testid="back-to-source"
+              title={uiText(rangeAvailable ? 'capture.backToSource.inPage' : 'capture.backToSource.newTab')}
+            >
+              {uiText('capture.backToSource')}
             </button>
           )}
           {!manualInspiration && (
             <button
               style={styles.modeToggle}
               onClick={() => setDeepOverride(prev => (prev === null ? !effectiveDeep : !prev))}
-              title="深度模式是全局偏好，单次可临时切换"
+              title={uiText('capture.mode.hint')}
               data-testid="deep-mode-toggle"
             >
-              {effectiveDeep ? '→ 标准模式' : '→ 深度模式'}
+              {uiText(effectiveDeep ? 'capture.mode.toStandard' : 'capture.mode.toDeep')}
             </button>
           )}
         </div>
 
-        {/* body: editable selection + context (PRD §5.4 允许修正) */}
-        <label style={styles.label}>{manualInspiration ? '你的想法（必填）' : '内容（可修正）'}</label>
+        {/* body: editable selection + context (PRD §5.4 corrections allowed) */}
+        <label style={styles.label}>{uiText(manualInspiration ? 'capture.label.idea' : 'capture.label.content')}</label>
         <textarea
           style={styles.textarea}
           rows={2}
@@ -655,7 +644,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
         />
         {!manualInspiration && (
           <>
-            <label style={styles.label}>上下文（可编辑，需包含内容）</label>
+            <label style={styles.label}>{uiText('capture.label.context')}</label>
             <textarea
               style={{ ...styles.textarea, fontSize: '12px' }}
               rows={3}
@@ -670,7 +659,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
         )}
 
         {/* kind segmented control — user correction always allowed */}
-        <div style={styles.kindRow} role="radiogroup" aria-label="类型">
+        <div style={styles.kindRow} role="radiogroup" aria-label={uiText('capture.label.kind')}>
           {TEXT_KINDS.map(kind => (
             <button
               key={kind}
@@ -687,53 +676,53 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
               }}
               data-testid={`kind-${kind}`}
             >
-              {KIND_LABELS[kind]}
+              {kindLabel(kind)}
             </button>
           ))}
         </div>
-        {restored && <div style={styles.restoredNote}>已恢复上次未提交的草稿（仅本浏览器会话内）</div>}
+        {restored && <div style={styles.restoredNote}>{uiText('capture.restored')}</div>}
 
-        {/* step indicator: 理解（仅深度模式）> 核验 > 应用 */}
-        <ol style={{ ...styles.stepper, listStyle: 'none', margin: 0, padding: 0 }} aria-label="步骤">
+        {/* step indicator: understand (deep mode only) > verify > apply */}
+        <ol style={{ ...styles.stepper, listStyle: 'none', margin: 0, padding: 0 }} aria-label={uiText('capture.steps.aria')}>
           {steps.map((s, i) => (
             <li key={s} aria-current={s === step ? 'step' : undefined} style={{ fontWeight: s === step ? 700 : 400, color: s === step ? 'var(--ann-text)' : 'var(--ann-muted)' }}>
               {i > 0 && <span aria-hidden="true"> › </span>}
               {s === step ? '● ' : ''}
-              {STEP_LABELS[s]}
-              {s === 'interpret' ? '（深度模式）' : ''}
+              {stepLabel(s)}
+              {s === 'interpret' ? uiText('capture.step.deepOnly') : ''}
             </li>
           ))}
         </ol>
 
-        {/* ── Step: 理解 ── */}
+        {/* ── Step: understand ── */}
         {step === 'interpret' && (
           <div style={styles.stepBody}>
-            <label style={styles.label}>{prompts.interpret}</label>
-            <textarea style={styles.textarea} rows={3} value={form.guess} onChange={e => setField('guess', e.target.value)} placeholder="写下当前的解释、判断或问题（可留空）" />
+            <label style={styles.label}>{prompt('interpret')}</label>
+            <textarea style={styles.textarea} rows={3} value={form.guess} onChange={e => setField('guess', e.target.value)} placeholder={uiText('capture.interpret.placeholder')} />
           </div>
         )}
 
-        {/* ── Step: 核验（不可跳过，processing.md §2） ── */}
+        {/* ── Step: verify (cannot be skipped, processing.md §2) ── */}
         {verifyOpen && (
           <div style={styles.stepBody}>
-            <div style={styles.stepTitle}>{prompts.verifyHint}</div>
+            <div style={styles.stepTitle}>{prompt('verifyHint')}</div>
             {manualInspiration ? (
               <div style={styles.excerpt}>
-                <div style={styles.compareLabel}>触发背景（区分观察与推测）</div>
-                {form.guess.trim() && <div style={{ marginBottom: '6px' }}>你的理解：{form.guess}</div>}
+                <div style={styles.compareLabel}>{uiText('capture.verify.background')}</div>
+                {form.guess.trim() && <div style={{ marginBottom: '6px' }}>{uiText('capture.verify.yourGuessInline', { guess: form.guess })}</div>}
                 <textarea
                   style={styles.inlineTextarea}
                   rows={2}
                   value={form.background}
                   onChange={e => setField('background', e.target.value)}
-                  placeholder="什么触发了这个想法？（必填）"
+                  placeholder={uiText('capture.verify.backgroundPlaceholder')}
                 />
               </div>
             ) : (
               <div style={form.guess.trim() ? styles.compareGrid : undefined} data-testid="verify-compare">
                 {form.guess.trim() && (
                   <div style={styles.excerpt}>
-                    <div style={styles.compareLabel}>你的理解</div>
+                    <div style={styles.compareLabel}>{uiText('capture.verify.yourGuess')}</div>
                     {form.guess}
                   </div>
                 )}
@@ -745,31 +734,31 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
             <div style={styles.optionalRow}>
               {!(summaryToggled || form.summary) && (
                 <button style={styles.optionalBtn} onClick={() => setSummaryToggled(true)} data-testid="add-summary">
-                  ＋ 摘要（可选）
+                  {uiText('capture.verify.addSummary')}
                 </button>
               )}
               {!(notesToggled || form.notes) && (
                 <button style={styles.optionalBtn} onClick={() => setNotesToggled(true)} data-testid="add-notes">
-                  ＋ 备注（可选）
+                  {uiText('capture.verify.addNotes')}
                 </button>
               )}
             </div>
             {(summaryToggled || form.summary) && (
               <>
-                <label style={styles.label}>摘要（可选）</label>
+                <label style={styles.label}>{uiText('capture.verify.summary')}</label>
                 <textarea
                   style={styles.textarea}
                   rows={2}
                   value={form.summary}
                   onChange={e => setField('summary', e.target.value)}
-                  placeholder="核对后的结论；仅确认原文时可留空"
+                  placeholder={uiText('capture.verify.summaryPlaceholder')}
                   data-testid="verify-summary"
                 />
               </>
             )}
             {(notesToggled || form.notes) && (
               <>
-                <label style={styles.label}>备注（可选）</label>
+                <label style={styles.label}>{uiText('capture.verify.notes')}</label>
                 <textarea style={styles.textarea} rows={2} value={form.notes} onChange={e => setField('notes', e.target.value)} data-testid="verify-notes" />
               </>
             )}
@@ -777,39 +766,38 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
             <div style={styles.verifyRow}>
               <label style={styles.confirmLabel}>
                 <input type="checkbox" checked={!!form.verified} onChange={e => (e.target.checked ? confirmVerified() : setField('verified', null))} data-testid="verify-confirm" />
-                确认已核对
+                {uiText('capture.verify.confirm')}
               </label>
-              <span style={styles.muted}>核验来源：</span>
+              <span style={styles.muted}>{uiText('capture.verify.source')}</span>
               {!manualInspiration && (
                 <label style={styles.radioLabel}>
                   <input type="radio" name="ann-verify-source" checked={form.verifySource === 'source-material'} onChange={() => changeVerifySource('source-material')} />
-                  原文
+                  {uiText('capture.verify.source.original')}
                 </label>
               )}
               <label style={styles.radioLabel}>
                 <input type="radio" name="ann-verify-source" checked={form.verifySource === 'manual'} onChange={() => changeVerifySource('manual')} />
-                手工
+                {uiText('capture.verify.source.manual')}
               </label>
             </div>
             {form.verified && (
               <div style={styles.verifiedNote} role="status">
-                已确认核对（{VERIFIED_SOURCE_LABELS[form.verified.source]}，{new Date(form.verified.confirmedAt).toLocaleTimeString()}
-                ）。修改内容、语境、来源、类型或核验来源后需重新确认。
+                {uiText('capture.verified.note', { source: uiText(`capture.verified.${form.verified.source}`), time: new Date(form.verified.confirmedAt).toLocaleTimeString() })}
               </div>
             )}
           </div>
         )}
 
-        {/* ── Step: 应用（硬门槛） ── */}
+        {/* ── Step: apply (hard gate) ── */}
         {step === 'apply' && (
           <div style={styles.stepBody}>
-            <label style={styles.label}>{prompts.apply}</label>
+            <label style={styles.label}>{prompt('apply')}</label>
             <textarea
               style={{ ...styles.textarea, borderColor: useInvalid ? 'var(--ann-danger)' : undefined }}
               rows={3}
               value={form.use}
               onChange={e => setField('use', e.target.value)}
-              placeholder="写下准备如何使用、验证或迁移（必填）"
+              placeholder={uiText('capture.apply.placeholder')}
             />
             {useInvalid && <div style={styles.useError}>{useInvalid}</div>}
             {detailInvalid && (
@@ -819,57 +807,57 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
             )}
 
             <DetailForm kind={form.kind} detail={form.detail} onChange={next => setField('detail', next)} />
-            <input style={styles.tagInput} placeholder="标签（逗号分隔，可选）" value={form.tags} onChange={e => setField('tags', e.target.value)} />
+            <input style={styles.tagInput} placeholder={uiText('capture.tags.placeholder')} value={form.tags} onChange={e => setField('tags', e.target.value)} />
 
             {duplicateOf && (
               <div style={styles.errorBanner}>
-                <span>已保存过相同内容（同语境，{new Date(duplicateOf.createdAt).toLocaleDateString()}）。仍要保存为新记录吗？</span>
+                <span>{uiText('capture.duplicate', { date: new Date(duplicateOf.createdAt).toLocaleDateString() })}</span>
                 <button style={styles.miniBtn} onClick={() => doSave(true)}>
-                  仍要保存
+                  {uiText('capture.duplicate.force')}
                 </button>
               </div>
             )}
             {saveState === 'error' && (
               <div style={{ ...styles.errorBanner, flexDirection: 'column', alignItems: 'stretch' }} role="alert" data-testid="save-failed">
-                <span>保存失败：{saveError}。输入已保留，窗口不会关闭。</span>
+                <span>{uiText('capture.saveFailed', { error: saveError })}</span>
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   <button style={styles.miniBtn} onClick={() => doSave(false)} data-testid="save-retry">
-                    重试
+                    {uiText('common.retry')}
                   </button>
                   <button style={styles.miniBtn} onClick={copyInput} data-testid="save-copy-input">
-                    复制我的输入
+                    {uiText('capture.copyInput')}
                   </button>
                   {canFallback && (
                     <button style={styles.miniBtn} onClick={() => void convertTo('clip')} data-testid="save-as-clip">
-                      改存为剪藏
+                      {uiText('capture.asClip')}
                     </button>
                   )}
                   <button style={styles.miniBtn} onClick={() => openLibrary({ export: '1' })} data-testid="save-export">
-                    导出内容
+                    {uiText('capture.exportContent')}
                   </button>
                 </div>
-                {copied !== 'idle' && <span role="status">{copied === 'ok' ? '已复制到剪贴板。' : '复制失败，请手动选中文字复制。'}</span>}
+                {copied !== 'idle' && <span role="status">{uiText(copied === 'ok' ? 'capture.copied' : 'capture.copyFailed')}</span>}
               </div>
             )}
           </div>
         )}
 
-        {/* footer: 同时高亮原文 / 取消 / 下一步 (PRD §4.1) */}
+        {/* footer: also highlight / cancel / next (PRD §4.1) */}
         <div style={styles.footer}>
           {!manualInspiration && rangeAvailable && (
             <label style={styles.checkRow}>
               <input type="checkbox" checked={form.highlight} onChange={e => setField('highlight', e.target.checked)} data-testid="also-highlight" />
-              同时高亮原文
+              {uiText('capture.alsoHighlight')}
             </label>
           )}
           <span style={styles.footerSpacer} />
           {stepIndex > 0 && (
             <button style={styles.ghostBtn} onClick={goBack} disabled={saveState === 'saving'} data-testid="modal-back">
-              返回
+              {uiText('capture.back')}
             </button>
           )}
           <button style={styles.ghostBtn} onClick={requestClose} disabled={saveState === 'saving'} data-testid="modal-cancel">
-            取消
+            {uiText('common.cancel')}
           </button>
           {step === 'apply' ? (
             <button
@@ -878,11 +866,11 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
               disabled={!!useInvalid || !!detailInvalid || !form.verified || saveState === 'saving'}
               data-testid="save-fragment"
             >
-              {saveState === 'saving' ? '保存中…' : '保存到碎片库'}
+              {uiText(saveState === 'saving' ? 'capture.saving' : 'capture.saveToLibrary')}
             </button>
           ) : (
             <button style={{ ...styles.primaryBtn, opacity: canAdvance ? 1 : 0.5 }} onClick={goNext} disabled={!canAdvance} data-testid="modal-next">
-              下一步
+              {uiText('capture.next')}
             </button>
           )}
           <span style={styles.muted} aria-hidden="true">
@@ -900,8 +888,8 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
 function ContextCard({ excerpt, content }: { excerpt: string; content: string }) {
   const parts = splitExcerpt(excerpt, content)
   return (
-    <div style={styles.contextCard} aria-label="来源语境" data-testid="context-card">
-      <div style={styles.compareLabel}>来源语境</div>
+    <div style={styles.contextCard} aria-label={uiText('capture.verify.context')} data-testid="context-card">
+      <div style={styles.compareLabel}>{uiText('capture.verify.context')}</div>
       {parts ? (
         <>
           <span style={styles.contextFaded}>{parts.before}</span>

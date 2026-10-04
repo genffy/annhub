@@ -28,28 +28,6 @@ describe('annotation marker helpers', () => {
     expect(document.querySelector('[data-test-marker]')?.textContent).toBe('ubiquitous')
   })
 
-  it('adds ruby annotation children after wrapping base text', () => {
-    setupDOM('<p>Alpha ubiquitous beta.</p>')
-    const text = document.querySelector('p')?.firstChild as Text
-    const range = document.createRange()
-    range.setStart(text, 'Alpha '.length)
-    range.setEnd(text, 'Alpha ubiquitous'.length)
-
-    const marker = wrapRange(range, {
-      tagName: 'ruby',
-      attributes: { 'data-ann-vocab': '1' },
-      buildChildren: base => {
-        const rt = document.createElement('rt')
-        rt.textContent = '常见'
-        base.appendChild(rt)
-      },
-    })
-
-    expect(marker?.tagName).toBe('RUBY')
-    expect(marker?.firstChild?.textContent).toBe('ubiquitous')
-    expect(marker?.querySelector('rt')?.textContent).toBe('常见')
-  })
-
   it('falls back to extract and insert when surroundContents cannot wrap a complex range', () => {
     setupDOM('<p>Alpha <strong>ubiquitous</strong> beta.</p>')
     const p = document.querySelector('p') as Element
@@ -69,12 +47,12 @@ describe('annotation marker helpers', () => {
     expect(document.body.textContent).toBe('Alpha ubiquitous beta.')
   })
 
-  it('unwraps ruby without leaking rt text into document flow', () => {
-    setupDOM('<p>Alpha <ruby data-ann-vocab="1">ubiquitous<rt>常见</rt></ruby> beta.</p>')
-    unwrapMarker(document.querySelector('ruby') as Element)
+  it('unwraps a marker back into plain text', () => {
+    setupDOM('<p>Alpha <span data-marker="1">ubiquitous</span> beta.</p>')
+    unwrapMarker(document.querySelector('[data-marker]') as Element)
 
     expect(document.body.textContent).toBe('Alpha ubiquitous beta.')
-    expect(document.querySelector('rt')).toBeNull()
+    expect(document.querySelector('[data-marker]')).toBeNull()
   })
 
   it('cleans up all matching markers', () => {

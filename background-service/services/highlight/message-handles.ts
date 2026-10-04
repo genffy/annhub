@@ -85,9 +85,6 @@ export const messageHandlers = {
     }
   },
 
-  // Note: GET_STATUS / GET_VERSION / INITIALIZE are system-level handlers owned by
-  // ServiceManager.getSystemMessageHandlers() (cross-service status), not this service.
-
   LOCATE_HIGHLIGHT: async (message: LocateHighlightMessage): Promise<ResponseMessage> => {
     try {
       const [tab] = await browser.tabs.query({ active: true, currentWindow: true })

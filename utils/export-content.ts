@@ -7,6 +7,7 @@
 import { FragmentStore } from '../learning-core/fragment-store'
 import { buildExportZip, type ExportHighlight, type ExportClip, type ExportManifest } from '../learning-core/markdown-export'
 import MessageUtils from '../utils/message'
+import { currentUiLanguage } from './ui-text'
 import type { HighlightRecord } from '../types/highlight'
 import type { ClipRecord } from '../types/clip'
 
@@ -42,14 +43,16 @@ export async function exportContentZip(): Promise<{ blob: Blob; manifest: Export
     sourceTitle: c.source_title,
     createdAt: Date.parse(c.capture_time) || Date.now(),
   }))
-  // storage.md §7：导出开始固定快照；资产读取（耗时段）后重读发生变化的
-  // 记录，避免把旧版本写进 ZIP。新出现的记录不追加快照范围。
+  // storage.md §7: the export pins its snapshot at the start; after the slow asset reads the
+  // records that changed are re-read so an old version never lands in the ZIP. Records that
+  // appeared meanwhile are not added to the pinned range.
   const fresh = await pageStore.getAllFragments()
   const freshById = new Map(fresh.map(f => [f.id, f]))
   const pinnedFragments = fragments.map(f => freshById.get(f.id) ?? f)
 
   return buildExportZip({
     exportedAt: Date.now(),
+    lang: currentUiLanguage(),
     fragments: pinnedFragments,
     highlights,
     clips,

@@ -5,6 +5,7 @@
  * whole block is absent — never an empty number or a red badge.
  */
 import { connectionView, relativeTime, type Connection, type ConnectionState } from '../../utils/connection-status'
+import { uiCount, uiText, type UiLanguage } from '../../utils/ui-text'
 
 export interface PopupData {
   connection: Connection | null
@@ -25,21 +26,21 @@ export interface PopupViewModel {
 /** Review sessions are estimated at 45 seconds per fragment (review.md §5). */
 const SECONDS_PER_FRAGMENT = 45
 
-export function popupViewModel(data: PopupData, now = Date.now()): PopupViewModel {
+export function popupViewModel(data: PopupData, now = Date.now(), lang?: UiLanguage): PopupViewModel {
   const { connection } = data
-  const status = connection ? connectionView(connection, now) : null
+  const status = connection ? connectionView(connection, now, lang) : null
   const reviewDataReturned = !!connection && connection.paired && connection.online && !connection.lastError && data.lastPullAt !== undefined
   const due = data.dueCount ?? 0
   return {
     status,
-    libraryCount: data.fragmentCount === null ? null : `${data.fragmentCount} 条`,
-    screenshotCount: data.screenshotCount === null ? null : `${data.screenshotCount} 张`,
+    libraryCount: data.fragmentCount === null ? null : uiCount('popup.libraryCount', data.fragmentCount, {}, lang),
+    screenshotCount: data.screenshotCount === null ? null : uiCount('popup.screenshotCount', data.screenshotCount, {}, lang),
     desktopReview:
       reviewDataReturned && due > 0
         ? {
-            text: `Desktop 上有 ${due} 条到期复习`,
-            estimate: `预计 ${Math.ceil((due * SECONDS_PER_FRAGMENT) / 60)} 分钟`,
-            source: `数据来自最近一次回传（${relativeTime(data.lastPullAt!, now)}）`,
+            text: uiCount('popup.dueReviews', due, {}, lang),
+            estimate: uiText('popup.estimate', { minutes: Math.ceil((due * SECONDS_PER_FRAGMENT) / 60) }, lang),
+            source: uiText('popup.dataSource', { time: relativeTime(data.lastPullAt!, now, lang) }, lang),
           }
         : null,
   }

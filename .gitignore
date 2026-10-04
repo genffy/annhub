@@ -62,3 +62,4 @@ __pycache__/
 
 # ZCode local workspace state (shared config lives in .agents/mcp.json)
 .zcode/
+store-assets/

@@ -25,7 +25,7 @@ final class LaunchConfigTests: XCTestCase {
             "--annhub-ready-file=/tmp/annhub-run/ready.json",
             "--annhub-no-window",
             "--annhub-shot=/tmp/annhub-run/window.png",
-            "--annhub-demo-seed",
+            "--annhub-allow-extension=devbuildid",
             "--annhub-no-notifications",
         ])
         XCTAssertEqual(config.dataDirectory?.path, "/tmp/annhub-run/data")
@@ -34,8 +34,18 @@ final class LaunchConfigTests: XCTestCase {
         XCTAssertEqual(config.readyFile?.path, "/tmp/annhub-run/ready.json")
         XCTAssertEqual(config.screenshotPath, "/tmp/annhub-run/window.png")
         XCTAssertFalse(config.openWindowAtLaunch)
-        XCTAssertTrue(config.demoSeed)
+        XCTAssertEqual(config.extraExtensionIds, ["devbuildid"])
         XCTAssertFalse(config.notificationsEnabled)
+    }
+
+    // The published extension is always served; an unpacked build under test is not, unless the
+    // harness names its id (storage.md §8). Several ids may be named.
+    func testExtraExtensionIdsAreCollectedAndEmptyOnesIgnored() {
+        XCTAssertEqual(DesktopLaunchConfig.parse(["AnnHubDesktop"]).extraExtensionIds, [])
+        let config = DesktopLaunchConfig.parse([
+            "--annhub-allow-extension=idone", "--annhub-allow-extension=", "--annhub-allow-extension=idtwo",
+        ])
+        XCTAssertEqual(config.extraExtensionIds, ["idone", "idtwo"])
     }
 
     func testMalformedValuesFallBackInsteadOfCrashing() {
@@ -57,16 +67,10 @@ final class LaunchConfigTests: XCTestCase {
         XCTAssertEqual(config.dataDirectory?.path, NSHomeDirectory() + "/annhub-test")
     }
 
-    // The accident this guards against: --annhub-demo-seed on its own fills the
-    // user's real (empty) store with demo fragments.
-    func testDemoSeedNeedsAnExplicitDataDirectory() {
-        XCTAssertFalse(DesktopLaunchConfig.parse(["--annhub-demo-seed"]).demoSeedAllowed)
-        XCTAssertFalse(
-            DesktopLaunchConfig.parse(["--annhub-demo-seed", "--annhub-defaults-suite=x"]).demoSeedAllowed,
-            "an isolated preferences domain does not isolate the store")
-        XCTAssertTrue(
-            DesktopLaunchConfig.parse(["--annhub-demo-seed", "--annhub-data-dir=/tmp/x"]).demoSeedAllowed)
-        XCTAssertFalse(DesktopLaunchConfig.parse(["--annhub-data-dir=/tmp/x"]).demoSeedAllowed, "not requested")
+    // The demo data an old build could write into the real store is gone for good: no flag seeds
+    // a store any more, so an unknown legacy flag is simply ignored.
+    func testTheRemovedDemoSeedFlagDoesNothing() {
+        XCTAssertEqual(DesktopLaunchConfig.parse(["--annhub-demo-seed"]), DesktopLaunchConfig())
     }
 
     func testTheDataDirectoryDefaultsToTheAppsFolderInApplicationSupport() {

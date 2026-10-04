@@ -6,28 +6,39 @@
 import type { IService } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
 import { Logger } from '../../../utils/logger'
+import { uiText } from '../../../utils/ui-text'
 import { FragmentStore, type FragmentPatch, type FragmentSaveOutcome } from '../../../learning-core/fragment-store'
 import type { CreateFragmentInput } from '../../../learning-core/factory'
-import type { FragmentRecord, FragmentLocator, VerifiedResult } from '../../../learning-core/types'
+import type { FragmentRecord, FragmentLocator, OutboxRejectionCode, VerifiedResult } from '../../../learning-core/types'
 import { runFragmentQuery, type FragmentQuery, type FragmentQueryResult } from '../../../learning-core/query'
 import { normalizeHost } from '../../../learning-core/normalize'
-import { buildExportZip, type ExportManifest, type ExportHighlight, type ExportClip } from '../../../learning-core/markdown-export'
 import { quotaAvailable } from '../../../utils/storage-quota'
-import { HighlightService } from '../highlight'
-import { ClipService } from '../clip'
 import type { SaveFragmentInput } from '../../../types/messages'
 import {
   DEFAULT_DIRECT_CONNECT,
   DIRECT_CONNECT_STORAGE_KEY,
   flushPendingDeliveries,
+  isLoopbackEndpoint,
+  normalizeEndpoint,
   pingHub,
   pullDesktopChanges,
+  toPublicConfig,
   type DirectConnectConfig,
   type DirectConnectStatus,
   type DeliveryResult,
+  type PublicDirectConnectConfig,
   type PullResult,
 } from './direct-connect'
 import { fragmentMessageHandlers } from './message-handles'
+
+export interface RejectedDelivery {
+  eventId: string
+  kind: 'fragment' | 'asset'
+  targetId: string
+  code: OutboxRejectionCode
+  status: number
+  at: number
+}
 
 const DEVICE_ID_KEY = 'fragmentDeviceId'
 const CAPTURE_CONFIG_KEY = 'fragmentCaptureConfigV2'
@@ -188,10 +199,6 @@ export class FragmentService implements IService {
     return this.store.deleteFragment(id)
   }
 
-  findDuplicate(content: string, excerpt: string, sourceUrl: string) {
-    return this.store.findDuplicate({ content, excerpt, sourceUrl })
-  }
-
   getStats() {
     return this.store.getStats()
   }
@@ -206,42 +213,6 @@ export class FragmentService implements IService {
 
   cleanupOrphanAssets() {
     return this.store.cleanupOrphanAssets()
-  }
-
-  // ── the single user export: Markdown + images ZIP (storage.md §7) ────
-
-  async exportContentZip(): Promise<{ blob: Blob; manifest: ExportManifest }> {
-    const [fragments, highlights, clips, screenshots] = await Promise.all([
-      this.store.getAllFragments(),
-      HighlightService.getInstance().getHighlights(),
-      ClipService.getInstance().getClips(),
-      this.store.listScreenshots(),
-    ])
-    const exportHighlights: ExportHighlight[] = highlights
-      .filter(h => h.status === 'active')
-      .map(h => ({
-        id: h.id,
-        text: h.originalText,
-        note: h.user_note,
-        sourceUrl: h.metadata.sourceUrl ?? h.url,
-        sourceTitle: h.metadata.pageTitle,
-        createdAt: h.timestamp,
-      }))
-    const exportClips: ExportClip[] = clips.map(c => ({
-      id: c.id,
-      text: c.content,
-      sourceUrl: c.source_detail_url ?? c.source_url,
-      sourceTitle: c.source_title,
-      createdAt: Date.parse(c.capture_time) || Date.now(),
-    }))
-    return buildExportZip({
-      exportedAt: Date.now(),
-      fragments,
-      highlights: exportHighlights,
-      clips: exportClips,
-      screenshots: screenshots.map(({ asset, ...record }) => record),
-      getAsset: async id => this.store.getAsset(id),
-    })
   }
 
   // ── capture config (chrome.storage.local — preferences never enter the learning core) ──
@@ -261,17 +232,29 @@ export class FragmentService implements IService {
 
   // ── Desktop per-item delivery (storage.md §8) ────────────────────────
 
+  /** Includes the pairing code: for the service worker only. Pages get `getPublicDirectConnectConfig`. */
   async getDirectConnectConfig(): Promise<DirectConnectConfig> {
     const result = await chrome.storage.local.get(DIRECT_CONNECT_STORAGE_KEY)
-    const stored = result[DIRECT_CONNECT_STORAGE_KEY] as Partial<DirectConnectConfig> | undefined
-    return { ...DEFAULT_DIRECT_CONNECT, ...(stored ?? {}) }
+    const stored = (result[DIRECT_CONNECT_STORAGE_KEY] as Partial<DirectConnectConfig> | undefined) ?? {}
+    const merged = { ...DEFAULT_DIRECT_CONNECT, ...stored }
+    // Whatever is in storage, the pairing code is only ever sent to a loopback hub.
+    return { ...merged, endpoint: isLoopbackEndpoint(merged.endpoint) ? normalizeEndpoint(merged.endpoint) : DEFAULT_DIRECT_CONNECT.endpoint }
   }
 
-  async setDirectConnectConfig(config: Partial<DirectConnectConfig>): Promise<DirectConnectConfig> {
+  async getPublicDirectConnectConfig(): Promise<PublicDirectConnectConfig> {
+    return toPublicConfig(await this.getDirectConnectConfig())
+  }
+
+  /** `token` undefined keeps the stored code; an empty string unpairs. */
+  async setDirectConnectConfig(config: Partial<DirectConnectConfig>): Promise<PublicDirectConnectConfig> {
     const current = await this.getDirectConnectConfig()
-    const next = { ...current, ...config }
+    const next: DirectConnectConfig = {
+      endpoint: config.endpoint === undefined ? current.endpoint : normalizeEndpoint(config.endpoint),
+      token: config.token === undefined ? current.token : config.token.trim(),
+      autoSync: config.autoSync ?? current.autoSync,
+    }
     await chrome.storage.local.set({ [DIRECT_CONNECT_STORAGE_KEY]: next })
-    return next
+    return toPublicConfig(next)
   }
 
   async pingDirectConnect(): Promise<DirectConnectStatus> {
@@ -305,8 +288,13 @@ export class FragmentService implements IService {
       getAsset: id => this.store.getAsset(id),
       prune: ids => this.store.pruneEvents(ids),
       markAttempt: id => this.store.markEventAttempt(id),
+      markFailure: id => this.store.markEventFailure(id),
+      reject: (id, rejection) => this.store.rejectEvent(id, rejection),
     })
     const deliveryState: DeliveryState = { lastSyncAt: Date.now(), lastResult: result, lastError: result.errors[0] }
+    // A refusal outlives this run's error list: while any item waits on the user, say so.
+    const parked = (await this.store.getDeliveryStats()).rejected
+    if (!deliveryState.lastError && parked > 0) deliveryState.lastError = uiText('desktop.needsAttention', { count: parked })
 
     // R3: after delivery, drain Desktop-originated review changes. Auth
     // failure stops both directions.
@@ -328,6 +316,32 @@ export class FragmentService implements IService {
     }
     await this.setDeliveryState(deliveryState)
     return result
+  }
+
+  /** Items Desktop refused for good, for the settings page: what, why and when. */
+  async getRejectedDeliveries(limit = 20): Promise<RejectedDelivery[]> {
+    const events = await this.store.getRejectedEvents()
+    return events.slice(0, limit).map(event => ({
+      eventId: event.eventId,
+      kind: event.type === 'asset.created' ? ('asset' as const) : ('fragment' as const),
+      targetId: (event.payload as { fragmentId?: string; assetId?: string } | null)?.fragmentId ?? (event.payload as { assetId?: string } | null)?.assetId ?? '',
+      code: event.rejection!.code,
+      status: event.rejection!.status,
+      at: event.rejection!.at,
+    }))
+  }
+
+  /** `retry` puts every refused item back in the queue and delivers; `dismiss` drops them for good. */
+  async resolveRejectedDeliveries(action: 'retry' | 'dismiss'): Promise<{ count: number; result?: DeliveryResult }> {
+    if (action === 'dismiss') {
+      const ids = (await this.store.getRejectedEvents()).map(event => event.eventId)
+      await this.store.pruneEvents(ids)
+      // The "N items could not be delivered" notice belongs to the items just dismissed.
+      await this.setDeliveryState({ ...(await this.getDeliveryState()), lastError: undefined })
+      return { count: ids.length }
+    }
+    const count = await this.store.reopenRejectedEvents()
+    return { count, result: await this.flushDeliveries() }
   }
 
   async getSyncReports(limit = 20): Promise<Array<{ id: string; type: string; reason: string; detail?: string; at: number }>> {

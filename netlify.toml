@@ -6,7 +6,7 @@
   base = "/"
   
   # 构建命令：先安装 website 依赖，再构建
-  command = "cd website && npm install && npm run build"
+  command = "cd website && npm ci && npm run build"
   
   # 发布目录 - 使用 Next.js plugin 时会自动处理，不需要手动设置
   # publish = "website/.next"  # 注释掉，让插件自动处理
@@ -19,8 +19,6 @@
   # Node.js 版本（会优先使用根目录的 .node-version，这里作为备用）
   NODE_VERSION = "24"
   
-  # npm 配置
-  NPM_FLAGS = "--legacy-peer-deps"
 
 [build.processing]
   skip_processing = false
@@ -63,4 +61,4 @@
 
 # 生产环境配置
 [context.production]
-  command = "cd website && npm install && npm run build"
+  command = "cd website && npm ci && npm run build"

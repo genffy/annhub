@@ -26,7 +26,7 @@ test.describe('Highlight — sourceUrl & stable selectors', () => {
     await tripleClickSelect(page, '[data-testid="tweet-body-1"]')
     const hoverMenu = await waitForHoverMenu(page)
 
-    // Highlight via Mode A — expandable action: submit the note row.
+    // Highlight via the hover menu — expandable action: submit the note row.
     const collectBtn = hoverMenu.locator('button', { hasText: '高亮' })
     await clickShadowButton(collectBtn)
     const noteInput = hoverMenu.locator('input')

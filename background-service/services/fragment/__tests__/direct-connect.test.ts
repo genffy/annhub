@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { DEFAULT_DIRECT_CONNECT, pullDesktopChanges } from '../direct-connect'
+import { DEFAULT_DIRECT_CONNECT, isLoopbackEndpoint, normalizeEndpoint, pullDesktopChanges } from '../direct-connect'
 import type { SeqChange } from '../../../../learning-core/sync'
 
 const config = { ...DEFAULT_DIRECT_CONNECT, token: 'tok' }
@@ -101,5 +101,41 @@ describe('pullDesktopChanges (storage.md §9)', () => {
     )
     expect(fetchImpl).not.toHaveBeenCalled()
     expect(result.errors[0]).toContain('未配置配对码')
+  })
+})
+
+describe('normalizeEndpoint (the pairing code only ever goes to a loopback hub)', () => {
+  it.each([
+    ['http://127.0.0.1:8765', 'http://127.0.0.1:8765'],
+    ['http://127.0.0.1:8765/', 'http://127.0.0.1:8765'],
+    ['  http://localhost:9000  ', 'http://localhost:9000'],
+    ['http://LOCALHOST:9000', 'http://localhost:9000'],
+    ['http://[::1]:8765', 'http://[::1]:8765'],
+  ])('accepts %s', (raw, normalized) => {
+    expect(normalizeEndpoint(raw)).toBe(normalized)
+    expect(isLoopbackEndpoint(raw)).toBe(true)
+  })
+
+  it.each([
+    'https://127.0.0.1:8765', // the hub speaks plain http on loopback; https would be a different server
+    'http://evil.example:8765',
+    'http://127.0.0.1.evil.example:8765', // a hostname that merely starts like loopback
+    'http://localhost.evil.example',
+    'http://evil.example/127.0.0.1',
+    'http://127.0.0.1@evil.example', // userinfo trick: the host is evil.example
+    'http://user:pw@127.0.0.1:8765',
+    'http://0.0.0.0:8765',
+    'http://192.168.1.20:8765',
+    'http://127.0.0.1:8765/v1/fragments',
+    'http://127.0.0.1:8765/?next=http://evil.example',
+    'http://127.0.0.1:8765/#frag',
+    'file:///etc/passwd',
+    'javascript:alert(1)',
+    '//evil.example',
+    '127.0.0.1:8765',
+    '',
+  ])('rejects %s', raw => {
+    expect(() => normalizeEndpoint(raw)).toThrow()
+    expect(isLoopbackEndpoint(raw)).toBe(false)
   })
 })

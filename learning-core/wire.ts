@@ -52,11 +52,12 @@ function canonicalNumber(n: number): string {
 }
 
 /**
- * `undefined` follows JSON.stringify: an object property holding it does not exist (so the
- * hash covers exactly the bytes that are sent), an array element holding it is `null`. A record
- * read back from IndexedDB keeps such properties — a fragment saved in standard mode has
- * `processing.guess` and, without a page title, `context.sourceTitle` as own `undefined` keys —
- * and throwing on them stopped every real capture from reaching the Desktop.
+ * An object member holding `undefined` is an absent member, exactly as JSON.stringify (the request
+ * body) and the Swift side (nil is omitted) treat it, so the hash covers the bytes that are sent. A
+ * record read back from IndexedDB keeps such members — a fragment saved in standard mode has
+ * `processing.guess` and, without a page title, `context.sourceTitle` as own `undefined` keys — and
+ * throwing on them stopped every real capture from reaching the Desktop. An `undefined` array
+ * element is not JSON data and is still rejected rather than silently turned into `null`.
  */
 export function canonicalJson(value: unknown): string {
   if (value === null) return 'null'
@@ -64,7 +65,7 @@ export function canonicalJson(value: unknown): string {
   if (value === false) return 'false'
   if (typeof value === 'number') return canonicalNumber(value)
   if (typeof value === 'string') return canonicalString(value)
-  if (Array.isArray(value)) return `[${value.map(item => (item === undefined ? 'null' : canonicalJson(item))).join(',')}]`
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
   if (typeof value === 'object') {
     const record = value as Record<string, unknown>
     const keys = Object.keys(record)

@@ -1,10 +1,10 @@
 /**
- * 碎片库 — the extension's library page (extension PRD §2.2/§5).
- * First-level pages: 碎片库 | 截图集 | 设置. 高亮列表 and 剪藏列表 are views
- * inside 碎片库, reached from the more menu.
- * Fragments view: unified search/filters (docs/v2/search.md), 新建灵感,
+ * Fragment library — the extension's library page (extension PRD §2.2/§5).
+ * First-level pages: Fragment library | Screenshots | Settings. The highlight
+ * and clip lists are views inside the Fragment library, reached from the more menu.
+ * Fragments view: unified search/filters (docs/v2/search.md), new inspiration,
  * capture-field edits with re-verification, local delete, and the single
- * "导出内容" Markdown ZIP command. Filters live in the URL hash.
+ * “Export content” Markdown ZIP command. Filters live in the URL hash.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
@@ -16,20 +16,20 @@ import type { ClipRecord } from '../../types/clip'
 import CaptureModal from '../content/capture/CaptureModal'
 import { exportContentZip, downloadZip } from '../../utils/export-content'
 import { connectionView, relativeTime, type Connection } from '../../utils/connection-status'
-import { extensionPageUrl } from '../../utils/extension-pages'
-import { ALL_KINDS, KIND_LABELS } from '../../utils/kind-labels'
-import { uiText } from '../../utils/ui-text'
+import { extensionPageUrl, samplePageUrl } from '../../utils/extension-pages'
+import { ALL_KINDS, kindLabel } from '../../utils/kind-labels'
+import { uiCount, uiText } from '../../utils/ui-text'
 import { buildCaptureDraft, buildInspirationDraft, type CaptureDraft } from '../content/capture/capture-context'
 import ScreenshotsView from './Screenshots'
 import './style.css'
 
 type View = 'fragments' | 'highlights' | 'clips' | 'screenshots'
 
-const TIME_PRESETS: Array<{ id: string; label: string; from?: () => number }> = [
-  { id: 'all', label: '全部时间' },
-  { id: 'today', label: '今天', from: () => startOfLocalDay() },
-  { id: '7d', label: '近 7 天', from: () => Date.now() - 7 * 86_400_000 },
-  { id: '30d', label: '近 30 天', from: () => Date.now() - 30 * 86_400_000 },
+const TIME_PRESETS: Array<{ id: 'all' | 'today' | '7d' | '30d'; from?: () => number }> = [
+  { id: 'all' },
+  { id: 'today', from: () => startOfLocalDay() },
+  { id: '7d', from: () => Date.now() - 7 * 86_400_000 },
+  { id: '30d', from: () => Date.now() - 30 * 86_400_000 },
 ]
 
 function startOfLocalDay(): number {
@@ -177,12 +177,8 @@ export default function App() {
   }, [view, highlights, loadHighlights])
 
   const loadClips = useCallback(async () => {
-    const response = await MessageUtils.sendMessage<{ 'ann-clips'?: ClipRecord[] }>({ type: 'GET_STORAGE', key: 'ann-clips' })
-    if (response.success && response.data) {
-      setClips(response.data['ann-clips'] ?? [])
-    } else {
-      setClips([])
-    }
+    const response = await MessageUtils.sendMessage<ClipRecord[]>({ type: 'GET_CLIPS' })
+    setClips(response.success && Array.isArray(response.data) ? response.data : [])
   }, [])
 
   useEffect(() => {
@@ -191,7 +187,7 @@ export default function App() {
 
   // ── actions ──
   const deleteFragment = async (id: string) => {
-    if (!window.confirm('删除这条碎片？仅作用于本扩展，不影响 Desktop 已接收的副本。')) return
+    if (!window.confirm(uiText('library.confirmDelete'))) return
     await MessageUtils.sendMessage({ type: 'DELETE_FRAGMENT', id })
     setResult(prev => (prev ? { ...prev, items: prev.items.filter(f => f.id !== id), total: prev.total - 1 } : prev))
   }
@@ -203,10 +199,10 @@ export default function App() {
       const { blob, manifest } = await exportContentZip()
       downloadZip(blob)
       if (manifest.partial) {
-        window.alert(`部分导出：${manifest.missingAssets.length} 个图片资产缺失，详见 ZIP 内 README.md。`)
+        window.alert(uiText('library.exportPartial', { count: manifest.missingAssets.length }))
       }
     } catch (error) {
-      window.alert(error instanceof Error ? error.message : '导出失败')
+      window.alert(error instanceof Error ? error.message : uiText('library.exportFailed'))
     } finally {
       setExporting(false)
     }
@@ -247,7 +243,7 @@ export default function App() {
         <nav className="library-nav" aria-label="AnnHub" data-testid="primary-nav">
           <strong className="library-brand">AnnHub</strong>
           <button className={inLibrary ? 'active' : ''} aria-current={inLibrary ? 'page' : undefined} onClick={() => setView('fragments')} data-testid="view-fragments">
-            碎片库
+            {uiText('library.nav.fragments')}
           </button>
           <button
             className={view === 'screenshots' ? 'active' : ''}
@@ -255,59 +251,55 @@ export default function App() {
             onClick={() => setView('screenshots')}
             data-testid="view-screenshots"
           >
-            截图集
+            {uiText('library.nav.screenshots')}
           </button>
           <a href={settingsUrl} data-testid="nav-settings">
-            设置
+            {uiText('library.nav.settings')}
           </a>
         </nav>
 
         {inLibrary && (
           <div className="library-sub" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-            {stats && view === 'fragments' && (
-              <span className="library-stats">
-                {stats.total} 条碎片 · 本周新增 {stats.newThisWeek}
-              </span>
-            )}
+            {stats && view === 'fragments' && <span className="library-stats">{uiCount('library.stats', stats.total, { added: stats.newThisWeek })}</span>}
             {conn && connection && (
               <span className="connection-chip" data-state={conn.state} title={connection.detail} data-testid="desktop-connection">
                 <span className="status-dot" aria-hidden="true" />
-                Desktop：{conn.label}
+                {uiText('library.desktopStatus', { label: conn.label })}
               </span>
             )}
             {conn?.state === 'unpaired' && (
               <a className="badge" href={settingsUrl} data-testid="pair-link">
-                去配对
+                {uiText('library.pair')}
               </a>
             )}
             {conn?.state === 'error' && (
               <>
                 <button className="badge" onClick={retryDelivery} data-testid="retry-delivery">
-                  重试
+                  {uiText('common.retry')}
                 </button>
                 <a className="badge" href={settingsUrl}>
-                  查看详情
+                  {uiText('library.viewDetails')}
                 </a>
                 <button className="badge" onClick={() => void exportZip()} disabled={exporting} data-testid="export-on-error">
-                  导出内容
+                  {uiText('library.export')}
                 </button>
               </>
             )}
             {conn?.state === 'pending' && (
               <button className="badge" onClick={retryDelivery}>
-                立即重试
+                {uiText('library.retryNow')}
               </button>
             )}
             <span style={{ flex: 1 }} />
             <button className="primary" onClick={() => setInspirationDraft(buildInspirationDraft())} data-testid="new-inspiration">
-              + 新建灵感
+              {uiText('library.newInspiration')}
             </button>
             <button className="primary-outline" onClick={() => setDesktopPanelOpen(!desktopPanelOpen)} data-testid="open-desktop">
-              打开 Desktop
+              {uiText('library.openDesktop')}
             </button>
             <span style={{ position: 'relative' }}>
               <button className="badge" onClick={() => setMoreMenuOpen(!moreMenuOpen)} aria-haspopup="menu" aria-expanded={moreMenuOpen} data-testid="more-menu">
-                更多 ▾
+                {uiText('library.more')}
               </button>
               {moreMenuOpen && (
                 <span className="more-menu" role="menu">
@@ -320,7 +312,7 @@ export default function App() {
                     disabled={exporting}
                     data-testid="export-content"
                   >
-                    {exporting ? '导出中…' : '导出内容（Markdown ZIP）'}
+                    {uiText(exporting ? 'library.exporting' : 'library.exportZip')}
                   </button>
                   <button
                     role="menuitem"
@@ -330,7 +322,7 @@ export default function App() {
                     }}
                     data-testid="view-highlights"
                   >
-                    高亮列表
+                    {uiText('library.highlightList')}
                   </button>
                   <button
                     role="menuitem"
@@ -340,23 +332,23 @@ export default function App() {
                     }}
                     data-testid="view-clips"
                   >
-                    剪藏列表
+                    {uiText('library.clipList')}
                   </button>
                 </span>
               )}
             </span>
             {desktopPanelOpen && (
               <span className="desktop-panel" data-testid="desktop-panel">
-                <strong>Desktop 说明</strong>
+                <strong>{uiText('library.desktopPanel.title')}</strong>
                 <br />
-                扩展不依赖 Desktop 也能采集、检索与导出。要在 Desktop 复习：启动 Mac 上的 AnnHub Desktop 应用，在其「系统」页复制配对码，然后到
+                {uiText('library.desktopPanel.before')}
                 <a href={settingsUrl} target="_blank" rel="noreferrer">
-                  设置 → Desktop 连接
+                  {uiText('library.desktopPanel.link')}
                 </a>
-                粘贴并保存。
-                {connection?.online && <span style={{ color: '#226a3c' }}>当前已连接：{connection.detail}。</span>}
+                {uiText('library.desktopPanel.after')}
+                {connection?.online && <span style={{ color: '#226a3c' }}> {uiText('library.desktopPanel.connected', { detail: connection.detail })}</span>}
                 <button className="badge" style={{ marginTop: 6 }} onClick={() => setDesktopPanelOpen(false)}>
-                  知道了
+                  {uiText('library.gotIt')}
                 </button>
               </span>
             )}
@@ -367,10 +359,12 @@ export default function App() {
       {(view === 'highlights' || view === 'clips') && (
         <div className="library-crumb" data-testid="list-crumb">
           <button className="badge" onClick={() => setView('fragments')}>
-            ← 碎片库
+            {uiText('library.back')}
           </button>
-          <strong>{view === 'highlights' ? '高亮列表' : '剪藏列表'}</strong>
-          <span className="library-sub">{view === 'highlights' ? (highlights ? `${highlights.length} 条高亮` : '') : clips ? `${clips.length} 条剪藏` : ''}</span>
+          <strong>{uiText(view === 'highlights' ? 'library.highlightList' : 'library.clipList')}</strong>
+          <span className="library-sub">
+            {view === 'highlights' ? (highlights ? uiCount('library.highlightCount', highlights.length) : '') : clips ? uiCount('library.clipCount', clips.length) : ''}
+          </span>
         </div>
       )}
 
@@ -381,27 +375,27 @@ export default function App() {
               <strong>{uiText('library.onboarding.title')}</strong>
               <p>{uiText('library.onboarding.body')}</p>
               <div className="guide-actions">
-                <button onClick={() => window.open(chrome.runtime.getURL('/sample.html'), '_blank')} data-testid="onboarding-sample">
-                  打开示例页面
+                <button onClick={() => window.open(samplePageUrl(), '_blank')} data-testid="onboarding-sample">
+                  {uiText('library.openSample')}
                 </button>
                 <button onClick={dismissOnboarding} data-testid="onboarding-dismiss">
-                  知道了
+                  {uiText('library.gotIt')}
                 </button>
               </div>
             </div>
           )}
           {connectHintDismissed === false && connection && !connection.paired && (stats?.total ?? 0) > 0 && (
             <div className="guide-card" data-testid="connect-hint">
-              <strong>连接 Desktop 开始复习</strong>
+              <strong>{uiText('library.connectHint.title')}</strong>
               <ol>
-                <li>下载并启动 Desktop</li>
-                <li>在 Desktop 的「系统」页复制配对码</li>
-                <li>在扩展的设置中输入配对码，状态变为「已连接」</li>
+                <li>{uiText('library.connectHint.step1')}</li>
+                <li>{uiText('library.connectHint.step2')}</li>
+                <li>{uiText('library.connectHint.step3')}</li>
               </ol>
               <div className="guide-actions">
-                <a href={settingsUrl}>去设置</a>
+                <a href={settingsUrl}>{uiText('library.connectHint.goSettings')}</a>
                 <button onClick={dismissConnectHint} data-testid="connect-hint-dismiss">
-                  跳过
+                  {uiText('library.connectHint.skip')}
                 </button>
               </div>
             </div>
@@ -411,7 +405,7 @@ export default function App() {
           </div>
           <div className="library-filters">
             <div className="filter-row">
-              <span className="filter-label">类型</span>
+              <span className="filter-label">{uiText('library.filter.kind')}</span>
               <div className="filter-options">
                 {ALL_KINDS.map(kind => (
                   <button
@@ -420,14 +414,14 @@ export default function App() {
                     onClick={() => toggleIn(kinds, kind, setKinds)}
                     data-testid={`filter-kind-${kind}`}
                   >
-                    {KIND_LABELS[kind]}
+                    {kindLabel(kind)}
                   </button>
                 ))}
               </div>
             </div>
             {availableHosts.length > 0 && (
               <div className="filter-row">
-                <span className="filter-label">来源</span>
+                <span className="filter-label">{uiText('library.filter.source')}</span>
                 <div className="filter-options">
                   {availableHosts.slice(0, 12).map(host => (
                     <button key={host} className={`filter-chip${hosts.includes(host) ? ' active' : ''}`} onClick={() => toggleIn(hosts, host, setHosts)}>
@@ -439,7 +433,7 @@ export default function App() {
             )}
             {availableTags.length > 0 && (
               <div className="filter-row">
-                <span className="filter-label">标签</span>
+                <span className="filter-label">{uiText('library.filter.tag')}</span>
                 <div className="filter-options">
                   {availableTags.slice(0, 12).map(tag => (
                     <button key={tag} className={`filter-chip${tags.includes(tag) ? ' active' : ''}`} onClick={() => toggleIn(tags, tag, setTags)}>
@@ -450,22 +444,22 @@ export default function App() {
               </div>
             )}
             <div className="filter-row">
-              <span className="filter-label">时间</span>
+              <span className="filter-label">{uiText('library.filter.time')}</span>
               <div className="filter-options">
                 {TIME_PRESETS.map(p => (
                   <button key={p.id} className={`filter-chip${timePreset === p.id ? ' active' : ''}`} onClick={() => setTimePreset(p.id)}>
-                    {p.label}
+                    {uiText(`library.time.${p.id}`)}
                   </button>
                 ))}
               </div>
               {result && (
                 <span className="library-sub" data-testid="result-count">
-                  共 {result.total} 条
+                  {uiCount('library.resultCount', result.total)}
                 </span>
               )}
               {hasFilters && (
                 <button className="clear-filters" onClick={clearFilters}>
-                  清除筛选
+                  {uiText('library.clearFilters')}
                 </button>
               )}
             </div>
@@ -473,13 +467,13 @@ export default function App() {
 
           <main className="library-list" data-testid="fragment-list">
             {result === null || (loading && result.items.length === 0) ? (
-              <p className="library-empty">加载中…</p>
+              <p className="library-empty">{uiText('common.loading')}</p>
             ) : result.items.length === 0 ? (
               hasFilters ? (
                 <div className="library-empty" data-testid="fragment-empty">
                   <p>{uiText('library.noMatch')}</p>
                   <button className="clear-filters" onClick={clearFilters}>
-                    清除筛选
+                    {uiText('library.clearFilters')}
                   </button>
                 </div>
               ) : (
@@ -488,10 +482,10 @@ export default function App() {
                   <p className="library-empty-actions">
                     <span>{uiText('library.empty.hint')}</span>
                     <button className="primary" onClick={() => setInspirationDraft(buildInspirationDraft())}>
-                      新建一条灵感
+                      {uiText('library.newInspirationEmpty')}
                     </button>
-                    <button className="badge" onClick={() => window.open(chrome.runtime.getURL('/sample.html'), '_blank')} data-testid="open-sample">
-                      打开示例页面
+                    <button className="badge" onClick={() => window.open(samplePageUrl(), '_blank')} data-testid="open-sample">
+                      {uiText('library.openSample')}
                     </button>
                   </p>
                 </div>
@@ -504,7 +498,7 @@ export default function App() {
                 {result.nextCursor && (
                   <div style={{ display: 'flex', justifyContent: 'center', padding: 12 }}>
                     <button className="badge" onClick={() => void loadFragments(result.nextCursor)} data-testid="load-more">
-                      加载更多（{result.items.length}/{result.total}）
+                      {uiText('library.loadMore', { shown: result.items.length, total: result.total })}
                     </button>
                   </div>
                 )}
@@ -555,14 +549,14 @@ function FragmentCard({ fragment, onEdit, onDelete }: { fragment: FragmentRecord
   return (
     <article className="fragment-card" data-testid="fragment-card">
       <div className="fragment-headline" onClick={() => setOpen(!open)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setOpen(!open)}>
-        <span className="badge badge-platform">{KIND_LABELS[fragment.kind]}</span>
+        <span className="badge badge-platform">{kindLabel(fragment.kind)}</span>
         <span className="fragment-content">{fragment.content}</span>
       </div>
       <div className="fragment-excerpt">{fragment.context.excerpt.slice(0, 140)}</div>
       <div className="fragment-badges">
         <span className="fragment-date">
           {fragment.context.sourceHost} · {relativeTime(fragment.context.capturedAt)}
-          {fragment.review.lastReviewedAt ? ` · 最近复习 ${relativeTime(fragment.review.lastReviewedAt)}` : ''}
+          {fragment.review.lastReviewedAt ? uiText('library.card.lastReviewed', { time: relativeTime(fragment.review.lastReviewedAt) }) : ''}
         </span>
         <span className="fragment-tags">
           {fragment.tags.slice(0, 6).map(tag => (
@@ -572,40 +566,40 @@ function FragmentCard({ fragment, onEdit, onDelete }: { fragment: FragmentRecord
           ))}
         </span>
         <span style={{ flex: 1 }} />
-        <a href={fragment.context.sourceUrl} target="_blank" rel="noreferrer" title="回到原文">
-          原文
+        <a href={fragment.context.sourceUrl} target="_blank" rel="noreferrer" title={uiText('library.card.backToSource')}>
+          {uiText('library.card.source')}
         </a>
       </div>
       {open && (
         <div className="fragment-details" data-testid="fragment-details">
           {fragment.processing.guess && (
             <div>
-              <div className="detail-label">理解</div>
+              <div className="detail-label">{uiText('library.card.guess')}</div>
               <p className="fragment-guess">{fragment.processing.guess}</p>
             </div>
           )}
           <div>
             <div className="detail-label">
-              核验（{v.source === 'source-material' ? '原文材料' : v.source === 'manual' ? '手工核对' : 'LLM'}，{new Date(v.confirmedAt).toLocaleString()}）
+              {uiText('library.card.verified', { source: uiText(`capture.verified.${v.source}`), time: new Date(v.confirmedAt).toLocaleString() })}
             </div>
             {v.summary && <p className="fragment-summary">{v.summary}</p>}
             {!v.summary && !v.notes && (
               <p className="fragment-summary" style={{ opacity: 0.6 }}>
-                已确认，无摘要
+                {uiText('library.card.noSummary')}
               </p>
             )}
             {v.notes && <p className="fragment-summary">{v.notes}</p>}
           </div>
           <div>
-            <div className="detail-label">应用</div>
+            <div className="detail-label">{uiText('library.card.use')}</div>
             <p className="fragment-use">{fragment.processing.use}</p>
           </div>
           <div className="fragment-actions">
             <button onClick={onEdit} data-testid="fragment-edit">
-              编辑
+              {uiText('library.card.edit')}
             </button>
             <button className="danger" onClick={onDelete} data-testid="fragment-delete">
-              删除
+              {uiText('common.delete')}
             </button>
           </div>
         </div>
@@ -641,7 +635,7 @@ function FragmentEditor({ fragment, onClose, onSaved }: { fragment: FragmentReco
   const save = async () => {
     if (saving) return
     if (protectedChanged && !reverified) {
-      setError('修改了内容、语境、来源或类型，需要重新确认核验。')
+      setError(uiText('library.editor.needReverify'))
       return
     }
     const patch: FragmentPatch = {
@@ -655,7 +649,7 @@ function FragmentEditor({ fragment, onClose, onSaved }: { fragment: FragmentReco
         .split(/[,，]/)
         .map(t => t.trim())
         .filter(Boolean),
-      // Editing optional 核验摘要/备注 never clears the confirmation (§5.4).
+      // Editing the optional verification summary/notes never clears the confirmation (§5.4).
       ...(reverified
         ? { verified: reverified }
         : verifiedMetaChanged
@@ -666,10 +660,10 @@ function FragmentEditor({ fragment, onClose, onSaved }: { fragment: FragmentReco
     setError('')
     try {
       const response = await MessageUtils.sendMessage({ type: 'UPDATE_FRAGMENT', id: fragment.id, patch })
-      if (!response.success) throw new Error(response.error || '保存失败')
+      if (!response.success) throw new Error(response.error || uiText('capture.error.saveFailed'))
       onSaved()
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存失败（输入已保留）')
+      setError(err instanceof Error ? err.message : uiText('library.editor.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -677,47 +671,47 @@ function FragmentEditor({ fragment, onClose, onSaved }: { fragment: FragmentReco
 
   return (
     <div className="fragment-editor" data-ann-ui="fragment-editor">
-      <h3>编辑碎片（当前修订 {fragment.captureRevision}）</h3>
-      <label className="filter-label">类型</label>
+      <h3>{uiText('library.editor.title', { revision: fragment.captureRevision })}</h3>
+      <label className="filter-label">{uiText('capture.label.kind')}</label>
       <select value={kind} onChange={e => setKind(e.target.value)}>
         {ALL_KINDS.map(k => (
           <option key={k} value={k}>
-            {KIND_LABELS[k]}
+            {kindLabel(k)}
           </option>
         ))}
       </select>
-      <label className="filter-label">内容</label>
+      <label className="filter-label">{uiText('library.editor.content')}</label>
       <textarea rows={2} maxLength={500} value={content} onChange={e => setContent(e.target.value)} />
-      <label className="filter-label">上下文（需包含内容）</label>
+      <label className="filter-label">{uiText('library.editor.context')}</label>
       <textarea rows={3} maxLength={2000} value={excerpt} onChange={e => setExcerpt(e.target.value)} />
-      <label className="filter-label">来源 URL</label>
+      <label className="filter-label">{uiText('library.editor.sourceUrl')}</label>
       <input value={sourceUrl} onChange={e => setSourceUrl(e.target.value)} />
-      <label className="filter-label">理解</label>
+      <label className="filter-label">{uiText('library.editor.guess')}</label>
       <textarea rows={2} value={guess} onChange={e => setGuess(e.target.value)} />
-      <label className="filter-label">应用</label>
+      <label className="filter-label">{uiText('library.editor.use')}</label>
       <textarea rows={3} value={useText} onChange={e => setUse(e.target.value)} />
-      <label className="filter-label">核验摘要（可选，编辑不影响已确认状态）</label>
+      <label className="filter-label">{uiText('library.editor.summary')}</label>
       <textarea rows={2} value={summary} onChange={e => setSummary(e.target.value)} data-testid="verified-summary-input" />
-      <label className="filter-label">核验备注（可选）</label>
+      <label className="filter-label">{uiText('library.editor.notes')}</label>
       <textarea rows={2} value={notes} onChange={e => setNotes(e.target.value)} />
-      <label className="filter-label">标签（逗号分隔）</label>
+      <label className="filter-label">{uiText('library.editor.tags')}</label>
       <input value={tags} onChange={e => setTags(e.target.value)} />
       {protectedChanged && (
         <div className="editor-note">
           {reverified ? (
-            <span>已重新确认核验（{new Date(reverified.confirmedAt).toLocaleTimeString()}）。</span>
+            <span>{uiText('library.editor.reverified', { time: new Date(reverified.confirmedAt).toLocaleTimeString() })}</span>
           ) : (
             <button className="badge" onClick={confirmReverify} data-testid="reverify">
-              内容已修改 — 重新确认核验
+              {uiText('library.editor.reverify')}
             </button>
           )}
         </div>
       )}
       {error && <p className="editor-error">{error}</p>}
       <div className="editor-actions">
-        <button onClick={onClose}>取消</button>
+        <button onClick={onClose}>{uiText('common.cancel')}</button>
         <button className="primary" onClick={save} disabled={saving} data-testid="editor-save">
-          {saving ? '保存中…' : '保存修改'}
+          {uiText(saving ? 'capture.saving' : 'library.editor.save')}
         </button>
       </div>
     </div>
@@ -730,12 +724,12 @@ function HighlightsView({ highlights, onUpgrade, onReload }: { highlights: Highl
   if (highlights === null) {
     return (
       <main className="library-list">
-        <p className="library-empty">加载中…</p>
+        <p className="library-empty">{uiText('common.loading')}</p>
       </main>
     )
   }
   const remove = async (id: string) => {
-    if (!window.confirm('删除该高亮？')) return
+    if (!window.confirm(uiText('library.highlights.confirmDelete'))) return
     await MessageUtils.sendMessage({ type: 'DELETE_HIGHLIGHT', data: { id } })
     onReload()
   }
@@ -743,20 +737,20 @@ function HighlightsView({ highlights, onUpgrade, onReload }: { highlights: Highl
     <main className="library-list" data-testid="highlight-list">
       {highlights.length === 0 ? (
         <div className="library-empty" data-testid="highlight-empty">
-          <p>还没有高亮。在网页选中文本后选择「高亮」。</p>
+          <p>{uiText('library.highlights.empty')}</p>
         </div>
       ) : (
         highlights.map(h => (
           <article key={h.id} className="fragment-card" data-testid="highlight-card">
             <div className="fragment-content">{h.originalText}</div>
-            {h.user_note && <div className="fragment-excerpt">备注：{h.user_note}</div>}
+            {h.user_note && <div className="fragment-excerpt">{uiText('library.note', { note: h.user_note })}</div>}
             <div className="fragment-badges">
               <span className="fragment-date">
                 {h.domain} · {new Date(h.timestamp).toLocaleDateString()}
               </span>
               <span style={{ flex: 1 }} />
               <a href={h.metadata.sourceUrl ?? h.url} target="_blank" rel="noreferrer">
-                原文
+                {uiText('library.card.source')}
               </a>
             </div>
             <div className="fragment-actions">
@@ -778,7 +772,7 @@ function HighlightsView({ highlights, onUpgrade, onReload }: { highlights: Highl
                 {uiText('library.upgrade')}
               </button>
               <button className="danger" onClick={() => remove(h.id)}>
-                删除
+                {uiText('common.delete')}
               </button>
             </div>
           </article>
@@ -794,7 +788,7 @@ function ClipsView({ clips, onUpgrade }: { clips: ClipRecord[] | null; onUpgrade
   if (clips === null) {
     return (
       <main className="library-list">
-        <p className="library-empty">加载中…</p>
+        <p className="library-empty">{uiText('common.loading')}</p>
       </main>
     )
   }
@@ -802,20 +796,20 @@ function ClipsView({ clips, onUpgrade }: { clips: ClipRecord[] | null; onUpgrade
     <main className="library-list" data-testid="clip-list">
       {clips.length === 0 ? (
         <div className="library-empty" data-testid="clip-empty">
-          <p>还没有剪藏。在网页选中文本后选择「剪藏」。</p>
+          <p>{uiText('library.clips.empty')}</p>
         </div>
       ) : (
         clips.map(c => (
           <article key={c.id} className="fragment-card" data-testid="clip-card">
             <div className="fragment-content">{c.content}</div>
-            {c.user_note && <div className="fragment-excerpt">备注：{c.user_note}</div>}
+            {c.user_note && <div className="fragment-excerpt">{uiText('library.note', { note: c.user_note })}</div>}
             <div className="fragment-badges">
               <span className="fragment-date">
                 {safeClipHost(c)} · {relativeTime(Date.parse(c.capture_time) || Date.now())}
               </span>
               <span style={{ flex: 1 }} />
               <a href={c.source_detail_url ?? c.source_url} target="_blank" rel="noreferrer">
-                原文
+                {uiText('library.card.source')}
               </a>
             </div>
             <div className="fragment-actions">

@@ -223,9 +223,8 @@ export class HighlightService {
    *   2. Stored CSS selector (best-case re-anchor on same page)
    *   3. document.body fallback (SPA / dynamic content where selector breaks)
    *
-   * All searches run through annotation-core `findTextRangeInElement` with the
-   * `manual-highlight` intent so extension UI / nested markers / contenteditable
-   * regions are skipped uniformly. See docs/annotation-architecture-refactor.md §11 risk 4.
+   * All searches run through annotation-core `findTextRangeInElement`, so extension UI,
+   * nested markers and contenteditable regions are skipped uniformly. See docs/annotation-architecture-refactor.md §11 risk 4.
    */
   private findTextRangeSync(highlight: HighlightRecord): Range | null {
     const { originalText, context, selector } = highlight
@@ -233,7 +232,7 @@ export class HighlightService {
     try {
       const sourceContainer = HighlightDOMManager.findSourceContainer(highlight.metadata?.sourceUrl)
       if (sourceContainer) {
-        const range = findTextRangeInElement(sourceContainer, originalText, context, { intent: 'manual-highlight' })
+        const range = findTextRangeInElement(sourceContainer, originalText, context)
         if (range) return range
       }
 
@@ -242,7 +241,7 @@ export class HighlightService {
         try {
           const elements = document.querySelectorAll(selector)
           for (const element of Array.from(elements)) {
-            const range = findTextRangeInElement(element, originalText, context, { intent: 'manual-highlight' })
+            const range = findTextRangeInElement(element, originalText, context)
             if (range) return range
           }
         } catch {
@@ -252,7 +251,7 @@ export class HighlightService {
       }
 
       // Last resort: full-body search (handles SPA pages where selector is too generic)
-      const range = findTextRangeInElement(document.body, originalText, context, { intent: 'manual-highlight' })
+      const range = findTextRangeInElement(document.body, originalText, context)
       if (range) return range
 
       return null

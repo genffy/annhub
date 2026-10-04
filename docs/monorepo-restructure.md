@@ -45,8 +45,6 @@ annhub/
 @annhub/learning-core  ◀──  @annhub/shared  ◀──  apps/extension
 ```
 
-`word-memory`（现为 `entrypoints/content/annotation-core/word-memory.ts`，被 background-service 反向引用）在阶段 3 下沉 `learning-core`：它是纯领域逻辑（无 chrome/DOM/React），且是本地词汇记忆真源，Desktop 实现 HLR 时镜像同一契约。
-
 ## 关键技术决策
 
 1. **内部包以 TS 源码形态消费**：`@annhub/*` 的 `main`/`exports` 直接指向 `src/index.ts`，不预编译。WXT/Vite、vitest、tsc 各自编译，无 dual-package 与产物同步问题，对扩展打包零副作用。
@@ -64,7 +62,7 @@ annhub/
 | 0 基线                   | main 上跑全量门禁并存档结果；D-10 的代码收口（[roadmap.md §5](./v2/roadmap.md)）会移除一批实现和测试，基线在收口之后取                                                                             | compile / vitest / swift test / build / e2e 全量，结果记入下方基线表 |
 | 1 workspace 骨架         | 引入 pnpm-workspace.yaml（lockfile 更换、node_modules 重装）；website → `apps/website`；根 scripts 与 `.npmrc` 迁移；删 `build:sidebar` 死引用                                                     | website build；扩展 compile+test+build 全绿（扩展代码未动）          |
 | 2 抽 learning-core       | `git mv` → `packages/learning-core`，建包 package.json/tsconfig；全仓消费方 import 改包名                                                                                                          | vitest 全量、compile、build、E2E 抽测（fragment 相关）               |
-| 3 抽 shared + 消反向依赖 | `word-memory` 先下沉 learning-core（验证无 DOM/chrome 依赖）；types+utils → `packages/shared`；import 全仓改包名                                                                                   | 同上，外加 vocab 相关 E2E                                            |
+| 3 抽 shared + 消反向依赖 | types+utils → `packages/shared`；import 全仓改包名                                                                                                                                                 | 同上                                                                 |
 | 4 扩展归位               | entrypoints/background-service/components/… → `apps/extension/`；`wxt prepare` 在包内跑；e2e fixtures 与 global-setup 改路径；按 e2e/README 更新 Chrome 手工实测路径                               | compile、vitest 全量、build、**E2E 全量**、Chrome 手工装载冒烟       |
 | 5 Desktop 归位           | app → `apps/desktop`：project.yml 相对路径更新后 xcodegen 重生成；验证 Desktop 构建                                                                                                                | swift test、Desktop 构建按 app/AGENTS.md                             |
 | 6 文档与配置收尾         | 重写根/各包 AGENTS.md 路径表（规则随模块迁移、删失效路径）；README、docs 内源码路径引用全仓扫描；3 个 CI workflow 路径；.gitignore/.prettierignore/.zcodeignore/.vscode；netlify.toml 归位 website | **终局全量门禁，测试数与阶段 0 基线逐项对齐**                        |

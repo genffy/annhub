@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createLlmClient } from '../factory'
 import { OpenAICompatibleLlmService } from '../openai-compatible'
-import type { LlmConfig } from '../../../../types/vocabulary'
+import type { LlmConfig } from '../../../../types/llm'
 
 describe('createLlmClient', () => {
   it('creates OpenAICompatibleLlmService for openai-compatible provider', () => {

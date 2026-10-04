@@ -10,7 +10,8 @@ export async function generateStaticParams() {
   return i18n.locales.map(locale => ({ locale }))
 }
 
-export async function generateMetadata({ params: { locale } }: { params: { locale: string } }): Promise<Metadata> {
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
+  const { locale } = await params
   const zh = locale === 'zh-CN'
   return {
     metadataBase: new URL('https://annhub.org'),
@@ -39,11 +40,12 @@ const inter = Inter({
 })
 
 type RootLayoutProps = {
-  params: { locale: string }
+  params: Promise<{ locale: string }>
   children: React.ReactNode
 }
 
-export default async function RootLayout({ params: { locale }, children }: RootLayoutProps) {
+export default async function RootLayout({ params, children }: RootLayoutProps) {
+  const { locale } = await params
   let messages
   try {
     messages = (await import(`@/i18n/messages/${locale}.json`)).default

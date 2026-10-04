@@ -34,14 +34,6 @@ export interface HighlightColor {
   textColor: string
 }
 
-export interface HighlightConfig {
-  enabled: boolean
-  colors: HighlightColor[]
-  defaultColor: string
-  maxHighlights: number
-  autoSync: boolean
-}
-
 export interface HighlightResult {
   success: boolean
   data?: HighlightRecord

@@ -37,7 +37,6 @@ entrypoints/content/
 负责：
 
 - 站点匹配
-- 内容 root 和 block 收集
 - 内容项永久链接提取
 - 已知 source URL 对应容器定位
 
@@ -47,22 +46,20 @@ entrypoints/content/
 
 负责统一跳过：
 
-- script、style、控件、代码块和隐藏内容
+- script、style、控件、可编辑区和隐藏内容
 - 扩展自身 UI
 - 已有高亮 marker
-- 明显不是正文的短标签和交互栏
 
-手工选区允许范围可以比自动内容扫描更宽，但都不得进入扩展 UI 或嵌套 marker。
+用户的选区只受这些规则约束；普通链接内的文字可以高亮，但都不得进入扩展 UI 或嵌套 marker。
 
 ### `text-range.ts`
 
 稳定接口：
 
 ```typescript
-collectTextNodes(root, options)
+collectTextNodes(root)
 createRangeFromTextIndex(nodes, start, length)
-findTextRangeInElement(element, text, context, options)
-getTextContext(range)
+findTextRangeInElement(element, text, context)
 ```
 
 Range 查找按 selector 容器、来源容器、正文 root、document body 逐级回退。匹配时使用统一空白归一化，DOM offset 始终对应原始文本节点。
@@ -142,7 +139,6 @@ Selection Range
 - 文本搜索先限制在最小可信容器内。
 - 复用一次扫描得到的 text node 列表。
 - SPA 变化只重新处理最近内容块，不整页重复扫描。
-- 使用 WeakMap 缓存短生命周期节点信息，页面切换后可回收。
 - 不把长上下文写入 DOM attribute。
 
 ## 8. 测试
@@ -150,7 +146,7 @@ Selection Range
 最低覆盖：
 
 - 平台规则：host、永久链接、嵌套内容、generic fallback
-- DOM policy：隐藏区、控件、代码、扩展 UI、已有 marker
+- DOM policy：隐藏区、控件、可编辑区、扩展 UI、已有 marker
 - text range：跨 text node、空白归一化、上下文消歧、fallback
 - markers：wrap、fallback、unwrap、cleanup、重复调用
 - highlight：动态 ID、selector、跨页恢复和重试
@@ -159,7 +155,7 @@ Selection Range
 ## 9. 变更纪律
 
 1. 页面规则变更必须同步单元测试和相关 E2E。
-2. 对外 data attribute 和消息字段变更必须提供兼容期。
+2. data attribute 和消息字段变更同步所有调用方与测试，不保留旧名。
 3. 共享能力进入 annotation-core，业务条件留在业务模块。
 4. 不因重构改变 HighlightRecord 或 FragmentRecord 的存储语义。
 5. 修改本文涉及的接口时同步更新 `AGENTS.md`。

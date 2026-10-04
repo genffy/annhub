@@ -1,10 +1,11 @@
 /**
  * The confirmation shown when the capture window is closed with unsaved input
- * (extension.md §4.1): 继续编辑 / 改存为高亮 / 改存为剪藏 / 放弃. The two
- * “改存” exits only exist for in-page captures — they never create a
- * ReviewState and never upgrade into a Fragment later by themselves.
+ * (extension.md §4.1): keep editing / save as highlight / save as clip /
+ * discard. The two “save as” exits only exist for in-page captures — they never
+ * create a ReviewState and never upgrade into a Fragment later by themselves.
  */
 import { useRef } from 'react'
+import { uiText } from '../../../utils/ui-text'
 import { useFocusTrap } from './use-focus-trap'
 
 export type CloseChoice = 'continue' | 'highlight' | 'clip' | 'discard'
@@ -24,9 +25,9 @@ export default function CloseDialog({ canFallback, busy, error, onChoose }: Clos
     <div style={styles.backdrop} data-ann-ui="capture-close-dialog">
       <div ref={ref} role="alertdialog" aria-modal="true" aria-labelledby="ann-close-title" style={styles.card} tabIndex={-1}>
         <div id="ann-close-title" style={styles.title}>
-          放弃已填写的内容？
+          {uiText('capture.closeDialog.title')}
         </div>
-        <div style={styles.hint}>{canFallback ? '也可以把这段内容改存为高亮或剪藏，已填写的文字会作为备注保留。' : '已填写的内容关闭后将无法恢复。'}</div>
+        <div style={styles.hint}>{uiText(canFallback ? 'capture.closeDialog.hintFallback' : 'capture.closeDialog.hintLost')}</div>
         {error && (
           <div style={styles.error} role="alert">
             {error}
@@ -34,20 +35,20 @@ export default function CloseDialog({ canFallback, busy, error, onChoose }: Clos
         )}
         <div style={styles.actions}>
           <button style={styles.primary} onClick={() => onChoose('continue')} disabled={busy} data-testid="close-continue">
-            继续编辑
+            {uiText('capture.closeDialog.continue')}
           </button>
           {canFallback && (
             <>
               <button style={styles.secondary} onClick={() => onChoose('highlight')} disabled={busy} data-testid="close-as-highlight">
-                改存为高亮
+                {uiText('capture.asHighlight')}
               </button>
               <button style={styles.secondary} onClick={() => onChoose('clip')} disabled={busy} data-testid="close-as-clip">
-                改存为剪藏
+                {uiText('capture.asClip')}
               </button>
             </>
           )}
           <button style={styles.danger} onClick={() => onChoose('discard')} disabled={busy} data-testid="close-discard">
-            放弃
+            {uiText('capture.closeDialog.discard')}
           </button>
         </div>
       </div>

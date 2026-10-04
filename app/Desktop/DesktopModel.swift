@@ -101,7 +101,7 @@ final class DesktopModel: ObservableObject {
     @Published var detailFragment: FragmentRecord?
     /// The code the extension needs; generated and persisted by Desktop.
     @Published private(set) var pairToken: String
-    /// Fragments the extension delivered (excludes demo seeds); refreshed by reload().
+    /// Fragments that arrived from a device (not made on this Mac); refreshed by reload().
     @Published private(set) var deliveredFragmentCount = 0
     /// Bumped by every reload() so views that cache a query result can refresh it.
     @Published private(set) var revision = 0
@@ -158,14 +158,6 @@ final class DesktopModel: ObservableObject {
                 store = (try? FragmentStore(inMemoryDeviceId: deviceId))!
             }
         }
-        if config.demoSeed {
-            if config.demoSeedAllowed {
-                DemoSeed.seedIfNeeded(store)
-            } else {
-                // --annhub-demo-seed alone would fill the user's real store.
-                NSLog("AnnHub: ignoring --annhub-demo-seed without --annhub-data-dir")
-            }
-        }
         var effective = config
         if underTest {
             effective.port = 0
@@ -197,7 +189,11 @@ final class DesktopModel: ObservableObject {
         // Pairing (storage.md §8): Desktop generates the code and remembers it
         // across launches; the user types it into the extension.
         let stored = defaults.string(forKey: Self.pairTokenDefaultsKey) ?? ""
-        let hub = DesktopHub(store: store, pairToken: stored)
+        // Only the published extension may call the hub from a browser (storage.md §8); automation
+        // that loads an unpacked build names that build's id on the command line.
+        let hub = DesktopHub(
+            store: store, pairToken: stored,
+            allowedExtensionIds: DesktopHub.publishedExtensionIds.union(config.extraExtensionIds))
         self.hub = hub
         self.pairToken = hub.pairToken
         let storedLimit = defaults.integer(forKey: Self.dailyLimitDefaultsKey)
@@ -244,7 +240,8 @@ final class DesktopModel: ObservableObject {
             Task { @MainActor in self?.hubStateChanged(state) }
         }
         server.onRequestHandled = { [weak self] request, _ in
-            let quiet = request.method == "GET" && request.path == "/health"
+            // A request refused from its header block (nil) still shows on the system page.
+            let quiet = request?.method == "GET" && request?.path == "/health"
             Task { @MainActor in self?.scheduleRefresh(quiet: quiet) }
         }
         self.server = server
@@ -357,7 +354,7 @@ final class DesktopModel: ObservableObject {
             lastPulledAt: store.lastPulledAt(),
             events: hub.eventsStats
         )
-        deliveredFragmentCount = (try? store.deliveredFragmentCount(excludingDevice: DemoSeed.demoDeviceId)) ?? 0
+        deliveredFragmentCount = (try? store.deliveredFragmentCount()) ?? 0
         syncPairToken()
         skipDeletedCards()
         pruneFinishedSession()
