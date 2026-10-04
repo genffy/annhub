@@ -90,7 +90,7 @@ public struct DecisionDetail: Codable, Equatable, Sendable {
 }
 
 public struct QuestionDetail: Codable, Equatable, Sendable {
-    public var status: String // 'open' | 'testing' | 'answered'
+    public var status: String  // 'open' | 'testing' | 'answered'
     public var hypothesis: String?
     public var evidence: [String]?
     public var nextStep: String?
@@ -129,7 +129,7 @@ public struct MediaClipDetail: Codable, Equatable, Sendable {
 }
 
 public struct InspirationDetail: Codable, Equatable, Sendable {
-    public var form: String // 'idea' | 'reflection'
+    public var form: String  // 'idea' | 'reflection'
     public init(form: String) { self.form = form }
 }
 
@@ -165,7 +165,7 @@ public enum FragmentDetail {
 
 func encodeDetail<T: Encodable>(_ detail: T) -> WireValue {
     guard let data = try? JSONEncoder.learningCore().encode(detail),
-          let wire = try? JSONDecoder.learningCore().decode(WireValue.self, from: data)
+        let wire = try? JSONDecoder.learningCore().decode(WireValue.self, from: data)
     else { return .object([:]) }
     return wire
 }
@@ -299,7 +299,8 @@ extension FragmentLocator: Codable {
             try c.encodeIfPresent(rect, forKey: .rect)
         case .invalid:
             throw EncodingError.invalidValue(
-                "invalid", EncodingError.Context(
+                "invalid",
+                EncodingError.Context(
                     codingPath: encoder.codingPath,
                     debugDescription: "invalid locator cannot be encoded"
                 )
@@ -454,7 +455,8 @@ public struct FragmentRecord: Codable, Identifiable, Equatable, Sendable {
         tags = try c.decodeIfPresent([String].self, forKey: .tags) ?? []
         // Wire decode: review never travels; reconstruct a fresh one so the
         // record passes validateFragment (DesktopHub semantics, storage §8).
-        review = try c.decodeIfPresent(ReviewState.self, forKey: .review)
+        review =
+            try c.decodeIfPresent(ReviewState.self, forKey: .review)
             ?? createReviewState(now: Int(Date().timeIntervalSince1970 * 1000))
         createdAt = try c.decode(Int.self, forKey: .createdAt)
         updatedAt = try c.decode(Int.self, forKey: .updatedAt)
@@ -499,7 +501,7 @@ public extension FragmentRecord {
     /// visual / media-clip attachment references regardless of kind.
     var attachmentIds: [String] {
         guard case let .object(fields) = detail,
-              case let .array(items)? = fields["attachmentIds"]
+            case let .array(items)? = fields["attachmentIds"]
         else { return [] }
         return items.compactMap {
             if case let .string(s) = $0 { return s }
@@ -512,7 +514,7 @@ public extension FragmentRecord {
 
 /// Review targets are fragments only — no polymorphic refs in v4.
 public struct ReviewTarget: Codable, Equatable, Sendable {
-    public var type: String // always "fragment"
+    public var type: String  // always "fragment"
     public var fragmentId: String
 
     public init(fragmentId: String) {

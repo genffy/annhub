@@ -143,7 +143,8 @@ public func canonicalJson(_ value: WireValue) -> String {
     case .object(let fields):
         // JS Array.prototype.sort compares UTF-16 code units.
         let keys = fields.keys.sorted { $0.utf16.lexicographicallyPrecedes($1.utf16) }
-        return "{" + keys.map { canonicalString($0) + ":" + canonicalJson(fields[$0]!) }
+        return "{"
+            + keys.map { canonicalString($0) + ":" + canonicalJson(fields[$0]!) }
             .joined(separator: ",") + "}"
     }
 }

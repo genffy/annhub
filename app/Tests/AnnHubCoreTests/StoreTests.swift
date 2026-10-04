@@ -52,7 +52,7 @@ final class StoreTests: XCTestCase {
         )
         XCTAssertEqual(try store.putAsset(asset, bytes: bytes), .inserted)
         let loaded = try XCTUnwrap(store.getAsset(id: "asset_fix1"))
-        XCTAssertEqual(loaded.bytes, bytes) // byte equality
+        XCTAssertEqual(loaded.bytes, bytes)  // byte equality
         XCTAssertEqual(loaded.metadata.sha256, meta.sha256)
 
         // Same id + same hash → idempotent confirmation, not an error.
@@ -62,10 +62,13 @@ final class StoreTests: XCTestCase {
         // Same id + different hash → conflict.
         var mutated = bytes
         mutated[0] ^= 0xFF
-        XCTAssertThrowsError(try store.putAsset(ImageAsset(
-            id: "asset_fix1", mimeType: meta.mimeType, byteLength: mutated.count,
-            sha256: sha256Hex(mutated), width: 0, height: 0, createdAt: NOW
-        ), bytes: mutated)) { error in
+        XCTAssertThrowsError(
+            try store.putAsset(
+                ImageAsset(
+                    id: "asset_fix1", mimeType: meta.mimeType, byteLength: mutated.count,
+                    sha256: sha256Hex(mutated), width: 0, height: 0, createdAt: NOW
+                ), bytes: mutated)
+        ) { error in
             XCTAssertEqual(error as? StoreError, .assetConflict(existingSha256: meta.sha256))
         }
     }
@@ -73,14 +76,18 @@ final class StoreTests: XCTestCase {
     func testMissingAttachmentCount() throws {
         let store = try freshStore()
         let (_, bytes) = try fixtureAsset()
-        try store.putAsset(ImageAsset(
-            id: "asset_fix1", mimeType: "image/png", byteLength: bytes.count,
-            sha256: sha256Hex(bytes), width: 4, height: 2, createdAt: NOW
-        ), bytes: bytes)
+        try store.putAsset(
+            ImageAsset(
+                id: "asset_fix1", mimeType: "image/png", byteLength: bytes.count,
+                sha256: sha256Hex(bytes), width: 4, height: 2, createdAt: NOW
+            ), bytes: bytes)
         try store.upsertFragment(makeFragment(id: "v1", kind: "visual"), deviceId: "d", payloadHash: "h")
-        try store.upsertFragment(makeFragment(id: "v2", kind: "visual", detail: wireObject(
-            ("attachmentIds", wireStrings(["asset_missing"]))
-        )), deviceId: "d", payloadHash: "h")
+        try store.upsertFragment(
+            makeFragment(
+                id: "v2", kind: "visual",
+                detail: wireObject(
+                    ("attachmentIds", wireStrings(["asset_missing"]))
+                )), deviceId: "d", payloadHash: "h")
         // Text fragments never count.
         try store.upsertFragment(makeFragment(id: "c1"), deviceId: "d", payloadHash: "h")
         XCTAssertEqual(try store.missingAttachmentCount(), 1)
@@ -101,7 +108,7 @@ final class StoreTests: XCTestCase {
         XCTAssertNil(try store.getFragment(id: "frag_a"))
         XCTAssertFalse(try store.isDeleted(id: "frag_b"))
         XCTAssertTrue(try store.isDeleted(id: "frag_a"))
-        XCTAssertEqual(try store.getReviewLogs().count, 0) // logs cascade
+        XCTAssertEqual(try store.getReviewLogs().count, 0)  // logs cascade
         XCTAssertEqual(try store.getLocalDeletions().map(\.fragmentId), ["frag_a"])
     }
 
@@ -130,28 +137,30 @@ final class StoreTests: XCTestCase {
     func testDesktopMutationsNeverEnqueueOutboxRows() throws {
         let store = try freshStore()
         XCTAssertEqual(try store.outboxCount(), 0)
-        let record = try store.saveFragment(CreateFragmentInput(
-            kind: "concept",
-            content: "hawkish pivot",
-            context: FragmentContextInput(
-                excerpt: "hawkish pivot in the excerpt.",
-                sourceUrl: "https://www.wsj.com/markets",
-                sourceHost: "wsj.com",
-                capturedAt: NOW
-            ),
-            processing: FragmentProcessing(
-                verified: VerifiedResult(confirmedAt: NOW, source: "manual"),
-                use: "用于验证。"
-            ),
-            detail: .concept(ConceptDetail()),
-            now: NOW
-        ))
+        let record = try store.saveFragment(
+            CreateFragmentInput(
+                kind: "concept",
+                content: "hawkish pivot",
+                context: FragmentContextInput(
+                    excerpt: "hawkish pivot in the excerpt.",
+                    sourceUrl: "https://www.wsj.com/markets",
+                    sourceHost: "wsj.com",
+                    capturedAt: NOW
+                ),
+                processing: FragmentProcessing(
+                    verified: VerifiedResult(confirmedAt: NOW, source: "manual"),
+                    use: "用于验证。"
+                ),
+                detail: .concept(ConceptDetail()),
+                now: NOW
+            ))
         _ = try store.rateFragment(id: record.id, rating: .good, usedHint: false, now: NOW)
         let (_, bytes) = try fixtureAsset()
-        _ = try store.putAsset(ImageAsset(
-            id: "asset_fix1", mimeType: "image/png", byteLength: bytes.count,
-            sha256: sha256Hex(bytes), width: 0, height: 0, createdAt: NOW
-        ), bytes: bytes)
+        _ = try store.putAsset(
+            ImageAsset(
+                id: "asset_fix1", mimeType: "image/png", byteLength: bytes.count,
+                sha256: sha256Hex(bytes), width: 0, height: 0, createdAt: NOW
+            ), bytes: bytes)
         // The authoritative feed is change_log; outbox_events stays empty and
         // the 待发送事件 counter derives from change rows beyond the cursor.
         XCTAssertEqual(try store.outboxCount(), 0)
@@ -162,22 +171,23 @@ final class StoreTests: XCTestCase {
 
     func testRateFragmentWritesFragmentAndLogInOneTransaction() throws {
         let store = try freshStore()
-        let record = try store.saveFragment(CreateFragmentInput(
-            kind: "concept",
-            content: "hawkish pivot",
-            context: FragmentContextInput(
-                excerpt: "hawkish pivot excerpt.",
-                sourceUrl: "https://www.wsj.com/markets",
-                sourceHost: "wsj.com",
-                capturedAt: NOW
-            ),
-            processing: FragmentProcessing(
-                verified: VerifiedResult(confirmedAt: NOW, source: "manual"),
-                use: "用于验证。"
-            ),
-            detail: .concept(ConceptDetail()),
-            now: NOW
-        ))
+        let record = try store.saveFragment(
+            CreateFragmentInput(
+                kind: "concept",
+                content: "hawkish pivot",
+                context: FragmentContextInput(
+                    excerpt: "hawkish pivot excerpt.",
+                    sourceUrl: "https://www.wsj.com/markets",
+                    sourceHost: "wsj.com",
+                    capturedAt: NOW
+                ),
+                processing: FragmentProcessing(
+                    verified: VerifiedResult(confirmedAt: NOW, source: "manual"),
+                    use: "用于验证。"
+                ),
+                detail: .concept(ConceptDetail()),
+                now: NOW
+            ))
         let rated = try store.rateFragment(id: record.id, rating: .good, usedHint: true, now: NOW + 1000)
         XCTAssertEqual(rated.fragment.review.repetitions, 1)
         XCTAssertEqual(rated.log.usedHint, true)
@@ -207,22 +217,23 @@ final class StoreTests: XCTestCase {
     // ── change feed (R3, storage.md §9) ──────────────────────────────────
 
     private func seedLocalFragment(_ store: FragmentStore, id: String = "frag_c1") throws -> FragmentRecord {
-        try store.saveFragment(CreateFragmentInput(
-            kind: "concept",
-            content: "hawkish pivot",
-            context: FragmentContextInput(
-                excerpt: "hawkish pivot excerpt.",
-                sourceUrl: "https://www.wsj.com/markets",
-                sourceHost: "wsj.com",
-                capturedAt: NOW
-            ),
-            processing: FragmentProcessing(
-                verified: VerifiedResult(confirmedAt: NOW, source: "manual"),
-                use: "用于验证。"
-            ),
-            detail: .concept(ConceptDetail()),
-            now: NOW
-        ))
+        try store.saveFragment(
+            CreateFragmentInput(
+                kind: "concept",
+                content: "hawkish pivot",
+                context: FragmentContextInput(
+                    excerpt: "hawkish pivot excerpt.",
+                    sourceUrl: "https://www.wsj.com/markets",
+                    sourceHost: "wsj.com",
+                    capturedAt: NOW
+                ),
+                processing: FragmentProcessing(
+                    verified: VerifiedResult(confirmedAt: NOW, source: "manual"),
+                    use: "用于验证。"
+                ),
+                detail: .concept(ConceptDetail()),
+                now: NOW
+            ))
     }
 
     func testChangeLogRowsWrittenWithDesktopMutationsOnly() throws {

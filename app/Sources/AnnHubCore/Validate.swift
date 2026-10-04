@@ -200,9 +200,9 @@ public func validateSourcePair(sourceUrl: String, sourceHost: String) -> Validat
         return .passed
     }
     guard let url = URL(string: sourceUrl),
-          let scheme = url.scheme?.lowercased(),
-          scheme == "http" || scheme == "https",
-          let host = url.host, !host.isEmpty
+        let scheme = url.scheme?.lowercased(),
+        scheme == "http" || scheme == "https",
+        let host = url.host, !host.isEmpty
     else { return .fail(.sourceUrlInvalid) }
     guard let normalized = normalizeHost(url: sourceUrl) else {
         return .fail(.sourceUrlInvalid)
@@ -291,7 +291,9 @@ func validateClaimDetail(_ detail: WireValue) -> ValidationResult {
         return .fail(.detailKindMismatch, ["kind": "claim"])
     }
     // Optional in the data layer (fragments.md §4); the capture form asks for it.
-    if let stance = fields["stance"], stance.stringValue.map({ ["support", "oppose", "uncertain"].contains($0) }) != true {
+    if let stance = fields["stance"],
+        stance.stringValue.map({ ["support", "oppose", "uncertain"].contains($0) }) != true
+    {
         return .fail(.detailFieldInvalid, ["field": "detail.stance"])
     }
     for field in ["evidence", "assumptions"] {
@@ -325,7 +327,7 @@ func validateDecisionDetail(_ detail: WireValue) -> ValidationResult {
         return .fail(.detailKindMismatch, ["kind": "decision"])
     }
     guard let rationale = fields["rationale"]?.stringValue,
-          !rationale.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !rationale.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     else { return .fail(.decisionRationaleRequired) }
     if let failure = checkText(fields["rationale"], field: "detail.rationale", max: 2000) { return failure }
     for field in ["alternatives", "consequences"] {
@@ -357,9 +359,11 @@ func validateQuestionDetail(_ detail: WireValue) -> ValidationResult {
         }
     }
     if status != "answered" {
-        let hasHypothesis = !(fields["hypothesis"]?.stringValue?
+        let hasHypothesis =
+            !(fields["hypothesis"]?.stringValue?
             .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-        let hasNextStep = !(fields["nextStep"]?.stringValue?
+        let hasNextStep =
+            !(fields["nextStep"]?.stringValue?
             .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
         if !hasHypothesis && !hasNextStep { return .fail(.questionHypothesisRequired) }
     }
@@ -376,8 +380,8 @@ public func validateAttachmentIds(_ ids: WireValue?) -> ValidationResult {
     var seen = Set<String>()
     for item in items {
         guard let id = item.stringValue,
-              !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              utf16Length(id) <= 64
+            !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            utf16Length(id) <= 64
         else { return .fail(.detailFieldInvalid, ["field": "detail.attachmentIds"]) }
         if seen.contains(id) {
             return .fail(.detailFieldInvalid, ["field": "detail.attachmentIds", "duplicate": id])
@@ -421,8 +425,8 @@ func validateMediaClipDetail(_ detail: WireValue) -> ValidationResult {
         return .fail(.detailKindMismatch, ["kind": "media-clip"])
     }
     guard let start = finiteNonNegativeMs(fields["startMs"]),
-          let end = finiteEpochMs(fields["endMs"]),
-          start < end
+        let end = finiteEpochMs(fields["endMs"]),
+        start < end
     else {
         return .fail(.detailFieldInvalid, ["field": "detail.startMs/endMs", "need": "0 <= startMs < endMs"])
     }
@@ -466,7 +470,8 @@ public func isKindEnabled(_ kind: String) -> Bool {
 
 func validateBaseFields(_ f: FragmentRecord) -> ValidationResult {
     if f.schemaVersion != fragmentSchemaVersion {
-        return .fail(.schemaVersionUnsupported, ["got": String(f.schemaVersion), "need": String(fragmentSchemaVersion)])
+        return .fail(
+            .schemaVersionUnsupported, ["got": String(f.schemaVersion), "need": String(fragmentSchemaVersion)])
     }
     if f.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
         return .fail(.detailFieldInvalid, ["field": "id"])

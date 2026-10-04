@@ -16,12 +16,13 @@ final class HubPutTests: XCTestCase {
         _ hub: DesktopHub, record: FragmentRecord, deviceId: String = "device_1",
         urlId: String? = nil, authorized: Bool = true
     ) throws -> HubResponse {
-        hub.handle(HubRequest(
-            method: "PUT",
-            path: "/v1/fragments/\(urlId ?? record.id)",
-            bearerToken: authorized ? token : nil,
-            body: try putFragmentBody(deviceId: deviceId, record: record)
-        ))
+        hub.handle(
+            HubRequest(
+                method: "PUT",
+                path: "/v1/fragments/\(urlId ?? record.id)",
+                bearerToken: authorized ? token : nil,
+                body: try putFragmentBody(deviceId: deviceId, record: record)
+            ))
     }
 
     // ── health & pairing ─────────────────────────────────────────────────
@@ -64,7 +65,7 @@ final class HubPutTests: XCTestCase {
         XCTAssertEqual(hub.handle(HubRequest(method: "POST", path: "/v1/pair", bearerToken: "t-other")).status, 401)
         XCTAssertEqual(hub.pairToken, "GOOD-CODE")
         XCTAssertNil(hub.lastPairedAt)
-        XCTAssertNil(hub.lastConnectionAt) // a rejected token is not a connection
+        XCTAssertNil(hub.lastConnectionAt)  // a rejected token is not a connection
 
         let ok = hub.handle(HubRequest(method: "POST", path: "/v1/pair", bearerToken: "GOOD-CODE"))
         XCTAssertEqual(ok.status, 200)
@@ -114,7 +115,7 @@ final class HubPutTests: XCTestCase {
         XCTAssertEqual(hash, fragmentWireHash(toFragmentWire(record)))
 
         let stored = try XCTUnwrap(store.getFragment(id: "frag_put_1"))
-        XCTAssertEqual(stored.review.state, .new) // initialized fresh review
+        XCTAssertEqual(stored.review.state, .new)  // initialized fresh review
         XCTAssertEqual(stored.review.easeFactor, 2.5)
         let delivery = try XCTUnwrap(store.fragmentDelivery(id: "frag_put_1"))
         XCTAssertEqual(delivery.deviceId, "device_1")
@@ -143,7 +144,7 @@ final class HubPutTests: XCTestCase {
         rev2.context.excerpt = "The Fed signalled a hawkish pivot confirmed by officials."
         XCTAssertEqual(try putFragment(hub, record: rev2).status, 201)
 
-        let stale = makeFragment(id: "frag_rev") // revision 1
+        let stale = makeFragment(id: "frag_rev")  // revision 1
         let response = try putFragment(hub, record: stale)
         XCTAssertEqual(response.status, 200)
         let object = try XCTUnwrap(
@@ -189,9 +190,9 @@ final class HubPutTests: XCTestCase {
         XCTAssertEqual(object["revision"] as? Int, 2)
 
         let stored = try XCTUnwrap(store.getFragment(id: "frag_keep"))
-        XCTAssertEqual(stored.content, "hawkish pivot v2") // capture fields replaced
+        XCTAssertEqual(stored.content, "hawkish pivot v2")  // capture fields replaced
         XCTAssertEqual(stored.captureRevision, 2)
-        XCTAssertEqual(stored.review.repetitions, 1) // review NEVER overwritten
+        XCTAssertEqual(stored.review.repetitions, 1)  // review NEVER overwritten
         XCTAssertEqual(stored.review.state, .review)
     }
 
@@ -204,10 +205,11 @@ final class HubPutTests: XCTestCase {
         for testCase in rejections.cases {
             let body = try putFragmentBody(deviceId: testCase.body.deviceId, fragment: testCase.body.fragment)
             let urlId = testCase.body.fragment.objectValue?["id"]?.stringValue ?? "unknown"
-            let response = hub.handle(HubRequest(
-                method: "PUT", path: "/v1/fragments/\(urlId)",
-                bearerToken: token, body: body
-            ))
+            let response = hub.handle(
+                HubRequest(
+                    method: "PUT", path: "/v1/fragments/\(urlId)",
+                    bearerToken: token, body: body
+                ))
             XCTAssertEqual(response.status, 422, "case \(testCase.name)")
             XCTAssertEqual(response.errorField(), testCase.expectedCode, "case \(testCase.name)")
         }
@@ -262,17 +264,18 @@ final class HubPutTests: XCTestCase {
         _ hub: DesktopHub, id: String, bytes: Data, sha: String,
         byteLength: Int? = nil, mime: String = "image/png", authorized: Bool = true
     ) -> HubResponse {
-        hub.handle(HubRequest(
-            method: "PUT",
-            path: "/v1/assets/\(id)",
-            bearerToken: authorized ? token : nil,
-            headers: [
-                "Content-Type": mime,
-                "X-AnnHub-Sha256": sha,
-                "X-AnnHub-Byte-Length": String(byteLength ?? bytes.count),
-            ],
-            body: bytes
-        ))
+        hub.handle(
+            HubRequest(
+                method: "PUT",
+                path: "/v1/assets/\(id)",
+                bearerToken: authorized ? token : nil,
+                headers: [
+                    "Content-Type": mime,
+                    "X-AnnHub-Sha256": sha,
+                    "X-AnnHub-Byte-Length": String(byteLength ?? bytes.count),
+                ],
+                body: bytes
+            ))
     }
 
     func testAssetPutLifecycle() throws {
@@ -280,7 +283,7 @@ final class HubPutTests: XCTestCase {
         let hub = try makeHub(store: store)
         let meta = try JSONDecoder().decode(AssetMetaFixture.self, from: fixtureData("asset-meta.json"))
         let bytes = try fixtureData("asset.png")
-        XCTAssertEqual(sha256Hex(bytes), meta.sha256) // fixture vector
+        XCTAssertEqual(sha256Hex(bytes), meta.sha256)  // fixture vector
 
         // New asset → 201.
         let created = putAsset(hub, id: "asset_fix1", bytes: bytes, sha: meta.sha256)
@@ -303,11 +306,13 @@ final class HubPutTests: XCTestCase {
 
         // Undecodable junk header → 422.
         XCTAssertEqual(
-            hub.handle(HubRequest(
-                method: "PUT", path: "/v1/assets/asset_fix2", bearerToken: token,
-                headers: ["X-AnnHub-Sha256": meta.sha256, "X-AnnHub-Byte-Length": "abc"],
-                body: bytes
-            )).status, 422
+            hub.handle(
+                HubRequest(
+                    method: "PUT", path: "/v1/assets/asset_fix2", bearerToken: token,
+                    headers: ["X-AnnHub-Sha256": meta.sha256, "X-AnnHub-Byte-Length": "abc"],
+                    body: bytes
+                )
+            ).status, 422
         )
     }
 
@@ -334,15 +339,16 @@ final class HubPutTests: XCTestCase {
         // Empty body → 422.
         XCTAssertEqual(putAsset(hub, id: "asset_s", bytes: Data(), sha: sha256Hex(Data())).status, 422)
         // Unauthorized → 401.
-        let unauth = hub.handle(HubRequest(
-            method: "PUT", path: "/v1/assets/asset_s",
-            headers: [
-                "Content-Type": "image/png",
-                "X-AnnHub-Sha256": sha256Hex(bytes),
-                "X-AnnHub-Byte-Length": String(bytes.count),
-            ],
-            body: bytes
-        ))
+        let unauth = hub.handle(
+            HubRequest(
+                method: "PUT", path: "/v1/assets/asset_s",
+                headers: [
+                    "Content-Type": "image/png",
+                    "X-AnnHub-Sha256": sha256Hex(bytes),
+                    "X-AnnHub-Byte-Length": String(bytes.count),
+                ],
+                body: bytes
+            ))
         XCTAssertEqual(unauth.status, 401)
     }
 }

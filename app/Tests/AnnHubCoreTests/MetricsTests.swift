@@ -24,19 +24,21 @@ final class MetricsTests: XCTestCase {
         let thursday = mondayStart + 3 * dayMs + 19 * 3_600_000
         XCTAssertEqual(isoWeekStart(thursday, calendar: utc), mondayStart)
         XCTAssertEqual(isoWeekStart(mondayStart, calendar: utc), mondayStart)
-        XCTAssertEqual(isoWeekStart(mondayStart - 1, calendar: utc), mondayStart - 7 * dayMs, "Sunday belongs to the previous week")
+        XCTAssertEqual(
+            isoWeekStart(mondayStart - 1, calendar: utc), mondayStart - 7 * dayMs, "Sunday belongs to the previous week"
+        )
     }
 
     func testCountsDistinctFragmentsWithGoodOrEasyThisWeek() {
         let now = mondayStart + 3 * dayMs
         let logs = [
             log("l1", "frag_a", .good, at: mondayStart + 1_000),
-            log("l2", "frag_a", .easy, at: mondayStart + 2_000), // same fragment again → counted once
+            log("l2", "frag_a", .easy, at: mondayStart + 2_000),  // same fragment again → counted once
             log("l3", "frag_b", .easy, at: mondayStart + dayMs),
-            log("l4", "frag_c", .again, at: mondayStart + dayMs), // not a success
-            log("l5", "frag_d", .hard, at: mondayStart + dayMs), // not a success
-            log("l6", "frag_e", .good, at: mondayStart - 1), // last week
-            log("l7", "frag_f", .good, at: now + 1), // future-dated: outside [weekStart, now]
+            log("l4", "frag_c", .again, at: mondayStart + dayMs),  // not a success
+            log("l5", "frag_d", .hard, at: mondayStart + dayMs),  // not a success
+            log("l6", "frag_e", .good, at: mondayStart - 1),  // last week
+            log("l7", "frag_f", .good, at: now + 1),  // future-dated: outside [weekStart, now]
         ]
         XCTAssertEqual(weeklyRetrievedFragmentCount(logs, now: now, calendar: utc), 2)
     }
@@ -55,6 +57,8 @@ final class MetricsTests: XCTestCase {
         XCTAssertEqual(weeklyRetrievedFragmentCount(try store.getReviewLogs(), now: now, calendar: utc), 2)
 
         try store.deleteFragment(id: "frag_drop", now: now)
-        XCTAssertEqual(weeklyRetrievedFragmentCount(try store.getReviewLogs(), now: now, calendar: utc), 1, "deleted fragments are excluded")
+        XCTAssertEqual(
+            weeklyRetrievedFragmentCount(try store.getReviewLogs(), now: now, calendar: utc), 1,
+            "deleted fragments are excluded")
     }
 }

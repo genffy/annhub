@@ -52,8 +52,8 @@ extension Character {
         unicodeScalars.contains { scalar in
             switch scalar.properties.generalCategory {
             case .connectorPunctuation, .dashPunctuation, .openPunctuation,
-                 .closePunctuation, .initialPunctuation, .finalPunctuation,
-                 .otherPunctuation:
+                .closePunctuation, .initialPunctuation, .finalPunctuation,
+                .otherPunctuation:
                 return true
             default:
                 return false
@@ -70,7 +70,7 @@ extension Character {
 /// intentionally different hosts (site rules may differ).
 public func normalizeHost(url: String) -> String? {
     guard let url = URL(string: url.trimmingCharacters(in: .whitespacesAndNewlines)),
-          let rawHost = url.host
+        let rawHost = url.host
     else { return nil }
     let host = rawHost.lowercased()
     return host.hasPrefix("www.") ? String(host.dropFirst(4)) : host

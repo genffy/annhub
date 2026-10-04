@@ -7,7 +7,7 @@ import PackageDescription
 let package = Package(
     name: "AnnHubCore",
     platforms: [
-        .macOS(.v14),
+        .macOS(.v14)
     ],
     products: [
         .library(name: "AnnHubCore", targets: ["AnnHubCore"])

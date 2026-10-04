@@ -97,74 +97,75 @@ public final class FragmentStore: @unchecked Sendable {
     // ── schema (storage.md §6) ────────────────────────────────────────────
 
     private func createSchema() throws {
-        try execute("""
-        CREATE TABLE IF NOT EXISTS fragments (
-          id                  TEXT PRIMARY KEY,
-          schema_version      INTEGER NOT NULL,
-          capture_revision    INTEGER NOT NULL,
-          kind                TEXT NOT NULL,
-          content             TEXT NOT NULL,
-          normalized_content  TEXT NOT NULL,
-          context_json        TEXT NOT NULL,
-          processing_json     TEXT NOT NULL,
-          detail_json         TEXT NOT NULL,
-          review_json         TEXT NOT NULL,
-          tags_json           TEXT NOT NULL,
-          source_device_id    TEXT NOT NULL,
-          source_payload_hash TEXT NOT NULL,
-          created_at          INTEGER NOT NULL,
-          updated_at          INTEGER NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS review_logs (
-          id                     TEXT PRIMARY KEY,
-          target_fragment_id     TEXT NOT NULL,
-          rating                 TEXT NOT NULL,
-          reviewed_at            INTEGER NOT NULL,
-          previous_interval_days INTEGER NOT NULL,
-          next_interval_days     INTEGER NOT NULL,
-          used_hint              INTEGER NOT NULL,
-          scheduler_version      TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS outbox_events (
-          event_id        TEXT PRIMARY KEY,
-          device_id       TEXT NOT NULL,
-          type            TEXT NOT NULL,
-          payload_json    TEXT NOT NULL,
-          created_at      INTEGER NOT NULL,
-          attempts        INTEGER NOT NULL,
-          last_attempt_at INTEGER
-        );
-        CREATE TABLE IF NOT EXISTS assets (
-          id          TEXT PRIMARY KEY,
-          mime_type   TEXT NOT NULL,
-          byte_length INTEGER NOT NULL,
-          sha256      TEXT NOT NULL,
-          width       INTEGER NOT NULL,
-          height      INTEGER NOT NULL,
-          created_at  INTEGER NOT NULL,
-          bytes       BLOB NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS fragment_deletions (
-          fragment_id TEXT PRIMARY KEY,
-          deleted_at  INTEGER NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS change_log (
-          seq          INTEGER PRIMARY KEY AUTOINCREMENT,
-          type         TEXT NOT NULL,
-          payload_json TEXT NOT NULL,
-          created_at   INTEGER NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS applied_events (
-          event_id   TEXT NOT NULL,
-          device_id  TEXT NOT NULL,
-          applied_at INTEGER NOT NULL,
-          PRIMARY KEY (event_id, device_id)
-        );
-        CREATE TABLE IF NOT EXISTS sync_state (
-          key   TEXT PRIMARY KEY,
-          value INTEGER NOT NULL
-        );
-        """)
+        try execute(
+            """
+            CREATE TABLE IF NOT EXISTS fragments (
+              id                  TEXT PRIMARY KEY,
+              schema_version      INTEGER NOT NULL,
+              capture_revision    INTEGER NOT NULL,
+              kind                TEXT NOT NULL,
+              content             TEXT NOT NULL,
+              normalized_content  TEXT NOT NULL,
+              context_json        TEXT NOT NULL,
+              processing_json     TEXT NOT NULL,
+              detail_json         TEXT NOT NULL,
+              review_json         TEXT NOT NULL,
+              tags_json           TEXT NOT NULL,
+              source_device_id    TEXT NOT NULL,
+              source_payload_hash TEXT NOT NULL,
+              created_at          INTEGER NOT NULL,
+              updated_at          INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS review_logs (
+              id                     TEXT PRIMARY KEY,
+              target_fragment_id     TEXT NOT NULL,
+              rating                 TEXT NOT NULL,
+              reviewed_at            INTEGER NOT NULL,
+              previous_interval_days INTEGER NOT NULL,
+              next_interval_days     INTEGER NOT NULL,
+              used_hint              INTEGER NOT NULL,
+              scheduler_version      TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS outbox_events (
+              event_id        TEXT PRIMARY KEY,
+              device_id       TEXT NOT NULL,
+              type            TEXT NOT NULL,
+              payload_json    TEXT NOT NULL,
+              created_at      INTEGER NOT NULL,
+              attempts        INTEGER NOT NULL,
+              last_attempt_at INTEGER
+            );
+            CREATE TABLE IF NOT EXISTS assets (
+              id          TEXT PRIMARY KEY,
+              mime_type   TEXT NOT NULL,
+              byte_length INTEGER NOT NULL,
+              sha256      TEXT NOT NULL,
+              width       INTEGER NOT NULL,
+              height      INTEGER NOT NULL,
+              created_at  INTEGER NOT NULL,
+              bytes       BLOB NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS fragment_deletions (
+              fragment_id TEXT PRIMARY KEY,
+              deleted_at  INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS change_log (
+              seq          INTEGER PRIMARY KEY AUTOINCREMENT,
+              type         TEXT NOT NULL,
+              payload_json TEXT NOT NULL,
+              created_at   INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS applied_events (
+              event_id   TEXT NOT NULL,
+              device_id  TEXT NOT NULL,
+              applied_at INTEGER NOT NULL,
+              PRIMARY KEY (event_id, device_id)
+            );
+            CREATE TABLE IF NOT EXISTS sync_state (
+              key   TEXT PRIMARY KEY,
+              value INTEGER NOT NULL
+            );
+            """)
     }
 
     // ── low-level helpers ────────────────────────────────────────────────
@@ -220,13 +221,14 @@ public final class FragmentStore: @unchecked Sendable {
     private func insertFragmentRow(
         _ f: FragmentRecord, deviceId: String, payloadHash: String
     ) throws {
-        let stmt = try prepare("""
-        INSERT OR REPLACE INTO fragments
-          (id, schema_version, capture_revision, kind, content, normalized_content,
-           context_json, processing_json, detail_json, review_json, tags_json,
-           source_device_id, source_payload_hash, created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        """)
+        let stmt = try prepare(
+            """
+            INSERT OR REPLACE INTO fragments
+              (id, schema_version, capture_revision, kind, content, normalized_content,
+               context_json, processing_json, detail_json, review_json, tags_json,
+               source_device_id, source_payload_hash, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """)
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, f.id)
         sqlite3_bind_int(stmt, 2, Int32(f.schemaVersion))
@@ -348,9 +350,10 @@ public final class FragmentStore: @unchecked Sendable {
                     throw StoreError.sqlite(String(cString: sqlite3_errmsg(db)))
                 }
             }
-            let marker = try prepare("""
-            INSERT OR REPLACE INTO fragment_deletions (fragment_id, deleted_at) VALUES (?,?)
-            """)
+            let marker = try prepare(
+                """
+                INSERT OR REPLACE INTO fragment_deletions (fragment_id, deleted_at) VALUES (?,?)
+                """)
             defer { sqlite3_finalize(marker) }
             bindText(marker, 1, id)
             sqlite3_bind_int64(marker, 2, Int64(now))
@@ -374,7 +377,8 @@ public final class FragmentStore: @unchecked Sendable {
     // ── review (fragment + log in ONE transaction, storage.md §3.1) ──────
 
     @discardableResult
-    public func rateFragment(id: String, rating: ReviewRating, usedHint: Bool, now: Int? = nil) throws -> RatedFragment {
+    public func rateFragment(id: String, rating: ReviewRating, usedHint: Bool, now: Int? = nil) throws -> RatedFragment
+    {
         // The fragment read lives INSIDE the BEGIN IMMEDIATE transaction:
         // read-modify-write must be atomic vs extension PUTs on other queues
         // (a concurrent write between read and write would be lost).
@@ -414,7 +418,8 @@ public final class FragmentStore: @unchecked Sendable {
         guard var fragment = try getFragment(id: fragmentId) else {
             throw StoreError.notFound("fragment not found: \(fragmentId)")
         }
-        let isNewer = fragment.review.lastReviewedAt == nil
+        let isNewer =
+            fragment.review.lastReviewedAt == nil
             || log.reviewedAt >= fragment.review.lastReviewedAt!
         if isNewer {
             fragment.review = review
@@ -439,12 +444,13 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     func insertReviewLog(_ log: ReviewLog) throws {
-        let stmt = try prepare("""
-        INSERT OR REPLACE INTO review_logs
-          (id, target_fragment_id, rating, reviewed_at, previous_interval_days,
-           next_interval_days, used_hint, scheduler_version)
-        VALUES (?,?,?,?,?,?,?,?)
-        """)
+        let stmt = try prepare(
+            """
+            INSERT OR REPLACE INTO review_logs
+              (id, target_fragment_id, rating, reviewed_at, previous_interval_days,
+               next_interval_days, used_hint, scheduler_version)
+            VALUES (?,?,?,?,?,?,?,?)
+            """)
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, log.id)
         bindText(stmt, 2, log.target.fragmentId)
@@ -464,16 +470,17 @@ public final class FragmentStore: @unchecked Sendable {
         defer { sqlite3_finalize(stmt) }
         var out: [ReviewLog] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
-            out.append(ReviewLog(
-                id: columnText(stmt, 0),
-                target: ReviewTarget(fragmentId: columnText(stmt, 1)),
-                rating: ReviewRating(rawValue: columnText(stmt, 2)) ?? .good,
-                reviewedAt: columnInt(stmt, 3),
-                previousIntervalDays: columnInt(stmt, 4),
-                nextIntervalDays: columnInt(stmt, 5),
-                usedHint: columnInt(stmt, 6) != 0,
-                schedulerVersion: columnText(stmt, 7)
-            ))
+            out.append(
+                ReviewLog(
+                    id: columnText(stmt, 0),
+                    target: ReviewTarget(fragmentId: columnText(stmt, 1)),
+                    rating: ReviewRating(rawValue: columnText(stmt, 2)) ?? .good,
+                    reviewedAt: columnInt(stmt, 3),
+                    previousIntervalDays: columnInt(stmt, 4),
+                    nextIntervalDays: columnInt(stmt, 5),
+                    usedHint: columnInt(stmt, 6) != 0,
+                    schedulerVersion: columnText(stmt, 7)
+                ))
         }
         return out
     }
@@ -496,10 +503,11 @@ public final class FragmentStore: @unchecked Sendable {
             throw StoreError.assetConflict(existingSha256: existing.metadata.sha256)
         }
         try transaction {
-            let stmt = try prepare("""
-            INSERT INTO assets (id, mime_type, byte_length, sha256, width, height, created_at, bytes)
-            VALUES (?,?,?,?,?,?,?,?)
-            """)
+            let stmt = try prepare(
+                """
+                INSERT INTO assets (id, mime_type, byte_length, sha256, width, height, created_at, bytes)
+                VALUES (?,?,?,?,?,?,?,?)
+                """)
             defer { sqlite3_finalize(stmt) }
             bindText(stmt, 1, asset.id)
             bindText(stmt, 2, asset.mimeType)
@@ -588,9 +596,10 @@ public final class FragmentStore: @unchecked Sendable {
 
     func appendChange<P: Encodable>(_ type: DesktopChangeType, payload: P, now: Int) throws {
         let data = try encoder.encode(payload)
-        let stmt = try prepare("""
-        INSERT INTO change_log (type, payload_json, created_at) VALUES (?,?,?)
-        """)
+        let stmt = try prepare(
+            """
+            INSERT INTO change_log (type, payload_json, created_at) VALUES (?,?,?)
+            """)
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, type.rawValue)
         bindText(stmt, 2, String(data: data, encoding: .utf8) ?? "{}")
@@ -602,21 +611,23 @@ public final class FragmentStore: @unchecked Sendable {
 
     /// Rows with seq > cursor, ascending, at most `limit`.
     public func changes(after cursor: Int, limit: Int) throws -> [ChangeLogRow] {
-        let stmt = try prepare("""
-        SELECT seq, type, payload_json, created_at FROM change_log
-        WHERE seq > ? ORDER BY seq ASC LIMIT ?
-        """)
+        let stmt = try prepare(
+            """
+            SELECT seq, type, payload_json, created_at FROM change_log
+            WHERE seq > ? ORDER BY seq ASC LIMIT ?
+            """)
         defer { sqlite3_finalize(stmt) }
         sqlite3_bind_int64(stmt, 1, Int64(cursor))
         sqlite3_bind_int64(stmt, 2, Int64(max(1, limit)))
         var out: [ChangeLogRow] = []
         while sqlite3_step(stmt) == SQLITE_ROW {
-            out.append(ChangeLogRow(
-                seq: columnInt(stmt, 0),
-                type: columnText(stmt, 1),
-                payloadJson: columnText(stmt, 2),
-                createdAt: columnInt(stmt, 3)
-            ))
+            out.append(
+                ChangeLogRow(
+                    seq: columnInt(stmt, 0),
+                    type: columnText(stmt, 1),
+                    payloadJson: columnText(stmt, 2),
+                    createdAt: columnInt(stmt, 3)
+                ))
         }
         return out
     }
@@ -645,9 +656,10 @@ public final class FragmentStore: @unchecked Sendable {
     @discardableResult
     public func markApplied(deviceId: String, eventId: String, now: Int? = nil) throws -> Bool {
         let now = now ?? currentMs()
-        let stmt = try prepare("""
-        INSERT OR IGNORE INTO applied_events (event_id, device_id, applied_at) VALUES (?,?,?)
-        """)
+        let stmt = try prepare(
+            """
+            INSERT OR IGNORE INTO applied_events (event_id, device_id, applied_at) VALUES (?,?,?)
+            """)
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, eventId)
         bindText(stmt, 2, deviceId)
@@ -659,9 +671,10 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     public func isApplied(deviceId: String, eventId: String) throws -> Bool {
-        let stmt = try prepare("""
-        SELECT 1 FROM applied_events WHERE event_id = ? AND device_id = ? LIMIT 1
-        """)
+        let stmt = try prepare(
+            """
+            SELECT 1 FROM applied_events WHERE event_id = ? AND device_id = ? LIMIT 1
+            """)
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, eventId)
         bindText(stmt, 2, deviceId)
@@ -692,7 +705,7 @@ public final class FragmentStore: @unchecked Sendable {
 
     private func syncStateValue(_ key: String) -> Int? {
         guard let stmt = try? prepare("SELECT value FROM sync_state WHERE key = ?"),
-              sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT) == SQLITE_OK
+            sqlite3_bind_text(stmt, 1, key, -1, SQLITE_TRANSIENT) == SQLITE_OK
         else { return nil }
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
@@ -700,9 +713,12 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     private func setSyncState(_ key: String, _ value: Int) {
-        guard let stmt = try? prepare("""
-        INSERT OR REPLACE INTO sync_state (key, value) VALUES (?,?)
-        """) else { return }
+        guard
+            let stmt = try? prepare(
+                """
+                INSERT OR REPLACE INTO sync_state (key, value) VALUES (?,?)
+                """)
+        else { return }
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, key)
         sqlite3_bind_int64(stmt, 2, Int64(value))

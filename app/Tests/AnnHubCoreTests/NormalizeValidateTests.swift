@@ -333,7 +333,8 @@ final class NormalizeValidateTests: XCTestCase {
     }
 
     func testDetailFieldInvalidOnLongNote() {
-        let f = makeFragment(kind: "excerpt", detail: wireObject(("note", .string(String(repeating: "n", count: 2001)))))
+        let f = makeFragment(
+            kind: "excerpt", detail: wireObject(("note", .string(String(repeating: "n", count: 2001)))))
         expectedValidationError(f, code: .detailFieldInvalid)
     }
 
@@ -371,10 +372,12 @@ final class NormalizeValidateTests: XCTestCase {
         f = makeFragment(kind: "question", detail: wireObject(("status", .string("open"))))
         expectedValidationError(f, code: .questionHypothesisRequired)
 
-        f = makeFragment(kind: "question", detail: wireObject(
-            ("status", .string("open")),
-            ("nextStep", .string("查利率期货"))
-        ))
+        f = makeFragment(
+            kind: "question",
+            detail: wireObject(
+                ("status", .string("open")),
+                ("nextStep", .string("查利率期货"))
+            ))
         XCTAssertTrue(validateFragment(f).ok)
     }
 
@@ -385,9 +388,11 @@ final class NormalizeValidateTests: XCTestCase {
         f = makeFragment(kind: "visual", detail: wireObject(("attachmentIds", wireStrings(["a", "a"]))))
         expectedValidationError(f, code: .detailFieldInvalid)
 
-        f = makeFragment(kind: "visual", detail: wireObject(
-            ("attachmentIds", wireStrings((1...11).map { "asset\($0)" }))
-        ))
+        f = makeFragment(
+            kind: "visual",
+            detail: wireObject(
+                ("attachmentIds", wireStrings((1...11).map { "asset\($0)" }))
+            ))
         expectedValidationError(f, code: .detailFieldInvalid)
     }
 

@@ -91,15 +91,15 @@ final class ReviewQueryTests: XCTestCase {
 
     func testBuildDailyQueueOrderAndCap() {
         let fragments = [
-            dueFragment(id: "frag_c", nextReviewAt: NOW - 1000), // due, latest
-            dueFragment(id: "frag_a", nextReviewAt: NOW - 5000), // due, earliest
-            dueFragment(id: "frag_l", nextReviewAt: NOW - 5000, lapses: 3), // same time, more lapses first
+            dueFragment(id: "frag_c", nextReviewAt: NOW - 1000),  // due, latest
+            dueFragment(id: "frag_a", nextReviewAt: NOW - 5000),  // due, earliest
+            dueFragment(id: "frag_l", nextReviewAt: NOW - 5000, lapses: 3),  // same time, more lapses first
             dueFragment(id: "frag_old", nextReviewAt: NOW - 5000, lapses: 3, createdAt: NOW - 9999),
         ]
         var future = makeFragment(id: "frag_future")
         future.review.nextReviewAt = NOW + 10 * dayMs
 
-        let queue = buildDailyQueue(fragments + [future], now: NOW) // future excluded: nextReviewAt > now
+        let queue = buildDailyQueue(fragments + [future], now: NOW)  // future excluded: nextReviewAt > now
         XCTAssertEqual(queue.map(\.id), ["frag_old", "frag_l", "frag_a", "frag_c"])
 
         // Cap: 25 due fragments, dailyLimit 20 → 20.
@@ -139,7 +139,7 @@ final class ReviewQueryTests: XCTestCase {
         inTag.tags = ["alpha"]
 
         let result = runFragmentQuery([inTag, inContent], query: FragmentQuery(search: "alpha"))
-        XCTAssertEqual(result.items.map(\.id), ["frag_c1", "frag_c2"]) // score 5 > 3
+        XCTAssertEqual(result.items.map(\.id), ["frag_c1", "frag_c2"])  // score 5 > 3
     }
 
     func testEveryWordMustHitSomeField() {
@@ -153,9 +153,11 @@ final class ReviewQueryTests: XCTestCase {
     func testKindsFilterCombinesWithSearch() {
         let concept = makeFragment(id: "frag_k1", kind: "concept", content: "alpha", excerpt: "alpha excerpt")
         let claim = makeFragment(id: "frag_k2", kind: "claim", content: "alpha", excerpt: "alpha excerpt")
-        let result = runFragmentQuery([concept, claim], query: FragmentQuery(
-            search: "alpha", kinds: ["claim"]
-        ))
+        let result = runFragmentQuery(
+            [concept, claim],
+            query: FragmentQuery(
+                search: "alpha", kinds: ["claim"]
+            ))
         XCTAssertEqual(result.items.map(\.id), ["frag_k2"])
         XCTAssertEqual(result.total, 1)
     }
@@ -164,9 +166,11 @@ final class ReviewQueryTests: XCTestCase {
         var early = makeFragment(id: "frag_e")
         early.context.capturedAt = NOW - 10 * dayMs
         let late = makeFragment(id: "frag_l")
-        let result = runFragmentQuery([early, late], query: FragmentQuery(
-            capturedFrom: NOW - dayMs, capturedTo: NOW + dayMs
-        ))
+        let result = runFragmentQuery(
+            [early, late],
+            query: FragmentQuery(
+                capturedFrom: NOW - dayMs, capturedTo: NOW + dayMs
+            ))
         XCTAssertEqual(result.items.map(\.id), ["frag_l"])
     }
 

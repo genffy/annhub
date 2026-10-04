@@ -179,18 +179,20 @@ struct AssetMetaFixture: Decodable {
 /// `{deviceId, fragment}` where the fragment is the record's wire form
 /// (capture fields only — no review).
 func putFragmentBody(deviceId: String, record: FragmentRecord) throws -> Data {
-    try JSONEncoder().encode(wireObject(
-        ("deviceId", .string(deviceId)),
-        ("fragment", toFragmentWire(record))
-    ))
+    try JSONEncoder().encode(
+        wireObject(
+            ("deviceId", .string(deviceId)),
+            ("fragment", toFragmentWire(record))
+        ))
 }
 
 /// Re-encode an already-parsed fixture body tree.
 func putFragmentBody(deviceId: String, fragment: WireValue) throws -> Data {
-    try JSONEncoder().encode(wireObject(
-        ("deviceId", .string(deviceId)),
-        ("fragment", fragment)
-    ))
+    try JSONEncoder().encode(
+        wireObject(
+            ("deviceId", .string(deviceId)),
+            ("fragment", fragment)
+        ))
 }
 
 func decodeRecord(from fragmentTree: WireValue) throws -> FragmentRecord {

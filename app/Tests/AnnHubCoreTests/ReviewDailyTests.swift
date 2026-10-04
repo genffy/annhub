@@ -13,7 +13,7 @@ final class ReviewDailyTests: XCTestCase {
 
     /// Monday 2026-09-28 00:00 UTC.
     private let monday = 1_790_553_600_000
-    private var now: Int { monday + 12 * 3_600_000 } // Monday noon
+    private var now: Int { monday + 12 * 3_600_000 }  // Monday noon
 
     private func fragment(_ id: String, dueAt: Int, createdAt: Int = 1) -> FragmentRecord {
         var record = makeFragment(id: id)
@@ -22,7 +22,9 @@ final class ReviewDailyTests: XCTestCase {
         return record
     }
 
-    private func log(_ id: String, _ fragmentId: String, _ rating: ReviewRating, hint: Bool = false, at ms: Int) -> ReviewLog {
+    private func log(_ id: String, _ fragmentId: String, _ rating: ReviewRating, hint: Bool = false, at ms: Int)
+        -> ReviewLog
+    {
         ReviewLog(
             id: id, target: ReviewTarget(fragmentId: fragmentId), rating: rating, reviewedAt: ms,
             previousIntervalDays: 1, nextIntervalDays: 2, usedHint: hint, schedulerVersion: schedulerVersion
@@ -66,7 +68,8 @@ final class ReviewDailyTests: XCTestCase {
     }
 
     func testLimitIsClampedAndNothingDueIsNotLimitReached() {
-        let none = dailyReviewPlan(fragments: [fragment("f1", dueAt: now + 5000)], logs: [], now: now, dailyLimit: 1, calendar: utc)
+        let none = dailyReviewPlan(
+            fragments: [fragment("f1", dueAt: now + 5000)], logs: [], now: now, dailyLimit: 1, calendar: utc)
         XCTAssertEqual(none.dailyLimit, DAILY_LIMIT_MIN)
         XCTAssertTrue(none.due.isEmpty)
         XCTAssertFalse(none.limitReached)
@@ -83,15 +86,15 @@ final class ReviewDailyTests: XCTestCase {
         let logs = [
             log("a", "f1", .good, hint: true, at: started + 1000),
             log("b", "f2", .again, hint: true, at: started + 2000),
-            log("x", "other", .good, at: started + 3000), // not in this session
-            log("y", "f1", .good, at: started - 10_000), // before the session started
+            log("x", "other", .good, at: started + 3000),  // not in this session
+            log("y", "f1", .good, at: started - 10_000),  // before the session started
         ]
         let tomorrow = monday + 24 * 3_600_000
         let fragments = [
             fragment("f1", dueAt: tomorrow + 3_600_000),
             fragment("f2", dueAt: tomorrow + 7_200_000),
-            fragment("f4", dueAt: monday + 6 * 24 * 3_600_000 + 1000), // Sunday
-            fragment("f5", dueAt: now - 1000), // still due now
+            fragment("f4", dueAt: monday + 6 * 24 * 3_600_000 + 1000),  // Sunday
+            fragment("f5", dueAt: now - 1000),  // still due now
         ]
         let wrap = sessionWrapUp(session: session, logs: logs, fragments: fragments, now: now, calendar: utc)
         XCTAssertEqual(wrap.rated, 2)
@@ -99,10 +102,12 @@ final class ReviewDailyTests: XCTestCase {
         XCTAssertEqual(wrap.again, 1)
         XCTAssertEqual(wrap.skipped, 1)
         XCTAssertEqual(wrap.dueNow, 1)
-        XCTAssertEqual(wrap.upcoming, [
-            UpcomingDue(dayStart: tomorrow, count: 2),
-            UpcomingDue(dayStart: monday + 6 * 24 * 3_600_000, count: 1),
-        ])
+        XCTAssertEqual(
+            wrap.upcoming,
+            [
+                UpcomingDue(dayStart: tomorrow, count: 2),
+                UpcomingDue(dayStart: monday + 6 * 24 * 3_600_000, count: 1),
+            ])
         XCTAssertEqual(relativeDayLabel(dayStart: wrap.upcoming[0].dayStart, now: now, calendar: utc), "明天")
         XCTAssertEqual(relativeDayLabel(dayStart: wrap.upcoming[1].dayStart, now: now, calendar: utc), "周日")
     }
@@ -139,7 +144,9 @@ final class ReviewDailyTests: XCTestCase {
         XCTAssertEqual(ReviewReminder(enabled: true, hour: 7, minute: 5).timeLabel, "07:05")
 
         let data = try JSONEncoder().encode(ReviewReminder(enabled: true, hour: 8, minute: 15))
-        XCTAssertEqual(try JSONDecoder().decode(ReviewReminder.self, from: data), ReviewReminder(enabled: true, hour: 8, minute: 15))
+        XCTAssertEqual(
+            try JSONDecoder().decode(ReviewReminder.self, from: data),
+            ReviewReminder(enabled: true, hour: 8, minute: 15))
         let wild = Data(#"{"enabled":true,"hour":99,"minute":99}"#.utf8)
         XCTAssertEqual(try JSONDecoder().decode(ReviewReminder.self, from: wild).timeLabel, "23:59")
     }
@@ -172,7 +179,8 @@ final class ReviewDailyTests: XCTestCase {
             fragment("review-later", phase: .review, dueAt: later),
             fragment("review-due", phase: .review, dueAt: now - 5),
         ]
-        XCTAssertEqual(all.map { reviewStatus(of: $0, now: now) }, [.due, .new, .learning, .learning, .scheduled, .due])
+        XCTAssertEqual(
+            all.map { reviewStatus(of: $0, now: now) }, [.due, .new, .learning, .learning, .scheduled, .due])
         XCTAssertEqual(ReviewStatus.allCases.map(\.label), ["到期", "新建", "学习中", "复习中"])
 
         XCTAssertEqual(filterByReviewStatus(all, statuses: [], now: now).count, 6, "empty set = no filter")

@@ -174,10 +174,11 @@ final class DesktopModel: ObservableObject {
     static func live() -> DesktopModel {
         let appSupport = URL.applicationSupportDirectory.appending(path: "AnnHub")
         try? FileManager.default.createDirectory(at: appSupport, withIntermediateDirectories: true)
-        let store = (try? FragmentStore(
-            path: appSupport.appending(path: "desktop-fragment-store.sqlite").path,
-            deviceId: "mac-" + UUID().uuidString.prefix(6)
-        )) ?? (try! FragmentStore(path: ":memory:", deviceId: "mac-fallback"))
+        let store =
+            (try? FragmentStore(
+                path: appSupport.appending(path: "desktop-fragment-store.sqlite").path,
+                deviceId: "mac-" + UUID().uuidString.prefix(6)
+            )) ?? (try! FragmentStore(path: ":memory:", deviceId: "mac-fallback"))
         if CommandLine.arguments.contains(DemoSeed.launchArgument) {
             DemoSeed.seedIfNeeded(store)
         }
@@ -197,7 +198,8 @@ final class DesktopModel: ObservableObject {
         let storedLimit = UserDefaults.standard.integer(forKey: Self.dailyLimitDefaultsKey)
         self.dailyLimit = clampedDailyLimit(storedLimit == 0 ? DAILY_LIMIT_DEFAULT : storedLimit)
         if let data = UserDefaults.standard.data(forKey: Self.reminderDefaultsKey),
-           let saved = try? JSONDecoder().decode(ReviewReminder.self, from: data) {
+            let saved = try? JSONDecoder().decode(ReviewReminder.self, from: data)
+        {
             self.reminder = saved
         } else {
             self.reminder = ReviewReminder()
@@ -253,10 +255,11 @@ final class DesktopModel: ObservableObject {
             lastPulledAt: store.lastPulledAt(),
             events: hub.eventsStats
         )
-        deliveredFragmentCount = fragments.filter { fragment in
-            guard let delivery = try? store.fragmentDelivery(id: fragment.id) else { return false }
-            return !delivery.deviceId.isEmpty && delivery.deviceId != DemoSeed.demoDeviceId
-        }.count
+        deliveredFragmentCount =
+            fragments.filter { fragment in
+                guard let delivery = try? store.fragmentDelivery(id: fragment.id) else { return false }
+                return !delivery.deviceId.isEmpty && delivery.deviceId != DemoSeed.demoDeviceId
+            }.count
         syncPairToken()
         pruneFinishedSession()
         revision += 1
@@ -367,7 +370,7 @@ final class DesktopModel: ObservableObject {
 
     private func restoreSession() {
         guard let data = UserDefaults.standard.data(forKey: Self.sessionDefaultsKey),
-              let restored = try? JSONDecoder().decode(ReviewSessionState.self, from: data)
+            let restored = try? JSONDecoder().decode(ReviewSessionState.self, from: data)
         else { return }
         session = restored
     }
@@ -506,7 +509,8 @@ final class HubServer: @unchecked Sendable {
     }
 
     private func receive(connection: NWConnection, buffer: Data) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 1 << 20) { [weak self] data, _, isComplete, error in
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 1 << 20) {
+            [weak self] data, _, isComplete, error in
             guard let self else { return }
             var buffer = buffer + (data ?? Data())
             if let headerEnd = buffer.range(of: Data("\r\n\r\n".utf8)) {
@@ -518,8 +522,8 @@ final class HubServer: @unchecked Sendable {
                 // it. A PUT/POST without the header used to be treated as an
                 // empty body and silently 422; reject it instead.
                 guard let lengthText = headers["content-length"],
-                      let contentLength = Int(lengthText.trimmingCharacters(in: .whitespaces)),
-                      contentLength >= 0
+                    let contentLength = Int(lengthText.trimmingCharacters(in: .whitespaces)),
+                    contentLength >= 0
                 else {
                     if Self.methodCarriesBody(method) {
                         self.send(connection: connection, response: .json(400, ["error": "length required"]))
@@ -580,7 +584,7 @@ final class HubServer: @unchecked Sendable {
         var headers = parseHeaders(head)
         var bearer: String?
         if let authorization = headers.removeValue(forKey: "authorization"),
-           authorization.lowercased().hasPrefix("bearer ")
+            authorization.lowercased().hasPrefix("bearer ")
         {
             bearer = String(authorization.dropFirst(7))
         }
@@ -597,9 +601,11 @@ final class HubServer: @unchecked Sendable {
         head += "Connection: close\r\n\r\n"
         var payload = Data(head.utf8)
         payload.append(response.body)
-        connection.send(content: payload, completion: .contentProcessed { _ in
-            connection.cancel()
-        })
+        connection.send(
+            content: payload,
+            completion: .contentProcessed { _ in
+                connection.cancel()
+            })
     }
 
     static func reasonPhrase(_ status: Int) -> String {

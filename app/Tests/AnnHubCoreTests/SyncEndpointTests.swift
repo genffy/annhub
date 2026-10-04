@@ -48,10 +48,11 @@ final class SyncEndpointTests: XCTestCase {
     private func postEvents(
         _ hub: DesktopHub, deviceId: String = "device_1", events: [[String: Any]]
     ) throws -> [String: Any] {
-        let response = hub.handle(HubRequest(
-            method: "POST", path: "/v1/events",
-            bearerToken: token, body: try eventsBody(deviceId: deviceId, events: events)
-        ))
+        let response = hub.handle(
+            HubRequest(
+                method: "POST", path: "/v1/events",
+                bearerToken: token, body: try eventsBody(deviceId: deviceId, events: events)
+            ))
         XCTAssertEqual(response.status, 200)
         return try XCTUnwrap(
             (try? JSONSerialization.jsonObject(with: response.body)) as? [String: Any]
@@ -63,9 +64,10 @@ final class SyncEndpointTests: XCTestCase {
     ) throws -> (status: Int, page: ChangesPageWire?) {
         var path = "/v1/changes?cursor=\(cursor)"
         if let limit { path += "&limit=\(limit)" }
-        let response = hub.handle(HubRequest(
-            method: "GET", path: path, bearerToken: authorized ? token : nil
-        ))
+        let response = hub.handle(
+            HubRequest(
+                method: "GET", path: path, bearerToken: authorized ? token : nil
+            ))
         return (response.status, response.decode(ChangesPageWire.self))
     }
 
@@ -83,9 +85,11 @@ final class SyncEndpointTests: XCTestCase {
         )
         // Malformed authorized bodies still 422, not 401.
         XCTAssertEqual(
-            hub.handle(HubRequest(
-                method: "POST", path: "/v1/events", bearerToken: token, body: Data("not json".utf8)
-            )).status,
+            hub.handle(
+                HubRequest(
+                    method: "POST", path: "/v1/events", bearerToken: token, body: Data("not json".utf8)
+                )
+            ).status,
             422
         )
     }
@@ -131,14 +135,17 @@ final class SyncEndpointTests: XCTestCase {
             rating: .good, reviewedAt: NOW, previousIntervalDays: 0,
             nextIntervalDays: 1, usedHint: false, schedulerVersion: schedulerVersion
         )
-        let event: [[String: Any]] = [[
-            "eventId": "ev-r1",
-            "type": "review.rated",
-            "payload": try JSONSerialization.jsonObject(with: JSONEncoder.learningCore().encode(
-                ReviewRatedPayload(fragmentId: "ghost", review: review, log: log)
-            )),
-            "createdAt": NOW,
-        ]]
+        let event: [[String: Any]] = [
+            [
+                "eventId": "ev-r1",
+                "type": "review.rated",
+                "payload": try JSONSerialization.jsonObject(
+                    with: JSONEncoder.learningCore().encode(
+                        ReviewRatedPayload(fragmentId: "ghost", review: review, log: log)
+                    )),
+                "createdAt": NOW,
+            ]
+        ]
 
         let result = try postEvents(hub, events: event)
         XCTAssertEqual(result["applied"] as? Int, 0)
@@ -171,9 +178,10 @@ final class SyncEndpointTests: XCTestCase {
         return [
             "eventId": eventId,
             "type": "review.rated",
-            "payload": try JSONSerialization.jsonObject(with: JSONEncoder.learningCore().encode(
-                ReviewRatedPayload(fragmentId: fragmentId, review: review, log: log)
-            )),
+            "payload": try JSONSerialization.jsonObject(
+                with: JSONEncoder.learningCore().encode(
+                    ReviewRatedPayload(fragmentId: fragmentId, review: review, log: log)
+                )),
             "createdAt": reviewedAt,
         ]
     }
@@ -181,10 +189,11 @@ final class SyncEndpointTests: XCTestCase {
     func testStaleExternalRatingKeepsNewerLocalStateAndStillRecordsLog() throws {
         let (store, hub) = try makeHub()
         let record = makeFragment(id: "frag_stale")
-        let put = hub.handle(HubRequest(
-            method: "PUT", path: "/v1/fragments/frag_stale",
-            bearerToken: token, body: try putFragmentBody(deviceId: "device_1", record: record)
-        ))
+        let put = hub.handle(
+            HubRequest(
+                method: "PUT", path: "/v1/fragments/frag_stale",
+                bearerToken: token, body: try putFragmentBody(deviceId: "device_1", record: record)
+            ))
         XCTAssertEqual(put.status, 201)
 
         // Local rating at NOW + 1000 (repetitions 1).
@@ -194,12 +203,14 @@ final class SyncEndpointTests: XCTestCase {
 
         // An OLDER extension rating arrives later — state stays local, the log
         // still records, and updatedAt never moves backwards.
-        let result = try postEvents(hub, events: [
-            try reviewEvent(
-                fragmentId: "frag_stale", eventId: "ev-old",
-                reviewedAt: NOW - 5000, repetitions: 7
-            ),
-        ])
+        let result = try postEvents(
+            hub,
+            events: [
+                try reviewEvent(
+                    fragmentId: "frag_stale", eventId: "ev-old",
+                    reviewedAt: NOW - 5000, repetitions: 7
+                )
+            ])
         XCTAssertEqual(result["applied"] as? Int, 1)
         let after = try XCTUnwrap(store.getFragment(id: "frag_stale"))
         XCTAssertEqual(after.review.repetitions, 1, "older rating never overwrites newer state")
@@ -208,12 +219,14 @@ final class SyncEndpointTests: XCTestCase {
         XCTAssertEqual(try store.reviewLogCount(fragmentId: "frag_stale"), 2, "log still records")
 
         // A NEWER external rating DOES apply.
-        _ = try postEvents(hub, events: [
-            try reviewEvent(
-                fragmentId: "frag_stale", eventId: "ev-new",
-                reviewedAt: NOW + 2000, repetitions: 3
-            ),
-        ])
+        _ = try postEvents(
+            hub,
+            events: [
+                try reviewEvent(
+                    fragmentId: "frag_stale", eventId: "ev-new",
+                    reviewedAt: NOW + 2000, repetitions: 3
+                )
+            ])
         XCTAssertEqual(try store.getFragment(id: "frag_stale")?.review.repetitions, 3)
         XCTAssertEqual(try store.reviewLogCount(fragmentId: "frag_stale"), 3)
     }
@@ -221,20 +234,28 @@ final class SyncEndpointTests: XCTestCase {
     func testFragmentEventsRouteLikePutAndPreserveReview() throws {
         let (store, hub) = try makeHub()
         let record = makeFragment(id: "frag_route")
-        _ = try postEvents(hub, events: [[
-            "eventId": "e1", "type": "fragment.created",
-            "payload": try wireAny(toFragmentWire(record)), "createdAt": NOW,
-        ]])
+        _ = try postEvents(
+            hub,
+            events: [
+                [
+                    "eventId": "e1", "type": "fragment.created",
+                    "payload": try wireAny(toFragmentWire(record)), "createdAt": NOW,
+                ]
+            ])
         // Desktop review happens…
         let rated = try store.rateFragment(id: "frag_route", rating: .good, usedHint: false, now: NOW + 1000)
         XCTAssertEqual(rated.fragment.review.repetitions, 1)
 
         // …an extension fragment.updated with the SAME revision + same wire
         // (idempotent) must NOT clobber the review.
-        let replay = try postEvents(hub, events: [[
-            "eventId": "e2", "type": "fragment.updated",
-            "payload": try wireAny(toFragmentWire(record)), "createdAt": NOW + 2000,
-        ]])
+        let replay = try postEvents(
+            hub,
+            events: [
+                [
+                    "eventId": "e2", "type": "fragment.updated",
+                    "payload": try wireAny(toFragmentWire(record)), "createdAt": NOW + 2000,
+                ]
+            ])
         XCTAssertEqual(replay["applied"] as? Int, 1)
         XCTAssertEqual(try store.getFragment(id: "frag_route")?.review.repetitions, 1)
 
@@ -245,10 +266,14 @@ final class SyncEndpointTests: XCTestCase {
         rev2.normalizedContent = normalizeContent(rev2.content)
         rev2.context.excerpt = "Investors saw a hawkish pivot updated stance on rates."
         rev2.updatedAt = NOW + 3000
-        _ = try postEvents(hub, events: [[
-            "eventId": "e3", "type": "fragment.updated",
-            "payload": try wireAny(toFragmentWire(rev2)), "createdAt": NOW + 3000,
-        ]])
+        _ = try postEvents(
+            hub,
+            events: [
+                [
+                    "eventId": "e3", "type": "fragment.updated",
+                    "payload": try wireAny(toFragmentWire(rev2)), "createdAt": NOW + 3000,
+                ]
+            ])
         let stored = try XCTUnwrap(store.getFragment(id: "frag_route"))
         XCTAssertEqual(stored.content, "hawkish pivot updated")
         XCTAssertEqual(stored.captureRevision, 2)
@@ -259,15 +284,18 @@ final class SyncEndpointTests: XCTestCase {
         let (store, hub) = try makeHub()
         // The output workshop and relations left the product (D-10): their
         // events are not part of the contract any more and store nothing.
-        let result = try postEvents(hub, events: [
-            ["eventId": "e-w", "type": "writing.created", "payload": ["id": "task_1"], "createdAt": NOW],
-            ["eventId": "e-r", "type": "relation.created", "payload": ["id": "rel_1"], "createdAt": NOW + 1],
-        ])
+        let result = try postEvents(
+            hub,
+            events: [
+                ["eventId": "e-w", "type": "writing.created", "payload": ["id": "task_1"], "createdAt": NOW],
+                ["eventId": "e-r", "type": "relation.created", "payload": ["id": "rel_1"], "createdAt": NOW + 1],
+            ])
         XCTAssertEqual(result["applied"] as? Int, 0)
         let skipped = try XCTUnwrap(result["skipped"] as? [[String: Any]])
         XCTAssertEqual(skipped.compactMap { $0["reason"] as? String }, ["UNKNOWN_TYPE", "UNKNOWN_TYPE"])
         XCTAssertEqual(try store.changeLogCount(), 0)
-        XCTAssertFalse(try store.isApplied(deviceId: "device_1", eventId: "e-w"), "skipped events leave no applied marker")
+        XCTAssertFalse(
+            try store.isApplied(deviceId: "device_1", eventId: "e-w"), "skipped events leave no applied marker")
     }
 
     // ── GET /v1/changes ──────────────────────────────────────────────────
@@ -275,22 +303,23 @@ final class SyncEndpointTests: XCTestCase {
     /// One delivered fragment plus `ratings` Desktop ratings → `ratings` review.rated rows.
     @discardableResult
     private func seedDesktopMutations(_ store: FragmentStore, ratings: Int = 1) throws -> FragmentRecord {
-        let record = try store.saveFragment(CreateFragmentInput(
-            kind: "concept",
-            content: "hawkish pivot",
-            context: FragmentContextInput(
-                excerpt: "hawkish pivot excerpt.",
-                sourceUrl: "https://www.wsj.com/markets",
-                sourceHost: "wsj.com",
-                capturedAt: NOW
-            ),
-            processing: FragmentProcessing(
-                verified: VerifiedResult(confirmedAt: NOW, source: "manual"),
-                use: "用于验证。"
-            ),
-            detail: .concept(ConceptDetail()),
-            now: NOW
-        ))
+        let record = try store.saveFragment(
+            CreateFragmentInput(
+                kind: "concept",
+                content: "hawkish pivot",
+                context: FragmentContextInput(
+                    excerpt: "hawkish pivot excerpt.",
+                    sourceUrl: "https://www.wsj.com/markets",
+                    sourceHost: "wsj.com",
+                    capturedAt: NOW
+                ),
+                processing: FragmentProcessing(
+                    verified: VerifiedResult(confirmedAt: NOW, source: "manual"),
+                    use: "用于验证。"
+                ),
+                detail: .concept(ConceptDetail()),
+                now: NOW
+            ))
         for index in 0..<ratings {
             _ = try store.rateFragment(id: record.id, rating: .good, usedHint: false, now: NOW + 10 + index)
         }
@@ -300,7 +329,7 @@ final class SyncEndpointTests: XCTestCase {
     func testChangesCursorPaginationIsMonotonic() throws {
         let (store, hub) = try makeHub()
         let record = try seedDesktopMutations(store, ratings: 2)
-        try store.deleteFragment(id: record.id, now: NOW + 50) // fragment.deleted
+        try store.deleteFragment(id: record.id, now: NOW + 50)  // fragment.deleted
         XCTAssertEqual(try store.changeLogCount(), 3)
 
         // Page through with limit 2 — ascending seq, nextCursor monotonic.
@@ -336,19 +365,24 @@ final class SyncEndpointTests: XCTestCase {
         let (store, hub) = try makeHub()
         // Extension PUT (via the R1 endpoint) — no change rows.
         let record = makeFragment(id: "frag_echo")
-        let put = hub.handle(HubRequest(
-            method: "PUT", path: "/v1/fragments/frag_echo",
-            bearerToken: token, body: try putFragmentBody(deviceId: "device_1", record: record)
-        ))
+        let put = hub.handle(
+            HubRequest(
+                method: "PUT", path: "/v1/fragments/frag_echo",
+                bearerToken: token, body: try putFragmentBody(deviceId: "device_1", record: record)
+            ))
         XCTAssertEqual(put.status, 201)
         XCTAssertEqual(try store.changeLogCount(), 0, "extension PUT never feeds back")
 
         // Extension event ingestion — also no change rows.
-        _ = try postEvents(hub, events: [[
-            "eventId": "e-echo", "type": "fragment.created",
-            "payload": try wireAny(toFragmentWire(makeFragment(id: "frag_echo2"))),
-            "createdAt": NOW,
-        ]])
+        _ = try postEvents(
+            hub,
+            events: [
+                [
+                    "eventId": "e-echo", "type": "fragment.created",
+                    "payload": try wireAny(toFragmentWire(makeFragment(id: "frag_echo2"))),
+                    "createdAt": NOW,
+                ]
+            ])
         XCTAssertEqual(try store.changeLogCount(), 0)
 
         // Desktop rating DOES appear.

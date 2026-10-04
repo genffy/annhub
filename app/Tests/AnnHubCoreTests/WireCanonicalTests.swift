@@ -81,10 +81,12 @@ final class WireCanonicalTests: XCTestCase {
             return XCTFail("wire must be an object")
         }
         XCTAssertNil(fields["review"])
-        XCTAssertEqual(Set(fields.keys), Set([
-            "schemaVersion", "id", "captureRevision", "kind", "content", "normalizedContent",
-            "context", "processing", "detail", "tags", "createdAt", "updatedAt",
-        ]))
+        XCTAssertEqual(
+            Set(fields.keys),
+            Set([
+                "schemaVersion", "id", "captureRevision", "kind", "content", "normalizedContent",
+                "context", "processing", "detail", "tags", "createdAt", "updatedAt",
+            ]))
     }
 
     func testSha256AbcVector() {

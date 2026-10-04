@@ -29,7 +29,7 @@ public func createReviewState(now: Int) -> ReviewState {
         lapses: 0,
         intervalDays: 0,
         easeFactor: 2.5,
-        nextReviewAt: now // new fragments are reviewable immediately
+        nextReviewAt: now  // new fragments are reviewable immediately
     )
 }
 

@@ -158,12 +158,13 @@ public final class DesktopHub: @unchecked Sendable {
             // A rejected token is not an extension connection.
             if response.status != 401 { lastConnectionAt = now }
             if request.method == "PUT" {
-                recentDeliveries.append(DeliveryOutcome(
-                    method: request.method,
-                    path: request.path,
-                    status: response.status,
-                    at: now
-                ))
+                recentDeliveries.append(
+                    DeliveryOutcome(
+                        method: request.method,
+                        path: request.path,
+                        status: response.status,
+                        at: now
+                    ))
                 if recentDeliveries.count > deliveryRingCapacity {
                     recentDeliveries.removeFirst(recentDeliveries.count - deliveryRingCapacity)
                 }
@@ -183,13 +184,15 @@ public final class DesktopHub: @unchecked Sendable {
         case ("GET", "/health"):
             // No auth; only version + availability (storage.md §8).
             let paired = withLock { lastPairedAt != nil }
-            return .json(200, [
-                "status": "ok",
-                "version": Self.hubVersion,
-                "apiVersion": Self.apiVersion,
-                "deviceId": store.deviceId,
-                "paired": paired,
-            ])
+            return .json(
+                200,
+                [
+                    "status": "ok",
+                    "version": Self.hubVersion,
+                    "apiVersion": Self.apiVersion,
+                    "deviceId": store.deviceId,
+                    "paired": paired,
+                ])
 
         case ("POST", "/v1/pair"):
             guard let token = request.bearerToken, !token.isEmpty else {
@@ -284,7 +287,7 @@ public final class DesktopHub: @unchecked Sendable {
         _ tree: WireValue, deviceId: String
     ) throws -> Result<FragmentDeliveryOutcome, FragmentDeliveryError> {
         guard let fragmentData = try? JSONEncoder.learningCore().encode(tree),
-              let record = try? JSONDecoder.learningCore().decode(FragmentRecord.self, from: fragmentData)
+            let record = try? JSONDecoder.learningCore().decode(FragmentRecord.self, from: fragmentData)
         else { return .failure(.invalid("INVALID_BODY")) }
         // Full-record validation with the reconstructed fresh review (the
         // wire never carries review; storage.md §8).
@@ -298,9 +301,9 @@ public final class DesktopHub: @unchecked Sendable {
 
     private func putFragment(_ request: HubRequest, urlId: String) -> HubResponse {
         guard let body = request.body,
-              let parsed = try? JSONDecoder().decode(PutFragmentBody.self, from: body),
-              let fragmentData = try? JSONEncoder.learningCore().encode(parsed.fragment),
-              let record = try? JSONDecoder.learningCore().decode(FragmentRecord.self, from: fragmentData)
+            let parsed = try? JSONDecoder().decode(PutFragmentBody.self, from: body),
+            let fragmentData = try? JSONEncoder.learningCore().encode(parsed.fragment),
+            let record = try? JSONDecoder.learningCore().decode(FragmentRecord.self, from: fragmentData)
         else {
             return .json(422, ["error": "INVALID_BODY"])
         }
@@ -340,8 +343,8 @@ public final class DesktopHub: @unchecked Sendable {
         let bytes = request.body ?? Data()
 
         guard let lengthText = request.headers["x-annhub-byte-length"],
-              let headerLength = Int(lengthText.trimmingCharacters(in: .whitespaces)),
-              headerLength > 0
+            let headerLength = Int(lengthText.trimmingCharacters(in: .whitespaces)),
+            headerLength > 0
         else { return .json(422, ["error": "byte_length_invalid"]) }
         guard bytes.count == headerLength else {
             return .json(422, ["error": "byte_length_mismatch"])
@@ -350,14 +353,15 @@ public final class DesktopHub: @unchecked Sendable {
             return .json(413, ["error": "payload too large"])
         }
 
-        let mime = (request.headers["content-type"] ?? "")
+        let mime =
+            (request.headers["content-type"] ?? "")
             .split(separator: ";").first.map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
         guard ImageMimeType(rawValue: mime) != nil else {
             return .json(422, ["error": "mime_type_invalid"])
         }
 
         guard let headerSha = request.headers["x-annhub-sha256"]?.trimmingCharacters(in: .whitespaces),
-              !headerSha.isEmpty
+            !headerSha.isEmpty
         else { return .json(422, ["error": "sha256_missing"]) }
         let actualSha = sha256Hex(bytes)
         guard actualSha == headerSha.lowercased() else {
@@ -379,20 +383,24 @@ public final class DesktopHub: @unchecked Sendable {
         do {
             if let existing = try store.getAsset(id: urlId) {
                 if existing.metadata.sha256 == actualSha {
-                    return .json(200, [
-                        "id": urlId,
-                        "byteLength": existing.metadata.byteLength,
-                        "sha256": existing.metadata.sha256,
-                    ])
+                    return .json(
+                        200,
+                        [
+                            "id": urlId,
+                            "byteLength": existing.metadata.byteLength,
+                            "sha256": existing.metadata.sha256,
+                        ])
                 }
                 return .json(409, ["error": "conflict"])
             }
             _ = try store.putAsset(asset, bytes: bytes)
-            return .json(201, [
-                "id": urlId,
-                "byteLength": bytes.count,
-                "sha256": actualSha,
-            ])
+            return .json(
+                201,
+                [
+                    "id": urlId,
+                    "byteLength": bytes.count,
+                    "sha256": actualSha,
+                ])
         } catch {
             return .json(500, ["error": "storage error"])
         }
@@ -418,8 +426,8 @@ public final class DesktopHub: @unchecked Sendable {
 
     private func postEvents(_ request: HubRequest) -> HubResponse {
         guard let body = request.body,
-              let batch = try? JSONDecoder().decode(EventBatchDecoding.self, from: body),
-              !batch.deviceId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let batch = try? JSONDecoder().decode(EventBatchDecoding.self, from: body),
+            !batch.deviceId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
             return .json(422, ["error": "INVALID_BODY"])
         }
@@ -460,7 +468,7 @@ public final class DesktopHub: @unchecked Sendable {
                     }
                 case "review.rated":
                     guard let payloadData = try? JSONEncoder.learningCore().encode(event.payload),
-                          let rated = try? JSONDecoder.learningCore().decode(ReviewRatedPayload.self, from: payloadData)
+                        let rated = try? JSONDecoder.learningCore().decode(ReviewRatedPayload.self, from: payloadData)
                     else {
                         skip(event.eventId, "INVALID")
                         stored = false
@@ -492,11 +500,13 @@ public final class DesktopHub: @unchecked Sendable {
                 bumpEvents { $0.skipped += 1 }
             }
         }
-        return .json(200, [
-            "applied": applied,
-            "duplicates": duplicates,
-            "skipped": skipped,
-        ])
+        return .json(
+            200,
+            [
+                "applied": applied,
+                "duplicates": duplicates,
+                "skipped": skipped,
+            ])
     }
 
     // ── GET /v1/changes?cursor=<int>&limit=<int> (storage.md §9) ─────────
@@ -523,7 +533,8 @@ public final class DesktopHub: @unchecked Sendable {
                     "type": row.type,
                 ]
                 if let data = row.payloadJson.data(using: .utf8),
-                   let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    let payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                {
                     for (key, value) in payload {
                         object[key] = value
                     }

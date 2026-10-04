@@ -15,11 +15,12 @@ import AnnHubCore
 extension Color {
     /// Brand purple, same tokens as the extension: #673AB8 in the light
     /// appearance, #8A63D2 in the dark one (visual.md).
-    static let annBrand = Color(nsColor: NSColor(name: nil) { appearance in
-        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
-            ? NSColor(srgbRed: 0x8A / 255, green: 0x63 / 255, blue: 0xD2 / 255, alpha: 1)
-            : NSColor(srgbRed: 0x67 / 255, green: 0x3A / 255, blue: 0xB8 / 255, alpha: 1)
-    })
+    static let annBrand = Color(
+        nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                ? NSColor(srgbRed: 0x8A / 255, green: 0x63 / 255, blue: 0xD2 / 255, alpha: 1)
+                : NSColor(srgbRed: 0x67 / 255, green: 0x3A / 255, blue: 0xB8 / 255, alpha: 1)
+        })
 
     static let nsSecondary = Color(nsColor: .quaternaryLabelColor)
 }
@@ -161,8 +162,10 @@ struct TodayView: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(fragment.content).lineLimit(1)
-                                    Text("\(kindLabel(fragment.kind)) · \(fragment.context.sourceHost) · \(writtenDayLabel(fragment.createdAt))")
-                                        .font(.caption).foregroundStyle(.secondary)
+                                    Text(
+                                        "\(kindLabel(fragment.kind)) · \(fragment.context.sourceHost) · \(writtenDayLabel(fragment.createdAt))"
+                                    )
+                                    .font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
                             }
@@ -488,12 +491,19 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title).font(.subheadline.bold()).foregroundStyle(.secondary)
                 ForEach(options, id: \.self) { option in
-                    Toggle(label(option), isOn: Binding(
-                        get: { selection.wrappedValue.contains(option) },
-                        set: { on in
-                            if on { selection.wrappedValue.insert(option) } else { selection.wrappedValue.remove(option) }
-                        }
-                    ))
+                    Toggle(
+                        label(option),
+                        isOn: Binding(
+                            get: { selection.wrappedValue.contains(option) },
+                            set: { on in
+                                if on {
+                                    selection.wrappedValue.insert(option)
+                                } else {
+                                    selection.wrappedValue.remove(option)
+                                }
+                            }
+                        )
+                    )
                     .toggleStyle(.checkbox)
                     .lineLimit(1)
                 }
@@ -839,7 +849,9 @@ struct ReviewSessionView: View {
                         .font(.caption).foregroundStyle(.orange)
                 }
                 Spacer()
-                Button("跳过") { model.skipCurrent(reason: "手动跳过"); resetCard() }
+                Button("跳过") {
+                    model.skipCurrent(reason: "手动跳过"); resetCard()
+                }
                 Button("结束") { dismiss() }
             }
 
@@ -865,7 +877,8 @@ struct ReviewSessionView: View {
 
             // R4 视觉遮挡：揭示前只给像素化图片（roadmap R4.1）。
             if fragment.kind == "visual", !revealed, let assetId = fragment.attachmentIds.first,
-               let image = model.assetImage(assetId: assetId), let occluded = occludedImage(image) {
+                let image = model.assetImage(assetId: assetId), let occluded = occludedImage(image)
+            {
                 VStack(spacing: 4) {
                     Image(nsImage: occluded)
                         .resizable()
@@ -887,7 +900,7 @@ struct ReviewSessionView: View {
                                 if hintCount < idx + 1 { hintCount = idx + 1 }
                                 usedHint = true
                             }
-                            .disabled(idx > hintCount) // 梯度按顺序解锁
+                            .disabled(idx > hintCount)  // 梯度按顺序解锁
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                         }
@@ -1084,11 +1097,21 @@ struct ReviewSessionView: View {
     }
 
     private func label(_ r: ReviewRating) -> String {
-        switch r { case .again: return "再来一次"; case .hard: return "较难"; case .good: return "良好"; case .easy: return "容易" }
+        switch r {
+        case .again: return "再来一次";
+        case .hard: return "较难";
+        case .good: return "良好";
+        case .easy: return "容易"
+        }
     }
 
     private func tint(_ r: ReviewRating) -> Color {
-        switch r { case .again: return .red; case .hard: return .orange; case .good: return .blue; case .easy: return .green }
+        switch r {
+        case .again: return .red;
+        case .hard: return .orange;
+        case .good: return .blue;
+        case .easy: return .green
+        }
     }
 }
 
@@ -1151,7 +1174,9 @@ struct SystemView: View {
 
     private var deliverySection: some View {
         Section("最近交付") {
-            Text("碎片 \(model.deliveredFragmentCount) 条已接收 / 图片 \(model.stats.assets) 张已接收 / 缺失图片 \(model.missingAttachmentCount)")
+            Text(
+                "碎片 \(model.deliveredFragmentCount) 条已接收 / 图片 \(model.stats.assets) 张已接收 / 缺失图片 \(model.missingAttachmentCount)"
+            )
             let issues = model.attentionItems
             if issues.isEmpty {
                 Label("需要处理：无", systemImage: "checkmark.circle")
@@ -1211,8 +1236,10 @@ struct SystemView: View {
                 Text(model.syncInfo.lastPulledAt.map(relativeAgo) ?? "暂无")
             }
             LabeledContent("/v1/events 接收") {
-                Text("接收 \(model.syncInfo.events.received) · 应用 \(model.syncInfo.events.applied) · 重复 \(model.syncInfo.events.duplicates) · 跳过 \(model.syncInfo.events.skipped)")
-                    .font(.caption)
+                Text(
+                    "接收 \(model.syncInfo.events.received) · 应用 \(model.syncInfo.events.applied) · 重复 \(model.syncInfo.events.duplicates) · 跳过 \(model.syncInfo.events.skipped)"
+                )
+                .font(.caption)
             }
         }
     }
@@ -1265,7 +1292,9 @@ struct PreferencesView: View {
     private var reminderEnabled: Binding<Bool> {
         Binding(
             get: { model.reminder.enabled },
-            set: { model.reminder = ReviewReminder(enabled: $0, hour: model.reminder.hour, minute: model.reminder.minute) }
+            set: {
+                model.reminder = ReviewReminder(enabled: $0, hour: model.reminder.hour, minute: model.reminder.minute)
+            }
         )
     }
 
@@ -1329,7 +1358,7 @@ struct PreferencesView: View {
 /// No third-party image dependencies.
 func occludedImage(_ image: NSImage, targetWidth: Int = 24) -> NSImage? {
     guard let rep = image.representations.first,
-          rep.pixelsWide > 0, rep.pixelsHigh > 0
+        rep.pixelsWide > 0, rep.pixelsHigh > 0
     else { return nil }
     let width = rep.pixelsWide
     let height = rep.pixelsHigh

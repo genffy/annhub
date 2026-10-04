@@ -72,9 +72,10 @@ public let REVIEW_QUESTIONS: [String: ReviewQuestionSpec] = [
 ]
 
 public func reviewQuestion(for kind: String) -> ReviewQuestionSpec {
-    REVIEW_QUESTIONS[kind] ?? ReviewQuestionSpec(
-        kind: kind, question: "回忆这条碎片的关键内容。", hints: ["主题", "上下文", "原文", "核验确认"]
-    )
+    REVIEW_QUESTIONS[kind]
+        ?? ReviewQuestionSpec(
+            kind: kind, question: "回忆这条碎片的关键内容。", hints: ["主题", "上下文", "原文", "核验确认"]
+        )
 }
 
 // ── hint ladder content (desktop.md §5.3) ────────────────────────────────

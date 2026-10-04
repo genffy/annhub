@@ -92,38 +92,42 @@ final class InteropTests: XCTestCase {
         let store = try freshStore()
         let hub = DesktopHub(store: store, pairToken: "tok")
         let conceptBody = try fixtureData("fragment-put-concept.json")
-        let putFragment = hub.handle(HubRequest(
-            method: "PUT", path: "/v1/fragments/eDiLZ7Nxg_6Q",
-            bearerToken: "tok", body: conceptBody
-        ))
+        let putFragment = hub.handle(
+            HubRequest(
+                method: "PUT", path: "/v1/fragments/eDiLZ7Nxg_6Q",
+                bearerToken: "tok", body: conceptBody
+            ))
         XCTAssertEqual(putFragment.status, 201)
 
         let visualBody = try fixtureData("fragment-put-visual.json")
-        let putVisual = hub.handle(HubRequest(
-            method: "PUT", path: "/v1/fragments/RruKgJsHbg0V",
-            bearerToken: "tok", body: visualBody
-        ))
+        let putVisual = hub.handle(
+            HubRequest(
+                method: "PUT", path: "/v1/fragments/RruKgJsHbg0V",
+                bearerToken: "tok", body: visualBody
+            ))
         XCTAssertEqual(putVisual.status, 201)
 
         let clipBody = try fixtureData("fragment-put-media-clip.json")
-        let putClip = hub.handle(HubRequest(
-            method: "PUT", path: "/v1/fragments/XrjLmqIJmR4G",
-            bearerToken: "tok", body: clipBody
-        ))
+        let putClip = hub.handle(
+            HubRequest(
+                method: "PUT", path: "/v1/fragments/XrjLmqIJmR4G",
+                bearerToken: "tok", body: clipBody
+            ))
         XCTAssertEqual(putClip.status, 201)
 
         let meta = try JSONDecoder().decode(AssetMetaFixture.self, from: fixtureData("asset-meta.json"))
         let bytes = try fixtureData("asset.png")
-        let putAsset = hub.handle(HubRequest(
-            method: "PUT", path: "/v1/assets/asset_fix1",
-            bearerToken: "tok",
-            headers: [
-                "Content-Type": meta.mimeType,
-                "X-AnnHub-Sha256": meta.sha256,
-                "X-AnnHub-Byte-Length": String(meta.byteLength),
-            ],
-            body: bytes
-        ))
+        let putAsset = hub.handle(
+            HubRequest(
+                method: "PUT", path: "/v1/assets/asset_fix1",
+                bearerToken: "tok",
+                headers: [
+                    "Content-Type": meta.mimeType,
+                    "X-AnnHub-Sha256": meta.sha256,
+                    "X-AnnHub-Byte-Length": String(meta.byteLength),
+                ],
+                body: bytes
+            ))
         XCTAssertEqual(putAsset.status, 201)
         XCTAssertEqual(try store.getFragments().count, 3)
         XCTAssertEqual(try store.missingAttachmentCount(), 0)

@@ -29,7 +29,9 @@ public enum DemoSeed {
     /// Desktop never creates fragments itself (desktop.md §3.3).
     public static let demoDeviceId = "demo-seed"
 
-    private static func createDemoFragment(_ store: FragmentStore, _ input: CreateFragmentInput) throws -> FragmentRecord {
+    private static func createDemoFragment(_ store: FragmentStore, _ input: CreateFragmentInput) throws
+        -> FragmentRecord
+    {
         let record = try createFragment(input)
         try store.upsertFragment(record, deviceId: demoDeviceId, payloadHash: "")
         return record
@@ -58,25 +60,28 @@ public enum DemoSeed {
             sourceUrl: String, sourceTitle: String?, tags: [String],
             detail: FragmentDetail, locator: FragmentLocator = .none
         ) {
-            if let record = try? createDemoFragment(store, CreateFragmentInput(
-                kind: kind,
-                content: content,
-                context: FragmentContextInput(
-                    excerpt: excerpt,
-                    sourceUrl: sourceUrl,
-                    sourceHost: normalizeHost(url: sourceUrl) ?? "",
-                    sourceTitle: sourceTitle,
-                    locator: locator,
-                    capturedAt: now
-                ),
-                processing: FragmentProcessing(
-                    verified: VerifiedResult(confirmedAt: now, source: "source-material"),
-                    use: use
-                ),
-                detail: detail,
-                tags: tags,
-                now: now
-            )) {
+            if let record = try? createDemoFragment(
+                store,
+                CreateFragmentInput(
+                    kind: kind,
+                    content: content,
+                    context: FragmentContextInput(
+                        excerpt: excerpt,
+                        sourceUrl: sourceUrl,
+                        sourceHost: normalizeHost(url: sourceUrl) ?? "",
+                        sourceTitle: sourceTitle,
+                        locator: locator,
+                        capturedAt: now
+                    ),
+                    processing: FragmentProcessing(
+                        verified: VerifiedResult(confirmedAt: now, source: "source-material"),
+                        use: use
+                    ),
+                    detail: detail,
+                    tags: tags,
+                    now: now
+                ))
+            {
                 created.append(record)
             }
         }
@@ -89,10 +94,11 @@ public enum DemoSeed {
             sourceUrl: "https://www.wsj.com/articles/fed-hawkish-pivot",
             sourceTitle: "WSJ — Fed coverage",
             tags: ["fed", "macro"],
-            detail: .concept(ConceptDetail(
-                definition: "央行转向更紧缩政策",
-                boundaries: ["不等于加息本身"]
-            ))
+            detail: .concept(
+                ConceptDetail(
+                    definition: "央行转向更紧缩政策",
+                    boundaries: ["不等于加息本身"]
+                ))
         )
         add(
             "claim",
@@ -112,11 +118,12 @@ public enum DemoSeed {
             sourceUrl: "annhub://manual/demo-procedure",
             sourceTitle: nil,
             tags: ["method"],
-            detail: .procedure(ProcedureDetail(steps: [
-                "列出本周数据日历",
-                "核对当前仓位与风险敞口",
-                "写三条结论并标注置信度",
-            ]))
+            detail: .procedure(
+                ProcedureDetail(steps: [
+                    "列出本周数据日历",
+                    "核对当前仓位与风险敞口",
+                    "写三条结论并标注置信度",
+                ]))
         )
         add(
             "decision",
@@ -126,10 +133,11 @@ public enum DemoSeed {
             sourceUrl: "annhub://manual/demo-decision",
             sourceTitle: nil,
             tags: ["risk"],
-            detail: .decision(DecisionDetail(
-                rationale: "波动率升高且信号冲突，先保住本金",
-                alternatives: ["维持原仓位", "加对冲"]
-            ))
+            detail: .decision(
+                DecisionDetail(
+                    rationale: "波动率升高且信号冲突，先保住本金",
+                    alternatives: ["维持原仓位", "加对冲"]
+                ))
         )
         add(
             "inspiration",

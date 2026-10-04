@@ -41,7 +41,8 @@ public func dailyReviewPlan(
     for log in logs where log.reviewedAt >= dayStart && log.reviewedAt <= now {
         ratedToday.insert(log.target.fragmentId)
     }
-    let due = fragments
+    let due =
+        fragments
         .filter { $0.review.nextReviewAt <= now }
         .sorted(by: dailyQueueOrder)
     return DailyReviewPlan(
@@ -103,7 +104,8 @@ public func sessionWrapUp(
             byDay[startOfLocalDay(fragment.review.nextReviewAt, calendar: calendar), default: 0] += 1
         }
     }
-    let upcoming = byDay
+    let upcoming =
+        byDay
         .sorted { $0.key < $1.key }
         .prefix(3)
         .map { UpcomingDue(dayStart: $0.key, count: $0.value) }

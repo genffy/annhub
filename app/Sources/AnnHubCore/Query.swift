@@ -110,7 +110,7 @@ func searchScore(_ fields: [WeightedField], words: [String]) -> Int? {
         for field in fields where field.text.contains(word) && field.weight > best {
             best = field.weight
         }
-        if best == 0 { return nil } // a word hit nothing — record excluded
+        if best == 0 { return nil }  // a word hit nothing — record excluded
         score += best
     }
     return score
@@ -161,19 +161,22 @@ struct CursorPayload: Encodable {
 }
 
 func encodeQueryCursor(_ key: QuerySortKey) -> String {
-    guard let data = try? JSONEncoder().encode(CursorPayload(
-        score: key.score, createdAt: key.createdAt, id: key.id
-    )) else { return "[]" }
+    guard
+        let data = try? JSONEncoder().encode(
+            CursorPayload(
+                score: key.score, createdAt: key.createdAt, id: key.id
+            ))
+    else { return "[]" }
     return String(data: data, encoding: .utf8) ?? "[]"
 }
 
 func decodeQueryCursor(_ cursor: String) -> QuerySortKey? {
     guard let data = cursor.data(using: .utf8),
-          let triple = try? JSONDecoder().decode([JSONValueBox].self, from: data),
-          triple.count == 3,
-          let score = triple[0].intValue,
-          let createdAt = triple[1].intValue,
-          let id = triple[2].stringValue
+        let triple = try? JSONDecoder().decode([JSONValueBox].self, from: data),
+        triple.count == 3,
+        let score = triple[0].intValue,
+        let createdAt = triple[1].intValue,
+        let id = triple[2].stringValue
     else { return nil }
     return QuerySortKey(score: score, createdAt: createdAt, id: id)
 }
@@ -253,7 +256,8 @@ private func collectCounts(_ values: [String]) -> [String] {
     for value in values {
         counts[value, default: 0] += 1
     }
-    return counts
+    return
+        counts
         .sorted { a, b in
             if a.value != b.value { return a.value > b.value }
             return a.key < b.key

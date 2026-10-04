@@ -14,7 +14,9 @@ public struct ReviewReminder: Codable, Equatable, Sendable {
     public var hour: Int
     public var minute: Int
 
-    public init(enabled: Bool = false, hour: Int = ReviewReminder.defaultHour, minute: Int = ReviewReminder.defaultMinute) {
+    public init(
+        enabled: Bool = false, hour: Int = ReviewReminder.defaultHour, minute: Int = ReviewReminder.defaultMinute
+    ) {
         self.enabled = enabled
         self.hour = min(max(hour, 0), 23)
         self.minute = min(max(minute, 0), 59)
