@@ -1,20 +1,12 @@
 // R3 change-feed shapes — mirrors learning-core/sync.ts DesktopChange
 // (docs/v2/storage.md §9). The Desktop ORIGINATES these rows; the extension
 // merges them through applyDesktopChanges. Field names are camelCase and must
-// stay byte-identical to the TS interfaces: fragmentId / review / log / task /
-// relation / relationId / suppression / fragment.
+// stay byte-identical to the TS interfaces: fragmentId / review / log.
 
 import Foundation
 
 public enum DesktopChangeType: String, Codable, Sendable {
     case reviewRated = "review.rated"
-    case writingCreated = "writing.created"
-    case writingSubmitted = "writing.submitted"
-    case relationCreated = "relation.created"
-    case relationUpdated = "relation.updated"
-    case relationDeleted = "relation.deleted"
-    case suppressionSync = "suppression.sync"
-    case fragmentCreated = "fragment.created"
     case fragmentDeleted = "fragment.deleted"
 }
 
@@ -28,51 +20,6 @@ public struct ReviewRatedPayload: Codable, Equatable, Sendable {
         self.fragmentId = fragmentId
         self.review = review
         self.log = log
-    }
-}
-
-/// writing.created / writing.submitted — payload = the full task JSON.
-public struct WritingChangedPayload: Codable, Equatable, Sendable {
-    public var task: WritingTaskRecord
-
-    public init(task: WritingTaskRecord) {
-        self.task = task
-    }
-}
-
-/// relation.created / relation.updated — CONFIRMED relations only; suggested
-/// candidates never travel (storage.md §9).
-public struct RelationChangedPayload: Codable, Equatable, Sendable {
-    public var relation: FragmentRelation
-
-    public init(relation: FragmentRelation) {
-        self.relation = relation
-    }
-}
-
-public struct RelationDeletedPayload: Codable, Equatable, Sendable {
-    public var relationId: String
-
-    public init(relationId: String) {
-        self.relationId = relationId
-    }
-}
-
-public struct SuppressionSyncPayload: Codable, Equatable, Sendable {
-    public var suppression: RelationSuppression
-
-    public init(suppression: RelationSuppression) {
-        self.suppression = suppression
-    }
-}
-
-/// fragment.created — Desktop-created fragment in full (incl. review), e.g. a
-/// question draft from output feedback (annhub://writing-task source).
-public struct FragmentCreatedPayload: Codable, Equatable, Sendable {
-    public var fragment: FragmentRecord
-
-    public init(fragment: FragmentRecord) {
-        self.fragment = fragment
     }
 }
 

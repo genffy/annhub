@@ -104,47 +104,19 @@ func makeFragmentOf(kind: String) -> FragmentRecord {
     makeFragment(kind: kind)
 }
 
-/// A valid user-created confirmed relation.
-func validRelation(
-    id: String = "rel_1",
-    from: String = "frag_a",
-    to: String = "frag_b",
-    type: String = "reference"
-) -> FragmentRelation {
-    FragmentRelation(
-        id: id,
-        fromFragmentId: from,
-        toFragmentId: to,
-        type: type,
-        createdBy: "user",
-        status: "confirmed",
-        confirmedAt: NOW,
-        confirmedBy: "user",
-        createdAt: NOW,
-        updatedAt: NOW
-    )
-}
+/// Device id stamped on fragments seeded by tests — the Desktop never creates
+/// fragments itself; they always arrive as extension deliveries (desktop.md §3.3).
+let testSeedDeviceId = "ext-test"
 
-func validAutoRelation(
-    id: String = "rel_auto",
-    from: String = "frag_a",
-    to: String = "frag_b",
-    type: String = "reference",
-    confidence: Double? = 0.8,
-    reason: String? = "同主题共现"
-) -> FragmentRelation {
-    FragmentRelation(
-        id: id,
-        fromFragmentId: from,
-        toFragmentId: to,
-        type: type,
-        createdBy: "auto",
-        confidence: confidence,
-        suggestionReason: reason,
-        status: "suggested",
-        createdAt: NOW,
-        updatedAt: NOW
-    )
+extension FragmentStore {
+    /// Seeds a fragment the way a delivery lands it: factory validation, then a
+    /// full-row upsert under an extension device id.
+    @discardableResult
+    func saveFragment(_ input: CreateFragmentInput) throws -> FragmentRecord {
+        let record = try createFragment(input)
+        try upsertFragment(record, deviceId: testSeedDeviceId, payloadHash: "")
+        return record
+    }
 }
 
 func freshStore() throws -> FragmentStore {

@@ -10,19 +10,13 @@ final class SyncEndpointTests: XCTestCase {
 
     // ── lightweight Decodable mirrors of the sync.ts DesktopChange shapes;
     // decoding a served page through them proves the field names travel
-    // exactly (fragmentId / review / log / task / relation / relationId /
-    // suppression / fragment, camelCase).
+    // exactly (fragmentId / review / log, camelCase).
     struct SyncChangeWire: Decodable {
         var seq: Int
         var type: String
         var fragmentId: String?
         var review: ReviewState?
         var log: ReviewLog?
-        var task: WritingTaskRecord?
-        var relation: FragmentRelation?
-        var relationId: String?
-        var suppression: RelationSuppression?
-        var fragment: FragmentRecord?
     }
 
     struct ChangesPageWire: Decodable {
@@ -101,20 +95,14 @@ final class SyncEndpointTests: XCTestCase {
     func testEventsBatchIsIdempotentPerDeviceAndEventId() throws {
         let (store, hub) = try makeHub()
         let record = makeFragment(id: "frag_ev1")
-        let task = createWritingTask(CreateWritingTaskInput(
-            taskType: "article", topic: "x", fragmentIds: ["frag_ev1"], now: NOW
-        ))
-        let taskAny = try JSONSerialization.jsonObject(
-            with: JSONEncoder.learningCore().encode(task)
-        )
         let events: [[String: Any]] = [
             [
                 "eventId": "ev-1", "type": "fragment.created",
                 "payload": try wireAny(toFragmentWire(record)), "createdAt": NOW,
             ],
             [
-                "eventId": "ev-2", "type": "writing.created",
-                "payload": taskAny, "createdAt": NOW + 1,
+                "eventId": "ev-2", "type": "fragment.updated",
+                "payload": try wireAny(toFragmentWire(record)), "createdAt": NOW + 1,
             ],
         ]
 
@@ -123,14 +111,12 @@ final class SyncEndpointTests: XCTestCase {
         XCTAssertEqual(first["duplicates"] as? Int, 0)
         XCTAssertEqual((first["skipped"] as? [[String: Any]])?.count, 0)
         XCTAssertEqual(try store.getFragments().map(\.id), ["frag_ev1"])
-        XCTAssertEqual(try store.getWritingTasks().map(\.id), [task.id])
 
         // Exact same batch again → all duplicates, no double-writes.
         let second = try postEvents(hub, events: events)
         XCTAssertEqual(second["applied"] as? Int, 0)
         XCTAssertEqual(second["duplicates"] as? Int, 2)
         XCTAssertEqual(try store.getFragments().count, 1)
-        XCTAssertEqual(try store.getWritingTasks().count, 1)
 
         // A different device replaying the same eventIds applies anew.
         let other = try postEvents(hub, deviceId: "device_2", events: events)
@@ -269,54 +255,27 @@ final class SyncEndpointTests: XCTestCase {
         XCTAssertEqual(stored.review.repetitions, 1, "review domain survives capture updates")
     }
 
-    func testWritingAndRelationEventsValidateAndUpsert() throws {
+    func testEventTypesOutsideTheContractAreSkippedAsUnknown() throws {
         let (store, hub) = try makeHub()
-        // Invalid relation → skipped INVALID, nothing stored.
-        let badRelation = validRelation(from: "a", to: "a") // self-reference
-        let bad = try postEvents(hub, events: [[
-            "eventId": "e-bad", "type": "relation.created",
-            "payload": try JSONSerialization.jsonObject(
-                with: JSONEncoder.learningCore().encode(badRelation)
-            ),
-            "createdAt": NOW,
-        ]])
-        XCTAssertEqual(bad["applied"] as? Int, 0)
-        XCTAssertEqual(
-            ((bad["skipped"] as? [[String: Any]])?.first)?["reason"] as? String, "INVALID"
-        )
-
-        let relation = validRelation(id: "rel_ev", from: "frag_a", to: "frag_b")
-        let task = createWritingTask(CreateWritingTaskInput(
-            taskType: "plan", topic: "x", fragmentIds: [], now: NOW
-        ))
+        // The output workshop and relations left the product (D-10): their
+        // events are not part of the contract any more and store nothing.
         let result = try postEvents(hub, events: [
-            [
-                "eventId": "e-rel", "type": "relation.created",
-                "payload": try JSONSerialization.jsonObject(
-                    with: JSONEncoder.learningCore().encode(relation)
-                ),
-                "createdAt": NOW,
-            ],
-            [
-                "eventId": "e-w", "type": "writing.created",
-                "payload": try JSONSerialization.jsonObject(
-                    with: JSONEncoder.learningCore().encode(task)
-                ),
-                "createdAt": NOW + 1,
-            ],
+            ["eventId": "e-w", "type": "writing.created", "payload": ["id": "task_1"], "createdAt": NOW],
+            ["eventId": "e-r", "type": "relation.created", "payload": ["id": "rel_1"], "createdAt": NOW + 1],
         ])
-        XCTAssertEqual(result["applied"] as? Int, 2)
-        XCTAssertEqual(try store.getRelations().map(\.id), ["rel_ev"])
-        XCTAssertEqual(try store.getWritingTasks().map(\.id), [task.id])
-        // Ingested events append NO change rows (echo exclusion).
+        XCTAssertEqual(result["applied"] as? Int, 0)
+        let skipped = try XCTUnwrap(result["skipped"] as? [[String: Any]])
+        XCTAssertEqual(skipped.compactMap { $0["reason"] as? String }, ["UNKNOWN_TYPE", "UNKNOWN_TYPE"])
         XCTAssertEqual(try store.changeLogCount(), 0)
+        XCTAssertFalse(try store.isApplied(deviceId: "device_1", eventId: "e-w"), "skipped events leave no applied marker")
     }
 
     // ── GET /v1/changes ──────────────────────────────────────────────────
 
-    private func seedDesktopMutations(_ store: FragmentStore) throws {
-        // Desktop-created fragment (question draft style).
-        _ = try store.saveFragment(CreateFragmentInput(
+    /// One delivered fragment plus `ratings` Desktop ratings → `ratings` review.rated rows.
+    @discardableResult
+    private func seedDesktopMutations(_ store: FragmentStore, ratings: Int = 1) throws -> FragmentRecord {
+        let record = try store.saveFragment(CreateFragmentInput(
             kind: "concept",
             content: "hawkish pivot",
             context: FragmentContextInput(
@@ -332,25 +291,17 @@ final class SyncEndpointTests: XCTestCase {
             detail: .concept(ConceptDetail()),
             now: NOW
         ))
-        // Rating.
-        let fragments = try store.getFragments()
-        _ = try store.rateFragment(id: fragments[0].id, rating: .good, usedHint: false, now: NOW + 10)
+        for index in 0..<ratings {
+            _ = try store.rateFragment(id: record.id, rating: .good, usedHint: false, now: NOW + 10 + index)
+        }
+        return record
     }
 
     func testChangesCursorPaginationIsMonotonic() throws {
         let (store, hub) = try makeHub()
-        try seedDesktopMutations(store)
-        var task = createWritingTask(CreateWritingTaskInput(
-            taskType: "article", topic: "x", fragmentIds: ["f"], now: NOW + 20
-        ))
-        try store.saveWritingTask(task) // writing.created
-        task = appendSubmission(task, "正文", now: NOW + 30)
-        try store.saveWritingTask(task) // writing.submitted
-        try store.saveRelation(validRelation(id: "rel_p", from: "a", to: "b")) // relation.created
-        try store.deleteFragment(id: try store.getFragments()[0].id, now: NOW + 50) // fragment.deleted
-        // 6 rows: fragment.created, review.rated, writing.created,
-        // writing.submitted, relation.created, fragment.deleted
-        XCTAssertEqual(try store.changeLogCount(), 6)
+        let record = try seedDesktopMutations(store, ratings: 2)
+        try store.deleteFragment(id: record.id, now: NOW + 50) // fragment.deleted
+        XCTAssertEqual(try store.changeLogCount(), 3)
 
         // Page through with limit 2 — ascending seq, nextCursor monotonic.
         var cursor = 0
@@ -373,11 +324,7 @@ final class SyncEndpointTests: XCTestCase {
             pages += 1
             XCTAssertLessThan(pages, 10, "pagination must terminate")
         }
-        XCTAssertEqual(all.count, 6)
-        XCTAssertEqual(all.map(\.type), [
-            "fragment.created", "review.rated", "writing.created",
-            "writing.submitted", "relation.created", "fragment.deleted",
-        ])
+        XCTAssertEqual(all.map(\.type), ["review.rated", "review.rated", "fragment.deleted"])
 
         // Pulling again from the last cursor is empty.
         let (status, page) = try getChanges(hub, cursor: cursor)
@@ -414,96 +361,32 @@ final class SyncEndpointTests: XCTestCase {
         XCTAssertEqual(changes[0].fragmentId, "frag_echo")
     }
 
-    func testChangesDesktopFragmentAppearsWithFullPayloadIncludingReview() throws {
-        let (store, hub) = try makeHub()
-        try seedDesktopMutations(store)
-        let created = try XCTUnwrap(store.getFragments().first.map(\.id))
-        let fragmentRow = try XCTUnwrap(store.getFragment(id: created))
-        _ = fragmentRow
-
-        let (_, page) = try getChanges(hub, cursor: 0, limit: 1)
-        let change = try XCTUnwrap(XCTUnwrap(page).changes.first)
-        XCTAssertEqual(change.type, "fragment.created")
-        let fragment = try XCTUnwrap(change.fragment, "full FragmentRecord payload")
-        XCTAssertEqual(fragment.id, created)
-        XCTAssertEqual(fragment.schemaVersion, 4)
-        XCTAssertEqual(fragment.review.state, .new, "review travels on fragment.created")
-        XCTAssertEqual(fragment.kind, "concept")
-    }
-
     func testChangesPayloadFieldNamesMatchSyncShapesExactly() throws {
         let (store, hub) = try makeHub()
-        try seedDesktopMutations(store)
-        let fragmentId = try store.getFragments()[0].id
-
-        var task = createWritingTask(CreateWritingTaskInput(
-            taskType: "retrospective", topic: "x", fragmentIds: [fragmentId], now: NOW + 20
-        ))
-        try store.saveWritingTask(task)
-        task = appendSubmission(task, "正文", now: NOW + 30)
-        task = seedLocalPresence(task, try store.getFragments())
-        task = confirmAssessments(task, [
-            AssessmentConfirmation(fragmentId: fragmentId, used: true, correct: true),
-        ], now: NOW + 40)
-        try store.saveWritingTask(task)
-
-        let accepted = confirmSuggestion(RelationSuggestion(
-            fromFragmentId: "aa", toFragmentId: "bb", suggestedType: "similarity",
-            confidence: 0.6, reason: "同来源 wsj.com"
-        ), now: NOW + 50)
-        try store.saveRelation(accepted)
-        var updated = accepted
-        updated.note = "更新备注"
-        updated.updatedAt = NOW + 60
-        try store.saveRelation(updated) // relation.updated
-
-        try store.saveSuppression(rejectSuggestion(RelationSuggestion(
-            fromFragmentId: "cc", toFragmentId: "dd", suggestedType: "reference",
-            confidence: 0.4, reason: "同来源 wsj.com"
-        ), reason: "拒绝", now: NOW + 70))
-
-        try store.deleteFragment(id: fragmentId, now: NOW + 80)
+        let record = try seedDesktopMutations(store)
+        try store.deleteFragment(id: record.id, now: NOW + 80)
 
         // Every change decodes into the sync.ts DesktopChange mirror struct —
         // wrong/missing field names would fail decoding.
         let (_, page) = try getChanges(hub, cursor: 0)
         let changes = try XCTUnwrap(page).changes
-        XCTAssertEqual(changes.map(\.type), [
-            "fragment.created", "review.rated", "writing.created", "writing.submitted",
-            "relation.created", "relation.updated", "suppression.sync", "fragment.deleted",
-        ])
+        XCTAssertEqual(changes.map(\.type), ["review.rated", "fragment.deleted"])
 
-        let rated = changes[1]
-        XCTAssertEqual(rated.fragmentId, fragmentId)
+        let rated = changes[0]
+        XCTAssertEqual(rated.fragmentId, record.id)
         XCTAssertEqual(rated.review?.repetitions, 1, "review state AFTER the rating")
-        XCTAssertEqual(rated.log?.target.fragmentId, fragmentId)
+        XCTAssertEqual(rated.log?.target.fragmentId, record.id)
         XCTAssertEqual(rated.log?.schedulerVersion, schedulerVersion)
 
-        let submitted = changes[3]
-        XCTAssertEqual(submitted.task?.id, task.id)
-        XCTAssertEqual(submitted.task?.submissions.count, 1)
-        XCTAssertEqual(
-            submitted.task?.submissions.first?.assessments.first?.used, true
-        )
-
-        let relUpdated = changes[5]
-        XCTAssertEqual(relUpdated.relation?.id, accepted.id)
-        XCTAssertEqual(relUpdated.relation?.status, "confirmed")
-        XCTAssertEqual(relUpdated.relation?.note, "更新备注")
-        XCTAssertEqual(relUpdated.relation?.confirmedBy, "user")
-
-        let suppression = changes[6]
-        XCTAssertEqual(suppression.suppression?.suggestedType, "reference")
-        XCTAssertEqual(suppression.suppression?.reason, "拒绝")
-
-        let deleted = changes[7]
-        XCTAssertEqual(deleted.type, "fragment.deleted")
-        XCTAssertEqual(deleted.fragmentId, fragmentId)
+        let deleted = changes[1]
+        XCTAssertEqual(deleted.fragmentId, record.id)
+        XCTAssertNil(deleted.review)
+        XCTAssertNil(deleted.log)
     }
 
     func testChangesPulledCursorAdvances() throws {
         let (store, hub) = try makeHub()
-        try seedDesktopMutations(store)
+        try seedDesktopMutations(store, ratings: 2)
         XCTAssertEqual(try store.pendingChangeCount(), 2)
         let (_, page) = try getChanges(hub, cursor: 0, limit: 1)
         let next = try XCTUnwrap(page?.nextCursor)

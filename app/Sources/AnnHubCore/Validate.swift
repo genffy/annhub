@@ -45,7 +45,6 @@ public enum FragmentErrorCode: String, Sendable {
     case useCopiesExcerpt = "USE_COPIES_EXCERPT"
     case detailKindMismatch = "DETAIL_KIND_MISMATCH"
     case detailFieldInvalid = "DETAIL_FIELD_INVALID"
-    case claimStanceRequired = "CLAIM_STANCE_REQUIRED"
     case procedureStepsRequired = "PROCEDURE_STEPS_REQUIRED"
     case decisionRationaleRequired = "DECISION_RATIONALE_REQUIRED"
     case questionStatusInvalid = "QUESTION_STATUS_INVALID"
@@ -55,17 +54,6 @@ public enum FragmentErrorCode: String, Sendable {
     case inspirationFormInvalid = "INSPIRATION_FORM_INVALID"
     case reviewStateInvalid = "REVIEW_STATE_INVALID"
 
-    // Relation codes (storage.md §3.3) — shared validation union, as in TS.
-    case relationEndpointInvalid = "RELATION_ENDPOINT_INVALID"
-    case relationSelfReference = "RELATION_SELF_REFERENCE"
-    case relationTypeInvalid = "RELATION_TYPE_INVALID"
-    case relationCreatedByInvalid = "RELATION_CREATED_BY_INVALID"
-    case relationStatusInvalid = "RELATION_STATUS_INVALID"
-    case relationConfidenceInvalid = "RELATION_CONFIDENCE_INVALID"
-    case relationSuggestionReasonRequired = "RELATION_SUGGESTION_REASON_REQUIRED"
-    case relationConfirmMetaRequired = "RELATION_CONFIRM_META_REQUIRED"
-    case relationCanonicalOrder = "RELATION_CANONICAL_ORDER"
-    case relationTimestampInvalid = "RELATION_TIMESTAMP_INVALID"
 }
 
 public struct ValidationResult: Sendable {
@@ -211,14 +199,6 @@ public func validateSourcePair(sourceUrl: String, sourceHost: String) -> Validat
         }
         return .passed
     }
-    if sourceUrl.hasPrefix("annhub://writing-task/") {
-        let id = String(sourceUrl.dropFirst("annhub://writing-task/".count))
-        if !isValidAnnHubLocalId(id) { return .fail(.sourceUrlInvalid) }
-        if sourceHost != "writing-task" {
-            return .fail(.sourceHostMismatch, ["got": sourceHost, "need": "writing-task"])
-        }
-        return .passed
-    }
     guard let url = URL(string: sourceUrl),
           let scheme = url.scheme?.lowercased(),
           scheme == "http" || scheme == "https",
@@ -310,9 +290,9 @@ func validateClaimDetail(_ detail: WireValue) -> ValidationResult {
     guard let fields = detail.objectValue else {
         return .fail(.detailKindMismatch, ["kind": "claim"])
     }
-    let stance = fields["stance"]?.stringValue
-    if stance != "support" && stance != "oppose" && stance != "uncertain" {
-        return .fail(.claimStanceRequired)
+    // Optional in the data layer (fragments.md §4); the capture form asks for it.
+    if let stance = fields["stance"], stance.stringValue.map({ ["support", "oppose", "uncertain"].contains($0) }) != true {
+        return .fail(.detailFieldInvalid, ["field": "detail.stance"])
     }
     for field in ["evidence", "assumptions"] {
         if let failure = checkStringList(fields[field], field: "detail.\(field)", maxItems: 20, maxItem: 500) {
@@ -603,67 +583,4 @@ public func assertValid(_ f: FragmentRecord) throws {
     if !result.ok {
         throw FragmentValidationError(code: result.code ?? .detailFieldInvalid, info: result.info)
     }
-}
-
-// ── relations (storage.md §3.3) ──────────────────────────────────────────
-
-/// Returns the canonically ordered endpoint pair for a relation type
-/// (similarity / contrast are stored endpoint-sorted).
-public func canonicalRelationEndpoints(from: String, to: String, type: String) -> (String, String) {
-    isSymmetricRelation(type) ? (min(from, to), max(from, to)) : (from, to)
-}
-
-public func canonicalRelationKey(from: String, to: String, type: String) -> String {
-    let (a, b) = canonicalRelationEndpoints(from: from, to: to, type: type)
-    return [a, b, type].joined(separator: " ")
-}
-
-public func validateRelation(_ rel: FragmentRelation) -> ValidationResult {
-    if rel.fromFragmentId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        return .fail(.relationEndpointInvalid)
-    }
-    if rel.toFragmentId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-        return .fail(.relationEndpointInvalid)
-    }
-    if rel.fromFragmentId == rel.toFragmentId { return .fail(.relationSelfReference) }
-    if !relationTypes.contains(rel.type) { return .fail(.relationTypeInvalid) }
-    if rel.createdBy != "user" && rel.createdBy != "auto" { return .fail(.relationCreatedByInvalid) }
-    if rel.status != "suggested" && rel.status != "confirmed" { return .fail(.relationStatusInvalid) }
-    if !isFiniteEpoch(rel.createdAt) || !isFiniteEpoch(rel.updatedAt) {
-        return .fail(.relationTimestampInvalid)
-    }
-
-    if rel.createdBy == "auto" {
-        guard let confidence = rel.confidence, confidence.isFinite, confidence >= 0, confidence <= 1 else {
-            return .fail(.relationConfidenceInvalid)
-        }
-        let reason = rel.suggestionReason ?? ""
-        if reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return .fail(.relationSuggestionReasonRequired)
-        }
-    }
-    if rel.createdBy == "user" && rel.status != "confirmed" {
-        return .fail(.relationStatusInvalid, ["need": "confirmed"])
-    }
-    if rel.status == "confirmed" {
-        guard let confirmedAt = rel.confirmedAt, isFiniteEpoch(confirmedAt), rel.confirmedBy == "user" else {
-            return .fail(.relationConfirmMetaRequired)
-        }
-    }
-    if isSymmetricRelation(rel.type) {
-        let (a, b) = canonicalRelationEndpoints(from: rel.fromFragmentId, to: rel.toFragmentId, type: rel.type)
-        if rel.fromFragmentId != a || rel.toFragmentId != b {
-            return .fail(.relationCanonicalOrder)
-        }
-    }
-    return .passed
-}
-
-/// Sorts symmetric endpoints into canonical order; caller validates afterwards.
-public func normalizeRelation(_ rel: FragmentRelation) -> FragmentRelation {
-    var sorted = rel
-    (sorted.fromFragmentId, sorted.toFragmentId) = canonicalRelationEndpoints(
-        from: rel.fromFragmentId, to: rel.toFragmentId, type: rel.type
-    )
-    return sorted
 }

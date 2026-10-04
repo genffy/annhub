@@ -171,10 +171,11 @@ final class NormalizeValidateTests: XCTestCase {
         XCTAssertTrue(validateFragment(f).ok)
         f = makeFragment(sourceUrl: "annhub://manual/bad!id", sourceHost: "manual")
         expectedValidationError(f, code: .sourceUrlInvalid)
-        f = makeFragment(sourceUrl: "annhub://writing-task/t1", sourceHost: "writing-task")
-        XCTAssertTrue(validateFragment(f).ok)
-        f = makeFragment(sourceUrl: "annhub://writing-task/t1", sourceHost: "manual")
+        f = makeFragment(sourceUrl: "annhub://manual/abc_1", sourceHost: "wsj.com")
         expectedValidationError(f, code: .sourceHostMismatch)
+        // The output workshop's local source left the contract (D-10).
+        f = makeFragment(sourceUrl: "annhub://writing-task/t1", sourceHost: "writing-task")
+        expectedValidationError(f, code: .sourceUrlInvalid)
     }
 
     func testTagLimits() {
@@ -343,9 +344,11 @@ final class NormalizeValidateTests: XCTestCase {
         }
     }
 
-    func testClaimStanceRequired() {
+    func testClaimStanceIsOptionalButMustBeKnownWhenPresent() {
+        // fragments.md §4: the data layer allows an empty stance (the capture form asks for it).
+        XCTAssertTrue(validateFragment(makeFragment(kind: "claim", detail: wireObject())).ok)
         let f = makeFragment(kind: "claim", detail: wireObject(("stance", .string("maybe"))))
-        expectedValidationError(f, code: .claimStanceRequired)
+        expectedValidationError(f, code: .detailFieldInvalid)
     }
 
     func testProcedureStepsRequired() {
@@ -391,83 +394,5 @@ final class NormalizeValidateTests: XCTestCase {
     func testInspirationFormInvalid() {
         let f = makeFragment(kind: "inspiration", detail: wireObject(("form", .string("poem"))))
         expectedValidationError(f, code: .inspirationFormInvalid)
-    }
-
-    // ── relations (storage.md §3.3) ─────────────────────────────────────
-
-    func testValidRelations() {
-        XCTAssertTrue(validateRelation(validRelation()).ok)
-        XCTAssertTrue(validateRelation(validAutoRelation()).ok)
-    }
-
-    func testRelationSelfReferenceAndTypes() {
-        var rel = validRelation(from: "frag_a", to: "frag_a")
-        XCTAssertEqual(validateRelation(rel).code, .relationSelfReference)
-
-        rel = validRelation(type: "causes")
-        XCTAssertEqual(validateRelation(rel).code, .relationTypeInvalid)
-
-        rel = validRelation()
-        rel.createdBy = "robot"
-        XCTAssertEqual(validateRelation(rel).code, .relationCreatedByInvalid)
-    }
-
-    func testRelationUserMustBeConfirmed() {
-        var rel = validRelation()
-        rel.status = "suggested"
-        rel.confirmedAt = nil
-        rel.confirmedBy = nil
-        XCTAssertEqual(validateRelation(rel).code, .relationStatusInvalid)
-    }
-
-    func testRelationAutoConfidenceAndReason() {
-        var rel = validAutoRelation(confidence: nil, reason: nil)
-        XCTAssertEqual(validateRelation(rel).code, .relationConfidenceInvalid)
-
-        rel = validAutoRelation(confidence: 1.5)
-        XCTAssertEqual(validateRelation(rel).code, .relationConfidenceInvalid)
-
-        rel = validAutoRelation(confidence: 0.8, reason: " ")
-        XCTAssertEqual(validateRelation(rel).code, .relationSuggestionReasonRequired)
-
-        rel = validAutoRelation(confidence: 0.8, reason: "同主题共现")
-        XCTAssertTrue(validateRelation(rel).ok)
-    }
-
-    func testRelationConfirmMeta() {
-        var rel = validRelation()
-        rel.confirmedAt = nil
-        XCTAssertEqual(validateRelation(rel).code, .relationConfirmMetaRequired)
-
-        rel = validRelation()
-        rel.confirmedBy = nil
-        XCTAssertEqual(validateRelation(rel).code, .relationConfirmMetaRequired)
-    }
-
-    func testRelationCanonicalOrderForSymmetricTypes() {
-        XCTAssertEqual(
-            canonicalRelationEndpoints(from: "frag_z", to: "frag_a", type: "similarity").0,
-            "frag_a"
-        )
-        XCTAssertEqual(
-            canonicalRelationEndpoints(from: "frag_z", to: "frag_a", type: "similarity").1,
-            "frag_z"
-        )
-        XCTAssertEqual(
-            canonicalRelationEndpoints(from: "frag_z", to: "frag_a", type: "reference").0,
-            "frag_z"
-        )
-        XCTAssertEqual(
-            canonicalRelationEndpoints(from: "frag_z", to: "frag_a", type: "reference").1,
-            "frag_a"
-        )
-
-        let reversed = validRelation(from: "frag_z", to: "frag_a", type: "similarity")
-        XCTAssertEqual(validateRelation(reversed).code, .relationCanonicalOrder)
-
-        let sorted = normalizeRelation(reversed)
-        XCTAssertTrue(validateRelation(sorted).ok)
-        XCTAssertEqual(sorted.fromFragmentId, "frag_a")
-        XCTAssertEqual(sorted.toFragmentId, "frag_z")
     }
 }

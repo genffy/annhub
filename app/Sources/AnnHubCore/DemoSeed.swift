@@ -25,6 +25,16 @@ public enum DemoSeed {
     public static let pngSha256 = "fec5a02e9c7775ad5b6f2fe6f51f48f6307c9f1adef942be2cdcc00f6ab1913a"
     public static let demoAssetId = "asset_demo_chart"
 
+    /// Demo rows are stored like deliveries from a device named `demo-seed`; the
+    /// Desktop never creates fragments itself (desktop.md §3.3).
+    public static let demoDeviceId = "demo-seed"
+
+    private static func createDemoFragment(_ store: FragmentStore, _ input: CreateFragmentInput) throws -> FragmentRecord {
+        let record = try createFragment(input)
+        try store.upsertFragment(record, deviceId: demoDeviceId, payloadHash: "")
+        return record
+    }
+
     public static func seedIfNeeded(_ store: FragmentStore, now: Int? = nil) {
         guard let fragments = try? store.getFragments(), fragments.isEmpty else { return }
         let now = now ?? Int(Date().timeIntervalSince1970 * 1000)
@@ -48,7 +58,7 @@ public enum DemoSeed {
             sourceUrl: String, sourceTitle: String?, tags: [String],
             detail: FragmentDetail, locator: FragmentLocator = .none
         ) {
-            if let record = try? store.saveFragment(CreateFragmentInput(
+            if let record = try? createDemoFragment(store, CreateFragmentInput(
                 kind: kind,
                 content: content,
                 context: FragmentContextInput(

@@ -27,7 +27,7 @@ final class HubPutTests: XCTestCase {
     // ── health & pairing ─────────────────────────────────────────────────
 
     func testHealthWithoutAuth() throws {
-        let hub = try makeHub(token: "")
+        let hub = try makeHub(token: nil)
         let response = hub.handle(HubRequest(method: "GET", path: "/health"))
         XCTAssertEqual(response.status, 200)
         let object = try XCTUnwrap(
@@ -40,19 +40,61 @@ final class HubPutTests: XCTestCase {
         XCTAssertEqual(object["paired"] as? Bool, false)
     }
 
-    func testPairingAdoptsFirstTokenThenRejectsMismatch() throws {
+    func testHubGeneratesPairTokenWhenNoneIsStored() throws {
         let hub = try makeHub(token: nil)
+        XCTAssertFalse(hub.pairToken.isEmpty)
+        // 16 characters in four dash-separated groups, no look-alike glyphs.
+        let groups = hub.pairToken.split(separator: "-")
+        XCTAssertEqual(groups.count, 4)
+        XCTAssertTrue(groups.allSatisfy { $0.count == 4 })
+        XCTAssertNil(hub.pairToken.firstIndex(where: { "01OIL".contains($0) }))
+        XCTAssertNotEqual(DesktopHub.generatePairToken(), DesktopHub.generatePairToken())
+
+        // An empty persisted value is treated as "none stored".
+        XCTAssertFalse(try makeHub(token: "").pairToken.isEmpty)
+        // A persisted value is restored verbatim.
+        XCTAssertEqual(try makeHub(token: "KEEP-THIS-CODE-1234").pairToken, "KEEP-THIS-CODE-1234")
+    }
+
+    func testPairValidatesTheGeneratedTokenAndNeverAdoptsOne() throws {
+        let hub = try makeHub(token: "GOOD-CODE")
         // No token → 401.
         XCTAssertEqual(hub.handle(HubRequest(method: "POST", path: "/v1/pair")).status, 401)
-
-        // First presented token is adopted.
-        let adopt = hub.handle(HubRequest(method: "POST", path: "/v1/pair", bearerToken: "t-first"))
-        XCTAssertEqual(adopt.status, 200)
-
-        // Matching token → 200; mismatched → 401.
-        XCTAssertEqual(hub.handle(HubRequest(method: "POST", path: "/v1/pair", bearerToken: "t-first")).status, 200)
+        // A client-supplied token is rejected, and does not replace Desktop's.
         XCTAssertEqual(hub.handle(HubRequest(method: "POST", path: "/v1/pair", bearerToken: "t-other")).status, 401)
-        XCTAssertEqual(hub.pairToken, "t-first")
+        XCTAssertEqual(hub.pairToken, "GOOD-CODE")
+        XCTAssertNil(hub.lastPairedAt)
+        XCTAssertNil(hub.lastConnectionAt) // a rejected token is not a connection
+
+        let ok = hub.handle(HubRequest(method: "POST", path: "/v1/pair", bearerToken: "GOOD-CODE"))
+        XCTAssertEqual(ok.status, 200)
+        XCTAssertNotNil(hub.lastPairedAt)
+        XCTAssertNotNil(hub.lastConnectionAt)
+
+        let health = hub.handle(HubRequest(method: "GET", path: "/health"))
+        let object = try XCTUnwrap((try? JSONSerialization.jsonObject(with: health.body)) as? [String: Any])
+        XCTAssertEqual(object["paired"] as? Bool, true)
+    }
+
+    func testRotatingTheTokenInvalidatesOldClientsAndKeepsData() throws {
+        let store = try freshStore()
+        let hub = try makeHub(store: store)
+        let record = makeFragment(id: "frag_rotate")
+        XCTAssertEqual(try putFragment(hub, record: record).status, 201)
+        XCTAssertEqual(hub.handle(HubRequest(method: "POST", path: "/v1/pair", bearerToken: token)).status, 200)
+
+        let fresh = hub.rotatePairToken()
+        XCTAssertNotEqual(fresh, token)
+        XCTAssertEqual(hub.pairToken, fresh)
+        XCTAssertNil(hub.lastPairedAt)
+
+        // The old code is rejected everywhere; the new one works.
+        XCTAssertEqual(try putFragment(hub, record: record).status, 401)
+        XCTAssertEqual(hub.handle(HubRequest(method: "POST", path: "/v1/pair", bearerToken: token)).status, 401)
+        XCTAssertEqual(hub.handle(HubRequest(method: "POST", path: "/v1/pair", bearerToken: fresh)).status, 200)
+
+        // Local data stays.
+        XCTAssertNotNil(try store.getFragment(id: "frag_rotate"))
     }
 
     // ── PUT /v1/fragments/{id} ───────────────────────────────────────────

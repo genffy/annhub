@@ -1,11 +1,12 @@
 // AnnHub Desktop — native macOS menu-bar app and local learning client.
-// R2/R3/R4: five-page navigation (今日 / 碎片库 / 输出工坊 / 关系 / 系统),
-// the review session (visual occlusion + media-clip), the output workshop
-// with layered feedback, confirmed relations, and the localhost hub with
-// bidirectional sync endpoints.
+// Three pages (今日 / 碎片库 / 系统), the review session (visual occlusion +
+// media-clip), a preferences window (daily limit, review reminder) and the
+// localhost hub with bidirectional sync endpoints. Output workshop and
+// relations left the product with D-10.
 
 import SwiftUI
 import Network
+import UserNotifications
 import AnnHubCore
 
 @main
@@ -28,6 +29,11 @@ struct AnnHubDesktopApp: App {
                 .frame(minWidth: 980, minHeight: 600)
         }
         .defaultSize(width: 1080, height: 680)
+
+        // 偏好设置 (desktop.md §8.2): the standard settings window, Cmd+,.
+        Settings {
+            PreferencesView().environmentObject(model)
+        }
     }
 }
 
@@ -77,7 +83,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
 // ── app state ────────────────────────────────────────────────────────────
 
-/// Sync bookkeeping for the system page (R3).
+/// Sync bookkeeping for the system page's technical section (R3).
 struct DesktopSyncInfo: Equatable {
     var pendingChanges = 0
     var pulledCursor = 0
@@ -85,24 +91,44 @@ struct DesktopSyncInfo: Equatable {
     var events = EventsStats()
 }
 
+/// The daily review reminder (desktop.md §8.1) — the only notification
+/// Desktop sends. One repeating calendar notification; no counts, streaks or
+/// marketing in its text.
+enum ReviewReminderNotifier {
+    static let identifier = "annhub.desktop.dailyReviewReminder"
+
+    static func apply(_ reminder: ReviewReminder) {
+        // Only a real app bundle can talk to the notification center.
+        guard Bundle.main.bundleIdentifier != nil else { return }
+        let center = UNUserNotificationCenter.current()
+        center.removePendingNotificationRequests(withIdentifiers: [identifier])
+        guard reminder.enabled else { return }
+        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+            guard granted else { return }
+            let content = UNMutableNotificationContent()
+            content.title = "AnnHub"
+            content.body = "到了复习的时间，打开 AnnHub 查看今天的复习。"
+            var when = DateComponents()
+            when.hour = reminder.hour
+            when.minute = reminder.minute
+            let trigger = UNCalendarNotificationTrigger(dateMatching: when, repeats: true)
+            center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+        }
+    }
+}
+
 @MainActor
 final class DesktopModel: ObservableObject {
     static let sessionDefaultsKey = "annhub.desktop.reviewSession"
     static let pairTokenDefaultsKey = "annhub.desktop.pairToken"
-    static let llmDefaultsKey = "annhub.desktop.llmProvider"
     static let dailyLimitDefaultsKey = "annhub.desktop.dailyLimit"
+    static let reminderDefaultsKey = "annhub.desktop.reviewReminder"
 
     @Published var fragments: [FragmentRecord] = []
     @Published var reviewLogs: [ReviewLog] = []
-    @Published var writingTasks: [WritingTaskRecord] = []
-    @Published var relations: [FragmentRelation] = []
-    @Published var suppressions: [RelationSuppression] = []
     @Published var syncInfo = DesktopSyncInfo()
-    @Published var llmSettings = LlmProviderConfig() {
-        didSet { persistLlmSettings() }
-    }
-    /// 每日复习上限 (review.md §5 / metrics.md §6.2), clamped to 5...50 and
-    /// persisted in UserDefaults; the 系统页 exposes the stepper.
+    /// 每日建议上限 (review.md §5), clamped to 5...50 and persisted in
+    /// UserDefaults; the preferences window exposes the slider.
     @Published var dailyLimit: Int {
         didSet {
             let clamped = clampedDailyLimit(dailyLimit)
@@ -113,21 +139,31 @@ final class DesktopModel: ObservableObject {
             UserDefaults.standard.set(dailyLimit, forKey: Self.dailyLimitDefaultsKey)
         }
     }
+    /// 每日复习提醒 (desktop.md §8.2); every change reschedules the notification.
+    @Published var reminder: ReviewReminder {
+        didSet {
+            if let data = try? JSONEncoder().encode(reminder) {
+                UserDefaults.standard.set(data, forKey: Self.reminderDefaultsKey)
+            }
+            ReviewReminderNotifier.apply(reminder)
+        }
+    }
     @Published var stats = StoreStats(
-        fragments: 0, reviewLogs: 0, writingTasks: 0,
-        relations: 0, assets: 0, outbox: 0, deletions: 0
+        fragments: 0, reviewLogs: 0, assets: 0, outbox: 0, deletions: 0
     )
     @Published var hubState = "未启动"
     @Published var session: ReviewSessionState?
+    /// Facts about the round that just ended (desktop.md §5.5); nil otherwise.
+    @Published var wrapUp: SessionWrapUp?
     @Published var detailFragment: FragmentRecord?
+    /// The code the extension needs; generated and persisted by Desktop.
+    @Published private(set) var pairToken: String
+    /// Fragments the extension delivered (excludes demo seeds); refreshed by reload().
+    @Published private(set) var deliveredFragmentCount = 0
 
     let store: FragmentStore
     let hub: DesktopHub
     private var server: HubServer?
-    private var draftSaveTask: Task<Void, Never>?
-    /// ai.md §6: cached per (task, submission, promptVersion, modelId) so a
-    /// repeated click never re-calls the provider.
-    private let llmFeedbackCache = LlmFeedbackCache()
 
     /// Shared instance: strongly held so the hub starts with the app even
     /// before MenuBarExtra first evaluates its content.
@@ -150,16 +186,21 @@ final class DesktopModel: ObservableObject {
 
     init(store: FragmentStore) {
         self.store = store
-        // Pairing (storage.md §8): the Desktop adopts the first token the
-        // extension presents; an adopted token is remembered across launches.
+        // Pairing (storage.md §8): Desktop generates the code and remembers it
+        // across launches; the user types it into the extension.
         let stored = UserDefaults.standard.string(forKey: Self.pairTokenDefaultsKey) ?? ""
-        self.hub = DesktopHub(store: store, pairToken: stored)
-        self.dailyLimit = clampedDailyLimit(
-            UserDefaults.standard.integer(forKey: Self.dailyLimitDefaultsKey) == 0
-                ? DAILY_LIMIT_DEFAULT
-                : UserDefaults.standard.integer(forKey: Self.dailyLimitDefaultsKey)
-        )
-        loadLlmSettings()
+        let hub = DesktopHub(store: store, pairToken: stored)
+        self.hub = hub
+        self.pairToken = hub.pairToken
+        let storedLimit = UserDefaults.standard.integer(forKey: Self.dailyLimitDefaultsKey)
+        self.dailyLimit = clampedDailyLimit(storedLimit == 0 ? DAILY_LIMIT_DEFAULT : storedLimit)
+        if let data = UserDefaults.standard.data(forKey: Self.reminderDefaultsKey),
+           let saved = try? JSONDecoder().decode(ReviewReminder.self, from: data) {
+            self.reminder = saved
+        } else {
+            self.reminder = ReviewReminder()
+        }
+        ReviewReminderNotifier.apply(reminder)
         restoreSession()
         reload()
     }
@@ -175,10 +216,26 @@ final class DesktopModel: ObservableObject {
         hubState = "127.0.0.1:8765"
     }
 
-    var pairToken: String { hub.pairToken }
+    /// The local service is up and bound to loopback.
+    var hubListening: Bool { hubState.hasPrefix("127.0.0.1") }
 
-    func syncPairToken() {
+    // ── pairing (desktop.md §6) ──────────────────────────────────────────
+
+    func copyPairToken() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(pairToken, forType: .string)
+    }
+
+    /// 重新生成: the old code stops working at once; data and pending
+    /// deliveries stay.
+    func rotatePairToken() {
+        hub.rotatePairToken()
+        syncPairToken()
+    }
+
+    private func syncPairToken() {
         let token = hub.pairToken
+        if token != pairToken { pairToken = token }
         if token != UserDefaults.standard.string(forKey: Self.pairTokenDefaultsKey) {
             UserDefaults.standard.set(token, forKey: Self.pairTokenDefaultsKey)
         }
@@ -187,9 +244,6 @@ final class DesktopModel: ObservableObject {
     func reload() {
         fragments = (try? store.getFragments()) ?? []
         reviewLogs = (try? store.getReviewLogs()) ?? []
-        writingTasks = (try? store.getWritingTasks()) ?? []
-        relations = (try? store.getRelations()) ?? []
-        suppressions = (try? store.getSuppressions()) ?? []
         stats = (try? store.stats()) ?? stats
         syncInfo = DesktopSyncInfo(
             pendingChanges: (try? store.pendingChangeCount()) ?? 0,
@@ -197,18 +251,24 @@ final class DesktopModel: ObservableObject {
             lastPulledAt: store.lastPulledAt(),
             events: hub.eventsStats
         )
+        deliveredFragmentCount = fragments.filter { fragment in
+            guard let delivery = try? store.fragmentDelivery(id: fragment.id) else { return false }
+            return !delivery.deviceId.isEmpty && delivery.deviceId != DemoSeed.demoDeviceId
+        }.count
         syncPairToken()
         pruneFinishedSession()
     }
 
     // ── derived state ────────────────────────────────────────────────────
 
-    var dueQueue: [FragmentRecord] {
-        buildDailyQueue(fragments, now: nowMs(), dailyLimit: dailyLimit)
+    /// Today's allowance and the full due queue (review.md §5).
+    var dailyPlan: DailyReviewPlan {
+        dailyReviewPlan(fragments: fragments, logs: reviewLogs, now: nowMs(), dailyLimit: dailyLimit)
     }
 
-    var estimatedMinutes: Int {
-        Int(ceil(Double(dueQueue.count * SESSION_SECONDS_PER_CARD) / 60))
+    /// 本周成功提取的碎片 (M-18) — the only statistic on the 今日 page.
+    var weeklyRetrieved: Int {
+        weeklyRetrievedFragmentCount(reviewLogs)
     }
 
     var latestFragments: [FragmentRecord] {
@@ -217,20 +277,23 @@ final class DesktopModel: ObservableObject {
 
     // ── review session (desktop.md §5) ───────────────────────────────────
 
+    /// Starts a session from today's suggested amount; `overflow` goes past a
+    /// used-up cap (再来一轮) — due dates are never changed either way.
     @discardableResult
-    func startReviewSession() -> Bool {
-        let now = nowMs()
-        let queue = dueQueue
-        guard !queue.isEmpty else { return false }
-        let cap = sessionCap(dailyRemaining: queue.count)
-        let ids = Array(queue.prefix(cap).map(\.id))
+    func startReviewSession(overflow: Bool = false) -> Bool {
+        let plan = dailyPlan
+        let pool = overflow ? plan.due : plan.suggested
+        guard !pool.isEmpty else { return false }
+        let cap = sessionCap(dailyRemaining: pool.count)
+        let ids = Array(pool.prefix(cap).map(\.id))
         session = ReviewSessionState(
             sessionId: newId(),
             fragmentIds: ids,
             cursor: 0,
-            startedAt: now,
+            startedAt: nowMs(),
             skipped: []
         )
+        wrapUp = nil
         persistSession()
         return true
     }
@@ -261,6 +324,7 @@ final class DesktopModel: ObservableObject {
         session.cursor += 1
         self.session = session
         persistSession()
+        finishSessionIfComplete()
         return true
     }
 
@@ -271,6 +335,16 @@ final class DesktopModel: ObservableObject {
         session.cursor += 1
         self.session = session
         persistSession()
+        finishSessionIfComplete()
+    }
+
+    /// The last card ends the session: keep its facts for the wrap-up screen,
+    /// then drop the persisted session so 今日 stops offering to resume it.
+    private func finishSessionIfComplete() {
+        guard let session, session.cursor >= session.fragmentIds.count else { return }
+        wrapUp = sessionWrapUp(session: session, logs: reviewLogs, fragments: fragments, now: nowMs())
+        self.session = nil
+        UserDefaults.standard.removeObject(forKey: Self.sessionDefaultsKey)
     }
 
     private func pruneFinishedSession() {
@@ -315,320 +389,25 @@ final class DesktopModel: ObservableObject {
         (try? store.missingAttachmentCount()) ?? 0
     }
 
-    var deliveredFragmentCount: Int {
-        // Fragments delivered by the extension carry a device id; Desktop's
-        // own creations carry the desktop-local constant instead.
-        fragments.filter { fragment in
-            if let delivery = try? store.fragmentDelivery(id: fragment.id) {
-                return !delivery.deviceId.isEmpty && delivery.deviceId != desktopLocalDeviceId
-            }
-            return false
-        }.count
-    }
-
     var recentDeliveries: [DeliveryOutcome] {
         hub.recentDeliveries
     }
 
     var lastConnectionAt: Int? { hub.lastConnectionAt }
 
-    // ── output workshop (desktop.md §6, R2.1) ────────────────────────────
-
-    var resumableDrafts: [WritingTaskRecord] {
-        writingTasks.filter { task in
-            taskStatus(task).draftWords > 0 && task.submissions.isEmpty
+    /// What the system page lists under 需要处理 — only things the user can act on.
+    var attentionItems: [String] {
+        var items: [String] = []
+        if hubState.hasPrefix("启动失败") {
+            items.append("本地服务没有启动（\(hubState)）")
         }
-    }
-
-    var appliedFragmentIds: Set<String> { AnnHubCore.appliedFragmentIds(writingTasks) }
-    var incorrectFragmentIds: Set<String> { AnnHubCore.incorrectFragmentIds(writingTasks) }
-
-    /// Reverse recommendation for the 主入口 (desktop.md §6.1 entry 3).
-    func recommendForTask(_ text: String) -> [TaskRecommendation] {
-        AnnHubCore.recommendForTask(
-            text,
-            fragments,
-            options: RecommendForTaskOptions(
-                relatedTo: { [weak self] id in
-                    self?.confirmedRelations(id).map {
-                        $0.fromFragmentId == id ? $0.toFragmentId : $0.fromFragmentId
-                    } ?? []
-                },
-                appliedFragmentIds: appliedFragmentIds,
-                incorrectFragmentIds: incorrectFragmentIds,
-                now: nowMs()
-            )
-        )
-    }
-
-    @discardableResult
-    func createWritingTask(type: String, topic: String, fragmentIds: [String]) -> WritingTaskRecord? {
-        let task = AnnHubCore.createWritingTask(CreateWritingTaskInput(
-            taskType: type, topic: topic, fragmentIds: fragmentIds, now: nowMs()
-        ))
-        do {
-            _ = try store.saveWritingTask(task)
-            reload()
-            return task
-        } catch {
-            return nil
+        if missingAttachmentCount > 0 {
+            items.append("有 \(missingAttachmentCount) 张图片尚未到达，扩展重试后会补上")
         }
-    }
-
-    /// Draft autosave, debounced ~500ms (desktop.md §6.3); every save lands
-    /// in the store transactionally with its change-feed row.
-    func autosaveDraft(taskId: String, content: String) {
-        draftSaveTask?.cancel()
-        draftSaveTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 500_000_000)
-            guard !Task.isCancelled else { return }
-            saveDraft(taskId: taskId, content: content)
+        if let last = recentDeliveries.last, last.status == 401 || last.status == 403 {
+            items.append("最近一次写入被拒绝：扩展里的配对码与这里不一致，请重新输入")
         }
-    }
-
-    func saveDraft(taskId: String, content: String) {
-        guard var task = writingTasks.first(where: { $0.id == taskId }) else { return }
-        task.draftContent = content
-        task.updatedAt = nowMs()
-        try? store.saveWritingTask(task)
-        reload()
-    }
-
-    /// Sheet dismissal flushes the pending debounce SYNCHRONOUSLY (output.md
-    /// §4: the user must not lose typed text to the 500ms timer). Already
-    /// submitted tasks never re-populate draftContent.
-    func flushDraftOnDismiss(taskId: String, content: String) {
-        draftSaveTask?.cancel()
-        draftSaveTask = nil
-        guard let task = writingTasks.first(where: { $0.id == taskId }),
-              task.submissions.isEmpty
-        else { return }
-        saveDraft(taskId: taskId, content: content)
-    }
-
-    @discardableResult
-    func submitTask(taskId: String, content: String) -> WritingTaskRecord? {
-        // A late autosave must not re-populate draftContent on the submitted
-        // task (output.md §4) — cancel the pending debounce first.
-        draftSaveTask?.cancel()
-        draftSaveTask = nil
-        guard var task = writingTasks.first(where: { $0.id == taskId }) else { return nil }
-        task = appendSubmission(task, content, now: nowMs())
-        task = seedLocalPresence(task, fragments)
-        do {
-            _ = try store.saveWritingTask(task)
-            llmFeedbackCache.invalidateTask(taskId: taskId)
-            reload()
-            return task
-        } catch {
-            return nil
-        }
-    }
-
-    /// Per-fragment user confirmation → merged into the last submission.
-    func confirmFragmentUse(taskId: String, confirmations: [AssessmentConfirmation]) {
-        guard var task = writingTasks.first(where: { $0.id == taskId }) else { return }
-        task = confirmAssessments(task, confirmations, now: nowMs())
-        try? store.saveWritingTask(task)
-        reload()
-    }
-
-    /// One-click question Fragment from feedback (R2.1): saved locally with a
-    /// fragment.created change row so it syncs to the extension.
-    @discardableResult
-    func createQuestionFromFeedback(
-        task: WritingTaskRecord, fragment: FragmentRecord, feedback: String
-    ) -> FragmentRecord? {
-        let draft = questionDraftFromFeedback(task, fragment, feedback, now: nowMs())
-        do {
-            let record = try store.saveFragment(CreateFragmentInput(
-                kind: draft.kind,
-                content: draft.content,
-                context: FragmentContextInput(
-                    excerpt: draft.excerpt,
-                    sourceUrl: draft.sourceUrl,
-                    sourceHost: "writing-task",
-                    sourceTitle: draft.sourceTitle,
-                    capturedAt: nowMs()
-                ),
-                processing: FragmentProcessing(verified: draft.verified, use: draft.use),
-                detail: .question(draft.detail),
-                now: nowMs()
-            ))
-            reload()
-            return record
-        } catch {
-            return nil
-        }
-    }
-
-    /// Target slots in task order; a locally deleted fragment stays as nil so
-    /// its 待确认 state remains visible (storage.md §10) — mirrors how
-    /// relations already render deleted endpoints as 已删除碎片.
-    func taskFragmentSlots(_ task: WritingTaskRecord) -> [FragmentRecord?] {
-        task.fragmentIds.map { id in fragments.first { $0.id == id } }
-    }
-
-    /// Days from capture to first confirmed application (R2.3); nil = 从未应用.
-    func daysToFirstApplication(_ fragment: FragmentRecord) -> Int? {
-        AnnHubCore.daysToFirstApplication(fragment, writingTasks)
-    }
-
-    // ── relations (desktop.md §7, R2.2) ──────────────────────────────────
-
-    var relationSuggestions: [RelationSuggestion] {
-        suggestRelations(
-            fragments,
-            options: SuggestRelationsOptions(suppressions: suppressions, existing: relations)
-        )
-    }
-
-    var confirmedRelationCount: Int {
-        relations.filter { $0.status == "confirmed" }.count
-    }
-
-    /// Confirmed relations touching one endpoint, either direction.
-    func confirmedRelations(_ fragmentId: String) -> [FragmentRelation] {
-        relations.filter {
-            $0.status == "confirmed" && ($0.fromFragmentId == fragmentId || $0.toFragmentId == fragmentId)
-        }
-    }
-
-    /// The other endpoint of a relation, resolved to its record when present.
-    func relationEndpointSummary(_ relation: FragmentRelation, of fragmentId: String) -> String {
-        let otherId = relation.fromFragmentId == fragmentId ? relation.toFragmentId : relation.fromFragmentId
-        if let other = fragments.first(where: { $0.id == otherId }) {
-            return String(other.content.prefix(60))
-        }
-        return "已删除碎片（\(otherId)）"
-    }
-
-    func acceptSuggestion(_ suggestion: RelationSuggestion, type: String? = nil, note: String? = nil) {
-        let relation = confirmSuggestion(suggestion, type: type, note: note, now: nowMs())
-        try? store.saveRelation(relation)
-        reload()
-    }
-
-    /// 拒绝 → local suppression + suppression.sync change row (R2.2/R3).
-    func rejectSuggestion(_ suggestion: RelationSuggestion) {
-        let suppression = AnnHubCore.rejectSuggestion(
-            suggestion, reason: "用户拒绝建议", now: nowMs()
-        )
-        try? store.saveSuppression(suppression)
-        reload()
-    }
-
-    /// 建立关系 from a fragment detail (desktop.md §7.2) — always confirmed;
-    /// saving clears any suppression for the pair (re-establish).
-    func establishRelation(from: String, to: String, type: String, note: String?) {
-        let relation = createManualRelation(from: from, to: to, type: type, note: note, now: nowMs())
-        try? store.saveRelation(relation)
-        reload()
-    }
-
-    func removeRelation(_ relationId: String) {
-        try? store.deleteRelation(id: relationId, now: nowMs())
-        reload()
-    }
-
-    // ── LLM provider settings (ai.md; optional, default OFF) ────────────
-
-    private func loadLlmSettings() {
-        if let data = UserDefaults.standard.data(forKey: Self.llmDefaultsKey),
-           let config = try? JSONDecoder().decode(LlmProviderConfig.self, from: data) {
-            llmSettings = config
-        }
-    }
-
-    private func persistLlmSettings() {
-        if let data = try? JSONEncoder().encode(llmSettings) {
-            UserDefaults.standard.set(data, forKey: Self.llmDefaultsKey)
-        }
-    }
-
-    /// ai.md §5 单次外发前可预览: exactly what the preview sheet lists and
-    /// what leaves the machine (task prompt, target fragment 内容+kind,
-    /// submission text). Pure builder — no HTTP before 确认发送.
-    func llmFeedbackPreview(taskId: String) -> LlmFeedbackPreview? {
-        guard let task = writingTasks.first(where: { $0.id == taskId }),
-              let submission = task.submissions.last
-        else { return nil }
-        return buildLlmFeedbackPreview(task: task, fragments: fragments, submission: submission)
-    }
-
-    /// 反馈视图的「LLM 反馈」按钮 (desktop.md §6.4 layer 3), called only after
-    /// the user confirms the pre-send preview. Cache-first (ai.md §6): a
-    /// repeated click on the same submission never re-calls the provider.
-    /// Failure degrades to 待确认 and never blocks completion (ai.md §1).
-    func requestLlmFeedback(taskId: String) async -> String {
-        guard llmSettings.isConfigured else { return "未配置 LLM Provider，保持待确认" }
-        guard let task = writingTasks.first(where: { $0.id == taskId }),
-              let submission = task.submissions.last
-        else { return "没有可分析的提交版本" }
-        let provider = OpenAICompatibleLlmFeedback(config: llmSettings)
-        let result = await fetchLlmFeedback(
-            task: task,
-            fragments: fragments,
-            submission: submission,
-            promptVersion: provider.promptVersion,
-            modelId: llmSettings.model,
-            cache: llmFeedbackCache,
-            provider: provider
-        )
-        switch result {
-        case .success(let feedback):
-            var updated = task
-            updated = mergeLlmAssessments(
-                updated,
-                feedback.assessments,
-                overallFeedback: feedback.overallFeedback,
-                suggestedRevision: feedback.suggestedRevision,
-                now: nowMs()
-            )
-            try? store.saveWritingTask(updated)
-            reload()
-            return "模型反馈已合并（\(feedback.assessments.count) 条，待你确认）"
-        case .failure(let error):
-            return "模型反馈不可用，保持待确认（\(llmErrorLabel(error))）"
-        }
-    }
-
-    private func llmErrorLabel(_ error: LlmFeedbackError) -> String {
-        switch error {
-        case .unconfigured: return "未配置"
-        case .network: return "网络错误"
-        case .http(let status): return "HTTP \(status)"
-        case .parse: return "响应解析失败"
-        case .schema: return "响应格式不符合"
-        }
-    }
-
-    /// 设置区「测试连接」— reports reachability/auth only, never the key.
-    func testLlmConnection() async -> String {
-        guard llmSettings.isConfigured else { return "未配置完整（baseUrl / apiKey / model）" }
-        let probe = WritingTaskRecord(
-            id: "probe", fragmentIds: [], taskType: "article", prompt: "连接测试",
-            constraints: [], draftContent: "",
-            submissions: [OutputSubmission(
-                id: "probe", content: "连接测试", submittedAt: nowMs(), assessments: []
-            )],
-            createdAt: nowMs(), updatedAt: nowMs()
-        )
-        let provider = OpenAICompatibleLlmFeedback(config: llmSettings)
-        switch await provider.provide(task: probe, fragments: [], submission: probe.submissions[0]) {
-        case .success:
-            return "连接成功"
-        case .failure(.network):
-            return "无法连接（网络错误）"
-        case .failure(.http(401)), .failure(.http(403)):
-            return "鉴权失败（检查 API Key）"
-        case .failure(.http(let status)):
-            return "服务返回 HTTP \(status)"
-        case .failure(.parse), .failure(.schema):
-            return "连接成功（探测响应非预期格式）"
-        case .failure(.unconfigured):
-            return "未配置完整（baseUrl / apiKey / model）"
-        }
+        return items
     }
 }
 
@@ -641,18 +420,23 @@ func nowMs() -> Int {
 struct MenuBarPanel: View {
     @EnvironmentObject var model: DesktopModel
 
+    /// 最近扩展交付状态 (desktop.md §7): the latest per-item write and its result.
+    private var lastDeliveryLabel: String {
+        guard let last = model.recentDeliveries.last else { return "暂无" }
+        let result = last.status < 300 ? "已接收" : "被拒绝（\(last.status)）"
+        return "\(result) · \(relativeAgo(last.at))"
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("AnnHub 本地中枢").font(.headline)
-            LabeledContent("中枢地址") { Text(model.hubState) }
-            LabeledContent("到期复习") { Text("\(model.dueQueue.count)") }
-            LabeledContent("碎片总数") { Text("\(model.fragments.count)") }
+            Text("AnnHub").font(.headline)
+            LabeledContent("本地服务") {
+                Text(model.hubListening ? "运行中 · \(model.hubState)" : model.hubState)
+            }
+            LabeledContent("到期复习") { Text("\(model.dailyPlan.due.count)") }
+            LabeledContent("最近交付") { Text(lastDeliveryLabel) }
             LabeledContent("最近连接") {
-                if let at = model.lastConnectionAt {
-                    Text(Date(timeIntervalSince1970: Double(at) / 1000), style: .time)
-                } else {
-                    Text("暂无")
-                }
+                Text(model.lastConnectionAt.map(relativeAgo) ?? "暂无")
             }
             Divider()
             Button("打开主窗口") {
@@ -661,10 +445,14 @@ struct MenuBarPanel: View {
                     window.makeKeyAndOrderFront(nil)
                 }
             }
+            SettingsLink { Text("偏好设置…") }
+                .keyboardShortcut(",", modifiers: .command)
+                .simultaneousGesture(TapGesture().onEnded { NSApp.activate(ignoringOtherApps: true) })
             Button("退出 AnnHub") { NSApp.terminate(nil) }
         }
         .padding(12)
         .frame(width: 300)
+        .tint(.annBrand)
         .onAppear { model.startHub() }
     }
 }

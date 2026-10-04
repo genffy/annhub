@@ -9,15 +9,11 @@
 /* Begin PBXBuildFile section */
 		366A43256F6F403028A226DE /* AnnHubCore in Frameworks */ = {isa = PBXBuildFile; productRef = 99C53A3E7B882DD662360CBB /* AnnHubCore */; };
 		9DB18FA5AE40657A3ABAB6FE /* DesktopViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94F58B9CD84A57002C22198D /* DesktopViews.swift */; };
-		A2BC9117256D553CC7AB360D /* RelationsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB33D7FBB553644DB7D972D /* RelationsViews.swift */; };
 		AF7DE9AD482CDD3B83277B16 /* AnnHubDesktopApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4370A1B2705988FDCE2AF2D /* AnnHubDesktopApp.swift */; };
-		D29DF38C130F2EAF5FFA9BC2 /* OutputWorkshopViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4933244298D31F72AB611C11 /* OutputWorkshopViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		4933244298D31F72AB611C11 /* OutputWorkshopViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OutputWorkshopViews.swift; sourceTree = "<group>"; };
 		6018321CF83F0673C6669CF7 /* app */ = {isa = PBXFileReference; lastKnownFileType = folder; name = app; path = .; sourceTree = SOURCE_ROOT; };
-		8BB33D7FBB553644DB7D972D /* RelationsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RelationsViews.swift; sourceTree = "<group>"; };
 		9315F5C46D1527B9149E658B /* AnnHubDesktop.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AnnHubDesktop.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		94F58B9CD84A57002C22198D /* DesktopViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesktopViews.swift; sourceTree = "<group>"; };
 		B4370A1B2705988FDCE2AF2D /* AnnHubDesktopApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnHubDesktopApp.swift; sourceTree = "<group>"; };
@@ -48,8 +44,6 @@
 			children = (
 				B4370A1B2705988FDCE2AF2D /* AnnHubDesktopApp.swift */,
 				94F58B9CD84A57002C22198D /* DesktopViews.swift */,
-				4933244298D31F72AB611C11 /* OutputWorkshopViews.swift */,
-				8BB33D7FBB553644DB7D972D /* RelationsViews.swift */,
 			);
 			path = Desktop;
 			sourceTree = "<group>";
@@ -133,8 +127,6 @@
 			files = (
 				AF7DE9AD482CDD3B83277B16 /* AnnHubDesktopApp.swift in Sources */,
 				9DB18FA5AE40657A3ABAB6FE /* DesktopViews.swift in Sources */,
-				D29DF38C130F2EAF5FFA9BC2 /* OutputWorkshopViews.swift in Sources */,
-				A2BC9117256D553CC7AB360D /* RelationsViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

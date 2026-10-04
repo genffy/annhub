@@ -4,15 +4,11 @@
 //   - fragments: capture fields + review_json; locally created rows carry
 //     empty source_device_id / source_payload_hash (only hub writes fill them)
 //   - rateFragment persists fragment + log in ONE transaction
-//   - Desktop delete removes fragment + review_logs + relations in one tx and
-//     writes the fragment_deletions marker (later PUTs of the same id → 410)
+//   - Desktop delete removes fragment + review_logs in one tx and writes the
+//     fragment_deletions marker (later PUTs of the same id → 410)
 //   - assets hold image BLOBs; putAsset is idempotent per (id, sha256)
 //   - outbox events enqueue transactionally; only confirmed ids may be pruned
 //
-// Legacy data: the v3 store (no capture_revision column) has no user data to
-// migrate — on open, an old-shape database file is renamed to
-// "<name>-v3-backup.sqlite" and a fresh v4 store is created next to it.
-
 import Foundation
 import SQLite3
 
@@ -26,22 +22,17 @@ public enum StoreError: Error, Equatable {
 public struct StoreStats: Equatable, Sendable {
     public var fragments: Int
     public var reviewLogs: Int
-    public var writingTasks: Int
-    public var relations: Int
     public var assets: Int
     public var outbox: Int
     public var deletions: Int
     public var changes: Int
 
     public init(
-        fragments: Int, reviewLogs: Int, writingTasks: Int,
-        relations: Int, assets: Int, outbox: Int, deletions: Int,
+        fragments: Int, reviewLogs: Int, assets: Int, outbox: Int, deletions: Int,
         changes: Int = 0
     ) {
         self.fragments = fragments
         self.reviewLogs = reviewLogs
-        self.writingTasks = writingTasks
-        self.relations = relations
         self.assets = assets
         self.outbox = outbox
         self.deletions = deletions
@@ -79,16 +70,6 @@ public final class FragmentStore: @unchecked Sendable {
         self.deviceId = deviceId
         self.path = path
         try openDatabase()
-
-        // v4 switch: a fragments table without capture_revision is a v3-era
-        // file. There is no legacy user data to migrate — move the whole file
-        // aside and start fresh (storage.md §11.3).
-        if try fragmentsTableNeedsV4Reset() {
-            try closeDatabase()
-            try moveLegacyFileAside()
-            try openDatabase()
-        }
-
         try execute("PRAGMA journal_mode = WAL")
         try execute("PRAGMA busy_timeout = 5000")
         try createSchema()
@@ -111,48 +92,6 @@ public final class FragmentStore: @unchecked Sendable {
             throw StoreError.sqlite("open failed: \(message)")
         }
         db = dbPointer
-    }
-
-    private func closeDatabase() throws {
-        guard let db else { return }
-        guard sqlite3_close_v2(db) == SQLITE_OK else {
-            throw StoreError.sqlite(String(cString: sqlite3_errmsg(db)))
-        }
-        self.db = nil
-    }
-
-    private func moveLegacyFileAside() throws {
-        guard path != ":memory:", !path.isEmpty else { return }
-        let fm = FileManager.default
-        let url = URL(fileURLWithPath: path)
-        let backup = URL(fileURLWithPath: backupPath(for: path))
-        if fm.fileExists(atPath: backup.path) {
-            try? fm.removeItem(at: backup)
-        }
-        if fm.fileExists(atPath: url.path) {
-            try fm.moveItem(at: url, to: backup)
-        }
-        // Best-effort: stale WAL sidecars would resurrect old pages.
-        for suffix in ["-wal", "-shm"] {
-            let side = URL(fileURLWithPath: path + suffix)
-            let sideBackup = URL(fileURLWithPath: backupPath(for: path) + suffix)
-            if fm.fileExists(atPath: side.path) {
-                try? fm.moveItem(at: side, to: sideBackup)
-            }
-        }
-    }
-
-    private func backupPath(for path: String) -> String {
-        let url = URL(fileURLWithPath: path)
-        let stem = url.deletingPathExtension().lastPathComponent
-        let ext = url.pathExtension.isEmpty ? "sqlite" : url.pathExtension
-        return url.deletingLastPathComponent()
-            .appending(path: "\(stem)-v3-backup.\(ext)").path
-    }
-
-    private func fragmentsTableNeedsV4Reset() throws -> Bool {
-        guard tableExists("fragments") else { return false }
-        return !(try tableHasColumn("fragments", "capture_revision"))
     }
 
     // ── schema (storage.md §6) ────────────────────────────────────────────
@@ -185,35 +124,6 @@ public final class FragmentStore: @unchecked Sendable {
           next_interval_days     INTEGER NOT NULL,
           used_hint              INTEGER NOT NULL,
           scheduler_version      TEXT NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS writing_tasks (
-          id           TEXT PRIMARY KEY,
-          payload_json TEXT NOT NULL,
-          updated_at   INTEGER NOT NULL
-        );
-        CREATE TABLE IF NOT EXISTS relations (
-          id                TEXT PRIMARY KEY,
-          from_fragment_id  TEXT NOT NULL,
-          to_fragment_id    TEXT NOT NULL,
-          type              TEXT NOT NULL,
-          created_by        TEXT NOT NULL,
-          confidence        REAL,
-          note              TEXT,
-          suggestion_reason TEXT,
-          status            TEXT NOT NULL,
-          confirmed_at      INTEGER,
-          confirmed_by      TEXT,
-          created_at        INTEGER NOT NULL,
-          updated_at        INTEGER NOT NULL,
-          UNIQUE (from_fragment_id, to_fragment_id, type)
-        );
-        CREATE TABLE IF NOT EXISTS relation_suppressions (
-          from_fragment_id TEXT NOT NULL,
-          to_fragment_id   TEXT NOT NULL,
-          suggested_type   TEXT NOT NULL,
-          rejected_at      INTEGER NOT NULL,
-          reason           TEXT,
-          PRIMARY KEY (from_fragment_id, to_fragment_id, suggested_type)
         );
         CREATE TABLE IF NOT EXISTS outbox_events (
           event_id        TEXT PRIMARY KEY,
@@ -255,23 +165,6 @@ public final class FragmentStore: @unchecked Sendable {
           value INTEGER NOT NULL
         );
         """)
-    }
-
-    private func tableExists(_ table: String) -> Bool {
-        guard let stmt = try? prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?"),
-              sqlite3_bind_text(stmt, 1, table, -1, SQLITE_TRANSIENT) == SQLITE_OK
-        else { return false }
-        defer { sqlite3_finalize(stmt) }
-        return sqlite3_step(stmt) == SQLITE_ROW
-    }
-
-    private func tableHasColumn(_ table: String, _ column: String) throws -> Bool {
-        let stmt = try prepare("PRAGMA table_info(\(table))")
-        defer { sqlite3_finalize(stmt) }
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            if columnText(stmt, 1) == column { return true }
-        }
-        return false
     }
 
     // ── low-level helpers ────────────────────────────────────────────────
@@ -373,21 +266,6 @@ public final class FragmentStore: @unchecked Sendable {
         )
     }
 
-    /// Local creation through the shared factory: validate → write → change
-    /// row (fragment.created, full record incl. review) in one transaction.
-    /// Desktop-created rows carry the desktop-local device constant and an
-    /// empty payload hash (only hub deliveries fill it). No outbox row: the
-    /// authoritative Desktop→extension feed is change_log (storage.md §3.4/§9).
-    @discardableResult
-    public func saveFragment(_ input: CreateFragmentInput) throws -> FragmentRecord {
-        let record = try createFragment(input) // throws on invalid
-        try transaction {
-            try insertFragmentRow(record, deviceId: desktopLocalDeviceId, payloadHash: "")
-            try appendChange(.fragmentCreated, payload: FragmentCreatedPayload(fragment: record), now: record.createdAt)
-        }
-        return record
-    }
-
     /// Full-row upsert for hub deliveries (review already resolved by caller;
     /// newer-revision updates keep the stored review, first writes initialize
     /// it). Hub deliveries never feed the change log (echo exclusion) and no
@@ -452,22 +330,20 @@ public final class FragmentStore: @unchecked Sendable {
         return sqlite3_step(stmt) == SQLITE_ROW
     }
 
-    /// Desktop delete (storage.md §10): fragment + review logs + relations in
-    /// one transaction, plus the local deletion marker (later PUTs → 410) and
-    /// an informational fragment.deleted change row (the extension keeps its
-    /// own copy; deletes never propagate).
+    /// Desktop delete (storage.md §10): fragment + review logs in one
+    /// transaction, plus the local deletion marker (later PUTs → 410) and an
+    /// informational fragment.deleted change row (the extension keeps its own
+    /// copy; deletes never propagate).
     public func deleteFragment(id: String, now: Int? = nil) throws {
         let now = now ?? currentMs()
         try transaction {
             for sql in [
                 "DELETE FROM fragments WHERE id = ?",
                 "DELETE FROM review_logs WHERE target_fragment_id = ?",
-                "DELETE FROM relations WHERE from_fragment_id = ? OR to_fragment_id = ?",
             ] {
                 let stmt = try prepare(sql)
                 defer { sqlite3_finalize(stmt) }
                 bindText(stmt, 1, id)
-                if sql.contains("OR to_fragment_id") { bindText(stmt, 2, id) }
                 guard sqlite3_step(stmt) == SQLITE_DONE else {
                     throw StoreError.sqlite(String(cString: sqlite3_errmsg(db)))
                 }
@@ -610,245 +486,6 @@ public final class FragmentStore: @unchecked Sendable {
         return columnInt(stmt, 0)
     }
 
-    // ── writing tasks (storage.md §3.2) ──────────────────────────────────
-
-    /// Desktop save: appends a change row (writing.created while the task has
-    /// no submissions / writing.submitted after the first submission — payload
-    /// is the full task JSON) in the same transaction. Extension ingestion
-    /// (/v1/events) passes emitChange: false (echo exclusion).
-    @discardableResult
-    public func saveWritingTask(_ task: WritingTaskRecord, emitChange: Bool = true) throws -> WritingTaskRecord {
-        let changeType: DesktopChangeType = task.submissions.isEmpty ? .writingCreated : .writingSubmitted
-        try transaction {
-            let stmt = try prepare("""
-            INSERT OR REPLACE INTO writing_tasks (id, payload_json, updated_at) VALUES (?,?,?)
-            """)
-            defer { sqlite3_finalize(stmt) }
-            bindText(stmt, 1, task.id)
-            try bindJSON(stmt, 2, task)
-            sqlite3_bind_int64(stmt, 3, Int64(task.updatedAt))
-            guard sqlite3_step(stmt) == SQLITE_DONE else {
-                throw StoreError.sqlite(String(cString: sqlite3_errmsg(db)))
-            }
-            if emitChange {
-                try appendChange(changeType, payload: WritingChangedPayload(task: task), now: task.updatedAt)
-            }
-        }
-        return task
-    }
-
-    /// List ordered by createdAt desc (desktop.md §6 history).
-    public func getWritingTasks() throws -> [WritingTaskRecord] {
-        let stmt = try prepare("SELECT payload_json FROM writing_tasks")
-        defer { sqlite3_finalize(stmt) }
-        var out: [WritingTaskRecord] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            if let data = columnText(stmt, 0).data(using: .utf8),
-               let task = try? decoder.decode(WritingTaskRecord.self, from: data)
-            {
-                out.append(task)
-            }
-        }
-        return out.sorted { a, b in
-            if a.createdAt != b.createdAt { return a.createdAt > b.createdAt }
-            return a.id < b.id
-        }
-    }
-
-    public func getWritingTask(id: String) throws -> WritingTaskRecord? {
-        try getWritingTasks().first { $0.id == id }
-    }
-
-    // ── relations (storage.md §3.3) ──────────────────────────────────────
-
-    /// Desktop save: CONFIRMED relations append a change row
-    /// (relation.created when the confirmed shape is new to the feed /
-    /// relation.updated when an already-confirmed row changed) and clear any
-    /// endpoint suppression — re-establishing a rejected pair removes the
-    /// rejection. Suggested rows never travel. Extension ingestion passes
-    /// emitChange: false.
-    public func saveRelation(_ relation: FragmentRelation, emitChange: Bool = true) throws {
-        let stored = try relationById(id: relation.id)
-        try transaction {
-            let stmt = try prepare("""
-            INSERT OR REPLACE INTO relations
-              (id, from_fragment_id, to_fragment_id, type, created_by, confidence,
-               note, suggestion_reason, status, confirmed_at, confirmed_by,
-               created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """)
-            defer { sqlite3_finalize(stmt) }
-            bindText(stmt, 1, relation.id)
-            bindText(stmt, 2, relation.fromFragmentId)
-            bindText(stmt, 3, relation.toFragmentId)
-            bindText(stmt, 4, relation.type)
-            bindText(stmt, 5, relation.createdBy)
-            if let confidence = relation.confidence {
-                sqlite3_bind_double(stmt, 6, confidence)
-            } else {
-                sqlite3_bind_null(stmt, 6)
-            }
-            if let note = relation.note {
-                bindText(stmt, 7, note)
-            } else {
-                sqlite3_bind_null(stmt, 7)
-            }
-            if let reason = relation.suggestionReason {
-                bindText(stmt, 8, reason)
-            } else {
-                sqlite3_bind_null(stmt, 8)
-            }
-            bindText(stmt, 9, relation.status)
-            if let confirmedAt = relation.confirmedAt {
-                sqlite3_bind_int64(stmt, 10, Int64(confirmedAt))
-            } else {
-                sqlite3_bind_null(stmt, 10)
-            }
-            if let confirmedBy = relation.confirmedBy {
-                bindText(stmt, 11, confirmedBy)
-            } else {
-                sqlite3_bind_null(stmt, 11)
-            }
-            sqlite3_bind_int64(stmt, 12, Int64(relation.createdAt))
-            sqlite3_bind_int64(stmt, 13, Int64(relation.updatedAt))
-            guard sqlite3_step(stmt) == SQLITE_DONE else {
-                throw StoreError.sqlite(String(cString: sqlite3_errmsg(db)))
-            }
-            if relation.status == "confirmed" {
-                clearSuppressionsForEndpoints(relation.fromFragmentId, relation.toFragmentId)
-                if emitChange {
-                    // A previously suggested row becoming confirmed is NEW to
-                    // the feed (suggested never traveled).
-                    let alreadyFed = stored?.status == "confirmed"
-                    try appendChange(
-                        alreadyFed ? .relationUpdated : .relationCreated,
-                        payload: RelationChangedPayload(relation: relation),
-                        now: relation.updatedAt
-                    )
-                }
-            }
-        }
-    }
-
-    /// Desktop delete: removes the row and appends relation.deleted
-    /// (single-relation deletes sync; endpoints are untouched, storage.md §9).
-    public func deleteRelation(id: String, emitChange: Bool = true, now: Int? = nil) throws {
-        let now = now ?? currentMs()
-        try transaction {
-            let stmt = try prepare("DELETE FROM relations WHERE id = ?")
-            defer { sqlite3_finalize(stmt) }
-            bindText(stmt, 1, id)
-            guard sqlite3_step(stmt) == SQLITE_DONE else {
-                throw StoreError.sqlite(String(cString: sqlite3_errmsg(db)))
-            }
-            if emitChange {
-                try appendChange(
-                    .relationDeleted,
-                    payload: RelationDeletedPayload(relationId: id),
-                    now: now
-                )
-            }
-        }
-    }
-
-    private func relationById(id: String) throws -> FragmentRelation? {
-        try getRelations().first { $0.id == id }
-    }
-
-    /// Relations touching one endpoint (either direction), oldest first.
-    public func relationsForFragment(id: String) throws -> [FragmentRelation] {
-        try getRelations().filter { $0.fromFragmentId == id || $0.toFragmentId == id }
-    }
-
-    public func getRelations() throws -> [FragmentRelation] {
-        let stmt = try prepare("SELECT * FROM relations ORDER BY created_at ASC")
-        defer { sqlite3_finalize(stmt) }
-        var out: [FragmentRelation] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            out.append(FragmentRelation(
-                id: columnText(stmt, 0),
-                fromFragmentId: columnText(stmt, 1),
-                toFragmentId: columnText(stmt, 2),
-                type: columnText(stmt, 3),
-                createdBy: columnText(stmt, 4),
-                confidence: sqlite3_column_type(stmt, 5) == SQLITE_NULL ? nil : columnDouble(stmt, 5),
-                suggestionReason: sqlite3_column_type(stmt, 7) == SQLITE_NULL ? nil : columnText(stmt, 7),
-                note: sqlite3_column_type(stmt, 6) == SQLITE_NULL ? nil : columnText(stmt, 6),
-                status: columnText(stmt, 8),
-                confirmedAt: sqlite3_column_type(stmt, 9) == SQLITE_NULL ? nil : columnInt(stmt, 9),
-                confirmedBy: sqlite3_column_type(stmt, 10) == SQLITE_NULL ? nil : columnText(stmt, 10),
-                createdAt: columnInt(stmt, 11),
-                updatedAt: columnInt(stmt, 12)
-            ))
-        }
-        return out
-    }
-
-    /// Desktop suppression write: stores the decision key and appends
-    /// suppression.sync so the rejection holds on the extension too (R3).
-    public func saveSuppression(_ suppression: RelationSuppression, emitChange: Bool = true) throws {
-        try transaction {
-            let stmt = try prepare("""
-            INSERT OR REPLACE INTO relation_suppressions
-              (from_fragment_id, to_fragment_id, suggested_type, rejected_at, reason)
-            VALUES (?,?,?,?,?)
-            """)
-            defer { sqlite3_finalize(stmt) }
-            bindText(stmt, 1, suppression.fromFragmentId)
-            bindText(stmt, 2, suppression.toFragmentId)
-            bindText(stmt, 3, suppression.suggestedType)
-            sqlite3_bind_int64(stmt, 4, Int64(suppression.rejectedAt))
-            if let reason = suppression.reason {
-                bindText(stmt, 5, reason)
-            } else {
-                sqlite3_bind_null(stmt, 5)
-            }
-            guard sqlite3_step(stmt) == SQLITE_DONE else {
-                throw StoreError.sqlite(String(cString: sqlite3_errmsg(db)))
-            }
-            if emitChange {
-                try appendChange(
-                    .suppressionSync,
-                    payload: SuppressionSyncPayload(suppression: suppression),
-                    now: suppression.rejectedAt
-                )
-            }
-        }
-    }
-
-    public func getSuppressions() throws -> [RelationSuppression] {
-        let stmt = try prepare("SELECT * FROM relation_suppressions ORDER BY rejected_at ASC")
-        defer { sqlite3_finalize(stmt) }
-        var out: [RelationSuppression] = []
-        while sqlite3_step(stmt) == SQLITE_ROW {
-            out.append(RelationSuppression(
-                fromFragmentId: columnText(stmt, 0),
-                toFragmentId: columnText(stmt, 1),
-                suggestedType: columnText(stmt, 2),
-                rejectedAt: columnInt(stmt, 3),
-                reason: sqlite3_column_type(stmt, 4) == SQLITE_NULL ? nil : columnText(stmt, 4)
-            ))
-        }
-        return out
-    }
-
-    /// Re-establish clears suppression: a confirmed relation for a previously
-    /// rejected endpoint pair removes the rejection keys (both orientations).
-    func clearSuppressionsForEndpoints(_ from: String, _ to: String) {
-        let sql = """
-        DELETE FROM relation_suppressions
-        WHERE (from_fragment_id = ? AND to_fragment_id = ?)
-           OR (from_fragment_id = ? AND to_fragment_id = ?)
-        """
-        guard let stmt = try? prepare(sql) else { return }
-        defer { sqlite3_finalize(stmt) }
-        bindText(stmt, 1, from)
-        bindText(stmt, 2, to)
-        bindText(stmt, 3, to)
-        bindText(stmt, 4, from)
-        _ = sqlite3_step(stmt)
-    }
-
     // ── assets (storage.md §3.5/§6) ──────────────────────────────────────
 
     /// Idempotent per (id, sha256); same id with a different hash conflicts.
@@ -931,12 +568,11 @@ public final class FragmentStore: @unchecked Sendable {
         return missing
     }
 
-    // ── outbox (storage.md §3.4, retired for Desktop-local mutations) ────
-    // Desktop-local mutations STOP enqueueing outbox_events rows: the
+    // ── outbox (storage.md §3.4) ─────────────────────────────────────────
+    // Desktop-local mutations do not enqueue outbox_events rows: the
     // authoritative Desktop→extension feed is change_log (§9) and the system
     // page 待发送事件 counter derives from change_log rows with
-    // seq > pulledCursor. The table stays for schema continuity with older
-    // databases; new rows are never written.
+    // seq > pulledCursor.
 
     public func outboxCount() throws -> Int {
         let stmt = try prepare("SELECT COUNT(*) FROM outbox_events")
@@ -1097,8 +733,6 @@ public final class FragmentStore: @unchecked Sendable {
         StoreStats(
             fragments: try countRows("fragments"),
             reviewLogs: try countRows("review_logs"),
-            writingTasks: try countRows("writing_tasks"),
-            relations: try countRows("relations"),
             assets: try countRows("assets"),
             outbox: try countRows("outbox_events"),
             deletions: try countRows("fragment_deletions"),
