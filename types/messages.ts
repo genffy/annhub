@@ -434,11 +434,6 @@ export interface CaptureConfig {
   deepMode: boolean
 }
 
-/** Desktop-synced writing tasks (R3.2 display + ZIP). */
-export interface GetWritingTasksMessage extends BaseMessage {
-  type: 'GET_WRITING_TASKS'
-}
-
 /** Visible sync conflict/skip reports (storage.md §9). */
 export interface GetSyncReportsMessage extends BaseMessage {
   type: 'GET_SYNC_REPORTS'
@@ -541,7 +536,6 @@ export type UIToBackgroundMessage =
   | GetTabIdMessage
   | GetOrphanAssetsMessage
   | CleanupOrphanAssetsMessage
-  | GetWritingTasksMessage
   | GetSyncReportsMessage
   | GetCaptureMetricsMessage
   | RecordCaptureMetricMessage

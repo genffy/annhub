@@ -77,7 +77,7 @@ export class FragmentService implements IService {
     await this.store.initialize()
     await this.ensureDeviceId()
     this.initialized = true
-    Logger.info('[FragmentService] Initialized (fragment-store v4)')
+    Logger.info('[FragmentService] Initialized (fragment-store)')
   }
 
   private async ensureDeviceId(): Promise<void> {
@@ -172,14 +172,6 @@ export class FragmentService implements IService {
 
   getDeliveryStats() {
     return this.store.getDeliveryStats()
-  }
-
-  getAllWritingTasks() {
-    return this.store.getAllWritingTasks()
-  }
-
-  getAllRelations() {
-    return this.store.getAllRelations()
   }
 
   findOrphanAssets() {
@@ -290,8 +282,8 @@ export class FragmentService implements IService {
     })
     const deliveryState: DeliveryState = { lastSyncAt: Date.now(), lastResult: result, lastError: result.errors[0] }
 
-    // R3: after delivery, drain Desktop-originated changes (review / output /
-    // relation domains). Auth failure stops both directions.
+    // R3: after delivery, drain Desktop-originated review changes. Auth
+    // failure stops both directions.
     if (config.token && !result.authFailed) {
       const pull = await pullDesktopChanges(config, {
         getCursor: () => this.store.getSyncCursor(),
@@ -353,7 +345,6 @@ export class FragmentService implements IService {
 /** Local annhub:// sources keep fixed hosts (fragments.md §7). */
 function localSourceHost(sourceUrl: string): string {
   if (sourceUrl.startsWith('annhub://manual/')) return 'manual'
-  if (sourceUrl.startsWith('annhub://writing-task/')) return 'writing-task'
   return normalizeHost(sourceUrl)
 }
 

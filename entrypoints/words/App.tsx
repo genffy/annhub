@@ -14,8 +14,6 @@ import type { HighlightRecord } from '../../types/highlight'
 import type { ClipRecord } from '../../types/clip'
 import CaptureModal from '../content/capture/CaptureModal'
 import { exportContentZip, downloadZip } from '../../utils/export-content'
-import { appliedFragmentIds, weeklyAppliedCounts } from '../../learning-core/output'
-import type { WritingTaskRecord } from '../../learning-core/types'
 import { buildCaptureDraft, buildInspirationDraft, type CaptureDraft } from '../content/capture/capture-context'
 import ScreenshotsView from './Screenshots'
 import './style.css'
@@ -84,12 +82,8 @@ export default function App() {
   } | null>(null)
   const [desktopPanelOpen, setDesktopPanelOpen] = useState(false)
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
-  const [writingTasks, setWritingTasks] = useState<WritingTaskRecord[] | null>(null)
   const [onboardingDismissed, setOnboardingDismissed] = useState<boolean | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  const appliedIds = useMemo(() => (writingTasks ? appliedFragmentIds(writingTasks) : new Set<string>()), [writingTasks])
-  const weeklyApplied = useMemo(() => (writingTasks ? weeklyAppliedCounts(writingTasks) : new Map<string, number>()), [writingTasks])
 
   // ── highlights state ──
   const [highlights, setHighlights] = useState<HighlightRecord[] | null>(null)
@@ -158,8 +152,6 @@ export default function App() {
 
   useEffect(() => {
     void (async () => {
-      const response = await MessageUtils.sendMessage<WritingTaskRecord[]>({ type: 'GET_WRITING_TASKS' })
-      setWritingTasks(response.success && Array.isArray(response.data) ? response.data : [])
       chrome.storage.local.get('annhubOnboardingDismissed', result => setOnboardingDismissed(!!result['annhubOnboardingDismissed']))
     })()
   }, [])
@@ -247,7 +239,6 @@ export default function App() {
           {stats && (
             <span className="words-stats">
               {stats.total} 条碎片 · 本周新增 {stats.newThisWeek}
-              {weeklyApplied.size > 0 ? ` · 本周应用 ${weeklyApplied.size}` : ''}
             </span>
           )}
           {connection && (
@@ -344,7 +335,7 @@ export default function App() {
             >
               <strong>Desktop 说明</strong>
               <br />
-              扩展不依赖 Desktop 也能采集、检索与导出。要使用复习与输出工坊：启动 Mac 上的 AnnHub Desktop 应用，在其「系统」页复制配对 Token，然后到
+              扩展不依赖 Desktop 也能采集、检索与导出。要在 Desktop 复习：启动 Mac 上的 AnnHub Desktop 应用，在其「系统」页复制配对 Token，然后到
               <a href={chrome.runtime.getURL('/options/index.html#/settings')} target="_blank" rel="noreferrer">
                 设置 → Desktop 连接
               </a>
@@ -487,7 +478,7 @@ export default function App() {
             ) : (
               <>
                 {result.items.map(fragment => (
-                  <FragmentCard key={fragment.id} fragment={fragment} applied={appliedIds.has(fragment.id)} onEdit={() => setEditing(fragment)} onDelete={() => deleteFragment(fragment.id)} />
+                  <FragmentCard key={fragment.id} fragment={fragment} onEdit={() => setEditing(fragment)} onDelete={() => deleteFragment(fragment.id)} />
                 ))}
                 {result.nextCursor && (
                   <div style={{ display: 'flex', justifyContent: 'center', padding: 12 }}>
@@ -537,7 +528,7 @@ export default function App() {
 
 // ── fragment card (PRD §5.3: card shows only the essentials) ─────────────
 
-function FragmentCard({ fragment, applied, onEdit, onDelete }: { fragment: FragmentRecord; applied: boolean; onEdit: () => void; onDelete: () => void }) {
+function FragmentCard({ fragment, onEdit, onDelete }: { fragment: FragmentRecord; onEdit: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false)
   const v = fragment.processing.verified
   return (
@@ -558,11 +549,6 @@ function FragmentCard({ fragment, applied, onEdit, onDelete }: { fragment: Fragm
           {fragment.context.sourceHost} · {relativeTime(fragment.context.capturedAt)}
           {fragment.review.lastReviewedAt ? ` · 最近复习 ${relativeTime(fragment.review.lastReviewedAt)}` : ''}
         </span>
-        {applied && (
-          <span className="badge" title="已确认应用于某次输出">
-            已应用
-          </span>
-        )}
         <span className="fragment-tags">
           {fragment.tags.slice(0, 6).map(tag => (
             <span key={tag} className="tag">

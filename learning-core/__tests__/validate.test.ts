@@ -1,12 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { createFragment } from '../factory'
 import {
-  canonicalRelationEndpoints,
   validateFragment,
-  validateRelation,
   validateVerified,
 } from '../validate'
-import type { FragmentRelation, FragmentRecord } from '../types'
+import type { FragmentRecord } from '../types'
 import { makeFragment, makeFragmentOf, VERIFIED, EXCERPT } from './helpers'
 
 describe('kind registry (fragments.md §4)', () => {
@@ -179,9 +177,10 @@ describe('per-kind detail validators (fragments.md §4)', () => {
     expect(validateFragment({ ...f, detail: { status: 'answered' as const, answer: '结论：部分迁移', hypothesis: 'x' } }).ok).toBe(true)
   })
 
-  it('claim requires a stance', () => {
+  it('claim stance is optional in the data layer but must be a known value when present', () => {
     const f = makeFragmentOf('claim')
-    expect(validateFragment({ ...f, detail: { ...f.detail, stance: undefined as unknown as 'support' } }).code).toBe('CLAIM_STANCE_REQUIRED')
+    expect(validateFragment({ ...f, detail: { ...f.detail, stance: undefined } }).ok).toBe(true)
+    expect(validateFragment({ ...f, detail: { ...f.detail, stance: 'maybe' as unknown as 'support' } }).code).toBe('DETAIL_FIELD_INVALID')
   })
 
   it('visual requires at least one attachment id and rejects duplicates', () => {
@@ -193,49 +192,6 @@ describe('per-kind detail validators (fragments.md §4)', () => {
   it('inspiration form must be idea or reflection', () => {
     const f = makeFragmentOf('inspiration')
     expect(validateFragment({ ...f, detail: { form: 'rant' as unknown as 'idea' } }).code).toBe('INSPIRATION_FORM_INVALID')
-  })
-})
-
-describe('relations (storage.md §3.3)', () => {
-  const baseRelation: FragmentRelation = {
-    id: 'rel_1',
-    fromFragmentId: 'frag_a',
-    toFragmentId: 'frag_b',
-    type: 'reference',
-    createdBy: 'user',
-    status: 'confirmed',
-    confirmedAt: 1_768_000_000_000,
-    confirmedBy: 'user',
-    createdAt: 1_768_000_000_000,
-    updatedAt: 1_768_000_000_000,
-  }
-
-  it('rejects self references and invalid types', () => {
-    expect(validateRelation({ ...baseRelation, fromFragmentId: 'frag_a', toFragmentId: 'frag_a' }).code).toBe('RELATION_SELF_REFERENCE')
-    expect(validateRelation({ ...baseRelation, type: 'occurs-in' as unknown as FragmentRelation['type'] }).code).toBe('RELATION_TYPE_INVALID')
-  })
-
-  it('auto suggestions need confidence + reason and stay suggested until user confirmation', () => {
-    expect(
-      validateRelation({ ...baseRelation, createdBy: 'auto', status: 'suggested', confidence: undefined, suggestionReason: undefined, confirmedAt: undefined, confirmedBy: undefined }).code,
-    ).toBe('RELATION_CONFIDENCE_INVALID')
-    expect(
-      validateRelation({ ...baseRelation, createdBy: 'auto', status: 'suggested', confidence: 0.8, suggestionReason: '', confirmedAt: undefined, confirmedBy: undefined }).code,
-    ).toBe('RELATION_SUGGESTION_REASON_REQUIRED')
-    const validAuto = { ...baseRelation, createdBy: 'auto' as const, status: 'suggested' as const, confidence: 0.8, suggestionReason: '同主题共现', confirmedAt: undefined, confirmedBy: undefined }
-    expect(validateRelation(validAuto).ok).toBe(true)
-  })
-
-  it('user relations are confirmed with metadata', () => {
-    expect(validateRelation({ ...baseRelation, status: 'suggested' }).code).toBe('RELATION_STATUS_INVALID')
-    expect(validateRelation({ ...baseRelation, confirmedAt: undefined }).code).toBe('RELATION_CONFIRM_META_REQUIRED')
-  })
-
-  it('similarity/contrast endpoints are stored sorted', () => {
-    expect(canonicalRelationEndpoints('frag_b', 'frag_a', 'similarity')).toEqual(['frag_a', 'frag_b'])
-    expect(canonicalRelationEndpoints('frag_b', 'frag_a', 'reference')).toEqual(['frag_b', 'frag_a'])
-    const unsorted = { ...baseRelation, type: 'similarity' as const, fromFragmentId: 'frag_b', toFragmentId: 'frag_a' }
-    expect(validateRelation(unsorted).code).toBe('RELATION_CANONICAL_ORDER')
   })
 })
 

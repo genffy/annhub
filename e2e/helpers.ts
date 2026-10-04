@@ -349,7 +349,7 @@ export async function getFragmentsFromServiceWorker(context: any): Promise<any[]
   })
 }
 
-/** Clear the whole learning core (all five stores) via the service worker. See the version note above. */
+/** Clear the whole learning core (every learning-core store) via the service worker. See the version note above. */
 export async function clearFragmentStoreViaServiceWorker(context: any): Promise<void> {
   const sw = await ensureServiceWorker(context)
   await sw.evaluate(() => {
@@ -358,11 +358,7 @@ export async function clearFragmentStoreViaServiceWorker(context: any): Promise<
       request.onerror = () => resolve()
       request.onsuccess = () => {
         const db = request.result
-        const stores = ['fragments', 'reviewLogs', 'writingTasks', 'relations', 'outboxEvents', 'assets', 'screenshots', 'relationSuppressions', 'localDeletions'].filter(s => db.objectStoreNames.contains(s))
-        if (stores.length === 0) {
-          db.close()
-          return resolve()
-        }
+        const stores = ['fragments', 'reviewLogs', 'outboxEvents', 'assets', 'screenshots', 'localDeletions']
         const tx = db.transaction(stores, 'readwrite')
         for (const store of stores) tx.objectStore(store).clear()
         tx.oncomplete = () => {

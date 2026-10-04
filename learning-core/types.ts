@@ -4,8 +4,7 @@
  *
  * Contract owners (docs/v2):
  *   - FragmentRecord shape / kinds / validation: docs/v2/fragments.md
- *   - ReviewLog / WritingTaskRecord / FragmentRelation / OutboxEvent /
- *     ImageAsset / ScreenshotRecord: docs/v2/storage.md
+ *   - ReviewLog / OutboxEvent / ImageAsset / ScreenshotRecord: docs/v2/storage.md
  *   - Review scheduling: docs/v2/review.md
  *
  * This module must stay environment-neutral: no chrome.*, no DOM, no React.
@@ -66,7 +65,7 @@ export interface FragmentDetailMap {
     counterExamples?: string[]
   }
   claim: {
-    stance: 'support' | 'oppose' | 'uncertain'
+    stance?: 'support' | 'oppose' | 'uncertain'
     evidence?: string[]
     assumptions?: string[]
   }
@@ -193,74 +192,6 @@ export interface ReviewLog {
   schedulerVersion: string
 }
 
-// ── Output workshop (L4, storage.md §3.2 — records land with R2) ────────
-
-export type WritingTaskType = 'explanation' | 'analysis' | 'plan' | 'decision' | 'retrospective' | 'article'
-
-export interface FragmentUseAssessment {
-  fragmentId: string
-  source: 'local' | 'manual' | 'llm'
-  /** Local text-presence clue only — never used/correct by itself. */
-  presence?: boolean
-  used?: boolean
-  correct?: boolean
-  feedback?: string
-  suggestion?: string
-  modelId?: string
-  promptVersion?: string
-  confirmedByUser?: boolean
-  assessedAt: number
-}
-
-export interface OutputSubmission {
-  id: string
-  content: string
-  submittedAt: number
-  assessments: FragmentUseAssessment[]
-}
-
-export interface WritingTaskRecord {
-  id: string
-  fragmentIds: string[]
-  taskType: WritingTaskType
-  prompt: string
-  constraints: string[]
-  draftContent: string
-  submissions: OutputSubmission[]
-  createdAt: number
-  updatedAt: number
-}
-
-// ── Relations (storage.md §3.3) ──────────────────────────────────────────
-
-export type RelationType = 'reference' | 'prerequisite' | 'similarity' | 'contrast' | 'evidence' | 'evolution'
-
-export interface FragmentRelation {
-  id: string
-  fromFragmentId: string
-  toFragmentId: string
-  type: RelationType
-  createdBy: 'user' | 'auto'
-  /** Required when createdBy === 'auto'; must be in [0, 1]. */
-  confidence?: number
-  /** Required when createdBy === 'auto' — why the suggestion was made. */
-  suggestionReason?: string
-  note?: string
-  status: 'suggested' | 'confirmed'
-  confirmedAt?: number
-  confirmedBy?: 'user'
-  createdAt: number
-  updatedAt: number
-}
-
-export interface RelationSuppression {
-  fromFragmentId: string
-  toFragmentId: string
-  suggestedType: RelationType
-  rejectedAt: number
-  reason?: string
-}
-
 // ── Image assets & screenshot library (storage.md §3.5) ─────────────────
 
 export type ImageMimeType = 'image/png' | 'image/jpeg' | 'image/webp'
@@ -285,16 +216,7 @@ export interface ScreenshotRecord {
 
 // ── Outbox / sync events (storage.md §3.4) ──────────────────────────────
 
-export type SyncEventType =
-  | 'fragment.created'
-  | 'fragment.updated'
-  | 'asset.created'
-  | 'review.rated'
-  | 'writing.created'
-  | 'writing.submitted'
-  | 'relation.created'
-  | 'relation.updated'
-  | 'relation.deleted'
+export type SyncEventType = 'fragment.created' | 'fragment.updated' | 'asset.created' | 'review.rated'
 
 export interface OutboxEvent {
   eventId: string

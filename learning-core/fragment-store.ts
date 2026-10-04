@@ -7,23 +7,12 @@
  *   validate -> write entity -> append delivery event -> commit
  * with entity + outbox event inside ONE transaction (storage.md §4).
  *
- * DB v4 purges chunk-era (schema v3) rows on upgrade — there is no user data
- * to migrate (roadmap R1.1: old records are not migrated).
+ * There is no user data to migrate (roadmap §1): the store creates the
+ * current contract's object stores only.
  */
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
-import type {
-  FragmentRecord,
-  ImageAsset,
-  LocalDeletion,
-  OutboxEvent,
-  RelationSuppression,
-  ReviewLog,
-  ScreenshotRecord,
-  SyncEventType,
-  WritingTaskRecord,
-  FragmentRelation,
-} from './types'
-import { assertValid, canonicalRelationKey, normalizeRelation, validateRelation } from './validate'
+import type { FragmentRecord, ImageAsset, LocalDeletion, OutboxEvent, ReviewLog, ScreenshotRecord, SyncEventType } from './types'
+import { assertValid } from './validate'
 import { createFragment, newId, type CreateFragmentInput } from './factory'
 import { rateFragment, type ReviewRating } from './scheduler'
 import { dedupeKeyOf, normalizeContent } from './normalize'
@@ -31,7 +20,6 @@ import { newAssetId, newScreenshotId, type AssetDeliveryPayload, type FragmentDe
 import { applyDesktopChanges, type ApplyResult, type DesktopChange, type SyncReportEntry } from './sync'
 
 type StoredReviewLog = ReviewLog & { targetKey: string }
-type StoredRelation = FragmentRelation & { fromKey: string; toKey: string }
 
 interface FragmentDB extends DBSchema {
   fragments: {
@@ -51,12 +39,6 @@ interface FragmentDB extends DBSchema {
     value: StoredReviewLog
     indexes: { 'by-target': string; 'by-reviewed': number }
   }
-  writingTasks: { key: string; value: WritingTaskRecord }
-  relations: {
-    key: string
-    value: StoredRelation
-    indexes: { 'by-from': string; 'by-to': string; 'by-status': string }
-  }
   assets: {
     key: string
     value: { metadata: ImageAsset; bytes: Blob }
@@ -65,7 +47,6 @@ interface FragmentDB extends DBSchema {
     key: string
     value: ScreenshotRecord
   }
-  relationSuppressions: { key: string; value: RelationSuppression }
   outboxEvents: {
     key: string
     value: OutboxEvent
@@ -77,11 +58,6 @@ interface FragmentDB extends DBSchema {
 }
 
 const withTargetKey = (log: ReviewLog): StoredReviewLog => ({ ...log, targetKey: log.target.fragmentId })
-const withRelationKeys = (rel: FragmentRelation): StoredRelation => ({
-  ...rel,
-  fromKey: rel.fromFragmentId,
-  toKey: rel.toFragmentId,
-})
 
 const eventFragmentId = (event: OutboxEvent): string | null => {
   const payload = event.payload as Partial<FragmentDeliveryPayload & AssetDeliveryPayload> | null
@@ -130,18 +106,7 @@ export class FragmentStore {
   async initialize(): Promise<void> {
     if (this.db) return
     this.db = await openDB<FragmentDB>(this.dbName, this.dbVersion, {
-      upgrade(db, oldVersion) {
-        // v3 → v4: chunk-era rows (schema v3, EntityRef relations) are not
-        // migrated — the v4 contract starts clean (roadmap R1.1).
-        if (oldVersion > 0 && oldVersion < 4) {
-          const legacy = ['fragments', 'reviewLogs', 'writingTasks', 'relations', 'outboxEvents'] as Array<
-            'fragments' | 'reviewLogs' | 'writingTasks' | 'relations' | 'outboxEvents'
-          >
-          for (const name of legacy) {
-            if (db.objectStoreNames.contains(name)) db.deleteObjectStore(name)
-          }
-        }
-
+      upgrade(db) {
         const fragments = db.createObjectStore('fragments', { keyPath: 'id' })
         fragments.createIndex('by-kind', 'kind')
         fragments.createIndex('by-host', 'context.sourceHost')
@@ -154,24 +119,16 @@ export class FragmentStore {
         logs.createIndex('by-target', 'targetKey')
         logs.createIndex('by-reviewed', 'reviewedAt')
 
-        db.createObjectStore('writingTasks', { keyPath: 'id' })
-
-        const relations = db.createObjectStore('relations', { keyPath: 'id' })
-        relations.createIndex('by-from', 'fromKey')
-        relations.createIndex('by-to', 'toKey')
-        relations.createIndex('by-status', 'status')
-
         db.createObjectStore('assets', { keyPath: 'metadata.id' })
         db.createObjectStore('screenshots', { keyPath: 'id' })
-        db.createObjectStore('relationSuppressions')
 
         const outbox = db.createObjectStore('outboxEvents', { keyPath: 'eventId' })
         outbox.createIndex('by-created', 'createdAt')
 
         db.createObjectStore('localDeletions', { keyPath: 'fragmentId' })
-        // v5 additive: R3 sync cursor + visible conflict reports (storage.md §9).
-        if (!db.objectStoreNames.contains('syncMeta')) db.createObjectStore('syncMeta')
-        if (!db.objectStoreNames.contains('syncReports')) db.createObjectStore('syncReports', { keyPath: 'id' })
+        // R3 sync cursor + visible conflict reports (storage.md §9).
+        db.createObjectStore('syncMeta')
+        db.createObjectStore('syncReports', { keyPath: 'id' })
       },
     })
   }
@@ -293,17 +250,13 @@ export class FragmentStore {
   }
 
   /**
-   * Extension-local delete (storage.md §10): removes the record, its
-   * relations and ITS pending delivery tasks in one transaction, and writes
-   * a local-only deletion marker. No delete event is ever sent.
+   * Extension-local delete (storage.md §10): removes the record and ITS
+   * pending delivery tasks in one transaction, and writes a local-only
+   * deletion marker. No delete event is ever sent.
    */
   async deleteFragment(id: string): Promise<void> {
     const db = await this.db_()
-    const tx = db.transaction(['fragments', 'relations', 'outboxEvents', 'localDeletions'], 'readwrite')
-    const relations = await tx.objectStore('relations').getAll()
-    for (const rel of relations) {
-      if (rel.fromFragmentId === id || rel.toFragmentId === id) await tx.objectStore('relations').delete(rel.id)
-    }
+    const tx = db.transaction(['fragments', 'outboxEvents', 'localDeletions'], 'readwrite')
     const events = await tx.objectStore('outboxEvents').getAll()
     for (const event of events) {
       if (eventFragmentId(event) === id) await tx.objectStore('outboxEvents').delete(event.eventId)
@@ -352,73 +305,6 @@ export class FragmentStore {
     const all = await db.getAll('reviewLogs')
     const logs = all.map(({ targetKey: _targetKey, ...log }) => log)
     return fragmentId ? logs.filter(l => l.target.fragmentId === fragmentId) : logs
-  }
-
-  // ── writing tasks (records land with R2; store is contract-complete) ──
-
-  async saveWritingTask(task: WritingTaskRecord): Promise<WritingTaskRecord> {
-    const db = await this.db_()
-    const saved: WritingTaskRecord = { ...task, updatedAt: Date.now() }
-    const tx = db.transaction(['writingTasks', 'outboxEvents'], 'readwrite')
-    await tx.objectStore('writingTasks').put(saved)
-    const hadSubmissions = task.submissions.length > 0
-    await tx.objectStore('outboxEvents').put(this.enqueueEvent(hadSubmissions ? 'writing.submitted' : 'writing.created', { taskId: task.id }))
-    await tx.done
-    return saved
-  }
-
-  async getWritingTask(id: string): Promise<WritingTaskRecord | undefined> {
-    const db = await this.db_()
-    return db.get('writingTasks', id)
-  }
-
-  async getAllWritingTasks(): Promise<WritingTaskRecord[]> {
-    const db = await this.db_()
-    const tasks = await db.getAll('writingTasks')
-    return tasks.sort((a, b) => b.createdAt - a.createdAt)
-  }
-
-  // ── relations (R2 UI; storage contract lives here) ───────────────────
-
-  async saveRelation(relation: FragmentRelation): Promise<void> {
-    const normalized = normalizeRelation(relation)
-    const check = validateRelation(normalized)
-    if (!check.ok) throw new Error(`RELATION_INVALID:${check.code}`)
-    const db = await this.db_()
-    const tx = db.transaction(['relations', 'relationSuppressions', 'outboxEvents'], 'readwrite')
-    await tx.objectStore('relations').put(withRelationKeys(normalized))
-    // Re-establishing a previously rejected suggestion clears its suppression (storage.md §3.3).
-    await tx.objectStore('relationSuppressions').delete(canonicalRelationKey(normalized.fromFragmentId, normalized.toFragmentId, normalized.type))
-    await tx.objectStore('outboxEvents').put(this.enqueueEvent('relation.created', { relationId: normalized.id }))
-    await tx.done
-  }
-
-  async deleteRelation(id: string): Promise<void> {
-    const db = await this.db_()
-    const tx = db.transaction(['relations', 'outboxEvents'], 'readwrite')
-    const existing = await tx.objectStore('relations').get(id)
-    await tx.objectStore('relations').delete(id)
-    if (existing) {
-      await tx.objectStore('outboxEvents').put(this.enqueueEvent('relation.deleted', { relationId: id }))
-    }
-    await tx.done
-  }
-
-  async getAllRelations(): Promise<FragmentRelation[]> {
-    const db = await this.db_()
-    const all = await db.getAll('relations')
-    return all.map(({ fromKey: _fromKey, toKey: _toKey, ...rel }) => rel)
-  }
-
-  async saveSuppression(suppression: RelationSuppression): Promise<void> {
-    const db = await this.db_()
-    const key = canonicalRelationKey(suppression.fromFragmentId, suppression.toFragmentId, suppression.suggestedType)
-    await db.put('relationSuppressions', suppression, key)
-  }
-
-  async getSuppressions(): Promise<RelationSuppression[]> {
-    const db = await this.db_()
-    return db.getAll('relationSuppressions')
   }
 
   // ── image assets & screenshot library (storage.md §3.5) ──────────────
@@ -617,22 +503,12 @@ export class FragmentStore {
       now: Date.now(),
     })
 
-    const stores = ['fragments', 'reviewLogs', 'writingTasks', 'relations', 'relationSuppressions', 'syncReports'] as const
+    const stores = ['fragments', 'reviewLogs', 'syncReports'] as const
     const tx = db.transaction([...stores], 'readwrite')
     const fragmentStore = tx.objectStore('fragments')
     for (const fragment of result.fragments) await fragmentStore.put(fragment)
     const logStore = tx.objectStore('reviewLogs')
     for (const log of result.reviewLogs) await logStore.put(withTargetKey(log))
-    const taskStore = tx.objectStore('writingTasks')
-    for (const task of result.writingTasks) await taskStore.put(task)
-    const relationStore = tx.objectStore('relations')
-    for (const relation of result.relations) await relationStore.put(withRelationKeys(relation))
-    for (const id of result.deletedRelationIds) await relationStore.delete(id)
-    const suppressionStore = tx.objectStore('relationSuppressions')
-    for (const suppression of result.suppressions) {
-      const [from, to] = [suppression.fromFragmentId, suppression.toFragmentId]
-      await suppressionStore.put(suppression, `${from} ${to} ${suppression.suggestedType}`)
-    }
     const reportStore = tx.objectStore('syncReports')
     for (const report of result.reports) await reportStore.put({ ...report, id: newId() })
     await tx.done

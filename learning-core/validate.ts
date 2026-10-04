@@ -10,15 +10,7 @@
  * No fixed per-language token thresholds: `use` only needs to be non-empty
  * and not copy content/excerpt (processing.md §4).
  */
-import type {
-  DetailOf,
-  FragmentKind,
-  FragmentLocator,
-  FragmentRecord,
-  FragmentRelation,
-  RelationType,
-  VerifiedResult,
-} from './types'
+import type { DetailOf, FragmentKind, FragmentLocator, FragmentRecord, VerifiedResult } from './types'
 import { ENABLED_FRAGMENT_KINDS, REGISTERED_FRAGMENT_KINDS } from './types'
 import { normalizeContent, normalizeHost } from './normalize'
 
@@ -56,7 +48,6 @@ export type FragmentErrorCode =
   | 'USE_COPIES_EXCERPT'
   | 'DETAIL_KIND_MISMATCH'
   | 'DETAIL_FIELD_INVALID'
-  | 'CLAIM_STANCE_REQUIRED'
   | 'PROCEDURE_STEPS_REQUIRED'
   | 'DECISION_RATIONALE_REQUIRED'
   | 'QUESTION_STATUS_INVALID'
@@ -68,13 +59,13 @@ export type FragmentErrorCode =
 
 export interface ValidationResult {
   ok: boolean
-  code?: FragmentErrorCode | RelationErrorCode
+  code?: FragmentErrorCode
   /** Human-actionable context (e.g. got/max counts). UI shows messages, not raw errors. */
   info?: Record<string, unknown>
 }
 
 export const ok = (): ValidationResult => ({ ok: true })
-export const fail = (code: FragmentErrorCode | RelationErrorCode, info?: Record<string, unknown>): ValidationResult => ({ ok: false, code, info })
+export const fail = (code: FragmentErrorCode, info?: Record<string, unknown>): ValidationResult => ({ ok: false, code, info })
 
 // ── shared text guards ──────────────────────────────────────────────────
 
@@ -181,12 +172,6 @@ export function validateSourcePair(sourceUrl: string, sourceHost: string): Valid
     if (sourceHost !== 'manual') return fail('SOURCE_HOST_MISMATCH', { got: sourceHost, need: 'manual' })
     return ok()
   }
-  if (sourceUrl.startsWith('annhub://writing-task/')) {
-    const id = sourceUrl.slice('annhub://writing-task/'.length)
-    if (!ANNHUB_LOCAL_ID.test(id)) return fail('SOURCE_URL_INVALID')
-    if (sourceHost !== 'writing-task') return fail('SOURCE_HOST_MISMATCH', { got: sourceHost, need: 'writing-task' })
-    return ok()
-  }
   let url: URL
   try {
     url = new URL(sourceUrl)
@@ -265,8 +250,8 @@ const validateConceptDetail: DetailValidator = d => {
 const validateClaimDetail: DetailValidator = d => {
   const x = d as { stance?: unknown; evidence?: unknown; assumptions?: unknown } | null
   if (!x || typeof x !== 'object') return fail('DETAIL_KIND_MISMATCH', { kind: 'claim' })
-  if (x.stance !== 'support' && x.stance !== 'oppose' && x.stance !== 'uncertain') {
-    return fail('CLAIM_STANCE_REQUIRED')
+  if (x.stance !== undefined && x.stance !== 'support' && x.stance !== 'oppose' && x.stance !== 'uncertain') {
+    return fail('DETAIL_FIELD_INVALID', { field: 'detail.stance' })
   }
   for (const field of ['evidence', 'assumptions'] as const) {
     const list = checkStringList(x[field], `detail.${field}`, 20, 500)
@@ -467,7 +452,7 @@ export function validateFragment(f: FragmentRecord): ValidationResult {
 
 export class FragmentValidationError extends Error {
   constructor(
-    public readonly code: FragmentErrorCode | RelationErrorCode,
+    public readonly code: FragmentErrorCode,
     public readonly info?: Record<string, unknown>,
   ) {
     super(`Fragment validation failed: ${code}`)
@@ -479,69 +464,6 @@ export class FragmentValidationError extends Error {
 export function assertValid(f: FragmentRecord): void {
   const result = validateFragment(f)
   if (!result.ok) throw new FragmentValidationError(result.code!, result.info)
-}
-
-// ── relations (storage.md §3.3) ──────────────────────────────────────────
-
-export type RelationErrorCode =
-  | 'RELATION_ENDPOINT_INVALID'
-  | 'RELATION_SELF_REFERENCE'
-  | 'RELATION_TYPE_INVALID'
-  | 'RELATION_CREATED_BY_INVALID'
-  | 'RELATION_STATUS_INVALID'
-  | 'RELATION_CONFIDENCE_INVALID'
-  | 'RELATION_SUGGESTION_REASON_REQUIRED'
-  | 'RELATION_CONFIRM_META_REQUIRED'
-  | 'RELATION_CANONICAL_ORDER'
-  | 'RELATION_TIMESTAMP_INVALID'
-
-export const RELATION_TYPES: readonly RelationType[] = ['reference', 'prerequisite', 'similarity', 'contrast', 'evidence', 'evolution']
-
-/** similarity / contrast are undirected: endpoints are stored sorted (storage.md §3.3). */
-export const isSymmetricRelation = (type: RelationType): boolean => type === 'similarity' || type === 'contrast'
-
-/** Returns the canonically ordered endpoint pair for a relation type. */
-export function canonicalRelationEndpoints(from: string, to: string, type: RelationType): [string, string] {
-  return isSymmetricRelation(type) ? ([from, to].sort() as [string, string]) : [from, to]
-}
-
-export function canonicalRelationKey(from: string, to: string, type: RelationType): string {
-  const [a, b] = canonicalRelationEndpoints(from, to, type)
-  return [a, b, type].join(' ')
-}
-
-export function validateRelation(rel: FragmentRelation): ValidationResult {
-  if (typeof rel.fromFragmentId !== 'string' || !rel.fromFragmentId.trim()) return fail('RELATION_ENDPOINT_INVALID')
-  if (typeof rel.toFragmentId !== 'string' || !rel.toFragmentId.trim()) return fail('RELATION_ENDPOINT_INVALID')
-  if (rel.fromFragmentId === rel.toFragmentId) return fail('RELATION_SELF_REFERENCE')
-  if (!(RELATION_TYPES as readonly string[]).includes(rel.type)) return fail('RELATION_TYPE_INVALID')
-  if (rel.createdBy !== 'user' && rel.createdBy !== 'auto') return fail('RELATION_CREATED_BY_INVALID')
-  if (rel.status !== 'suggested' && rel.status !== 'confirmed') return fail('RELATION_STATUS_INVALID')
-  if (!isFiniteEpoch(rel.createdAt) || !isFiniteEpoch(rel.updatedAt)) return fail('RELATION_TIMESTAMP_INVALID')
-
-  if (rel.createdBy === 'auto') {
-    if (typeof rel.confidence !== 'number' || !Number.isFinite(rel.confidence) || rel.confidence < 0 || rel.confidence > 1) {
-      return fail('RELATION_CONFIDENCE_INVALID')
-    }
-    if (typeof rel.suggestionReason !== 'string' || !rel.suggestionReason.trim()) {
-      return fail('RELATION_SUGGESTION_REASON_REQUIRED')
-    }
-  }
-  if (rel.createdBy === 'user' && rel.status !== 'confirmed') return fail('RELATION_STATUS_INVALID', { need: 'confirmed' })
-  if (rel.status === 'confirmed') {
-    if (!isFiniteEpoch(rel.confirmedAt) || rel.confirmedBy !== 'user') return fail('RELATION_CONFIRM_META_REQUIRED')
-  }
-  if (isSymmetricRelation(rel.type)) {
-    const [a, b] = canonicalRelationEndpoints(rel.fromFragmentId, rel.toFragmentId, rel.type)
-    if (rel.fromFragmentId !== a || rel.toFragmentId !== b) return fail('RELATION_CANONICAL_ORDER')
-  }
-  return ok()
-}
-
-/** Sorts symmetric endpoints into canonical order; caller validates afterwards. */
-export function normalizeRelation(rel: FragmentRelation): FragmentRelation {
-  const [from, to] = canonicalRelationEndpoints(rel.fromFragmentId, rel.toFragmentId, rel.type)
-  return { ...rel, fromFragmentId: from, toFragmentId: to }
 }
 
 // ── detail typing helper ─────────────────────────────────────────────────

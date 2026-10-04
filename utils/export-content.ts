@@ -17,11 +17,9 @@ export async function exportContentZip(): Promise<{ blob: Blob; manifest: Export
     pageStore = new FragmentStore('fragment-store')
     await pageStore.initialize()
   }
-  const [fragments, screenshots, writingTasks, relations, highlightResponse, clipStorage] = await Promise.all([
+  const [fragments, screenshots, highlightResponse, clipStorage] = await Promise.all([
     pageStore.getAllFragments(),
     pageStore.listScreenshots(),
-    pageStore.getAllWritingTasks(),
-    pageStore.getAllRelations(),
     MessageUtils.sendMessage<HighlightRecord[]>({ type: 'GET_HIGHLIGHTS' }),
     new Promise<Record<string, ClipRecord[] | undefined>>(resolve => {
       chrome.storage.local.get('ann-clips', result => resolve(result as Record<string, ClipRecord[] | undefined>))
@@ -55,8 +53,6 @@ export async function exportContentZip(): Promise<{ blob: Blob; manifest: Export
     fragments: pinnedFragments,
     highlights,
     clips,
-    writingTasks,
-    relations,
     screenshots: screenshots.map(({ asset, ...record }) => record),
     getAsset: async id => pageStore!.getAsset(id),
   })

@@ -6,7 +6,7 @@
  * derives the file set, YAML frontmatter (via serializer, never hand-built),
  * relative image links and the missing-asset manifest.
  */
-import type { FragmentRecord, FragmentRelation, ImageAsset, ScreenshotRecord, WritingTaskRecord } from './types'
+import type { FragmentRecord, ImageAsset, ScreenshotRecord } from './types'
 import { buildZip, type ZipEntry } from './zip'
 
 export interface ExportHighlight {
@@ -32,16 +32,13 @@ export interface ExportInput {
   highlights: ExportHighlight[]
   clips: ExportClip[]
   screenshots: ScreenshotRecord[]
-  /** Desktop-originated writing tasks + confirmed relations (R3.2). */
-  writingTasks?: WritingTaskRecord[]
-  relations?: FragmentRelation[]
   getAsset: (assetId: string) => Promise<{ metadata: ImageAsset; bytes: Blob } | undefined>
 }
 
 export interface ExportManifest {
   exportedAt: number
   formatVersion: 'annhub-markdown-zip-1'
-  counts: { fragments: number; highlights: number; clips: number; screenshots: number; assets: number; outputs: number; relations: number }
+  counts: { fragments: number; highlights: number; clips: number; screenshots: number; assets: number }
   /** Assets referenced but not found locally — the UI must show 部分导出. */
   missingAssets: string[]
   partial: boolean
@@ -49,18 +46,21 @@ export interface ExportManifest {
 
 const SAFE_ID = /^[A-Za-z0-9_-]+$/
 
-const RELATION_LABELS: Record<string, string> = {
-  reference: '引用',
-  prerequisite: '前置',
-  similarity: '相似',
-  contrast: '对比',
-  evidence: '证据',
-  evolution: '演化',
+const REVIEW_STATE_LABELS: Record<FragmentRecord['review']['state'], string> = {
+  new: '新建',
+  learning: '学习中',
+  review: '复习中',
+  relearning: '重新学习',
 }
 const MIME_EXT: Record<ImageAsset['mimeType'], string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/webp': 'webp',
+}
+
+/** Extension per saved asset id; an id absent here is a missing image (no dead link is written). */
+interface AssetLinks {
+  ext: Map<string, string>
 }
 
 const iso = (epochMs: number): string => new Date(epochMs).toISOString()
@@ -86,12 +86,12 @@ export function yamlFrontmatter(fields: Array<[string, string | string[] | numbe
   return lines.join('\n')
 }
 
-function fragmentBody(f: FragmentRecord): string {
+function fragmentBody(f: FragmentRecord, assets: AssetLinks): string {
   const sections: string[] = []
   sections.push(`# ${f.content}`)
 
   sections.push('## 页面语境')
-  sections.push(f.context.excerpt === f.content ? f.context.excerpt : f.context.excerpt)
+  sections.push(f.context.excerpt)
   if (f.context.sourceTitle) sections.push(`> 来源：${f.context.sourceTitle}（${f.context.sourceHost}）`)
 
   sections.push('## 理解')
@@ -110,26 +110,24 @@ function fragmentBody(f: FragmentRecord): string {
   if (f.kind === 'visual') {
     const ids = (f.detail as { attachmentIds: string[] }).attachmentIds
     sections.push('## 截图')
-    sections.push(ids.map(id => `![截图](../assets/${id}.png)`).join('\n'))
+    sections.push(ids.map(id => (assets.ext.has(id) ? `![截图](../assets/${id}.${assets.ext.get(id)})` : `图片缺失（资产 ${id} 不在本地库中）`)).join('\n'))
+  }
+  const r = f.review
+  if (r.lastReviewedAt !== undefined) {
+    sections.push('## 复习摘要')
+    sections.push(
+      [
+        `状态：${REVIEW_STATE_LABELS[r.state]}（复习 ${r.repetitions} 次，遗忘 ${r.lapses} 次）`,
+        `最近复习：${iso(r.lastReviewedAt)}`,
+        `下次复习：${iso(r.nextReviewAt)}（间隔 ${r.intervalDays} 天）`,
+      ].join('\n'),
+    )
   }
   if (f.tags.length) sections.push(`标签：${f.tags.join('、')}`)
   return sections.join('\n\n')
 }
 
-/** Confirmed-relation links appended to fragment markdown (R3.2). */
-function relationLines(fragmentId: string, relations: FragmentRelation[], fragments: FragmentRecord[]): string[] {
-  return relations
-    .filter(rel => rel.status === 'confirmed' && (rel.fromFragmentId === fragmentId || rel.toFragmentId === fragmentId))
-    .map(rel => {
-      const otherId = rel.fromFragmentId === fragmentId ? rel.toFragmentId : rel.fromFragmentId
-      const other = fragments.find(f => f.id === otherId)
-      const head = other ? other.content.slice(0, 60) : otherId
-      const note = rel.note ? `（${rel.note}）` : ''
-      return `- ${RELATION_LABELS[rel.type] ?? rel.type}${note}：${other ? `[${head}](./${otherId}.md)` : head}`
-    })
-}
-
-function fragmentMarkdown(f: FragmentRecord, relations: FragmentRelation[] = [], allFragments: FragmentRecord[] = []): string {
+function fragmentMarkdown(f: FragmentRecord, assets: AssetLinks): string {
   const fields: Array<[string, string | string[] | number]> = [
     ['annhub_id', f.id],
     ['kind', f.kind],
@@ -140,31 +138,7 @@ function fragmentMarkdown(f: FragmentRecord, relations: FragmentRelation[] = [],
   if (f.context.sourceTitle) fields.push(['source_title', f.context.sourceTitle])
   if (f.tags.length) fields.push(['tags', f.tags])
   if (f.kind === 'visual') fields.push(['asset_ids', (f.detail as { attachmentIds: string[] }).attachmentIds])
-  const related = relationLines(f.id, relations, allFragments)
-  const relatedSection = related.length ? `\n\n## 相关碎片\n${related.join('\n')}\n` : '\n'
-  return `${yamlFrontmatter(fields)}\n\n${fragmentBody(f)}${relatedSection}`
-}
-
-/** Desktop output task as readable Markdown (R3.2). */
-function outputMarkdown(task: WritingTaskRecord): string {
-  const fields: Array<[string, string | string[] | number]> = [
-    ['annhub_id', task.id],
-    ['kind', 'writing-task'],
-    ['task_type', task.taskType],
-    ['created_at', iso(task.createdAt)],
-  ]
-  if (task.fragmentIds.length) fields.push(['fragment_ids', task.fragmentIds])
-  const sections: string[] = [`# ${task.prompt}`]
-  if (task.constraints.length) sections.push(`约束：${task.constraints.join('；')}`)
-  sections.push(`目标碎片：${task.fragmentIds.length} 个`)
-  task.submissions.forEach((submission, index) => {
-    const assessments = submission.assessments
-      .filter(a => a.confirmedByUser)
-      .map(a => `- ${a.fragmentId}: ${a.used ? '已使用' : '未使用'}${a.correct === undefined ? '' : a.correct ? '，正确' : '，有偏差'}${a.feedback ? ` — ${a.feedback}` : ''}`)
-    sections.push(`## 提交 ${index + 1}（${iso(submission.submittedAt)}）\n\n${submission.content}${assessments.length ? `\n\n### 逐碎片反馈\n${assessments.join('\n')}` : ''}`)
-  })
-  if (task.draftContent.trim()) sections.push(`## 未提交草稿\n\n${task.draftContent}`)
-  return `${yamlFrontmatter(fields)}\n\n${sections.join('\n\n')}\n`
+  return `${yamlFrontmatter(fields)}\n\n${fragmentBody(f, assets)}\n`
 }
 
 function highlightMarkdown(h: ExportHighlight): string {
@@ -218,13 +192,11 @@ function readmeMarkdown(manifest: ExportManifest): string {
     `- 剪藏：${manifest.counts.clips} 条（clips/）`,
     `- 截图：${manifest.counts.screenshots} 条（screenshots/）`,
     `- 图片资产：${manifest.counts.assets} 个（assets/）`,
-    `- 输出任务：${manifest.counts.outputs} 个（outputs/，来自 Desktop 同步）`,
-    `- 已确认关系：${manifest.counts.relations} 条（见各碎片的相关碎片小节）`,
   ]
   if (manifest.partial) {
     lines.push('', `**部分导出**：以下 ${manifest.missingAssets.length} 个图片资产缺失，未写入 ZIP：`, ...manifest.missingAssets.map(id => `- ${id}`))
   }
-  lines.push('', '不包含：未提交的表单、Desktop 复习与输出数据、交付队列、Provider 密钥与 UI 偏好。')
+  lines.push('', '不包含：未提交的表单、Desktop 独有的复习日志、交付队列、Provider 密钥与 UI 偏好。')
   return lines.join('\n') + '\n'
 }
 
@@ -275,8 +247,6 @@ export async function buildExportZip(input: ExportInput): Promise<{ blob: Blob; 
     assetExt.set(assetId, ext)
   }
 
-  const writingTasks = input.writingTasks ?? []
-  const relations = (input.relations ?? []).filter(rel => rel.status === 'confirmed')
   const manifest: ExportManifest = {
     exportedAt: input.exportedAt,
     formatVersion: 'annhub-markdown-zip-1',
@@ -286,28 +256,21 @@ export async function buildExportZip(input: ExportInput): Promise<{ blob: Blob; 
       clips: clips.length,
       screenshots: screenshots.length,
       assets: includedAssets.size,
-      outputs: writingTasks.length,
-      relations: relations.length,
     },
     missingAssets,
     partial: missingAssets.length > 0,
   }
 
-  for (const f of fragments) entries.push({ name: `fragments/${f.id}.md`, data: new TextEncoder().encode(fragmentMarkdown(f, relations, fragments)) })
+  for (const f of fragments) entries.push({ name: `fragments/${f.id}.md`, data: new TextEncoder().encode(fragmentMarkdown(f, { ext: assetExt })) })
   for (const h of highlights) entries.push({ name: `highlights/${h.id}.md`, data: new TextEncoder().encode(highlightMarkdown(h)) })
   for (const c of clips) entries.push({ name: `clips/${c.id}.md`, data: new TextEncoder().encode(clipMarkdown(c)) })
   for (const s of screenshots) {
     entries.push({ name: `screenshots/${s.id}.md`, data: new TextEncoder().encode(screenshotMarkdown(s, includedAssets.has(s.assetId), assetExt.get(s.assetId) ?? 'png')) })
   }
-  for (const task of writingTasks) {
-    if (!SAFE_ID.test(task.id)) throw new Error(`UNSAFE_ID:${task.id}`)
-    entries.push({ name: `outputs/${task.id}.md`, data: new TextEncoder().encode(outputMarkdown(task)) })
-  }
   entries.unshift({ name: 'README.md', data: new TextEncoder().encode(readmeMarkdown(manifest)) })
 
   // Final sanity check: record counts and attachment references (storage.md §7).
-  const expected =
-    1 + fragments.length + highlights.length + clips.length + screenshots.length + includedAssets.size + writingTasks.length
+  const expected = 1 + fragments.length + highlights.length + clips.length + screenshots.length + includedAssets.size
   if (entries.length !== expected) {
     throw new Error(`EXPORT_COUNT_MISMATCH:${entries.length}/${expected}`)
   }

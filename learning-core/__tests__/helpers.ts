@@ -64,7 +64,7 @@ export const KIND_SAMPLES: Record<Exclude<FragmentKind, 'media-clip'>, { content
   },
   question: {
     content: 'Does spaced repetition transfer to productive use?',
-    detail: { status: 'open', hypothesis: '需要真实输出任务配合', nextStep: '在 R2 输出工坊埋点验证' },
+    detail: { status: 'open', hypothesis: '需要真实使用数据配合', nextStep: '在内测中观察完成率' },
     excerpt: 'An open question remains: Does spaced repetition transfer to productive use?',
   },
   inspiration: {

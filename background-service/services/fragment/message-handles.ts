@@ -142,15 +142,6 @@ export const fragmentMessageHandlers: Record<string, (message: any, sender: chro
     }
   },
 
-  GET_WRITING_TASKS: async (): Promise<ResponseMessage> => {
-    try {
-      const tasks = await FragmentService.getInstance().getAllWritingTasks()
-      return MessageUtils.createResponse(true, tasks)
-    } catch (error) {
-      return fail(error)
-    }
-  },
-
   GET_SYNC_REPORTS: async (): Promise<ResponseMessage> => {
     try {
       const reports = await FragmentService.getInstance().getSyncReports()

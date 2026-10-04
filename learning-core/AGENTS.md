@@ -19,7 +19,7 @@
 
 当前 wire 版本为 schema v4，`types.ts` 和 `validate.ts` 是运行时真源；产品契约见 [Fragment 契约](../docs/v2/fragments.md)。`wire.ts` 的 canonicalJson 规则是扩展↔Desktop 哈希一致性的前提，改动必须同步 `app/Sources/AnnHubCore/Wire.swift` 与 `fixtures/interop/`（`WRITE_FIXTURES=1 npx vitest run learning-core/__tests__/interop-fixtures.test.ts` 重生成后 `scripts/sync-interop-fixtures.sh` 同步到 Swift）。
 
-输出工坊与知识关系已由 D-10 移出产品范围。代码里残留的实体、校验、存储表和同步事件按 [roadmap.md §5](../docs/v2/roadmap.md) 移除，不要在其上新增能力。
+输出工坊与知识关系已由 D-10 移出产品范围，代码中不再有对应实体、校验、存储表和同步事件；`claim.stance` 在数据层可选，仅采集表单要求必选。
 
 ## 数据不变量
 

@@ -11,7 +11,7 @@
 
 ## 领域接线
 
-- `services/fragment/` 负责 wire 到 domain 的适配；创建和校验调用 `learning-core/`，不复制领域规则。Fragment、ReviewLog 和 Outbox 的事务边界以共享 store 与 [存储契约](../docs/v2/storage.md) 为准。输出工坊与知识关系已由 D-10 移出产品范围，残留的任务与关系处理按 [roadmap.md §5](../docs/v2/roadmap.md) 移除，不要接入新功能。
+- `services/fragment/` 负责 wire 到 domain 的适配；创建和校验调用 `learning-core/`，不复制领域规则。Fragment、ReviewLog 和 Outbox 的事务边界以共享 store 与 [存储契约](../docs/v2/storage.md) 为准。输出工坊与知识关系已由 D-10 移出产品范围，代码中不再有对应服务、消息或存储。
 - `services/fragment/direct-connect.ts` 是扩展→Desktop 逐项交付（`PUT /v1/fragments/{id}`、`PUT /v1/assets/{id}`）：201/200 裁剪事件、401/403 停止自动重试、410/409/413/422 确定性失败裁剪并报告、网络错误保留队列由 alarm（`annhub-delivery-retry`）重试。网络请求不得进入 IndexedDB 事务。
 - `services/screenshot/` 只承担浏览器截图 API、跨域资源、下载和截图集入库。处理后的图像从 content 以 `dataUrl` 传输（runtime 消息不能携带 Blob），service worker 转 Blob 后与截图元数据同事务写入共享 `fragment-store` 的 `assets`/`screenshots` stores（[存储契约](../docs/v2/storage.md) §3.3）。
 - `services/llm/` 是可选路径，失败必须能回到手工处理。历史专项服务（词表标注、欧路）保持隔离，不增加新产品接线；Logseq 服务已删除。
