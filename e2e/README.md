@@ -26,7 +26,7 @@ cd .. && npx playwright test e2e/desktop-two-end.spec.ts
 
 Desktop 的本机服务只放行构建时配置的扩展 ID（读自 App 的 Info.plist，`builtInExtensionIds()` 可以读到）；fixture 加载的未打包扩展 ID 不同，所以和扩展交互的用例要用 `RunningDesktop.start({ extensionIds: [extensionId] })`，它通过环境变量 `ANNHUB_EXTENSION_IDS` 告诉 Desktop（每次都会显式设置，不继承你 shell 里的值）。不传就是在验证“其他扩展被拒绝（403）”。
 
-Desktop 的界面随系统语言（D-15）。`e2e/desktop.ts` 用 `ANNHUB_UI_LANGUAGE` 把它固定为中文（`language: 'en'` 换成英文），所以敲进命令面板的词不依赖运行这台 Mac 的语言。
+Desktop 的界面随系统语言（D-15）。`e2e/desktop.ts` 用 `ANNHUB_UI_LANGUAGE` 把它固定为中文（`language: 'en'` 换成英文），所以敲进命令面板的词不依赖运行这台 Mac 的语言。要看 Desktop 自己怎么选语言，用 `language: 'system'` 加 `appleLanguages: ['zh-Hant-TW']`（进程的 `-AppleLanguages`）启动，再看状态快照里的 `localization` 和 `language`。
 
 ## chrome-devtools-mcp 手工实测
 

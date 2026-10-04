@@ -192,6 +192,23 @@ test.describe('extension ↔ Desktop — the real app over loopback', () => {
     expect((await desktop.state()).language).toBe('zh')
   })
 
+  test('with nothing pinned the Desktop follows the language macOS gives it: English, or Chinese for either script', async () => {
+    // [the user's language list, the localization macOS resolves, the language the interface speaks]
+    const cases: Array<[string[], string, 'zh' | 'en']> = [
+      [['zh-Hans-CN', 'en-US'], 'zh-Hans', 'zh'],
+      [['zh-Hant-TW'], 'zh-Hant', 'zh'], // Traditional Chinese reads the Simplified text
+      [['fr-FR', 'zh-Hans-CN'], 'zh-Hans', 'zh'], // the first language the app has, not the first language
+      [['ja-JP', 'en-US'], 'en', 'en'],
+      [['de-DE'], 'en', 'en'], // anything else is English
+    ]
+    for (const [languages, localization, language] of cases) {
+      desktop = await RunningDesktop.start({ language: 'system', appleLanguages: languages })
+      const state = await desktop.state()
+      expect({ localization: state.localization, language: state.language }, languages.join(' > ')).toEqual({ localization, language })
+      await desktop.stop()
+    }
+  })
+
   // ── scenario A → B ────────────────────────────────────────────────────
 
   test('saved offline, then paired: every fragment and the image arrive once, intact; a revision does not touch the review', async ({ page, context, extensionId }) => {

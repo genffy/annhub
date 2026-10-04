@@ -22,6 +22,9 @@ struct DesktopDiagnostics: Codable, Equatable {
     var hub: String
     /// The interface language in force: zh or en (D-15).
     var language: String
+    /// The localization macOS resolved for the app (en, zh-Hans, zh-Hant): what the system's own
+    /// controls speak, and what `language` follows unless a test overrides it.
+    var localization: String
     var paletteVisible: Bool
     var reviewSheetPresented: Bool
     var recentDeliveryStatuses: [Int]
@@ -58,6 +61,7 @@ struct DesktopDiagnostics: Codable, Equatable {
             resumeTotal: resume?.fragmentIds.count,
             hub: hub,
             language: UILanguage.current.rawValue,
+            localization: Bundle.main.preferredLocalizations.first ?? "",
             paletteVisible: model.paletteVisible,
             reviewSheetPresented: model.reviewSheetPresented,
             recentDeliveryStatuses: model.recentDeliveries.map(\.status),

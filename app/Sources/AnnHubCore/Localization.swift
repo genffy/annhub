@@ -1,6 +1,12 @@
 // Interface language of the Desktop app (docs/v2 D-15): Chinese or English, chosen by the system
 // language, with no switch of its own. The wording lives in `UIText`; this file resolves the
 // language and fills in parameters.
+//
+// "The system language" is the one macOS gives this app: the first language in the user's list that
+// the app declares (`CFBundleLocalizations` in Support/Info.plist: English, Simplified and
+// Traditional Chinese), English when none matches. The system's own controls (menus, buttons, the
+// date picker) are localized by the same rule, so they and the app's text always agree. Both kinds
+// of Chinese read as Chinese, and the Chinese text is Simplified.
 
 import Foundation
 
@@ -14,11 +20,20 @@ public enum UILanguage: String, CaseIterable, Sendable {
         return lowered == "zh" || lowered.hasPrefix("zh-") || lowered.hasPrefix("zh_") ? .zh : .en
     }
 
-    /// The first system language. `ANNHUB_UI_LANGUAGE` overrides it for tests and screenshots.
+    /// What macOS gives an app that declares `declared` to a user whose languages are `preferences`
+    /// (best first): the first preference the app declares, else English, the development region.
+    /// `["fr-FR", "zh-Hans-CN"]` is Chinese, `["zh-Hant-TW"]` is Chinese, `["ja-JP"]` is English.
+    public static func system(declared: [String], preferences: [String]) -> UILanguage {
+        let chosen = Bundle.preferredLocalizations(from: declared, forPreferences: preferences).first
+        return resolve(chosen ?? "en")
+    }
+
+    /// The language macOS gave this app. `ANNHUB_UI_LANGUAGE` overrides it for tests and screenshots.
     public static var current: UILanguage {
         if let forced = ProcessInfo.processInfo.environment["ANNHUB_UI_LANGUAGE"], !forced.isEmpty {
             return resolve(forced)
         }
+        if let given = Bundle.main.preferredLocalizations.first { return resolve(given) }
         return resolve(Locale.preferredLanguages.first ?? "en")
     }
 }

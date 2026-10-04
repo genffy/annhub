@@ -60,6 +60,42 @@ final class LocalizationTests: XCTestCase {
         XCTAssertEqual(t(.intervalDays, ["count": 6], lang: .en), "6 days")
     }
 
+    // What the user's language list becomes for an app that declares English and the two Chinese
+    // scripts: the first language the app has, English for the rest — and both kinds of Chinese
+    // read the one Chinese text, which is Simplified.
+    func testTheSystemLanguageIsTheFirstOneTheAppDeclares() {
+        let declared = ["en", "zh-Hans", "zh-Hant"]
+        let cases: [([String], UILanguage)] = [
+            (["zh-Hans-CN", "en-US"], .zh),
+            (["zh-CN"], .zh),
+            (["zh"], .zh),
+            (["zh-Hant-TW"], .zh),
+            (["zh-TW"], .zh),
+            (["zh-HK", "en"], .zh),
+            (["fr-FR", "zh-Hans-CN"], .zh),  // French is not declared, so the first language the app has wins
+            (["en-US", "zh-Hans-CN"], .en),
+            (["en-GB"], .en),
+            (["ja-JP", "en-US"], .en),
+            (["de-DE"], .en),  // nothing declared matches: English, the development region
+            ([], .en),
+        ]
+        for (preferences, expected) in cases {
+            XCTAssertEqual(UILanguage.system(declared: declared, preferences: preferences), expected, "\(preferences)")
+        }
+    }
+
+    // The bundle must really declare what the resolution above assumes; otherwise macOS would hand the
+    // app English whatever the user speaks and the system's controls would disagree with our text.
+    func testTheAppDeclaresEnglishAndBothChineseScripts() throws {
+        let data = try Data(contentsOf: appSourceFile("Support/Info.plist"))
+        let plist = try XCTUnwrap(try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+        XCTAssertEqual(plist["CFBundleLocalizations"] as? [String], ["en", "zh-Hans", "zh-Hant"])
+        // Every declared language is one the interface can speak.
+        for identifier in try XCTUnwrap(plist["CFBundleLocalizations"] as? [String]) {
+            XCTAssertTrue(UILanguage.allCases.contains(UILanguage.resolve(identifier)), identifier)
+        }
+    }
+
     func testTheSystemLanguageIsOnlyReadWhenNoLanguageIsPassed() {
         XCTAssertEqual(t(.startReview, lang: .zh), "开始复习")
         XCTAssertEqual(t(.startReview, lang: .en), "Start review")

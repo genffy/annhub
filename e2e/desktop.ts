@@ -50,6 +50,7 @@ export interface DesktopState {
   resumeTotal?: number
   hub: string
   language: 'zh' | 'en'
+  localization: string
   paletteVisible: boolean
   reviewSheetPresented: boolean
   recentDeliveryStatuses: number[]
@@ -69,9 +70,12 @@ export interface StartOptions {
   /**
    * The interface language (default zh). The Desktop follows the system language (D-15); the suite
    * pins one through the override the app provides for tests, so what it types into the palette
-   * does not depend on the language of the Mac it runs on.
+   * does not depend on the language of the Mac it runs on. 'system' pins nothing: the app then
+   * follows `appleLanguages` (what a user's language list would be), or this Mac's own list.
    */
-  language?: 'zh' | 'en'
+  language?: 'zh' | 'en' | 'system'
+  /** The language list the process runs with (`-AppleLanguages`), best first; for `language: 'system'`. */
+  appleLanguages?: string[]
   /**
    * Extension ids the hub serves besides the ones its build was configured with, passed in the
    * ANNHUB_EXTENSION_IDS environment variable. The unpacked build under test has an id of its own,
@@ -111,6 +115,7 @@ export class RunningDesktop {
     fs.rmSync(readyFile, { force: true })
 
     const args = [
+      ...(options.appleLanguages ? ['-AppleLanguages', `(${options.appleLanguages.join(', ')})`] : []),
       `--annhub-data-dir=${path.join(dir, 'data')}`,
       `--annhub-defaults-suite=annhub.e2e.${path.basename(dir)}`,
       `--annhub-port=${options.port ?? 0}`,
@@ -119,10 +124,13 @@ export class RunningDesktop {
       '--annhub-no-notifications',
       ...(options.window ? [] : ['--annhub-no-window']),
     ]
+    const environment: NodeJS.ProcessEnv = { ...process.env }
+    if (options.language === 'system') delete environment.ANNHUB_UI_LANGUAGE
+    else environment.ANNHUB_UI_LANGUAGE = options.language ?? 'zh'
     const child = spawn(path.join(app, 'Contents/MacOS/AnnHubDesktop'), args, {
       stdio: ['ignore', 'pipe', 'pipe'],
       // Always set, so a value exported in the developer's shell for building cannot leak into a run.
-      env: { ...process.env, ANNHUB_UI_LANGUAGE: options.language ?? 'zh', ANNHUB_EXTENSION_IDS: (options.extensionIds ?? []).join(',') },
+      env: { ...environment, ANNHUB_EXTENSION_IDS: (options.extensionIds ?? []).join(',') },
     })
     const captured = { text: '' }
     child.stdout?.on('data', chunk => (captured.text += String(chunk)))
