@@ -98,11 +98,11 @@ public func verificationHint(_ fragment: FragmentRecord) -> String {
     guard let verified = fragment.processing.verified else {
         return "核验确认状态：未核验"
     }
-    let status = "核验确认状态：已确认（来源：\(verified.source)）"
+    let status = "核验确认状态：已确认（来源：\(verifiedSourceLabel(verified.source))）"
     if let summary = verified.summary, !summary.isEmpty {
         return "\(status)\n摘要：\(summary)"
     }
-    return "\(status)\n已确认，无摘要 — 回看原始语境"
+    return "\(status)\n已确认，无摘要 — 回看原始语境：\(fragment.context.excerpt)"
 }
 
 // ── daily / session caps (review.md §5) ─────────────────────────────────

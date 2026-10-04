@@ -175,8 +175,59 @@ public final class DesktopHub: @unchecked Sendable {
 
     /// Pure handler — the socket layer only parses HTTP and forwards this.
     public func handle(_ request: HubRequest) -> HubResponse {
-        let response = route(request)
-        return stamp(request, response)
+        // A request from the wrong place is neither a connection nor a delivery:
+        // it must not touch lastConnectionAt or the delivery ring.
+        if let rejection = clientPolicyRejection(request) { return rejection }
+        return stamp(request, route(request))
+    }
+
+    // ── who may talk to the hub (storage.md §8) ──────────────────────────
+
+    /// Origins that may call the write endpoints. nil accepts any browser-extension
+    /// origin; pin the shipped extension's id here once it is fixed.
+    public var allowedExtensionOrigins: Set<String>? {
+        get { withLock { _allowedExtensionOrigins } }
+        set { withLock { _allowedExtensionOrigins = newValue } }
+    }
+    private var _allowedExtensionOrigins: Set<String>?
+
+    /// 403 for a request that cannot come from the extension: a `Host` that is not
+    /// loopback (DNS rebinding) or an `Origin` that is a web page, `null`, or not
+    /// the allowed extension. Requests without those headers (curl, tests) pass.
+    private func clientPolicyRejection(_ request: HubRequest) -> HubResponse? {
+        if let host = request.headers["host"], !Self.isLoopbackHost(host) {
+            return .json(403, ["error": "forbidden_host"])
+        }
+        if let origin = request.headers["origin"], !isAllowedOrigin(origin) {
+            return .json(403, ["error": "forbidden_origin"])
+        }
+        return nil
+    }
+
+    /// "127.0.0.1:8765", "localhost:8765", "[::1]:8765" or the bare host.
+    static func isLoopbackHost(_ header: String) -> Bool {
+        var host = header.trimmingCharacters(in: .whitespaces).lowercased()
+        if host.hasPrefix("["), let close = host.firstIndex(of: "]") {
+            host = String(host[host.index(after: host.startIndex)..<close])
+        } else if let colon = host.lastIndex(of: ":"),
+            host[host.index(after: colon)...].allSatisfy({ $0.isASCII && $0.isNumber })
+        {
+            host = String(host[..<colon])
+        }
+        return host == "127.0.0.1" || host == "localhost" || host == "::1"
+    }
+
+    private func isAllowedOrigin(_ origin: String) -> Bool {
+        if let allowed = allowedExtensionOrigins { return allowed.contains(origin) }
+        return Self.isExtensionOrigin(origin)
+    }
+
+    /// `chrome-extension://` followed by a 32-letter id drawn from a–p.
+    static func isExtensionOrigin(_ origin: String) -> Bool {
+        let prefix = "chrome-extension://"
+        guard origin.hasPrefix(prefix) else { return false }
+        let id = origin.dropFirst(prefix.count)
+        return id.count == 32 && id.allSatisfy { ("a"..."p").contains($0) }
     }
 
     private func route(_ request: HubRequest) -> HubResponse {

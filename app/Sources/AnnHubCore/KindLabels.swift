@@ -19,3 +19,14 @@ public let KIND_LABELS: [String: String] = [
 public func kindLabel(_ kind: String) -> String {
     KIND_LABELS[kind] ?? kind
 }
+
+/// How a verification was done (fragments.md §7): the user's reading of the source,
+/// a manual check, or a model suggestion the user accepted.
+public func verifiedSourceLabel(_ source: String) -> String {
+    switch source {
+    case "source-material": return "原文材料"
+    case "llm": return "模型建议（已确认）"
+    case "manual": return "手工核对"
+    default: return source
+    }
+}

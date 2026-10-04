@@ -74,26 +74,59 @@ public struct FragmentQueryResult {
 let pageDefault = 50
 let pageMax = 200
 
-// Field weights per search.md §3: content=5, 理解/核验/应用=4, tags=3,
-// sourceTitle=2, excerpt/sourceHost/sourceUrl=1.
+/// The fields a search looks at, in search.md §1 order, each with its weight
+/// (§3: content=5, 理解/核验/应用=4, tags=3, sourceTitle=2, the rest=1). One list, so the
+/// library, the command palette and any future surface rank and explain hits the same way.
+public enum SearchField: String, CaseIterable, Sendable {
+    case content, guess, verified, use, tags, sourceTitle, excerpt, sourceHost, sourceUrl
+
+    public var weight: Int {
+        switch self {
+        case .content: return 5
+        case .guess, .verified, .use: return 4
+        case .tags: return 3
+        case .sourceTitle: return 2
+        case .excerpt, .sourceHost, .sourceUrl: return 1
+        }
+    }
+
+    /// What the user calls it in the interface.
+    public var label: String {
+        switch self {
+        case .content: return "内容"
+        case .guess: return "理解"
+        case .verified: return "核验"
+        case .use: return "应用"
+        case .tags: return "标签"
+        case .sourceTitle: return "来源标题"
+        case .excerpt: return "摘录"
+        case .sourceHost, .sourceUrl: return "来源"
+        }
+    }
+
+    func text(of fragment: FragmentRecord) -> String {
+        switch self {
+        case .content: return fragment.content
+        case .guess: return fragment.processing.guess ?? ""
+        case .verified: return fragment.processing.verified?.summary ?? ""
+        case .use: return fragment.processing.use
+        case .tags: return fragment.tags.joined(separator: " ")
+        case .sourceTitle: return fragment.context.sourceTitle ?? ""
+        case .excerpt: return fragment.context.excerpt
+        case .sourceHost: return fragment.context.sourceHost
+        case .sourceUrl: return fragment.context.sourceUrl
+        }
+    }
+}
+
 struct WeightedField {
-    var weight: Int
+    var field: SearchField
     var text: String
+    var weight: Int { field.weight }
 }
 
 func haystack(_ fragment: FragmentRecord) -> [WeightedField] {
-    [
-        WeightedField(weight: 5, text: fragment.content),
-        WeightedField(weight: 4, text: fragment.processing.guess ?? ""),
-        WeightedField(weight: 4, text: fragment.processing.verified?.summary ?? ""),
-        WeightedField(weight: 4, text: fragment.processing.use),
-        WeightedField(weight: 3, text: fragment.tags.joined(separator: " ")),
-        WeightedField(weight: 2, text: fragment.context.sourceTitle ?? ""),
-        WeightedField(weight: 1, text: fragment.context.excerpt),
-        WeightedField(weight: 1, text: fragment.context.sourceHost),
-        WeightedField(weight: 1, text: fragment.context.sourceUrl),
-    ]
-    .map { WeightedField(weight: $0.weight, text: normalizeContent($0.text)) }
+    SearchField.allCases.map { WeightedField(field: $0, text: normalizeContent($0.text(of: fragment))) }
 }
 
 /// Whitespace word split; each word must substring-hit some field (search.md §2).
@@ -114,6 +147,19 @@ func searchScore(_ fields: [WeightedField], words: [String]) -> Int? {
         score += best
     }
     return score
+}
+
+/// The fields in which at least one search word hits, highest weight first — what the
+/// command palette prints next to a result. Meaningful for a fragment that matched.
+public func matchedFields(_ fragment: FragmentRecord, search: String) -> [SearchField] {
+    let words = splitWords(search)
+    guard !words.isEmpty else { return [] }
+    let fields = haystack(fragment)
+    return
+        fields
+        .filter { entry in words.contains { entry.text.contains($0) } }
+        .map(\.field)
+        .sorted { $0.weight > $1.weight }
 }
 
 /// Returns the search score, or nil when the fragment is excluded.

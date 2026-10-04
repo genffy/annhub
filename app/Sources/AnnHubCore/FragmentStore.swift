@@ -65,6 +65,8 @@ public final class FragmentStore: @unchecked Sendable {
     let encoder = JSONEncoder.learningCore()
     let decoder = JSONDecoder.learningCore()
     private let path: String
+    private let transactionLock = NSRecursiveLock()
+    private var transactionDepth = 0
 
     public init(path: String, deviceId: String) throws {
         self.deviceId = deviceId
@@ -164,6 +166,13 @@ public final class FragmentStore: @unchecked Sendable {
             CREATE TABLE IF NOT EXISTS sync_state (
               key   TEXT PRIMARY KEY,
               value INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS fragment_local_tags (
+              fragment_id TEXT NOT NULL,
+              tag         TEXT NOT NULL,
+              op          TEXT NOT NULL CHECK (op IN ('add', 'remove')),
+              updated_at  INTEGER NOT NULL,
+              PRIMARY KEY (fragment_id, tag)
             );
             """)
     }
@@ -275,15 +284,28 @@ public final class FragmentStore: @unchecked Sendable {
     public func upsertFragment(_ record: FragmentRecord, deviceId: String, payloadHash: String) throws {
         try transaction {
             try insertFragmentRow(record, deviceId: deviceId, payloadHash: payloadHash)
+            // A new revision may have changed the extension's tags under a local edit.
+            try pruneLocalTagEdits(fragmentId: record.id)
         }
     }
 
-    public func getFragment(id: String) throws -> FragmentRecord? {
+    /// The record as stored — the extension's tags, no Desktop-local tag edits. Every
+    /// internal read-modify-write starts from this one, so a rating never bakes a local
+    /// tag edit into the extension-owned capture fields.
+    public func storedFragment(id: String) throws -> FragmentRecord? {
         let stmt = try prepare("SELECT * FROM fragments WHERE id = ? LIMIT 1")
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, id)
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
         return try fragmentFromRow(stmt)
+    }
+
+    /// The record as the user sees it: capture fields plus Desktop-local tag edits.
+    public func getFragment(id: String) throws -> FragmentRecord? {
+        guard var record = try storedFragment(id: id) else { return nil }
+        let edits = try localTagEdits(for: id)
+        if !edits.isEmpty { record.tags = applyLocalTagEdits(record.tags, edits: edits) }
+        return record
     }
 
     public func getFragments() throws -> [FragmentRecord] {
@@ -293,7 +315,14 @@ public final class FragmentStore: @unchecked Sendable {
         while sqlite3_step(stmt) == SQLITE_ROW {
             out.append(try fragmentFromRow(stmt))
         }
-        return out
+        let edits = try allLocalTagEdits()
+        guard !edits.isEmpty else { return out }
+        return out.map { record in
+            guard let own = edits[record.id] else { return record }
+            var edited = record
+            edited.tags = applyLocalTagEdits(record.tags, edits: own)
+            return edited
+        }
     }
 
     /// Query through the shared rule set (Query.swift).
@@ -325,6 +354,18 @@ public final class FragmentStore: @unchecked Sendable {
         )
     }
 
+    /// Fragments that arrived from an extension: rows with a source device, minus the
+    /// demo seed. One aggregate query — the Desktop refreshes this after every delivery.
+    public func deliveredFragmentCount(excludingDevice excluded: String = "") throws -> Int {
+        let stmt = try prepare(
+            "SELECT COUNT(*) FROM fragments WHERE source_device_id <> '' AND source_device_id <> ?"
+        )
+        defer { sqlite3_finalize(stmt) }
+        bindText(stmt, 1, excluded)
+        guard sqlite3_step(stmt) == SQLITE_ROW else { return 0 }
+        return columnInt(stmt, 0)
+    }
+
     public func isDeleted(id: String) throws -> Bool {
         let stmt = try prepare("SELECT 1 FROM fragment_deletions WHERE fragment_id = ? LIMIT 1")
         defer { sqlite3_finalize(stmt) }
@@ -342,6 +383,7 @@ public final class FragmentStore: @unchecked Sendable {
             for sql in [
                 "DELETE FROM fragments WHERE id = ?",
                 "DELETE FROM review_logs WHERE target_fragment_id = ?",
+                "DELETE FROM fragment_local_tags WHERE fragment_id = ?",
             ] {
                 let stmt = try prepare(sql)
                 defer { sqlite3_finalize(stmt) }
@@ -384,7 +426,7 @@ public final class FragmentStore: @unchecked Sendable {
         // (a concurrent write between read and write would be lost).
         var ratedBox: RatedFragment?
         try transaction {
-            guard let fragment = try getFragment(id: id) else {
+            guard let fragment = try storedFragment(id: id) else {
                 throw StoreError.notFound("fragment not found: \(id)")
             }
             let rated = AnnHubCore.rateFragment(fragment, rating: rating, usedHint: usedHint, now: now)
@@ -415,17 +457,19 @@ public final class FragmentStore: @unchecked Sendable {
     /// (the log still records, idempotent by id). updatedAt never moves
     /// backwards.
     public func applyExternalReview(fragmentId: String, review: ReviewState, log: ReviewLog) throws {
-        guard var fragment = try getFragment(id: fragmentId) else {
-            throw StoreError.notFound("fragment not found: \(fragmentId)")
-        }
-        let isNewer =
-            fragment.review.lastReviewedAt == nil
-            || log.reviewedAt >= fragment.review.lastReviewedAt!
-        if isNewer {
-            fragment.review = review
-        }
-        fragment.updatedAt = max(fragment.updatedAt, log.reviewedAt)
+        // Read inside the transaction: the read-modify-write must be atomic against a
+        // rating or a delivery on another queue.
         try transaction {
+            guard var fragment = try storedFragment(id: fragmentId) else {
+                throw StoreError.notFound("fragment not found: \(fragmentId)")
+            }
+            let isNewer =
+                fragment.review.lastReviewedAt == nil
+                || log.reviewedAt >= fragment.review.lastReviewedAt!
+            if isNewer {
+                fragment.review = review
+            }
+            fragment.updatedAt = max(fragment.updatedAt, log.reviewedAt)
             try insertFragmentRow(
                 fragment,
                 deviceId: try storedDeviceId(id: fragmentId),
@@ -727,8 +771,21 @@ public final class FragmentStore: @unchecked Sendable {
 
     // ── transactions & stats ─────────────────────────────────────────────
 
+    /// One transaction at a time per store. The hub's queues and the main thread share
+    /// this single connection, so two `BEGIN IMMEDIATE`s from different threads would
+    /// otherwise collide (a rating or a delivery would fail). The lock is re-entrant: a
+    /// transaction opened inside another one joins it, which lets batch operations compose
+    /// the single-fragment ones.
     func transaction(_ body: () throws -> Void) throws {
+        transactionLock.lock()
+        defer { transactionLock.unlock() }
+        if transactionDepth > 0 {
+            try body()
+            return
+        }
         try execute("BEGIN IMMEDIATE")
+        transactionDepth = 1
+        defer { transactionDepth = 0 }
         do {
             try body()
             try execute("COMMIT")
