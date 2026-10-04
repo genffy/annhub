@@ -1,0 +1,946 @@
+/* UI 基础件：扩展（.ui）与 Desktop（.mac）共用。.mac 只覆盖 macOS 原生质感的差异。 */
+.ui,
+.mac {
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  text-align: left;
+}
+
+.ui *,
+.mac * {
+  box-sizing: border-box;
+}
+
+.i {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: middle;
+}
+
+.i-sm {
+  width: 13px;
+  height: 13px;
+}
+
+.i-lg {
+  width: 20px;
+  height: 20px;
+}
+
+/* 布局工具 */
+.hs {
+  display: flex;
+  align-items: center;
+  gap: var(--g, 8px);
+}
+
+.vs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--g, 8px);
+}
+
+.hs.top {
+  align-items: flex-start;
+}
+
+.hs.wrap {
+  flex-wrap: wrap;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.none {
+  flex: none;
+}
+
+.between {
+  justify-content: space-between;
+}
+
+.end {
+  justify-content: flex-end;
+}
+
+.center {
+  justify-content: center;
+}
+
+.g2 {
+  --g: 2px;
+}
+.g4 {
+  --g: 4px;
+}
+.g6 {
+  --g: 6px;
+}
+.g8 {
+  --g: 8px;
+}
+.g10 {
+  --g: 10px;
+}
+.g12 {
+  --g: 12px;
+}
+.g16 {
+  --g: 16px;
+}
+.g20 {
+  --g: 20px;
+}
+.g24 {
+  --g: 24px;
+}
+
+.t-xs {
+  font-size: 11px;
+}
+.t-sm {
+  font-size: 12px;
+}
+.t-md {
+  font-size: 13px;
+}
+.t-lg {
+  font-size: 15px;
+}
+.t-xl {
+  font-size: 18px;
+}
+.t-2xl {
+  font-size: 22px;
+}
+.b {
+  font-weight: 600;
+}
+.bb {
+  font-weight: 700;
+}
+.muted {
+  color: var(--fg-3);
+}
+.muted-2 {
+  color: var(--fg-4);
+}
+.c-brand {
+  color: var(--brand-text);
+}
+.c-ok {
+  color: color-mix(in oklab, var(--ok) 78%, var(--fg));
+}
+.c-warn {
+  color: color-mix(in oklab, var(--warn) 62%, var(--fg));
+}
+.c-danger {
+  color: color-mix(in oklab, var(--danger) 82%, var(--fg));
+}
+.mono {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+}
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.clamp-1,
+.clamp-2,
+.clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamp-1 {
+  -webkit-line-clamp: 1;
+}
+.clamp-2 {
+  -webkit-line-clamp: 2;
+}
+.clamp-3 {
+  -webkit-line-clamp: 3;
+}
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+hr.sep {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 0;
+}
+
+/* 按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.btn:hover {
+  background: var(--surface-2);
+}
+
+.btn .i {
+  width: 15px;
+  height: 15px;
+}
+
+.btn-primary {
+  background: var(--brand);
+  border-color: transparent;
+  color: var(--brand-fg);
+}
+
+.btn-primary:hover {
+  background: color-mix(in oklab, var(--brand) 86%, #000);
+}
+
+.btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--fg-2);
+}
+
+.btn-danger {
+  color: color-mix(in oklab, var(--danger) 84%, var(--fg));
+}
+
+.btn-danger-solid {
+  background: var(--danger);
+  border-color: transparent;
+  color: #fff;
+}
+
+.btn-sm {
+  height: 28px;
+  padding: 0 10px;
+  font-size: 12px;
+  border-radius: 7px;
+}
+
+.btn-lg {
+  height: 36px;
+  padding: 0 16px;
+  font-size: 13.5px;
+}
+
+.btn-icon {
+  width: 32px;
+  padding: 0;
+}
+
+.btn-icon.btn-sm {
+  width: 28px;
+}
+
+.btn.is-disabled,
+.btn[disabled] {
+  opacity: 0.45;
+}
+
+.btn.is-focus,
+.is-focus-ring {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--ring);
+}
+
+.btn kbd,
+.kbd-in {
+  margin-left: 4px;
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in oklab, currentColor 28%, transparent);
+  font: 500 11px var(--font-ui);
+  opacity: 0.85;
+}
+
+.link {
+  color: var(--brand-text);
+  text-decoration: none;
+  cursor: default;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+/* 表单 */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.label .opt {
+  font-weight: 400;
+  color: var(--fg-3);
+}
+
+.help {
+  font-size: 12px;
+  color: var(--fg-3);
+  line-height: 1.5;
+}
+
+.help.is-error {
+  color: color-mix(in oklab, var(--danger) 80%, var(--fg));
+}
+
+.input,
+.textarea,
+.select {
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--fg);
+  font: inherit;
+  line-height: 1.5;
+}
+
+.textarea {
+  min-height: 72px;
+  resize: none;
+}
+
+.input.is-focus,
+.textarea.is-focus,
+.select.is-focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.input.is-error,
+.textarea.is-error {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--danger) 22%, transparent);
+}
+
+.input::placeholder,
+.textarea::placeholder,
+.ph {
+  color: var(--fg-4);
+}
+
+.select {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.counter {
+  font-size: 11px;
+  color: var(--fg-3);
+  text-align: right;
+}
+
+/* 复选框、单选、开关 */
+.cb,
+.rb {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 1.5px solid var(--line-2);
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  color: #fff;
+}
+
+.cb {
+  border-radius: 4px;
+}
+
+.rb {
+  border-radius: 50%;
+}
+
+.cb.on {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.cb .i {
+  width: 11px;
+  height: 11px;
+  stroke-width: 3;
+}
+
+.rb.on {
+  border-color: var(--brand);
+}
+
+.rb.on::after {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--brand);
+}
+
+.switch {
+  display: inline-block;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  border: 1px solid var(--line-2);
+  position: relative;
+  flex: none;
+}
+
+.switch::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  transition: transform 0.15s;
+}
+
+.switch.on {
+  background: var(--brand);
+  border-color: transparent;
+}
+
+.switch.on::after {
+  transform: translateX(14px);
+}
+
+.mac .switch {
+  width: 38px;
+  height: 22px;
+}
+
+.mac .switch::after {
+  width: 18px;
+  height: 18px;
+}
+
+.mac .switch.on::after {
+  transform: translateX(16px);
+}
+
+.seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  gap: 2px;
+}
+
+.seg > * {
+  padding: 3px 10px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.seg > .on {
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: var(--sh-1);
+}
+
+.mac .seg {
+  border-radius: 999px;
+}
+
+.mac .seg > * {
+  border-radius: 999px;
+}
+
+/* 芯片、徽标 */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--fg-2);
+  white-space: nowrap;
+}
+
+.chip .i {
+  width: 12px;
+  height: 12px;
+}
+
+.chip-ok {
+  --c: var(--ok);
+}
+
+.chip-warn {
+  --c: var(--warn);
+}
+
+.chip-danger {
+  --c: var(--danger);
+}
+
+.chip-info {
+  --c: var(--info);
+}
+
+.chip-brand {
+  --c: var(--brand);
+}
+
+.chip-ok,
+.chip-warn,
+.chip-danger,
+.chip-info,
+.chip-brand {
+  background: color-mix(in oklab, var(--c) 11%, var(--surface));
+  border-color: color-mix(in oklab, var(--c) 30%, var(--surface));
+  color: color-mix(in oklab, var(--c) 72%, var(--fg));
+}
+
+/* 建议 ≠ 事实：所有“建议”类内容统一用虚线描边 + sparkles 图标 */
+.chip-suggest {
+  background: transparent;
+  border-style: dashed;
+  border-color: color-mix(in oklab, var(--brand) 55%, var(--surface));
+  color: var(--brand-text);
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--fg-3);
+  font-size: 11.5px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c, var(--fg-4));
+  flex: none;
+}
+
+.dot.ok {
+  --c: var(--ok);
+}
+.dot.warn {
+  --c: var(--warn);
+}
+.dot.danger {
+  --c: var(--danger);
+}
+.dot.hollow {
+  background: transparent;
+  border: 1.5px solid var(--fg-4);
+}
+
+/* kind 芯片：图标 + 文字 + 颜色（三重编码） */
+.kchip {
+  --k: var(--fg-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px 0 6px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  background: color-mix(in oklab, var(--k) 12%, var(--surface));
+  border: 1px solid color-mix(in oklab, var(--k) 26%, var(--surface));
+  color: color-mix(in oklab, var(--k) 70%, var(--fg));
+  white-space: nowrap;
+}
+
+.kchip .i {
+  width: 13px;
+  height: 13px;
+}
+
+.kchip.sm {
+  height: 18px;
+  padding: 0 6px 0 5px;
+  font-size: 11px;
+}
+
+.ktile {
+  --k: var(--fg-3);
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: color-mix(in oklab, var(--k) 13%, var(--surface));
+  color: color-mix(in oklab, var(--k) 78%, var(--fg));
+}
+
+.ktile .i {
+  width: 17px;
+  height: 17px;
+}
+
+.k-excerpt {
+  --k: var(--k-excerpt);
+}
+.k-concept {
+  --k: var(--k-concept);
+}
+.k-claim {
+  --k: var(--k-claim);
+}
+.k-procedure {
+  --k: var(--k-procedure);
+}
+.k-decision {
+  --k: var(--k-decision);
+}
+.k-question {
+  --k: var(--k-question);
+}
+.k-visual {
+  --k: var(--k-visual);
+}
+.k-inspiration {
+  --k: var(--k-inspiration);
+}
+.k-media-clip {
+  --k: var(--k-media-clip);
+}
+
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 5px;
+  border: 1px solid var(--line-2);
+  border-bottom-width: 2px;
+  background: var(--surface);
+  color: var(--fg-2);
+  font: 500 10.5px/1 var(--font-ui);
+}
+
+/* 提示条、Toast、气泡、菜单、对话框 */
+.banner {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--fg-2);
+}
+
+.banner > .i {
+  margin-top: 1px;
+  width: 15px;
+  height: 15px;
+}
+
+.banner b {
+  color: var(--fg);
+}
+
+.banner.ok,
+.banner.warn,
+.banner.danger,
+.banner.info,
+.banner.brand {
+  background: color-mix(in oklab, var(--c) 10%, var(--surface));
+  border-color: color-mix(in oklab, var(--c) 28%, var(--surface));
+}
+
+.banner.ok {
+  --c: var(--ok);
+}
+.banner.warn {
+  --c: var(--warn);
+}
+.banner.danger {
+  --c: var(--danger);
+}
+.banner.info {
+  --c: var(--info);
+}
+.banner.brand {
+  --c: var(--brand);
+}
+
+.banner.ok > .i,
+.banner.warn > .i,
+.banner.danger > .i,
+.banner.info > .i,
+.banner.brand > .i {
+  color: color-mix(in oklab, var(--c) 78%, var(--fg));
+}
+
+.toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px 9px 14px;
+  border-radius: 12px;
+  background: #1b1f2a;
+  color: #f1f3f8;
+  font-size: 12.5px;
+  box-shadow: 0 10px 30px -6px rgb(0 0 0 / 0.45);
+}
+
+.toast .i {
+  width: 15px;
+  height: 15px;
+  color: oklch(0.8 0.15 155);
+}
+
+.toast a,
+.toast .act {
+  color: #c9b8f5;
+  font-weight: 600;
+}
+
+.tip {
+  display: inline-block;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: #1b1f2a;
+  color: #f1f3f8;
+  font-size: 11.5px;
+  line-height: 1.45;
+  box-shadow: 0 6px 18px -4px rgb(0 0 0 / 0.4);
+}
+
+.tip small {
+  display: block;
+  color: #a9b1c4;
+  font-size: 11px;
+}
+
+.menu {
+  min-width: 190px;
+  padding: 5px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--sh-2);
+}
+
+.menu-i {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--fg);
+}
+
+.menu-i .i {
+  width: 15px;
+  height: 15px;
+  color: var(--fg-3);
+}
+
+.menu-i.on,
+.menu-i:hover {
+  background: var(--surface-2);
+}
+
+.menu-i .sc {
+  margin-left: auto;
+  color: var(--fg-4);
+  font-size: 11.5px;
+}
+
+.menu-sep {
+  height: 1px;
+  background: var(--line);
+  margin: 5px 4px;
+}
+
+.dialog {
+  background: var(--surface);
+  border-radius: 16px;
+  box-shadow: var(--sh-modal);
+  padding: 20px;
+}
+
+.progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.progress > i {
+  display: block;
+  height: 100%;
+  background: var(--brand);
+  border-radius: 2px;
+}
+
+.spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.avatar {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--fg-3);
+}
+
+.favicon {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, #9ab6ff, #5f7be6);
+  flex: none;
+}
+
+.favicon.b {
+  background: linear-gradient(135deg, #8ee0c0, #2fa57f);
+}
+.favicon.c {
+  background: linear-gradient(135deg, #ffcf8a, #e58a2d);
+}
+
+.quote {
+  border-left: 3px solid var(--brand);
+  padding: 2px 0 2px 12px;
+  color: var(--fg);
+}
+
+/* macOS 质感差异：胶囊按钮与分段控件，其余沿用同一套令牌 */
+.mac {
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.mac .btn {
+  height: 28px;
+  border-radius: 999px;
+  padding: 0 14px;
+  border-color: var(--line-2);
+  background: var(--surface);
+  box-shadow: 0 0.5px 1px rgb(0 0 0 / 0.08);
+}
+
+.mac .btn-primary {
+  background: var(--brand);
+  border-color: transparent;
+  color: var(--brand-fg);
+  box-shadow: none;
+}
+
+.mac .btn-primary:hover {
+  background: color-mix(in oklab, var(--brand) 86%, #000);
+}
+
+.mac .btn-ghost {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.mac .btn-danger-solid {
+  background: var(--danger);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: none;
+}
+
+.mac .btn-lg {
+  height: 34px;
+  padding: 0 20px;
+  font-size: 13.5px;
+}
+
+.mac .btn-sm {
+  height: 24px;
+  padding: 0 10px;
+}
+
+.mac .btn-icon {
+  width: 28px;
+  padding: 0;
+}
+
+.mac .input,
+.mac .select {
+  border-radius: 8px;
+  min-height: 28px;
+  padding: 4px 9px;
+}
+
+.mac .textarea {
+  border-radius: 8px;
+}
