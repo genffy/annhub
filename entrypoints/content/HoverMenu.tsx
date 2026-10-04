@@ -155,9 +155,7 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
   const hintAction = sorted.find(a => a.id === hintActionId)
 
   const above = position.placement === 'above'
-  const anchor: React.CSSProperties = above
-    ? { bottom: `${window.innerHeight - position.y - SAFE_PADDING}px` }
-    : { top: `${position.y - SAFE_PADDING}px` }
+  const anchor: React.CSSProperties = above ? { bottom: `${window.innerHeight - position.y - SAFE_PADDING}px` } : { top: `${position.y - SAFE_PADDING}px` }
 
   if (showSuccess) {
     return (

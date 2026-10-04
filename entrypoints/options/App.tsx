@@ -64,10 +64,7 @@ function App() {
             <Library className="h-4 w-4" />
             碎片库
           </a>
-          <a
-            className="inline-flex shrink-0 items-center gap-2 rounded-full bg-ann-alt px-3 py-2 text-sm text-ann-muted hover:bg-ann-alt"
-            href={extensionPageUrl('screenshots')}
-          >
+          <a className="inline-flex shrink-0 items-center gap-2 rounded-full bg-ann-alt px-3 py-2 text-sm text-ann-muted hover:bg-ann-alt" href={extensionPageUrl('screenshots')}>
             <Images className="h-4 w-4" />
             截图集
           </a>

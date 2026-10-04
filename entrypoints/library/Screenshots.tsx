@@ -75,11 +75,7 @@ export default function ScreenshotsView({ onSaved }: { onSaved: () => void }) {
       <main className="library-list screenshots-list" data-testid="screenshots-list">
         {items.map(item => (
           <figure className="screenshot-card" key={item.id} data-testid="screenshot-card">
-            {item.objectUrl ? (
-              <img src={item.objectUrl} alt={item.sourceTitle || '截图'} loading="lazy" />
-            ) : (
-              <div className="screenshot-missing">图片缺失（资产不在本地库中）</div>
-            )}
+            {item.objectUrl ? <img src={item.objectUrl} alt={item.sourceTitle || '截图'} loading="lazy" /> : <div className="screenshot-missing">图片缺失（资产不在本地库中）</div>}
             <figcaption>
               <div className="screenshot-meta">
                 {item.sourceUrl ? <span className="screenshot-source">{safeHost(item.sourceUrl)}</span> : <span className="screenshot-source">本地</span>}
@@ -114,7 +110,9 @@ export default function ScreenshotsView({ onSaved }: { onSaved: () => void }) {
 /** visual Fragment conversion form (extension PRD §7). */
 function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: ScreenshotRecord; onClose: () => void; onSaved: () => void }) {
   const [content, setContent] = useState('')
-  const [contextText, setContextText] = useState(screenshot.sourceTitle ? `（来自 ${safeHost(screenshot.sourceUrl)}：${screenshot.sourceTitle}）` : `（来自 ${safeHost(screenshot.sourceUrl)}）`)
+  const [contextText, setContextText] = useState(
+    screenshot.sourceTitle ? `（来自 ${safeHost(screenshot.sourceUrl)}：${screenshot.sourceTitle}）` : `（来自 ${safeHost(screenshot.sourceUrl)}）`,
+  )
   const [useText, setUse] = useState('')
   const [verified, setVerified] = useState<{ confirmedAt: number; source: 'source-material' | 'manual' } | null>(null)
   const [summary, setSummary] = useState('')
@@ -134,26 +132,9 @@ function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: Screens
     setError('')
     try {
       const excerpt = `${content.trim()}\n${contextText.trim()}`
-      const response = await MessageUtils.sendMessage({ type: 'SAVE_FRAGMENT', input: {
-        kind: 'visual',
-        content: content.trim(),
-        excerpt,
-        sourceUrl: screenshot.sourceUrl,
-        sourceTitle: screenshot.sourceTitle || undefined,
-        locator: { type: 'image', assetId: screenshot.assetId },
-        verified: { ...verified!, ...(summary.trim() ? { summary: summary.trim() } : {}) },
-        use: useText.trim(),
-        tags: [],
-        detail: { attachmentIds: [screenshot.assetId] },
-      } })
-      if (!response.success) throw new Error(response.error || '保存失败')
-      const data = response.data as { fragment?: FragmentRecord; duplicateOf?: FragmentRecord }
-      if (!data.fragment && data.duplicateOf) {
-        if (!window.confirm('已保存过相同描述的视觉碎片。仍要保存？')) {
-          setSaving(false)
-          return
-        }
-        const retry = await MessageUtils.sendMessage({ type: 'SAVE_FRAGMENT', force: true, input: {
+      const response = await MessageUtils.sendMessage({
+        type: 'SAVE_FRAGMENT',
+        input: {
           kind: 'visual',
           content: content.trim(),
           excerpt,
@@ -164,7 +145,31 @@ function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: Screens
           use: useText.trim(),
           tags: [],
           detail: { attachmentIds: [screenshot.assetId] },
-        } })
+        },
+      })
+      if (!response.success) throw new Error(response.error || '保存失败')
+      const data = response.data as { fragment?: FragmentRecord; duplicateOf?: FragmentRecord }
+      if (!data.fragment && data.duplicateOf) {
+        if (!window.confirm('已保存过相同描述的视觉碎片。仍要保存？')) {
+          setSaving(false)
+          return
+        }
+        const retry = await MessageUtils.sendMessage({
+          type: 'SAVE_FRAGMENT',
+          force: true,
+          input: {
+            kind: 'visual',
+            content: content.trim(),
+            excerpt,
+            sourceUrl: screenshot.sourceUrl,
+            sourceTitle: screenshot.sourceTitle || undefined,
+            locator: { type: 'image', assetId: screenshot.assetId },
+            verified: { ...verified!, ...(summary.trim() ? { summary: summary.trim() } : {}) },
+            use: useText.trim(),
+            tags: [],
+            detail: { attachmentIds: [screenshot.assetId] },
+          },
+        })
         if (!retry.success) throw new Error(retry.error || '保存失败')
       }
       onSaved()
@@ -179,9 +184,26 @@ function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: Screens
     <div className="fragment-editor visual-form" data-ann-ui="visual-form">
       <h3>{uiText('library.convertVisual')}</h3>
       <label className="filter-label">关键细节描述（必填，content）</label>
-      <textarea rows={3} maxLength={500} value={content} onChange={e => { setContent(e.target.value); setVerified(null) }} placeholder="这张截图里值得记住的结构、数字或设计细节" data-testid="visual-content" />
+      <textarea
+        rows={3}
+        maxLength={500}
+        value={content}
+        onChange={e => {
+          setContent(e.target.value)
+          setVerified(null)
+        }}
+        placeholder="这张截图里值得记住的结构、数字或设计细节"
+        data-testid="visual-content"
+      />
       <label className="filter-label">页面语境（可选，接在描述后）</label>
-      <textarea rows={2} value={contextText} onChange={e => { setContextText(e.target.value); setVerified(null) }} />
+      <textarea
+        rows={2}
+        value={contextText}
+        onChange={e => {
+          setContextText(e.target.value)
+          setVerified(null)
+        }}
+      />
       <label className="filter-label">摘要（可选）</label>
       <textarea rows={2} value={summary} onChange={e => setSummary(e.target.value)} />
       <div>

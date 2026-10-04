@@ -63,9 +63,7 @@ export default function App() {
   const [availableTags, setAvailableTags] = useState<string[]>([])
   const [stats, setStats] = useState<{ total: number; newThisWeek: number } | null>(null)
   const [editing, setEditing] = useState<FragmentRecord | null>(null)
-  const [inspirationDraft, setInspirationDraft] = useState<CaptureDraft | null>(() =>
-    initialParams.get('new') === 'inspiration' ? buildInspirationDraft() : null,
-  )
+  const [inspirationDraft, setInspirationDraft] = useState<CaptureDraft | null>(() => (initialParams.get('new') === 'inspiration' ? buildInspirationDraft() : null))
   const [upgradeDraft, setUpgradeDraft] = useState<CaptureDraft | null>(null)
   const [exporting, setExporting] = useState(false)
   const [connection, setConnection] = useState<Connection | null>(null)
@@ -372,9 +370,7 @@ export default function App() {
             ← 碎片库
           </button>
           <strong>{view === 'highlights' ? '高亮列表' : '剪藏列表'}</strong>
-          <span className="library-sub">
-            {view === 'highlights' ? (highlights ? `${highlights.length} 条高亮` : '') : clips ? `${clips.length} 条剪藏` : ''}
-          </span>
+          <span className="library-sub">{view === 'highlights' ? (highlights ? `${highlights.length} 条高亮` : '') : clips ? `${clips.length} 条剪藏` : ''}</span>
         </div>
       )}
 
@@ -418,7 +414,12 @@ export default function App() {
               <span className="filter-label">类型</span>
               <div className="filter-options">
                 {ALL_KINDS.map(kind => (
-                  <button key={kind} className={`filter-chip${kinds.includes(kind) ? ' active' : ''}`} onClick={() => toggleIn(kinds, kind, setKinds)} data-testid={`filter-kind-${kind}`}>
+                  <button
+                    key={kind}
+                    className={`filter-chip${kinds.includes(kind) ? ' active' : ''}`}
+                    onClick={() => toggleIn(kinds, kind, setKinds)}
+                    data-testid={`filter-kind-${kind}`}
+                  >
                     {KIND_LABELS[kind]}
                   </button>
                 ))}
@@ -553,13 +554,7 @@ function FragmentCard({ fragment, onEdit, onDelete }: { fragment: FragmentRecord
   const v = fragment.processing.verified
   return (
     <article className="fragment-card" data-testid="fragment-card">
-      <div
-        className="fragment-headline"
-        onClick={() => setOpen(!open)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={e => e.key === 'Enter' && setOpen(!open)}
-      >
+      <div className="fragment-headline" onClick={() => setOpen(!open)} role="button" tabIndex={0} onKeyDown={e => e.key === 'Enter' && setOpen(!open)}>
         <span className="badge badge-platform">{KIND_LABELS[fragment.kind]}</span>
         <span className="fragment-content">{fragment.content}</span>
       </div>
@@ -594,7 +589,11 @@ function FragmentCard({ fragment, onEdit, onDelete }: { fragment: FragmentRecord
               核验（{v.source === 'source-material' ? '原文材料' : v.source === 'manual' ? '手工核对' : 'LLM'}，{new Date(v.confirmedAt).toLocaleString()}）
             </div>
             {v.summary && <p className="fragment-summary">{v.summary}</p>}
-            {!v.summary && !v.notes && <p className="fragment-summary" style={{ opacity: 0.6 }}>已确认，无摘要</p>}
+            {!v.summary && !v.notes && (
+              <p className="fragment-summary" style={{ opacity: 0.6 }}>
+                已确认，无摘要
+              </p>
+            )}
             {v.notes && <p className="fragment-summary">{v.notes}</p>}
           </div>
           <div>
@@ -633,11 +632,7 @@ function FragmentEditor({ fragment, onClose, onSaved }: { fragment: FragmentReco
 
   const verifiedMetaChanged = summary.trim() !== (fragment.processing.verified.summary ?? '') || notes.trim() !== (fragment.processing.verified.notes ?? '')
 
-  const protectedChanged =
-    kind !== fragment.kind ||
-    content.trim() !== fragment.content ||
-    excerpt !== fragment.context.excerpt ||
-    sourceUrl.trim() !== fragment.context.sourceUrl
+  const protectedChanged = kind !== fragment.kind || content.trim() !== fragment.content || excerpt !== fragment.context.excerpt || sourceUrl.trim() !== fragment.context.sourceUrl
 
   const confirmReverify = () => {
     setReverified({ confirmedAt: Date.now(), source: 'manual' })
