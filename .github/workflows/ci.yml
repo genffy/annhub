@@ -53,6 +53,9 @@ jobs:
       - name: Documentation links
         run: npm run check:docs
 
+      - name: Lockfiles use the public registry
+        run: npm run check:lockfiles
+
       - name: Swift fixtures match the TypeScript source
         run: |
           scripts/sync-interop-fixtures.sh

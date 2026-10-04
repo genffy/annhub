@@ -88,7 +88,7 @@ spctl --assess --type execute --verbose=4 AnnHubDesktop.app
 ## 4. 本地复现 CI
 
 ```bash
-npm run verify                 # 格式、ESLint、类型、vitest、文档链接
+npm run verify                 # 格式、ESLint、类型、vitest、文档链接、锁文件注册表
 npm run build && npx playwright test
 cd app && swift test           # 只能在 macOS 上
 swift format lint --configuration .swift-format --strict --recursive Sources Tests Desktop Package.swift
