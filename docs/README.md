@@ -20,6 +20,8 @@
 | [UX/UI 设计稿](./design/v2/README.md)                 | 两端全部界面的画板与可交互原型，文案以 v2 文档为准 |
 | [页面标注架构](./annotation-architecture-refactor.md) | 高亮、页面内容识别、Range 定位和 marker 生命周期   |
 | [Monorepo 重组方案](./monorepo-restructure.md)        | 包划分、pnpm workspace、分阶段实施与验收门禁       |
+| [发布与供应链](./releasing.md)                        | CI 门禁、安全扫描、仓库设置、签名公证与发布校验    |
+| [扩展权限说明](./extension-permissions.md)            | 每项权限的用途、刻意不申请的权限与商店说明素材     |
 
 ## 维护约定
 

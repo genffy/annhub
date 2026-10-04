@@ -17,7 +17,11 @@ export default defineConfig({
     description: '__MSG_extDescription__',
     version: extensionVersion,
     default_locale: 'en',
-    permissions: ['storage', 'activeTab', 'tabs', 'commands', 'sidePanel', 'alarms', 'downloads', 'scripting'],
+    // `tabs` and `activeTab` are omitted on purpose: the `<all_urls>` host permission already grants
+    // everything they would (tab URLs and titles, capturing the visible tab).
+    permissions: ['storage', 'commands', 'sidePanel', 'alarms', 'downloads', 'scripting'],
+    // sidePanel (114) is the newest API the extension depends on.
+    minimum_chrome_version: '114',
     host_permissions: ['http://127.0.0.1:8765/*', '<all_urls>'],
     action: {
       default_title: '__MSG_extName__',
