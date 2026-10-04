@@ -1,0 +1,3 @@
+# Manifest strings for the Chinese Chrome UI. Every other key falls back to `en`.
+extName: 'AnnHub - 知识碎片'
+extDescription: '把网页文字和你自己的灵感连同来源保存为知识碎片，再到 Mac 上复习。本地优先，AI 可选。'

@@ -1,5 +1,8 @@
-extName: 'AnnHub - Text Highlight & Vocabulary'
-extDescription: 'Highlight, annotate and collect text on any webpage. Auto-label English vocabulary with contextual definitions.'
+# Only strings read through `i18n.t(...)` and the manifest (name/description) live here.
+# `utils/__tests__/locale-keys.test.ts` fails on a key nothing uses and on a call with no key.
+# Product UI wording is localized in `utils/ui-text.ts` (D-11), not here.
+extName: 'AnnHub - Knowledge Fragments'
+extDescription: 'Save web text and your own ideas as knowledge fragments with their source, then review them on your Mac. Local-first, AI optional.'
 wip: '$1 is under development...'
 search: 'Search'
 noData: 'No data'
@@ -8,9 +11,6 @@ network:
   loading: 'Loading...'
   error: 'Failed to fetch data'
   retry: 'Retry'
-  success: 'Success'
-  errorWithReason: 'Failed with $1'
-  unknow: 'Unknow Error'
 
 highlight:
   name: 'Highlights'
@@ -25,7 +25,6 @@ highlight:
 pagination:
   total: 'Total $1'
   pageSize: 'Page Size'
-  page: 'Page'
   previous: 'Previous'
   next: 'Next'
 
@@ -35,100 +34,3 @@ sidepanel:
 
 options:
   name: 'Settings'
-  title: ''
-  tagline: 'Browser annotation hub'
-  menus:
-    highlights:
-      label: 'Highlights'
-      icon: '📝'
-    words:
-      label: 'Word Books'
-    settings:
-      label: 'Settings'
-  highlight:
-    name: 'Highlights'
-    description: 'Manage your highlights, search, filter, and quickly locate them'
-  words:
-    name: 'Word Books'
-    description: 'Browse and manage words from your Eudic vocabulary books.'
-    configureToken: 'Please configure and save Eudic token in Settings > Vocabulary Labeling first.'
-    categories: 'Word Books'
-    refresh: 'Refresh'
-    refreshing: 'Refreshing...'
-    createCategoryPlaceholder: 'New word book name'
-    create: 'Create'
-    allCategories: 'All word books'
-    noCategorySelected: 'No word book selected'
-    wordCount: '$1 words'
-    searchLabel: 'Search:'
-    searchPlaceholder: 'Search'
-    sortByTime: 'Sort by time'
-    sortByWord: 'Sort by word'
-    operation: 'Action'
-    deleteSelected: 'Delete selected words'
-    renameCategory: 'Rename current word book'
-    deleteCategory: 'Delete current word book'
-    addWordPlaceholder: 'Enter a word to add'
-    selectCategoryBeforeAdd: 'Select a word book first'
-    addWord: 'Add word'
-    addingWord: 'Adding...'
-    refreshWords: 'Refresh words'
-    loadingWords: 'Loading words...'
-    noMatchedWords: 'No matching words'
-    emptyWords: 'No words in the current word book'
-    table:
-      selectCurrentPage: 'Select current page'
-      index: 'No.'
-      word: 'Word'
-      phonetic: 'Phonetic'
-      meaning: 'Meaning'
-      level: 'Level'
-      action: 'Action'
-    delete: 'Delete'
-    deleting: 'Deleting...'
-    previousPage: '<'
-    nextPage: '>'
-    pagePrefix: 'Page'
-    goToPage: 'Go'
-    pageSize: '$1 / page'
-    errors:
-      inputCategoryName: 'Please input category name'
-      loadCategories: 'Failed to load categories: $1'
-      loadWords: 'Failed to load words: $1'
-      selectCategory: 'Please select one word book first'
-      defaultCategoryDelete: 'Default word book cannot be deleted'
-      queryCategories: 'Failed to query word books for this word'
-      inputWord: 'Please input a word'
-      selectCategoryBeforeAdd: 'Please select one word book before adding a word'
-      selectWords: 'Please select words to delete'
-      unknown: 'Unknown error'
-    messages:
-      categoryCreated: 'Word book "$1" created'
-      categoryRenamed: 'Word book renamed'
-      categoryDeleted: 'Word book deleted'
-      wordAdded: 'Added "$1"'
-      wordDeleted: 'Deleted "$1"'
-      wordsDeleted: 'Deleted $1 words'
-      createFailed: 'Create failed: $1'
-      renameFailed: 'Rename failed: $1'
-      deleteFailed: 'Delete failed: $1'
-      addFailed: 'Add failed: $1'
-      batchDeleteFailed: 'Batch delete failed: $1'
-    prompts:
-      renameCategory: 'Enter a new word book name'
-      confirmDeleteCategory: 'Delete word book "$1"?'
-      confirmDeleteWord: 'Delete word "$1"?'
-      confirmDeleteWords: 'Delete $1 selected words?'
-
-content:
-  drawing:
-    save: 'Save'
-    clear: 'Clear'
-    close: 'Close'
-  hoverMenu:
-    collect: 'Collect'
-    collectDesc: 'Collect selected text'
-    note: 'Note'
-    noteDesc: 'Add a note before saving'
-    highlighter: 'Highlighter'
-    highlighterDesc: 'Enter highlighter mode (Alt+H)'
