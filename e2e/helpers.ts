@@ -205,7 +205,8 @@ export async function clearClipsFromServiceWorker(context: any): Promise<void> {
 
 // ────────────────────────────────────────────────────────────────────────────
 // Vocab word-selection pipeline helpers
-// (docs/vocab-word-selection-research.md, docs/vocab-server-memory-model-design.md)
+// (design docs removed from the tree, see git history: docs/vocab-word-selection-research.md,
+//  docs/vocab-server-memory-model-design.md)
 // ────────────────────────────────────────────────────────────────────────────
 
 /**

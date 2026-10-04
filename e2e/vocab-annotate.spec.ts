@@ -4,7 +4,8 @@
  * Exercises the real runtime path the unit tests cannot: the content script
  * (entrypoints/content/vocab-label/annotate.ts) talking to the background
  * VocabularyService over chrome.runtime messaging, with state landing in
- * chrome.storage.local. Asserts the layers documented in
+ * chrome.storage.local. Asserts the layers documented in the following design
+ * docs (removed from the tree, see git history):
  *   - docs/vocab-word-selection-research.md (L1 / S2 / S3 / S1 recall)
  *   - docs/vocab-server-memory-model-design.md (T1-B memory-event queue)
  *
