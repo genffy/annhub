@@ -13,7 +13,7 @@ import type { LlmConfig } from '../../../types/vocabulary'
 import { PageHeader, SettingsSection, StatusMessage } from '../components/ui'
 
 interface DirectConnectBlock {
-  config: { endpoint: string; token: string; autoSync: boolean }
+  config: { endpoint: string; autoSync: boolean; hasToken: boolean }
   status: { online: boolean; paired: boolean; detail: string; lastSyncAt?: number }
   pending: { pendingFragments: number; pendingAssets: number }
   state: {
@@ -52,7 +52,6 @@ function DesktopConnectionCard() {
     if (response.success && response.data) {
       setBlock(response.data)
       setEndpoint(response.data.config.endpoint)
-      setToken(response.data.config.token)
       setAutoSync(response.data.config.autoSync)
     }
   }, [])
@@ -64,8 +63,22 @@ function DesktopConnectionCard() {
   const save = async () => {
     setBusy(true)
     try {
-      const response = await MessageUtils.sendMessage({ type: 'SET_DESKTOP_DIRECT_CONNECT', config: { endpoint, token, autoSync } })
+      // The stored pairing code is never sent back to this page: an empty field keeps it.
+      const typed = token.trim()
+      const response = await MessageUtils.sendMessage({ type: 'SET_DESKTOP_DIRECT_CONNECT', config: { endpoint, autoSync, ...(typed ? { token: typed } : {}) } })
       setMessage(response.success ? { kind: 'success', text: '已保存 Desktop 连接配置' } : { kind: 'error', text: response.error || '保存失败' })
+      if (response.success) setToken('')
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const unpair = async () => {
+    setBusy(true)
+    try {
+      const response = await MessageUtils.sendMessage({ type: 'SET_DESKTOP_DIRECT_CONNECT', config: { token: '' } })
+      setMessage(response.success ? { kind: 'success', text: '已取消配对，保存的配对码已清除' } : { kind: 'error', text: response.error || '取消配对失败' })
       await load()
     } finally {
       setBusy(false)
@@ -107,9 +120,12 @@ function DesktopConnectionCard() {
           <span className="text-xs text-ann-muted">配对码（在 Desktop 的「系统」页复制）</span>
           <input
             className="w-full rounded-md border border-ann-border px-3 py-2 font-mono"
+            type="password"
+            autoComplete="off"
+            data-testid="pair-token-input"
             value={token}
             onChange={e => setToken(e.target.value)}
-            placeholder="粘贴 Desktop 显示的配对码"
+            placeholder={block?.config.hasToken ? '已保存（不会显示），留空则保持不变' : '粘贴 Desktop 显示的配对码'}
           />
         </label>
         <label className="flex items-center gap-2">
@@ -137,9 +153,19 @@ function DesktopConnectionCard() {
           <button className="rounded-md bg-ann-accent px-4 py-2 text-sm text-ann-on-accent disabled:opacity-50" onClick={save} disabled={busy}>
             保存配置
           </button>
-          <button className="rounded-md border border-ann-border px-4 py-2 text-sm disabled:opacity-50" onClick={flush} disabled={busy || !token} data-testid="flush-delivery">
+          <button
+            className="rounded-md border border-ann-border px-4 py-2 text-sm disabled:opacity-50"
+            onClick={flush}
+            disabled={busy || !block?.config.hasToken}
+            data-testid="flush-delivery"
+          >
             立即交付待发送项
           </button>
+          {block?.config.hasToken && (
+            <button className="rounded-md border border-ann-border px-4 py-2 text-sm disabled:opacity-50" onClick={unpair} disabled={busy} data-testid="unpair">
+              取消配对
+            </button>
+          )}
         </div>
       </div>
     </SettingsSection>

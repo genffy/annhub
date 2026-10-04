@@ -412,6 +412,7 @@ export interface GetDirectConnectConfigMessage extends BaseMessage {
   type: 'GET_DESKTOP_DIRECT_CONNECT'
 }
 
+/** `token` omitted keeps the stored pairing code, `''` unpairs; `endpoint` must be a loopback origin. */
 export interface SetDirectConnectConfigMessage extends BaseMessage {
   type: 'SET_DESKTOP_DIRECT_CONNECT'
   config: { endpoint?: string; token?: string; autoSync?: boolean }

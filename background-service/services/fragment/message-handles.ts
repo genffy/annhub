@@ -75,10 +75,13 @@ export const fragmentMessageHandlers: Record<string, (message: any, sender: chro
     }
   },
 
-  GET_DESKTOP_DIRECT_CONNECT: async (): Promise<ResponseMessage> => {
+  // The pairing code authorizes writes to the Desktop library, so it is never returned: pages see
+  // `hasToken`, and only extension pages may ask at all.
+  GET_DESKTOP_DIRECT_CONNECT: async (_message, sender): Promise<ResponseMessage> => {
+    if (!isExtensionPageSender(sender)) return forbiddenResponse()
     try {
       const [config, status, pending, state] = await Promise.all([
-        FragmentService.getInstance().getDirectConnectConfig(),
+        FragmentService.getInstance().getPublicDirectConnectConfig(),
         FragmentService.getInstance().pingDirectConnect(),
         FragmentService.getInstance().getDeliveryStats(),
         FragmentService.getInstance().getDeliveryState(),

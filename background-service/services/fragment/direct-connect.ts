@@ -32,6 +32,46 @@ export const DEFAULT_DIRECT_CONNECT: DirectConnectConfig = {
 
 export const DIRECT_CONNECT_STORAGE_KEY = 'desktopDirectConnect'
 
+/** What pages may see of the config: the pairing code itself never leaves the service worker. */
+export interface PublicDirectConnectConfig {
+  endpoint: string
+  autoSync: boolean
+  hasToken: boolean
+}
+
+export function toPublicConfig(config: DirectConnectConfig): PublicDirectConnectConfig {
+  return { endpoint: config.endpoint, autoSync: config.autoSync, hasToken: config.token.length > 0 }
+}
+
+const LOOPBACK_HOSTS = new Set(['127.0.0.1', 'localhost', '[::1]'])
+
+/**
+ * The hub is the Desktop app on this computer, and every request carries the pairing code as a
+ * bearer token. An endpoint anywhere else would hand the code (and every fragment) to that host,
+ * so only a plain-http loopback origin is accepted. Returns the normalized origin, or throws.
+ */
+export function normalizeEndpoint(raw: string): string {
+  let url: URL
+  try {
+    url = new URL(raw.trim())
+  } catch {
+    throw new Error('接口地址不是有效的 URL')
+  }
+  const loopback = url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname) && !url.username && !url.password
+  const bare = (url.pathname === '/' || url.pathname === '') && !url.search && !url.hash
+  if (!loopback || !bare) throw new Error('接口地址必须是本机的 Desktop 服务，例如 http://127.0.0.1:8765')
+  return url.origin
+}
+
+export function isLoopbackEndpoint(raw: string): boolean {
+  try {
+    normalizeEndpoint(raw)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export interface DirectConnectStatus {
   online: boolean
   paired: boolean

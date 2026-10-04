@@ -20,11 +20,15 @@ import {
   DEFAULT_DIRECT_CONNECT,
   DIRECT_CONNECT_STORAGE_KEY,
   flushPendingDeliveries,
+  isLoopbackEndpoint,
+  normalizeEndpoint,
   pingHub,
   pullDesktopChanges,
+  toPublicConfig,
   type DirectConnectConfig,
   type DirectConnectStatus,
   type DeliveryResult,
+  type PublicDirectConnectConfig,
   type PullResult,
 } from './direct-connect'
 import { fragmentMessageHandlers } from './message-handles'
@@ -261,17 +265,29 @@ export class FragmentService implements IService {
 
   // ── Desktop per-item delivery (storage.md §8) ────────────────────────
 
+  /** Includes the pairing code: for the service worker only. Pages get `getPublicDirectConnectConfig`. */
   async getDirectConnectConfig(): Promise<DirectConnectConfig> {
     const result = await chrome.storage.local.get(DIRECT_CONNECT_STORAGE_KEY)
-    const stored = result[DIRECT_CONNECT_STORAGE_KEY] as Partial<DirectConnectConfig> | undefined
-    return { ...DEFAULT_DIRECT_CONNECT, ...(stored ?? {}) }
+    const stored = (result[DIRECT_CONNECT_STORAGE_KEY] as Partial<DirectConnectConfig> | undefined) ?? {}
+    const merged = { ...DEFAULT_DIRECT_CONNECT, ...stored }
+    // Whatever is in storage, the pairing code is only ever sent to a loopback hub.
+    return { ...merged, endpoint: isLoopbackEndpoint(merged.endpoint) ? normalizeEndpoint(merged.endpoint) : DEFAULT_DIRECT_CONNECT.endpoint }
   }
 
-  async setDirectConnectConfig(config: Partial<DirectConnectConfig>): Promise<DirectConnectConfig> {
+  async getPublicDirectConnectConfig(): Promise<PublicDirectConnectConfig> {
+    return toPublicConfig(await this.getDirectConnectConfig())
+  }
+
+  /** `token` undefined keeps the stored code; an empty string unpairs. */
+  async setDirectConnectConfig(config: Partial<DirectConnectConfig>): Promise<PublicDirectConnectConfig> {
     const current = await this.getDirectConnectConfig()
-    const next = { ...current, ...config }
+    const next: DirectConnectConfig = {
+      endpoint: config.endpoint === undefined ? current.endpoint : normalizeEndpoint(config.endpoint),
+      token: config.token === undefined ? current.token : config.token.trim(),
+      autoSync: config.autoSync ?? current.autoSync,
+    }
     await chrome.storage.local.set({ [DIRECT_CONNECT_STORAGE_KEY]: next })
-    return next
+    return toPublicConfig(next)
   }
 
   async pingDirectConnect(): Promise<DirectConnectStatus> {
