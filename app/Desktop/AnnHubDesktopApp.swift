@@ -179,9 +179,6 @@ final class DesktopModel: ObservableObject {
                 path: appSupport.appending(path: "desktop-fragment-store.sqlite").path,
                 deviceId: "mac-" + UUID().uuidString.prefix(6)
             )) ?? (try! FragmentStore(path: ":memory:", deviceId: "mac-fallback"))
-        if CommandLine.arguments.contains(DemoSeed.launchArgument) {
-            DemoSeed.seedIfNeeded(store)
-        }
         let model = DesktopModel(store: store)
         AppDelegate.model = model
         return model
@@ -258,7 +255,7 @@ final class DesktopModel: ObservableObject {
         deliveredFragmentCount =
             fragments.filter { fragment in
                 guard let delivery = try? store.fragmentDelivery(id: fragment.id) else { return false }
-                return !delivery.deviceId.isEmpty && delivery.deviceId != DemoSeed.demoDeviceId
+                return !delivery.deviceId.isEmpty
             }.count
         syncPairToken()
         pruneFinishedSession()
