@@ -461,3 +461,52 @@ export async function getScreenshotsFromServiceWorker(context: any): Promise<any
     })
   })
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Screenshot capture helpers (shared by the screenshot and Desktop specs)
+// ────────────────────────────────────────────────────────────────────────────
+
+/** Fires the capture-screenshot command on the fixture page (screenshot.html). */
+export async function triggerScreenshot(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('ann-screenshot-trigger', { detail: { command: 'capture-screenshot' } }))
+  })
+}
+
+/** Drags a region over the fixture post; returns the selection rectangle in page coordinates. */
+export async function dragRegion(page: Page): Promise<{ x: number; y: number; width: number; height: number }> {
+  const post = page.getByTestId('screenshot-post')
+  const box = await post.boundingBox()
+  if (!box) throw new Error('screenshot-post has no bounding box')
+  const x = box.x + 5
+  const y = box.y + 5
+  await page.mouse.move(x, y)
+  await page.mouse.down()
+  await page.mouse.move(box.x + 480, box.y + 160, { steps: 6 })
+  await page.mouse.up()
+  return { x, y, width: 480 - 5, height: 160 - 5 }
+}
+
+/** Image assets (metadata only) held by the extension's fragment store. */
+export async function getAssetsFromServiceWorker(context: BrowserContext): Promise<Array<{ id: string; mimeType: string; byteLength: number; sha256: string }>> {
+  const sw = await ensureServiceWorker(context)
+  return sw.evaluate(() => {
+    return new Promise<Array<{ id: string; mimeType: string; byteLength: number; sha256: string }>>(resolve => {
+      const request = indexedDB.open('fragment-store')
+      request.onerror = () => resolve([])
+      request.onsuccess = () => {
+        const db = request.result
+        if (!db.objectStoreNames.contains('assets')) {
+          db.close()
+          return resolve([])
+        }
+        const getAll = db.transaction('assets', 'readonly').objectStore('assets').getAll()
+        getAll.onsuccess = () => {
+          db.close()
+          resolve((getAll.result || []).map((a: { metadata: { id: string; mimeType: string; byteLength: number; sha256: string } }) => a.metadata))
+        }
+        getAll.onerror = () => resolve([])
+      }
+    })
+  })
+}

@@ -9,6 +9,19 @@ npx playwright test e2e/screenshot-capture.spec.ts
 
 `e2e/global-setup.ts` 在 `.output/chrome-mv3` 已存在时不会自动重建。源码有变化时，必须先手动构建。fixture 服务器由 Playwright 配置启动，不需要为自动化测试另开服务。
 
+## 扩展与 Desktop 的两端连测
+
+`e2e/desktop-two-end.spec.ts` 让构建出的扩展（真实 Chromium）与真实运行的 macOS Desktop 进程通过回环地址交付碎片和图片，再读 Desktop 自己的 SQLite 核对结果。只在 macOS 上运行；找不到 Desktop 构建时整组跳过。先构建两端：
+
+```bash
+npm run build
+cd app && xcodegen generate && xcodebuild -project AnnHub.xcodeproj -scheme AnnHubDesktop \
+  -destination 'platform=macOS' -derivedDataPath .build/xcode build CODE_SIGNING_ALLOWED=NO
+cd .. && npx playwright test e2e/desktop-two-end.spec.ts
+```
+
+`ANNHUB_DESKTOP_APP` 指向别处的 `AnnHubDesktop.app`。`e2e/desktop.ts` 以独立的数据目录、偏好域和空闲端口启动应用（`--annhub-data-dir` / `--annhub-defaults-suite` / `--annhub-port=0`），用 `SIGUSR1` 取状态快照；不会读写用户自己的 Desktop 数据，新增用到应用进程的用例必须同样隔离。Desktop 里的点击（评分、删除）无头环境做不到，用例用直接改它的数据库来代替，并在注释里写明。
+
 ## chrome-devtools-mcp 手工实测
 
 以下是 2026-09-23 在本机自动化 Chrome 上观察到的环境限制，版本或 MCP 配置改变后先验证现状。共享配置 `.agents/mcp.json` 定义了 `chrome-devtools-annhub`，使用独立 profile `~/.cache/chrome-devtools-mcp/chrome-profile`（`.zcode/` 只放本机私有状态，已被忽略）。官网实测前启动 `cd website && npm run dev`，默认端口 3001。

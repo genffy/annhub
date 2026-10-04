@@ -4,13 +4,7 @@
  * separate PNG download and library save, anonymization, cancel and errors.
  */
 import { test, expect } from './fixtures'
-import { clearFragmentStoreViaServiceWorker, ensureServiceWorker, getFragmentsFromServiceWorker } from './helpers'
-
-async function triggerScreenshot(page: import('@playwright/test').Page): Promise<void> {
-  await page.evaluate(() => {
-    window.dispatchEvent(new CustomEvent('ann-screenshot-trigger', { detail: { command: 'capture-screenshot' } }))
-  })
-}
+import { clearFragmentStoreViaServiceWorker, dragRegion, ensureServiceWorker, getFragmentsFromServiceWorker, triggerScreenshot } from './helpers'
 
 /** Wrap chrome.downloads.download to record options (Playwright reroutes the real files). */
 async function recordDownloads(context: import('@playwright/test').BrowserContext) {
@@ -29,19 +23,6 @@ async function recordDownloads(context: import('@playwright/test').BrowserContex
     })
   })
   return sw
-}
-
-async function dragRegion(page: import('@playwright/test').Page): Promise<{ x: number; y: number; width: number; height: number }> {
-  const post = page.getByTestId('screenshot-post')
-  const box = await post.boundingBox()
-  expect(box).not.toBeNull()
-  const x = box!.x + 5
-  const y = box!.y + 5
-  await page.mouse.move(x, y)
-  await page.mouse.down()
-  await page.mouse.move(box!.x + 480, box!.y + 160, { steps: 6 })
-  await page.mouse.up()
-  return { x, y, width: 480 - 5, height: 160 - 5 }
 }
 
 test.describe('Screenshot capture', () => {
