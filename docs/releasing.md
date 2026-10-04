@@ -38,7 +38,15 @@
 
 ### 浏览器扩展
 
-给提交打标签 `v<package.json 的 version>`（例如 `v1.0.4`）。`release.yml` 先复用 `ci.yml` 跑完整门禁，再构建、校验压缩包里的 `manifest.json` 版本与标签一致、生成构建来源证明（attestation）并创建 GitHub Release。商店上传仍是手工步骤。
+给提交打标签 `v<package.json 的 version>`（例如 `v1.0.4`）。`release.yml` 先复用 `ci.yml` 跑完整门禁，再构建、校验压缩包里的 `manifest.json` 版本与标签一致、生成构建来源证明（attestation）并创建 GitHub Release。商店上传仍是手工步骤，上传前按下面的清单准备素材。
+
+#### 商店素材与披露
+
+- 名称与描述来自 `locales/en.yaml` 和 `locales/zh_CN.yaml` 的 `extName` / `extDescription`（上限 75 / 132 字符，测试会检查）。
+- 截图和宣传图用 `npm run store:assets` 从真实扩展截取：1280×800 的碎片库、选中文字、采集窗口和设置页，以及 440×280 小宣传图与 1400×560 题图，写入不入库的 `store-assets/`。素材可以由源码重现，所以不提交二进制文件，也就不会像手绘示意图那样过期。目前只有中文：英文界面仍显示中文导航和类型名（[Q-06](v2/validation.md) 未排期），英文截图会误导。
+- 隐私政策与服务条款是 `website/public/privacy-policy.html` 和 `terms-of-service.html`（中英双语，商店填写它们的公开地址）。`utils/__tests__/legal-pages.test.ts` 保证政策里的权限表与 `wxt.config.ts` 一致、不含已移除的功能；改了数据流或权限，同步改政策和日期。
+- 权限的用途说明见 [extension-permissions.md](extension-permissions.md)。
+- 分发范围按 [D-08](v2/validation.md) 先用私有可见性。
 
 ### Desktop
 

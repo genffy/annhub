@@ -21,6 +21,7 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
+    "store:assets": "npm run build && STORE_ASSETS=1 playwright test e2e/store-assets.spec.ts",
     "verify": "npm run format:check && npm run lint && npm run compile && npm test && npm run check:docs",
     "postinstall": "wxt prepare",
     "website:dev": "cd website && npm run dev",
