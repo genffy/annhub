@@ -1,7 +1,7 @@
 # AnnHub 工程约定
 
 > 本文件只放跨目录通用规则。当前代码的局部维护提示见下表的 `AGENTS.md`。
-> 更新：2026-09-24。
+> 更新：2026-10-04。
 
 ## 项目与真源
 
@@ -37,7 +37,14 @@
 
 ## 验证入口
 
-- 扩展：`npm run compile`、`npm test`、`npm run build`。
-- 浏览器 E2E：先 `npm run build`，再 `npx playwright test <spec>`；现有 `.output` 不会因源码变化自动重建。手工 Chrome 实测见 [e2e/README.md](e2e/README.md)。
-- 原生端：`cd app && swift test`；Desktop 构建命令见 [app/AGENTS.md](app/AGENTS.md)。
+- 提交前跑 `npm run verify`（format:check → lint → compile → vitest → check:docs）。格式由 Prettier 负责，`npm run format` 一次修复；ESLint 只管正确性。
+- 扩展构建：`npm run build`。浏览器 E2E：先构建，再 `npx playwright test <spec>`；现有 `.output` 不会因源码变化自动重建。手工 Chrome 实测见 [e2e/README.md](e2e/README.md)。
+- 原生端：`cd app && swift test`；Desktop 构建命令见 [app/AGENTS.md](app/AGENTS.md)。Swift 与 Desktop 只能在 macOS 上构建。
 - 按改动范围运行相关测试；跨端契约、消息协议和截图链路的最低验证见对应目录约定。
+- CI（`.github/workflows/`）运行同样的命令，并加上 CodeQL、依赖审查和 macOS 构建；合并以 CI 为准。CI 失败先在本地用上面的命令复现，不要跳过、禁用或隔离测试来求绿。
+
+## 生成物与提交
+
+- 不手改生成物或单一来源文件：`package-lock.json`（用 npm 11 的 `npm install`）、`fixtures/interop/` 与 `app/Tests/AnnHubCoreTests/Fixtures/`（见 [learning-core/AGENTS.md](learning-core/AGENTS.md)）、`app/AnnHub.xcodeproj`（改 `app/project.yml`）。`.claude/hooks/protect-generated-files.mjs` 会拦截对它们的编辑。
+- 提交信息用 Conventional Commits（`feat` / `fix` / `docs` / `test` / `chore` / `style` / `refactor`），正文写原因而不是复述 diff。一个提交对应一个完整的改动。
+- 新增依赖前确认确实需要，并跑 `npm audit --omit=dev`；运行时依赖保持零已知漏洞。
