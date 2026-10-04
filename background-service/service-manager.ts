@@ -2,6 +2,7 @@ import { Logger } from '../utils/logger'
 import { ServiceContext, SupportedServices } from './service-context'
 import MessageUtils from '../utils/message'
 import { ResponseMessage, SystemStatus } from '../types/messages'
+import { EXTENSION_PAGES, openExtensionPage } from '../utils/extension-pages'
 
 export interface IService {
   readonly name: SupportedServices
@@ -210,6 +211,18 @@ export class ServiceManager {
       },
       GET_VERSION: async (): Promise<ResponseMessage<{ version: string }>> => {
         return MessageUtils.createResponse(true, { version: browser.runtime.getManifest().version })
+      },
+      // Content scripts cannot navigate to chrome-extension:// pages; only our own page set is openable.
+      OPEN_EXTENSION_PAGE: async (message): Promise<ResponseMessage> => {
+        if (!EXTENSION_PAGES.includes(message.page)) {
+          return MessageUtils.createResponse(false, undefined, `Unknown extension page: ${String(message.page)}`)
+        }
+        try {
+          await openExtensionPage(message.page, message.params)
+          return MessageUtils.createResponse(true, { page: message.page })
+        } catch (error) {
+          return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
       },
       INITIALIZE: async (): Promise<ResponseMessage<SystemStatus>> => {
         // Idempotent recovery: only (re)initialize when not already ready, then report status.

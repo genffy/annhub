@@ -99,8 +99,8 @@ function DesktopConnectionCard() {
           <input className="w-full rounded-md border border-slate-300 px-3 py-2" value={endpoint} onChange={e => setEndpoint(e.target.value)} placeholder="http://127.0.0.1:8765" />
         </label>
         <label className="block space-y-1">
-          <span className="text-xs text-slate-500">配对 Token（在 Desktop 系统页查看/复制）</span>
-          <input className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono" value={token} onChange={e => setToken(e.target.value)} placeholder="粘贴 Desktop 显示的 Token" />
+          <span className="text-xs text-slate-500">配对码（在 Desktop 的「系统」页复制）</span>
+          <input className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono" value={token} onChange={e => setToken(e.target.value)} placeholder="粘贴 Desktop 显示的配对码" />
         </label>
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={autoSync} onChange={e => setAutoSync(e.target.checked)} />
@@ -153,7 +153,7 @@ function SyncPanelCard() {
   }, [load])
 
   return (
-    <SettingsSection title="双向同步" description="R3 起扩展会拉取 Desktop 的复习、输出与已确认关系；无法应用的项目会出现在下面的报告中。">
+    <SettingsSection title="双向同步" description="扩展会拉取 Desktop 回传的复习结果；无法应用的项目会出现在下面的报告中。">
       <div className="space-y-3 text-sm">
         {state === null ? (
           <div className="text-xs text-slate-500">加载中…</div>
@@ -191,10 +191,11 @@ function SyncPanelCard() {
 
 /** Capture funnel metrics (R1.4) — counts only. */
 function MetricsCard() {
-  const [metrics, setMetrics] = useState<{ modalOpened: number; reachedVerify: number; reachedApply: number; saved: number; exited: Record<string, number> } | null>(null)
+  type Metrics = { modalOpened: number; reachedVerify: number; reachedApply: number; saved: number; exited: Record<string, number>; exitedWithInput: number; fallbacks: { highlight: number; clip: number } }
+  const [metrics, setMetrics] = useState<Metrics | null>(null)
   useEffect(() => {
     void (async () => {
-      const response = await MessageUtils.sendMessage<{ modalOpened: number; reachedVerify: number; reachedApply: number; saved: number; exited: Record<string, number> }>({ type: 'GET_CAPTURE_METRICS' })
+      const response = await MessageUtils.sendMessage<Metrics>({ type: 'GET_CAPTURE_METRICS' })
       if (response.success && response.data) setMetrics(response.data)
     })()
   }, [])
@@ -209,6 +210,12 @@ function MetricsCard() {
         {Object.keys(metrics.exited).length > 0 && (
           <div className="col-span-2 rounded-md bg-slate-50 p-2 sm:col-span-4">
             退出阶段：{Object.entries(metrics.exited).map(([step, count]) => `${step} × ${count}`).join('、')}
+          </div>
+        )}
+        {metrics.exitedWithInput > 0 && (
+          <div className="col-span-2 rounded-md bg-slate-50 p-2 sm:col-span-4" data-testid="safe-exit-metrics">
+            放弃时已有输入 {metrics.exitedWithInput} 次 · 改存高亮 {metrics.fallbacks.highlight} · 改存剪藏 {metrics.fallbacks.clip}（安全出口使用率{' '}
+            {Math.round(((metrics.fallbacks.highlight + metrics.fallbacks.clip) / metrics.exitedWithInput) * 100)}%）
           </div>
         )}
       </div>

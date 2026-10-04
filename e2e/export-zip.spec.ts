@@ -14,8 +14,8 @@ test.describe('导出内容 (Markdown ZIP)', () => {
     await navigateToFragmentPage(page)
     await captureFragmentViaUi(page, { kind: 'concept', use: '用于导出验收。' })
 
-    await page.goto(`chrome-extension://${extensionId}/words.html`)
-    await expect(page.getByTestId('words-page')).toBeVisible({ timeout: 10_000 })
+    await page.goto(`chrome-extension://${extensionId}/library.html`)
+    await expect(page.getByTestId('library-page')).toBeVisible({ timeout: 10_000 })
 
     // 唯一导出命令藏在「更多」菜单里（PRD §5.1）
     await page.getByTestId('more-menu').click()

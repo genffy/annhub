@@ -29,7 +29,7 @@ test.describe('Mode A — Sniper Mode (Hover Menu)', () => {
 
     const buttons = hoverMenu.locator('button')
     await expect(buttons).toHaveCount(4)
-    for (const label of ['Fragment', '高亮', '剪藏', '截图']) {
+    for (const label of ['碎片', '高亮', '剪藏', '截图']) {
       await expect(hoverMenu.locator('button', { hasText: label })).toBeVisible()
     }
   })

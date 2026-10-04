@@ -17,8 +17,8 @@ import {
 } from './helpers'
 
 async function openLibrary(page: any, extensionId: string) {
-  await page.goto(`chrome-extension://${extensionId}/words.html`)
-  await expect(page.getByTestId('words-page')).toBeVisible({ timeout: 10_000 })
+  await page.goto(`chrome-extension://${extensionId}/library.html`)
+  await expect(page.getByTestId('library-page')).toBeVisible({ timeout: 10_000 })
 }
 
 test.describe('碎片库 — fragments view', () => {
@@ -99,10 +99,10 @@ test.describe('碎片库 — fragments view', () => {
 
     // Inspiration form: content, then 理解(1/3)→核验(触发背景必填)→应用.
     await modal.locator('textarea').first().fill('把核验步骤做成一键回到原文')
-    await modal.getByRole('button', { name: '去核验 →' }).click()
+    await modal.getByTestId('modal-next').click()
     await modal.locator('textarea[placeholder="什么触发了这个想法？（必填）"]').fill('读到间隔重复文献时想到的。')
-    await modal.getByRole('button', { name: '手工核对后确认' }).click()
-    await modal.getByRole('button', { name: '去应用 →' }).click()
+    await modal.getByRole('checkbox', { name: '确认已核对' }).check()
+    await modal.getByTestId('modal-next').click()
     await modal.locator('textarea[placeholder="写下准备如何使用、验证或迁移（必填）"]').fill('下次设计采集流程时先做这个。')
     await modal.getByRole('button', { name: '保存到碎片库' }).click()
     await expect(modal).toHaveCount(0, { timeout: 5000 })
@@ -132,14 +132,15 @@ test.describe('碎片库 — highlights view', () => {
     await page.waitForTimeout(800)
 
     await openLibrary(page, extensionId)
+    await page.getByTestId('more-menu').click()
     await page.getByTestId('view-highlights').click()
     await expect(page.getByTestId('highlight-card')).toHaveCount(1, { timeout: 5000 })
 
     await page.getByTestId('highlight-upgrade').click()
     const modal = page.locator('[data-ann-ui="capture-modal"]')
     await expect(modal).toBeVisible()
-    await modal.getByRole('button', { name: '已回看原文，确认' }).click()
-    await modal.getByRole('button', { name: '去应用 →' }).click()
+    await modal.getByRole('checkbox', { name: '确认已核对' }).check()
+    await modal.getByTestId('modal-next').click()
     await modal.locator('textarea[placeholder="写下准备如何使用、验证或迁移（必填）"]').fill('升级后用于季度复盘。')
     await modal.getByRole('button', { name: '保存到碎片库' }).click()
     await expect(modal).toHaveCount(0, { timeout: 5000 })

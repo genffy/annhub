@@ -11,6 +11,7 @@ import MessageUtils from '../../utils/message'
 import { FragmentStore } from '../../learning-core/fragment-store'
 import type { ScreenshotRecord, FragmentRecord } from '../../learning-core/types'
 import type { ScreenshotLibraryItem } from '../../types/messages'
+import { uiText } from '../../utils/ui-text'
 
 const store = new FragmentStore('fragment-store')
 
@@ -50,16 +51,16 @@ export default function ScreenshotsView({ onSaved }: { onSaved: () => void }) {
 
   if (items === null) {
     return (
-      <main className="words-list">
-        <p className="words-empty">加载中…</p>
+      <main className="library-list">
+        <p className="library-empty">加载中…</p>
       </main>
     )
   }
 
   if (items.length === 0) {
     return (
-      <main className="words-list">
-        <div className="words-empty" data-testid="screenshots-empty">
+      <main className="library-list">
+        <div className="library-empty" data-testid="screenshots-empty">
           <p>还没有截图采集。</p>
           <p>
             在任意网页按 <strong>Ctrl+Shift+S</strong>（macOS <strong>Cmd+Shift+S</strong>），拖拽截取区域或单击截取元素；确认入库的截图会出现在这里。
@@ -71,7 +72,7 @@ export default function ScreenshotsView({ onSaved }: { onSaved: () => void }) {
 
   return (
     <>
-      <main className="words-list screenshots-list" data-testid="screenshots-list">
+      <main className="library-list screenshots-list" data-testid="screenshots-list">
         {items.map(item => (
           <figure className="screenshot-card" key={item.id} data-testid="screenshot-card">
             {item.objectUrl ? (
@@ -86,7 +87,7 @@ export default function ScreenshotsView({ onSaved }: { onSaved: () => void }) {
               </div>
               <div className="screenshot-actions">
                 <button type="button" onClick={() => setConverting(item)} data-testid="screenshot-to-fragment">
-                  转为 Fragment
+                  {uiText('library.convert')}
                 </button>
                 <button type="button" onClick={() => remove(item.id)} data-testid="screenshot-delete">
                   删除
@@ -176,7 +177,7 @@ function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: Screens
 
   return (
     <div className="fragment-editor visual-form" data-ann-ui="visual-form">
-      <h3>转为视觉 Fragment</h3>
+      <h3>{uiText('library.convertVisual')}</h3>
       <label className="filter-label">关键细节描述（必填，content）</label>
       <textarea rows={3} maxLength={500} value={content} onChange={e => { setContent(e.target.value); setVerified(null) }} placeholder="这张截图里值得记住的结构、数字或设计细节" data-testid="visual-content" />
       <label className="filter-label">页面语境（可选，接在描述后）</label>
@@ -185,15 +186,16 @@ function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: Screens
       <textarea rows={2} value={summary} onChange={e => setSummary(e.target.value)} />
       <div>
         <div className="filter-label">核验 — 对照原图与页面语境</div>
-        {verified ? (
-          <div className="editor-note">已确认核对（{verified.source === 'source-material' ? '原文材料' : '手工'}，{new Date(verified.confirmedAt).toLocaleTimeString()}）</div>
-        ) : (
-          <div className="fragment-actions">
-            <button className="badge" onClick={() => setVerified({ confirmedAt: Date.now(), source: 'source-material' })} data-testid="visual-verify">
-              已对照原图，确认
-            </button>
-          </div>
-        )}
+        <label className="verify-confirm">
+          <input
+            type="checkbox"
+            checked={!!verified}
+            onChange={e => setVerified(e.target.checked ? { confirmedAt: Date.now(), source: 'source-material' } : null)}
+            data-testid="visual-verify"
+          />
+          确认已核对
+        </label>
+        {verified && <div className="editor-note">已确认核对（原文材料，{new Date(verified.confirmedAt).toLocaleTimeString()}）。修改描述或语境后需重新确认。</div>}
       </div>
       <label className="filter-label">应用（必填）</label>
       <textarea rows={2} value={useText} onChange={e => setUse(e.target.value)} placeholder="准备在哪个任务中使用或检验这张图？" data-testid="visual-use" />

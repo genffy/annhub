@@ -29,31 +29,147 @@ body {
   border: 0;
 }
 
-.words-page {
+.library-page {
   max-width: 860px;
   margin: 0 auto;
   padding: 20px 16px 60px;
 }
 
-.words-header {
+.library-header {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 12px;
-  flex-wrap: wrap;
 }
 
-.words-header h1 {
-  font-size: 22px;
+.library-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid #e8e8ec;
+  padding-bottom: 8px;
 }
 
-.words-sub {
+.library-brand {
+  font-size: 18px;
+  margin-right: 12px;
+}
+
+.library-nav button,
+.library-nav a {
+  border: none;
+  background: transparent;
+  color: #3c4048;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.library-nav button:hover,
+.library-nav a:hover {
+  background: #eef0f4;
+}
+
+/* The active page is also underlined, so it is not signalled by colour alone. */
+.library-nav button.active {
+  background: #1a1d24;
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.library-crumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.connection-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  border: 1px solid #d6d8de;
+  background: #fff;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8b8d98;
+}
+
+.connection-chip[data-state='connected'] .status-dot {
+  background: #2e9d57;
+}
+
+.connection-chip[data-state='pending'] .status-dot {
+  background: #d98e04;
+}
+
+.connection-chip[data-state='error'] .status-dot {
+  background: #c6373c;
+}
+
+button.primary-outline {
+  border: 1px solid #673ab8;
+  background: #fff;
+  color: #673ab8;
+  border-radius: 8px;
+  padding: 5px 12px;
   font-size: 13px;
-  color: #636977;
-  margin-top: 4px;
+  cursor: pointer;
 }
 
-.words-stats {
+.more-menu {
+  position: absolute;
+  right: 0;
+  top: 120%;
+  z-index: 30;
+  background: #fff;
+  border: 1px solid #d6d8de;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  overflow: hidden;
+}
+
+.more-menu button {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 9px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.more-menu button:hover:not(:disabled) {
+  background: #f1f1f4;
+}
+
+.desktop-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 30;
+  background: #f8f9fb;
+  border: 1px solid #d6d8de;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #3c4048;
+  line-height: 1.7;
+}
+
+.library-stats {
   display: flex;
   gap: 14px;
   font-size: 13px;
@@ -103,13 +219,13 @@ body {
   background: rgba(255, 255, 255, 0.24);
 }
 
-.words-toolbar {
+.library-toolbar {
   display: flex;
   gap: 10px;
   margin-top: 14px;
 }
 
-.words-search {
+.library-search {
   flex: 1;
   border: 1px solid #d6d8de;
   border-radius: 8px;
@@ -127,7 +243,7 @@ body {
   white-space: nowrap;
 }
 
-.words-filters {
+.library-filters {
   margin-top: 10px;
   display: flex;
   flex-direction: column;
@@ -168,14 +284,14 @@ body {
   color: #fff;
 }
 
-.words-list {
+.library-list {
   margin-top: 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.words-empty {
+.library-empty {
   background: #fff;
   border: 1px solid #e8e8ec;
   border-radius: 10px;
@@ -375,31 +491,6 @@ body {
 
 /* ── 截图视图（words view switch + screenshot cards） ─────────────── */
 
-.words-view-switch {
-  display: inline-flex;
-  gap: 4px;
-  margin: 12px 0 4px;
-  padding: 4px;
-  background: #f1f5f9;
-  border-radius: 10px;
-  width: fit-content;
-}
-
-.words-view-switch button {
-  border: none;
-  background: transparent;
-  padding: 6px 18px;
-  border-radius: 8px;
-  font-size: 14px;
-  color: #475569;
-  cursor: pointer;
-}
-
-.words-view-switch button.active {
-  background: #0f172a;
-  color: #fff;
-}
-
 .screenshots-list {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -468,4 +559,13 @@ body {
   background: #fff;
   cursor: pointer;
   text-decoration: none;
+}
+
+.verify-confirm {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  margin: 6px 0;
 }

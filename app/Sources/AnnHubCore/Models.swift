@@ -1,10 +1,10 @@
 // Models — mirrors learning-core/types.ts exactly (JSON keys included), v4 contract.
 // docs/v2/fragments.md (kinds/details/validation), docs/v2/storage.md (§3 entities).
 //
-// `kind`, `verified.source` and the relation enum fields stay String: unregistered
-// values must survive decoding so validation can report the stable error codes
-// (KIND_NOT_REGISTERED / VERIFIED_SOURCE_INVALID / RELATION_TYPE_INVALID …)
-// instead of a JSON decode error — same as the TS runtime checks.
+// `kind` and `verified.source` stay String: unregistered values must survive
+// decoding so validation can report the stable error codes
+// (KIND_NOT_REGISTERED / VERIFIED_SOURCE_INVALID …) instead of a JSON decode
+// error — same as the TS runtime checks.
 
 import Foundation
 
@@ -25,10 +25,6 @@ public let enabledFragmentKinds: [String] = [
     "excerpt", "concept", "claim", "procedure", "decision",
     "question", "inspiration", "visual", "media-clip",
 ]
-
-/// source_device_id stamped on Desktop-created fragments (question drafts from
-/// output feedback). Distinguishes them from extension deliveries (R3).
-public let desktopLocalDeviceId = "desktop-local"
 
 // ── Type-specialized detail blocks (fragments.md §4) ────────────────────
 
@@ -57,11 +53,12 @@ public struct ConceptDetail: Codable, Equatable, Sendable {
 }
 
 public struct ClaimDetail: Codable, Equatable, Sendable {
-    public var stance: String // 'support' | 'oppose' | 'uncertain'
+    /// 'support' | 'oppose' | 'uncertain'; optional in the data layer (the capture form asks for it).
+    public var stance: String?
     public var evidence: [String]?
     public var assumptions: [String]?
 
-    public init(stance: String, evidence: [String]? = nil, assumptions: [String]? = nil) {
+    public init(stance: String? = nil, evidence: [String]? = nil, assumptions: [String]? = nil) {
         self.stance = stance
         self.evidence = evidence
         self.assumptions = assumptions
@@ -572,198 +569,6 @@ public struct ReviewLog: Codable, Identifiable, Equatable, Sendable {
     }
 }
 
-// ── Output workshop (L4, storage.md §3.2 — records land with R2) ────────
-
-public enum WritingTaskType: String, Codable, CaseIterable, Sendable {
-    case explanation, analysis, plan, decision, retrospective, article
-}
-
-public struct FragmentUseAssessment: Codable, Equatable, Sendable {
-    public var fragmentId: String
-    public var source: String // 'local' | 'manual' | 'llm'
-    /// Local text-presence clue only — never used/correct by itself.
-    public var presence: Bool?
-    public var used: Bool?
-    public var correct: Bool?
-    public var feedback: String?
-    public var suggestion: String?
-    public var modelId: String?
-    public var promptVersion: String?
-    public var confirmedByUser: Bool?
-    public var assessedAt: Int
-
-    public init(
-        fragmentId: String,
-        source: String,
-        presence: Bool? = nil,
-        used: Bool? = nil,
-        correct: Bool? = nil,
-        feedback: String? = nil,
-        suggestion: String? = nil,
-        modelId: String? = nil,
-        promptVersion: String? = nil,
-        confirmedByUser: Bool? = nil,
-        assessedAt: Int
-    ) {
-        self.fragmentId = fragmentId
-        self.source = source
-        self.presence = presence
-        self.used = used
-        self.correct = correct
-        self.feedback = feedback
-        self.suggestion = suggestion
-        self.modelId = modelId
-        self.promptVersion = promptVersion
-        self.confirmedByUser = confirmedByUser
-        self.assessedAt = assessedAt
-    }
-}
-
-public struct OutputSubmission: Codable, Equatable, Sendable {
-    public var id: String
-    public var content: String
-    public var submittedAt: Int
-    public var assessments: [FragmentUseAssessment]
-    /// Optional task-level model strings from the output-feedback envelope
-    /// (ai.md; prompt v2). Suggestions only — they never auto-confirm
-    /// anything. Absent on older payloads (decode-optional, encode-omitted).
-    public var overallFeedback: String?
-    public var suggestedRevision: String?
-
-    public init(
-        id: String,
-        content: String,
-        submittedAt: Int,
-        assessments: [FragmentUseAssessment],
-        overallFeedback: String? = nil,
-        suggestedRevision: String? = nil
-    ) {
-        self.id = id
-        self.content = content
-        self.submittedAt = submittedAt
-        self.assessments = assessments
-        self.overallFeedback = overallFeedback
-        self.suggestedRevision = suggestedRevision
-    }
-}
-
-public struct WritingTaskRecord: Codable, Identifiable, Equatable, Sendable {
-    public var id: String
-    public var fragmentIds: [String]
-    public var taskType: String
-    public var prompt: String
-    public var constraints: [String]
-    public var draftContent: String
-    public var submissions: [OutputSubmission]
-    public var createdAt: Int
-    public var updatedAt: Int
-
-    public init(
-        id: String,
-        fragmentIds: [String],
-        taskType: String,
-        prompt: String,
-        constraints: [String] = [],
-        draftContent: String = "",
-        submissions: [OutputSubmission] = [],
-        createdAt: Int,
-        updatedAt: Int
-    ) {
-        self.id = id
-        self.fragmentIds = fragmentIds
-        self.taskType = taskType
-        self.prompt = prompt
-        self.constraints = constraints
-        self.draftContent = draftContent
-        self.submissions = submissions
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-    }
-}
-
-// ── Relations (storage.md §3.3) ─────────────────────────────────────────
-
-public enum RelationType: String, Codable, CaseIterable, Sendable {
-    case reference, prerequisite, similarity, contrast, evidence, evolution
-}
-
-public let relationTypes: [String] = RelationType.allCases.map(\.rawValue)
-
-/// similarity / contrast are undirected: endpoints are stored sorted.
-public func isSymmetricRelation(_ type: String) -> Bool {
-    type == RelationType.similarity.rawValue || type == RelationType.contrast.rawValue
-}
-
-/// Fragment endpoints; `type`/`createdBy`/`status`/`confirmedBy` stay raw
-/// strings so invalid values reach validateRelation (mirror of the TS union).
-public struct FragmentRelation: Codable, Identifiable, Equatable, Sendable {
-    public var id: String
-    public var fromFragmentId: String
-    public var toFragmentId: String
-    public var type: String
-    public var createdBy: String // 'user' | 'auto'
-    public var confidence: Double?
-    public var suggestionReason: String?
-    public var note: String?
-    public var status: String // 'suggested' | 'confirmed'
-    public var confirmedAt: Int?
-    public var confirmedBy: String? // 'user'
-    public var createdAt: Int
-    public var updatedAt: Int
-
-    public init(
-        id: String,
-        fromFragmentId: String,
-        toFragmentId: String,
-        type: String,
-        createdBy: String,
-        confidence: Double? = nil,
-        suggestionReason: String? = nil,
-        note: String? = nil,
-        status: String,
-        confirmedAt: Int? = nil,
-        confirmedBy: String? = nil,
-        createdAt: Int,
-        updatedAt: Int
-    ) {
-        self.id = id
-        self.fromFragmentId = fromFragmentId
-        self.toFragmentId = toFragmentId
-        self.type = type
-        self.createdBy = createdBy
-        self.confidence = confidence
-        self.suggestionReason = suggestionReason
-        self.note = note
-        self.status = status
-        self.confirmedAt = confirmedAt
-        self.confirmedBy = confirmedBy
-        self.createdAt = createdAt
-        self.updatedAt = updatedAt
-    }
-}
-
-public struct RelationSuppression: Codable, Equatable, Sendable {
-    public var fromFragmentId: String
-    public var toFragmentId: String
-    public var suggestedType: String
-    public var rejectedAt: Int
-    public var reason: String?
-
-    public init(
-        fromFragmentId: String,
-        toFragmentId: String,
-        suggestedType: String,
-        rejectedAt: Int,
-        reason: String? = nil
-    ) {
-        self.fromFragmentId = fromFragmentId
-        self.toFragmentId = toFragmentId
-        self.suggestedType = suggestedType
-        self.rejectedAt = rejectedAt
-        self.reason = reason
-    }
-}
-
 // ── Image assets & screenshot library (storage.md §3.5) ─────────────────
 
 public enum ImageMimeType: String, Codable, CaseIterable, Sendable {
@@ -829,11 +634,6 @@ public enum SyncEventType: String, Codable, Sendable {
     case fragmentUpdated = "fragment.updated"
     case assetCreated = "asset.created"
     case reviewRated = "review.rated"
-    case writingCreated = "writing.created"
-    case writingSubmitted = "writing.submitted"
-    case relationCreated = "relation.created"
-    case relationUpdated = "relation.updated"
-    case relationDeleted = "relation.deleted"
 }
 
 public struct OutboxEvent: Codable, Equatable, Sendable {

@@ -184,7 +184,7 @@ export async function clearHighlightsFromServiceWorker(context: any): Promise<vo
 /**
  * Get the active service worker, waiting for it if necessary.
  */
-async function ensureServiceWorker(context: any) {
+export async function ensureServiceWorker(context: any) {
   let [sw] = context.serviceWorkers()
   if (!sw) sw = await context.waitForEvent('serviceworker')
   return sw
@@ -358,7 +358,12 @@ export async function clearFragmentStoreViaServiceWorker(context: any): Promise<
       request.onerror = () => resolve()
       request.onsuccess = () => {
         const db = request.result
-        const stores = ['fragments', 'reviewLogs', 'outboxEvents', 'assets', 'screenshots', 'localDeletions']
+        // An unversioned open of a store the extension has not created yet yields an empty DB: nothing to clear.
+        const stores = ['fragments', 'reviewLogs', 'outboxEvents', 'assets', 'screenshots', 'localDeletions'].filter(s => db.objectStoreNames.contains(s))
+        if (stores.length === 0) {
+          db.close()
+          return resolve()
+        }
         const tx = db.transaction(stores, 'readwrite')
         for (const store of stores) tx.objectStore(store).clear()
         tx.oncomplete = () => {
@@ -378,7 +383,7 @@ export async function clearFragmentStoreViaServiceWorker(context: any): Promise<
 export async function captureFragmentViaUi(page: Page, opts: { kind?: string; use?: string } = {}): Promise<void> {
   await selectText(page, '[data-testid="fragment-target"]')
   const hoverMenu = await waitForHoverMenu(page)
-  await clickShadowButton(hoverMenu.locator('button', { hasText: 'Fragment' }))
+  await clickShadowButton(hoverMenu.locator('button', { hasText: '碎片' }))
   const modal = await waitForCaptureModal(page)
 
   // Kind selection happens BEFORE confirming — editing the kind afterwards
@@ -386,8 +391,8 @@ export async function captureFragmentViaUi(page: Page, opts: { kind?: string; us
   if (opts.kind) await modal.getByTestId(`kind-${opts.kind}`).click()
 
   // 核验 step: confirm against the source material
-  await modal.getByRole('button', { name: '已回看原文，确认' }).click()
-  await modal.getByRole('button', { name: '去应用 →' }).click()
+  await modal.getByRole('checkbox', { name: '确认已核对' }).check()
+  await modal.getByTestId('modal-next').click()
 
   // 应用 step
   await modal.locator('textarea[placeholder="写下准备如何使用、验证或迁移（必填）"]').fill(opts.use ?? '用在下周的宏观复盘文章里。')

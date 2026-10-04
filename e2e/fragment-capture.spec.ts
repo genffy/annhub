@@ -30,21 +30,21 @@ test.describe('Fragment capture — explicit verification lock', () => {
   test('standard mode: 核验 → 应用 saves a v4 fragment with confirmed verification', async ({ page, context }) => {
     await selectText(page, '[data-testid="fragment-target"]')
     const hoverMenu = await waitForHoverMenu(page)
-    await clickShadowButton(hoverMenu.locator('button', { hasText: 'Fragment' }))
+    await clickShadowButton(hoverMenu.locator('button', { hasText: '碎片' }))
 
     const modal = await waitForCaptureModal(page)
-    await expect(modal.getByText('1/2')).toBeVisible()
-    await expect(modal.getByText('✅ 核验')).toBeVisible()
+    // Standard mode: 核验 › 应用 (two steps), currently on 核验.
+    await expect(modal.getByRole('listitem')).toHaveCount(2)
+    await expect(modal.locator('li[aria-current="step"]')).toContainText('核验')
     // The apply step must not be reachable before an explicit confirmation.
-    await expect(modal.getByRole('button', { name: '去应用 →' })).toBeDisabled()
+    await expect(modal.getByTestId('modal-next')).toBeDisabled()
 
     await modal.getByTestId('kind-concept').click()
-    await modal.getByRole('button', { name: '已回看原文，确认' }).click()
+    await modal.getByRole('checkbox', { name: '确认已核对' }).check()
     await expect(modal.getByText(/已确认核对（原文材料/)).toBeVisible()
-    await modal.getByRole('button', { name: '去应用 →' }).click()
+    await modal.getByTestId('modal-next').click()
 
-    await expect(modal.getByText('2/2')).toBeVisible()
-    await expect(modal.getByText('✍️ 应用')).toBeVisible()
+    await expect(modal.locator('li[aria-current="step"]')).toContainText('应用')
 
     // Generic gate: copying the content is rejected — no token-count thresholds.
     const useInput = modal.locator('textarea[placeholder="写下准备如何使用、验证或迁移（必填）"]')
@@ -90,17 +90,18 @@ test.describe('Fragment capture — explicit verification lock', () => {
 
     await selectText(page, '[data-testid="fragment-target"]')
     const hoverMenu = await waitForHoverMenu(page)
-    await clickShadowButton(hoverMenu.locator('button', { hasText: 'Fragment' }))
+    await clickShadowButton(hoverMenu.locator('button', { hasText: '碎片' }))
 
     const modal = await waitForCaptureModal(page)
-    await expect(modal.getByText('1/3')).toBeVisible()
-    await expect(modal.getByText('🤔 理解')).toBeVisible()
-    await expect(modal.getByText('✅ 核验')).toHaveCount(0)
+    // Deep mode: 理解 › 核验 › 应用 (three steps), currently on 理解 — the verification card is not open yet.
+    await expect(modal.getByRole('listitem')).toHaveCount(3)
+    await expect(modal.locator('li[aria-current="step"]')).toContainText('理解')
+    await expect(modal.getByRole('checkbox', { name: '确认已核对' })).toHaveCount(0)
 
     await modal.locator('textarea[placeholder="写下当前的解释、判断或问题（可留空）"]').fill('应该是收紧政策的信号')
-    await modal.getByRole('button', { name: '去核验 →' }).click()
+    await modal.getByTestId('modal-next').click()
 
-    await expect(modal.getByText('2/3')).toBeVisible()
+    await expect(modal.locator('li[aria-current="step"]')).toContainText('核验')
     await expect(modal.getByText('你的理解')).toBeVisible()
     await expect(modal.getByText('应该是收紧政策的信号')).toBeVisible()
   })
@@ -108,29 +109,29 @@ test.describe('Fragment capture — explicit verification lock', () => {
   test('editing protected fields after confirmation clears it', async ({ page }) => {
     await selectText(page, '[data-testid="fragment-target"]')
     const hoverMenu = await waitForHoverMenu(page)
-    await clickShadowButton(hoverMenu.locator('button', { hasText: 'Fragment' }))
+    await clickShadowButton(hoverMenu.locator('button', { hasText: '碎片' }))
     const modal = await waitForCaptureModal(page)
 
-    await modal.getByRole('button', { name: '已回看原文，确认' }).click()
+    await modal.getByRole('checkbox', { name: '确认已核对' }).check()
     await expect(modal.getByText(/已确认核对/)).toBeVisible()
 
     // Editing the content clears the confirmation (fragments.md §7).
     const contentInput = modal.locator('textarea').first()
     await contentInput.fill('hawkish pivots')
     await expect(modal.getByText(/已确认核对/)).toHaveCount(0)
-    await expect(modal.getByRole('button', { name: '已回看原文，确认' })).toBeVisible()
+    await expect(modal.getByRole('checkbox', { name: '确认已核对' })).not.toBeChecked()
   })
 
   test('required kind details are gated client-side with kind-specific hints', async ({ page }) => {
     await selectText(page, '[data-testid="fragment-target"]')
     const hoverMenu = await waitForHoverMenu(page)
-    await clickShadowButton(hoverMenu.locator('button', { hasText: 'Fragment' }))
+    await clickShadowButton(hoverMenu.locator('button', { hasText: '碎片' }))
     const modal = await waitForCaptureModal(page)
 
     // claim 没选立场不能保存，且不会被静默默认（A3）
     await modal.getByTestId('kind-claim').click()
-    await modal.getByRole('button', { name: '已回看原文，确认' }).click()
-    await modal.getByRole('button', { name: '去应用 →' }).click()
+    await modal.getByRole('checkbox', { name: '确认已核对' }).check()
+    await modal.getByTestId('modal-next').click()
     await modal.locator('textarea[placeholder="写下准备如何使用、验证或迁移（必填）"]').fill('用于验证门控。')
     await expect(modal.getByTestId('detail-invalid')).toHaveText('请先选择你的立场（支持 / 反对 / 存疑）')
     await expect(modal.getByRole('button', { name: '保存到碎片库' })).toBeDisabled()
@@ -144,10 +145,10 @@ test.describe('Fragment capture — explicit verification lock', () => {
   test('duplicate capture prompts instead of silently saving twice', async ({ page, context }) => {
     await selectText(page, '[data-testid="fragment-target"]')
     const hoverMenu = await waitForHoverMenu(page)
-    await clickShadowButton(hoverMenu.locator('button', { hasText: 'Fragment' }))
+    await clickShadowButton(hoverMenu.locator('button', { hasText: '碎片' }))
     const modal = await waitForCaptureModal(page)
-    await modal.getByRole('button', { name: '已回看原文，确认' }).click()
-    await modal.getByRole('button', { name: '去应用 →' }).click()
+    await modal.getByRole('checkbox', { name: '确认已核对' }).check()
+    await modal.getByTestId('modal-next').click()
     await modal.locator('textarea[placeholder="写下准备如何使用、验证或迁移（必填）"]').fill('第一次保存这条碎片。')
     await modal.getByRole('button', { name: '保存到碎片库' }).click()
     await getAnnShadowRoot(page).locator('[data-ann-ui="capture-modal"]').waitFor({ state: 'detached' })
@@ -155,10 +156,10 @@ test.describe('Fragment capture — explicit verification lock', () => {
     // Same selection again → duplicate prompt with force-save path.
     await selectText(page, '[data-testid="fragment-target"]')
     const menu2 = await waitForHoverMenu(page)
-    await clickShadowButton(menu2.locator('button', { hasText: 'Fragment' }))
+    await clickShadowButton(menu2.locator('button', { hasText: '碎片' }))
     const modal2 = await waitForCaptureModal(page)
-    await modal2.getByRole('button', { name: '已回看原文，确认' }).click()
-    await modal2.getByRole('button', { name: '去应用 →' }).click()
+    await modal2.getByRole('checkbox', { name: '确认已核对' }).check()
+    await modal2.getByTestId('modal-next').click()
     await modal2.locator('textarea[placeholder="写下准备如何使用、验证或迁移（必填）"]').fill('换个应用场景再保存一次。')
     await modal2.getByRole('button', { name: '保存到碎片库' }).click()
     await expect(modal2.getByText(/已保存过相同内容/)).toBeVisible({ timeout: 5000 })

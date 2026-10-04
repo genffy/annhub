@@ -1,19 +1,24 @@
 /**
- * HoverMenu — minimal popup menu for Mode A (sniper mode).
+ * HoverMenu — the selection menu of Mode A (extension.md §2.1).
  *
- * Renders an extensible set of actions driven by the `actions` prop.
- * Built-in action types:
- *   - 'instant':    single-click fire-and-forget (e.g. Direct Collect)
- *   - 'expandable': reveals inline UI on click (e.g. Add Note)
- *   - 'toggle':     enters a different mode (e.g. Highlighter)
+ * Each action is icon + short text. Hovering or keyboard-focusing an action
+ * for ~300ms shows its consequence hint ("time · output · enters review?"),
+ * so the three save paths differ at the entrance.
+ *
+ * Action types:
+ *   - 'expandable': reveals inline UI on click (Highlight's optional note)
+ *   - 'toggle':     enters a different mode; the parent owns dismissal
+ *   - 'dialog':     opens a dialog, toast or capture session; the parent owns dismissal
  *
  * The component manages:
  *   - 20px invisible safe-padding zone around the menu
  *   - 800ms debounced dismissal on mouse-leave
- *   - Flash feedback (✅) after instant actions
+ *   - Flash feedback (✅) after an expandable action is submitted
  */
 import { useState, useRef, useCallback, useEffect } from 'react'
-import type { HoverMenuAction } from '../../types/action'
+import { Bookmark, Brain, Film, Highlighter, Scan, type LucideIcon } from 'lucide-react'
+import type { HoverMenuAction, HoverMenuIcon } from '../../types/action'
+import { uiText } from '../../utils/ui-text'
 
 export interface HoverMenuProps {
   /** Pixel position (fixed) for the menu */
@@ -22,7 +27,7 @@ export interface HoverMenuProps {
   selectedRange: Range
   /** Ordered list of enabled actions */
   actions: HoverMenuAction[]
-  /** Called when an instant action fires. The action id is passed. */
+  /** Called when an action fires. The action id is passed. */
   onAction: (actionId: string, extra?: { note?: string }) => void
   /** Called when the menu should be dismissed */
   onDismiss: () => void
@@ -30,12 +35,23 @@ export interface HoverMenuProps {
 
 const SAFE_PADDING = 20
 const DISMISS_DELAY = 800 // ms
+const HINT_DELAY = 300 // ms
+
+const ICONS: Record<HoverMenuIcon, LucideIcon> = {
+  brain: Brain,
+  highlighter: Highlighter,
+  bookmark: Bookmark,
+  scan: Scan,
+  film: Film,
+}
 
 export default function HoverMenu({ position, selectedRange: _selectedRange, actions, onAction, onDismiss }: HoverMenuProps) {
   const [expandedAction, setExpandedAction] = useState<string | null>(null)
   const [noteText, setNoteText] = useState('')
   const [showSuccess, setShowSuccess] = useState(false)
+  const [hintActionId, setHintActionId] = useState<string | null>(null)
   const dismissTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -46,10 +62,11 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
     }
   }, [expandedAction])
 
-  // Clear timer on unmount
+  // Clear timers on unmount
   useEffect(() => {
     return () => {
       if (dismissTimer.current) clearTimeout(dismissTimer.current)
+      if (hintTimer.current) clearTimeout(hintTimer.current)
     }
   }, [])
 
@@ -67,45 +84,56 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
     }
   }, [])
 
+  const scheduleHint = useCallback((actionId: string) => {
+    if (hintTimer.current) clearTimeout(hintTimer.current)
+    hintTimer.current = setTimeout(() => setHintActionId(actionId), HINT_DELAY)
+  }, [])
+
+  const cancelHint = useCallback(() => {
+    if (hintTimer.current) {
+      clearTimeout(hintTimer.current)
+      hintTimer.current = null
+    }
+    setHintActionId(null)
+  }, [])
+
   const handleMouseEnter = useCallback(() => {
     cancelDismissTimer()
   }, [cancelDismissTimer])
 
   const handleMouseLeave = useCallback(() => {
     startDismissTimer()
-  }, [startDismissTimer])
+    cancelHint()
+  }, [startDismissTimer, cancelHint])
+
+  const flashAndDismiss = useCallback(() => {
+    setShowSuccess(true)
+    setTimeout(() => {
+      setShowSuccess(false)
+      onDismiss()
+    }, 600)
+  }, [onDismiss])
 
   const handleActionClick = useCallback(
     (action: HoverMenuAction) => {
+      cancelHint()
       if (action.type === 'expandable') {
         setExpandedAction(prev => (prev === action.id ? null : action.id))
         return
       }
-      // 'instant' | 'toggle' | 'dialog' — dialog/toggle parents own dismissal
+      // 'toggle' | 'dialog' — the parent owns dismissal
       onAction(action.id)
-      if (action.type === 'instant') {
-        setShowSuccess(true)
-        setTimeout(() => {
-          setShowSuccess(false)
-          onDismiss()
-        }, 600)
-      }
     },
-    [onAction, onDismiss],
+    [onAction, cancelHint],
   )
 
+  // The note is optional (extension.md §3.2): submitting an empty field still creates the highlight.
   const handleNoteSubmit = useCallback(() => {
-    if (noteText.trim()) {
-      onAction(expandedAction!, { note: noteText.trim() })
-      setNoteText('')
-      setExpandedAction(null)
-      setShowSuccess(true)
-      setTimeout(() => {
-        setShowSuccess(false)
-        onDismiss()
-      }, 600)
-    }
-  }, [noteText, expandedAction, onAction, onDismiss])
+    onAction(expandedAction!, { note: noteText.trim() || undefined })
+    setNoteText('')
+    setExpandedAction(null)
+    flashAndDismiss()
+  }, [noteText, expandedAction, onAction, flashAndDismiss])
 
   const handleNoteKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -121,6 +149,7 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
   )
 
   const sorted = [...actions].filter(a => a.enabled).sort((a, b) => a.order - b.order)
+  const hintAction = sorted.find(a => a.id === hintActionId)
 
   if (showSuccess) {
     return (
@@ -182,38 +211,65 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
         }}
       >
         {/* Action buttons row */}
-        <div style={{ display: 'flex', gap: '0px' }}>
-          {sorted.map((action, idx) => (
-            <button
-              key={action.id}
-              onClick={() => handleActionClick(action)}
-              title={action.desc}
-              style={{
-                background: 'transparent',
-                border: 'none',
-                color: '#e0e0e0',
-                padding: '8px 14px',
-                cursor: 'pointer',
-                fontSize: '15px',
-                transition: 'background 0.15s',
-                borderRight: idx < sorted.length - 1 ? '1px solid rgba(255,255,255,0.08)' : 'none',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                whiteSpace: 'nowrap',
-              }}
-              onMouseEnter={e => {
-                ;(e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'
-              }}
-              onMouseLeave={e => {
-                ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-              }}
-            >
-              <span>{action.icon}</span>
-              <span style={{ fontSize: '12px' }}>{action.label}</span>
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: '0px' }} role="toolbar">
+          {sorted.map((action, idx) => {
+            const Icon = ICONS[action.icon]
+            return (
+              <button
+                key={action.id}
+                onClick={() => handleActionClick(action)}
+                onMouseEnter={e => {
+                  ;(e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.1)'
+                  scheduleHint(action.id)
+                }}
+                onMouseLeave={e => {
+                  ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+                  cancelHint()
+                }}
+                onFocus={() => scheduleHint(action.id)}
+                onBlur={cancelHint}
+                aria-describedby={hintActionId === action.id ? 'ann-hover-hint' : undefined}
+                data-testid={`hover-action-${action.id}`}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#e0e0e0',
+                  padding: '8px 14px',
+                  cursor: 'pointer',
+                  fontSize: '15px',
+                  transition: 'background 0.15s',
+                  borderRight: idx < sorted.length - 1 ? '1px solid rgba(255,255,255,0.08)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <Icon size={15} strokeWidth={2} aria-hidden="true" />
+                <span style={{ fontSize: '12px' }}>{action.label}</span>
+              </button>
+            )
+          })}
         </div>
+
+        {/* Consequence hint: time · output · enters review? */}
+        {hintAction && (
+          <div
+            id="ann-hover-hint"
+            role="status"
+            data-testid="hover-hint"
+            style={{
+              padding: '6px 12px',
+              borderTop: '1px solid rgba(255,255,255,0.08)',
+              color: '#c8c8d0',
+              fontSize: '12px',
+              lineHeight: 1.5,
+              maxWidth: '320px',
+            }}
+          >
+            {hintAction.hint}
+          </div>
+        )}
 
         {/* Expandable note input */}
         {expandedAction && (
@@ -231,7 +287,7 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
               value={noteText}
               onChange={e => setNoteText(e.target.value)}
               onKeyDown={handleNoteKeyDown}
-              placeholder="备注..."
+              placeholder={uiText('menu.notePlaceholder')}
               style={{
                 flex: 1,
                 background: 'rgba(255,255,255,0.08)',

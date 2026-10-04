@@ -13,6 +13,8 @@ export class ClipService implements IService {
   readonly name = 'clip' as const
   private static instance: ClipService | null = null
   private initialized = false
+  /** Serializes read-modify-write on the single storage key so a save and an undo never lose each other's update. */
+  private writeQueue: Promise<unknown> = Promise.resolve()
 
   private constructor() {}
 
@@ -40,10 +42,18 @@ export class ClipService implements IService {
           await this.saveClip(clip)
           Logger.info(`[ClipService] Saved clip: ${clip.id}`)
 
-
           return MessageUtils.createResponse(true, clip)
         } catch (error) {
           Logger.error('[ClipService] Failed to save clip:', error)
+          return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+        }
+      },
+      DELETE_CLIP: async message => {
+        try {
+          await this.deleteClip(message.id as string)
+          return MessageUtils.createResponse(true, { id: message.id })
+        } catch (error) {
+          Logger.error('[ClipService] Failed to delete clip:', error)
           return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
         }
       },
@@ -54,11 +64,22 @@ export class ClipService implements IService {
     return this.initialized
   }
 
-  private async saveClip(clip: ClipRecord): Promise<void> {
-    const result = (await chrome.storage.local.get(CLIPS_STORAGE_KEY)) as Record<string, ClipRecord[]>
-    const clips: ClipRecord[] = result[CLIPS_STORAGE_KEY] || []
-    clips.push(clip)
-    await chrome.storage.local.set({ [CLIPS_STORAGE_KEY]: clips })
+  private mutate(update: (clips: ClipRecord[]) => ClipRecord[]): Promise<void> {
+    const run = async () => {
+      const result = (await chrome.storage.local.get(CLIPS_STORAGE_KEY)) as Record<string, ClipRecord[]>
+      await chrome.storage.local.set({ [CLIPS_STORAGE_KEY]: update(result[CLIPS_STORAGE_KEY] || []) })
+    }
+    const next = this.writeQueue.then(run, run)
+    this.writeQueue = next.catch(() => undefined)
+    return next
+  }
+
+  private saveClip(clip: ClipRecord): Promise<void> {
+    return this.mutate(clips => [...clips, clip])
+  }
+
+  private deleteClip(id: string): Promise<void> {
+    return this.mutate(clips => clips.filter(c => c.id !== id))
   }
 
   async getClips(): Promise<ClipRecord[]> {

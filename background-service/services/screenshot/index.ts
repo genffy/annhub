@@ -11,6 +11,7 @@ import { IService } from '../../service-manager'
 import { ResponseMessage } from '../../../types/messages'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
+import { quotaAvailable } from '../../../utils/storage-quota'
 import { FragmentStore } from '../../../learning-core/fragment-store'
 import { sha256Hex, MAX_IMAGE_BYTES } from '../../../learning-core/wire'
 import type { ImageAsset, ScreenshotRecord } from '../../../learning-core/types'
@@ -200,22 +201,6 @@ export class ScreenshotService implements IService {
         resolve(downloadId)
       })
     })
-  }
-}
-
-/** Quota helper (R1.4) — pure so tests can drive it without real storage. */
-export function quotaSatisfied(estimate: { usage?: number; quota?: number } | null | undefined, requiredBytes: number, headroom = 1.2): boolean {
-  if (!estimate || typeof estimate.quota !== 'number') return true // estimate unavailable — proceed
-  const usage = typeof estimate.usage === 'number' ? estimate.usage : 0
-  return estimate.quota - usage > requiredBytes * headroom
-}
-
-async function quotaAvailable(requiredBytes: number): Promise<boolean> {
-  try {
-    if (!navigator.storage?.estimate) return true
-    return quotaSatisfied(await navigator.storage.estimate(), requiredBytes)
-  } catch {
-    return true
   }
 }
 

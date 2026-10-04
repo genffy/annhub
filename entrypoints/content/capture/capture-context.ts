@@ -60,6 +60,21 @@ export function truncateAround(excerpt: string, content: string, max: number = E
   return excerpt.slice(start, end).trim()
 }
 
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * Splits a context excerpt around the selected content so the verification
+ * card can highlight the selection and fade the surrounding sentences.
+ * Null when the content no longer appears (the user edited one of them).
+ */
+export function splitExcerpt(excerpt: string, content: string): { before: string; match: string; after: string } | null {
+  const needle = content.trim()
+  if (!needle) return null
+  const found = new RegExp(escapeRegExp(needle), 'i').exec(excerpt)
+  if (!found) return null
+  return { before: excerpt.slice(0, found.index), match: found[0], after: excerpt.slice(found.index + found[0].length) }
+}
+
 const KIND_SIGNALS: Array<{ kind: TextFragmentKind; test: RegExp }> = [
   { kind: 'question', test: /\uFF1F|\?|是否|how (does|do|can)|why (is|do|does|are|would|should)|what (is|are|causes)/i },
   { kind: 'procedure', test: /步骤|流程|第一步|首先.*(然后|其次)|how to |step \d|checklist|算法|流程图/i },

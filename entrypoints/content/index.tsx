@@ -10,11 +10,13 @@ import CaptureModal from './capture/CaptureModal'
 import { buildCaptureDraft, type CaptureDraft } from './capture/capture-context'
 import MediaCaptureModal from './media/MediaCaptureModal'
 import { detectMediaTargets, type MediaTarget } from './media/detect'
+import ClipToast from './ClipToast'
 import { enterScreenshotMode } from './screenshot'
 import MessageUtils from '../../utils/message'
 import { Logger } from '../../utils/logger'
 import { HighlightRecord } from '../../types/highlight'
 import type { HoverMenuAction } from '../../types/action'
+import { uiText } from '../../utils/ui-text'
 import './content.css'
 
 // ── Constants ─────────────────────────────────────────────
@@ -38,60 +40,25 @@ function injectHostStyles() {
       background-color: ${MODE_B_MARK_COLOR} !important;
       border-radius: 2px;
     }
+    /* Marks the selection while the capture window is collapsed to the bottom bar (回到原文). */
+    ::highlight(ann-capture-selection) {
+      background-color: ${MODE_B_MARK_COLOR};
+      color: inherit;
+    }
   `
   document.head.appendChild(style)
 }
 
 // ── Default hover menu actions (extensible) ───────────────
 function getDefaultActions(): HoverMenuAction[] {
-  // extension PRD §2.1: exactly four actions, icon + short text, in this order.
+  // extension PRD §2.1: four actions, icon + short text, in this order; the
+  // media clip is appended only on pages with a capturable <video>/<audio>.
   return [
-    {
-      id: 'save-fragment',
-      label: 'Fragment',
-      icon: '🧠',
-      desc: '打开采集 Modal，进入学习核心',
-      order: 1,
-      enabled: true,
-      type: 'dialog',
-    },
-    {
-      id: 'highlight',
-      label: '高亮',
-      icon: '🖍️',
-      desc: '创建视觉标记，可添加备注',
-      order: 2,
-      enabled: true,
-      type: 'expandable',
-    },
-    {
-      id: 'clip',
-      label: '剪藏',
-      icon: '🔖',
-      desc: '快速保存原文和上下文，不进入复习',
-      order: 3,
-      enabled: true,
-      type: 'instant',
-    },
-    {
-      id: 'screenshot',
-      label: '截图',
-      icon: '📸',
-      desc: '进入区域或元素截图',
-      order: 4,
-      enabled: true,
-      type: 'instant',
-    },
-    {
-      id: 'save-media-clip',
-      label: '媒体片段',
-      icon: '🎬',
-      desc: '截取视频/音频时间区间并转写（R4）',
-      order: 5,
-      // Only offered on pages with captureable media (roadmap R4.2).
-      enabled: false,
-      type: 'dialog',
-    },
+    { id: 'save-fragment', label: uiText('menu.fragment'), icon: 'brain', hint: uiText('menu.fragment.hint'), order: 1, enabled: true, type: 'dialog' },
+    { id: 'highlight', label: uiText('menu.highlight'), icon: 'highlighter', hint: uiText('menu.highlight.hint'), order: 2, enabled: true, type: 'expandable' },
+    { id: 'clip', label: uiText('menu.clip'), icon: 'bookmark', hint: uiText('menu.clip.hint'), order: 3, enabled: true, type: 'dialog' },
+    { id: 'screenshot', label: uiText('menu.screenshot'), icon: 'scan', hint: uiText('menu.screenshot.hint'), order: 4, enabled: true, type: 'dialog' },
+    { id: 'save-media-clip', label: uiText('menu.mediaClip'), icon: 'film', hint: uiText('menu.mediaClip.hint'), order: 5, enabled: false, type: 'dialog' },
   ]
 }
 
@@ -199,6 +166,9 @@ function Selection() {
 
   // ── Media capture (R4.2) state ──
   const [mediaTargets, setMediaTargets] = useState<MediaTarget[] | null>(null)
+
+  // ── Clip feedback toast: shows 已剪藏 with a ~3s undo window (extension.md §3.3) ──
+  const [clipToast, setClipToast] = useState<{ id: string; failed: boolean } | null>(null)
 
   // ── Initialize services ──
   useEffect(() => {
@@ -431,6 +401,7 @@ function Selection() {
           // Clip only: fast save, no processing, no highlight (PRD §3.3).
           const clip = await clipService.captureSelection(selectionRange, 'Mode A')
           if (clip) flashSelection(selectionRange.cloneRange())
+          setClipToast({ id: clip?.id ?? '', failed: !clip })
           window.getSelection()?.removeAllRanges()
           dismissMenu()
           break
@@ -506,6 +477,19 @@ function Selection() {
         </div>
       )}
 
+      {/* Clip toast: 已剪藏 · 不进入复习, undo within ~3s */}
+      {clipToast && (
+        <div data-ann-ui="clip-toast-wrapper" style={{ pointerEvents: 'auto' }}>
+          <ClipToast
+            key={clipToast.id}
+            clipId={clipToast.id}
+            failed={clipToast.failed}
+            onUndo={id => clipService.deleteClip(id)}
+            onDone={() => setClipToast(null)}
+          />
+        </div>
+      )}
+
       {/* R4.2 media-clip capture modal */}
       {mediaTargets && mediaTargets.length > 0 && (
         <div data-ann-ui="media-capture-wrapper" style={{ pointerEvents: 'auto' }}>
@@ -518,7 +502,7 @@ function Selection() {
         </div>
       )}
 
-      {/* L2 capture modal (收藏为语块) */}
+      {/* L2 capture modal */}
       {capture && (
         <div data-ann-ui="capture-modal-wrapper" style={{ pointerEvents: 'auto' }}>
           <CaptureModal
@@ -528,6 +512,10 @@ function Selection() {
             createHighlight={async range => {
               const result = await highlightService.createHighlight(range)
               return result.success && result.data ? result.data.id : null
+            }}
+            fallbacks={{
+              highlight: async (range, note) => (await highlightService.createHighlight(range, '#ffeb3b', note || undefined)).success,
+              clip: async (range, note) => (await clipService.captureSelection(range, 'Mode A', note || undefined)) !== null,
             }}
             onClose={() => setCapture(null)}
           />

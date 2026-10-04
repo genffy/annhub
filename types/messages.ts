@@ -8,6 +8,7 @@ import type {
   ImageAsset,
 } from '../learning-core/types'
 import type { FragmentPatch } from '../learning-core/fragment-store'
+import type { ExtensionPage, ExtensionPageParams } from '../utils/extension-pages'
 import type { FragmentQuery, FragmentQueryResult } from '../learning-core/query'
 
 export type RequiredFields<T, K extends keyof T> = Required<Pick<T, K>> & Partial<Omit<T, K>>
@@ -53,6 +54,19 @@ export interface ClearAllHighlightsMessage extends BaseMessage {
 export interface SaveClipMessage extends BaseMessage {
   type: 'SAVE_CLIP'
   data: ClipRecord
+}
+
+/** Content script → background: open one of the extension's own pages (a content script cannot navigate to chrome-extension:// itself). */
+export interface OpenExtensionPageMessage extends BaseMessage {
+  type: 'OPEN_EXTENSION_PAGE'
+  page: ExtensionPage
+  params?: ExtensionPageParams
+}
+
+/** Removes one saved clip — the undo behind the “已剪藏” toast (extension.md §3.3). */
+export interface DeleteClipMessage extends BaseMessage {
+  type: 'DELETE_CLIP'
+  id: string
 }
 
 export interface ToggleHighlighterModeMessage extends BaseMessage {
@@ -403,6 +417,8 @@ export interface GetFragmentStatsMessage extends BaseMessage {
 export interface FragmentStatsResponse {
   total: number
   newThisWeek: number
+  /** Fragments whose `review.nextReviewAt` has passed (Desktop-returned state once R3 data arrived). */
+  due: number
 }
 
 export interface CheckFragmentDuplicateMessage extends BaseMessage {
@@ -462,6 +478,10 @@ export interface RecordCaptureMetricMessage extends BaseMessage {
   type: 'RECORD_CAPTURE_METRIC'
   event: 'modal-opened' | 'reached-verify' | 'reached-apply' | 'saved' | 'exited'
   step?: string
+  /** `capture.exited` only: whether the user had typed anything (metrics.md `had_input`). */
+  hadInput?: boolean
+  /** `capture.exited` only: the safe exit used, if any (metrics.md `fallback`). */
+  fallback?: 'none' | 'highlight' | 'clip'
 }
 
 export interface GetCaptureConfigMessage extends BaseMessage {
@@ -494,6 +514,8 @@ export type UIToBackgroundMessage =
   | GetStatusMessage
   | ClearAllHighlightsMessage
   | SaveClipMessage
+  | DeleteClipMessage
+  | OpenExtensionPageMessage
   | ToggleHighlighterModeMessage
   | GetVocabConfigMessage
   | SetVocabConfigMessage

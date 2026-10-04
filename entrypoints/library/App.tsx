@@ -1,6 +1,7 @@
 /**
  * 碎片库 — the extension's library page (extension PRD §2.2/§5).
- * Three views: 碎片 (fragments) | 高亮 (highlights) | 截图 (screenshots).
+ * First-level pages: 碎片库 | 截图集 | 设置. 高亮列表 and 剪藏列表 are views
+ * inside 碎片库, reached from the more menu.
  * Fragments view: unified search/filters (docs/v2/search.md), 新建灵感,
  * capture-field edits with re-verification, local delete, and the single
  * "导出内容" Markdown ZIP command. Filters live in the URL hash.
@@ -14,22 +15,15 @@ import type { HighlightRecord } from '../../types/highlight'
 import type { ClipRecord } from '../../types/clip'
 import CaptureModal from '../content/capture/CaptureModal'
 import { exportContentZip, downloadZip } from '../../utils/export-content'
+import { connectionView, relativeTime, type Connection } from '../../utils/connection-status'
+import { extensionPageUrl } from '../../utils/extension-pages'
+import { ALL_KINDS, KIND_LABELS } from '../../utils/kind-labels'
+import { uiText } from '../../utils/ui-text'
 import { buildCaptureDraft, buildInspirationDraft, type CaptureDraft } from '../content/capture/capture-context'
 import ScreenshotsView from './Screenshots'
 import './style.css'
 
 type View = 'fragments' | 'highlights' | 'clips' | 'screenshots'
-
-const KIND_LABELS: Record<string, string> = {
-  excerpt: '摘录',
-  concept: '概念',
-  claim: '主张',
-  procedure: '方法',
-  decision: '决策',
-  question: '问题',
-  inspiration: '灵感',
-  visual: '视觉',
-}
 
 const TIME_PRESETS: Array<{ id: string; label: string; from?: () => number }> = [
   { id: 'all', label: '全部时间' },
@@ -69,26 +63,21 @@ export default function App() {
   const [availableTags, setAvailableTags] = useState<string[]>([])
   const [stats, setStats] = useState<{ total: number; newThisWeek: number } | null>(null)
   const [editing, setEditing] = useState<FragmentRecord | null>(null)
-  const [inspirationDraft, setInspirationDraft] = useState<CaptureDraft | null>(null)
+  const [inspirationDraft, setInspirationDraft] = useState<CaptureDraft | null>(() =>
+    initialParams.get('new') === 'inspiration' ? buildInspirationDraft() : null,
+  )
   const [upgradeDraft, setUpgradeDraft] = useState<CaptureDraft | null>(null)
   const [exporting, setExporting] = useState(false)
-  const [connection, setConnection] = useState<{
-    online: boolean
-    paired: boolean
-    detail: string
-    pendingFragments: number
-    pendingAssets: number
-    lastError?: string
-  } | null>(null)
-  const [desktopPanelOpen, setDesktopPanelOpen] = useState(false)
+  const [connection, setConnection] = useState<Connection | null>(null)
+  const [desktopPanelOpen, setDesktopPanelOpen] = useState(initialParams.get('desktop') === '1')
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const [onboardingDismissed, setOnboardingDismissed] = useState<boolean | null>(null)
+  const [connectHintDismissed, setConnectHintDismissed] = useState<boolean | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const exportRequested = useRef(initialParams.get('export') === '1')
 
-  // ── highlights state ──
+  // ── highlights / clips state ──
   const [highlights, setHighlights] = useState<HighlightRecord[] | null>(null)
-
-  // ── clips state ──
   const [clips, setClips] = useState<ClipRecord[] | null>(null)
 
   const query: FragmentQuery = useMemo(() => {
@@ -151,23 +140,28 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    void (async () => {
-      chrome.storage.local.get('annhubOnboardingDismissed', result => setOnboardingDismissed(!!result['annhubOnboardingDismissed']))
-    })()
+    chrome.storage.local.get(['annhubOnboardingDismissed', 'annhubConnectHintDismissed'], stored => {
+      setOnboardingDismissed(!!stored['annhubOnboardingDismissed'])
+      setConnectHintDismissed(!!stored['annhubConnectHintDismissed'])
+    })
   }, [])
 
   const dismissOnboarding = () => {
     chrome.storage.local.set({ annhubOnboardingDismissed: true }, () => setOnboardingDismissed(true))
   }
 
+  const dismissConnectHint = () => {
+    chrome.storage.local.set({ annhubConnectHintDismissed: true }, () => setConnectHintDismissed(true))
+  }
+
   const refreshConnection = useCallback(async () => {
     const response = await MessageUtils.sendMessage<{
       status: { online: boolean; paired: boolean; detail: string }
       pending: { pendingFragments: number; pendingAssets: number }
-      state: { lastError?: string }
+      state: { lastError?: string; lastSyncAt?: number }
     }>({ type: 'GET_DESKTOP_DIRECT_CONNECT' })
     if (response.success && response.data) {
-      setConnection({ ...response.data.status, ...response.data.pending, lastError: response.data.state.lastError })
+      setConnection({ ...response.data.status, ...response.data.pending, lastError: response.data.state.lastError, lastSyncAt: response.data.state.lastSyncAt })
     }
   }, [])
 
@@ -204,7 +198,7 @@ export default function App() {
     setResult(prev => (prev ? { ...prev, items: prev.items.filter(f => f.id !== id), total: prev.total - 1 } : prev))
   }
 
-  const exportZip = async () => {
+  const exportZip = useCallback(async () => {
     if (exporting) return
     setExporting(true)
     try {
@@ -218,7 +212,14 @@ export default function App() {
     } finally {
       setExporting(false)
     }
-  }
+  }, [exporting])
+
+  // `export=1` (from the capture window's save-failure exit) starts the export once.
+  useEffect(() => {
+    if (!exportRequested.current) return
+    exportRequested.current = false
+    void exportZip()
+  }, [exportZip])
 
   const retryDelivery = async () => {
     await MessageUtils.sendMessage({ type: 'FLUSH_DESKTOP_DIRECT_CONNECT' })
@@ -229,164 +230,196 @@ export default function App() {
     setter(list.includes(value) ? list.filter(v => v !== value) : [...list, value])
   }
 
+  const clearFilters = () => {
+    setKinds([])
+    setHosts([])
+    setTags([])
+    setTimePreset('all')
+    setSearch('')
+  }
+
   const hasFilters = kinds.length + hosts.length + tags.length > 0 || timePreset !== 'all' || !!search.trim()
+  const conn = connection ? connectionView(connection) : null
+  const settingsUrl = extensionPageUrl('settings')
+  const inLibrary = view === 'fragments' || view === 'highlights' || view === 'clips'
 
   return (
-    <div className="words-page" data-testid="words-page" style={{ position: 'relative' }}>
-      <header className="words-header">
-        <div className="words-sub" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-          <strong>碎片库</strong>
-          {stats && (
-            <span className="words-stats">
-              {stats.total} 条碎片 · 本周新增 {stats.newThisWeek}
-            </span>
-          )}
-          {connection && (
-            <span
-              className={`badge ${connection.online ? '' : 'badge-register-casual'}`}
-              title={connection.detail}
-              data-testid="desktop-connection"
-            >
-              Desktop：
-              {!connection.paired ? '未配置' : connection.lastError ? '交付错误' : connection.online ? '已连接' : '未连接'}
-              {connection.pendingFragments + connection.pendingAssets > 0 ? ` · 待发送 ${connection.pendingFragments + connection.pendingAssets}` : ''}
-            </span>
-          )}
-          {connection && !connection.paired && (
-            <button className="badge" onClick={() => window.open(chrome.runtime.getURL('/options/index.html#/settings'), '_blank')}>
-              去配对
-            </button>
-          )}
-          {connection && connection.lastError && (
-            <>
-              <button className="badge" onClick={retryDelivery} data-testid="retry-delivery">
-                重试
-              </button>
-              <button className="badge" onClick={() => window.open(chrome.runtime.getURL('/options/index.html#/settings'), '_blank')}>
-                查看详情
-              </button>
-            </>
-          )}
-          {connection && connection.paired && !connection.lastError && connection.pendingFragments + connection.pendingAssets > 0 && (
-            <button className="badge" onClick={retryDelivery}>
-              立即重试
-            </button>
-          )}
-          <span style={{ flex: 1 }} />
-          <button className="primary" onClick={() => setInspirationDraft(buildInspirationDraft())} data-testid="new-inspiration">
-            + 新建灵感
+    <div className="library-page" data-testid="library-page" style={{ position: 'relative' }}>
+      <header className="library-header">
+        <nav className="library-nav" aria-label="AnnHub" data-testid="primary-nav">
+          <strong className="library-brand">AnnHub</strong>
+          <button className={inLibrary ? 'active' : ''} aria-current={inLibrary ? 'page' : undefined} onClick={() => setView('fragments')} data-testid="view-fragments">
+            碎片库
           </button>
-          <button className="badge" onClick={() => setDesktopPanelOpen(!desktopPanelOpen)} data-testid="open-desktop">
-            打开 Desktop
+          <button
+            className={view === 'screenshots' ? 'active' : ''}
+            aria-current={view === 'screenshots' ? 'page' : undefined}
+            onClick={() => setView('screenshots')}
+            data-testid="view-screenshots"
+          >
+            截图集
           </button>
-          <span style={{ position: 'relative' }}>
-            <button className="badge" onClick={() => setMoreMenuOpen(!moreMenuOpen)} data-testid="more-menu">
-              更多 ▾
+          <a href={settingsUrl} data-testid="nav-settings">
+            设置
+          </a>
+        </nav>
+
+        {inLibrary && (
+          <div className="library-sub" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            {stats && view === 'fragments' && (
+              <span className="library-stats">
+                {stats.total} 条碎片 · 本周新增 {stats.newThisWeek}
+              </span>
+            )}
+            {conn && connection && (
+              <span className="connection-chip" data-state={conn.state} title={connection.detail} data-testid="desktop-connection">
+                <span className="status-dot" aria-hidden="true" />
+                Desktop：{conn.label}
+              </span>
+            )}
+            {conn?.state === 'unpaired' && (
+              <a className="badge" href={settingsUrl} data-testid="pair-link">
+                去配对
+              </a>
+            )}
+            {conn?.state === 'error' && (
+              <>
+                <button className="badge" onClick={retryDelivery} data-testid="retry-delivery">
+                  重试
+                </button>
+                <a className="badge" href={settingsUrl}>
+                  查看详情
+                </a>
+                <button className="badge" onClick={() => void exportZip()} disabled={exporting} data-testid="export-on-error">
+                  导出内容
+                </button>
+              </>
+            )}
+            {conn?.state === 'pending' && (
+              <button className="badge" onClick={retryDelivery}>
+                立即重试
+              </button>
+            )}
+            <span style={{ flex: 1 }} />
+            <button className="primary" onClick={() => setInspirationDraft(buildInspirationDraft())} data-testid="new-inspiration">
+              + 新建灵感
             </button>
-            {moreMenuOpen && (
-              <span
-                style={{
-                  position: 'absolute',
-                  right: 0,
-                  top: '120%',
-                  zIndex: 30,
-                  background: '#fff',
-                  border: '1px solid #d6d8de',
-                  borderRadius: 10,
-                  boxShadow: '0 8px 24px rgba(0,0,0,0.15)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  minWidth: 160,
-                  overflow: 'hidden',
-                }}
-              >
-                <button
-                  className="badge"
-                  style={{ border: 'none', borderRadius: 0, textAlign: 'left' }}
-                  onClick={() => {
-                    setMoreMenuOpen(false)
-                    void exportZip()
-                  }}
-                  disabled={exporting}
-                  data-testid="export-content"
-                >
-                  {exporting ? '导出中…' : '导出内容（Markdown ZIP）'}
+            <button className="primary-outline" onClick={() => setDesktopPanelOpen(!desktopPanelOpen)} data-testid="open-desktop">
+              打开 Desktop
+            </button>
+            <span style={{ position: 'relative' }}>
+              <button className="badge" onClick={() => setMoreMenuOpen(!moreMenuOpen)} aria-haspopup="menu" aria-expanded={moreMenuOpen} data-testid="more-menu">
+                更多 ▾
+              </button>
+              {moreMenuOpen && (
+                <span className="more-menu" role="menu">
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      void exportZip()
+                    }}
+                    disabled={exporting}
+                    data-testid="export-content"
+                  >
+                    {exporting ? '导出中…' : '导出内容（Markdown ZIP）'}
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      setView('highlights')
+                    }}
+                    data-testid="view-highlights"
+                  >
+                    高亮列表
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setMoreMenuOpen(false)
+                      setView('clips')
+                    }}
+                    data-testid="view-clips"
+                  >
+                    剪藏列表
+                  </button>
+                </span>
+              )}
+            </span>
+            {desktopPanelOpen && (
+              <span className="desktop-panel" data-testid="desktop-panel">
+                <strong>Desktop 说明</strong>
+                <br />
+                扩展不依赖 Desktop 也能采集、检索与导出。要在 Desktop 复习：启动 Mac 上的 AnnHub Desktop 应用，在其「系统」页复制配对码，然后到
+                <a href={settingsUrl} target="_blank" rel="noreferrer">
+                  设置 → Desktop 连接
+                </a>
+                粘贴并保存。
+                {connection?.online && <span style={{ color: '#226a3c' }}>当前已连接：{connection.detail}。</span>}
+                <button className="badge" style={{ marginTop: 6 }} onClick={() => setDesktopPanelOpen(false)}>
+                  知道了
                 </button>
               </span>
             )}
-          </span>
-          {desktopPanelOpen && (
-            <span
-              style={{
-                position: 'absolute',
-                left: 16,
-                right: 16,
-                top: 96,
-                zIndex: 30,
-                background: '#f8f9fb',
-                border: '1px solid #d6d8de',
-                borderRadius: 12,
-                padding: '12px 16px',
-                fontSize: 13,
-                color: '#3c4048',
-                lineHeight: 1.7,
-              }}
-              data-testid="desktop-panel"
-            >
-              <strong>Desktop 说明</strong>
-              <br />
-              扩展不依赖 Desktop 也能采集、检索与导出。要在 Desktop 复习：启动 Mac 上的 AnnHub Desktop 应用，在其「系统」页复制配对 Token，然后到
-              <a href={chrome.runtime.getURL('/options/index.html#/settings')} target="_blank" rel="noreferrer">
-                设置 → Desktop 连接
-              </a>
-              粘贴并保存。
-              {connection?.online && <span style={{ color: '#226a3c' }}>当前已连接：{connection.detail}。</span>}
-              <button className="badge" style={{ marginTop: 6 }} onClick={() => setDesktopPanelOpen(false)}>
-                知道了
-              </button>
-            </span>
-          )}
-        </div>
-        <div className="words-view-switch" role="tablist">
-          {(['fragments', 'highlights', 'clips', 'screenshots'] as View[]).map(v => (
-            <button key={v} role="tab" aria-selected={view === v} className={view === v ? 'active' : ''} onClick={() => setView(v)} data-testid={`view-${v}`}>
-              {v === 'fragments' ? '碎片' : v === 'highlights' ? '高亮' : v === 'clips' ? '剪藏' : '截图'}
-            </button>
-          ))}
-        </div>
+          </div>
+        )}
       </header>
+
+      {(view === 'highlights' || view === 'clips') && (
+        <div className="library-crumb" data-testid="list-crumb">
+          <button className="badge" onClick={() => setView('fragments')}>
+            ← 碎片库
+          </button>
+          <strong>{view === 'highlights' ? '高亮列表' : '剪藏列表'}</strong>
+          <span className="library-sub">
+            {view === 'highlights' ? (highlights ? `${highlights.length} 条高亮` : '') : clips ? `${clips.length} 条剪藏` : ''}
+          </span>
+        </div>
+      )}
 
       {view === 'fragments' && (
         <>
           {onboardingDismissed === false && (
             <div className="fragment-card" style={{ border: '1px dashed #b6bac3', background: '#f8f9fb' }} data-testid="onboarding-guide">
-              <div className="fragment-content">高亮 ≠ 碎片</div>
-              <div className="fragment-excerpt">
-                高亮只标记页面位置；剪藏保存原文备查；只有完成「核验 + 应用」的 Fragment 才进入复习与应用。不想内化的内容，用高亮或剪藏就够了。
-              </div>
+              <div className="fragment-content">{uiText('library.onboarding.title')}</div>
+              <div className="fragment-excerpt">{uiText('library.onboarding.body')}</div>
               <div className="fragment-actions">
+                <button onClick={() => window.open(chrome.runtime.getURL('/sample.html'), '_blank')} data-testid="onboarding-sample">
+                  打开示例页面
+                </button>
                 <button onClick={dismissOnboarding} data-testid="onboarding-dismiss">
                   知道了
                 </button>
               </div>
             </div>
           )}
-          <div className="words-search">
-            <input
-              type="search"
-              placeholder="搜索内容、理解、核验、应用、标签、来源…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              data-testid="fragment-search"
-            />
+          {connectHintDismissed === false && connection && !connection.paired && (stats?.total ?? 0) > 0 && (
+            <div className="fragment-card" style={{ border: '1px solid #d6d8de', background: '#fff' }} data-testid="connect-hint">
+              <div className="fragment-content">连接 Desktop 开始复习</div>
+              <ol className="fragment-excerpt" style={{ paddingLeft: 18 }}>
+                <li>下载并启动 Desktop</li>
+                <li>在 Desktop 的「系统」页复制配对码</li>
+                <li>在扩展的设置中输入配对码，状态变为「已连接」</li>
+              </ol>
+              <div className="fragment-actions">
+                <a href={settingsUrl}>去设置</a>
+                <button onClick={dismissConnectHint} data-testid="connect-hint-dismiss">
+                  跳过
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="library-search">
+            <input type="search" placeholder={uiText('library.searchPlaceholder')} value={search} onChange={e => setSearch(e.target.value)} data-testid="fragment-search" />
           </div>
-          <div className="words-filters">
+          <div className="library-filters">
             <div className="filter-row">
               <span className="filter-label">类型</span>
               <div className="filter-options">
-                {Object.entries(KIND_LABELS).map(([kind, label]) => (
+                {ALL_KINDS.map(kind => (
                   <button key={kind} className={`filter-chip${kinds.includes(kind) ? ' active' : ''}`} onClick={() => toggleIn(kinds, kind, setKinds)} data-testid={`filter-kind-${kind}`}>
-                    {label}
+                    {KIND_LABELS[kind]}
                   </button>
                 ))}
               </div>
@@ -408,7 +441,7 @@ export default function App() {
                 <span className="filter-label">标签</span>
                 <div className="filter-options">
                   {availableTags.slice(0, 12).map(tag => (
-                    <button key={tag} className={`filter-chip${tags.includes(tag) ? 'active' : ''}`} onClick={() => toggleIn(tags, tag, setTags)}>
+                    <button key={tag} className={`filter-chip${tags.includes(tag) ? ' active' : ''}`} onClick={() => toggleIn(tags, tag, setTags)}>
                       {tag}
                     </button>
                   ))}
@@ -419,53 +452,40 @@ export default function App() {
               <span className="filter-label">时间</span>
               <div className="filter-options">
                 {TIME_PRESETS.map(p => (
-                  <button key={p.id} className={`filter-chip${timePreset === p.id ? 'active' : ''}`} onClick={() => setTimePreset(p.id)}>
+                  <button key={p.id} className={`filter-chip${timePreset === p.id ? ' active' : ''}`} onClick={() => setTimePreset(p.id)}>
                     {p.label}
                   </button>
                 ))}
               </div>
+              {result && (
+                <span className="library-sub" data-testid="result-count">
+                  共 {result.total} 条
+                </span>
+              )}
               {hasFilters && (
-                <button
-                  className="clear-filters"
-                  onClick={() => {
-                    setKinds([])
-                    setHosts([])
-                    setTags([])
-                    setTimePreset('all')
-                    setSearch('')
-                  }}
-                >
+                <button className="clear-filters" onClick={clearFilters}>
                   清除筛选
                 </button>
               )}
             </div>
           </div>
 
-          <main className="words-list" data-testid="fragment-list">
+          <main className="library-list" data-testid="fragment-list">
             {result === null || (loading && result.items.length === 0) ? (
-              <p className="words-empty">加载中…</p>
+              <p className="library-empty">加载中…</p>
             ) : result.items.length === 0 ? (
               hasFilters ? (
-                <div className="words-empty" data-testid="fragment-empty">
-                  <p>没有匹配的碎片。</p>
-                  <button
-                    className="clear-filters"
-                    onClick={() => {
-                      setKinds([])
-                      setHosts([])
-                      setTags([])
-                      setTimePreset('all')
-                      setSearch('')
-                    }}
-                  >
+                <div className="library-empty" data-testid="fragment-empty">
+                  <p>{uiText('library.noMatch')}</p>
+                  <button className="clear-filters" onClick={clearFilters}>
                     清除筛选
                   </button>
                 </div>
               ) : (
-                <div className="words-empty" data-testid="fragment-empty">
-                  <p>选中网页中的一段内容，保存你的第一个知识碎片。</p>
-                  <p className="words-empty-actions">
-                    <span>在页面上选中文本后选择「Fragment」，或</span>
+                <div className="library-empty" data-testid="fragment-empty">
+                  <p>{uiText('library.empty.title')}</p>
+                  <p className="library-empty-actions">
+                    <span>{uiText('library.empty.hint')}</span>
                     <button className="primary" onClick={() => setInspirationDraft(buildInspirationDraft())}>
                       新建一条灵感
                     </button>
@@ -540,7 +560,7 @@ function FragmentCard({ fragment, onEdit, onDelete }: { fragment: FragmentRecord
         tabIndex={0}
         onKeyDown={e => e.key === 'Enter' && setOpen(!open)}
       >
-        <span className="badge badge-platform">{KIND_LABELS[fragment.kind] ?? fragment.kind}</span>
+        <span className="badge badge-platform">{KIND_LABELS[fragment.kind]}</span>
         <span className="fragment-content">{fragment.content}</span>
       </div>
       <div className="fragment-excerpt">{fragment.context.excerpt.slice(0, 140)}</div>
@@ -665,9 +685,9 @@ function FragmentEditor({ fragment, onClose, onSaved }: { fragment: FragmentReco
       <h3>编辑碎片（当前修订 {fragment.captureRevision}）</h3>
       <label className="filter-label">类型</label>
       <select value={kind} onChange={e => setKind(e.target.value)}>
-        {Object.entries(KIND_LABELS).map(([k, label]) => (
+        {ALL_KINDS.map(k => (
           <option key={k} value={k}>
-            {label}
+            {KIND_LABELS[k]}
           </option>
         ))}
       </select>
@@ -714,8 +734,8 @@ function FragmentEditor({ fragment, onClose, onSaved }: { fragment: FragmentReco
 function HighlightsView({ highlights, onUpgrade, onReload }: { highlights: HighlightRecord[] | null; onUpgrade: (draft: CaptureDraft) => void; onReload: () => void }) {
   if (highlights === null) {
     return (
-      <main className="words-list">
-        <p className="words-empty">加载中…</p>
+      <main className="library-list">
+        <p className="library-empty">加载中…</p>
       </main>
     )
   }
@@ -725,9 +745,9 @@ function HighlightsView({ highlights, onUpgrade, onReload }: { highlights: Highl
     onReload()
   }
   return (
-    <main className="words-list" data-testid="highlight-list">
+    <main className="library-list" data-testid="highlight-list">
       {highlights.length === 0 ? (
-        <div className="words-empty" data-testid="highlight-empty">
+        <div className="library-empty" data-testid="highlight-empty">
           <p>还没有高亮。在网页选中文本后选择「高亮」。</p>
         </div>
       ) : (
@@ -760,7 +780,7 @@ function HighlightsView({ highlights, onUpgrade, onReload }: { highlights: Highl
                   )
                 }
               >
-                升级为 Fragment
+                {uiText('library.upgrade')}
               </button>
               <button className="danger" onClick={() => remove(h.id)}>
                 删除
@@ -778,15 +798,15 @@ function HighlightsView({ highlights, onUpgrade, onReload }: { highlights: Highl
 function ClipsView({ clips, onUpgrade }: { clips: ClipRecord[] | null; onUpgrade: (draft: CaptureDraft) => void; onReload: () => void }) {
   if (clips === null) {
     return (
-      <main className="words-list">
-        <p className="words-empty">加载中…</p>
+      <main className="library-list">
+        <p className="library-empty">加载中…</p>
       </main>
     )
   }
   return (
-    <main className="words-list" data-testid="clip-list">
+    <main className="library-list" data-testid="clip-list">
       {clips.length === 0 ? (
-        <div className="words-empty" data-testid="clip-empty">
+        <div className="library-empty" data-testid="clip-empty">
           <p>还没有剪藏。在网页选中文本后选择「剪藏」。</p>
         </div>
       ) : (
@@ -819,7 +839,7 @@ function ClipsView({ clips, onUpgrade }: { clips: ClipRecord[] | null; onUpgrade
                   )
                 }
               >
-                转为 Fragment
+                {uiText('library.convert')}
               </button>
             </div>
           </article>
@@ -827,16 +847,6 @@ function ClipsView({ clips, onUpgrade }: { clips: ClipRecord[] | null; onUpgrade
       )}
     </main>
   )
-}
-
-/** 相对时间（PRD §5.3）：刚刚 / N 分钟前 / N 小时前 / N 天前 / 超过 7 天回落日期。 */
-export function relativeTime(epochMs: number, now = Date.now()): string {
-  const delta = now - epochMs
-  if (delta < 60_000) return '刚刚'
-  if (delta < 3_600_000) return `${Math.floor(delta / 60_000)} 分钟前`
-  if (delta < 86_400_000) return `${Math.floor(delta / 3_600_000)} 小时前`
-  if (delta < 7 * 86_400_000) return `${Math.floor(delta / 86_400_000)} 天前`
-  return new Date(epochMs).toLocaleDateString()
 }
 
 function safeClipHost(c: ClipRecord): string {

@@ -206,8 +206,8 @@ test.describe('Screenshot capture', () => {
     await page.locator('[data-ann-ui="screenshot-save"]').click()
     await expect(preview).toHaveCount(0, { timeout: 10_000 })
 
-    await page.goto(`chrome-extension://${extensionId}/words.html`)
-    await expect(page.getByTestId('words-page')).toBeVisible()
+    await page.goto(`chrome-extension://${extensionId}/library.html`)
+    await expect(page.getByTestId('library-page')).toBeVisible()
     await page.getByTestId('view-screenshots').click()
     const list = page.getByTestId('screenshots-list')
     await expect(list).toBeVisible({ timeout: 10_000 })
@@ -232,8 +232,8 @@ test.describe('Screenshot capture', () => {
     await page.locator('[data-ann-ui="screenshot-save"]').click()
     await expect(preview).toHaveCount(0, { timeout: 10_000 })
 
-    await page.goto(`chrome-extension://${extensionId}/words.html`)
-    await expect(page.getByTestId('words-page')).toBeVisible()
+    await page.goto(`chrome-extension://${extensionId}/library.html`)
+    await expect(page.getByTestId('library-page')).toBeVisible()
     await page.getByTestId('view-screenshots').click()
     const card = page.getByTestId('screenshots-list').getByTestId('screenshot-card').first()
     await expect(card.locator('img')).toBeVisible({ timeout: 10_000 })

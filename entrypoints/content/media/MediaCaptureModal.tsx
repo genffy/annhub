@@ -5,11 +5,14 @@
  * Same verification discipline as the text capture modal: explicit 核验
  * confirmation, non-empty 应用 that is not a copy of content/excerpt.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FragmentRecord } from '../../../learning-core/types'
 import type { SaveFragmentInput } from '../../../types/messages'
 import MessageUtils from '../../../utils/message'
 import type { MediaTarget } from './detect'
+import CloseDialog, { type CloseChoice } from '../capture/CloseDialog'
+import { ThemeStyle } from '../capture/theme'
+import { useFocusTrap } from '../capture/use-focus-trap'
 
 export interface MediaCaptureModalProps {
   targets: MediaTarget[]
@@ -41,6 +44,9 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'error'>('idle')
   const [saveError, setSaveError] = useState('')
   const [saved, setSaved] = useState(false)
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(cardRef, !saved && !closeDialogOpen)
 
   useEffect(() => {
     MessageUtils.sendMessage({ type: 'RECORD_CAPTURE_METRIC', event: 'modal-opened', step: 'media' }).catch(() => {})
@@ -62,13 +68,24 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
     else setEndMs(ms)
   }
 
+  const dirty = !!(transcript.trim() || summary.trim() || useText.trim() || startMs !== null)
+
+  const exit = () => {
+    MessageUtils.sendMessage({ type: 'RECORD_CAPTURE_METRIC', event: 'exited', step: 'media', hadInput: dirty, fallback: 'none' }).catch(() => {})
+    onClose()
+  }
+
+  // Closing with input asks first (extension.md §4.1); a media range has no page selection to convert, so only 继续编辑 / 放弃.
   const requestClose = () => {
     if (saveState === 'saving') return
     if (saved) return onClose()
-    const dirty = !!(transcript.trim() || summary.trim() || useText.trim() || startMs !== null)
-    if (dirty && !window.confirm('已填写的内容将被放弃。放弃并关闭？')) return
-    MessageUtils.sendMessage({ type: 'RECORD_CAPTURE_METRIC', event: 'exited', step: 'media' }).catch(() => {})
-    onClose()
+    if (dirty) return setCloseDialogOpen(true)
+    exit()
+  }
+
+  const onChoose = (choice: CloseChoice) => {
+    setCloseDialogOpen(false)
+    if (choice === 'discard') exit()
   }
 
   useEffect(() => {
@@ -76,13 +93,14 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
       if (e.key === 'Escape') {
         e.preventDefault()
         e.stopPropagation()
-        requestClose()
+        if (closeDialogOpen) setCloseDialogOpen(false)
+        else requestClose()
       }
     }
     document.addEventListener('keydown', onKey, true)
     return () => document.removeEventListener('keydown', onKey, true)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saveState, saved, transcript, summary, useText, startMs])
+  }, [saveState, saved, transcript, summary, useText, startMs, closeDialogOpen])
 
   const save = async (force = false) => {
     if (saveState === 'saving' || !rangeValid || !content || !verified || useInvalid) return
@@ -132,7 +150,7 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
 
   return (
     <ModalShell>
-      <div style={styles.card} data-ann-ui="media-capture-modal">
+      <div ref={cardRef} style={styles.card} data-ann-ui="media-capture-modal" role="dialog" aria-modal="true" aria-label="保存媒体片段" tabIndex={-1}>
         <div style={styles.header}>
           <span style={{ fontWeight: 600 }}>保存媒体片段</span>
           <span style={styles.stepBadge}>media-clip</span>
@@ -242,6 +260,7 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
           </button>
         </div>
       </div>
+      {closeDialogOpen && <CloseDialog canFallback={false} busy={false} error="" onChoose={onChoose} />}
     </ModalShell>
   )
 }
@@ -255,11 +274,12 @@ function ModalShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       data-ann-ui="media-capture-overlay"
+      data-ann-theme=""
       style={{
         position: 'fixed',
         inset: 0,
         zIndex: 1000000,
-        background: 'rgba(15, 15, 20, 0.45)',
+        background: 'var(--ann-overlay)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -267,33 +287,34 @@ function ModalShell({ children }: { children: React.ReactNode }) {
         pointerEvents: 'auto',
       }}
     >
+      <ThemeStyle />
       {children}
     </div>
   )
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  card: { width: 'min(560px, calc(100vw - 32px))', maxHeight: '82vh', overflowY: 'auto', background: '#fff', borderRadius: '12px', padding: '16px 18px', boxShadow: '0 12px 40px rgba(0,0,0,0.3)', color: '#1a1d24', fontSize: '14px' },
-  header: { display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '8px', borderBottom: '1px solid #e8e8ec' },
-  stepBadge: { fontSize: '12px', color: '#636977', background: '#f1f1f4', borderRadius: '10px', padding: '2px 8px' },
-  closeBtn: { marginLeft: 'auto', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px', color: '#636977' },
-  select: { width: '100%', border: '1px solid #d6d8de', borderRadius: '8px', padding: '6px 8px', fontSize: '13px', background: '#fff' },
+  card: { width: 'min(560px, calc(100vw - 32px))', maxHeight: '82vh', overflowY: 'auto', background: 'var(--ann-surface)', borderRadius: '12px', padding: '16px 18px', boxShadow: 'var(--ann-shadow)', color: 'var(--ann-text)', fontSize: '14px' },
+  header: { display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '8px', borderBottom: '1px solid var(--ann-border)' },
+  stepBadge: { fontSize: '12px', color: 'var(--ann-muted)', background: 'var(--ann-surface-alt)', borderRadius: '10px', padding: '2px 8px' },
+  closeBtn: { marginLeft: 'auto', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px', color: 'var(--ann-muted)' },
+  select: { width: '100%', border: '1px solid var(--ann-border)', borderRadius: '8px', padding: '6px 8px', fontSize: '13px', background: 'var(--ann-surface)', color: 'var(--ann-text)' },
   rangeRow: { display: 'flex', alignItems: 'center', gap: '8px', margin: '10px 0', flexWrap: 'wrap' },
-  rangeBtn: { border: '1px solid #1a1d24', background: '#fff', color: '#1a1d24', borderRadius: '8px', padding: '7px 12px', fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap' },
-  timeInput: { width: '72px', border: '1px solid #d6d8de', borderRadius: '8px', padding: '7px 8px', fontSize: '13px' },
-  muted: { color: '#8b8d98', fontSize: '13px' },
-  label: { fontSize: '12px', color: '#636977', marginTop: '2px' },
-  textarea: { width: '100%', boxSizing: 'border-box', border: '1px solid #d6d8de', borderRadius: '8px', padding: '8px 10px', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical' },
-  verifyBlock: { background: '#f6f7f9', borderRadius: '8px', padding: '10px', marginTop: '8px' },
+  rangeBtn: { border: '1px solid var(--ann-accent)', background: 'transparent', color: 'var(--ann-accent)', borderRadius: '8px', padding: '7px 12px', fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap' },
+  timeInput: { width: '72px', border: '1px solid var(--ann-border)', borderRadius: '8px', padding: '7px 8px', fontSize: '13px', background: 'var(--ann-surface)', color: 'var(--ann-text)' },
+  muted: { color: 'var(--ann-muted)', fontSize: '13px' },
+  label: { fontSize: '12px', color: 'var(--ann-muted)', marginTop: '2px' },
+  textarea: { width: '100%', boxSizing: 'border-box', border: '1px solid var(--ann-border)', borderRadius: '8px', padding: '8px 10px', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical', background: 'var(--ann-surface)', color: 'var(--ann-text)' },
+  verifyBlock: { background: 'var(--ann-surface-alt)', borderRadius: '8px', padding: '10px', marginTop: '8px' },
   verifyRow: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
-  verifyBtn: { border: '1px solid #1a1d24', background: '#fff', color: '#1a1d24', borderRadius: '8px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer' },
-  verifiedNote: { background: '#eef7ef', color: '#226a3c', borderRadius: '8px', padding: '8px 10px', fontSize: '13px' },
-  useError: { fontSize: '12px', color: '#c6373c' },
-  errorBanner: { display: 'flex', alignItems: 'center', gap: '8px', background: '#fdf0f0', color: '#c6373c', borderRadius: '8px', padding: '8px 10px', fontSize: '13px' },
-  miniBtn: { border: '1px solid #e5a0a2', background: '#fff', color: '#c6373c', borderRadius: '6px', padding: '3px 8px', cursor: 'pointer', whiteSpace: 'nowrap' },
-  tagInput: { border: '1px solid #d6d8de', borderRadius: '8px', padding: '7px 10px', fontSize: '13px' },
+  verifyBtn: { border: '1px solid var(--ann-accent)', background: 'transparent', color: 'var(--ann-accent)', borderRadius: '8px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer' },
+  verifiedNote: { background: 'var(--ann-success-bg)', color: 'var(--ann-success)', borderRadius: '8px', padding: '8px 10px', fontSize: '13px' },
+  useError: { fontSize: '12px', color: 'var(--ann-danger)' },
+  errorBanner: { display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--ann-danger-bg)', color: 'var(--ann-danger)', borderRadius: '8px', padding: '8px 10px', fontSize: '13px' },
+  miniBtn: { border: '1px solid var(--ann-danger)', background: 'transparent', color: 'var(--ann-danger)', borderRadius: '6px', padding: '3px 8px', cursor: 'pointer', whiteSpace: 'nowrap' },
+  tagInput: { border: '1px solid var(--ann-border)', borderRadius: '8px', padding: '7px 10px', fontSize: '13px', background: 'var(--ann-surface)', color: 'var(--ann-text)' },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '6px' },
-  primaryBtn: { background: '#1a1d24', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '14px', cursor: 'pointer' },
-  ghostBtn: { background: 'transparent', color: '#3c4048', border: '1px solid #d6d8de', borderRadius: '8px', padding: '8px 14px', fontSize: '13px', cursor: 'pointer' },
-  success: { background: 'rgba(40, 167, 69, 0.96)', color: '#fff', borderRadius: '10px', padding: '14px 28px', fontSize: '16px' },
+  primaryBtn: { background: 'var(--ann-accent)', color: 'var(--ann-accent-contrast)', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '14px', cursor: 'pointer' },
+  ghostBtn: { background: 'transparent', color: 'var(--ann-text)', border: '1px solid var(--ann-border)', borderRadius: '8px', padding: '8px 14px', fontSize: '13px', cursor: 'pointer' },
+  success: { background: 'var(--ann-success-bg)', color: 'var(--ann-success)', borderRadius: '10px', padding: '14px 28px', fontSize: '16px', boxShadow: 'var(--ann-shadow)' },
 }

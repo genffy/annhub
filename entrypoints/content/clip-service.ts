@@ -68,6 +68,17 @@ export class ClipService {
     }
   }
 
+  /** Removes a clip saved moments ago (the toast's 撤销). Returns whether the background confirmed. */
+  async deleteClip(id: string): Promise<boolean> {
+    try {
+      const response = await MessageUtils.sendMessage({ type: 'DELETE_CLIP', id })
+      return response.success
+    } catch (error) {
+      Logger.error('[ClipService] Error deleting clip:', error)
+      return false
+    }
+  }
+
   /**
    * Extract up to CONTEXT_LENGTH characters before and after the selection.
    */

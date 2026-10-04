@@ -71,7 +71,7 @@ annhub/
 │   │   ├── capture/             # 碎片采集流程
 │   │   └── screenshot/          # 区域/元素截图与匿名处理
 │   ├── options/                 # 设置与数据迁移
-│   ├── words/                   # 碎片库与截图集
+│   ├── library/                 # 碎片库与截图集
 │   ├── popup/
 │   └── sidepanel/
 ├── background-service/

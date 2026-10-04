@@ -162,7 +162,7 @@ export const fragmentMessageHandlers: Record<string, (message: any, sender: chro
 
   RECORD_CAPTURE_METRIC: async (message): Promise<ResponseMessage> => {
     try {
-      const metrics = await FragmentService.getInstance().recordCaptureMetric(message.event, message.step)
+      const metrics = await FragmentService.getInstance().recordCaptureMetric(message.event, message.step, { hadInput: message.hadInput, fallback: message.fallback })
       return MessageUtils.createResponse(true, metrics)
     } catch (error) {
       return fail(error)

@@ -12,6 +12,7 @@ import type { FragmentRecord, FragmentLocator, VerifiedResult } from '../../../l
 import { runFragmentQuery, type FragmentQuery, type FragmentQueryResult } from '../../../learning-core/query'
 import { normalizeHost } from '../../../learning-core/normalize'
 import { buildExportZip, type ExportManifest, type ExportHighlight, type ExportClip } from '../../../learning-core/markdown-export'
+import { quotaAvailable } from '../../../utils/storage-quota'
 import { HighlightService } from '../highlight'
 import { ClipService } from '../clip'
 import type { SaveFragmentInput } from '../../../types/messages'
@@ -49,9 +50,23 @@ export interface CaptureMetrics {
   saved: number
   /** step at which the user exited without saving, counted per step. */
   exited: Record<string, number>
+  /** `capture.exited` with typed input — the denominator of M-16 (metrics.md). */
+  exitedWithInput: number
+  /** Safe exits used when abandoning with input (`fallback` of `capture.exited`). */
+  fallbacks: { highlight: number; clip: number }
 }
 
-export const EMPTY_CAPTURE_METRICS: CaptureMetrics = { modalOpened: 0, reachedVerify: 0, reachedApply: 0, saved: 0, exited: {} }
+export type ExitFallback = 'none' | 'highlight' | 'clip'
+
+export const EMPTY_CAPTURE_METRICS: CaptureMetrics = {
+  modalOpened: 0,
+  reachedVerify: 0,
+  reachedApply: 0,
+  saved: 0,
+  exited: {},
+  exitedWithInput: 0,
+  fallbacks: { highlight: 0, clip: 0 },
+}
 const METRICS_KEY = 'annhubCaptureMetrics'
 
 export class FragmentService implements IService {
@@ -130,6 +145,10 @@ export class FragmentService implements IService {
       detail: input.detail,
       tags: input.tags,
     } as unknown as CreateFragmentInput<FragmentRecord['kind']>
+    // Quota is checked BEFORE the write: success must never be shown ahead of a failed commit (storage.md §5).
+    if (!(await quotaAvailable(new TextEncoder().encode(JSON.stringify(factoryInput)).length * 2))) {
+      return { success: false, error: 'QUOTA_EXCEEDED' }
+    }
     return this.store.saveFragment(factoryInput, { force })
   }
 
@@ -314,16 +333,29 @@ export class FragmentService implements IService {
   async getCaptureMetrics(): Promise<CaptureMetrics> {
     const result = await chrome.storage.local.get(METRICS_KEY)
     const stored = result[METRICS_KEY] as Partial<CaptureMetrics> | undefined
-    return { ...EMPTY_CAPTURE_METRICS, ...(stored ?? {}), exited: { ...(stored?.exited ?? {}) } }
+    return {
+      ...EMPTY_CAPTURE_METRICS,
+      ...(stored ?? {}),
+      exited: { ...(stored?.exited ?? {}) },
+      fallbacks: { ...EMPTY_CAPTURE_METRICS.fallbacks, ...(stored?.fallbacks ?? {}) },
+    }
   }
 
-  async recordCaptureMetric(event: 'modal-opened' | 'reached-verify' | 'reached-apply' | 'saved' | 'exited', step?: string): Promise<CaptureMetrics> {
+  async recordCaptureMetric(
+    event: 'modal-opened' | 'reached-verify' | 'reached-apply' | 'saved' | 'exited',
+    step?: string,
+    details?: { hadInput?: boolean; fallback?: ExitFallback },
+  ): Promise<CaptureMetrics> {
     const metrics = await this.getCaptureMetrics()
     if (event === 'modal-opened') metrics.modalOpened++
     else if (event === 'reached-verify') metrics.reachedVerify++
     else if (event === 'reached-apply') metrics.reachedApply++
     else if (event === 'saved') metrics.saved++
-    else if (event === 'exited' && step) metrics.exited[step] = (metrics.exited[step] ?? 0) + 1
+    else if (event === 'exited') {
+      if (step) metrics.exited[step] = (metrics.exited[step] ?? 0) + 1
+      if (details?.hadInput) metrics.exitedWithInput++
+      if (details?.fallback === 'highlight' || details?.fallback === 'clip') metrics.fallbacks[details.fallback]++
+    }
     await chrome.storage.local.set({ [METRICS_KEY]: metrics })
     return metrics
   }

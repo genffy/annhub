@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { quotaSatisfied } from '../index'
+import { quotaSatisfied } from '../storage-quota'
 
 describe('quotaSatisfied (roadmap R1.4 — pure helper)', () => {
   it('passes when estimate is unavailable (proceed optimistically)', () => {
