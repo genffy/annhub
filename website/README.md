@@ -1,30 +1,49 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# AnnHub Website
 
-## Getting Started
+AnnHub 的公开网站与产品展示页。网站代码位于独立 Next.js 应用中，产品文案以 `docs/v2/` 为准。
 
-First, run the development server:
+## 内容真源
+
+实现或修改 Landing Page 前，必须先阅读：
+
+- [网站内容蓝图](../docs/v2/website.md)
+- [产品定位](../docs/v2/product.md)
+- [用户故事与验收](../docs/v2/user-stories.md)
+- [产品路线图](../docs/v2/roadmap.md)
+
+网站不得自行发明：
+
+- 尚未进入路线图的功能。
+- 与当前产品阶段不一致的 CTA。
+- 未经验证的用户评价或使用人数。
+- “完全准确”“永不丢失”等无法证明的绝对承诺。
+
+## 产品阶段
+
+当前页面展示产品方向，主 CTA 指向项目进展。功能必须按实际交付情况标记“已实现”或“开发中”；下载入口只在真实构建可用时出现。参见 [网站蓝图 §14](../docs/v2/website.md)。
+
+## 开发
 
 ```bash
-yarn dev
+cd website
+npm install
+npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+默认开发地址为 `http://localhost:3001`，具体端口以 Next.js 启动输出为准。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 构建
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+```bash
+cd website
+npm run build
+npm run start
+```
 
-## Learn More
+## 设计约束
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+- Hero 使用真实产品场景或真实界面，不使用抽象渐变插画替代产品。
+- 首屏必须明确展示 AnnHub、浏览器 Extension、macOS Desktop 和本地优先定位。
+- 功能截图来自真实构建；目标态功能标记“开发中”。
+- 页面主 CTA 只有一个。
+- 产品界面截图必须脱敏并检查文本可读性。
