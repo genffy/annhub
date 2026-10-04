@@ -16,11 +16,11 @@ public enum SavedView: String, CaseIterable, Identifiable, Sendable {
 
     public var id: String { rawValue }
 
-    public var label: String {
+    public func label(lang: UILanguage = .current) -> String {
         switch self {
-        case .due: return "到期"
-        case .needsWork: return "待加强"
-        case .new: return "新建"
+        case .due: return t(.statusDue, lang: lang)
+        case .needsWork: return t(.savedViewNeedsWork, lang: lang)
+        case .new: return t(.statusNew, lang: lang)
         }
     }
 }

@@ -15,12 +15,12 @@ enum LibraryColumn: String, CaseIterable, Identifiable {
 
     var label: String {
         switch self {
-        case .content: return "内容"
-        case .kind: return "类型"
-        case .source: return "来源"
-        case .tags: return "标签"
-        case .review: return "复习"
-        case .capturedAt: return "采集时间"
+        case .content: return t(.columnContent)
+        case .kind: return t(.columnKind)
+        case .source: return t(.columnSource)
+        case .tags: return t(.columnTags)
+        case .review: return t(.columnReview)
+        case .capturedAt: return t(.columnCapturedAt)
         }
     }
 
@@ -132,17 +132,17 @@ struct LibraryView: View {
     /// the one that most often breaks — copying the pairing code — one click away.
     private var emptyState: some View {
         VStack(spacing: 16) {
-            Text("还没有碎片。").font(.title2.bold())
+            Text(t(.emptyTitle)).font(.title2.bold())
             VStack(alignment: .leading, spacing: 6) {
-                Text("1. 在 Chrome 中安装 AnnHub 扩展，保存第一个碎片")
-                Text("2. 在“系统”页复制配对码，输入到扩展")
+                Text(t(.emptyStep1))
+                Text(t(.emptyStep2))
             }
-            Text("扩展里的碎片会在这里逐条出现；没有 Desktop 时扩展也能独立使用。")
+            Text(t(.emptyNote))
                 .font(.footnote).foregroundStyle(.secondary)
             HStack(spacing: 10) {
-                Button("打开系统页", action: onOpenSystem)
+                Button(t(.openSystemPage), action: onOpenSystem)
                     .buttonStyle(.borderedProminent)
-                Button(pairCodeCopied ? "已复制" : "复制配对码") {
+                Button(pairCodeCopied ? t(.copied) : t(.copyPairingCode)) {
                     model.copyPairToken()
                     pairCodeCopied = true
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2) { pairCodeCopied = false }
@@ -153,7 +153,7 @@ struct LibraryView: View {
                     .font(.caption)
                     .foregroundStyle(model.hubListening ? Color.green : Color.orange)
                     .accessibilityHidden(true)
-                Text(model.hubListening ? "正在监听 127.0.0.1 · 等待第一条碎片" : model.hubState)
+                Text(model.hubListening ? t(.listeningWaiting) : model.hubState)
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }
@@ -178,7 +178,7 @@ struct LibraryView: View {
             .onAppear { isWide = detailColumn }
             .onChange(of: detailColumn) { isWide = detailColumn }
         }
-        .searchable(text: $search, prompt: "搜索内容/核验/应用/标签")
+        .searchable(text: $search, prompt: t(.searchPrompt))
         .toolbar {
             // 列显隐 (desktop.md §4.2): 内容/类型 不可隐藏，其余按需收起。
             ToolbarItem(placement: .automatic) {
@@ -196,7 +196,7 @@ struct LibraryView: View {
                         .disabled(!column.isHideable)
                     }
                 } label: {
-                    Label("列", systemImage: "tablecolumns")
+                    Label(t(.columnsMenu), systemImage: "tablecolumns")
                 }
             }
         }
@@ -225,27 +225,27 @@ struct LibraryView: View {
             }
         }
         .confirmationDialog(
-            "删除 \(selection.count) 条本地副本？",
+            t(.batchDeleteTitle, ["count": selection.count]),
             isPresented: $confirmBatchDelete,
             titleVisibility: .visible
         ) {
-            Button("删除 \(selection.count) 条本地副本", role: .destructive) {
+            Button(t(.batchDeleteConfirm, ["count": selection.count]), role: .destructive) {
                 let deleted = model.deleteLocal(ids: Array(selection))
                 selection = []
-                batchMessage = "已删除 \(deleted) 条"
+                batchMessage = t(.batchDeleted, ["count": deleted])
             }
         } message: {
-            Text("将同时删除它们的复习记录。只作用于 Desktop；扩展里的副本不受影响，旧请求也不会让它们复活。")
+            Text(t(.batchDeleteMessage))
         }
         .confirmationDialog(
-            "删除本地副本？",
+            t(.deleteTitle),
             isPresented: Binding(
                 get: { confirmDelete != nil },
                 set: { if !$0 { confirmDelete = nil } }
             ),
             titleVisibility: .visible
         ) {
-            Button("删除本地副本（复习日志一并删除，扩展重试将被拒绝）", role: .destructive) {
+            Button(t(.deleteConfirm), role: .destructive) {
                 if let fragment = confirmDelete {
                     model.deleteLocal(fragment.id)
                 }
@@ -263,21 +263,23 @@ struct LibraryView: View {
     private var filterSidebar: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                filterGroup("类型", options: collectKinds(model.fragments), label: kindLabel, selection: $kindFilter)
                 filterGroup(
-                    "复习", options: ReviewStatus.allCases, label: { $0.label }, selection: $statusFilter
+                    t(.columnKind), options: collectKinds(model.fragments), label: { kindLabel($0) },
+                    selection: $kindFilter)
+                filterGroup(
+                    t(.columnReview), options: ReviewStatus.allCases, label: { $0.label }, selection: $statusFilter
                 )
                 filterGroup(
-                    "来源", options: Array(collectHosts(model.fragments).prefix(Self.maxFilterOptions)),
+                    t(.columnSource), options: Array(collectHosts(model.fragments).prefix(Self.maxFilterOptions)),
                     label: { $0 }, selection: $hostFilter
                 )
                 filterGroup(
-                    "标签", options: Array(collectTags(model.fragments).prefix(Self.maxFilterOptions)),
+                    t(.columnTags), options: Array(collectTags(model.fragments).prefix(Self.maxFilterOptions)),
                     label: { "#\($0)" }, selection: $tagFilter
                 )
                 savedViewsGroup
                 if hasActiveFilters {
-                    Button("清除筛选", action: clearFilters)
+                    Button(t(.clearFilters), action: clearFilters)
                         .controlSize(.small)
                 }
             }
@@ -291,14 +293,14 @@ struct LibraryView: View {
     private var savedViewsGroup: some View {
         let counts = savedViewCounts(model.fragments, logs: model.reviewLogs, now: nowMs())
         return VStack(alignment: .leading, spacing: 2) {
-            Text("保存的视图").font(.subheadline.bold()).foregroundStyle(.secondary)
+            Text(t(.savedViews)).font(.subheadline.bold()).foregroundStyle(.secondary)
             ForEach(SavedView.allCases) { view in
                 Button {
                     savedView = savedView == view ? nil : view
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: icon(for: view)).frame(width: 16)
-                        Text(view.label)
+                        Text(view.label())
                         Spacer()
                         Text("\(counts[view] ?? 0)").monospacedDigit().foregroundStyle(.secondary)
                     }
@@ -310,7 +312,7 @@ struct LibraryView: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("\(view.label)，\(counts[view] ?? 0) 条")
+                .accessibilityLabel(t(.savedViewCount, ["view": view.label(), "count": counts[view] ?? 0]))
                 .accessibilityAddTraits(savedView == view ? [.isButton, .isSelected] : .isButton)
             }
         }
@@ -358,9 +360,9 @@ struct LibraryView: View {
         VStack(spacing: 0) {
             if items.isEmpty {
                 VStack(spacing: 10) {
-                    Text("没有符合条件的碎片").foregroundStyle(.secondary)
+                    Text(t(.noMatch)).foregroundStyle(.secondary)
                     if hasActiveFilters {
-                        Button("清除筛选", action: clearFilters)
+                        Button(t(.clearFilters), action: clearFilters)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -370,11 +372,11 @@ struct LibraryView: View {
             if selection.count >= 2 { batchBar }
             Divider()
             HStack {
-                Text("已显示 \(items.count) / 符合 \(total) / 共 \(model.fragments.count) 条")
+                Text(t(.shownLine, ["shown": items.count, "matching": total, "total": model.fragments.count]))
                     .font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 if nextCursor != nil {
-                    Button("显示更多", action: loadMore).controlSize(.small)
+                    Button(t(.showMore), action: loadMore).controlSize(.small)
                 }
             }
             .padding(.horizontal, 12).padding(.vertical, 6)
@@ -383,26 +385,26 @@ struct LibraryView: View {
 
     private func table(detailAsColumn: Bool) -> some View {
         Table(items, selection: $selection) {
-            TableColumn("内容", value: \.content).width(min: 150, ideal: 260)
-            TableColumn("类型") { row in Text(kindLabel(row.kind)).font(.caption) }
+            TableColumn(t(.columnContent), value: \.content).width(min: 150, ideal: 260)
+            TableColumn(t(.columnKind)) { row in Text(kindLabel(row.kind)).font(.caption) }
                 .width(min: 52, ideal: 60, max: 90)
             if !hiddenColumns.contains(.source) {
-                TableColumn("来源", value: \.context.sourceHost).width(min: 80, ideal: 120)
+                TableColumn(t(.columnSource), value: \.context.sourceHost).width(min: 80, ideal: 120)
             }
             if !hiddenColumns.contains(.tags) {
-                TableColumn("标签") { row in
+                TableColumn(t(.columnTags)) { row in
                     Text(row.tags.joined(separator: "、")).font(.caption).lineLimit(1)
                 }
                 .width(min: 60, ideal: 120)
             }
             if !hiddenColumns.contains(.review) {
-                TableColumn("复习") { row in
+                TableColumn(t(.columnReview)) { row in
                     Text(reviewStatus(of: row, now: nowMs()).label).font(.caption)
                 }
                 .width(min: 52, ideal: 64, max: 100)
             }
             if !hiddenColumns.contains(.capturedAt) {
-                TableColumn("采集时间") { row in
+                TableColumn(t(.columnCapturedAt)) { row in
                     Text(Date(timeIntervalSince1970: Double(row.context.capturedAt) / 1000), style: .date)
                         .font(.caption)
                 }
@@ -411,27 +413,27 @@ struct LibraryView: View {
         }
         .contextMenu(forSelectionType: FragmentRecord.ID.self) { ids in
             if ids.count > 1 {
-                Button("添加标签…") {
+                Button(t(.addTagsMenu)) {
                     selection = ids
                     tagEdit = TagEditRequest(add: true)
                 }
-                Button("移除标签…") {
+                Button(t(.removeTagsMenu)) {
                     selection = ids
                     tagEdit = TagEditRequest(add: false)
                 }
-                Button("删除 \(ids.count) 条本地副本…", role: .destructive) {
+                Button(t(.deleteCopiesMenu, ["count": ids.count]), role: .destructive) {
                     selection = ids
                     confirmBatchDelete = true
                 }
             } else if let id = ids.first, let fragment = items.first(where: { $0.id == id }) {
                 if !detailAsColumn {
-                    Button("查看详情") { detailSheet = fragment }
+                    Button(t(.viewDetails)) { detailSheet = fragment }
                 }
-                Button("添加标签…") {
+                Button(t(.addTagsMenu)) {
                     selection = [id]
                     tagEdit = TagEditRequest(add: true)
                 }
-                Button("删除本地副本…", role: .destructive) {
+                Button(t(.deleteLocalCopy), role: .destructive) {
                     confirmDelete = fragment
                 }
             }
@@ -452,7 +454,7 @@ struct LibraryView: View {
             FragmentDetailView(fragment: fragment, onDelete: { confirmDelete = fragment })
                 .id(fragment.id)
         } else {
-            Text(selection.count > 1 ? "已选 \(selection.count) 条碎片" : "选择一条碎片查看详情")
+            Text(selection.count > 1 ? t(.selectedFragments, ["count": selection.count]) : t(.selectOne))
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -463,7 +465,7 @@ struct LibraryView: View {
     /// 已选 N 条 — tags and delete only; never 理解 / 核验 / 应用.
     private var batchBar: some View {
         HStack(spacing: 8) {
-            Text("已选 \(selection.count) 条").bold()
+            Text(t(.selectedCount, ["count": selection.count])).bold()
             if let batchMessage {
                 Text(batchMessage).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
@@ -471,27 +473,29 @@ struct LibraryView: View {
             Button {
                 tagEdit = TagEditRequest(add: true)
             } label: {
-                Label("添加标签", systemImage: "tag")
+                Label(t(.addTagsButton), systemImage: "tag")
             }
-            Button("移除标签") { tagEdit = TagEditRequest(add: false) }
-            Button("删除…", role: .destructive) { confirmBatchDelete = true }
+            Button(t(.removeTagsButton)) { tagEdit = TagEditRequest(add: false) }
+            Button(t(.deleteButton), role: .destructive) { confirmBatchDelete = true }
         }
         .controlSize(.small)
         .padding(.horizontal, 12).padding(.vertical, 8)
         .background(Color.annBrand.opacity(0.08))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("批量操作，已选 \(selection.count) 条")
+        .accessibilityLabel(t(.batchActions, ["count": selection.count]))
     }
 
     private func applyTagEdit(add: Bool, tags: [String]) {
         guard let result = model.editTags(add: add, tags: tags, ids: Array(selection)) else {
-            batchMessage = "标签没有保存，请重试"
+            batchMessage = t(.tagsNotSaved)
             return
         }
-        var parts = [add ? "已为 \(result.updated) 条添加标签" : "已从 \(result.updated) 条移除标签"]
-        if result.unchanged > 0 { parts.append("\(result.unchanged) 条无需改动") }
-        if !result.skipped.isEmpty { parts.append("\(result.skipped.count) 条已满 \(MAX_TAGS_PER_FRAGMENT) 个标签，未添加") }
-        batchMessage = parts.joined(separator: "；")
+        var parts = [t(add ? .tagsAdded : .tagsRemoved, ["count": result.updated])]
+        if result.unchanged > 0 { parts.append(t(.tagsUnchanged, ["count": result.unchanged])) }
+        if !result.skipped.isEmpty {
+            parts.append(t(.tagsFull, ["count": result.skipped.count, "max": MAX_TAGS_PER_FRAGMENT]))
+        }
+        batchMessage = parts.joined(separator: t(.semicolon))
     }
 
     /// ⌘K picked a fragment: show it. Filters that would hide it are cleared first.
@@ -569,7 +573,7 @@ struct FragmentDetailView: View {
                 // 该 kind 的字段区 (desktop.md §4.3): steps, evidence, rationale, range …
                 let kindFields = kindDetailFields(fragment)
                 if !kindFields.isEmpty {
-                    detailSection("\(kindLabel(fragment.kind))细节") {
+                    detailSection(t(.kindDetails, ["kind": kindLabel(fragment.kind)])) {
                         VStack(alignment: .leading, spacing: 10) {
                             ForEach(kindFields, id: \.label) { field in
                                 kindFieldView(field)
@@ -579,40 +583,40 @@ struct FragmentDetailView: View {
                 }
 
                 // 2. 用户应用
-                detailSection("用户应用") {
+                detailSection(t(.detailUse)) {
                     Text(fragment.processing.use)
                 }
 
                 // 3. 核验确认
-                detailSection("核验确认") {
+                detailSection(t(.detailVerified)) {
                     if let verified = fragment.processing.verified {
                         VStack(alignment: .leading, spacing: 4) {
-                            LabeledContent("确认时间") {
+                            LabeledContent(t(.confirmedAt)) {
                                 Text(Date(timeIntervalSince1970: Double(verified.confirmedAt) / 1000), style: .date)
                                 Text(Date(timeIntervalSince1970: Double(verified.confirmedAt) / 1000), style: .time)
                             }
-                            LabeledContent("来源") { Text(verifiedSourceLabel(verified.source)) }
+                            LabeledContent(t(.columnSource)) { Text(verifiedSourceLabel(verified.source)) }
                             if let summary = verified.summary, !summary.isEmpty {
-                                LabeledContent("摘要") { Text(summary) }
+                                LabeledContent(t(.summaryLabel)) { Text(summary) }
                             }
                             if let notes = verified.notes, !notes.isEmpty {
-                                LabeledContent("备注") { Text(notes) }
+                                LabeledContent(t(.notesLabel)) { Text(notes) }
                             }
                         }
                     } else {
-                        Text("未确认").foregroundStyle(.secondary)
+                        Text(t(.notConfirmed)).foregroundStyle(.secondary)
                     }
                 }
 
                 // 4. 原始语境和回到来源
-                detailSection("原始语境") {
+                detailSection(t(.detailContext)) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(fragment.context.excerpt)
                         if let title = fragment.context.sourceTitle, !title.isEmpty {
                             Text(title).font(.footnote).foregroundStyle(.secondary)
                         }
                         if let url = URL(string: fragment.context.sourceUrl) {
-                            Link("回到来源：\(fragment.context.sourceHost)", destination: url)
+                            Link(t(.backToSource, ["host": fragment.context.sourceHost]), destination: url)
                                 .font(.callout)
                         } else {
                             Text(fragment.context.sourceUrl).font(.footnote)
@@ -621,17 +625,17 @@ struct FragmentDetailView: View {
                 }
 
                 // 5. 复习摘要
-                detailSection("复习摘要") {
+                detailSection(t(.detailReview)) {
                     VStack(alignment: .leading, spacing: 4) {
-                        LabeledContent("复习次数") { Text("\(fragment.review.repetitions)") }
-                        LabeledContent("失误次数") { Text("\(fragment.review.lapses)") }
+                        LabeledContent(t(.repetitions)) { Text("\(fragment.review.repetitions)") }
+                        LabeledContent(t(.lapses)) { Text("\(fragment.review.lapses)") }
                         if let last = fragment.review.lastReviewedAt {
-                            LabeledContent("上次复习") {
+                            LabeledContent(t(.lastReviewed)) {
                                 Text(Date(timeIntervalSince1970: Double(last) / 1000), style: .date)
                                 Text(Date(timeIntervalSince1970: Double(last) / 1000), style: .time)
                             }
                         }
-                        LabeledContent("下次到期") {
+                        LabeledContent(t(.nextDue)) {
                             Text(Date(timeIntervalSince1970: Double(fragment.review.nextReviewAt) / 1000), style: .date)
                             Text(Date(timeIntervalSince1970: Double(fragment.review.nextReviewAt) / 1000), style: .time)
                         }
@@ -639,9 +643,9 @@ struct FragmentDetailView: View {
                 }
 
                 // 6. 标签和元数据
-                detailSection("标签") {
+                detailSection(t(.columnTags)) {
                     if fragment.tags.isEmpty {
-                        Text("无").foregroundStyle(.secondary)
+                        Text(t(.noneLabel)).foregroundStyle(.secondary)
                     } else {
                         HStack {
                             ForEach(fragment.tags, id: \.self) { tag in
@@ -656,7 +660,7 @@ struct FragmentDetailView: View {
                 // Desktop deletes only its own copy (desktop.md §4.4).
                 if let onDelete {
                     Divider()
-                    Button("删除本地副本…", role: .destructive, action: onDelete)
+                    Button(t(.deleteLocalCopy), role: .destructive, action: onDelete)
                 }
             }
             .padding(20)
@@ -691,10 +695,10 @@ struct FragmentDetailView: View {
                             .scaledToFit()
                             .frame(maxHeight: 220)
                             .clipShape(RoundedRectangle(cornerRadius: 8))
-                        Text("图片资产 \(assetId)").font(.caption).foregroundStyle(.secondary)
+                        Text(t(.imageAsset, ["id": assetId])).font(.caption).foregroundStyle(.secondary)
                     }
                 } else {
-                    Label("附件缺失，待重试（\(assetId)）", systemImage: "exclamationmark.triangle")
+                    Label(t(.attachmentMissingId, ["id": assetId]), systemImage: "exclamationmark.triangle")
                         .font(.footnote)
                         .foregroundStyle(.orange)
                 }
@@ -721,7 +725,7 @@ struct FragmentDetailSheet: View {
     var body: some View {
         FragmentDetailView(fragment: fragment)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("关闭") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button(t(.close)) { dismiss() } }
             }
     }
 }
@@ -753,13 +757,13 @@ struct TagEditSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(add ? "为 \(count) 条碎片添加标签" : "从 \(count) 条碎片移除标签").font(.title3.bold())
-            TextField(add ? "标签，用逗号或空格分隔" : "要移除的标签", text: $text)
+            Text(t(add ? .addTagsTitle : .removeTagsTitle, ["count": count])).font(.title3.bold())
+            TextField(t(add ? .tagsFieldPrompt : .removeTagsFieldPrompt), text: $text)
                 .textFieldStyle(.roundedBorder)
                 .focused($focused)
                 .onSubmit(apply)
             if !suggestions.isEmpty {
-                Text(add ? "库里已有的标签" : "这些碎片带有的标签").font(.caption).foregroundStyle(.secondary)
+                Text(t(add ? .libraryTagsHeader : .selectionTagsHeader)).font(.caption).foregroundStyle(.secondary)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 90), spacing: 6)], alignment: .leading, spacing: 6) {
                     ForEach(suggestions, id: \.self) { tag in
                         Button {
@@ -777,15 +781,15 @@ struct TagEditSheet: View {
                 }
             }
             if !tags.isEmpty {
-                Text("将\(add ? "添加" : "移除")：" + tags.map { "#\($0)" }.joined(separator: " "))
+                Text(t(add ? .tagsWillAdd : .tagsWillRemove, ["tags": tags.map { "#\($0)" }.joined(separator: " ")]))
                     .font(.callout)
             }
-            Text("标签只保存在这台 Mac 上，不会改动扩展里的标签。每条碎片最多 \(MAX_TAGS_PER_FRAGMENT) 个标签。")
+            Text(t(.tagsLocalNote, ["max": MAX_TAGS_PER_FRAGMENT]))
                 .font(.footnote).foregroundStyle(.secondary)
             HStack {
                 Spacer()
-                Button("取消") { dismiss() }.keyboardShortcut(.cancelAction)
-                Button(add ? "添加" : "移除", action: apply)
+                Button(t(.cancel)) { dismiss() }.keyboardShortcut(.cancelAction)
+                Button(t(add ? .addAction : .removeAction), action: apply)
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
                     .disabled(tags.isEmpty)

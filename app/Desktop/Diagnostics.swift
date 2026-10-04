@@ -18,8 +18,10 @@ struct DesktopDiagnostics: Codable, Equatable {
     var dueCount: Int
     var resumeCursor: Int?
     var resumeTotal: Int?
-    /// idle | starting | ready:PORT | failed:MESSAGE
+    /// idle | starting | ready:PORT | failed:portInUse:PORT | failed:DESCRIPTION
     var hub: String
+    /// The interface language in force: zh or en (D-15).
+    var language: String
     var paletteVisible: Bool
     var reviewSheetPresented: Bool
     var recentDeliveryStatuses: [Int]
@@ -36,7 +38,8 @@ struct DesktopDiagnostics: Codable, Equatable {
         case .idle: hub = "idle"
         case .starting: hub = "starting"
         case .ready(let port): hub = "ready:\(port)"
-        case .failed(let message): hub = "failed:\(message)"
+        case .failed(.portInUse(let port)): hub = "failed:portInUse:\(port)"
+        case .failed(.other(let description)): hub = "failed:\(description)"
         }
         let policy: String
         switch NSApp.activationPolicy() {
@@ -47,13 +50,14 @@ struct DesktopDiagnostics: Codable, Equatable {
         }
         let resume = model.resumableSession
         return DesktopDiagnostics(
-            section: model.section.slug,
+            section: model.section.rawValue,
             fragmentCount: model.fragments.count,
             deliveredFragmentCount: model.deliveredFragmentCount,
             dueCount: model.dailyPlan.due.count,
             resumeCursor: resume?.cursor,
             resumeTotal: resume?.fragmentIds.count,
             hub: hub,
+            language: UILanguage.current.rawValue,
             paletteVisible: model.paletteVisible,
             reviewSheetPresented: model.reviewSheetPresented,
             recentDeliveryStatuses: model.recentDeliveries.map(\.status),

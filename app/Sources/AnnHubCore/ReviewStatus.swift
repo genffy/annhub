@@ -15,14 +15,16 @@ public enum ReviewStatus: String, CaseIterable, Sendable {
     /// Rated and scheduled for later.
     case scheduled
 
-    public var label: String {
+    public func localizedLabel(_ lang: UILanguage) -> String {
         switch self {
-        case .due: return "到期"
-        case .new: return "新建"
-        case .learning: return "学习中"
-        case .scheduled: return "复习中"
+        case .due: return t(.statusDue, lang: lang)
+        case .new: return t(.statusNew, lang: lang)
+        case .learning: return t(.statusLearning, lang: lang)
+        case .scheduled: return t(.statusScheduled, lang: lang)
         }
     }
+
+    public var label: String { localizedLabel(.current) }
 }
 
 public func reviewStatus(of fragment: FragmentRecord, now: Int) -> ReviewStatus {

@@ -176,6 +176,21 @@ test.describe('extension ↔ Desktop — the real app over loopback', () => {
     expect((await desktop.press('cmd+,')).visibleWindowCount).toBe(before + 1)
   })
 
+  test('the Desktop speaks the language it is given: the palette finds and runs its commands in English', async () => {
+    desktop = await RunningDesktop.start({ window: true, language: 'en' })
+    expect((await desktop.state()).language).toBe('en')
+    // "open" lists Open Today, Open the Fragment library, Open the System page and Open Settings — the third runs.
+    const toSystem = await desktop.press('cmd+1', 'cmd+k', 'type:open', 'down', 'down', 'return')
+    expect(toSystem).toMatchObject({ section: 'system', paletteVisible: false })
+    // The Chinese words still find the same commands: each command carries both languages' keywords.
+    const toLibrary = await desktop.press('cmd+1', 'cmd+k', 'type:碎片', 'return')
+    expect(toLibrary).toMatchObject({ section: 'library', paletteVisible: false })
+    await desktop.stop()
+
+    desktop = await RunningDesktop.start({ window: true }) // the suite's default is Chinese
+    expect((await desktop.state()).language).toBe('zh')
+  })
+
   // ── scenario A → B ────────────────────────────────────────────────────
 
   test('saved offline, then paired: every fragment and the image arrive once, intact; a revision does not touch the review', async ({ page, context, extensionId }) => {

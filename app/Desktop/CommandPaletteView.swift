@@ -124,13 +124,13 @@ struct CommandPaletteView: View {
             palette.update(fragments: model.fragments, context: model.paletteContext)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("命令面板")
+        .accessibilityLabel(t(.paletteTitle))
     }
 
     private var searchField: some View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass").foregroundStyle(.secondary).accessibilityHidden(true)
-            TextField("搜索碎片，或输入命令", text: $palette.query)
+            TextField(t(.palettePrompt), text: $palette.query)
                 .textFieldStyle(.plain)
                 .font(.title3)
                 .focused($searchFocused)
@@ -145,7 +145,7 @@ struct CommandPaletteView: View {
                     palette.move(1)
                     return .handled
                 }
-                .accessibilityLabel("搜索碎片与命令")
+                .accessibilityLabel(t(.paletteFieldLabel))
             Text("esc")
                 .font(.caption.monospaced())
                 .padding(.horizontal, 6).padding(.vertical, 2)
@@ -161,25 +161,26 @@ struct CommandPaletteView: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
                     if results.fragments.isEmpty && results.commands.isEmpty {
-                        Text("没有匹配的碎片或命令")
+                        Text(t(.paletteNoResults))
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity)
                             .padding(24)
                     }
                     if !results.fragments.isEmpty {
                         sectionHeader(
-                            results.isRecent ? "最近的碎片" : "碎片 · \(results.totalFragments) 条匹配")
+                            results.isRecent
+                                ? t(.paletteRecent) : t(.paletteMatches, ["count": results.totalFragments]))
                         ForEach(results.fragments) { hit in
                             fragmentRow(hit)
                         }
                         if results.totalFragments > results.fragments.count {
-                            Text("还有 \(results.totalFragments - results.fragments.count) 条，缩小关键词可以更快找到")
+                            Text(t(.paletteMore, ["count": results.totalFragments - results.fragments.count]))
                                 .font(.caption).foregroundStyle(.secondary)
                                 .padding(.horizontal, 16).padding(.vertical, 6)
                         }
                     }
                     if !results.commands.isEmpty {
-                        sectionHeader("命令")
+                        sectionHeader(t(.paletteCommands))
                         ForEach(results.commands) { command in
                             commandRow(command)
                         }
@@ -203,11 +204,11 @@ struct CommandPaletteView: View {
 
     private var footer: some View {
         HStack(spacing: 14) {
-            Text("↑↓ 选择")
-            Text("↵ 打开")
-            Text("esc 关闭")
+            Text(t(.paletteKeySelect))
+            Text(t(.paletteKeyOpen))
+            Text(t(.paletteKeyClose))
             Spacer()
-            Text("搜索范围：内容 · 理解 · 核验 · 应用 · 标签 · 来源")
+            Text(t(.paletteScope))
         }
         .font(.caption)
         .foregroundStyle(.secondary)
@@ -238,8 +239,8 @@ struct CommandPaletteView: View {
                     Text(highlighted(hit.fragment.content))
                         .lineLimit(1)
                     Spacer(minLength: 8)
-                    if let label = hit.matchLabel {
-                        Text("命中：\(label)").font(.caption).foregroundStyle(.secondary)
+                    if let label = hit.matchLabel() {
+                        Text(t(.paletteHit, ["fields": label])).font(.caption).foregroundStyle(.secondary)
                     }
                 }
                 if let snippet = hit.snippet {
@@ -257,8 +258,11 @@ struct CommandPaletteView: View {
         .id(id)
         .onHover { if $0 { palette.select(id) } }
         .accessibilityLabel(
-            "\(kindLabel(hit.fragment.kind))，\(hit.fragment.content)"
-                + (hit.matchLabel.map { "，命中\($0)" } ?? ""))
+            [
+                kindLabel(hit.fragment.kind), hit.fragment.content,
+                hit.matchLabel().map { t(.paletteHit, ["fields": $0]) },
+            ]
+            .compactMap { $0 }.joined(separator: t(.clauseSeparator)))
     }
 
     private func commandRow(_ command: PaletteCommand) -> some View {
@@ -283,7 +287,7 @@ struct CommandPaletteView: View {
         .buttonStyle(.plain)
         .id(id)
         .onHover { if $0 { palette.select(id) } }
-        .accessibilityLabel(command.title + (command.detail.map { "，\($0)" } ?? ""))
+        .accessibilityLabel([command.title, command.detail].compactMap { $0 }.joined(separator: t(.clauseSeparator)))
     }
 
     private func rowBackground(_ id: String) -> some View {

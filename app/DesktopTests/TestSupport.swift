@@ -31,6 +31,26 @@ final class TestClock: @unchecked Sendable {
     }
 }
 
+// ── language ─────────────────────────────────────────────────────────────
+
+/// The Desktop speaks the system language (D-15), and these tests assert its wording, so every
+/// Desktop test reads the interface in Chinese whatever language this Mac is set to. The override
+/// is the one the app itself offers for tests and screenshots; a test that wants English sets
+/// it for its own duration with `speaking(_:)`.
+class DesktopTestCase: XCTestCase {
+    override class func setUp() {
+        super.setUp()
+        setenv("ANNHUB_UI_LANGUAGE", "zh", 1)
+    }
+
+    /// Runs `body` with the interface in `language`, then puts Chinese back.
+    func speaking<T>(_ language: String, _ body: () throws -> T) rethrows -> T {
+        setenv("ANNHUB_UI_LANGUAGE", language, 1)
+        defer { setenv("ANNHUB_UI_LANGUAGE", "zh", 1) }
+        return try body()
+    }
+}
+
 // ── fragments ────────────────────────────────────────────────────────────
 
 func makeRecord(

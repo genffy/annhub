@@ -14,14 +14,16 @@ public enum SyncPhase: String, Codable, Sendable {
     /// Endpoint configured and queue drained.
     case synced
 
-    public var label: String {
+    public func localizedLabel(_ lang: UILanguage) -> String {
         switch self {
-        case .localFirst: return "本地优先（未配置同步端点）"
-        case .pending: return "待同步"
-        case .syncError: return "同步错误"
-        case .synced: return "已同步"
+        case .localFirst: return t(.syncLocalFirst, lang: lang)
+        case .pending: return t(.syncPending, lang: lang)
+        case .syncError: return t(.syncError, lang: lang)
+        case .synced: return t(.syncSynced, lang: lang)
         }
     }
+
+    public var label: String { localizedLabel(.current) }
 }
 
 public struct SyncStatus: Equatable, Sendable {

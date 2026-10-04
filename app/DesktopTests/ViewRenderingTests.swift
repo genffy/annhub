@@ -10,7 +10,7 @@ import SwiftUI
 import XCTest
 
 @MainActor
-final class ViewRenderingTests: XCTestCase {
+final class ViewRenderingTests: DesktopTestCase {
     private var harnesses: [Harness] = []
     private let artifacts: URL? = ProcessInfo.processInfo.environment["ANNHUB_TEST_ARTIFACTS"].map {
         URL(fileURLWithPath: $0)
@@ -137,6 +137,31 @@ final class ViewRenderingTests: XCTestCase {
                 size: CGSize(width: 1100, height: 720)),
             "library")
         assertDrawn(try render(SystemView().environmentObject(h.model), named: "page-system"), "system")
+    }
+
+    func testThePagesAndTheReviewCardRenderInEnglishToo() throws {
+        let h = try harness(try scenarioCRecords())
+        try speaking("en") {
+            h.model.startReviewSession()
+            h.model.openNextHint()
+            assertDrawn(try render(TodayView(onOpenLibrary: {}).environmentObject(h.model), named: "en-today"), "today")
+            assertDrawn(
+                try render(
+                    LibraryView(onOpenSystem: {}).environmentObject(h.model), named: "en-library",
+                    size: CGSize(width: 1100, height: 720)),
+                "library")
+            assertDrawn(try render(SystemView().environmentObject(h.model), named: "en-system"), "system")
+            assertDrawn(
+                try render(
+                    ReviewSessionView().environmentObject(h.model), named: "en-review",
+                    size: CGSize(width: 700, height: 600)),
+                "review card")
+            assertDrawn(
+                try render(
+                    TagEditSheet(add: true, count: 1, presentTags: [], libraryTags: ["retry"]) { _ in },
+                    named: "en-tag-sheet", size: CGSize(width: 460, height: 320)),
+                "tag sheet")
+        }
     }
 
     func testTheLibraryEmptyStateRenders() throws {

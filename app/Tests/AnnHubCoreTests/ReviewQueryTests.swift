@@ -7,37 +7,71 @@ import XCTest
 final class ReviewQueryTests: XCTestCase {
     // ── questions ────────────────────────────────────────────────────────
 
-    func testQuestionRegistryCoversEveryRegisteredKind() {
+    func testQuestionRegistryCoversEveryRegisteredKindInBothLanguages() {
         for kind in registeredFragmentKinds {
-            let spec = XCTUnwrapOptional(REVIEW_QUESTIONS[kind], "kind \(kind)")
-            XCTAssertFalse(spec.question.isEmpty)
-            XCTAssertEqual(spec.hints.count, 4, "hint ladder is 4 steps for \(kind)")
-            XCTAssertFalse(spec.hints.contains(where: \.isEmpty))
-            XCTAssertEqual(spec.kind, kind)
+            for lang in UILanguage.allCases {
+                let spec = XCTUnwrapOptional(REVIEW_QUESTIONS[kind]?[lang], "kind \(kind) \(lang)")
+                XCTAssertFalse(spec.question.isEmpty)
+                XCTAssertEqual(spec.hints.count, 4, "hint ladder is 4 steps for \(kind) \(lang)")
+                XCTAssertFalse(spec.hints.contains(where: \.isEmpty))
+                XCTAssertEqual(spec.kind, kind)
+            }
         }
+    }
+
+    /// `review-questions.json` is generated from review.ts: the wording both sides show is one table.
+    func testReviewWordingMatchesTheSharedFixture() throws {
+        struct Wording: Decodable {
+            let kind: String
+            let question: String
+            let hints: [String]
+        }
+        let fixture = try JSONDecoder().decode(
+            [String: [String: Wording]].self, from: fixtureData("review-questions.json"))
+        XCTAssertEqual(Set(fixture.keys), Set(REVIEW_QUESTIONS.keys))
+        for (kind, languages) in fixture {
+            for lang in UILanguage.allCases {
+                let expected = try XCTUnwrap(languages[lang.rawValue], "\(kind) \(lang)")
+                let spec = reviewQuestion(for: kind, lang: lang)
+                XCTAssertEqual(spec.kind, expected.kind)
+                XCTAssertEqual(spec.question, expected.question, "\(kind) \(lang)")
+                XCTAssertEqual(spec.hints, expected.hints, "\(kind) \(lang)")
+            }
+        }
+    }
+
+    func testAnUnknownKindGetsAGenericQuestionInEachLanguage() {
+        XCTAssertEqual(reviewQuestion(for: "future", lang: .zh).question, "回忆这条碎片的关键内容。")
+        XCTAssertEqual(
+            reviewQuestion(for: "future", lang: .en).hints,
+            ["Topic", "Context", "Original text", "Verification status"])
     }
 
     func testQuestionTextsMatchContract() {
         XCTAssertEqual(
-            reviewQuestion(for: "concept").question,
+            reviewQuestion(for: "concept", lang: .zh).question,
             "用自己的话解释它，并给出一个适用边界。"
         )
         XCTAssertEqual(
-            reviewQuestion(for: "visual").hints, ["结构关键词", "文字描述", "原图", "核验确认"]
+            reviewQuestion(for: "visual", lang: .zh).hints, ["结构关键词", "文字描述", "原图", "核验确认"]
         )
         XCTAssertEqual(
-            reviewQuestion(for: "media-clip").question,
+            reviewQuestion(for: "media-clip", lang: .zh).question,
             "回忆这段媒体材料的要点与时间定位。"
         )
+        XCTAssertEqual(
+            reviewQuestion(for: "concept", lang: .en).question,
+            "Explain it in your own words and give one boundary where it applies."
+        )
         // Fourth level per kind (review.ts parity).
-        XCTAssertEqual(REVIEW_QUESTIONS["excerpt"]?.hints[3], "核验确认")
-        XCTAssertEqual(REVIEW_QUESTIONS["concept"]?.hints[3], "核验摘要")
-        XCTAssertEqual(REVIEW_QUESTIONS["claim"]?.hints[3], "核验确认")
-        XCTAssertEqual(REVIEW_QUESTIONS["procedure"]?.hints[3], "核验确认")
-        XCTAssertEqual(REVIEW_QUESTIONS["decision"]?.hints[3], "核验确认")
-        XCTAssertEqual(REVIEW_QUESTIONS["question"]?.hints[3], "核验确认")
-        XCTAssertEqual(REVIEW_QUESTIONS["inspiration"]?.hints[3], "核验确认")
-        XCTAssertEqual(REVIEW_QUESTIONS["media-clip"]?.hints[3], "核验确认")
+        for (kind, last) in [
+            ("excerpt", "核验确认"), ("concept", "核验摘要"), ("claim", "核验确认"), ("procedure", "核验确认"),
+            ("decision", "核验确认"), ("question", "核验确认"), ("inspiration", "核验确认"),
+            ("media-clip", "核验确认"),
+        ] {
+            XCTAssertEqual(REVIEW_QUESTIONS[kind]?[.zh]?.hints[3], last, kind)
+        }
+        XCTAssertEqual(REVIEW_QUESTIONS["concept"]?[.en]?.hints[3], "Verification summary")
     }
 
     // ── hint ladder content (desktop.md §5.3) ────────────────────────────
@@ -54,16 +88,19 @@ final class ReviewQueryTests: XCTestCase {
 
     func testVerificationHintStatusAndSummary() {
         var fragment = makeFragment(id: "frag_v")
-        let withSummary = verificationHint(fragment)
+        let withSummary = verificationHint(fragment, lang: .zh)
         XCTAssertTrue(withSummary.contains("已确认"))
         XCTAssertTrue(withSummary.contains("未核验") == false)
+        XCTAssertTrue(verificationHint(fragment, lang: .en).contains("confirmed (source:"))
 
         fragment.processing.verified?.summary = nil
-        let withoutSummary = verificationHint(fragment)
+        let withoutSummary = verificationHint(fragment, lang: .zh)
         XCTAssertTrue(withoutSummary.contains("已确认，无摘要 — 回看原始语境"))
+        XCTAssertTrue(verificationHint(fragment, lang: .en).contains("Confirmed, no summary"))
 
         fragment.processing.verified = nil
-        XCTAssertTrue(verificationHint(fragment).contains("未核验"))
+        XCTAssertTrue(verificationHint(fragment, lang: .zh).contains("未核验"))
+        XCTAssertTrue(verificationHint(fragment, lang: .en).contains("not verified"))
     }
 
     func testDailyLimitClamp() {

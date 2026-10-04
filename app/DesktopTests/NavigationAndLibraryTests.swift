@@ -6,7 +6,7 @@ import SwiftUI
 import XCTest
 
 @MainActor
-final class PaletteViewModelTests: XCTestCase {
+final class PaletteViewModelTests: DesktopTestCase {
     private func library() throws -> [FragmentRecord] {
         [
             try makeRecord(
@@ -90,7 +90,7 @@ final class PaletteViewModelTests: XCTestCase {
 }
 
 @MainActor
-final class NavigationTests: XCTestCase {
+final class NavigationTests: DesktopTestCase {
     private var harnesses: [Harness] = []
 
     override func tearDown() async throws {
@@ -154,12 +154,12 @@ final class NavigationTests: XCTestCase {
         XCTAssertTrue(h.model.paletteVisible)
         XCTAssertEqual(h.model.paletteInitialQuery, "重试")
         // Every page has a launch-argument name.
-        XCTAssertEqual(DesktopSection.allCases.map(\.slug), ["today", "library", "system"])
+        XCTAssertEqual(DesktopSection.allCases.map(\.rawValue), ["today", "library", "system"])
     }
 }
 
 @MainActor
-final class LibraryActionTests: XCTestCase {
+final class LibraryActionTests: DesktopTestCase {
     private var harnesses: [Harness] = []
 
     override func tearDown() async throws {
@@ -224,7 +224,7 @@ final class LibraryActionTests: XCTestCase {
 // ── windows and presence ─────────────────────────────────────────────────
 
 @MainActor
-final class PresenceTests: XCTestCase {
+final class PresenceTests: DesktopTestCase {
     override func setUp() {
         _ = NSApplication.shared
     }

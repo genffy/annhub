@@ -26,6 +26,8 @@ cd .. && npx playwright test e2e/desktop-two-end.spec.ts
 
 Desktop 的本机服务只放行已发布扩展的 ID；fixture 加载的未打包扩展 ID 不同，所以和扩展交互的用例要用 `RunningDesktop.start({ extensionIds: [extensionId] })`（对应启动参数 `--annhub-allow-extension`）。不传就是在验证“其他扩展被拒绝（403）”。
 
+Desktop 的界面随系统语言（D-15）。`e2e/desktop.ts` 用 `ANNHUB_UI_LANGUAGE` 把它固定为中文（`language: 'en'` 换成英文），所以敲进命令面板的词不依赖运行这台 Mac 的语言。
+
 ## chrome-devtools-mcp 手工实测
 
 以下是 2026-09-23 在本机自动化 Chrome 上观察到的环境限制，版本或 MCP 配置改变后先验证现状。共享配置 `.agents/mcp.json` 定义了 `chrome-devtools-annhub`，使用独立 profile `~/.cache/chrome-devtools-mcp/chrome-profile`（`.zcode/` 只放本机私有状态，已被忽略）。官网实测前启动 `cd website && npm run dev`，默认端口 3001。

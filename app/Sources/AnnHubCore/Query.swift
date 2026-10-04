@@ -91,16 +91,16 @@ public enum SearchField: String, CaseIterable, Sendable {
     }
 
     /// What the user calls it in the interface.
-    public var label: String {
+    public func label(lang: UILanguage = .current) -> String {
         switch self {
-        case .content: return "内容"
-        case .guess: return "理解"
-        case .verified: return "核验"
-        case .use: return "应用"
-        case .tags: return "标签"
-        case .sourceTitle: return "来源标题"
-        case .excerpt: return "摘录"
-        case .sourceHost, .sourceUrl: return "来源"
+        case .content: return t(.columnContent, lang: lang)
+        case .guess: return t(.searchFieldGuess, lang: lang)
+        case .verified: return t(.searchFieldVerified, lang: lang)
+        case .use: return t(.searchFieldUse, lang: lang)
+        case .tags: return t(.columnTags, lang: lang)
+        case .sourceTitle: return t(.searchFieldSourceTitle, lang: lang)
+        case .excerpt: return t(.searchFieldExcerpt, lang: lang)
+        case .sourceHost, .sourceUrl: return t(.columnSource, lang: lang)
         }
     }
 

@@ -28,7 +28,7 @@ extension Color {
 /// "2 分钟前" — the system page and the menu bar show recency, not clock times.
 func relativeAgo(_ ms: Int) -> String {
     let formatter = RelativeDateTimeFormatter()
-    formatter.locale = Locale(identifier: "zh_CN")
+    formatter.locale = Locale(identifier: UILanguage.current == .zh ? "zh_CN" : "en_US")
     formatter.unitsStyle = .full
     return formatter.localizedString(for: Date(timeIntervalSince1970: Double(ms) / 1000), relativeTo: Date())
 }
@@ -41,18 +41,18 @@ func writtenDayLabel(_ ms: Int) -> String {
 // ── sidebar root (desktop.md §2: three sections; default 今日; empty → 碎片库)
 
 enum DesktopSection: String, CaseIterable, Identifiable, Hashable {
-    case today = "今日"
-    case library = "碎片库"
-    case system = "系统"
+    case today
+    case library
+    case system
 
+    /// Also the stable name for launch arguments (`--annhub-section=library`) and diagnostics.
     var id: String { rawValue }
 
-    /// Stable name for launch arguments (`--annhub-section=library`).
-    var slug: String {
+    var title: String {
         switch self {
-        case .today: return "today"
-        case .library: return "library"
-        case .system: return "system"
+        case .today: return t(.sectionToday)
+        case .library: return t(.sectionLibrary)
+        case .system: return t(.sectionSystem)
         }
     }
 
@@ -82,7 +82,7 @@ struct RootSidebarView: View {
                         Button {
                             model.go(item)
                         } label: {
-                            Label(item.rawValue, systemImage: item.icon)
+                            Label(item.title, systemImage: item.icon)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                         }
@@ -97,7 +97,7 @@ struct RootSidebarView: View {
                 Button {
                     AppPresence.openPreferences()
                 } label: {
-                    Label("偏好设置…", systemImage: "slider.horizontal.3")
+                    Label(t(.preferences), systemImage: "slider.horizontal.3")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 12).padding(.vertical, 8)
                         .contentShape(Rectangle())
@@ -108,11 +108,11 @@ struct RootSidebarView: View {
         } detail: {
             switch model.section {
             case .today:
-                TodayView(onOpenLibrary: { model.go(.library) }).navigationTitle("今日")
+                TodayView(onOpenLibrary: { model.go(.library) }).navigationTitle(t(.sectionToday))
             case .library:
-                LibraryView(onOpenSystem: { model.go(.system) }).navigationTitle("碎片库")
+                LibraryView(onOpenSystem: { model.go(.system) }).navigationTitle(t(.sectionLibrary))
             case .system:
-                SystemView().navigationTitle("系统")
+                SystemView().navigationTitle(t(.sectionSystem))
             }
         }
         .toolbar {
@@ -121,9 +121,9 @@ struct RootSidebarView: View {
                 Button {
                     model.paletteVisible = true
                 } label: {
-                    Label("搜索与命令", systemImage: "magnifyingglass")
+                    Label(t(.searchAndCommands), systemImage: "magnifyingglass")
                 }
-                .help("搜索碎片与命令（⌘K）")
+                .help(t(.searchAndCommandsHelp))
             }
         }
         .overlay { CommandPaletteOverlay() }
@@ -148,13 +148,13 @@ struct TodayView: View {
     var body: some View {
         let plan = model.dailyPlan
         return List {
-            Section("今天需要完成什么") {
+            Section(t(.todayTodo)) {
                 reviewBlock(plan)
             }
 
-            Section("最近由扩展写入") {
+            Section(t(.todayRecent)) {
                 if model.latestFragments.isEmpty {
-                    Text("还没有碎片。扩展保存后会逐条出现在这里。")
+                    Text(t(.todayEmpty))
                         .font(.footnote).foregroundStyle(.secondary)
                 } else {
                     ForEach(model.latestFragments) { fragment in
@@ -179,8 +179,8 @@ struct TodayView: View {
             }
 
             // The only statistic on this page: M-18 (metrics.md §4).
-            Section("次要信息") {
-                Text("本周成功提取 \(model.weeklyRetrieved) 个碎片")
+            Section(t(.todaySecondary)) {
+                Text(t(.weeklyRetrieved, ["count": model.weeklyRetrieved]))
                     .foregroundStyle(.secondary)
             }
         }
@@ -194,43 +194,57 @@ struct TodayView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("到期复习").font(.title3.bold())
+                    Text(t(.dueReviews)).font(.title3.bold())
                     if plan.due.isEmpty {
-                        Text("今天没有到期复习").foregroundStyle(.secondary)
+                        Text(t(.noDueToday)).foregroundStyle(.secondary)
                     } else if plan.limitReached {
                         // review.md §5: state the cap as a fact, keep due dates, never force a stop.
-                        Text("建议量 \(plan.ratedToday) / \(plan.dailyLimit)；还有 \(plan.due.count) 条到期，保留原到期时间，明天继续")
-                            .foregroundStyle(.secondary)
+                        Text(
+                            t(
+                                .limitReached,
+                                ["rated": plan.ratedToday, "limit": plan.dailyLimit, "due": plan.due.count])
+                        )
+                        .foregroundStyle(.secondary)
                     } else {
-                        Text("\(plan.suggested.count) 条 · 预计 \(estimatedMinutes(plan.suggested.count)) 分钟")
-                            .foregroundStyle(.secondary)
+                        Text(
+                            t(
+                                .suggestedLine,
+                                ["count": plan.suggested.count, "minutes": estimatedMinutes(plan.suggested.count)])
+                        )
+                        .foregroundStyle(.secondary)
                         if plan.beyondLimit > 0 {
-                            Text("另有 \(plan.beyondLimit) 条超出今日建议量，明天继续")
+                            Text(t(.beyondLimit, ["count": plan.beyondLimit]))
                                 .font(.footnote).foregroundStyle(.secondary)
                         }
                     }
                 }
                 Spacer()
                 if plan.limitReached {
-                    Button("再来一轮（超出建议量）") {
+                    Button(t(.extraRound)) {
                         if model.startReviewSession(overflow: true) { model.reviewSheetPresented = true }
                     }
                 } else if plan.due.isEmpty {
-                    Button("整理最近碎片", action: onOpenLibrary)
+                    Button(t(.tidyRecent), action: onOpenLibrary)
                 } else {
-                    Button("开始复习") { model.reviewSheetPresented = true }
+                    Button(t(.startReview)) { model.reviewSheetPresented = true }
                         .buttonStyle(.borderedProminent)
                 }
             }
             if !plan.due.isEmpty {
-                Text("逾期主题：" + plan.due.prefix(3).map { String($0.content.prefix(16)) }.joined(separator: " / "))
-                    .font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                Text(
+                    t(
+                        .overdueTopics,
+                        ["topics": plan.due.prefix(3).map { String($0.content.prefix(16)) }.joined(separator: " / ")])
+                )
+                .font(.callout).foregroundStyle(.secondary).lineLimit(1)
             }
             if let session = resumable {
                 Button {
                     model.reviewSheetPresented = true
                 } label: {
-                    Label("继续复习 \(session.cursor)/\(session.fragmentIds.count)", systemImage: "arrow.clockwise")
+                    Label(
+                        t(.resumeReview, ["cursor": session.cursor, "total": session.fragmentIds.count]),
+                        systemImage: "arrow.clockwise")
                 }
             }
         }
@@ -258,68 +272,73 @@ struct SystemView: View {
             technicalSection
         }
         .onAppear { model.reload() }
-        .confirmationDialog("重新生成配对码？", isPresented: $confirmingRotate, titleVisibility: .visible) {
-            Button("重新生成", role: .destructive) {
+        .confirmationDialog(t(.rotateTitle), isPresented: $confirmingRotate, titleVisibility: .visible) {
+            Button(t(.regenerate), role: .destructive) {
                 model.rotatePairToken()
                 tokenRevealed = true
             }
-            Button("取消", role: .cancel) {}
+            Button(t(.cancel), role: .cancel) {}
         } message: {
-            Text("旧的扩展连接会失效，需要在扩展设置里输入新配对码。本地数据与待发送任务保留。")
+            Text(t(.rotateMessage))
         }
     }
 
     private var connectionSection: some View {
-        Section("连接") {
+        Section(t(.sectionConnection)) {
             HStack(spacing: 8) {
                 Image(systemName: model.hubListening ? "circle.fill" : "exclamationmark.triangle.fill")
                     .font(.caption)
                     .foregroundStyle(model.hubListening ? Color.green : Color.orange)
                     .accessibilityHidden(true)
-                Text(model.hubListening ? "本地服务运行中，仅监听本机" : model.hubState)
+                Text(model.hubListening ? t(.serviceRunning) : model.hubState)
                 if model.hubFailed && model.storeError == nil {
-                    Button("重试启动") { model.restartHub() }
+                    Button(t(.retryStart)) { model.restartHub() }
                         .controlSize(.small)
                 }
             }
-            LabeledContent("配对码") {
+            LabeledContent(t(.pairingCode)) {
                 HStack(spacing: 8) {
                     Text(tokenRevealed ? model.pairToken : String(repeating: "•", count: model.pairToken.count))
                         .font(.system(.body, design: .monospaced))
                         .textSelection(.enabled)
                         .accessibilityIdentifier("pair-token")
-                    Button(tokenRevealed ? "隐藏" : "显示") { tokenRevealed.toggle() }
-                    Button(tokenCopied ? "已复制" : "复制") {
+                    Button(tokenRevealed ? t(.hide) : t(.show)) { tokenRevealed.toggle() }
+                    Button(tokenCopied ? t(.copied) : t(.copy)) {
                         model.copyPairToken()
                         tokenCopied = true
                         DispatchQueue.main.asyncAfter(deadline: .now() + 2) { tokenCopied = false }
                     }
-                    Button("重新生成") { confirmingRotate = true }
+                    Button(t(.regenerate)) { confirmingRotate = true }
                 }
             }
-            LabeledContent("最近扩展连接") {
-                Text(model.lastConnectionAt.map(relativeAgo) ?? "暂无")
+            LabeledContent(t(.lastExtensionConnection)) {
+                Text(model.lastConnectionAt.map(relativeAgo) ?? t(.noneYet))
             }
         }
     }
 
     private var deliverySection: some View {
-        Section("最近交付") {
+        Section(t(.sectionDelivery)) {
             Text(
-                "碎片 \(model.deliveredFragmentCount) 条已接收 / 图片 \(model.stats.assets) 张已接收 / 缺失图片 \(model.missingAttachmentCount)"
+                t(
+                    .deliverySummary,
+                    [
+                        "fragments": model.deliveredFragmentCount, "assets": model.stats.assets,
+                        "missing": model.missingAttachmentCount,
+                    ])
             )
             let issues = model.attentionItems
             if issues.isEmpty {
-                Label("需要处理：无", systemImage: "checkmark.circle")
+                Label(t(.attentionNone), systemImage: "checkmark.circle")
                     .foregroundStyle(.secondary)
             } else {
                 ForEach(issues, id: \.self) { issue in
-                    Label("需要处理：\(issue)", systemImage: "exclamationmark.triangle")
+                    Label(t(.attentionLine, ["issue": issue]), systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.orange)
                 }
             }
             if model.recentDeliveries.isEmpty {
-                Text("暂无逐项写入记录。").font(.footnote).foregroundStyle(.secondary)
+                Text(t(.noDeliveries)).font(.footnote).foregroundStyle(.secondary)
             } else {
                 ForEach(Array(model.recentDeliveries.suffix(8).reversed().enumerated()), id: \.offset) { _, outcome in
                     deliveryRow(outcome)
@@ -332,22 +351,22 @@ struct SystemView: View {
     /// (Grouped: a ViewBuilder block holds at most ten children.)
     private var technicalSection: some View {
         Section {
-            DisclosureGroup("技术信息", isExpanded: $technicalExpanded) {
+            DisclosureGroup(t(.technicalInfo), isExpanded: $technicalExpanded) {
                 Group {
-                    LabeledContent("服务地址") {
+                    LabeledContent(t(.serviceAddress)) {
                         Text("http://127.0.0.1:\(model.hubPort ?? model.config.port)")
                     }
-                    LabeledContent("设备") {
+                    LabeledContent(t(.device)) {
                         Text(model.store.deviceId).font(.system(.caption, design: .monospaced))
                     }
-                    LabeledContent("数据库版本") { Text("Fragment schema v4") }
-                    LabeledContent("契约版本") { Text(DesktopHub.apiVersion) }
+                    LabeledContent(t(.databaseVersion)) { Text("Fragment schema v4") }
+                    LabeledContent(t(.contractVersion)) { Text(DesktopHub.apiVersion) }
                 }
                 Group {
-                    LabeledContent("本地碎片") { Text("\(model.stats.fragments)") }
-                    LabeledContent("复习日志") { Text("\(model.stats.reviewLogs)") }
-                    LabeledContent("图片资产") { Text("\(model.stats.assets)") }
-                    LabeledContent("本地删除标记") { Text("\(model.stats.deletions)") }
+                    LabeledContent(t(.localFragments)) { Text("\(model.stats.fragments)") }
+                    LabeledContent(t(.reviewLogs)) { Text("\(model.stats.reviewLogs)") }
+                    LabeledContent(t(.imageAssets)) { Text("\(model.stats.assets)") }
+                    LabeledContent(t(.deletionMarks)) { Text("\(model.stats.deletions)") }
                 }
                 Divider()
                 syncInfoRows
@@ -360,17 +379,22 @@ struct SystemView: View {
     /// R3 双向同步 (storage.md §9) and the sync conflict report.
     private var syncInfoRows: some View {
         Group {
-            LabeledContent("待扩展拉取的变更") {
+            LabeledContent(t(.pendingChanges)) {
                 Text("\(model.syncInfo.pendingChanges)")
                     .foregroundStyle(model.syncInfo.pendingChanges > 0 ? Color.orange : Color.secondary)
             }
-            LabeledContent("已拉取游标") { Text("\(model.syncInfo.pulledCursor)") }
-            LabeledContent("最近扩展拉取") {
-                Text(model.syncInfo.lastPulledAt.map(relativeAgo) ?? "暂无")
+            LabeledContent(t(.pulledCursor)) { Text("\(model.syncInfo.pulledCursor)") }
+            LabeledContent(t(.lastExtensionPull)) {
+                Text(model.syncInfo.lastPulledAt.map(relativeAgo) ?? t(.noneYet))
             }
-            LabeledContent("/v1/events 接收") {
+            LabeledContent(t(.eventsReceived)) {
                 Text(
-                    "接收 \(model.syncInfo.events.received) · 应用 \(model.syncInfo.events.applied) · 重复 \(model.syncInfo.events.duplicates) · 跳过 \(model.syncInfo.events.skipped)"
+                    t(
+                        .eventsLine,
+                        [
+                            "received": model.syncInfo.events.received, "applied": model.syncInfo.events.applied,
+                            "duplicates": model.syncInfo.events.duplicates, "skipped": model.syncInfo.events.skipped,
+                        ])
                 )
                 .font(.caption)
             }
@@ -381,9 +405,9 @@ struct SystemView: View {
         let failures = model.recentDeliveries.filter { $0.status >= 300 }
         return Group {
             if failures.isEmpty {
-                Text("没有交付错误。").font(.footnote).foregroundStyle(.secondary)
+                Text(t(.noDeliveryErrors)).font(.footnote).foregroundStyle(.secondary)
             } else {
-                Text("交付错误明细").font(.subheadline.bold())
+                Text(t(.deliveryErrorDetails)).font(.subheadline.bold())
                 ForEach(Array(failures.suffix(8).reversed().enumerated()), id: \.offset) { _, outcome in
                     deliveryRow(outcome)
                 }
@@ -449,31 +473,31 @@ struct PreferencesView: View {
 
     var body: some View {
         Form {
-            Section("复习") {
-                LabeledContent("每日建议上限") {
+            Section(t(.columnReview)) {
+                LabeledContent(t(.dailyLimit)) {
                     HStack(spacing: 10) {
                         Text("\(DAILY_LIMIT_MIN)").foregroundStyle(.secondary)
                         Slider(value: dailyLimit, in: Double(DAILY_LIMIT_MIN)...Double(DAILY_LIMIT_MAX), step: 1)
                             .frame(width: 200)
                         Text("\(DAILY_LIMIT_MAX)").foregroundStyle(.secondary)
-                        Text("\(model.dailyLimit) 条")
+                        Text(t(.dailyLimitCount, ["count": model.dailyLimit]))
                             .monospacedDigit()
                             .frame(width: 52, alignment: .trailing)
                     }
                 }
-                Text("限制当天的建议量，不强制同一会话做完；单次会话按每条 45 秒估算，最多约 13 条。")
+                Text(t(.dailyLimitNote))
                     .font(.footnote).foregroundStyle(.secondary)
 
-                LabeledContent("每日复习提醒") {
+                LabeledContent(t(.dailyReminder)) {
                     HStack(spacing: 10) {
-                        Toggle("每日复习提醒", isOn: reminderEnabled).labelsHidden()
-                        Text("每天")
-                        DatePicker("提醒时间", selection: reminderTime, displayedComponents: .hourAndMinute)
+                        Toggle(t(.dailyReminder), isOn: reminderEnabled).labelsHidden()
+                        Text(t(.everyDay))
+                        DatePicker(t(.reminderTime), selection: reminderTime, displayedComponents: .hourAndMinute)
                             .labelsHidden()
                             .disabled(!model.reminder.enabled)
                     }
                 }
-                Text("只发复习提醒，不发采集数量、连续使用天数或营销通知。")
+                Text(t(.reminderNote))
                     .font(.footnote).foregroundStyle(.secondary)
             }
         }

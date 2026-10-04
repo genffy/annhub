@@ -6,7 +6,7 @@ import AnnHubCore
 import XCTest
 
 @MainActor
-final class ReviewFlowTests: XCTestCase {
+final class ReviewFlowTests: DesktopTestCase {
     private var harnesses: [Harness] = []
 
     override func tearDown() async throws {

@@ -125,21 +125,35 @@ public func startOfLocalDay(_ ms: Int, calendar: Calendar = .current) -> Int {
     return Int(calendar.startOfDay(for: date).timeIntervalSince1970 * 1000)
 }
 
-/// 今天 / 明天 / 昨天 / 周日 (within a week either way) / 10月3日, relative to
-/// the local day of `now`.
-public func relativeDayLabel(dayStart: Int, now: Int, calendar: Calendar = .current) -> String {
+private let WEEKDAY_NAMES: [UILanguage: [String]] = [
+    .zh: ["周日", "周一", "周二", "周三", "周四", "周五", "周六"],
+    .en: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+]
+
+private let MONTH_NAMES_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+/// 今天 / 明天 / 昨天 / 周日 (within a week either way) / 10月3日 — "Today", "Tomorrow", "Yesterday",
+/// "Sunday", "Oct 3" in English — relative to the local day of `now`.
+public func relativeDayLabel(
+    dayStart: Int, now: Int, calendar: Calendar = .current, lang: UILanguage = .current
+) -> String {
     let today = Date(timeIntervalSince1970: Double(startOfLocalDay(now, calendar: calendar)) / 1000)
     let day = Date(timeIntervalSince1970: Double(dayStart) / 1000)
     let offset = calendar.dateComponents([.day], from: today, to: day).day ?? 0
     switch offset {
-    case 0: return "今天"
-    case 1: return "明天"
-    case -1: return "昨天"
+    case 0: return t(.today, lang: lang)
+    case 1: return t(.tomorrow, lang: lang)
+    case -1: return t(.yesterday, lang: lang)
     case (-6)...(-2), 2...6:
-        let names = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
+        let names = WEEKDAY_NAMES[lang] ?? []
         return names[(calendar.component(.weekday, from: day) - 1) % 7]
     default:
         let parts = calendar.dateComponents([.month, .day], from: day)
-        return "\(parts.month ?? 1)月\(parts.day ?? 1)日"
+        let month = parts.month ?? 1
+        let dayOfMonth = parts.day ?? 1
+        switch lang {
+        case .zh: return "\(month)月\(dayOfMonth)日"
+        case .en: return "\(MONTH_NAMES_EN[(month - 1) % 12]) \(dayOfMonth)"
+        }
     }
 }

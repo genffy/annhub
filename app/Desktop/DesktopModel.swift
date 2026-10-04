@@ -42,7 +42,7 @@ enum ReviewReminderNotifier {
             guard granted else { return }
             let content = UNMutableNotificationContent()
             content.title = "AnnHub"
-            content.body = "到了复习的时间，打开 AnnHub 查看今天的复习。"
+            content.body = t(.reminderBody)
             var when = DateComponents()
             when.hour = reminder.hour
             when.minute = reminder.minute
@@ -154,7 +154,7 @@ final class DesktopModel: ObservableObject {
                     path: directory.appending(path: "desktop-fragment-store.sqlite").path, deviceId: deviceId
                 )
             } catch {
-                storeError = "无法打开本地数据库：\(error.localizedDescription)"
+                storeError = t(.storeOpenFailed, ["error": error.localizedDescription])
                 store = (try? FragmentStore(inMemoryDeviceId: deviceId))!
             }
         }
@@ -217,7 +217,7 @@ final class DesktopModel: ObservableObject {
 
     /// `--annhub-section` / `--annhub-palette`: where a screenshot or an E2E run starts.
     private func applyInitialUIState() {
-        if let name = config.initialSection, let match = DesktopSection.allCases.first(where: { $0.slug == name }) {
+        if let name = config.initialSection, let match = DesktopSection(rawValue: name) {
             selectedSection = match
         }
         if let query = config.initialPaletteQuery {
@@ -287,10 +287,10 @@ final class DesktopModel: ObservableObject {
     var hubState: String {
         if let storeError { return storeError }
         switch hubStatus {
-        case .idle: return "未启动"
-        case .starting: return "启动中…"
+        case .idle: return t(.hubNotStarted)
+        case .starting: return t(.hubStarting)
         case .ready(let port): return "127.0.0.1:\(port)"
-        case .failed(let message): return "启动失败：\(message)"
+        case .failed(let failure): return t(.hubFailed, ["error": failure.message()])
         }
     }
 
@@ -369,7 +369,7 @@ final class DesktopModel: ObservableObject {
         while var live = session, live.cursor < live.fragmentIds.count {
             let id = live.fragmentIds[live.cursor]
             if fragments.contains(where: { $0.id == id }) { break }
-            live.skipped.append(ReviewSessionSkip(fragmentId: id, reason: "碎片已删除"))
+            live.skipped.append(ReviewSessionSkip(fragmentId: id, reason: t(.skipDeleted)))
             live.cursor += 1
             session = live
             skippedAny = true
@@ -538,7 +538,7 @@ final class DesktopModel: ObservableObject {
         // Fragment deleted in another window: skip, do not crash the session.
         let existing: FragmentRecord? = (try? store.getFragment(id: id)) ?? nil
         guard existing != nil else {
-            skipCurrent(reason: "碎片已删除")
+            skipCurrent(reason: t(.skipDeleted))
             return false
         }
         do {
@@ -649,13 +649,13 @@ final class DesktopModel: ObservableObject {
     var attentionItems: [String] {
         var items: [String] = []
         if hubFailed {
-            items.append("本地服务没有启动（\(hubState)）")
+            items.append(t(.attentionHubDown, ["state": hubState]))
         }
         if missingAttachmentCount > 0 {
-            items.append("有 \(missingAttachmentCount) 张图片尚未到达，扩展重试后会补上")
+            items.append(t(.attentionMissingImages, ["count": missingAttachmentCount]))
         }
         if let last = recentDeliveries.last, last.status == 401 {
-            items.append("最近一次写入被拒绝：扩展里的配对码与这里不一致，请重新输入")
+            items.append(t(.attentionRejected))
         }
         return items
     }

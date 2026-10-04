@@ -5,7 +5,7 @@ import AnnHubCore
 import XCTest
 
 @MainActor
-final class DesktopModelHubTests: XCTestCase {
+final class DesktopModelHubTests: DesktopTestCase {
     private var harnesses: [Harness] = []
 
     override func tearDown() async throws {
@@ -34,6 +34,33 @@ final class DesktopModelHubTests: XCTestCase {
     func testWithDataTheDefaultPageIsToday() throws {
         let h = try harness([try makeRecord()])
         XCTAssertEqual(h.model.section, .today)
+    }
+
+    // ── the system language (D-15) ───────────────────────────────────────
+
+    func testTheServiceStateAndTheThingsToAttendToFollowTheSystemLanguage() async throws {
+        let h = try harness()
+        XCTAssertEqual(h.model.hubState, "未启动")
+        speaking("en") { XCTAssertEqual(h.model.hubState, "Not started") }
+
+        let failed = try harness(storeError: "无法打开本地数据库：disk I/O error")
+        XCTAssertEqual(failed.model.attentionItems.first, "本地服务没有启动（无法打开本地数据库：disk I/O error）")
+
+        // A port that is taken: the reason is a state, the words come from the language in force.
+        let first = try harness()
+        let occupied = try await first.startHub()
+        let second = try harness(config: DesktopLaunchConfig(port: occupied.port, notificationsEnabled: false))
+        second.model.startHub()
+        let down = await waitUntil { second.model.hubFailed }
+        XCTAssertTrue(down)
+        XCTAssertTrue(second.model.hubState.contains("端口 \(occupied.port) 已被占用"), second.model.hubState)
+        speaking("en") {
+            XCTAssertTrue(
+                second.model.hubState.contains("Port \(occupied.port) is already in use"), second.model.hubState)
+            XCTAssertTrue(
+                second.model.attentionItems.contains { $0.hasPrefix("The local service did not start") },
+                "\(second.model.attentionItems)")
+        }
     }
 
     // ── the heart of it: a delivery shows up with nobody touching the app ─

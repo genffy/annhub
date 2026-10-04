@@ -40,6 +40,7 @@ export interface DesktopState {
   resumeCursor?: number
   resumeTotal?: number
   hub: string
+  language: 'zh' | 'en'
   paletteVisible: boolean
   reviewSheetPresented: boolean
   recentDeliveryStatuses: number[]
@@ -56,6 +57,12 @@ export interface StartOptions {
   port?: number
   /** Open the main window like a normal launch (default: menu bar only). */
   window?: boolean
+  /**
+   * The interface language (default zh). The Desktop follows the system language (D-15); the suite
+   * pins one through the override the app provides for tests, so what it types into the palette
+   * does not depend on the language of the Mac it runs on.
+   */
+  language?: 'zh' | 'en'
   /**
    * Extension ids the hub serves besides the published one. The unpacked build under test has a
    * different id, and the Desktop refuses any browser origin that is not allowed (storage.md §8).
@@ -103,7 +110,10 @@ export class RunningDesktop {
       ...(options.extensionIds ?? []).map(id => `--annhub-allow-extension=${id}`),
       ...(options.window ? [] : ['--annhub-no-window']),
     ]
-    const child = spawn(path.join(app, 'Contents/MacOS/AnnHubDesktop'), args, { stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(path.join(app, 'Contents/MacOS/AnnHubDesktop'), args, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...process.env, ANNHUB_UI_LANGUAGE: options.language ?? 'zh' },
+    })
     const captured = { text: '' }
     child.stdout?.on('data', chunk => (captured.text += String(chunk)))
     child.stderr?.on('data', chunk => (captured.text += String(chunk)))

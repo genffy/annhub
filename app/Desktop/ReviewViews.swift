@@ -50,27 +50,27 @@ struct ReviewSessionView: View {
             HStack {
                 Text("\(kindLabel(fragment.kind)) \(index)/\(total)").foregroundStyle(.secondary)
                 if usedHint {
-                    Label("已用提示", systemImage: "lightbulb")
+                    Label(t(.hintUsed), systemImage: "lightbulb")
                         .font(.caption).foregroundStyle(.orange)
                 }
                 Spacer()
-                Button("跳过") { model.skipCard(reason: "手动跳过") }
-                Button("结束") { dismiss() }
+                Button(t(.skip)) { model.skipCard(reason: t(.skipManual)) }
+                Button(t(.end)) { dismiss() }
             }
 
             // 题面（按 kind 的默认题型，desktop.md §5.2）
             VStack(alignment: .leading, spacing: 10) {
                 Text(spec.question).font(.title2.bold())
-                Text("主题：\(String(fragment.content.prefix(40)))")
+                Text(t(.topicLine, ["topic": String(fragment.content.prefix(40))]))
                     .font(.footnote).foregroundStyle(.secondary)
                 if fragment.kind == "visual" {
-                    Text("先回忆，再揭示查看文字描述与截图。")
+                    Text(t(.promptVisual))
                         .font(.footnote).foregroundStyle(.secondary)
                 } else if fragment.kind == "media-clip" {
-                    Text("先回忆要点与时间定位，再揭示核对转写。")
+                    Text(t(.promptMedia))
                         .font(.footnote).foregroundStyle(.secondary)
                 } else {
-                    Text("先自己作答，再点「揭示」")
+                    Text(t(.promptDefault))
                         .font(.footnote).foregroundStyle(.secondary)
                 }
             }
@@ -88,7 +88,7 @@ struct ReviewSessionView: View {
                         .scaledToFit()
                         .frame(maxHeight: 180)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
-                    Text("图片已遮挡")
+                    Text(t(.imageHidden))
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }
@@ -105,7 +105,7 @@ struct ReviewSessionView: View {
                         Button {
                             model.revealCard()
                         } label: {
-                            Text("揭示").bold()
+                            Text(t(.reveal)).bold()
                         }
                         .buttonStyle(.borderedProminent)
                         .keyboardShortcut(.defaultAction)
@@ -120,12 +120,11 @@ struct ReviewSessionView: View {
         }
     }
 
-    /// "提示 0/4" before the first rung, then "再给一级提示", then "提示 4/4".
+    /// "Hint 0/4" before the first rung, then "One more hint", then "Hint 4/4".
     private var hintButtonTitle: String {
         switch hintLevel {
-        case 0: return "提示 0/\(REVIEW_HINT_LEVELS)"
-        case REVIEW_HINT_LEVELS: return "提示 \(REVIEW_HINT_LEVELS)/\(REVIEW_HINT_LEVELS)"
-        default: return "再给一级提示"
+        case 0, REVIEW_HINT_LEVELS: return t(.hintProgress, ["level": hintLevel, "max": REVIEW_HINT_LEVELS])
+        default: return t(.nextHint)
         }
     }
 
@@ -135,7 +134,7 @@ struct ReviewSessionView: View {
         VStack(alignment: .leading, spacing: 10) {
             ForEach(reviewHints(upTo: hintLevel, for: fragment), id: \.level) { hint in
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("提示 \(hint.level)/\(REVIEW_HINT_LEVELS) · \(hint.title)")
+                    Text(t(.hintHeading, ["level": hint.level, "max": REVIEW_HINT_LEVELS, "title": hint.title]))
                         .font(.caption.bold()).foregroundStyle(.secondary)
                     Text(hint.text).font(.callout).textSelection(.enabled)
                     if let assetId = hint.assetId {
@@ -146,7 +145,7 @@ struct ReviewSessionView: View {
                                 .frame(maxHeight: 160)
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
                         } else {
-                            Label("附件缺失，待重试", systemImage: "exclamationmark.triangle")
+                            Label(t(.attachmentMissing), systemImage: "exclamationmark.triangle")
                                 .font(.caption).foregroundStyle(.orange)
                         }
                     }
@@ -166,10 +165,10 @@ struct ReviewSessionView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(fragment.content).font(.headline)
             if let guess = fragment.processing.guess, !guess.isEmpty {
-                Text("你的理解：\(guess)")
+                Text(t(.yourUnderstanding, ["content": guess]))
             }
             Text(verificationLine(fragment)).foregroundStyle(.secondary)
-            Text("你的应用：\(fragment.processing.use)")
+            Text(t(.yourUse, ["use": fragment.processing.use]))
             ForEach(kindDetailFields(fragment), id: \.label) { field in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(field.label).font(.caption).foregroundStyle(.secondary)
@@ -193,12 +192,12 @@ struct ReviewSessionView: View {
                         .frame(maxHeight: 160)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                 } else {
-                    Label("附件缺失，待重试", systemImage: "exclamationmark.triangle")
+                    Label(t(.attachmentMissing), systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange)
                 }
             }
             if let url = URL(string: fragment.context.sourceUrl) {
-                Link("回到来源：\(fragment.context.sourceHost)", destination: url)
+                Link(t(.backToSource, ["host": fragment.context.sourceHost]), destination: url)
                     .font(.callout)
             }
         }
@@ -209,10 +208,10 @@ struct ReviewSessionView: View {
     }
 
     private func verificationLine(_ fragment: FragmentRecord) -> String {
-        guard let verified = fragment.processing.verified else { return "核验：未确认" }
-        var line = "核验：已确认，来源：\(verifiedSourceLabel(verified.source))"
+        guard let verified = fragment.processing.verified else { return t(.verificationNotConfirmed) }
+        var line = t(.verificationLine, ["source": verifiedSourceLabel(verified.source)])
         if let summary = verified.summary, !summary.isEmpty {
-            line += "；摘要：\(summary)"
+            line += t(.verificationLineSummary, ["summary": summary])
         }
         return line
     }
@@ -226,8 +225,10 @@ struct ReviewSessionView: View {
                 } label: {
                     VStack {
                         Text("\(idx + 1) \(label(rating))")
-                        Text("\(previewInterval(fragment.review, rating: rating, now: nowMs())) 天")
-                            .font(.caption).foregroundStyle(.secondary)
+                        Text(
+                            t(.intervalDays, ["count": previewInterval(fragment.review, rating: rating, now: nowMs())])
+                        )
+                        .font(.caption).foregroundStyle(.secondary)
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -247,29 +248,29 @@ struct ReviewSessionView: View {
         return VStack(spacing: 14) {
             Spacer()
             if let wrap = model.wrapUp {
-                Text("这一轮完成了").font(.title2.bold())
-                Text("已评分 \(wrap.rated) 条 / 其中 \(wrap.usedHint) 条用过提示 / \(wrap.again) 条「再来一次」")
+                Text(t(.wrapTitle)).font(.title2.bold())
+                Text(t(.wrapRated, ["rated": wrap.rated, "hint": wrap.usedHint, "again": wrap.again]))
                 if wrap.skipped > 0 {
-                    Text("跳过 \(wrap.skipped) 条（碎片已删除或手动跳过）")
+                    Text(t(.wrapSkipped, ["count": wrap.skipped]))
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Text(upcomingLine(wrap)).foregroundStyle(.secondary)
             } else {
-                Text("今天没有到期复习").font(.title3)
+                Text(t(.noDueToday)).font(.title3)
             }
             if plan.limitReached {
-                Text("建议量 \(plan.ratedToday) / \(plan.dailyLimit)；还有 \(plan.due.count) 条到期，保留原到期时间，明天继续")
+                Text(t(.limitReached, ["rated": plan.ratedToday, "limit": plan.dailyLimit, "due": plan.due.count]))
                     .font(.callout).foregroundStyle(.secondary)
             }
             HStack(spacing: 12) {
-                Button("回到今日") {
+                Button(t(.backToToday)) {
                     model.wrapUp = nil
                     dismiss()
                 }
                 if plan.limitReached {
-                    Button("再来一轮（超出建议量）") { startRound(overflow: true) }
+                    Button(t(.extraRound)) { startRound(overflow: true) }
                 } else if !plan.suggested.isEmpty {
-                    Button("继续下一会话（还有 \(plan.due.count) 条到期）") { startRound(overflow: false) }
+                    Button(t(.continueNext, ["due": plan.due.count])) { startRound(overflow: false) }
                         .buttonStyle(.borderedProminent)
                 }
             }
@@ -279,10 +280,12 @@ struct ReviewSessionView: View {
     }
 
     private func upcomingLine(_ wrap: SessionWrapUp) -> String {
-        guard !wrap.upcoming.isEmpty else { return "下一批到期：暂无" }
+        guard !wrap.upcoming.isEmpty else { return t(.upcomingNone) }
         let now = nowMs()
-        let parts = wrap.upcoming.map { "\(relativeDayLabel(dayStart: $0.dayStart, now: now)) \($0.count) 条" }
-        return "下一批到期：" + parts.joined(separator: " / ")
+        let parts = wrap.upcoming.map {
+            t(.upcomingPart, ["day": relativeDayLabel(dayStart: $0.dayStart, now: now), "count": $0.count])
+        }
+        return t(.upcomingLine, ["parts": parts.joined(separator: " / ")])
     }
 
     private func startRound(overflow: Bool) {
@@ -291,10 +294,10 @@ struct ReviewSessionView: View {
 
     private func label(_ r: ReviewRating) -> String {
         switch r {
-        case .again: return "再来一次";
-        case .hard: return "较难";
-        case .good: return "良好";
-        case .easy: return "容易"
+        case .again: return t(.ratingAgain)
+        case .hard: return t(.ratingHard)
+        case .good: return t(.ratingGood)
+        case .easy: return t(.ratingEasy)
         }
     }
 

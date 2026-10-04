@@ -49,11 +49,26 @@ enum HubResponseWriter {
 }
 
 public final class HubServer: @unchecked Sendable {
+    /// Why the listener is not up. A reason, not a sentence: the interface words it, in the
+    /// language the user reads.
+    public enum Failure: Equatable, Sendable {
+        case portInUse(UInt16)
+        /// The system's own description of what went wrong.
+        case other(String)
+
+        public func message(lang: UILanguage = .current) -> String {
+            switch self {
+            case .portInUse(let port): return t(.hubPortInUse, ["port": Int(port)], lang: lang)
+            case .other(let description): return description
+            }
+        }
+    }
+
     public enum State: Equatable, Sendable {
         case idle
         case starting
         case ready(port: UInt16)
-        case failed(String)
+        case failed(Failure)
 
         public var isReady: Bool {
             if case .ready = self { return true }
@@ -227,11 +242,11 @@ public final class HubServer: @unchecked Sendable {
     fileprivate var requestDeadline: TimeInterval { limits.requestDeadline }
     fileprivate var connectionQueue: DispatchQueue { queue }
 
-    static func describe(_ error: Error, port: UInt16) -> String {
+    static func describe(_ error: Error, port: UInt16) -> Failure {
         if let error = error as? NWError, case .posix(let code) = error, code == .EADDRINUSE {
-            return "端口 \(port) 已被占用（另一个 AnnHub 或其他程序在使用）"
+            return .portInUse(port)
         }
-        return error.localizedDescription
+        return .other(error.localizedDescription)
     }
 }
 

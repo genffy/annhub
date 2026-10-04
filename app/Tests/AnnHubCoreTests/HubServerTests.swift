@@ -482,13 +482,16 @@ final class HubServerSocketTests: XCTestCase {
         defer { second.stop() }
 
         let deadline = Date().addingTimeInterval(5)
-        var failure: String?
+        var failure: HubServer.Failure?
         while Date() < deadline, failure == nil {
-            if case .failed(let message) = second.state { failure = message }
+            if case .failed(let reason) = second.state { failure = reason }
             Thread.sleep(forTimeInterval: 0.02)
         }
-        let message = try XCTUnwrap(failure, "binding an occupied port must surface as a failure")
-        XCTAssertTrue(message.contains("\(first.port)"), message)
+        let reason = try XCTUnwrap(failure, "binding an occupied port must surface as a failure")
+        XCTAssertEqual(reason, .portInUse(first.port), "a reason the interface can word, not a sentence")
+        XCTAssertTrue(reason.message(lang: .zh).contains("端口 \(first.port) 已被占用"), reason.message(lang: .zh))
+        XCTAssertTrue(
+            reason.message(lang: .en).contains("Port \(first.port) is already in use"), reason.message(lang: .en))
         XCTAssertFalse(second.state.isReady)
         // The first hub is unaffected.
         XCTAssertTrue(first.server.state.isReady)

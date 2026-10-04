@@ -41,13 +41,13 @@ struct DesktopCommands: Commands {
     var body: some Commands {
         // There is one main window and no documents.
         CommandGroup(replacing: .newItem) {}
-        CommandMenu("前往") {
+        CommandMenu(t(.menuGo)) {
             ForEach(DesktopSection.allCases) { section in
-                Button(section.rawValue) { model.go(section) }
+                Button(section.title) { model.go(section) }
                     .keyboardShortcut(section.shortcut, modifiers: .command)
             }
             Divider()
-            Button("搜索与命令…") { model.paletteVisible = true }
+            Button(t(.searchAndCommandsMenu)) { model.paletteVisible = true }
                 .keyboardShortcut("k", modifiers: .command)
         }
     }
@@ -106,26 +106,26 @@ struct MenuBarPanel: View {
 
     /// 最近扩展交付状态 (desktop.md §7): the latest per-item write and its result.
     private var lastDeliveryLabel: String {
-        guard let last = model.recentDeliveries.last else { return "暂无" }
-        let result = last.status < 300 ? "已接收" : "被拒绝（\(last.status)）"
+        guard let last = model.recentDeliveries.last else { return t(.noneYet) }
+        let result = last.status < 300 ? t(.received) : t(.rejectedStatus, ["status": last.status])
         return "\(result) · \(relativeAgo(last.at))"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("AnnHub").font(.headline)
-            LabeledContent("本地服务") {
-                Text(model.hubListening ? "运行中 · \(model.hubState)" : model.hubState)
+            LabeledContent(t(.localService)) {
+                Text(model.hubListening ? t(.serviceRunningState, ["state": model.hubState]) : model.hubState)
             }
-            LabeledContent("到期复习") { Text("\(model.dailyPlan.due.count)") }
-            LabeledContent("最近交付") { Text(lastDeliveryLabel) }
-            LabeledContent("最近连接") {
-                Text(model.lastConnectionAt.map(relativeAgo) ?? "暂无")
+            LabeledContent(t(.dueReviews)) { Text("\(model.dailyPlan.due.count)") }
+            LabeledContent(t(.sectionDelivery)) { Text(lastDeliveryLabel) }
+            LabeledContent(t(.lastConnection)) {
+                Text(model.lastConnectionAt.map(relativeAgo) ?? t(.noneYet))
             }
             Divider()
-            Button("打开主窗口") { MainWindowController.shared.show(model: model) }
-            Button("偏好设置…") { AppPresence.openPreferences() }
-            Button("退出 AnnHub") { NSApp.terminate(nil) }
+            Button(t(.openMainWindow)) { MainWindowController.shared.show(model: model) }
+            Button(t(.preferences)) { AppPresence.openPreferences() }
+            Button(t(.quit)) { NSApp.terminate(nil) }
         }
         .padding(12)
         .frame(width: 300)

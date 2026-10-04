@@ -36,7 +36,7 @@ final class SavedViewTests: XCTestCase {
     func testAComfortablyScheduledCardIsInNoView() {
         let f = fragment("a", review(due: NOW + 86_400_000))
         for view in SavedView.allCases {
-            XCTAssertFalse(isInSavedView(view, fragment: f, latestRating: .good, now: NOW), view.label)
+            XCTAssertFalse(isInSavedView(view, fragment: f, latestRating: .good, now: NOW), view.label(lang: .zh))
         }
     }
 
@@ -96,6 +96,11 @@ final class SavedViewTests: XCTestCase {
         XCTAssertEqual(counts, [.new: 1, .due: 2, .needsWork: 2])
     }
 
+    func testTheViewsAreNamedInBothLanguages() {
+        XCTAssertEqual(SavedView.allCases.map { $0.label(lang: .zh) }, ["到期", "待加强", "新建"])
+        XCTAssertEqual(SavedView.allCases.map { $0.label(lang: .en) }, ["Due", "Needs work", "New"])
+    }
+
     func testViewsFollowTheStoreAfterRealRatings() throws {
         let store = try freshStore()
         for id in ["a", "b"] {
@@ -131,7 +136,7 @@ final class CommandPaletteTests: XCTestCase {
     }
 
     func testAnEmptyQueryListsTheNewestFragmentsAndEveryAvailableCommand() {
-        let results = paletteSearch("   ", fragments: library(), context: PaletteContext(dueCount: 4))
+        let results = paletteSearch("   ", fragments: library(), context: PaletteContext(dueCount: 4), lang: .zh)
         XCTAssertTrue(results.isRecent)
         XCTAssertEqual(results.fragments.map(\.id), ["f_other", "f_idem", "f_backoff", "f_retry"])
         XCTAssertTrue(results.fragments.allSatisfy { $0.matchedFields.isEmpty && $0.snippet == nil })
@@ -139,11 +144,30 @@ final class CommandPaletteTests: XCTestCase {
             results.commands.map(\.id),
             [.startReview, .goToday, .goLibrary, .goSystem, .openPreferences, .copyPairCode])
         XCTAssertEqual(results.commands.first?.detail, "4 条到期")
+        XCTAssertEqual(results.commands.map(\.title), ["开始复习", "打开今日", "打开碎片库", "打开系统页", "打开偏好设置", "复制配对码"])
+    }
+
+    func testTheCommandsSpeakTheInterfaceLanguage() {
+        let context = PaletteContext(dueCount: 4, resume: .init(cursor: 1, total: 3))
+        let english = paletteSearch("", fragments: [], context: context, lang: .en).commands
+        XCTAssertEqual(
+            english.map(\.title),
+            [
+                "Resume review", "Start review", "Open Today", "Open the Fragment library", "Open the System page",
+                "Open Settings", "Copy pairing code",
+            ])
+        XCTAssertEqual(english.map(\.detail), ["1/3", "4 due", nil, nil, nil, nil, nil])
+        // Either language finds a command by the other language's words too: the keywords carry both.
+        XCTAssertEqual(
+            paletteSearch("settings", fragments: [], context: context, lang: .zh).commands.map(\.id), [.openPreferences]
+        )
+        XCTAssertEqual(
+            paletteSearch("设置", fragments: [], context: context, lang: .en).commands.map(\.id), [.openPreferences])
     }
 
     func testEveryWordMustHitButMayLandInDifferentFields() {
         // "重试" is in f_backoff's tags/use, "幂等" in its use; both are in the 应用 text of f_backoff only.
-        let results = paletteSearch("重试 幂等", fragments: library())
+        let results = paletteSearch("重试 幂等", fragments: library(), lang: .zh)
         XCTAssertEqual(results.fragments.map(\.id), ["f_backoff"])
         XCTAssertEqual(results.totalFragments, 1)
 
@@ -163,7 +187,8 @@ final class CommandPaletteTests: XCTestCase {
     func testTheMatchedFieldsAreNamedHighestWeightFirst() throws {
         let hit = try XCTUnwrap(paletteSearch("重试", fragments: library()).fragments.first { $0.id == "f_retry" })
         XCTAssertEqual(hit.matchedFields, [.content, .use, .excerpt])
-        XCTAssertEqual(hit.matchLabel, "内容 · 应用 · 摘录")
+        XCTAssertEqual(hit.matchLabel(lang: .zh), "内容 · 应用 · 摘录")
+        XCTAssertEqual(hit.matchLabel(lang: .en), "Content · Application · Excerpt")
 
         let viaTag = try XCTUnwrap(paletteSearch("retry", fragments: library()).fragments.first)
         XCTAssertEqual(viaTag.id, "f_backoff")
@@ -192,7 +217,7 @@ final class CommandPaletteTests: XCTestCase {
 
     func testCommandsAppearOnlyWhenTheyCanRun() {
         let none = paletteSearch("", fragments: [], context: PaletteContext(dueCount: 0))
-        XCTAssertFalse(none.commands.contains { $0.id == .startReview }, "no due fragments, no 开始复习")
+        XCTAssertFalse(none.commands.contains { $0.id == .startReview }, "no due fragments, no start-review command")
         XCTAssertFalse(none.commands.contains { $0.id == .resumeReview })
 
         let resumable = paletteSearch(
@@ -205,7 +230,7 @@ final class CommandPaletteTests: XCTestCase {
     func testCommandsAreFoundByTheirNameOrAKeyword() {
         let context = PaletteContext(dueCount: 5)
         func ids(_ query: String) -> [PaletteCommandID] {
-            paletteSearch(query, fragments: [], context: context).commands.map(\.id)
+            paletteSearch(query, fragments: [], context: context, lang: .zh).commands.map(\.id)
         }
         XCTAssertEqual(ids("复习"), [.startReview])
         XCTAssertEqual(ids("settings"), [.openPreferences])
@@ -220,7 +245,7 @@ final class CommandPaletteTests: XCTestCase {
     func testTheKeyboardOrderIsFragmentsThenCommandsWithUniqueIds() {
         // "复习" finds a fragment and the 开始复习 command.
         let fragments = library() + [makeFragment(id: "f_srs", content: "间隔复习", createdAt: NOW)]
-        let results = paletteSearch("复习", fragments: fragments, context: PaletteContext(dueCount: 2))
+        let results = paletteSearch("复习", fragments: fragments, context: PaletteContext(dueCount: 2), lang: .zh)
         XCTAssertEqual(results.fragments.map(\.id), ["f_srs"])
         XCTAssertEqual(results.commands.map(\.id), [.startReview])
         let items = results.items
@@ -241,19 +266,23 @@ final class CommandPaletteTests: XCTestCase {
 
     func testSearchFieldsKeepTheContractWeights() {
         XCTAssertEqual(SearchField.allCases.map(\.weight), [5, 4, 4, 4, 3, 2, 1, 1, 1])
-        XCTAssertEqual(SearchField.content.label, "内容")
-        XCTAssertEqual(SearchField.sourceHost.label, SearchField.sourceUrl.label)
+        XCTAssertEqual(SearchField.content.label(lang: .zh), "内容")
+        XCTAssertEqual(SearchField.content.label(lang: .en), "Content")
+        XCTAssertEqual(SearchField.guess.label(lang: .en), "Understanding")
+        for lang in UILanguage.allCases {
+            XCTAssertEqual(SearchField.sourceHost.label(lang: lang), SearchField.sourceUrl.label(lang: lang))
+        }
     }
 }
 
 // ── the kind-specific detail block ───────────────────────────────────────
 
 final class KindDetailTests: XCTestCase {
-    private func fields(_ kind: String, detail: WireValue, excerpt: String = "e", tags: [String] = []) -> [String:
-        [String]]
-    {
+    private func fields(
+        _ kind: String, detail: WireValue, excerpt: String = "e", tags: [String] = [], lang: UILanguage = .zh
+    ) -> [String: [String]] {
         let f = makeFragment(kind: kind, content: "c", excerpt: excerpt + " c", detail: detail, tags: tags)
-        return Dictionary(uniqueKeysWithValues: kindDetailFields(f).map { ($0.label, $0.lines) })
+        return Dictionary(uniqueKeysWithValues: kindDetailFields(f, lang: lang).map { ($0.label, $0.lines) })
     }
 
     func testProcedureShowsNumberedStepsPrerequisitesAndFailureModes() {
@@ -262,8 +291,8 @@ final class KindDetailTests: XCTestCase {
             detail: wireObject(
                 ("steps", wireStrings(["确认影响", "限制扩散"])), ("prerequisites", wireStrings(["值班权限"])),
                 ("failureModes", wireStrings(["过早重启"]))))
-        let result = kindDetailFields(f)
-        XCTAssertEqual(result.map(\.label), ["步骤", "前置条件", "失败条件"])
+        let result = kindDetailFields(f, lang: .zh)
+        XCTAssertEqual(result.map(\.label), ["步骤", "适用条件", "失败模式"])
         XCTAssertTrue(result[0].numbered)
         XCTAssertEqual(result[0].lines, ["确认影响", "限制扩散"])
         XCTAssertFalse(result[1].numbered)
@@ -282,14 +311,14 @@ final class KindDetailTests: XCTestCase {
                 "question",
                 detail: wireObject(
                     ("status", .string("answered")), ("answer", .string("会")), ("evidence", wireStrings(["a", "b"])))),
-            ["状态": ["已回答"], "证据": ["a", "b"], "答案": ["会"]])
+            ["状态": ["已回答"], "证据": ["a", "b"], "结论": ["会"]])
         XCTAssertEqual(
             fields(
                 "decision",
                 detail: wireObject(
                     ("rationale", .string("复杂度")), ("alternatives", wireStrings(["共享文件"])),
                     ("consequences", wireStrings(["无协作"])))),
-            ["理由": ["复杂度"], "备选方案": ["共享文件"], "后果": ["无协作"]])
+            ["决策理由": ["复杂度"], "备选项": ["共享文件"], "后果": ["无协作"]])
     }
 
     func testConceptAndExcerptAndInspirationAndMediaClip() {
@@ -301,12 +330,12 @@ final class KindDetailTests: XCTestCase {
                     ("examples", wireStrings(["例"])),
                     ("counterExamples", wireStrings(["反例"])))),
             ["定义": ["定义"], "适用边界": ["边界"], "示例": ["例"], "反例": ["反例"]])
-        XCTAssertEqual(fields("excerpt", detail: wireObject(("note", .string("为何保留")))), ["备注": ["为何保留"]])
+        XCTAssertEqual(fields("excerpt", detail: wireObject(("note", .string("为何保留")))), ["注释": ["为何保留"]])
         let inspiration = makeFragment(
             kind: "inspiration", content: "提醒应让我看见判断的变化", excerpt: "提醒应让我看见判断的变化 — 设计今日页时发现任务计数不够",
             detail: wireObject(("form", .string("reflection"))))
         XCTAssertEqual(
-            kindDetailFields(inspiration),
+            kindDetailFields(inspiration, lang: .zh),
             [
                 KindDetailField(label: "形式", lines: ["随感"]),
                 KindDetailField(label: "触发背景", lines: ["设计今日页时发现任务计数不够"]),
@@ -315,6 +344,34 @@ final class KindDetailTests: XCTestCase {
             fields(
                 "media-clip", detail: wireObject(("startMs", .int(65_000)), ("endMs", .int(130_000))), excerpt: "转写"),
             ["时间区间": ["01:05 – 02:10"], "转写节选": ["转写 c"]])
+    }
+
+    func testTheFieldNamesFollowTheInterfaceLanguageAndTheCaptureForm() {
+        XCTAssertEqual(
+            fields(
+                "procedure",
+                detail: wireObject(
+                    ("steps", wireStrings(["a"])), ("prerequisites", wireStrings(["b"])),
+                    ("failureModes", wireStrings(["c"]))), lang: .en),
+            ["Steps": ["a"], "Preconditions": ["b"], "Failure modes": ["c"]])
+        XCTAssertEqual(
+            fields(
+                "claim", detail: wireObject(("stance", .string("uncertain")), ("evidence", wireStrings(["d"]))),
+                lang: .en),
+            ["Stance": ["Uncertain"], "Evidence": ["d"]])
+        XCTAssertEqual(
+            fields(
+                "question", detail: wireObject(("status", .string("testing")), ("hypothesis", .string("h"))),
+                lang: .en),
+            ["Status": ["Testing"], "Current hypothesis": ["h"]])
+        XCTAssertEqual(
+            fields(
+                "decision", detail: wireObject(("rationale", .string("r")), ("alternatives", wireStrings(["x"]))),
+                lang: .en),
+            ["Rationale": ["r"], "Alternatives": ["x"]])
+        XCTAssertEqual(
+            fields("media-clip", detail: wireObject(("startMs", .int(1_000)), ("endMs", .int(2_000))), lang: .en),
+            ["Time range": ["00:01 – 00:02"], "Transcript excerpt": ["e c"]])
     }
 
     func testEmptyValuesAreLeftOutAndVisualHasNoFieldBlock() {

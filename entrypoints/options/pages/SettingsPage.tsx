@@ -61,6 +61,9 @@ function DesktopConnectionCard() {
   const [autoSync, setAutoSync] = useState(false)
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  // Saving sends the whole form, so it waits until the stored settings have been asked for: before
+  // that the endpoint field is still empty and a quick save would be refused as an invalid URL.
+  const [asked, setAsked] = useState(false)
 
   const load = useCallback(async () => {
     const response = await MessageUtils.sendMessage<DirectConnectBlock>({ type: 'GET_DESKTOP_DIRECT_CONNECT' })
@@ -69,6 +72,7 @@ function DesktopConnectionCard() {
       setEndpoint(response.data.config.endpoint)
       setAutoSync(response.data.config.autoSync)
     }
+    setAsked(true)
   }, [])
 
   useEffect(() => {
@@ -212,7 +216,7 @@ function DesktopConnectionCard() {
         )}
         {message && <StatusMessage tone={message.kind === 'success' ? 'success' : 'error'}>{message.text}</StatusMessage>}
         <div className="flex gap-2">
-          <button className="rounded-md bg-ann-accent px-4 py-2 text-sm text-ann-on-accent disabled:opacity-50" onClick={save} disabled={busy}>
+          <button className="rounded-md bg-ann-accent px-4 py-2 text-sm text-ann-on-accent disabled:opacity-50" onClick={save} disabled={busy || !asked}>
             {uiText('settings.desktop.save')}
           </button>
           <button

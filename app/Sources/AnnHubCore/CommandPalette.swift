@@ -5,7 +5,9 @@
 //  - every search word must hit, in any field; the hit fields are named next to the result
 //  - fragments rank by the contract (content 5 … sourceHost/Url/excerpt 1; createdAt desc,
 //    id asc); Highlights, Clips and screenshot sets never appear here
-//  - a command appears only when it can run: no due fragments, no 开始复习
+//  - a command appears only when it can run: no due fragments, no "start review"
+//  - titles and field names are in the interface language; a command is also found by its
+//    English keywords and by the Chinese words that name it, whichever language is showing
 
 import Foundation
 
@@ -24,10 +26,10 @@ public struct PaletteFragmentHit: Equatable, Identifiable, Sendable {
         self.snippet = snippet
     }
 
-    /// "内容 · 标签" — the labels once each, in rank order.
-    public var matchLabel: String? {
+    /// "Content · Tags" — the labels once each, in rank order.
+    public func matchLabel(lang: UILanguage = .current) -> String? {
         var seen = Set<String>()
-        let labels = matchedFields.map(\.label).filter { seen.insert($0).inserted }
+        let labels = matchedFields.map { $0.label(lang: lang) }.filter { seen.insert($0).inserted }
         return labels.isEmpty ? nil : labels.joined(separator: " · ")
     }
 }
@@ -45,9 +47,9 @@ public enum PaletteCommandID: String, CaseIterable, Sendable {
 public struct PaletteCommand: Equatable, Identifiable, Sendable {
     public var id: PaletteCommandID
     public var title: String
-    /// Right-aligned remark: "5 条到期", "2/5".
+    /// Right-aligned remark: "5 due", "2/5".
     public var detail: String?
-    /// Extra words that find it ("settings" finds 偏好设置).
+    /// Extra words that find it ("settings" finds the preferences command in either language).
     var keywords: [String]
 
     public init(id: PaletteCommandID, title: String, detail: String? = nil, keywords: [String] = []) {
@@ -112,14 +114,15 @@ public struct PaletteResults: Equatable, Sendable {
     }
 }
 
-/// How many fragments the palette lists before "还有 N 条".
+/// How many fragments the palette lists before "N more".
 public let PALETTE_FRAGMENT_LIMIT = 8
 
 public func paletteSearch(
     _ query: String,
     fragments: [FragmentRecord],
     context: PaletteContext = PaletteContext(),
-    fragmentLimit: Int = PALETTE_FRAGMENT_LIMIT
+    fragmentLimit: Int = PALETTE_FRAGMENT_LIMIT,
+    lang: UILanguage = .current
 ) -> PaletteResults {
     let words = normalizeContent(query).split(whereSeparator: { $0.isWhitespace }).map(String.init)
     let recent = words.isEmpty
@@ -136,31 +139,39 @@ public func paletteSearch(
     return PaletteResults(
         fragments: hits,
         totalFragments: result.total,
-        commands: availableCommands(context).filter { commandMatches($0, words: words) },
+        commands: availableCommands(context, lang: lang).filter { commandMatches($0, words: words) },
         isRecent: recent
     )
 }
 
 /// The commands that can run in this context, in the order the palette lists them.
-func availableCommands(_ context: PaletteContext) -> [PaletteCommand] {
+func availableCommands(_ context: PaletteContext, lang: UILanguage = .current) -> [PaletteCommand] {
     var commands: [PaletteCommand] = []
     if let resume = context.resume {
         commands.append(
             PaletteCommand(
-                id: .resumeReview, title: "继续复习", detail: "\(resume.cursor)/\(resume.total)",
-                keywords: ["review", "resume"]))
+                id: .resumeReview, title: t(.paletteResume, lang: lang), detail: "\(resume.cursor)/\(resume.total)",
+                keywords: ["review", "resume", "复习", "继续"]))
     }
     if context.dueCount > 0 {
         commands.append(
             PaletteCommand(
-                id: .startReview, title: "开始复习", detail: "\(context.dueCount) 条到期", keywords: ["review", "start"]))
+                id: .startReview, title: t(.startReview, lang: lang),
+                detail: t(.paletteDue, ["count": context.dueCount], lang: lang),
+                keywords: ["review", "start", "复习", "开始"]
+            ))
     }
     commands.append(contentsOf: [
-        PaletteCommand(id: .goToday, title: "打开今日", keywords: ["today", "home"]),
-        PaletteCommand(id: .goLibrary, title: "打开碎片库", keywords: ["library", "fragments", "碎片"]),
-        PaletteCommand(id: .goSystem, title: "打开系统页", keywords: ["system", "hub", "连接"]),
-        PaletteCommand(id: .openPreferences, title: "打开偏好设置", keywords: ["preferences", "settings", "设置"]),
-        PaletteCommand(id: .copyPairCode, title: "复制配对码", keywords: ["pair", "token", "code", "配对"]),
+        PaletteCommand(id: .goToday, title: t(.paletteGoToday, lang: lang), keywords: ["today", "home", "今日", "今天"]),
+        PaletteCommand(
+            id: .goLibrary, title: t(.paletteGoLibrary, lang: lang), keywords: ["library", "fragments", "碎片", "碎片库"]),
+        PaletteCommand(
+            id: .goSystem, title: t(.openSystemPage, lang: lang), keywords: ["system", "hub", "连接", "系统"]),
+        PaletteCommand(
+            id: .openPreferences, title: t(.paletteOpenPreferences, lang: lang),
+            keywords: ["preferences", "settings", "设置", "偏好"]),
+        PaletteCommand(
+            id: .copyPairCode, title: t(.copyPairingCode, lang: lang), keywords: ["pair", "token", "code", "配对"]),
     ])
     return commands
 }

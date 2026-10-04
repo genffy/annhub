@@ -5,6 +5,7 @@
 // A level never shows more than its label promises, so the ladder really climbs:
 // a concept's L1 is its keywords, not its definition. L4 is the same for every kind —
 // the verification status, with the summary or, without one, the original context.
+// Everything the user reads goes through `t()`, so the ladder speaks the interface language.
 
 import Foundation
 
@@ -28,33 +29,33 @@ public struct ReviewHint: Equatable, Sendable {
 }
 
 /// The hints opened so far: levels 1...`level` (clamped to 1...4).
-public func reviewHints(upTo level: Int, for fragment: FragmentRecord) -> [ReviewHint] {
+public func reviewHints(upTo level: Int, for fragment: FragmentRecord, lang: UILanguage = .current) -> [ReviewHint] {
     guard level >= 1 else { return [] }
-    return (1...min(level, REVIEW_HINT_LEVELS)).map { reviewHint(level: $0, for: fragment) }
+    return (1...min(level, REVIEW_HINT_LEVELS)).map { reviewHint(level: $0, for: fragment, lang: lang) }
 }
 
-public func reviewHint(level: Int, for fragment: FragmentRecord) -> ReviewHint {
+public func reviewHint(level: Int, for fragment: FragmentRecord, lang: UILanguage = .current) -> ReviewHint {
     let level = min(max(level, 1), REVIEW_HINT_LEVELS)
-    let labels = reviewQuestion(for: fragment.kind).hints
+    let labels = reviewQuestion(for: fragment.kind, lang: lang).hints
     let title = labels.indices.contains(level - 1) ? labels[level - 1] : ""
     if level == REVIEW_HINT_LEVELS {
-        return ReviewHint(level: level, title: title, text: verificationHint(fragment))
+        return ReviewHint(level: level, title: title, text: verificationHint(fragment, lang: lang))
     }
     var asset: String?
     let text: String
     switch fragment.kind {
-    case "excerpt": text = excerptHint(level, fragment)
-    case "concept": text = conceptHint(level, fragment)
-    case "claim": text = claimHint(level, fragment)
-    case "procedure": text = procedureHint(level, fragment)
-    case "decision": text = decisionHint(level, fragment)
-    case "question": text = questionHint(level, fragment)
+    case "excerpt": text = excerptHint(level, fragment, lang)
+    case "concept": text = conceptHint(level, fragment, lang)
+    case "claim": text = claimHint(level, fragment, lang)
+    case "procedure": text = procedureHint(level, fragment, lang)
+    case "decision": text = decisionHint(level, fragment, lang)
+    case "question": text = questionHint(level, fragment, lang)
     case "visual":
-        text = visualHint(level, fragment)
+        text = visualHint(level, fragment, lang)
         if level == 3 { asset = fragment.attachmentIds.first }
-    case "inspiration": text = inspirationHint(level, fragment)
-    case "media-clip": text = mediaClipHint(level, fragment)
-    default: text = genericHint(level, fragment)
+    case "inspiration": text = inspirationHint(level, fragment, lang)
+    case "media-clip": text = mediaClipHint(level, fragment, lang)
+    default: text = genericHint(level, fragment, lang)
     }
     return ReviewHint(level: level, title: title, text: text, assetId: asset)
 }
@@ -62,9 +63,9 @@ public func reviewHint(level: Int, for fragment: FragmentRecord) -> ReviewHint {
 // ── shared pieces ────────────────────────────────────────────────────────
 
 /// "《Backpressure in Streams》· engineering.example.com"
-func sourceLine(_ fragment: FragmentRecord) -> String {
+func sourceLine(_ fragment: FragmentRecord, _ lang: UILanguage) -> String {
     if let title = fragment.context.sourceTitle, !title.isEmpty {
-        return "《\(title)》· \(fragment.context.sourceHost)"
+        return t(.sourceWithTitle, ["title": title, "host": fragment.context.sourceHost], lang: lang)
     }
     return fragment.context.sourceHost
 }
@@ -85,6 +86,16 @@ private func numbered(_ items: [String]) -> String {
     items.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
 }
 
+/// "Label: text" on one line, the colon and spacing of the interface language.
+private func line(_ label: UIText, _ text: String, _ lang: UILanguage) -> String {
+    t(.labeledLine, ["label": t(label, lang: lang), "text": text], lang: lang)
+}
+
+/// "Label:" and then the text on the lines below.
+private func block(_ label: UIText, _ text: String, _ lang: UILanguage) -> String {
+    t(.labeledBlock, ["label": t(label, lang: lang), "text": text], lang: lang)
+}
+
 /// The excerpt with the answer content masked; if the content never appears in it the
 /// excerpt is the surrounding context as it stands.
 private func surroundingContext(_ fragment: FragmentRecord) -> String {
@@ -93,87 +104,100 @@ private func surroundingContext(_ fragment: FragmentRecord) -> String {
 
 // ── per kind ─────────────────────────────────────────────────────────────
 
-private func genericHint(_ level: Int, _ fragment: FragmentRecord) -> String {
+private func genericHint(_ level: Int, _ fragment: FragmentRecord, _ lang: UILanguage) -> String {
     switch level {
-    case 1: return tagLine(fragment) ?? sourceLine(fragment)
-    case 2: return sourceLine(fragment)
+    case 1: return tagLine(fragment) ?? sourceLine(fragment, lang)
+    case 2: return sourceLine(fragment, lang)
     default: return fragment.context.excerpt
     }
 }
 
 /// 来源与出处 → 前后文语境 → 原文本身 → 核验确认
-private func excerptHint(_ level: Int, _ fragment: FragmentRecord) -> String {
+private func excerptHint(_ level: Int, _ fragment: FragmentRecord, _ lang: UILanguage) -> String {
     switch level {
-    case 1: return sourceLine(fragment)
+    case 1: return sourceLine(fragment, lang)
     case 2: return surroundingContext(fragment)
     default: return fragment.content
     }
 }
 
 /// 关键词 → 上下文 → 定义与示例 → 核验摘要
-private func conceptHint(_ level: Int, _ fragment: FragmentRecord) -> String {
+private func conceptHint(_ level: Int, _ fragment: FragmentRecord, _ lang: UILanguage) -> String {
     let detail = fragment.conceptDetail
     switch level {
     case 1:
         if let tags = tagLine(fragment) { return tags }
+        // No tags: say what the fragment does hold, without giving it away.
         var parts: [String] = []
-        if !nonEmpty(detail?.boundaries).isEmpty { parts.append("适用边界 \(nonEmpty(detail?.boundaries).count) 条") }
-        if !nonEmpty(detail?.examples).isEmpty { parts.append("示例 \(nonEmpty(detail?.examples).count) 个") }
-        if !nonEmpty(detail?.counterExamples).isEmpty {
-            parts.append("反例 \(nonEmpty(detail?.counterExamples).count) 个")
-        }
-        return parts.isEmpty ? "想想它出现在什么场景、和哪些概念相邻" : "记录了" + parts.joined(separator: "、")
+        let boundaries = nonEmpty(detail?.boundaries).count
+        let examples = nonEmpty(detail?.examples).count
+        let counterExamples = nonEmpty(detail?.counterExamples).count
+        if boundaries > 0 { parts.append(t(.hintBoundaryCount, ["count": boundaries], lang: lang)) }
+        if examples > 0 { parts.append(t(.hintExampleCount, ["count": examples], lang: lang)) }
+        if counterExamples > 0 { parts.append(t(.hintCounterExampleCount, ["count": counterExamples], lang: lang)) }
+        return parts.isEmpty
+            ? t(.hintConceptThink, lang: lang)
+            : t(.hintRecorded, ["parts": parts.joined(separator: t(.tagSeparator, lang: lang))], lang: lang)
     case 2:
-        return sourceLine(fragment) + "\n" + surroundingContext(fragment)
+        return sourceLine(fragment, lang) + "\n" + surroundingContext(fragment)
     default:
         var lines: [String] = []
-        if let definition = detail?.definition, !definition.isEmpty { lines.append("定义：\(definition)") }
+        if let definition = detail?.definition, !definition.isEmpty {
+            lines.append(line(.fieldDefinition, definition, lang))
+        }
         let examples = nonEmpty(detail?.examples)
-        if !examples.isEmpty { lines.append("示例：\n" + bulleted(examples)) }
+        if !examples.isEmpty { lines.append(block(.fieldExamples, bulleted(examples), lang)) }
         let boundaries = nonEmpty(detail?.boundaries)
-        if !boundaries.isEmpty { lines.append("边界：\n" + bulleted(boundaries)) }
-        return lines.isEmpty ? "没有记录定义与示例，回看原始语境：\(fragment.context.excerpt)" : lines.joined(separator: "\n")
+        if !boundaries.isEmpty { lines.append(block(.fieldBoundaries, bulleted(boundaries), lang)) }
+        return lines.isEmpty
+            ? t(.hintNoDefinition, ["excerpt": fragment.context.excerpt], lang: lang) : lines.joined(separator: "\n")
     }
 }
 
 /// 主题 → 证据片段 → 原文 → 核验确认
-private func claimHint(_ level: Int, _ fragment: FragmentRecord) -> String {
+private func claimHint(_ level: Int, _ fragment: FragmentRecord, _ lang: UILanguage) -> String {
     let detail = fragment.claimDetail
     switch level {
     case 1:
-        var line = tagLine(fragment) ?? sourceLine(fragment)
-        if let stance = detail?.stance, let label = stanceDisplayName(stance) { line += "\n你的立场：\(label)" }
-        return line
+        var text = tagLine(fragment) ?? sourceLine(fragment, lang)
+        if let stance = detail?.stance, let label = stanceDisplayName(stance, lang: lang) {
+            text += "\n" + t(.hintYourStance, ["stance": label], lang: lang)
+        }
+        return text
     case 2:
         let evidence = nonEmpty(detail?.evidence)
-        guard let first = evidence.first else { return "没有记录证据片段" }
-        return evidence.count > 1 ? "\(first)\n（共 \(evidence.count) 条证据，这是其中第一条）" : first
+        guard let first = evidence.first else { return t(.hintNoEvidence, lang: lang) }
+        return evidence.count > 1
+            ? t(.hintFirstOfEvidence, ["first": first, "count": evidence.count], lang: lang) : first
     default:
         return fragment.context.excerpt
     }
 }
 
 /// 步骤数 → 首步 → 完整流程 → 核验确认
-private func procedureHint(_ level: Int, _ fragment: FragmentRecord) -> String {
+private func procedureHint(_ level: Int, _ fragment: FragmentRecord, _ lang: UILanguage) -> String {
     let steps = nonEmpty(fragment.procedureDetail?.steps)
     switch level {
     case 1:
-        var line = "共 \(steps.count) 步"
+        var text = t(.hintStepCount, ["count": steps.count], lang: lang)
         let prerequisites = nonEmpty(fragment.procedureDetail?.prerequisites)
-        if !prerequisites.isEmpty { line += "，前置条件 \(prerequisites.count) 项" }
-        return line
+        if !prerequisites.isEmpty {
+            text +=
+                t(.clauseSeparator, lang: lang) + t(.hintPreconditionCount, ["count": prerequisites.count], lang: lang)
+        }
+        return text
     case 2:
-        return steps.first.map { "第 1 步：\($0)" } ?? "没有记录步骤"
+        return steps.first.map { t(.hintFirstStep, ["step": $0], lang: lang) } ?? t(.hintNoSteps, lang: lang)
     default:
-        var text = steps.isEmpty ? "没有记录步骤" : numbered(steps)
+        var text = steps.isEmpty ? t(.hintNoSteps, lang: lang) : numbered(steps)
         let failures = nonEmpty(fragment.procedureDetail?.failureModes)
-        if !failures.isEmpty { text += "\n失败条件：\n" + bulleted(failures) }
+        if !failures.isEmpty { text += "\n" + block(.fieldFailureModes, bulleted(failures), lang) }
         return text
     }
 }
 
 /// 结论 → 约束 → 理由 → 核验确认
-private func decisionHint(_ level: Int, _ fragment: FragmentRecord) -> String {
+private func decisionHint(_ level: Int, _ fragment: FragmentRecord, _ lang: UILanguage) -> String {
     let detail = fragment.decisionDetail
     switch level {
     case 1:
@@ -181,90 +205,93 @@ private func decisionHint(_ level: Int, _ fragment: FragmentRecord) -> String {
     case 2:
         // The constraints are what the user inferred when saving (理解), else the
         // background the decision came out of.
-        if let guess = fragment.processing.guess, !guess.isEmpty { return "你当时推断的约束：\(guess)" }
-        return "原文背景：" + surroundingContext(fragment)
+        if let guess = fragment.processing.guess, !guess.isEmpty {
+            return t(.hintInferredConstraint, ["guess": guess], lang: lang)
+        }
+        return t(.hintOriginalBackground, ["context": surroundingContext(fragment)], lang: lang)
     default:
-        var text = detail?.rationale ?? "没有记录理由"
+        var text = detail?.rationale ?? t(.hintNoRationale, lang: lang)
         let alternatives = nonEmpty(detail?.alternatives)
-        if !alternatives.isEmpty { text += "\n备选方案：" + alternatives.joined(separator: "、") }
+        if !alternatives.isEmpty {
+            text += "\n" + line(.fieldAlternatives, alternatives.joined(separator: t(.tagSeparator, lang: lang)), lang)
+        }
         return text
     }
 }
 
 /// 主题 → 最近证据 → 当前结论 → 核验确认
-private func questionHint(_ level: Int, _ fragment: FragmentRecord) -> String {
+private func questionHint(_ level: Int, _ fragment: FragmentRecord, _ lang: UILanguage) -> String {
     let detail = fragment.questionDetail
     switch level {
     case 1:
-        var line = tagLine(fragment) ?? sourceLine(fragment)
-        if let status = detail?.status { line += "\n状态：\(questionStatusLabel(status))" }
-        return line
+        var text = tagLine(fragment) ?? sourceLine(fragment, lang)
+        if let status = detail?.status {
+            text += "\n" + line(.fieldStatus, questionStatusLabel(status, lang: lang), lang)
+        }
+        return text
     case 2:
-        return nonEmpty(detail?.evidence).last ?? "还没有记录证据"
+        return nonEmpty(detail?.evidence).last ?? t(.hintNoEvidenceYet, lang: lang)
     default:
-        if detail?.status == "answered", let answer = detail?.answer, !answer.isEmpty { return "答案：\(answer)" }
+        if detail?.status == "answered", let answer = detail?.answer, !answer.isEmpty {
+            return line(.fieldAnswer, answer, lang)
+        }
         var lines: [String] = []
-        if let hypothesis = detail?.hypothesis, !hypothesis.isEmpty { lines.append("当前假设：\(hypothesis)") }
-        if let next = detail?.nextStep, !next.isEmpty { lines.append("下一步验证：\(next)") }
-        return lines.isEmpty ? "还没有结论" : lines.joined(separator: "\n")
-    }
-}
-
-func questionStatusLabel(_ status: String) -> String {
-    switch status {
-    case "open": return "待验证"
-    case "testing": return "验证中"
-    case "answered": return "已回答"
-    default: return status
+        if let hypothesis = detail?.hypothesis, !hypothesis.isEmpty {
+            lines.append(line(.fieldHypothesis, hypothesis, lang))
+        }
+        if let next = detail?.nextStep, !next.isEmpty { lines.append(line(.fieldNextStep, next, lang)) }
+        return lines.isEmpty ? t(.hintNoConclusion, lang: lang) : lines.joined(separator: "\n")
     }
 }
 
 /// 结构关键词 → 文字描述 → 原图 → 核验确认
-private func visualHint(_ level: Int, _ fragment: FragmentRecord) -> String {
+private func visualHint(_ level: Int, _ fragment: FragmentRecord, _ lang: UILanguage) -> String {
     switch level {
     case 1:
-        return tagLine(fragment) ?? "共 \(max(fragment.attachmentIds.count, 1)) 张图"
+        return tagLine(fragment) ?? t(.hintImageCount, ["count": max(fragment.attachmentIds.count, 1)], lang: lang)
     case 2:
         return fragment.content
     default:
-        return fragment.attachmentIds.isEmpty ? "没有关联的原图" : "原图见下方"
+        return fragment.attachmentIds.isEmpty ? t(.hintNoImage, lang: lang) : t(.hintImageBelow, lang: lang)
     }
 }
 
 /// 触发背景 → 原记录 → 后续修订 → 核验确认
-private func inspirationHint(_ level: Int, _ fragment: FragmentRecord) -> String {
+private func inspirationHint(_ level: Int, _ fragment: FragmentRecord, _ lang: UILanguage) -> String {
     switch level {
     case 1:
-        return triggerBackground(fragment)
+        return triggerBackground(fragment, lang: lang)
     case 2:
         return fragment.content
     default:
         let revisions = fragment.captureRevision - 1
-        return revisions > 0 ? "此后修订过 \(revisions) 次（现为第 \(fragment.captureRevision) 版）" : "没有后续修订"
+        return revisions > 0
+            ? t(.hintRevised, ["count": revisions, "version": fragment.captureRevision], lang: lang)
+            : t(.hintNoRevisions, lang: lang)
     }
 }
 
 /// The excerpt of an inspiration starts with the idea itself and then adds the
 /// background that triggered it (fragments.md §6); this is the part after the idea.
-func triggerBackground(_ fragment: FragmentRecord) -> String {
+func triggerBackground(_ fragment: FragmentRecord, lang: UILanguage = .current) -> String {
     let excerpt = fragment.context.excerpt
     let content = fragment.content.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !content.isEmpty, excerpt.hasPrefix(content) else { return excerpt }
     let rest = excerpt.dropFirst(content.count)
         .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "—-–:：")))
-    return rest.isEmpty ? "没有记录触发背景" : rest
+    return rest.isEmpty ? t(.hintNoTrigger, lang: lang) : rest
 }
 
 /// 主题 → 要点 → 原片段 → 核验确认
-private func mediaClipHint(_ level: Int, _ fragment: FragmentRecord) -> String {
+private func mediaClipHint(_ level: Int, _ fragment: FragmentRecord, _ lang: UILanguage) -> String {
     switch level {
     case 1:
-        return sourceLine(fragment)
+        return sourceLine(fragment, lang)
     case 2:
         return fragment.content
     default:
-        var line = ""
-        if let clip = fragment.mediaClipDetail { line = "\(mmss(clip.startMs)) – \(mmss(clip.endMs))\n" }
-        return line + fragment.context.excerpt
+        var prefix = ""
+        if let clip = fragment.mediaClipDetail { prefix = "\(mmss(clip.startMs)) – \(mmss(clip.endMs))\n" }
+        return prefix + fragment.context.excerpt
     }
 }

@@ -108,8 +108,10 @@ final class ReviewDailyTests: XCTestCase {
                 UpcomingDue(dayStart: tomorrow, count: 2),
                 UpcomingDue(dayStart: monday + 6 * 24 * 3_600_000, count: 1),
             ])
-        XCTAssertEqual(relativeDayLabel(dayStart: wrap.upcoming[0].dayStart, now: now, calendar: utc), "明天")
-        XCTAssertEqual(relativeDayLabel(dayStart: wrap.upcoming[1].dayStart, now: now, calendar: utc), "周日")
+        XCTAssertEqual(
+            relativeDayLabel(dayStart: wrap.upcoming[0].dayStart, now: now, calendar: utc, lang: .zh), "明天")
+        XCTAssertEqual(
+            relativeDayLabel(dayStart: wrap.upcoming[1].dayStart, now: now, calendar: utc, lang: .zh), "周日")
     }
 
     func testWrapUpKeepsOnlyTheNextThreeDueDays() {
@@ -122,15 +124,32 @@ final class ReviewDailyTests: XCTestCase {
 
     func testRelativeDayLabels() {
         let day = 24 * 3_600_000
-        XCTAssertEqual(relativeDayLabel(dayStart: monday, now: now, calendar: utc), "今天")
-        XCTAssertEqual(relativeDayLabel(dayStart: monday + day, now: now, calendar: utc), "明天")
-        XCTAssertEqual(relativeDayLabel(dayStart: monday + 2 * day, now: now, calendar: utc), "周三")
-        XCTAssertEqual(relativeDayLabel(dayStart: monday + 6 * day, now: now, calendar: utc), "周日")
-        XCTAssertEqual(relativeDayLabel(dayStart: monday + 7 * day, now: now, calendar: utc), "10月5日")
-        // Past days (the 最近由扩展写入 list): 昨天, a weekday within the week, then a date.
-        XCTAssertEqual(relativeDayLabel(dayStart: monday - day, now: now, calendar: utc), "昨天")
-        XCTAssertEqual(relativeDayLabel(dayStart: monday - 4 * day, now: now, calendar: utc), "周四")
-        XCTAssertEqual(relativeDayLabel(dayStart: monday - 7 * day, now: now, calendar: utc), "9月21日")
+        func label(_ dayStart: Int, _ lang: UILanguage) -> String {
+            relativeDayLabel(dayStart: dayStart, now: now, calendar: utc, lang: lang)
+        }
+        XCTAssertEqual(label(monday, .zh), "今天")
+        XCTAssertEqual(label(monday + day, .zh), "明天")
+        XCTAssertEqual(label(monday + 2 * day, .zh), "周三")
+        XCTAssertEqual(label(monday + 6 * day, .zh), "周日")
+        XCTAssertEqual(label(monday + 7 * day, .zh), "10月5日")
+        // Past days (the recently-written list): yesterday, a weekday within the week, then a date.
+        XCTAssertEqual(label(monday - day, .zh), "昨天")
+        XCTAssertEqual(label(monday - 4 * day, .zh), "周四")
+        XCTAssertEqual(label(monday - 7 * day, .zh), "9月21日")
+    }
+
+    func testRelativeDayLabelsInEnglish() {
+        let day = 24 * 3_600_000
+        func label(_ dayStart: Int) -> String {
+            relativeDayLabel(dayStart: dayStart, now: now, calendar: utc, lang: .en)
+        }
+        XCTAssertEqual(label(monday), "Today")
+        XCTAssertEqual(label(monday + day), "Tomorrow")
+        XCTAssertEqual(label(monday + 2 * day), "Wednesday")
+        XCTAssertEqual(label(monday + 7 * day), "Oct 5")
+        XCTAssertEqual(label(monday - day), "Yesterday")
+        XCTAssertEqual(label(monday - 4 * day), "Thursday")
+        XCTAssertEqual(label(monday - 7 * day), "Sep 21")
     }
 
     // ── reminder ─────────────────────────────────────────────────────────
@@ -153,12 +172,15 @@ final class ReviewDailyTests: XCTestCase {
 
     // ── kind labels ──────────────────────────────────────────────────────
 
-    func testEveryReviewableKindHasAChineseLabel() {
-        XCTAssertEqual(Set(KIND_LABELS.keys), Set(REVIEW_QUESTIONS.keys))
-        XCTAssertEqual(kindLabel("concept"), "概念")
-        XCTAssertEqual(kindLabel("excerpt"), "摘录")
-        XCTAssertEqual(kindLabel("media-clip"), "媒体片段")
-        XCTAssertEqual(kindLabel("future-kind"), "future-kind")
+    func testEveryReviewableKindHasALabelInBothLanguages() {
+        XCTAssertEqual(Set(KIND_TEXT.keys), Set(REVIEW_QUESTIONS.keys))
+        XCTAssertEqual(kindLabel("concept", lang: .zh), "概念")
+        XCTAssertEqual(kindLabel("excerpt", lang: .zh), "摘录")
+        XCTAssertEqual(kindLabel("media-clip", lang: .zh), "媒体片段")
+        XCTAssertEqual(kindLabel("concept", lang: .en), "Concept")
+        XCTAssertEqual(kindLabel("media-clip", lang: .en), "Media clip")
+        XCTAssertEqual(kindLabel("future-kind", lang: .zh), "future-kind")
+        XCTAssertEqual(kindLabel("future-kind", lang: .en), "future-kind")
     }
 
     // ── review status filter ─────────────────────────────────────────────
@@ -181,7 +203,8 @@ final class ReviewDailyTests: XCTestCase {
         ]
         XCTAssertEqual(
             all.map { reviewStatus(of: $0, now: now) }, [.due, .new, .learning, .learning, .scheduled, .due])
-        XCTAssertEqual(ReviewStatus.allCases.map(\.label), ["到期", "新建", "学习中", "复习中"])
+        XCTAssertEqual(ReviewStatus.allCases.map { $0.localizedLabel(.zh) }, ["到期", "新建", "学习中", "复习中"])
+        XCTAssertEqual(ReviewStatus.allCases.map { $0.localizedLabel(.en) }, ["Due", "New", "Learning", "In review"])
 
         XCTAssertEqual(filterByReviewStatus(all, statuses: [], now: now).count, 6, "empty set = no filter")
         XCTAssertEqual(filterByReviewStatus(all, statuses: [.due], now: now).map(\.id), ["new-due", "review-due"])
