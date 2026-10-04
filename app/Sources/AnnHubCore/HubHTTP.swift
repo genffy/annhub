@@ -180,6 +180,10 @@ public struct HubRequestFramer: Sendable {
 }
 
 extension DesktopHub {
+    /// The published AnnHub extension (Chrome Web Store). A browser request is served only when its
+    /// `Origin` is `chrome-extension://<one of these ids>` (storage.md §8: fixed extension id allowlist).
+    public static let publishedExtensionIds: Set<String> = ["jpooljigbeplpgciohfjklgbfdfnnmfn"]
+
     /// Every browser reaches the hub as `127.0.0.1`/`localhost`; any other Host is a DNS-rebinding page.
     static func isLoopbackHost(_ value: String?) -> Bool {
         guard var host = value?.lowercased(), !host.isEmpty else { return false }
@@ -203,7 +207,7 @@ extension DesktopHub {
         guard origin.hasPrefix(scheme) else { return false }
         let id = String(origin.dropFirst(scheme.count))
         guard !id.isEmpty, !id.contains("/") else { return false }
-        return allowedExtensionIds.isEmpty || allowedExtensionIds.contains(id)
+        return allowedExtensionIds.contains(id)
     }
 
     /// Decide from the header block alone whether the body may be read, in the order a

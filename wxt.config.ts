@@ -17,6 +17,9 @@ export default defineConfig({
     description: '__MSG_extDescription__',
     version: extensionVersion,
     default_locale: 'en',
+    // Desktop only serves the published extension id (storage.md §8). A local build adopts that id
+    // when the store item's public key is passed in; release builds never set it.
+    ...(process.env.ANNHUB_EXTENSION_KEY ? { key: process.env.ANNHUB_EXTENSION_KEY } : {}),
     // `tabs` and `activeTab` are omitted on purpose: the `<all_urls>` host permission already grants
     // everything they would (tab URLs and titles, capturing the visible tab).
     permissions: ['storage', 'commands', 'alarms', 'downloads', 'scripting'],

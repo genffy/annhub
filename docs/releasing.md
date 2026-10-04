@@ -40,6 +40,18 @@
 
 给提交打标签 `v<package.json 的 version>`（例如 `v1.0.4`）。`release.yml` 先复用 `ci.yml` 跑完整门禁，再构建、校验压缩包里的 `manifest.json` 版本与标签一致、生成构建来源证明（attestation）并创建 GitHub Release。商店上传仍是手工步骤，上传前按下面的清单准备素材。
 
+#### 扩展 ID 与本地联调
+
+已发布扩展的 ID 是 `jpooljigbeplpgciohfjklgbfdfnnmfn`。Desktop 的本机服务只接受 `Origin: chrome-extension://<这个 ID>` 的浏览器请求（`DesktopHub.publishedExtensionIds`，[存储契约 §8](v2/storage.md)），其他扩展和网页都会被拒绝。
+
+本地加载的未打包构建 ID 不同，所以连不上 Desktop。联调时把商店后台“程序包 → 查看公钥”里的公钥放进环境变量再构建，构建会把它写进清单的 `key`，未打包的扩展就拿到同一个 ID：
+
+```bash
+ANNHUB_EXTENSION_KEY='MIIBIjANBg…' npm run build
+```
+
+发布构建不设置这个变量。
+
 #### 商店素材与披露
 
 - 名称与描述来自 `locales/en.yaml` 和 `locales/zh_CN.yaml` 的 `extName` / `extDescription`（上限 75 / 132 字符，测试会检查）。

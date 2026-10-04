@@ -14,7 +14,7 @@ type Script = Record<string, number>
 
 /** Answers PUT /v1/fragments/* by the fragment's content, everything else like an idle Desktop. */
 async function startHub(script: Script) {
-  const requests: Array<{ method: string; url: string; content?: string }> = []
+  const requests: Array<{ method: string; url: string; content?: string; origin?: string }> = []
   const server = http.createServer((req, res) => {
     const chunks: Buffer[] = []
     req.on('data', chunk => chunks.push(chunk))
@@ -22,7 +22,7 @@ async function startHub(script: Script) {
       const url = req.url ?? ''
       if (req.method === 'PUT' && url.startsWith('/v1/fragments/')) {
         const content = JSON.parse(Buffer.concat(chunks).toString('utf8')).fragment.content as string
-        requests.push({ method: 'PUT', url, content })
+        requests.push({ method: 'PUT', url, content, origin: req.headers.origin })
         res.writeHead(script[content] ?? 201, { 'Content-Type': 'application/json' }).end('{}')
       } else if (req.method === 'GET' && url.startsWith('/v1/changes')) {
         res.writeHead(200, { 'Content-Type': 'application/json' }).end('{"changes":[]}')
@@ -172,6 +172,8 @@ test.describe('delivery to Desktop', () => {
       expect(flushed.success, flushed.error).toBe(true)
       expect(flushed.data).toMatchObject({ deliveredFragments: 1, rejected: 0, errors: [] })
       expect(hub.requests.map(r => r.content)).toEqual(['hawkish pivot'])
+      // Desktop only serves `chrome-extension://<the published id>`; this is the form the request arrives in.
+      expect(hub.requests.map(r => r.origin)).toEqual([`chrome-extension://${extensionId}`])
       expect(await getOutboxFromServiceWorker(context)).toHaveLength(0)
     } finally {
       await hub.close()
