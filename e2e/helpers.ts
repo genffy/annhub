@@ -1,4 +1,4 @@
-import type { Page, Locator } from '@playwright/test'
+import type { BrowserContext, Page, Locator, Worker } from '@playwright/test'
 
 /**
  * URL for the local test fixture page served by the E2E test server.
@@ -117,8 +117,7 @@ export async function pressToggleHighlighter(page: Page): Promise<void> {
  * Read clips from chrome.storage.local via the service worker.
  */
 export async function getClipsFromServiceWorker(context: any): Promise<any[]> {
-  let [sw] = context.serviceWorkers()
-  if (!sw) sw = await context.waitForEvent('serviceworker')
+  const sw = await ensureServiceWorker(context)
   return sw.evaluate(() => {
     return new Promise((resolve: any) => {
       chrome.storage.local.get('ann-clips', (result: any) => {
@@ -182,20 +181,31 @@ export async function clearHighlightsFromServiceWorker(context: any): Promise<vo
 }
 
 /**
- * Get the active service worker, waiting for it if necessary.
+ * The extension's service worker, once its extension APIs are bound.
+ *
+ * Playwright reports a worker as soon as its execution context exists, which can be
+ * before `chrome.storage` is injected; evaluating then throws
+ * "Cannot read properties of undefined (reading 'local')". Wait for the API instead.
  */
-export async function ensureServiceWorker(context: any) {
+export async function ensureServiceWorker(context: BrowserContext): Promise<Worker> {
   let [sw] = context.serviceWorkers()
   if (!sw) sw = await context.waitForEvent('serviceworker')
-  return sw
+  const deadline = Date.now() + 10_000
+  for (;;) {
+    const ready = await sw.evaluate(() => typeof chrome !== 'undefined' && Boolean(chrome.storage?.local)).catch(() => false)
+    if (ready) return sw
+    if (Date.now() > deadline) throw new Error('The extension service worker never exposed chrome.storage')
+    await new Promise(resolve => setTimeout(resolve, 50))
+    // A restarted worker replaces the old one.
+    sw = context.serviceWorkers()[0] ?? sw
+  }
 }
 
 /**
  * Clear clips storage via the service worker.
  */
 export async function clearClipsFromServiceWorker(context: any): Promise<void> {
-  let [sw] = context.serviceWorkers()
-  if (!sw) sw = await context.waitForEvent('serviceworker')
+  const sw = await ensureServiceWorker(context)
   await sw.evaluate(() => {
     return new Promise<void>(resolve => {
       chrome.storage.local.remove('ann-clips', () => resolve())

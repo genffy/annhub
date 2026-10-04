@@ -4,7 +4,7 @@
  * separate PNG download and library save, anonymization, cancel and errors.
  */
 import { test, expect } from './fixtures'
-import { clearFragmentStoreViaServiceWorker, getFragmentsFromServiceWorker } from './helpers'
+import { clearFragmentStoreViaServiceWorker, ensureServiceWorker, getFragmentsFromServiceWorker } from './helpers'
 
 async function triggerScreenshot(page: import('@playwright/test').Page): Promise<void> {
   await page.evaluate(() => {
@@ -12,15 +12,9 @@ async function triggerScreenshot(page: import('@playwright/test').Page): Promise
   })
 }
 
-async function serviceWorker(context: import('@playwright/test').BrowserContext) {
-  let [worker] = context.serviceWorkers()
-  if (!worker) worker = await context.waitForEvent('serviceworker')
-  return worker
-}
-
 /** Wrap chrome.downloads.download to record options (Playwright reroutes the real files). */
 async function recordDownloads(context: import('@playwright/test').BrowserContext) {
-  const sw = await serviceWorker(context)
+  const sw = await ensureServiceWorker(context)
   await sw.evaluate(() => {
     const state = self as unknown as { __annShotOpts: { filename?: string }[]; __annShotCreated: number }
     state.__annShotOpts = []
@@ -222,7 +216,6 @@ test.describe('Screenshot capture', () => {
     await expect(page.getByTestId('screenshots-empty')).toBeVisible()
   })
 
-
   test('saved screenshot converts into a visual Fragment with shared asset id', async ({ page, context, extensionId }) => {
     await clearFragmentStoreViaServiceWorker(context)
     await triggerScreenshot(page)
@@ -257,7 +250,7 @@ test.describe('Screenshot capture', () => {
   })
 
   test('capture error surfaces the error panel', async ({ page, context }) => {
-    const worker = await serviceWorker(context)
+    const worker = await ensureServiceWorker(context)
     await worker.evaluate(() => {
       const original = chrome.tabs.captureVisibleTab.bind(chrome.tabs)
       ;(self as unknown as { __annShotRestore: () => void }).__annShotRestore = () => {
