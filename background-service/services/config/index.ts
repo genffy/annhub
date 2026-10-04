@@ -1,5 +1,5 @@
-import { IService } from '../../service-manager'
-import { ResponseMessage } from '../../../types/messages'
+import type { IService } from '../../service-manager'
+import type { ResponseMessage } from '../../../types/messages'
 import { messageHandlers } from './message-handles'
 import { Logger } from '../../../utils/logger'
 

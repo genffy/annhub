@@ -100,10 +100,14 @@ export function initVocabTooltip(): void {
     if (showTimer) clearTimeout(showTimer)
     scheduleHide()
   })
-  document.addEventListener('scroll', () => {
-    const el = document.getElementById(TOOLTIP_ID)
-    if (el) el.style.display = 'none'
-  }, { passive: true })
+  document.addEventListener(
+    'scroll',
+    () => {
+      const el = document.getElementById(TOOLTIP_ID)
+      if (el) el.style.display = 'none'
+    },
+    { passive: true },
+  )
 }
 
 export function destroyVocabTooltip(): void {

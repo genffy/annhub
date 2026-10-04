@@ -1,7 +1,8 @@
 import { Logger } from '../utils/logger'
-import { ServiceContext, SupportedServices } from './service-context'
+import type { SupportedServices } from './service-context'
+import { ServiceContext } from './service-context'
 import MessageUtils from '../utils/message'
-import { ResponseMessage, SystemStatus } from '../types/messages'
+import type { ResponseMessage, SystemStatus } from '../types/messages'
 import { EXTENSION_PAGES, openExtensionPage } from '../utils/extension-pages'
 
 export interface IService {

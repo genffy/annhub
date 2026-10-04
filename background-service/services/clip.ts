@@ -1,6 +1,6 @@
-import { ClipRecord } from '../../types/clip'
-import { IService } from '../service-manager'
-import { ResponseMessage } from '../../types/messages'
+import type { ClipRecord } from '../../types/clip'
+import type { IService } from '../service-manager'
+import type { ResponseMessage } from '../../types/messages'
 import { Logger } from '../../utils/logger'
 import MessageUtils from '../../utils/message'
 

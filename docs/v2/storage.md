@@ -21,11 +21,11 @@
 
 ## 2. 数据分层
 
-| 层         | 数据                                       | 扩展                         | Desktop                  | R1 交付范围                         |
-| ---------- | ------------------------------------------ | ---------------------------- | ------------------------ | ----------------------------------- |
-| A 图片资产 | 已处理的截图原图、元数据、可重建缩略图     | IndexedDB `Blob`              | SQLite `BLOB`            | 仅传被 `visual` Fragment 引用的图片 |
-| B 学习核心 | Fragment、ReviewLog | IndexedDB object stores       | SQLite tables            | Fragment 的采集字段逐项写入         |
-| C 偏好     | UI、快捷键、Provider、队列上限             | chrome.storage / IndexedDB   | UserDefaults             | 默认不传送                         |
+| 层         | 数据                                   | 扩展                       | Desktop       | R1 交付范围                         |
+| ---------- | -------------------------------------- | -------------------------- | ------------- | ----------------------------------- |
+| A 图片资产 | 已处理的截图原图、元数据、可重建缩略图 | IndexedDB `Blob`           | SQLite `BLOB` | 仅传被 `visual` Fragment 引用的图片 |
+| B 学习核心 | Fragment、ReviewLog                    | IndexedDB object stores    | SQLite tables | Fragment 的采集字段逐项写入         |
+| C 偏好     | UI、快捷键、Provider、队列上限         | chrome.storage / IndexedDB | UserDefaults  | 默认不传送                          |
 
 “原图”指裁剪、匿名和马赛克完成后实际保存的图片字节，不是处理前可能含敏感信息的屏幕图。缩略图仅作缓存，能从原图重建。浏览器端不以 Base64 `dataUrl` 作为持久格式。
 
@@ -55,11 +55,7 @@ interface ReviewLog {
 ### 3.2 OutboxEvent
 
 ```typescript
-type SyncEventType =
-  | 'fragment.created'
-  | 'fragment.updated'
-  | 'asset.created'
-  | 'review.rated'
+type SyncEventType = 'fragment.created' | 'fragment.updated' | 'asset.created' | 'review.rated'
 
 interface OutboxEvent {
   eventId: string
@@ -250,19 +246,22 @@ AnnHub-export.zip
 
 ```markdown
 ---
-annhub_id: "frag_123"
+annhub_id: 'frag_123'
 kind: visual
-source_url: "https://example.com/article"
-captured_at: "2026-09-24T08:00:00.000Z"
-tags: ["design"]
-asset_ids: ["asset_456"]
+source_url: 'https://example.com/article'
+captured_at: '2026-09-24T08:00:00.000Z'
+tags: ['design']
+asset_ids: ['asset_456']
 ---
+
 # 关键细节描述
 
 ## 页面语境
+
 描述对应的页面背景。
 
 ## 核验与应用
+
 用户确认的核验结果和计划使用场景。
 
 ![截图](../assets/asset_456.png)

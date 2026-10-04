@@ -1,6 +1,6 @@
 import MessageUtils from '../../../utils/message'
 import { VocabularyService } from '.'
-import { ResponseMessage } from '../../../types/messages'
+import type { ResponseMessage } from '../../../types/messages'
 
 function isExtensionPageSender(sender: chrome.runtime.MessageSender): boolean {
   const url = sender.url ?? ''

@@ -1,4 +1,4 @@
-import { UIToBackgroundMessage, ResponseMessage, BaseMessage } from '../../types/messages'
+import type { UIToBackgroundMessage, ResponseMessage, BaseMessage } from '../../types/messages'
 import { ServiceWorkerManager } from './service-worker-manager'
 import { Logger } from '../logger'
 

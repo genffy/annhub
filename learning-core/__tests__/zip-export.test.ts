@@ -158,8 +158,6 @@ describe('buildExportZip (storage.md §7)', () => {
   })
 
   it('rejects unsafe ids to prevent path traversal', async () => {
-    await expect(
-      buildExportZip(exportInput({ fragments: [{ ...makeFragment(), id: '../evil' }] })),
-    ).rejects.toThrow(/UNSAFE_ID/)
+    await expect(buildExportZip(exportInput({ fragments: [{ ...makeFragment(), id: '../evil' }] }))).rejects.toThrow(/UNSAFE_ID/)
   })
 })

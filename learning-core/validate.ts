@@ -69,6 +69,7 @@ export const fail = (code: FragmentErrorCode, info?: Record<string, unknown>): V
 
 // ── shared text guards ──────────────────────────────────────────────────
 
+// eslint-disable-next-line no-control-regex -- rejecting C0 control characters is the point
 const CONTROLS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/
 
 /**
@@ -349,15 +350,15 @@ const validateInspirationDetail: DetailValidator = d => {
 
 /** Registry of per-kind detail validators — every registered kind is enabled (fragments.md §4). */
 export const FRAGMENT_DETAIL_VALIDATORS: Partial<Record<FragmentKind, DetailValidator>> = {
-  excerpt: validateExcerptDetail,
-  concept: validateConceptDetail,
-  claim: validateClaimDetail,
-  procedure: validateProcedureDetail,
-  decision: validateDecisionDetail,
-  question: validateQuestionDetail,
-  visual: validateVisualDetail,
+  'excerpt': validateExcerptDetail,
+  'concept': validateConceptDetail,
+  'claim': validateClaimDetail,
+  'procedure': validateProcedureDetail,
+  'decision': validateDecisionDetail,
+  'question': validateQuestionDetail,
+  'visual': validateVisualDetail,
   'media-clip': validateMediaClipDetail,
-  inspiration: validateInspirationDetail,
+  'inspiration': validateInspirationDetail,
 }
 
 export const isKindEnabled = (kind: string): boolean => (ENABLED_FRAGMENT_KINDS as readonly string[]).includes(kind)

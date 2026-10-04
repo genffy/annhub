@@ -1,14 +1,5 @@
-import {
-  ILlmClient,
-  ChatInput,
-  LlmSelectAndGlossInput,
-  LlmWordVerdict,
-  LlmGlossChunkInput,
-  LlmChunkGloss,
-  LlmSimplifyInput,
-  LlmToddlerSimplification,
-} from './types'
-import { LlmConfig, LlmModelOption } from '../../../types/vocabulary'
+import type { ILlmClient, ChatInput, LlmSelectAndGlossInput, LlmWordVerdict, LlmGlossChunkInput, LlmChunkGloss, LlmSimplifyInput, LlmToddlerSimplification } from './types'
+import type { LlmConfig, LlmModelOption } from '../../../types/vocabulary'
 import { Logger } from '../../../utils/logger'
 
 const COMPLETIONS_PATH_RE = /\/chat\/completions\/?$/
@@ -318,8 +309,7 @@ export class OpenAICompatibleLlmService implements ILlmClient {
       throw new Error('LLM gloss response could not be parsed')
     }
     const parsed = JSON.parse(jsonMatch[0]) as Partial<LlmChunkGloss>
-    const strArray = (v: unknown, cap: number): string[] =>
-      Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x.trim()).slice(0, cap) : []
+    const strArray = (v: unknown, cap: number): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x.trim()).slice(0, cap) : [])
     const gloss: LlmChunkGloss = {
       meaningEn: typeof parsed.meaningEn === 'string' ? parsed.meaningEn.trim().slice(0, 300) : '',
       meaningCn: typeof parsed.meaningCn === 'string' ? parsed.meaningCn.trim().slice(0, 300) : '',
@@ -338,8 +328,7 @@ export class OpenAICompatibleLlmService implements ILlmClient {
    * Light, display-only result — the full family script lives in the App.
    */
   async simplifyForToddler(input: LlmSimplifyInput): Promise<LlmToddlerSimplification> {
-    const systemPrompt =
-      this.config.systemPrompt || '你是一位幼儿英语启蒙老师，擅长把成人语言转化为幼儿能理解的超简表达，并设计家长可以带做的动作。'
+    const systemPrompt = this.config.systemPrompt || '你是一位幼儿英语启蒙老师，擅长把成人语言转化为幼儿能理解的超简表达，并设计家长可以带做的动作。'
     const context = input.sentence ? `\n原句："""\n${input.sentence}\n"""` : ''
     const userPrompt =
       `语块："${input.chunk}"${context}\n\n` +

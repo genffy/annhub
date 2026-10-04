@@ -52,7 +52,7 @@ interface PendingItem {
 const glossMemoryCache = new Map<string, string>()
 let lastViewportCleanupAt = 0
 let annotationVisibilityObserver: IntersectionObserver | null = null
-let annotationBlockMarkers = new Map<Element, Set<Element>>()
+const annotationBlockMarkers = new Map<Element, Set<Element>>()
 let annotationMarkerBlocks = new WeakMap<Element, Element>()
 let annotationSentences = new WeakMap<Element, string>()
 

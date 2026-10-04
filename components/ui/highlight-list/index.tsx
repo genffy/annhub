@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { HighlightRecord, HighlightQuery } from '../../../types/highlight'
+import type { HighlightRecord, HighlightQuery } from '../../../types/highlight'
 import MessageUtils from '../../../utils/message'
 import { Logger } from '../../../utils/logger'
 import './index.style.css'

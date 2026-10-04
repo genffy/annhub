@@ -19,10 +19,7 @@ test.describe('导出内容 (Markdown ZIP)', () => {
 
     // 唯一导出命令藏在「更多」菜单里（PRD §5.1）
     await page.getByTestId('more-menu').click()
-    const [download] = await Promise.all([
-      page.waitForEvent('download'),
-      page.getByTestId('export-content').click(),
-    ])
+    const [download] = await Promise.all([page.waitForEvent('download'), page.getByTestId('export-content').click()])
     expect(download.suggestedFilename()).toMatch(/^AnnHub-export-\d{4}-\d{2}-\d{2}\.zip$/)
     const path = await download.path()
     const { stat } = await import('node:fs/promises')

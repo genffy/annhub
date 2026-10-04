@@ -17,76 +17,47 @@
  * screenshots) and `media-clip` (R4: video/audio time ranges with a
  * user-written transcript — manual transcription, LLM optional).
  */
-export type FragmentKind =
-  | 'excerpt'
-  | 'concept'
-  | 'claim'
-  | 'procedure'
-  | 'decision'
-  | 'question'
-  | 'inspiration'
-  | 'visual'
-  | 'media-clip'
+export type FragmentKind = 'excerpt' | 'concept' | 'claim' | 'procedure' | 'decision' | 'question' | 'inspiration' | 'visual' | 'media-clip'
 
 /** Every kind that appears in the union; validation checks against this. */
-export const REGISTERED_FRAGMENT_KINDS: readonly FragmentKind[] = [
-  'excerpt',
-  'concept',
-  'claim',
-  'procedure',
-  'decision',
-  'question',
-  'inspiration',
-  'visual',
-  'media-clip',
-]
+export const REGISTERED_FRAGMENT_KINDS: readonly FragmentKind[] = ['excerpt', 'concept', 'claim', 'procedure', 'decision', 'question', 'inspiration', 'visual', 'media-clip']
 
 /** Kinds whose detail validators are implemented (fragments.md §4). */
-export const ENABLED_FRAGMENT_KINDS: readonly FragmentKind[] = [
-  'excerpt',
-  'concept',
-  'claim',
-  'procedure',
-  'decision',
-  'question',
-  'inspiration',
-  'visual',
-  'media-clip',
-]
+export const ENABLED_FRAGMENT_KINDS: readonly FragmentKind[] = ['excerpt', 'concept', 'claim', 'procedure', 'decision', 'question', 'inspiration', 'visual', 'media-clip']
 
 // ── Type-specialized detail blocks (fragments.md §4) ────────────────────
 
 export interface FragmentDetailMap {
-  excerpt: { note?: string }
-  concept: {
+  'excerpt': { note?: string }
+  'concept': {
     definition?: string
     boundaries?: string[]
     examples?: string[]
     counterExamples?: string[]
   }
-  claim: {
+  'claim': {
     stance?: 'support' | 'oppose' | 'uncertain'
     evidence?: string[]
     assumptions?: string[]
   }
-  procedure: {
+  'procedure': {
     steps: string[]
     prerequisites?: string[]
     failureModes?: string[]
   }
-  decision: {
+  'decision': {
     rationale: string
     alternatives?: string[]
     consequences?: string[]
   }
-  question: {
+  'question': {
     status: 'open' | 'testing' | 'answered'
     hypothesis?: string
     evidence?: string[]
     nextStep?: string
     answer?: string
   }
-  visual: {
+  'visual': {
     attachmentIds: string[]
   }
   'media-clip': {
@@ -94,7 +65,7 @@ export interface FragmentDetailMap {
     endMs: number
     attachmentIds?: string[]
   }
-  inspiration: {
+  'inspiration': {
     form: 'idea' | 'reflection'
   }
 }

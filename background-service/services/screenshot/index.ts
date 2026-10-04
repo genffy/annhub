@@ -7,8 +7,8 @@
  * metadata into the shared fragment-store (`assets` + `screenshots` object
  * stores, one transaction) — dataUrl is only a transport for downloads.
  */
-import { IService } from '../../service-manager'
-import { ResponseMessage } from '../../../types/messages'
+import type { IService } from '../../service-manager'
+import type { ResponseMessage } from '../../../types/messages'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
 import { quotaAvailable } from '../../../utils/storage-quota'

@@ -56,9 +56,7 @@ function haystack(fragment: FragmentRecord): WeightedField[] {
 
 /** Unicode-whitespace word split; each word must substring-hit some field (search.md §2). */
 function splitWords(query: string): string[] {
-  return normalizeContent(query)
-    .split(/\s+/)
-    .filter(Boolean)
+  return normalizeContent(query).split(/\s+/).filter(Boolean)
 }
 
 function searchScore(fields: WeightedField[], words: string[]): number | null {
@@ -88,8 +86,7 @@ export function passesFilters(fragment: FragmentRecord, filters: FragmentQueryFi
 
 type SortKey = { score: number; createdAt: number; id: string }
 
-const compareKeys = (a: SortKey, b: SortKey): number =>
-  b.score - a.score || b.createdAt - a.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+const compareKeys = (a: SortKey, b: SortKey): number => b.score - a.score || b.createdAt - a.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 
 const encodeCursor = (key: SortKey): string => JSON.stringify([key.score, key.createdAt, key.id])
 

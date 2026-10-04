@@ -1,10 +1,10 @@
 import { HighlightDOMManager } from './highlight-dom'
-import { HighlightRecord, HighlightResult } from '../../../types/highlight'
+import type { HighlightRecord, HighlightResult } from '../../../types/highlight'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
-import { HighlightStatsResponse } from '../../../types/messages'
+import type { HighlightStatsResponse } from '../../../types/messages'
 import { generateId, hash } from '../../../utils/helpers'
-import { MixedSelectionContent } from '../../../types/dom'
+import type { MixedSelectionContent } from '../../../types/dom'
 import { findTextRangeInElement } from '../annotation-core/text-range'
 
 export class HighlightService {

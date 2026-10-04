@@ -49,9 +49,7 @@ describe('filters (search.md §2)', () => {
 
 describe('pagination (search.md §3)', () => {
   it('pages with a stable cursor without duplicates or losses', () => {
-    const pool: FragmentRecord[] = Array.from({ length: 7 }, (_, i) =>
-      makeFragment({ id: `f${i}`, createdAt: NOW - i * 1000, updatedAt: NOW - i * 1000 }),
-    )
+    const pool: FragmentRecord[] = Array.from({ length: 7 }, (_, i) => makeFragment({ id: `f${i}`, createdAt: NOW - i * 1000, updatedAt: NOW - i * 1000 }))
     const page1 = runFragmentQuery(pool, { limit: 3 })
     expect(page1.items.length).toBe(3)
     expect(page1.total).toBe(7)
@@ -69,7 +67,12 @@ describe('filter chip sources', () => {
     const a = makeFragmentOf('concept', { sourceUrl: 'https://a.com/1', sourceHost: 'a.com' })
     const b = makeFragmentOf('claim', { sourceUrl: 'https://a.com/2', sourceHost: 'a.com' })
     expect(collectHosts([a, b])).toEqual(['a.com'])
-    expect(collectTags([{ ...a, tags: ['x', 'y'] }, { ...b, tags: ['x'] }])).toEqual(['x', 'y'])
+    expect(
+      collectTags([
+        { ...a, tags: ['x', 'y'] },
+        { ...b, tags: ['x'] },
+      ]),
+    ).toEqual(['x', 'y'])
     expect(collectKinds([a, b]).sort()).toEqual(['claim', 'concept'])
   })
 })

@@ -164,10 +164,7 @@ export class FragmentStore {
    * fragments every referenced asset must already exist; the same transaction
    * appends the fragment event and the assets' delivery tasks (storage.md §4).
    */
-  async saveFragment<K extends Parameters<typeof createFragment>[0]['kind']>(
-    input: CreateFragmentInput<K>,
-    options: { force?: boolean } = {},
-  ): Promise<FragmentSaveOutcome> {
+  async saveFragment<K extends Parameters<typeof createFragment>[0]['kind']>(input: CreateFragmentInput<K>, options: { force?: boolean } = {}): Promise<FragmentSaveOutcome> {
     const db = await this.db_()
     const duplicateOf = await this.findDuplicate({
       content: input.content,
@@ -446,12 +443,7 @@ export class FragmentStore {
    */
   async findOrphanAssets(): Promise<ImageAsset[]> {
     const db = await this.db_()
-    const [assets, screenshots, fragments, events] = await Promise.all([
-      db.getAll('assets'),
-      db.getAll('screenshots'),
-      db.getAll('fragments'),
-      db.getAll('outboxEvents'),
-    ])
+    const [assets, screenshots, fragments, events] = await Promise.all([db.getAll('assets'), db.getAll('screenshots'), db.getAll('fragments'), db.getAll('outboxEvents')])
     const pendingAssetIds = new Set(events.filter(e => e.type === 'asset.created').map(e => (e.payload as { assetId?: string } | null)?.assetId ?? ''))
     return assets
       .map(a => a.metadata)

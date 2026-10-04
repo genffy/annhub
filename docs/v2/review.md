@@ -38,12 +38,12 @@ new -> review
 
 新 Fragment 初始为 `new`、repetitions/lapses/intervalDays 为 0、easeFactor 为 2.5、nextReviewAt 为创建时间。评分采用纯函数 `(state, rating, now) -> nextState`，`now` 与时间戳均为 UTC epoch 毫秒；一天固定为 24 小时，不按本地零点延长或缩短间隔。
 
-| 评分 | intervalDays | repetitions / lapses | easeFactor |
-| ---- | ------------ | -------------------- | ---------- |
-| again | 1 | repetitions 归零，lapses +1 | `max(1.3, ease - 0.2)` |
-| hard | `max(1, round(max(1, previousInterval) * 1.2))` | 不变 | `max(1.3, ease - 0.15)` |
-| good | 首次 1、第二次 6，之后 `max(1, round(previousInterval * ease))` | repetitions +1 | 不变 |
-| easy | 首次 4，之后 `max(2, round(previousInterval * ease * 1.3))` | repetitions +1 | ease +0.15 |
+| 评分  | intervalDays                                                    | repetitions / lapses        | easeFactor              |
+| ----- | --------------------------------------------------------------- | --------------------------- | ----------------------- |
+| again | 1                                                               | repetitions 归零，lapses +1 | `max(1.3, ease - 0.2)`  |
+| hard  | `max(1, round(max(1, previousInterval) * 1.2))`                 | 不变                        | `max(1.3, ease - 0.15)` |
+| good  | 首次 1、第二次 6，之后 `max(1, round(previousInterval * ease))` | repetitions +1              | 不变                    |
+| easy  | 首次 4，之后 `max(2, round(previousInterval * ease * 1.3))`     | repetitions +1              | ease +0.15              |
 
 `round` 对非负数采用四舍五入，先计算间隔再更新 easeFactor；`nextReviewAt = now + intervalDays * 86_400_000`。`again` 进入 relearning，其他评分进入 review。使用提示只记录在 ReviewLog，不自动改写用户选择的评分。每条日志保存 schedulerVersion；评分状态与不可变日志必须同事务写入，成功提交后才移动会话游标。日志重放还需要最初的 ReviewState 和版本化公式，不能仅靠日志字段猜测初始状态。
 

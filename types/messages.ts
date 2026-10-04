@@ -1,12 +1,7 @@
-import { HighlightRecord, HighlightQuery } from './highlight'
-import { ClipRecord } from './clip'
-import { VocabConfig, LlmConfig, VocabLearningEvent, VocabSyncState } from './vocabulary'
-import type {
-  FragmentKind,
-  FragmentRecord,
-  ScreenshotRecord,
-  ImageAsset,
-} from '../learning-core/types'
+import type { HighlightRecord, HighlightQuery } from './highlight'
+import type { ClipRecord } from './clip'
+import type { VocabConfig, LlmConfig, VocabLearningEvent, VocabSyncState } from './vocabulary'
+import type { FragmentKind, FragmentRecord, ScreenshotRecord, ImageAsset } from '../learning-core/types'
 import type { FragmentPatch } from '../learning-core/fragment-store'
 import type { ExtensionPage, ExtensionPageParams } from '../utils/extension-pages'
 import type { FragmentQuery, FragmentQueryResult } from '../learning-core/query'
@@ -174,12 +169,6 @@ export interface DeleteScreenshotMessage extends BaseMessage {
   type: 'DELETE_SCREENSHOT'
   data: { id: string }
 }
-
-
-
-
-
-
 
 export interface InitializeMessage extends BaseMessage {
   type: 'INITIALIZE'
@@ -427,7 +416,6 @@ export interface CheckFragmentDuplicateMessage extends BaseMessage {
   excerpt: string
   sourceUrl: string
 }
-
 
 /** Desktop direct connection (storage §6): read/write config, ping, one-shot sync. */
 export interface GetDirectConnectConfigMessage extends BaseMessage {

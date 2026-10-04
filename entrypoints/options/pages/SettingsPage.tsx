@@ -96,11 +96,21 @@ function DesktopConnectionCard() {
       <div className="space-y-3 text-sm">
         <label className="block space-y-1">
           <span className="text-xs text-ann-muted">接口地址</span>
-          <input className="w-full rounded-md border border-ann-border px-3 py-2" value={endpoint} onChange={e => setEndpoint(e.target.value)} placeholder="http://127.0.0.1:8765" />
+          <input
+            className="w-full rounded-md border border-ann-border px-3 py-2"
+            value={endpoint}
+            onChange={e => setEndpoint(e.target.value)}
+            placeholder="http://127.0.0.1:8765"
+          />
         </label>
         <label className="block space-y-1">
           <span className="text-xs text-ann-muted">配对码（在 Desktop 的「系统」页复制）</span>
-          <input className="w-full rounded-md border border-ann-border px-3 py-2 font-mono" value={token} onChange={e => setToken(e.target.value)} placeholder="粘贴 Desktop 显示的配对码" />
+          <input
+            className="w-full rounded-md border border-ann-border px-3 py-2 font-mono"
+            value={token}
+            onChange={e => setToken(e.target.value)}
+            placeholder="粘贴 Desktop 显示的配对码"
+          />
         </label>
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={autoSync} onChange={e => setAutoSync(e.target.checked)} />
@@ -191,7 +201,15 @@ function SyncPanelCard() {
 
 /** Capture funnel metrics (R1.4) — counts only. */
 function MetricsCard() {
-  type Metrics = { modalOpened: number; reachedVerify: number; reachedApply: number; saved: number; exited: Record<string, number>; exitedWithInput: number; fallbacks: { highlight: number; clip: number } }
+  type Metrics = {
+    modalOpened: number
+    reachedVerify: number
+    reachedApply: number
+    saved: number
+    exited: Record<string, number>
+    exitedWithInput: number
+    fallbacks: { highlight: number; clip: number }
+  }
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   useEffect(() => {
     void (async () => {
@@ -209,7 +227,10 @@ function MetricsCard() {
         <div className="rounded-md bg-ann-alt p-2">保存成功 {metrics.saved}</div>
         {Object.keys(metrics.exited).length > 0 && (
           <div className="col-span-2 rounded-md bg-ann-alt p-2 sm:col-span-4">
-            退出阶段：{Object.entries(metrics.exited).map(([step, count]) => `${step} × ${count}`).join('、')}
+            退出阶段：
+            {Object.entries(metrics.exited)
+              .map(([step, count]) => `${step} × ${count}`)
+              .join('、')}
           </div>
         )}
         {metrics.exitedWithInput > 0 && (
@@ -243,11 +264,7 @@ function OrphanAssetsCard() {
     setBusy(true)
     try {
       const response = await MessageUtils.sendMessage<{ removed: number }>({ type: 'CLEANUP_ORPHAN_ASSETS' })
-      setMessage(
-        response.success
-          ? { kind: 'success', text: `已清理 ${response.data?.removed ?? 0} 个孤儿资产` }
-          : { kind: 'error', text: response.error || '清理失败' },
-      )
+      setMessage(response.success ? { kind: 'success', text: `已清理 ${response.data?.removed ?? 0} 个孤儿资产` } : { kind: 'error', text: response.error || '清理失败' })
       await load()
     } finally {
       setBusy(false)
@@ -259,7 +276,9 @@ function OrphanAssetsCard() {
     <SettingsSection title="孤儿图片资产" description="无任何截图集/碎片引用且无待交付任务的图片；可安全清理以释放空间。">
       <div className="space-y-3 text-sm text-ann-muted" data-testid="orphan-assets">
         <div>{orphans.length === 0 ? '没有孤儿资产。' : `${orphans.length} 个孤儿资产（如 ${(orphans.reduce((n, a) => n + a.byteLength, 0) / 1024 / 1024).toFixed(1)}MB）`}</div>
-        {message && <div>{message.kind === 'success' ? <StatusMessage tone="success">{message.text}</StatusMessage> : <StatusMessage tone="error">{message.text}</StatusMessage>}</div>}
+        {message && (
+          <div>{message.kind === 'success' ? <StatusMessage tone="success">{message.text}</StatusMessage> : <StatusMessage tone="error">{message.text}</StatusMessage>}</div>
+        )}
         {orphans.length > 0 && (
           <button className="rounded-md bg-ann-accent px-4 py-2 text-sm text-ann-on-accent disabled:opacity-50" onClick={cleanup} disabled={busy} data-testid="cleanup-orphans">
             {busy ? '清理中…' : '清理孤儿资产'}
@@ -287,7 +306,11 @@ function CapturePreferenceCard() {
     try {
       setDeepMode(next)
       const response = await MessageUtils.sendMessage({ type: 'SET_CAPTURE_CONFIG', config: { deepMode: next } })
-      setMessage(response.success ? { kind: 'success', text: next ? '已开启深度模式：采集时先写理解' : '已切换到标准模式：核验 → 应用' } : { kind: 'error', text: response.error || '保存失败' })
+      setMessage(
+        response.success
+          ? { kind: 'success', text: next ? '已开启深度模式：采集时先写理解' : '已切换到标准模式：核验 → 应用' }
+          : { kind: 'error', text: response.error || '保存失败' },
+      )
     } finally {
       setBusy(false)
     }
@@ -299,7 +322,11 @@ function CapturePreferenceCard() {
         <input type="checkbox" checked={deepMode} onChange={e => void save(e.target.checked)} disabled={busy} data-testid="deep-mode-toggle" />
         深度模式（全局默认；单次采集内也可切换）
       </label>
-      {message && <div className="mt-2">{message.kind === 'success' ? <StatusMessage tone="success">{message.text}</StatusMessage> : <StatusMessage tone="error">{message.text}</StatusMessage>}</div>}
+      {message && (
+        <div className="mt-2">
+          {message.kind === 'success' ? <StatusMessage tone="success">{message.text}</StatusMessage> : <StatusMessage tone="error">{message.text}</StatusMessage>}
+        </div>
+      )}
     </SettingsSection>
   )
 }
@@ -344,7 +371,10 @@ function LlmCard() {
   const test = async () => {
     setBusy(true)
     try {
-      const response = await MessageUtils.sendMessage<{ ok: boolean; modelCount?: number }>({ type: 'TEST_LLM_CONNECTION', config: { baseUrl: config.baseUrl, apiKey: config.apiKey, model: config.model } })
+      const response = await MessageUtils.sendMessage<{ ok: boolean; modelCount?: number }>({
+        type: 'TEST_LLM_CONNECTION',
+        config: { baseUrl: config.baseUrl, apiKey: config.apiKey, model: config.model },
+      })
       setMessage(response.success ? { kind: 'success', text: `连接可用（${response.data?.modelCount ?? 0} 个模型）` } : { kind: 'error', text: response.error || '连接失败' })
     } finally {
       setBusy(false)
@@ -357,7 +387,9 @@ function LlmCard() {
         {field('Base URL（OpenAI 兼容）', 'baseUrl', 'https://api.example.com/v1')}
         {field('API Key', 'apiKey', 'sk-…', 'password')}
         {field('模型', 'model', 'gpt-…')}
-        {message && <div>{message.kind === 'success' ? <StatusMessage tone="success">{message.text}</StatusMessage> : <StatusMessage tone="error">{message.text}</StatusMessage>}</div>}
+        {message && (
+          <div>{message.kind === 'success' ? <StatusMessage tone="success">{message.text}</StatusMessage> : <StatusMessage tone="error">{message.text}</StatusMessage>}</div>
+        )}
         <div className="flex gap-2">
           <button className="rounded-md bg-ann-accent px-4 py-2 text-sm text-ann-on-accent disabled:opacity-50" onClick={save} disabled={busy}>
             保存

@@ -6,34 +6,15 @@ const root = resolve(import.meta.dirname, '..')
 const outDir = resolve(root, 'website/public/chrome-store')
 mkdirSync(outDir, { recursive: true })
 
-const escapeXml = (value) =>
-  String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
+const escapeXml = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
 
 const text = (content, x, y, opts = {}) => {
-  const {
-    size = 28,
-    weight = 500,
-    fill = '#172033',
-    anchor = 'start',
-    opacity = 1,
-    family = 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
-  } = opts
+  const { size = 28, weight = 500, fill = '#172033', anchor = 'start', opacity = 1, family = 'Inter, -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif' } = opts
   return `<text x="${x}" y="${y}" font-family="${family}" font-size="${size}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}" opacity="${opacity}">${escapeXml(content)}</text>`
 }
 
 const rect = (x, y, width, height, opts = {}) => {
-  const {
-    fill = '#ffffff',
-    stroke = 'none',
-    strokeWidth = 1,
-    radius = 8,
-    opacity = 1,
-    filter = '',
-  } = opts
+  const { fill = '#ffffff', stroke = 'none', strokeWidth = 1, radius = 8, opacity = 1, filter = '' } = opts
   return `<rect x="${x}" y="${y}" width="${width}" height="${height}" rx="${radius}" fill="${fill}" stroke="${stroke}" stroke-width="${strokeWidth}" opacity="${opacity}"${filter ? ` filter="${filter}"` : ''}/>`
 }
 
@@ -57,7 +38,6 @@ const pageText = (x, y, width, lines, highlightIndexes = []) => {
   return lines
     .map((line, index) => {
       const yy = y + index * lineHeight
-      const words = line.split(' ')
       const highlight = highlightIndexes.includes(index)
       const lineWidth = Math.min(width, Math.max(160, line.length * 10.2))
       return `
@@ -111,13 +91,19 @@ const screenshot1 = screenshot(
   `
   ${browserFrame(72, 254, 780, 450, 'research.example/article')}
   ${text('Designing reliable knowledge workflows', 112, 352, { size: 32, weight: 800 })}
-  ${pageText(114, 405, 640, [
-    'Readers often discover useful ideas while moving',
-    'between articles, feeds, product docs, and research notes.',
-    'AnnHub keeps each highlight connected to its source page',
-    'so important context survives after the tab is closed.',
-    'Notes can be attached immediately without breaking flow.',
-  ], [2, 4])}
+  ${pageText(
+    114,
+    405,
+    640,
+    [
+      'Readers often discover useful ideas while moving',
+      'between articles, feeds, product docs, and research notes.',
+      'AnnHub keeps each highlight connected to its source page',
+      'so important context survives after the tab is closed.',
+      'Notes can be attached immediately without breaking flow.',
+    ],
+    [2, 4],
+  )}
   ${rect(910, 280, 278, 304, { fill: '#ffffff', stroke: '#E4E7EC', radius: 16, filter: 'url(#shadow)' })}
   ${text('Saved Highlight', 946, 336, { size: 24, weight: 800 })}
   ${rect(946, 366, 196, 12, { fill: '#FFEB3B', radius: 6 })}
@@ -126,7 +112,7 @@ const screenshot1 = screenshot(
   ${text('Context before and after', 946, 476, { size: 18, weight: 700, fill: '#364152' })}
   ${text('Original URL + source URL', 946, 512, { size: 18, weight: 700, fill: '#364152' })}
   ${text('Optional note', 946, 548, { size: 18, weight: 700, fill: '#364152' })}
-  `
+  `,
 )
 
 const screenshot2 = screenshot(
@@ -135,12 +121,18 @@ const screenshot2 = screenshot(
   `
   ${browserFrame(90, 254, 790, 434, 'docs.example/guide')}
   ${text('Deep reading without losing your place', 132, 348, { size: 31, weight: 800 })}
-  ${pageText(136, 406, 620, [
-    'Annotating should happen exactly where the insight appears.',
-    'A lightweight hover menu keeps capture actions nearby.',
-    'Use notes for interpretation, follow-up tasks, or reminders.',
-    'Switch into highlighter mode when a page has many findings.',
-  ], [1])}
+  ${pageText(
+    136,
+    406,
+    620,
+    [
+      'Annotating should happen exactly where the insight appears.',
+      'A lightweight hover menu keeps capture actions nearby.',
+      'Use notes for interpretation, follow-up tasks, or reminders.',
+      'Switch into highlighter mode when a page has many findings.',
+    ],
+    [1],
+  )}
   ${rect(468, 438, 342, 70, { fill: '#172033', radius: 35, filter: 'url(#softShadow)' })}
   ${toolbarButton(488, 452, 'Clip', '#673AB8')}
   ${toolbarButton(590, 452, 'Note', '#475467')}
@@ -152,7 +144,7 @@ const screenshot2 = screenshot(
   ${text('3. Save with context', 958, 480, { size: 20, weight: 650, fill: '#364152' })}
   ${rect(958, 522, 154, 40, { fill: '#F5F0FF', radius: 20 })}
   ${text('Mode A', 1035, 548, { size: 18, anchor: 'middle', fill: '#673AB8', weight: 800 })}
-  `
+  `,
 )
 
 const screenshot3 = screenshot(
@@ -161,12 +153,18 @@ const screenshot3 = screenshot(
   `
   ${browserFrame(84, 250, 804, 438, 'news.example/feed')}
   ${text('Daily reading queue', 126, 340, { size: 31, weight: 800 })}
-  ${pageText(130, 395, 610, [
-    'Short bursts of research often produce many small highlights.',
-    'Machine-gun capture mode saves each selection automatically.',
-    'The capsule confirms that the extension is listening.',
-    'Press Esc when you are done collecting from the page.',
-  ], [0, 1, 2])}
+  ${pageText(
+    130,
+    395,
+    610,
+    [
+      'Short bursts of research often produce many small highlights.',
+      'Machine-gun capture mode saves each selection automatically.',
+      'The capsule confirms that the extension is listening.',
+      'Press Esc when you are done collecting from the page.',
+    ],
+    [0, 1, 2],
+  )}
   ${rect(628, 290, 220, 48, { fill: '#172033', radius: 24, filter: 'url(#softShadow)' })}
   ${text('Highlighter On', 660, 321, { size: 18, fill: '#ffffff', weight: 800 })}
   ${rect(790, 303, 34, 22, { fill: '#FFF8B4', radius: 11 })}
@@ -178,7 +176,7 @@ const screenshot3 = screenshot(
   ${text('Esc exits the mode', 966, 484, { size: 20, weight: 650, fill: '#364152' })}
   ${rect(966, 522, 132, 40, { fill: '#FFF8B4', radius: 20 })}
   ${text('Mode B', 1032, 548, { size: 18, anchor: 'middle', fill: '#3B3100', weight: 800 })}
-  `
+  `,
 )
 
 const screenshot4 = screenshot(
@@ -187,12 +185,18 @@ const screenshot4 = screenshot(
   `
   ${browserFrame(70, 248, 788, 444, 'longform.example/essay')}
   ${text('How teams build durable systems', 112, 342, { size: 31, weight: 800 })}
-  ${pageText(116, 396, 620, [
-    'A resilient workflow reduces cognitive overhead.',
-    'Readers can inspect terminology without leaving the article.',
-    'Local vocabulary snapshots keep common words out of sight.',
-    'Context-aware glosses help distinguish subtle meanings.',
-  ], [])}
+  ${pageText(
+    116,
+    396,
+    620,
+    [
+      'A resilient workflow reduces cognitive overhead.',
+      'Readers can inspect terminology without leaving the article.',
+      'Local vocabulary snapshots keep common words out of sight.',
+      'Context-aware glosses help distinguish subtle meanings.',
+    ],
+    [],
+  )}
   ${rect(226, 376, 92, 52, { fill: '#F3EFFF', stroke: '#C7B7FF', radius: 6 })}
   ${text('resilient', 272, 401, { size: 18, anchor: 'middle', weight: 800, fill: '#4B2E83' })}
   ${text('有弹性的', 272, 421, { size: 13, anchor: 'middle', weight: 700, fill: '#4B2E83' })}
@@ -207,7 +211,7 @@ const screenshot4 = screenshot(
   ${text('LLM fallback glosses', 940, 510, { size: 19, weight: 650, fill: '#364152' })}
   ${rect(940, 556, 174, 40, { fill: '#F5F0FF', radius: 20 })}
   ${text('Vocab Label', 1027, 582, { size: 18, anchor: 'middle', fill: '#673AB8', weight: 800 })}
-  `
+  `,
 )
 
 const screenshot5 = screenshot(
@@ -218,10 +222,14 @@ const screenshot5 = screenshot(
   ${rect(82, 250, 248, 456, { fill: '#F5F7FA', stroke: '#E4E7EC', radius: 18 })}
   ${logo(122, 294, 42)}
   ${text('AnnHub', 178, 326, { size: 28, weight: 820 })}
-  ${['Highlights', 'Words', 'Vocabulary', 'Logseq', 'Settings'].map((item, index) => `
+  ${['Highlights', 'Words', 'Vocabulary', 'Logseq', 'Settings']
+    .map(
+      (item, index) => `
     ${rect(114, 376 + index * 54, 176, 38, { fill: index === 2 ? '#EEE7FF' : 'transparent', radius: 9 })}
     ${text(item, 138, 401 + index * 54, { size: 18, weight: index === 2 ? 800 : 600, fill: index === 2 ? '#673AB8' : '#526070' })}
-  `).join('')}
+  `,
+    )
+    .join('')}
   ${text('Vocabulary', 374, 322, { size: 34, weight: 820 })}
   ${text('Eudic sync', 374, 382, { size: 20, weight: 800, fill: '#364152' })}
   ${rect(374, 408, 318, 42, { fill: '#F8FAFC', stroke: '#E4E7EC', radius: 8 })}
@@ -235,7 +243,7 @@ const screenshot5 = screenshot(
   ${text('Mastered words filtered', 782, 510, { size: 20, weight: 700, fill: '#364152' })}
   ${rect(782, 540, 140, 40, { fill: '#673AB8', radius: 20 })}
   ${text('Refresh', 852, 566, { size: 17, fill: '#ffffff', weight: 800, anchor: 'middle' })}
-  `
+  `,
 )
 
 const tileBase = (width, height, content) => `
@@ -246,7 +254,10 @@ const tileBase = (width, height, content) => `
 </svg>
 `
 
-const smallTile = tileBase(440, 280, `
+const smallTile = tileBase(
+  440,
+  280,
+  `
   ${logo(34, 42, 54)}
   ${text('AnnHub', 98, 76, { size: 34, weight: 850 })}
   ${text('Capture web text', 38, 136, { size: 24, weight: 780 })}
@@ -257,9 +268,13 @@ const smallTile = tileBase(440, 280, `
   ${rect(304, 124, 82, 12, { fill: '#FFEB3B', radius: 6 })}
   ${rect(304, 152, 58, 12, { fill: '#E9EDF2', radius: 6 })}
   ${rect(304, 180, 76, 12, { fill: '#E9EDF2', radius: 6 })}
-`)
+`,
+)
 
-const marqueeTile = tileBase(1400, 560, `
+const marqueeTile = tileBase(
+  1400,
+  560,
+  `
   ${logo(86, 78, 78)}
   ${text('AnnHub', 182, 126, { size: 56, weight: 860 })}
   ${text('Annotate and capture anywhere.', 86, 224, { size: 44, weight: 840 })}
@@ -269,14 +284,11 @@ const marqueeTile = tileBase(1400, 560, `
   ${text('Built for Chrome', 187, 382, { size: 20, anchor: 'middle', fill: '#ffffff', weight: 820 })}
   ${browserFrame(770, 72, 520, 350, 'annhub://reading')}
   ${text('Research notes', 810, 166, { size: 28, weight: 820 })}
-  ${pageText(814, 220, 370, [
-    'Save the exact passage that matters.',
-    'Restore highlights when you return.',
-    'Add notes and vocabulary labels inline.',
-  ], [0, 2])}
+  ${pageText(814, 220, 370, ['Save the exact passage that matters.', 'Restore highlights when you return.', 'Add notes and vocabulary labels inline.'], [0, 2])}
   ${rect(1054, 300, 178, 46, { fill: '#172033', radius: 23, filter: 'url(#softShadow)' })}
   ${text('Highlighter On', 1143, 330, { size: 17, fill: '#ffffff', weight: 800, anchor: 'middle' })}
-`)
+`,
+)
 
 const assets = [
   ['screenshot-1-highlight-any-page', screenshot1, 1280, 800],

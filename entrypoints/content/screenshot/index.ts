@@ -12,7 +12,8 @@
  */
 
 import MessageUtils from '../../../utils/message'
-import { computeCropSource, CropError, ViewportRect } from './crop'
+import type { ViewportRect } from './crop'
+import { computeCropSource, CropError } from './crop'
 import { detectIdentityRects } from './detect'
 import { applyViewportAnonymization } from './anonymize'
 import { captureElement } from './element-capture'
@@ -659,4 +660,3 @@ function localPoint(el: HTMLElement, e: PointerEvent): { x: number; y: number } 
   const rect = el.getBoundingClientRect()
   return { x: e.clientX - rect.left, y: e.clientY - rect.top }
 }
-

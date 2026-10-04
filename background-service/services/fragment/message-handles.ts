@@ -4,7 +4,7 @@
  * sender; SAVE_FRAGMENT legitimately arrives from content scripts (captures).
  */
 import MessageUtils from '../../../utils/message'
-import { ResponseMessage } from '../../../types/messages'
+import type { ResponseMessage } from '../../../types/messages'
 import { FragmentService } from './index'
 
 function isExtensionPageSender(sender: chrome.runtime.MessageSender): boolean {
@@ -17,8 +17,7 @@ function forbiddenResponse(): ResponseMessage {
   return MessageUtils.createResponse(false, undefined, 'Forbidden: extension page context required')
 }
 
-const fail = (error: unknown): ResponseMessage =>
-  MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
+const fail = (error: unknown): ResponseMessage => MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
 
 export const fragmentMessageHandlers: Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> = {
   SAVE_FRAGMENT: async (message): Promise<ResponseMessage> => {

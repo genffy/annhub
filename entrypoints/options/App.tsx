@@ -5,7 +5,8 @@ import { extensionPageUrl } from '../../utils/extension-pages'
 
 import SettingsPage from './pages/SettingsPage'
 
-import { useRouter, Route } from './hooks/useRouter'
+import type { Route } from './hooks/useRouter'
+import { useRouter } from './hooks/useRouter'
 
 function App() {
   const routes: Route[] = [{ path: '/settings', component: SettingsPage }]

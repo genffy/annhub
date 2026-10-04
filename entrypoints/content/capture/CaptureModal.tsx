@@ -201,7 +201,6 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
   // ── funnel metrics ───────────────────────────────────────────────────
   useEffect(() => {
     recordMetric('modal-opened', steps[0])
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
@@ -245,7 +244,6 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
         /* storage.session unavailable — persistence is best-effort */
       }
     })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey])
 
   // Debounced 300ms writes once anything meaningful exists (also after a

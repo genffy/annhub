@@ -3,8 +3,7 @@ import { createFragment } from '../factory'
 
 export const NOW = 1_768_000_000_000 // fixed for determinism
 
-export const EXCERPT =
-  'Investors rotated out of bonds after the Fed signalled a hawkish pivot on rates, and strategists expect the shift to persist.'
+export const EXCERPT = 'Investors rotated out of bonds after the Fed signalled a hawkish pivot on rates, and strategists expect the shift to persist.'
 
 export const VERIFIED: VerifiedResult = {
   confirmedAt: NOW - 1000,
@@ -39,8 +38,7 @@ export const KIND_SAMPLES: Record<Exclude<FragmentKind, 'media-clip'>, { content
   excerpt: {
     content: 'The lesson of the hawkish pivot is that guidance matters more than moves.',
     detail: { note: '引用时注意 2026 年语境' },
-    excerpt:
-      'The lesson of the hawkish pivot is that guidance matters more than moves, wrote the columnist in the year-end review.',
+    excerpt: 'The lesson of the hawkish pivot is that guidance matters more than moves, wrote the columnist in the year-end review.',
   },
   concept: {
     content: 'hawkish pivot',

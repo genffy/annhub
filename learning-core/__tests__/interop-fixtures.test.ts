@@ -17,7 +17,6 @@ import { canonicalJson, sha256Hex, toFragmentWire } from '../wire'
 import { crc32 } from '../zip'
 import { validateFragment } from '../validate'
 import type { FragmentRecord } from '../types'
-import { VERIFIED } from './helpers'
 
 const FIXTURE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../fixtures/interop')
 const WRITE = process.env.WRITE_FIXTURES === '1'
@@ -172,7 +171,11 @@ function buildFixtures(): void {
       name: 'media-clip-bad-range',
       // locator (time) is validated before detail — bad ranges surface here first
       expectedCode: 'LOCATOR_INVALID',
-      body: putBody('device_1', { ...mediaWire, detail: { startMs: 45_000, endMs: 45_000 }, context: { ...mediaWire.context, locator: { type: 'time', startMs: 45_000, endMs: 45_000 } } }),
+      body: putBody('device_1', {
+        ...mediaWire,
+        detail: { startMs: 45_000, endMs: 45_000 },
+        context: { ...mediaWire.context, locator: { type: 'time', startMs: 45_000, endMs: 45_000 } },
+      }),
     },
     {
       name: 'missing-verification',
@@ -206,10 +209,7 @@ function buildFixtures(): void {
   writeFileSync(resolve(FIXTURE_DIR, 'fragment-put-concept.json'), JSON.stringify(putBody('device_1', conceptWire), null, 2))
   writeFileSync(resolve(FIXTURE_DIR, 'fragment-put-visual.json'), JSON.stringify(putBody('device_1', visualWire), null, 2))
   writeFileSync(resolve(FIXTURE_DIR, 'fragment-put-media-clip.json'), JSON.stringify(putBody('device_1', mediaWire), null, 2))
-  writeFileSync(
-    resolve(FIXTURE_DIR, 'fragment-put-rejections.json'),
-    JSON.stringify(rejections, null, 2),
-  )
+  writeFileSync(resolve(FIXTURE_DIR, 'fragment-put-rejections.json'), JSON.stringify(rejections, null, 2))
   writeFileSync(
     resolve(FIXTURE_DIR, 'fragment-canonical.json'),
     JSON.stringify(
@@ -223,11 +223,7 @@ function buildFixtures(): void {
     ),
   )
   writeFileSync(resolve(FIXTURE_DIR, 'asset.png'), png)
-  writeFileSync(
-    resolve(FIXTURE_DIR, 'asset-meta.json'),
-    JSON.stringify({ sha256: '', byteLength: png.length, mimeType: 'image/png', width: 4, height: 2 }, null, 2),
-  )
-
+  writeFileSync(resolve(FIXTURE_DIR, 'asset-meta.json'), JSON.stringify({ sha256: '', byteLength: png.length, mimeType: 'image/png', width: 4, height: 2 }, null, 2))
 }
 
 async function finalizeHashes() {
@@ -282,15 +278,18 @@ describe('interop fixtures (docs/v2/storage.md §8 wire contract)', () => {
 
     // Wire bodies must validate once a review state is attached (Desktop-side
     // reconstructs the same way).
-    const withReview = (wire: typeof conceptBody.fragment): FragmentRecord =>
-      ({ ...wire, review: createReviewState(NOW) }) as FragmentRecord
+    const withReview = (wire: typeof conceptBody.fragment): FragmentRecord => ({ ...wire, review: createReviewState(NOW) }) as FragmentRecord
     expect(validateFragment(withReview(conceptBody.fragment)).ok).toBe(true)
     expect(validateFragment(withReview(visualBody.fragment)).ok).toBe(true)
     expect(validateFragment(withReview(mediaBody.fragment)).ok).toBe(true)
     expect(visualBody.fragment.context.locator).toEqual({ type: 'image', assetId: 'asset_fix1' })
 
     // Rejection cases land on the expected stable error codes.
-    const rejections = JSON.parse(readFileSync(resolve(FIXTURE_DIR, 'fragment-put-rejections.json'), 'utf8')) as Array<{ name: string; expectedCode: string; body: { fragment: Record<string, unknown> } }>
+    const rejections = JSON.parse(readFileSync(resolve(FIXTURE_DIR, 'fragment-put-rejections.json'), 'utf8')) as Array<{
+      name: string
+      expectedCode: string
+      body: { fragment: Record<string, unknown> }
+    }>
     expect(rejections.length).toBeGreaterThanOrEqual(6)
     for (const rejection of rejections) {
       const result = validateFragment(withReview(rejection.body.fragment as unknown as ReturnType<typeof toFragmentWire>))
@@ -305,6 +304,5 @@ describe('interop fixtures (docs/v2/storage.md §8 wire contract)', () => {
     expect(await sha256Hex(png)).toBe(assetMeta.sha256)
     expect(png[0]).toBe(0x89)
     expect(png[1]).toBe(0x50)
-    VERIFIED // keep import honest
   })
 })

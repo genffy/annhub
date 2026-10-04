@@ -5,17 +5,9 @@
  * Fragment with a time locator.
  */
 import { test, expect } from './fixtures'
-import {
-  selectText,
-  waitForHoverMenu,
-  clickShadowButton,
-  getAnnShadowRoot,
-  getFragmentsFromServiceWorker,
-  clearFragmentStoreViaServiceWorker,
-} from './helpers'
+import { selectText, waitForHoverMenu, clickShadowButton, getAnnShadowRoot, getFragmentsFromServiceWorker, clearFragmentStoreViaServiceWorker } from './helpers'
 
 const MEDIA_URL = 'http://localhost:8173/media/media.html'
-
 
 test.describe('媒体片段采集 (media-clip)', () => {
   test.beforeEach(async ({ page, context }) => {

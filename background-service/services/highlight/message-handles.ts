@@ -1,5 +1,5 @@
 import MessageUtils from '../../../utils/message'
-import {
+import type {
   GetHighlightsMessage,
   ResponseMessage,
   SaveHighlightMessage,
@@ -10,7 +10,7 @@ import {
   RequiredFields,
 } from '../../../types/messages'
 import { HighlightStorage } from './highlight-storage'
-import { HighlightRecord } from '../../../types/highlight'
+import type { HighlightRecord } from '../../../types/highlight'
 
 export const messageHandlers = {
   GET_HIGHLIGHTS: async (message: GetHighlightsMessage): Promise<ResponseMessage> => {
@@ -28,7 +28,6 @@ export const messageHandlers = {
       if (!saveResult.success) {
         return MessageUtils.createResponse(false, undefined, saveResult.error)
       }
-
 
       return MessageUtils.createResponse(true, saveResult.data)
     } catch (error) {

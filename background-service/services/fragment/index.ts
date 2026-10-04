@@ -3,8 +3,8 @@
  * Contract: docs/v2/storage.md; the Extension implements L1+L2 only
  * (capture + query + per-item delivery), never review scheduling.
  */
-import { IService } from '../../service-manager'
-import { ResponseMessage } from '../../../types/messages'
+import type { IService } from '../../service-manager'
+import type { ResponseMessage } from '../../../types/messages'
 import { Logger } from '../../../utils/logger'
 import { FragmentStore, type FragmentPatch, type FragmentSaveOutcome } from '../../../learning-core/fragment-store'
 import type { CreateFragmentInput } from '../../../learning-core/factory'
@@ -17,8 +17,15 @@ import { HighlightService } from '../highlight'
 import { ClipService } from '../clip'
 import type { SaveFragmentInput } from '../../../types/messages'
 import {
-  DEFAULT_DIRECT_CONNECT, DIRECT_CONNECT_STORAGE_KEY, flushPendingDeliveries, pingHub, pullDesktopChanges,
-  type DirectConnectConfig, type DirectConnectStatus, type DeliveryResult, type PullResult,
+  DEFAULT_DIRECT_CONNECT,
+  DIRECT_CONNECT_STORAGE_KEY,
+  flushPendingDeliveries,
+  pingHub,
+  pullDesktopChanges,
+  type DirectConnectConfig,
+  type DirectConnectStatus,
+  type DeliveryResult,
+  type PullResult,
 } from './direct-connect'
 import { fragmentMessageHandlers } from './message-handles'
 

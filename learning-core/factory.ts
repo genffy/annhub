@@ -6,7 +6,7 @@
  */
 import { nanoid } from 'nanoid'
 import type { DetailOf, FragmentContext, FragmentKind, FragmentRecord, VerifiedResult } from './types'
-import { ReviewState } from './types'
+import type { ReviewState } from './types'
 import { normalizeContent, dedupeTags } from './normalize'
 import { assertValid } from './validate'
 

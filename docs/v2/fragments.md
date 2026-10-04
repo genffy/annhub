@@ -35,17 +35,17 @@ type FragmentKind =
   | 'inspiration' // 用户原创的短篇灵感或随感
 ```
 
-| kind          | 典型内容       | 核心加工                   |
-| ------------- | -------------- | -------------------------- |
-| `excerpt`     | 一段值得保留的原文 | 说明为何重要、准备如何使用 |
-| `concept`     | 一项理论或术语 | 自己解释、边界、示例与反例 |
-| `claim`       | 一项观点       | 前提、证据、可信度与立场   |
-| `procedure`   | 一套方法       | 步骤、适用条件和失败模式   |
-| `decision`    | 一次取舍       | 背景、约束、备选项和后果   |
-| `question`    | 一个待验证问题 | 当前假设、验证方法和结论   |
-| `visual`      | 图表或设计细节 | 视觉描述与设计意图         |
-| `media-clip`  | 视频或音频区间 | 摘要、要点和时间定位       |
-| `inspiration` | 灵感、短篇随感 | 触发背景、观察与推测、延展方向 |
+| kind          | 典型内容           | 核心加工                       |
+| ------------- | ------------------ | ------------------------------ |
+| `excerpt`     | 一段值得保留的原文 | 说明为何重要、准备如何使用     |
+| `concept`     | 一项理论或术语     | 自己解释、边界、示例与反例     |
+| `claim`       | 一项观点           | 前提、证据、可信度与立场       |
+| `procedure`   | 一套方法           | 步骤、适用条件和失败模式       |
+| `decision`    | 一次取舍           | 背景、约束、备选项和后果       |
+| `question`    | 一个待验证问题     | 当前假设、验证方法和结论       |
+| `visual`      | 图表或设计细节     | 视觉描述与设计意图             |
+| `media-clip`  | 视频或音频区间     | 摘要、要点和时间定位           |
+| `inspiration` | 灵感、短篇随感     | 触发背景、观察与推测、延展方向 |
 
 每种 kind 的采集提问、复习题面和示例见 [kinds.md](kinds.md)；本文只定义字段与校验。
 
@@ -108,11 +108,11 @@ interface ReviewState {
 
 新契约继续使用 `guess / verified / use` 字段名，产品语义统一解释为：
 
-| 字段       | 通用语义                                 |
-| ---------- | ---------------------------------------- |
-| `guess`    | 用户在核验前的理解、判断或问题           |
+| 字段       | 通用语义                                                           |
+| ---------- | ------------------------------------------------------------------ |
+| `guess`    | 用户在核验前的理解、判断或问题                                     |
 | `verified` | 用户已明确确认完成核验步骤；不代表内容已被客观证实，摘要和备注可选 |
-| `use`      | 用户准备如何应用、解释或验证这条知识     |
+| `use`      | 用户准备如何应用、解释或验证这条知识                               |
 
 ## 4. 类型特化
 
@@ -120,36 +120,36 @@ interface ReviewState {
 
 ```typescript
 interface FragmentDetailMap {
-  excerpt: { note?: string }
-  concept: {
+  'excerpt': { note?: string }
+  'concept': {
     definition?: string
     boundaries?: string[]
     examples?: string[]
     counterExamples?: string[]
   }
-  claim: {
+  'claim': {
     stance?: 'support' | 'oppose' | 'uncertain'
     evidence?: string[]
     assumptions?: string[]
   }
-  procedure: {
+  'procedure': {
     steps: string[]
     prerequisites?: string[]
     failureModes?: string[]
   }
-  decision: {
+  'decision': {
     rationale: string
     alternatives?: string[]
     consequences?: string[]
   }
-  question: {
+  'question': {
     status: 'open' | 'testing' | 'answered'
     hypothesis?: string
     evidence?: string[]
     nextStep?: string
     answer?: string
   }
-  visual: {
+  'visual': {
     attachmentIds: string[]
   }
   'media-clip': {
@@ -157,7 +157,7 @@ interface FragmentDetailMap {
     endMs: number
     attachmentIds?: string[]
   }
-  inspiration: {
+  'inspiration': {
     form: 'idea' | 'reflection'
   }
 }
@@ -252,7 +252,7 @@ R1 的 `visual` 来源限于扩展采集的网页截图：`content` 是用户写
 
 ## 8. 与其他记录的关系
 
-| 数据       | 用途               | 进入复习              | 进入扩展 Markdown ZIP          |
+| 数据       | 用途               | 进入复习              | 进入扩展 Markdown ZIP         |
 | ---------- | ------------------ | --------------------- | ----------------------------- |
 | Fragment   | 要内化的知识       | 是                    | 可阅读 Markdown               |
 | Highlight  | 页面视觉标记与备注 | 否                    | 原文、备注和来源的 Markdown   |
@@ -265,11 +265,11 @@ Fragment 可以引用高亮或附件 ID，但删除引用不得默认删除独�
 
 以下状态不重复写入 Fragment，由核心实体实时派生：
 
-| 状态     | 派生条件                                       |
-| -------- | ---------------------------------------------- |
-| 新建     | `review.state === 'new'`                       |
-| 到期     | `review.nextReviewAt <= now`                   |
-| 待加强   | 最近评分为 again/hard，或 `lapses > 0`         |
+| 状态   | 派生条件                               |
+| ------ | -------------------------------------- |
+| 新建   | `review.state === 'new'`               |
+| 到期   | `review.nextReviewAt <= now`           |
+| 待加强 | 最近评分为 again/hard，或 `lapses > 0` |
 
 UI 不得维护第二份布尔字段，否则导入、同步和日志重放后会产生漂移。
 

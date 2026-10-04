@@ -74,22 +74,22 @@
 
 每个指标有稳定编号，其他文档用编号引用。“事件”列指向第 10 节的事件字典；“目标或护栏”列只写已确认的护栏，新的目标值在 [validation.md](validation.md) 的假设里登记并随阶段 V 校准。
 
-| ID | 指标 | 口径 | 范围 | 来自事件 | 目标或护栏 |
-| -- | ---- | ---- | ---- | -------- | ---------- |
-| M-02 | Fragment completion rate | 打开采集窗口后成功保存的比例，可按退出阶段拆分 | 扩展 | `capture.modal_opened`、`capture.saved`、`capture.step_reached`、`capture.exited` | 退出率持续高于 40% 时先减字段（第 6.1 节） |
-| M-03 | 采集用时 | 从打开到保存的中位时间，按标准、深度模式分别统计 | 扩展 | `capture.saved` | 标准 < 60 秒；深度 < 120 秒 |
-| M-04 | Context correction rate | 用户修改自动上下文或来源的比例 | 扩展 | `capture.saved` | 无固定阈值；持续上升说明语境提取需要改进 |
-| M-05 | Application quality proxy | 应用字段通过校验且非原文复制的比例，并以第 7 节的抽样校准 | 扩展 | `capture.saved`、抽样 | 抽样“具体场景”占比，见 [H-06](validation.md) |
-| M-06 | Extension-to-Desktop latency | 本地服务可连接时，从扩展保存到 Desktop 可见的中位时间 | 两端 | `delivery.item_result`、`delivery.latency` | 先建立基线 |
-| M-07 | Due completion rate | 当天到期中完成评分的比例 | Desktop | `review.session_started`、`review.card_rated`、`review.session_ended` | 见 [H-02](validation.md) |
-| M-08 | Good/Easy without hint rate | 未使用提示且评为 good 或 easy 的比例 | Desktop | `review.card_rated` | 趋势指标，随复习次数观察 |
-| M-11 | 扩展激活率 | 见第 2.1 节 | 扩展 | `capture.saved`、`fragment.reopened` | 先建立基线 |
-| M-12 | 学习激活率 | 见第 2.1 节 | 两端 | `connection.paired`、`delivery.item_result`、`review.card_rated` | 见 [H-09](validation.md) |
-| M-13 | Desktop 周活跃与四周留存 | 见第 9 节末段 | Desktop | `review.card_rated` | 先建立基线 |
-| M-14 | Kind 修正率 | 保存前用户修改了自动推断 kind 的比例 | 扩展 | `capture.saved` | 高于 20% 时不得隐藏 kind 选择器（第 6.3 节） |
-| M-16 | 安全出口使用率 | 放弃采集窗口的会话中，改存 Highlight 或 Clip 的比例 | 扩展 | `capture.exited` | 见 [H-05](validation.md) |
-| M-17 | AI 建议采纳率 | 核验建议中，被用户接受或轻改后采用的比例，以及被标为“不准确”的比例；按云端与设备端分别统计 | 扩展 | `ai.suggestion_resolved` | 见 [H-11](validation.md) |
-| M-18 | Weekly Retrieved Fragments | 见第 4 节 | Desktop | `review.card_rated` | 北极星；先建立基线 |
+| ID   | 指标                         | 口径                                                                                       | 范围    | 来自事件                                                                          | 目标或护栏                                   |
+| ---- | ---------------------------- | ------------------------------------------------------------------------------------------ | ------- | --------------------------------------------------------------------------------- | -------------------------------------------- |
+| M-02 | Fragment completion rate     | 打开采集窗口后成功保存的比例，可按退出阶段拆分                                             | 扩展    | `capture.modal_opened`、`capture.saved`、`capture.step_reached`、`capture.exited` | 退出率持续高于 40% 时先减字段（第 6.1 节）   |
+| M-03 | 采集用时                     | 从打开到保存的中位时间，按标准、深度模式分别统计                                           | 扩展    | `capture.saved`                                                                   | 标准 < 60 秒；深度 < 120 秒                  |
+| M-04 | Context correction rate      | 用户修改自动上下文或来源的比例                                                             | 扩展    | `capture.saved`                                                                   | 无固定阈值；持续上升说明语境提取需要改进     |
+| M-05 | Application quality proxy    | 应用字段通过校验且非原文复制的比例，并以第 7 节的抽样校准                                  | 扩展    | `capture.saved`、抽样                                                             | 抽样“具体场景”占比，见 [H-06](validation.md) |
+| M-06 | Extension-to-Desktop latency | 本地服务可连接时，从扩展保存到 Desktop 可见的中位时间                                      | 两端    | `delivery.item_result`、`delivery.latency`                                        | 先建立基线                                   |
+| M-07 | Due completion rate          | 当天到期中完成评分的比例                                                                   | Desktop | `review.session_started`、`review.card_rated`、`review.session_ended`             | 见 [H-02](validation.md)                     |
+| M-08 | Good/Easy without hint rate  | 未使用提示且评为 good 或 easy 的比例                                                       | Desktop | `review.card_rated`                                                               | 趋势指标，随复习次数观察                     |
+| M-11 | 扩展激活率                   | 见第 2.1 节                                                                                | 扩展    | `capture.saved`、`fragment.reopened`                                              | 先建立基线                                   |
+| M-12 | 学习激活率                   | 见第 2.1 节                                                                                | 两端    | `connection.paired`、`delivery.item_result`、`review.card_rated`                  | 见 [H-09](validation.md)                     |
+| M-13 | Desktop 周活跃与四周留存     | 见第 9 节末段                                                                              | Desktop | `review.card_rated`                                                               | 先建立基线                                   |
+| M-14 | Kind 修正率                  | 保存前用户修改了自动推断 kind 的比例                                                       | 扩展    | `capture.saved`                                                                   | 高于 20% 时不得隐藏 kind 选择器（第 6.3 节） |
+| M-16 | 安全出口使用率               | 放弃采集窗口的会话中，改存 Highlight 或 Clip 的比例                                        | 扩展    | `capture.exited`                                                                  | 见 [H-05](validation.md)                     |
+| M-17 | AI 建议采纳率                | 核验建议中，被用户接受或轻改后采用的比例，以及被标为“不准确”的比例；按云端与设备端分别统计 | 扩展    | `ai.suggestion_resolved`                                                          | 见 [H-11](validation.md)                     |
+| M-18 | Weekly Retrieved Fragments   | 见第 4 节                                                                                  | Desktop | `review.card_rated`                                                               | 北极星；先建立基线                           |
 
 ## 6. 体验护栏
 
@@ -130,12 +130,12 @@
 
 每周从本地库随机抽 20–30 条 Fragment，由两位评审在不知道作者的情况下独立评分，只记录评分，不记录正文。
 
-| 维度 | 评分 | 判定要点 |
-| ---- | ---- | -------- |
-| 独立可理解 | 是 / 部分 / 否 | 只看这条 Fragment，能否说清它是什么、来自哪里、为何重要 |
-| 应用具体 | 具体 / 泛泛 / 敷衍 | 具体 = 同时含一个对象（任务、文档、判断）和一个动作或问题；泛泛 = 只有其一；敷衍 = 都没有或只复制原文，示例见 [kinds.md §3](kinds.md) |
-| kind 合适 | 合适 / 可更换 / 不合适 | 对照 [kinds.md §2](kinds.md) 的选择顺序 |
-| 来源标签诚实 | 是 / 否 | 标为 `source-material` 的核验确实回看了原文；标为 `llm` 的确为未改动的模型建议 |
+| 维度         | 评分                   | 判定要点                                                                                                                              |
+| ------------ | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 独立可理解   | 是 / 部分 / 否         | 只看这条 Fragment，能否说清它是什么、来自哪里、为何重要                                                                               |
+| 应用具体     | 具体 / 泛泛 / 敷衍     | 具体 = 同时含一个对象（任务、文档、判断）和一个动作或问题；泛泛 = 只有其一；敷衍 = 都没有或只复制原文，示例见 [kinds.md §3](kinds.md) |
+| kind 合适    | 合适 / 可更换 / 不合适 | 对照 [kinds.md §2](kinds.md) 的选择顺序                                                                                               |
+| 来源标签诚实 | 是 / 否                | 标为 `source-material` 的核验确实回看了原文；标为 `llm` 的确为未改动的模型建议                                                        |
 
 “应用具体”评为“具体”的比例就是 [H-06](validation.md) 的判据。两位评审不一致的条目讨论后定稿，并记录一致率；一致率低于 70% 时先修订判定要点，再继续抽样。
 
@@ -172,22 +172,22 @@
 - 耗时统一分桶：< 15 秒、15–30 秒、30–60 秒、60–120 秒、> 120 秒。数量分桶：0、1–2、3–5、6–10、> 10。
 - 新增事件须同时登记它服务的指标；没有对应指标的事件不记录。
 
-| 事件 | 触发时机 | 允许属性 | 服务指标 |
-| ---- | -------- | -------- | -------- |
-| `capture.modal_opened` | 采集窗口打开 | `entry`（selection / manual-inspiration / from-highlight / from-clip / screenshot）、`mode`（standard / deep） | M-02 |
-| `capture.step_reached` | 进入理解、核验、应用任一步 | `step` | M-02 |
-| `capture.saved` | Fragment 本地写入成功 | `kind`、`mode`、`verified_source`（source-material / manual / llm）、`duration`（分桶）、`context_edited`、`source_edited`、`kind_changed`、`highlight_also` | M-02、M-03、M-04、M-05、M-11、M-14 |
-| `capture.exited` | 关闭窗口且未保存 | `last_step`、`had_input`、`fallback`（none / highlight / clip） | M-02、M-16 |
-| `capture.save_failed` | 保存失败 | `error_code` | 数据可靠性 |
-| `fragment.reopened` | 从碎片库再次打开一条 Fragment | `surface`（extension / desktop） | M-11 |
-| `connection.paired` | 配对成功 | `first_time`、`duration`（从开始配对起，分桶） | M-12、[H-08](validation.md) |
-| `delivery.item_result` | 一项交付得到终态结果 | `item`（fragment / asset）、`result`（created / unchanged / stale / conflict / gone / unauthorized / network / server）、`attempts`（分桶） | M-06、M-12 |
-| `delivery.latency` | 交付成功 | `latency`（分桶） | M-06 |
-| `export.completed` | 导出结束 | `result`（full / partial）、`missing_assets`（分桶） | 数据可靠性 |
-| `review.session_started` | 复习会话开始 | `queue_size`（分桶）、`source`（today / resume） | M-07 |
-| `review.card_rated` | 一次评分成功提交 | `kind`、`rating`、`used_hint`、`duration`（分桶） | M-07、M-08、M-12、M-13、M-18 |
-| `review.session_ended` | 会话结束或退出 | `completed`（分桶）、`remaining`（分桶）、`reason`（finished / exited） | M-07 |
-| `ai.suggestion_resolved` | 用户处理完一条核验建议 | `provider`（cloud / on-device）、`action`（accepted / edited / rejected / marked_inaccurate） | M-17 |
+| 事件                     | 触发时机                      | 允许属性                                                                                                                                                     | 服务指标                           |
+| ------------------------ | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| `capture.modal_opened`   | 采集窗口打开                  | `entry`（selection / manual-inspiration / from-highlight / from-clip / screenshot）、`mode`（standard / deep）                                               | M-02                               |
+| `capture.step_reached`   | 进入理解、核验、应用任一步    | `step`                                                                                                                                                       | M-02                               |
+| `capture.saved`          | Fragment 本地写入成功         | `kind`、`mode`、`verified_source`（source-material / manual / llm）、`duration`（分桶）、`context_edited`、`source_edited`、`kind_changed`、`highlight_also` | M-02、M-03、M-04、M-05、M-11、M-14 |
+| `capture.exited`         | 关闭窗口且未保存              | `last_step`、`had_input`、`fallback`（none / highlight / clip）                                                                                              | M-02、M-16                         |
+| `capture.save_failed`    | 保存失败                      | `error_code`                                                                                                                                                 | 数据可靠性                         |
+| `fragment.reopened`      | 从碎片库再次打开一条 Fragment | `surface`（extension / desktop）                                                                                                                             | M-11                               |
+| `connection.paired`      | 配对成功                      | `first_time`、`duration`（从开始配对起，分桶）                                                                                                               | M-12、[H-08](validation.md)        |
+| `delivery.item_result`   | 一项交付得到终态结果          | `item`（fragment / asset）、`result`（created / unchanged / stale / conflict / gone / unauthorized / network / server）、`attempts`（分桶）                  | M-06、M-12                         |
+| `delivery.latency`       | 交付成功                      | `latency`（分桶）                                                                                                                                            | M-06                               |
+| `export.completed`       | 导出结束                      | `result`（full / partial）、`missing_assets`（分桶）                                                                                                         | 数据可靠性                         |
+| `review.session_started` | 复习会话开始                  | `queue_size`（分桶）、`source`（today / resume）                                                                                                             | M-07                               |
+| `review.card_rated`      | 一次评分成功提交              | `kind`、`rating`、`used_hint`、`duration`（分桶）                                                                                                            | M-07、M-08、M-12、M-13、M-18       |
+| `review.session_ended`   | 会话结束或退出                | `completed`（分桶）、`remaining`（分桶）、`reason`（finished / exited）                                                                                      | M-07                               |
+| `ai.suggestion_resolved` | 用户处理完一条核验建议        | `provider`（cloud / on-device）、`action`（accepted / edited / rejected / marked_inaccurate）                                                                | M-17                               |
 
 ## 11. 本地指标面板
 

@@ -12,7 +12,16 @@ describe('field-domain merge (storage.md §9)', () => {
       type: 'review.rated',
       fragmentId: 'f1',
       review,
-      log: { id: 'log_1', target: { type: 'fragment', fragmentId: 'f1' }, rating: 'good', reviewedAt: NOW, previousIntervalDays: 6, nextIntervalDays: 12, usedHint: false, schedulerVersion: 'four-tier-v1' },
+      log: {
+        id: 'log_1',
+        target: { type: 'fragment', fragmentId: 'f1' },
+        rating: 'good',
+        reviewedAt: NOW,
+        previousIntervalDays: 6,
+        nextIntervalDays: 12,
+        usedHint: false,
+        schedulerVersion: 'four-tier-v1',
+      },
     }
     const result = applyDesktopChanges([change], localState)
     expect(result.fragments).toHaveLength(1)
@@ -26,7 +35,21 @@ describe('field-domain merge (storage.md §9)', () => {
   })
 
   it('local deletion markers block revival; desktop deletes never propagate', () => {
-    const rated: DesktopChange = { type: 'review.rated', fragmentId: 'f1', review: f1.review, log: { id: 'log_2', target: { type: 'fragment', fragmentId: 'f1' }, rating: 'good', reviewedAt: NOW, previousIntervalDays: 0, nextIntervalDays: 1, usedHint: false, schedulerVersion: 'four-tier-v1' } }
+    const rated: DesktopChange = {
+      type: 'review.rated',
+      fragmentId: 'f1',
+      review: f1.review,
+      log: {
+        id: 'log_2',
+        target: { type: 'fragment', fragmentId: 'f1' },
+        rating: 'good',
+        reviewedAt: NOW,
+        previousIntervalDays: 0,
+        nextIntervalDays: 1,
+        usedHint: false,
+        schedulerVersion: 'four-tier-v1',
+      },
+    }
     const result = applyDesktopChanges([rated], { ...localState, localDeletions: new Set(['f1']) })
     expect(result.fragments).toHaveLength(0)
     expect(result.reviewLogs).toHaveLength(0)
@@ -41,7 +64,16 @@ describe('field-domain merge (storage.md §9)', () => {
       type: 'review.rated',
       fragmentId: 'unknown',
       review: f1.review,
-      log: { id: 'log_u', target: { type: 'fragment', fragmentId: 'unknown' }, rating: 'good', reviewedAt: NOW, previousIntervalDays: 0, nextIntervalDays: 1, usedHint: false, schedulerVersion: 'four-tier-v1' },
+      log: {
+        id: 'log_u',
+        target: { type: 'fragment', fragmentId: 'unknown' },
+        rating: 'good',
+        reviewedAt: NOW,
+        previousIntervalDays: 0,
+        nextIntervalDays: 1,
+        usedHint: false,
+        schedulerVersion: 'four-tier-v1',
+      },
     }
     const result = applyDesktopChanges([change], localState)
     expect(result.fragments).toHaveLength(0)
@@ -60,7 +92,16 @@ describe('field-domain merge (storage.md §9)', () => {
       type: 'review.rated',
       fragmentId: 'f1',
       review: { ...f1.review, repetitions: 1 },
-      log: { id: 'log_3', target: { type: 'fragment', fragmentId: 'f1' }, rating: 'good', reviewedAt: NOW, previousIntervalDays: 0, nextIntervalDays: 1, usedHint: false, schedulerVersion: 'four-tier-v1' },
+      log: {
+        id: 'log_3',
+        target: { type: 'fragment', fragmentId: 'f1' },
+        rating: 'good',
+        reviewedAt: NOW,
+        previousIntervalDays: 0,
+        nextIntervalDays: 1,
+        usedHint: false,
+        schedulerVersion: 'four-tier-v1',
+      },
     }
     const result = applyDesktopChanges([change], { ...localState, fragments: [newerLocal] })
     expect(result.fragments).toHaveLength(0) // no state update

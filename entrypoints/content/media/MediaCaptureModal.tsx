@@ -117,7 +117,10 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
         locator: { type: 'time', startMs: startMs!, endMs: endMs! },
         verified: { ...verified },
         use: useText.trim(),
-        tags: tags.split(/[,，]/).map(t => t.trim()).filter(Boolean),
+        tags: tags
+          .split(/[,，]/)
+          .map(t => t.trim())
+          .filter(Boolean),
         detail: { startMs: startMs!, endMs: endMs! },
       }
       const response = await MessageUtils.sendMessage({ type: 'SAVE_FRAGMENT', input, force })
@@ -201,26 +204,60 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
         </div>
 
         <label style={styles.label}>要点摘要（必填，即这条碎片的核心内容）</label>
-        <textarea style={styles.textarea} rows={2} maxLength={500} value={summary} onChange={e => { setSummary(e.target.value); setVerified(null) }} placeholder="这几十秒讲了什么值得记住的点？" data-testid="media-summary" />
+        <textarea
+          style={styles.textarea}
+          rows={2}
+          maxLength={500}
+          value={summary}
+          onChange={e => {
+            setSummary(e.target.value)
+            setVerified(null)
+          }}
+          placeholder="这几十秒讲了什么值得记住的点？"
+          data-testid="media-summary"
+        />
 
         <label style={styles.label}>转写（手工记录/修正，可选）</label>
-        <textarea style={styles.textarea} rows={4} value={transcript} onChange={e => setTranscript(e.target.value)} placeholder="逐句或摘录式转写；后续可修正" data-testid="media-transcript" />
+        <textarea
+          style={styles.textarea}
+          rows={4}
+          value={transcript}
+          onChange={e => setTranscript(e.target.value)}
+          placeholder="逐句或摘录式转写；后续可修正"
+          data-testid="media-transcript"
+        />
 
         <label style={styles.label}>页面语境（可选）</label>
-        <textarea style={styles.textarea} rows={2} value={contextNote} onChange={e => { setContextNote(e.target.value); setVerified(null) }} placeholder="这 段出现在什么讨论里？" />
+        <textarea
+          style={styles.textarea}
+          rows={2}
+          value={contextNote}
+          onChange={e => {
+            setContextNote(e.target.value)
+            setVerified(null)
+          }}
+          placeholder="这 段出现在什么讨论里？"
+        />
 
         <div style={styles.verifyBlock}>
           <div className="filter-label" style={styles.label}>
             核验 — 回放该时间段并确认转写
           </div>
           {verified ? (
-            <div style={styles.verifiedNote}>已确认核对（{verified.source === 'source-material' ? '回放原文' : '手工'}，{new Date(verified.confirmedAt).toLocaleTimeString()}）</div>
+            <div style={styles.verifiedNote}>
+              已确认核对（{verified.source === 'source-material' ? '回放原文' : '手工'}，{new Date(verified.confirmedAt).toLocaleTimeString()}）
+            </div>
           ) : (
             <div style={styles.verifyRow}>
               <button style={styles.verifyBtn} disabled={!rangeValid} onClick={() => target?.replay(startMs ?? 0, endMs ?? undefined)} data-testid="media-replay">
                 ▶ 回放区间
               </button>
-              <button style={styles.verifyBtn} disabled={!rangeValid} onClick={() => setVerified({ confirmedAt: Date.now(), source: 'source-material' })} data-testid="media-verify">
+              <button
+                style={styles.verifyBtn}
+                disabled={!rangeValid}
+                onClick={() => setVerified({ confirmedAt: Date.now(), source: 'source-material' })}
+                data-testid="media-verify"
+              >
                 已回放确认
               </button>
               <button style={styles.verifyBtn} onClick={() => setVerified({ confirmedAt: Date.now(), source: 'manual' })}>
@@ -231,7 +268,14 @@ export default function MediaCaptureModal({ targets, sourceUrl, sourceTitle, onC
         </div>
 
         <label style={styles.label}>应用（必填）</label>
-        <textarea style={{ ...styles.textarea, borderColor: useInvalid ? '#e5484d' : undefined }} rows={2} value={useText} onChange={e => setUse(e.target.value)} placeholder="准备在什么时候用这段内容？" data-testid="media-use" />
+        <textarea
+          style={{ ...styles.textarea, borderColor: useInvalid ? '#e5484d' : undefined }}
+          rows={2}
+          value={useText}
+          onChange={e => setUse(e.target.value)}
+          placeholder="准备在什么时候用这段内容？"
+          data-testid="media-use"
+        />
         {useInvalid && <div style={styles.useError}>{useInvalid}</div>}
 
         <input style={styles.tagInput} placeholder="标签（逗号分隔，可选）" value={tags} onChange={e => setTags(e.target.value)} />
@@ -294,27 +338,114 @@ function ModalShell({ children }: { children: React.ReactNode }) {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  card: { width: 'min(560px, calc(100vw - 32px))', maxHeight: '82vh', overflowY: 'auto', background: 'var(--ann-surface)', borderRadius: '12px', padding: '16px 18px', boxShadow: 'var(--ann-shadow)', color: 'var(--ann-text)', fontSize: '14px' },
+  card: {
+    width: 'min(560px, calc(100vw - 32px))',
+    maxHeight: '82vh',
+    overflowY: 'auto',
+    background: 'var(--ann-surface)',
+    borderRadius: '12px',
+    padding: '16px 18px',
+    boxShadow: 'var(--ann-shadow)',
+    color: 'var(--ann-text)',
+    fontSize: '14px',
+  },
   header: { display: 'flex', alignItems: 'center', gap: '8px', paddingBottom: '8px', borderBottom: '1px solid var(--ann-border)' },
   stepBadge: { fontSize: '12px', color: 'var(--ann-muted)', background: 'var(--ann-surface-alt)', borderRadius: '10px', padding: '2px 8px' },
   closeBtn: { marginLeft: 'auto', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '14px', color: 'var(--ann-muted)' },
-  select: { width: '100%', border: '1px solid var(--ann-border)', borderRadius: '8px', padding: '6px 8px', fontSize: '13px', background: 'var(--ann-surface)', color: 'var(--ann-text)' },
+  select: {
+    width: '100%',
+    border: '1px solid var(--ann-border)',
+    borderRadius: '8px',
+    padding: '6px 8px',
+    fontSize: '13px',
+    background: 'var(--ann-surface)',
+    color: 'var(--ann-text)',
+  },
   rangeRow: { display: 'flex', alignItems: 'center', gap: '8px', margin: '10px 0', flexWrap: 'wrap' },
-  rangeBtn: { border: '1px solid var(--ann-accent)', background: 'transparent', color: 'var(--ann-accent)', borderRadius: '8px', padding: '7px 12px', fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap' },
-  timeInput: { width: '72px', border: '1px solid var(--ann-border)', borderRadius: '8px', padding: '7px 8px', fontSize: '13px', background: 'var(--ann-surface)', color: 'var(--ann-text)' },
+  rangeBtn: {
+    border: '1px solid var(--ann-accent)',
+    background: 'transparent',
+    color: 'var(--ann-accent)',
+    borderRadius: '8px',
+    padding: '7px 12px',
+    fontSize: '13px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
+  timeInput: {
+    width: '72px',
+    border: '1px solid var(--ann-border)',
+    borderRadius: '8px',
+    padding: '7px 8px',
+    fontSize: '13px',
+    background: 'var(--ann-surface)',
+    color: 'var(--ann-text)',
+  },
   muted: { color: 'var(--ann-muted)', fontSize: '13px' },
   label: { fontSize: '12px', color: 'var(--ann-muted)', marginTop: '2px' },
-  textarea: { width: '100%', boxSizing: 'border-box', border: '1px solid var(--ann-border)', borderRadius: '8px', padding: '8px 10px', fontSize: '14px', fontFamily: 'inherit', resize: 'vertical', background: 'var(--ann-surface)', color: 'var(--ann-text)' },
+  textarea: {
+    width: '100%',
+    boxSizing: 'border-box',
+    border: '1px solid var(--ann-border)',
+    borderRadius: '8px',
+    padding: '8px 10px',
+    fontSize: '14px',
+    fontFamily: 'inherit',
+    resize: 'vertical',
+    background: 'var(--ann-surface)',
+    color: 'var(--ann-text)',
+  },
   verifyBlock: { background: 'var(--ann-surface-alt)', borderRadius: '8px', padding: '10px', marginTop: '8px' },
   verifyRow: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
-  verifyBtn: { border: '1px solid var(--ann-accent)', background: 'transparent', color: 'var(--ann-accent)', borderRadius: '8px', padding: '6px 12px', fontSize: '13px', cursor: 'pointer' },
+  verifyBtn: {
+    border: '1px solid var(--ann-accent)',
+    background: 'transparent',
+    color: 'var(--ann-accent)',
+    borderRadius: '8px',
+    padding: '6px 12px',
+    fontSize: '13px',
+    cursor: 'pointer',
+  },
   verifiedNote: { background: 'var(--ann-success-bg)', color: 'var(--ann-success)', borderRadius: '8px', padding: '8px 10px', fontSize: '13px' },
   useError: { fontSize: '12px', color: 'var(--ann-danger)' },
-  errorBanner: { display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--ann-danger-bg)', color: 'var(--ann-danger)', borderRadius: '8px', padding: '8px 10px', fontSize: '13px' },
-  miniBtn: { border: '1px solid var(--ann-danger)', background: 'transparent', color: 'var(--ann-danger)', borderRadius: '6px', padding: '3px 8px', cursor: 'pointer', whiteSpace: 'nowrap' },
+  errorBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    background: 'var(--ann-danger-bg)',
+    color: 'var(--ann-danger)',
+    borderRadius: '8px',
+    padding: '8px 10px',
+    fontSize: '13px',
+  },
+  miniBtn: {
+    border: '1px solid var(--ann-danger)',
+    background: 'transparent',
+    color: 'var(--ann-danger)',
+    borderRadius: '6px',
+    padding: '3px 8px',
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  },
   tagInput: { border: '1px solid var(--ann-border)', borderRadius: '8px', padding: '7px 10px', fontSize: '13px', background: 'var(--ann-surface)', color: 'var(--ann-text)' },
   actions: { display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '6px' },
-  primaryBtn: { background: 'var(--ann-accent)', color: 'var(--ann-accent-contrast)', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '14px', cursor: 'pointer' },
-  ghostBtn: { background: 'transparent', color: 'var(--ann-text)', border: '1px solid var(--ann-border)', borderRadius: '8px', padding: '8px 14px', fontSize: '13px', cursor: 'pointer' },
+  primaryBtn: {
+    background: 'var(--ann-accent)',
+    color: 'var(--ann-accent-contrast)',
+    border: 'none',
+    borderRadius: '8px',
+    padding: '8px 16px',
+    fontSize: '14px',
+    cursor: 'pointer',
+  },
+  ghostBtn: {
+    background: 'transparent',
+    color: 'var(--ann-text)',
+    border: '1px solid var(--ann-border)',
+    borderRadius: '8px',
+    padding: '8px 14px',
+    fontSize: '13px',
+    cursor: 'pointer',
+  },
   success: { background: 'var(--ann-success-bg)', color: 'var(--ann-success)', borderRadius: '10px', padding: '14px 28px', fontSize: '16px', boxShadow: 'var(--ann-shadow)' },
 }

@@ -4,7 +4,8 @@
  * user remove them when pixel masking is used instead of DOM anonymization.
  */
 
-import { intersectRects, ViewportRect } from './crop'
+import type { ViewportRect } from './crop'
+import { intersectRects } from './crop'
 
 /** Any site can declare identity blocks with this attribute (E2E fixtures use it too). */
 const GENERIC_SELECTOR = '[data-ann-identity]'
@@ -34,10 +35,7 @@ export function detectIdentityRects(root: Document, hostname: string, selection:
     for (const el of Array.from(root.querySelectorAll<HTMLElement>(selector))) {
       const rect = el.getBoundingClientRect()
       if (rect.width <= 0 || rect.height <= 0) continue
-      const onScreen = intersectRects(
-        { x: rect.left, y: rect.top, width: rect.width, height: rect.height },
-        viewport,
-      )
+      const onScreen = intersectRects({ x: rect.left, y: rect.top, width: rect.width, height: rect.height }, viewport)
       if (!onScreen) continue
       const inSelection = intersectRects(onScreen, selection)
       if (!inSelection) continue

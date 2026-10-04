@@ -266,16 +266,16 @@ R1 目标是在扩展中一键下载 Markdown 与已保存图片组成的 ZIP，
 
 ## 15. 内容来源映射
 
-| 页面内容           | 真源                                     |
-| ------------------ | ---------------------------------------- |
-| 定位、用户和差异化 | `product.md`                              |
-| 工作流             | `learning-model.md`                       |
-| Extension 功能     | `extension.md`                            |
-| Desktop 功能       | `desktop.md`                              |
-| 用户案例           | `examples.md` + `user-stories.md`         |
-| 竞品与行业对比     | `market.md`（带核对日期）                 |
-| 各类型碎片的示例   | `kinds.md`                                |
-| 当前交付状态       | `roadmap.md`                              |
+| 页面内容           | 真源                              |
+| ------------------ | --------------------------------- |
+| 定位、用户和差异化 | `product.md`                      |
+| 工作流             | `learning-model.md`               |
+| Extension 功能     | `extension.md`                    |
+| Desktop 功能       | `desktop.md`                      |
+| 用户案例           | `examples.md` + `user-stories.md` |
+| 竞品与行业对比     | `market.md`（带核对日期）         |
+| 各类型碎片的示例   | `kinds.md`                        |
+| 当前交付状态       | `roadmap.md`                      |
 
 Landing Page 不自行发明产品承诺。真源改变后再同步页面内容。
 

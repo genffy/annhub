@@ -2,7 +2,7 @@
  * Content-side ClipService — builds ClipRecord from a selection Range
  * and sends it to the background for persistence.
  */
-import { ClipRecord } from '../../types/clip'
+import type { ClipRecord } from '../../types/clip'
 import { generateId } from '../../utils/helpers'
 import MessageUtils from '../../utils/message'
 import { Logger } from '../../utils/logger'

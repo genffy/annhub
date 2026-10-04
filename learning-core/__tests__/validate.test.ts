@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createFragment } from '../factory'
-import {
-  validateFragment,
-  validateVerified,
-} from '../validate'
+import { validateFragment, validateVerified } from '../validate'
 import type { FragmentRecord } from '../types'
 import { makeFragment, makeFragmentOf, VERIFIED, EXCERPT } from './helpers'
 
@@ -34,7 +31,9 @@ describe('kind registry (fragments.md §4)', () => {
     } as unknown as FragmentRecord
     expect(validateFragment(media).ok).toBe(true)
     // 0 <= startMs is contract-legal (media from the very beginning)
-    expect(validateFragment({ ...media, detail: { startMs: 0, endMs: 45_000 }, context: { ...media.context, locator: { type: 'time' as const, startMs: 0, endMs: 45_000 } } }).ok).toBe(true)
+    expect(
+      validateFragment({ ...media, detail: { startMs: 0, endMs: 45_000 }, context: { ...media.context, locator: { type: 'time' as const, startMs: 0, endMs: 45_000 } } }).ok,
+    ).toBe(true)
     expect(validateFragment({ ...media, detail: { startMs: 45_000, endMs: 45_000 } }).code).toBe('DETAIL_FIELD_INVALID')
   })
 
@@ -101,9 +100,9 @@ describe('verification (fragments.md §3/§7)', () => {
 
   it('demands modelId + promptVersion for llm results and forbids basedOnModel there', () => {
     expect(validateVerified({ ...VERIFIED, source: 'llm' }).code).toBe('VERIFIED_LLM_META_REQUIRED')
-    expect(
-      validateVerified({ ...VERIFIED, source: 'llm', modelId: 'gpt-x', promptVersion: 'p1', basedOnModel: { modelId: 'gpt-x', promptVersion: 'p0' } }).code,
-    ).toBe('VERIFIED_BASED_ON_MODEL_INVALID')
+    expect(validateVerified({ ...VERIFIED, source: 'llm', modelId: 'gpt-x', promptVersion: 'p1', basedOnModel: { modelId: 'gpt-x', promptVersion: 'p0' } }).code).toBe(
+      'VERIFIED_BASED_ON_MODEL_INVALID',
+    )
     expect(validateVerified({ ...VERIFIED, source: 'llm', modelId: 'gpt-x', promptVersion: 'p1' }).ok).toBe(true)
   })
 
@@ -139,11 +138,17 @@ describe('locators (fragments.md §5)', () => {
     expect(validateFragment(okImage).ok).toBe(true)
 
     const outOfBounds = makeFragmentOf('visual')
-    const bad = { ...outOfBounds, context: { ...outOfBounds.context, locator: { type: 'image' as const, assetId: 'asset_fix1', rect: [0.5, 0.5, 0.8, 0.2] as [number, number, number, number] } } }
+    const bad = {
+      ...outOfBounds,
+      context: { ...outOfBounds.context, locator: { type: 'image' as const, assetId: 'asset_fix1', rect: [0.5, 0.5, 0.8, 0.2] as [number, number, number, number] } },
+    }
     expect(validateFragment(bad).code).toBe('LOCATOR_INVALID')
 
     const zeroSize = makeFragmentOf('visual')
-    const badZero = { ...zeroSize, context: { ...zeroSize.context, locator: { type: 'image' as const, assetId: 'asset_fix1', rect: [0.1, 0.1, 0, 0.5] as [number, number, number, number] } } }
+    const badZero = {
+      ...zeroSize,
+      context: { ...zeroSize.context, locator: { type: 'image' as const, assetId: 'asset_fix1', rect: [0.1, 0.1, 0, 0.5] as [number, number, number, number] } },
+    }
     expect(validateFragment(badZero).code).toBe('LOCATOR_INVALID')
   })
 

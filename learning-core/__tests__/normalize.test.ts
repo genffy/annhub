@@ -29,7 +29,13 @@ describe('dedupeKeyOf (fragments.md §6)', () => {
 describe('dedupeTags', () => {
   it('lowercases, trims, drops empties and caps at 20', () => {
     expect(dedupeTags(['Fed', 'fed', ' ', 'Macro'])).toEqual(['fed', 'macro'])
-    expect(dedupeTags(Array(25).fill(0).map((_, i) => `t${i}`)).length).toBe(20)
+    expect(
+      dedupeTags(
+        Array(25)
+          .fill(0)
+          .map((_, i) => `t${i}`),
+      ).length,
+    ).toBe(20)
   })
 })
 

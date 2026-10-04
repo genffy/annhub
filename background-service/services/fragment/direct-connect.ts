@@ -198,11 +198,7 @@ export async function flushPendingDeliveries(config: DirectConnectConfig, deps: 
       if (res.status === 409 || res.status === 413 || res.status === 422) {
         // Deterministic: retrying the same bytes cannot succeed.
         prunable.push(event.eventId)
-        result.errors.push(
-          res.status === 413
-            ? `图片 ${assetId} 超过双方上限，未交付（本地已保留）`
-            : `图片 ${assetId} 交付失败 HTTP ${res.status}`,
-        )
+        result.errors.push(res.status === 413 ? `图片 ${assetId} 超过双方上限，未交付（本地已保留）` : `图片 ${assetId} 交付失败 HTTP ${res.status}`)
         continue
       }
       if (res.status >= 500) {
@@ -219,7 +215,6 @@ export async function flushPendingDeliveries(config: DirectConnectConfig, deps: 
   result.pruned += prunable.length
   return result
 }
-
 
 // ── R3: Desktop → extension change feed + event batch (storage.md §9) ────
 

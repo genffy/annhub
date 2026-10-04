@@ -14,7 +14,7 @@ import ClipToast from './ClipToast'
 import { enterScreenshotMode } from './screenshot'
 import MessageUtils from '../../utils/message'
 import { Logger } from '../../utils/logger'
-import { HighlightRecord } from '../../types/highlight'
+import type { HighlightRecord } from '../../types/highlight'
 import type { HoverMenuAction } from '../../types/action'
 import { uiText } from '../../utils/ui-text'
 import './content.css'
@@ -214,7 +214,6 @@ function Selection() {
         modeManager.setMode(false)
         return
       }
-
     }
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
@@ -480,25 +479,14 @@ function Selection() {
       {/* Clip toast: 已剪藏 · 不进入复习, undo within ~3s */}
       {clipToast && (
         <div data-ann-ui="clip-toast-wrapper" style={{ pointerEvents: 'auto' }}>
-          <ClipToast
-            key={clipToast.id}
-            clipId={clipToast.id}
-            failed={clipToast.failed}
-            onUndo={id => clipService.deleteClip(id)}
-            onDone={() => setClipToast(null)}
-          />
+          <ClipToast key={clipToast.id} clipId={clipToast.id} failed={clipToast.failed} onUndo={id => clipService.deleteClip(id)} onDone={() => setClipToast(null)} />
         </div>
       )}
 
       {/* R4.2 media-clip capture modal */}
       {mediaTargets && mediaTargets.length > 0 && (
         <div data-ann-ui="media-capture-wrapper" style={{ pointerEvents: 'auto' }}>
-          <MediaCaptureModal
-            targets={mediaTargets}
-            sourceUrl={window.location.href}
-            sourceTitle={document.title}
-            onClose={() => setMediaTargets(null)}
-          />
+          <MediaCaptureModal targets={mediaTargets} sourceUrl={window.location.href} sourceTitle={document.title} onClose={() => setMediaTargets(null)} />
         </div>
       )}
 

@@ -24,7 +24,7 @@ function pixel(buf: PixelBuffer, x: number, y: number): [number, number, number,
 describe('pixelateRegion', () => {
   it('replaces each block with its average color', () => {
     // 4x4, left half black (0) right half white (255), block 2 → columns 0-1 black, 2-3 white
-    const buf = buffer(4, 4, (x) => (x < 2 ? [0, 0, 0] : [255, 255, 255]))
+    const buf = buffer(4, 4, x => (x < 2 ? [0, 0, 0] : [255, 255, 255]))
     pixelateRegion(buf, { x: 0, y: 0, width: 4, height: 4 }, 2)
     for (let y = 0; y < 4; y++) {
       expect(pixel(buf, 0, y).slice(0, 3)).toEqual([0, 0, 0])
@@ -43,7 +43,7 @@ describe('pixelateRegion', () => {
   })
 
   it('leaves alpha untouched and pixels outside the region alone', () => {
-    const buf = buffer(4, 2, (x) => (x < 2 ? [10, 10, 10] : [200, 200, 200]))
+    const buf = buffer(4, 2, x => (x < 2 ? [10, 10, 10] : [200, 200, 200]))
     buf.data[3] = 128
     pixelateRegion(buf, { x: 0, y: 0, width: 2, height: 2 }, 2)
     expect(pixel(buf, 0, 0)[3]).toBe(128)
@@ -52,7 +52,7 @@ describe('pixelateRegion', () => {
 
   it('handles partial edge blocks and clamps out-of-buffer regions', () => {
     // region starts past a block boundary; width not a multiple of block size
-    const buf = buffer(5, 1, (x) => [x * 10, 0, 0])
+    const buf = buffer(5, 1, x => [x * 10, 0, 0])
     pixelateRegion(buf, { x: 1, y: 0, width: 3, height: 1 }, 2)
     // block A covers x=1..2 → (10+20)/2=15; block B covers x=3 only (clamped) → 30
     expect(pixel(buf, 1, 0)[0]).toBe(15)
@@ -64,7 +64,7 @@ describe('pixelateRegion', () => {
   })
 
   it('is a no-op for blockSize <= 1', () => {
-    const buf = buffer(2, 2, (x) => [x, 0, 0])
+    const buf = buffer(2, 2, x => [x, 0, 0])
     const before = new Uint8ClampedArray(buf.data)
     pixelateRegion(buf, { x: 0, y: 0, width: 2, height: 2 }, 1)
     expect([...buf.data]).toEqual([...before])

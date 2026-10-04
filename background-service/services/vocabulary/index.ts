@@ -1,44 +1,28 @@
 import { Logger } from '../../../utils/logger'
-import { IService } from '../../service-manager'
-import { ResponseMessage } from '../../../types/messages'
-import {
+import type { IService } from '../../service-manager'
+import type { ResponseMessage } from '../../../types/messages'
+import type {
   VocabConfig,
-  defaultVocabConfig,
   LlmConfig,
-  resolveDefaultLlmConfig,
   LlmConfigPublic,
   LlmApiKeySource,
   VocabConfigPublic,
-  resolveDefaultVocabConfig,
   VocabSnapshot,
   VocabSyncState,
   VocabEntry,
   GlossResult,
   GlossCacheEntry,
-  normalizeDomainRuleList,
-  normalizeWord,
   VocabLearningEvent,
   VocabLearningPendingEvent,
   LlmConnectionTestResult,
   LlmModelOption,
   WordMemoryStore,
 } from '../../../types/vocabulary'
+import { defaultVocabConfig, resolveDefaultLlmConfig, resolveDefaultVocabConfig, normalizeDomainRuleList, normalizeWord } from '../../../types/vocabulary'
 import { applyEvent, recallProbability, recallToStar, type WordMemory, type WordMemoryEventType } from '../../../entrypoints/content/annotation-core/word-memory'
 import { findLlmProviderEndpoint, findLlmProviderPreset, normalizeLlmModelOptions } from '../../../utils/llm-provider-presets'
-import {
-  EudicCategory,
-  EudicWord,
-  EudicWordDetail,
-  addWord,
-  createCategory,
-  deleteCategory,
-  deleteWordsFromCategory,
-  fetchAllWords,
-  fetchCategories,
-  fetchWords,
-  getWord,
-  renameCategory,
-} from '../../../utils/eudic-openapi'
+import type { EudicCategory, EudicWord, EudicWordDetail } from '../../../utils/eudic-openapi'
+import { addWord, createCategory, deleteCategory, deleteWordsFromCategory, fetchAllWords, fetchCategories, fetchWords, getWord, renameCategory } from '../../../utils/eudic-openapi'
 import { createLlmClient, type ILlmClient } from '../llm'
 import { messageHandlers } from './message-handles'
 

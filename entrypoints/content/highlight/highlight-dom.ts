@@ -1,5 +1,5 @@
-import { HighlightColor } from '../../../types/highlight'
-import { MixedSelectionContent } from '../../../types/dom'
+import type { HighlightColor } from '../../../types/highlight'
+import type { MixedSelectionContent } from '../../../types/dom'
 import { Logger } from '../../../utils/logger'
 import {
   extractTwitterPermalink,
@@ -520,7 +520,7 @@ export class HighlightDOMManager {
       const classes = element.className
         .split(' ')
         .map(c => c.trim())
-        .filter(c => c && !/[:\[\]()!@]/.test(c))
+        .filter(c => c && !/[:[\]()!@]/.test(c))
       if (classes.length > 0) {
         selector += `.${classes.join('.')}`
       }
