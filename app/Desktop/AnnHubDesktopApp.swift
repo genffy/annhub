@@ -1,5 +1,5 @@
 // AnnHub Desktop — native macOS menu-bar app and local learning client.
-// Three pages (今日 / 碎片库 / 系统), the review session (visual occlusion +
+// Three pages (Today / Fragment library / System), the review session (visual occlusion +
 // media-clip), a preferences window (daily limit, review reminder) and the
 // localhost hub with bidirectional sync endpoints. Output workshop and
 // relations left the product with D-10.
@@ -30,7 +30,7 @@ struct AnnHubDesktopApp: App {
         }
         .defaultSize(width: 1080, height: 680)
 
-        // 偏好设置 (desktop.md §8.2): the standard settings window, Cmd+,.
+        // Settings (desktop.md §8.2): the standard settings window, Cmd+,.
         Settings {
             PreferencesView().environmentObject(model)
         }
@@ -107,12 +107,27 @@ enum ReviewReminderNotifier {
             guard granted else { return }
             let content = UNMutableNotificationContent()
             content.title = "AnnHub"
-            content.body = "到了复习的时间，打开 AnnHub 查看今天的复习。"
+            content.body = t(.reminderBody)
             var when = DateComponents()
             when.hour = reminder.hour
             when.minute = reminder.minute
             let trigger = UNCalendarNotificationTrigger(dateMatching: when, repeats: true)
             center.add(UNNotificationRequest(identifier: identifier, content: content, trigger: trigger))
+        }
+    }
+}
+
+/// Where the local service stands. A state, not a sentence: what the user reads comes from `text`.
+enum HubState: Equatable {
+    case notStarted
+    case listening
+    case failed(String)
+
+    var text: String {
+        switch self {
+        case .notStarted: return t(.hubNotStarted)
+        case .listening: return "127.0.0.1:8765"
+        case .failed(let reason): return t(.hubFailed, ["error": reason])
         }
     }
 }
@@ -127,7 +142,7 @@ final class DesktopModel: ObservableObject {
     @Published var fragments: [FragmentRecord] = []
     @Published var reviewLogs: [ReviewLog] = []
     @Published var syncInfo = DesktopSyncInfo()
-    /// 每日建议上限 (review.md §5), clamped to 5...50 and persisted in
+    /// The daily suggested limit (review.md §5), clamped to 5...50 and persisted in
     /// UserDefaults; the preferences window exposes the slider.
     @Published var dailyLimit: Int {
         didSet {
@@ -139,7 +154,7 @@ final class DesktopModel: ObservableObject {
             UserDefaults.standard.set(dailyLimit, forKey: Self.dailyLimitDefaultsKey)
         }
     }
-    /// 每日复习提醒 (desktop.md §8.2); every change reschedules the notification.
+    /// The daily review reminder (desktop.md §8.2); every change reschedules the notification.
     @Published var reminder: ReviewReminder {
         didSet {
             if let data = try? JSONEncoder().encode(reminder) {
@@ -151,7 +166,7 @@ final class DesktopModel: ObservableObject {
     @Published var stats = StoreStats(
         fragments: 0, reviewLogs: 0, assets: 0, outbox: 0, deletions: 0
     )
-    @Published var hubState = "未启动"
+    @Published var hubState = HubState.notStarted
     @Published var session: ReviewSessionState?
     /// Facts about the round that just ended (desktop.md §5.5); nil otherwise.
     @Published var wrapUp: SessionWrapUp?
@@ -211,14 +226,14 @@ final class DesktopModel: ObservableObject {
         server = HubServer(port: 8765, hub: hub)
         server?.start { [weak self] error in
             Task { @MainActor in
-                self?.hubState = error == nil ? "127.0.0.1:8765" : "启动失败：\(error!.localizedDescription)"
+                self?.hubState = error.map { HubState.failed($0.localizedDescription) } ?? HubState.listening
             }
         }
-        hubState = "127.0.0.1:8765"
+        hubState = .listening
     }
 
     /// The local service is up and bound to loopback.
-    var hubListening: Bool { hubState.hasPrefix("127.0.0.1") }
+    var hubListening: Bool { hubState == .listening }
 
     // ── pairing (desktop.md §6) ──────────────────────────────────────────
 
@@ -227,7 +242,7 @@ final class DesktopModel: ObservableObject {
         NSPasteboard.general.setString(pairToken, forType: .string)
     }
 
-    /// 重新生成: the old code stops working at once; data and pending
+    /// Regenerate: the old code stops working at once; data and pending
     /// deliveries stay.
     func rotatePairToken() {
         hub.rotatePairToken()
@@ -269,7 +284,7 @@ final class DesktopModel: ObservableObject {
         dailyReviewPlan(fragments: fragments, logs: reviewLogs, now: nowMs(), dailyLimit: dailyLimit)
     }
 
-    /// 本周成功提取的碎片 (M-18) — the only statistic on the 今日 page.
+    /// Fragments successfully retrieved this week (M-18) — the only statistic on the Today page.
     var weeklyRetrieved: Int {
         weeklyRetrievedFragmentCount(reviewLogs)
     }
@@ -281,7 +296,7 @@ final class DesktopModel: ObservableObject {
     // ── review session (desktop.md §5) ───────────────────────────────────
 
     /// Starts a session from today's suggested amount; `overflow` goes past a
-    /// used-up cap (再来一轮) — due dates are never changed either way.
+    /// used-up cap (one more round) — due dates are never changed either way.
     @discardableResult
     func startReviewSession(overflow: Bool = false) -> Bool {
         let plan = dailyPlan
@@ -315,7 +330,7 @@ final class DesktopModel: ObservableObject {
         // Fragment deleted in another window: skip, do not crash the session.
         let existing: FragmentRecord? = (try? store.getFragment(id: id)) ?? nil
         guard existing != nil else {
-            skipCurrent(reason: "碎片已删除")
+            skipCurrent(reason: t(.skipDeleted))
             return false
         }
         do {
@@ -342,7 +357,7 @@ final class DesktopModel: ObservableObject {
     }
 
     /// The last card ends the session: keep its facts for the wrap-up screen,
-    /// then drop the persisted session so 今日 stops offering to resume it.
+    /// then drop the persisted session so Today stops offering to resume it.
     private func finishSessionIfComplete() {
         guard let session, session.cursor >= session.fragmentIds.count else { return }
         wrapUp = sessionWrapUp(session: session, logs: reviewLogs, fragments: fragments, now: nowMs())
@@ -398,17 +413,17 @@ final class DesktopModel: ObservableObject {
 
     var lastConnectionAt: Int? { hub.lastConnectionAt }
 
-    /// What the system page lists under 需要处理 — only things the user can act on.
+    /// What the system page lists under "Needs attention" — only things the user can act on.
     var attentionItems: [String] {
         var items: [String] = []
-        if hubState.hasPrefix("启动失败") {
-            items.append("本地服务没有启动（\(hubState)）")
+        if case .failed = hubState {
+            items.append(t(.attentionHubDown, ["state": hubState.text]))
         }
         if missingAttachmentCount > 0 {
-            items.append("有 \(missingAttachmentCount) 张图片尚未到达，扩展重试后会补上")
+            items.append(t(.attentionMissingImages, ["count": missingAttachmentCount]))
         }
         if let last = recentDeliveries.last, last.status == 401 || last.status == 403 {
-            items.append("最近一次写入被拒绝：扩展里的配对码与这里不一致，请重新输入")
+            items.append(t(.attentionRejected))
         }
         return items
     }
@@ -423,35 +438,35 @@ func nowMs() -> Int {
 struct MenuBarPanel: View {
     @EnvironmentObject var model: DesktopModel
 
-    /// 最近扩展交付状态 (desktop.md §7): the latest per-item write and its result.
+    /// The latest extension delivery (desktop.md §7): the latest per-item write and its result.
     private var lastDeliveryLabel: String {
-        guard let last = model.recentDeliveries.last else { return "暂无" }
-        let result = last.status < 300 ? "已接收" : "被拒绝（\(last.status)）"
+        guard let last = model.recentDeliveries.last else { return t(.noneYet) }
+        let result = last.status < 300 ? t(.received) : t(.rejectedStatus, ["status": last.status])
         return "\(result) · \(relativeAgo(last.at))"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("AnnHub").font(.headline)
-            LabeledContent("本地服务") {
-                Text(model.hubListening ? "运行中 · \(model.hubState)" : model.hubState)
+            LabeledContent(t(.localService)) {
+                Text(model.hubListening ? t(.serviceRunningState, ["state": model.hubState.text]) : model.hubState.text)
             }
-            LabeledContent("到期复习") { Text("\(model.dailyPlan.due.count)") }
-            LabeledContent("最近交付") { Text(lastDeliveryLabel) }
-            LabeledContent("最近连接") {
-                Text(model.lastConnectionAt.map(relativeAgo) ?? "暂无")
+            LabeledContent(t(.dueReviews)) { Text("\(model.dailyPlan.due.count)") }
+            LabeledContent(t(.sectionDelivery)) { Text(lastDeliveryLabel) }
+            LabeledContent(t(.lastConnection)) {
+                Text(model.lastConnectionAt.map(relativeAgo) ?? t(.noneYet))
             }
             Divider()
-            Button("打开主窗口") {
+            Button(t(.openMainWindow)) {
                 NSApp.activate(ignoringOtherApps: true)
                 for window in NSApp.windows where window.canBecomeMain {
                     window.makeKeyAndOrderFront(nil)
                 }
             }
-            SettingsLink { Text("偏好设置…") }
+            SettingsLink { Text(t(.preferences)) }
                 .keyboardShortcut(",", modifiers: .command)
                 .simultaneousGesture(TapGesture().onEnded { NSApp.activate(ignoringOtherApps: true) })
-            Button("退出 AnnHub") { NSApp.terminate(nil) }
+            Button(t(.quit)) { NSApp.terminate(nil) }
         }
         .padding(12)
         .frame(width: 300)
@@ -508,7 +523,7 @@ final class HubServer: @unchecked Sendable {
 
     enum HubError: LocalizedError {
         case bindFailed
-        var errorDescription: String? { "无法监听 127.0.0.1:8765（端口被占用？）" }
+        var errorDescription: String? { t(.hubBindFailed) }
     }
 
     /// Per-connection state, mutated in place so a 10 MB upload is not copied chunk by chunk.

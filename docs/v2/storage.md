@@ -232,7 +232,7 @@ R1 的扩展只提供一个“导出内容”命令，不要求安装或启动 D
 
 ```text
 AnnHub-export.zip
-├── README.md                  # 导出时间、范围、数量、缺失图片清单
+├── README.md                  # 导出时间、范围、数量、缺失图片清单（章节标题与 README 随导出时的界面语言，D-15）
 ├── fragments/<id>.md          # 七种文本及 visual Fragment
 ├── highlights/<id>.md         # 高亮原文、备注与来源
 ├── clips/<id>.md              # 剪藏与语境

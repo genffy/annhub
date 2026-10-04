@@ -12,6 +12,7 @@
 - 本机 hub 的请求规则在 Core（`HubHTTP.swift`）：请求头 16 KB 上限、JSON 2 MiB 和图片 `MAX_IMAGE_BYTES` 的 body 上限、Host 必须是回环地址、浏览器 Origin 只放行 `chrome-extension://`、令牌，全部在读取 body 之前由请求头决定。`HubServer`（`Desktop/`）只管字节、20 秒请求期限和并发连接数。改规则先改 Core 并补 `HubFramingTests`。浏览器来源只放行已发布扩展的 ID（`DesktopHub.publishedExtensionIds`），其他扩展和网页来源一律拒绝；本地构建要联调，用 `ANNHUB_EXTENSION_KEY` 让构建采用商店条目的 ID（见 [发布与供应链](../docs/releasing.md)）。
 - `FragmentStore` 的一条 SQLite 连接被界面线程和 hub 的每请求线程共用。所有 public 方法持有同一把递归锁；需要“先读后写”原子的调用方（hub 的投递路径）用 `store.exclusive { }`。新增 store 方法必须先加锁，并发行为由 `ConcurrencyTests` 覆盖。
 - 每日建议量、会话收尾、本周成功提取数（M-18）、提醒设置和 kind 名称等有规则的逻辑放在 Core 并带测试；`Desktop/` 的 View 只渲染它们的结果。
+- 界面文案只经 `UIText.swift` 的 `t(.key, [...])`（D-15）：每个 case 在同一个 switch 里同时给出中文和英文，缺译文无法编译；`{name}` 是参数，`one:` 是 `count == 1` 时的英文单数。语言由 `UILanguage.current` 决定（系统语言，`ANNHUB_UI_LANGUAGE` 可覆盖，仅用于测试与截图）；Core 里会产生文案的函数都带 `lang:` 参数，测试显式传入。题面与提示梯度在 `ReviewSession.swift`，来源是 `learning-core/review.ts`，`fixtures/interop/review-questions.json` 保证两端一致（`WRITE_REVIEW_FIXTURE=1 npx vitest run learning-core/__tests__/interop-fixtures.test.ts` 重生成，再 `scripts/sync-interop-fixtures.sh`）。View 里不写字符串字面量，也不把显示文字当状态用（例如 `HubState` 是枚举，不是一句话）。
 - 共享契约变化时同步受影响的 TypeScript、Swift、IndexedDB / SQLite 和 `Tests/AnnHubCoreTests/Fixtures/`；验证双端同一 fixture。迁移策略按最新产品结论和实际数据决定。
 
 ## 构建与测试
