@@ -16,16 +16,16 @@ export async function generateMetadata({ params: { locale } }: { params: { local
     metadataBase: new URL('https://annhub.org'),
     title: zh ? 'AnnHub - 把网页中的知识变成工作中用得上的能力' : 'AnnHub - Turn web knowledge into something you can use',
     description: zh
-      ? '在浏览器中连同语境采集概念、论点和方法，在 Mac 上复习、输出并建立可信关系。本地优先，AI 可选。'
-      : 'Capture concepts, claims, and procedures with context in the browser. Review, apply, and connect them on Mac. Local-first, AI optional.',
+      ? '在浏览器中连同语境采集概念、论点和方法，在 Mac 上按类型复习。本地优先，AI 可选。'
+      : 'Capture concepts, claims, and procedures with context in the browser. Review them by type on Mac. Local-first, AI optional.',
     icons: {
       icon: '/icon.png',
       shortcut: '/icon.png',
       apple: '/icon.png',
     },
     openGraph: {
-      title: zh ? 'AnnHub - 知识碎片采集与内化系统' : 'AnnHub - Knowledge capture and application',
-      description: zh ? '从网页选区到真实设计决策。' : 'From a web selection to a real design decision.',
+      title: zh ? 'AnnHub - 知识碎片采集与内化系统' : 'AnnHub - Knowledge capture and retrieval',
+      description: zh ? '从网页选区到一次主动回忆。' : 'From a web selection to an act of recall.',
       type: 'website',
       siteName: 'AnnHub',
     },

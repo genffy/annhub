@@ -5,24 +5,17 @@ import Link from 'next/link'
 import { motion } from 'framer-motion'
 import {
   ArrowRight,
-  BookOpenCheck,
   Bookmark,
   Brain,
   Check,
   ChevronRight,
-  CircleHelp,
   FileText,
-  GitBranch,
   Github,
   Highlighter,
-  History,
   Laptop,
-  Link2,
   LockKeyhole,
   MonitorUp,
-  Network,
   PanelLeft,
-  RotateCcw,
   Search,
   ShieldCheck,
   Sparkles,
@@ -136,6 +129,11 @@ function CaptureScene({ locale, compact = false }: { locale: string; compact?: b
 
 function DesktopTodayScene({ locale }: { locale: string }) {
   const zh = locale === 'zh-CN'
+  const recent: Array<[string, string, string]> = [
+    ['Backpressure', zh ? '概念' : 'Concept', zh ? '今天' : 'Today'],
+    ['Idempotency', zh ? '概念' : 'Concept', zh ? '周四' : 'Thu'],
+    ['Retry storm', zh ? '论点' : 'Claim', zh ? '周三' : 'Wed'],
+  ]
   return (
     <div className="overflow-hidden rounded-lg border border-[#1b2921]/16 bg-white shadow-[0_30px_80px_rgba(14,30,21,0.18)]">
       <WindowChrome label={zh ? 'AnnHub Desktop · 今日' : 'AnnHub Desktop · Today'} />
@@ -149,8 +147,6 @@ function DesktopTodayScene({ locale }: { locale: string }) {
             {[
               { Icon: Target, label: zh ? '今日' : 'Today', active: true },
               { Icon: FileText, label: zh ? '碎片库' : 'Library' },
-              { Icon: BookOpenCheck, label: zh ? '输出工坊' : 'Output' },
-              { Icon: GitBranch, label: zh ? '关系' : 'Relations' },
               { Icon: MonitorUp, label: zh ? '系统' : 'System' },
             ].map(({ Icon, label, active }) => (
               <div key={label} className={`flex items-center gap-2 px-2 py-2 text-[10px] font-semibold ${active ? 'bg-white/12 text-white' : 'text-white/54'}`}>
@@ -161,55 +157,34 @@ function DesktopTodayScene({ locale }: { locale: string }) {
           </div>
         </aside>
         <main className="bg-[#f7f6f1] p-4 sm:p-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#1f5d42]">Wednesday · Sep 23</p>
-              <h3 className="mt-1 text-[24px] font-bold text-[#18211b]">{zh ? '今天需要完成什么' : 'What needs your attention today'}</h3>
-            </div>
-            <div className="border border-[#1b2921]/12 bg-white px-2 py-1.5 text-[9px] font-semibold text-[#1b2921]/62">{zh ? '刚刚同步' : 'Synced now'}</div>
-          </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-2">
-            <div className="border-l-4 border-[#3157d5] bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#3157d5]">{zh ? '到期复习' : 'Due review'}</span>
-                <span className="text-[10px] text-[#18211b]/46">{zh ? '约 6 分钟' : 'about 6 min'}</span>
-              </div>
-              <div className="mt-2 text-[30px] font-bold text-[#18211b]">8</div>
-              <div className="mt-3 bg-[#3157d5] px-3 py-2 text-center text-[10px] font-bold text-white">{zh ? '开始复习' : 'Start review'}</div>
-            </div>
-            <div className="border-l-4 border-[#e4a832] bg-white p-4 shadow-sm">
-              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#a76d00]">{zh ? '继续输出' : 'Continue output'}</div>
-              <div className="mt-2 text-sm font-bold text-[#18211b]">{zh ? '设计支付系统失败重试策略' : 'Design a payment retry strategy'}</div>
-              <div className="mt-3 flex items-center gap-2 text-[9px] text-[#18211b]/54">
-                <History size={12} /> 3 / 5 Fragments
-              </div>
-            </div>
-          </div>
-          <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_0.8fr]">
-            <div className="bg-white p-4 shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#1f5d42]">{zh ? '最近同步' : 'Recently synced'}</span>
-                <Search size={13} className="text-[#18211b]/38" />
-              </div>
-              {['Backpressure', 'Retry storm', 'Idempotency'].map((item, index) => (
-                <div key={item} className="mt-2 flex items-center justify-between border-t border-[#1b2921]/8 pt-2 text-[10px]">
-                  <span className="font-semibold text-[#18211b]">{item}</span>
-                  <span className="text-[#18211b]/42">{index === 0 ? 'concept' : index === 1 ? 'claim' : 'concept'}</span>
+          <h3 className="text-[24px] font-bold text-[#18211b]">{zh ? '今天需要完成什么' : 'What needs your attention today'}</h3>
+          <div className="mt-5 border-l-4 border-[#6f5ce7] bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#6f5ce7]">{zh ? '到期复习' : 'Due review'}</div>
+                <div className="mt-2 text-[22px] font-bold text-[#18211b]">{zh ? '5 条 · 预计 4 分钟' : '5 items · about 4 min'}</div>
+                <div className="mt-1 text-[10px] text-[#18211b]/54">
+                  {zh ? '逾期主题：重试风暴 / 退避加抖动 / 幂等' : 'Overdue: retry storm / backoff with jitter / idempotency'}
                 </div>
-              ))}
-            </div>
-            <div className="bg-[#e8eee9] p-4">
-              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#1f5d42]">{zh ? '待确认关系' : 'Relation suggestions'}</div>
-              <div className="mt-3 flex items-center gap-2 text-[10px] font-semibold text-[#18211b]">
-                <Network size={14} /> Backpressure
               </div>
-              <div className="my-2 h-px bg-[#1b2921]/12" />
-              <div className="flex items-center gap-2 text-[10px] font-semibold text-[#18211b]">
-                <Link2 size={14} /> Bounded queues
-              </div>
-              <div className="mt-3 text-[9px] leading-4 text-[#18211b]/58">{zh ? '建议：prerequisite · 需要确认' : 'Suggested: prerequisite · needs confirmation'}</div>
+              <div className="flex-none bg-[#6f5ce7] px-3 py-2 text-center text-[10px] font-bold text-white">{zh ? '开始复习' : 'Start review'}</div>
             </div>
           </div>
+          <div className="mt-3 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#1f5d42]">{zh ? '最近由扩展写入' : 'Recently written by the extension'}</span>
+              <Search size={13} className="text-[#18211b]/38" />
+            </div>
+            {recent.map(([item, kind, when]) => (
+              <div key={item} className="mt-2 flex items-center justify-between border-t border-[#1b2921]/8 pt-2 text-[10px]">
+                <span className="font-semibold text-[#18211b]">{item}</span>
+                <span className="text-[#18211b]/42">
+                  {kind} · engineering.example.com · {when}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 text-[10px] text-[#18211b]/48">{zh ? '本周成功提取 4 个碎片' : '4 fragments retrieved this week'}</div>
         </main>
       </div>
     </div>
@@ -220,34 +195,22 @@ function ReviewScene({ locale }: { locale: string }) {
   const zh = locale === 'zh-CN'
   return (
     <div className="overflow-hidden rounded-lg border border-[#1b2921]/15 bg-white shadow-[0_24px_60px_rgba(18,35,25,0.14)]">
-      <WindowChrome label={zh ? 'AnnHub Desktop · 复习 3/8' : 'AnnHub Desktop · Review 3/8'} />
+      <WindowChrome label={zh ? 'AnnHub Desktop · 复习 3/5' : 'AnnHub Desktop · Review 3/5'} />
       <div className="grid min-h-[310px] bg-[#f7f6f1] p-5 sm:p-8">
         <div className="mx-auto flex w-full max-w-xl flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-[10px] font-semibold text-[#18211b]/48">
-              <span>concept</span>
-              <span>3 / 8</span>
+              <span>{zh ? '概念' : 'Concept'}</span>
+              <span>3 / 5</span>
             </div>
             <h3 className="mt-6 text-[24px] font-bold leading-tight text-[#18211b] sm:text-[30px]">
-              {zh ? '用自己的话解释 Backpressure，并给出一个适用边界。' : 'Explain Backpressure in your own words and name one boundary.'}
+              {zh ? '用自己的话解释它，并给出一个适用边界。' : 'Explain it in your own words and name one boundary.'}
             </h3>
-            <div className="mt-5 min-h-[74px] border border-[#1b2921]/12 bg-white p-3 text-[11px] leading-5 text-[#18211b]/52">{zh ? '输入你的回答…' : 'Write your answer…'}</div>
-            <div className="mt-3 flex gap-2">
-              <span className="border border-[#1b2921]/10 bg-[#eef0e8] px-2 py-1 text-[9px] text-[#18211b]/60">{zh ? '显示结构提示' : 'Show structure hint'}</span>
-              <span className="border border-[#1b2921]/10 bg-[#eef0e8] px-2 py-1 text-[9px] text-[#18211b]/60">{zh ? '显示来源' : 'Show source'}</span>
-            </div>
+            <p className="mt-2 text-[11px] text-[#18211b]/52">{zh ? '主题：Backpressure · 先自己作答，再点“揭示”' : 'Topic: Backpressure · answer first, then reveal'}</p>
           </div>
-          <div className="mt-7 grid grid-cols-4 gap-2">
-            {[
-              [zh ? '重来' : 'Again', '#d7644d'],
-              [zh ? '困难' : 'Hard', '#c98516'],
-              [zh ? '良好' : 'Good', '#3157d5'],
-              [zh ? '简单' : 'Easy', '#1f5d42'],
-            ].map(([label, color]) => (
-              <div key={label} className="border px-2 py-2 text-center text-[9px] font-bold" style={{ borderColor: color, color }}>
-                {label}
-              </div>
-            ))}
+          <div className="mt-7 flex items-center justify-end gap-2">
+            <span className="border border-[#1b2921]/10 bg-[#eef0e8] px-3 py-2 text-[10px] font-semibold text-[#18211b]/60">{zh ? '提示 0/4' : 'Hint 0/4'}</span>
+            <span className="bg-[#6f5ce7] px-4 py-2 text-[10px] font-bold text-white">{zh ? '揭示' : 'Reveal'}</span>
           </div>
         </div>
       </div>
@@ -255,45 +218,43 @@ function ReviewScene({ locale }: { locale: string }) {
   )
 }
 
-function OutputScene({ locale }: { locale: string }) {
+/** The reveal face of a review card: your interpretation, verification and intended use, then the four ratings. */
+function RevealScene({ locale }: { locale: string }) {
   const zh = locale === 'zh-CN'
+  const ratings: Array<[string, string, string]> = [
+    ['1', zh ? '再来一次' : 'Again', '#d7644d'],
+    ['2', zh ? '较难' : 'Hard', '#c98516'],
+    ['3', zh ? '良好' : 'Good', '#6f5ce7'],
+    ['4', zh ? '容易' : 'Easy', '#1f5d42'],
+  ]
+  const days = ['1', '1', '1', '4']
   return (
     <div className="overflow-hidden rounded-lg border border-[#1b2921]/15 bg-white shadow-[0_24px_60px_rgba(18,35,25,0.14)]">
-      <WindowChrome label={zh ? 'AnnHub Desktop · 输出工坊' : 'AnnHub Desktop · Output Workshop'} />
-      <div className="grid min-h-[320px] grid-cols-[0.72fr_1.28fr] bg-[#f7f6f1]">
-        <aside className="border-r border-[#1b2921]/10 bg-[#eef0e8] p-4">
-          <div className="text-[9px] font-bold uppercase tracking-[0.13em] text-[#1f5d42]">{zh ? '目标 Fragment' : 'Target Fragments'}</div>
-          {[
-            ['Backpressure', true],
-            ['Retry storm', true],
-            ['Idempotency', false],
-          ].map(([label, used]) => (
-            <div key={String(label)} className="mt-3 border-b border-[#1b2921]/10 pb-2">
-              <div className="flex items-center gap-2 text-[10px] font-semibold text-[#18211b]">
-                {used ? <Check size={12} className="text-[#1f5d42]" /> : <CircleHelp size={12} className="text-[#a76d00]" />}
-                {label}
-              </div>
-              <div className="ml-5 mt-1 text-[8px] text-[#18211b]/48">{used ? (zh ? '可能已使用' : 'possibly used') : zh ? '尚未检测到' : 'not detected'}</div>
+      <WindowChrome label={zh ? 'AnnHub Desktop · 揭示' : 'AnnHub Desktop · Reveal'} />
+      <div className="bg-[#f7f6f1] p-4 sm:p-6">
+        <div className="border-l-4 border-[#6f5ce7] bg-white p-4 text-[11px] leading-5 text-[#18211b]/76">
+          <p>
+            <span className="font-bold text-[#18211b]">{zh ? '你的理解：' : 'Your interpretation: '}</span>
+            {zh ? '下游通过需求信号、暂停、缓冲或丢弃，把压力传回上游' : 'Downstream passes pressure upstream through demand signals, pausing, buffering, or dropping'}
+          </p>
+          <p className="mt-2">
+            <span className="font-bold text-[#18211b]">{zh ? '核验：' : 'Verification: '}</span>
+            {zh ? '已确认，来源：原文' : 'Confirmed, source: original text'}
+          </p>
+          <p className="mt-2">
+            <span className="font-bold text-[#18211b]">{zh ? '你的应用：' : 'Your application: '}</span>
+            {zh ? '检查当前事件管道为什么在消费者变慢后耗尽内存' : 'Check why the event pipeline exhausts memory once consumers slow down'}
+          </p>
+          <p className="mt-3 text-[10px] font-semibold text-[#6f5ce7]">{zh ? '回到来源：engineering.example.com' : 'Back to source: engineering.example.com'}</p>
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {ratings.map(([key, label, color], index) => (
+            <div key={key} className="border px-2 py-2 text-center text-[10px] font-bold" style={{ borderColor: color, color }}>
+              {key} {label}
+              <div className="mt-0.5 text-[9px] font-medium opacity-70">{zh ? `${days[index]} 天` : `${days[index]} d`}</div>
             </div>
           ))}
-        </aside>
-        <main className="p-4 sm:p-5">
-          <div className="text-[9px] font-bold uppercase tracking-[0.13em] text-[#3157d5]">{zh ? '真实任务' : 'Real task'}</div>
-          <h3 className="mt-1 text-[17px] font-bold text-[#18211b]">{zh ? '为支付系统设计失败重试策略' : 'Design a failure retry strategy for payments'}</h3>
-          <div className="mt-4 border border-[#1b2921]/10 bg-white p-3 text-[10px] leading-5 text-[#18211b]/72">
-            {zh
-              ? '当下游依赖已经饱和时，固定次数重试会放大流量。客户端应使用带抖动的指数退避，并让队列容量和 Backpressure 信号共同限制并发…'
-              : 'When a downstream dependency is saturated, fixed retries amplify load. Clients should use exponential backoff with jitter while bounded queues and Backpressure signals limit concurrency…'}
-          </div>
-          <div className="mt-4 border-l-4 border-[#d7644d] bg-[#f6e9e5] p-3">
-            <div className="text-[9px] font-bold uppercase tracking-[0.12em] text-[#a43e2b]">Backpressure · {zh ? '需要修正' : 'needs revision'}</div>
-            <p className="mt-1 text-[9px] leading-4 text-[#18211b]/66">
-              {zh
-                ? '这里描述的是固定限流。请说明消费者如何把可接收量反馈给生产者。'
-                : 'This describes fixed rate limiting. Explain how the consumer communicates available demand upstream.'}
-            </p>
-          </div>
-        </main>
+        </div>
       </div>
     </div>
   )
@@ -301,8 +262,7 @@ function OutputScene({ locale }: { locale: string }) {
 
 function WorkflowVisual({ id, locale }: { id: string; locale: string }) {
   if (id === 'capture' || id === 'process') return <CaptureScene locale={locale} compact />
-  if (id === 'review') return <ReviewScene locale={locale} />
-  return <OutputScene locale={locale} />
+  return <ReviewScene locale={locale} />
 }
 
 function SectionHeading({ eyebrow, title, description, light = false }: { eyebrow: string; title: string; description?: string; light?: boolean }) {
@@ -370,11 +330,8 @@ export default function LandingPage({ copy }: { copy: LandingCopy }) {
             <p className="inline-flex items-center gap-2 rounded-md border border-[#6f5ce7]/20 bg-white px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[#6f5ce7] shadow-sm">
               <Sparkles size={13} /> {copy.hero.eyebrow}
             </p>
-            <h1 className="mt-5 max-w-[850px] text-[42px] font-semibold leading-[1.02] tracking-normal text-[#25232b] sm:text-[58px] lg:text-[66px]">
-              <span className="text-[#6f5ce7]">AnnHub</span>
-              <span className="mx-2 text-[#25232b]/24">/</span>
-              {copy.locale === 'zh-CN' ? '把网页中的知识，用在真实工作里' : 'Turn web knowledge into real work'}
-            </h1>
+            <h1 className="mt-5 max-w-[850px] text-[42px] font-semibold leading-[1.02] tracking-normal text-[#6f5ce7] sm:text-[58px] lg:text-[66px]">AnnHub</h1>
+            <p className="mt-4 max-w-[760px] text-[22px] font-semibold leading-snug text-[#25232b] sm:text-[28px]">{copy.hero.title}</p>
             <div className="mt-5 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
               <p className="max-w-2xl text-[15px] leading-7 text-[#403d49]/68 sm:text-[17px]">{copy.hero.description}</p>
               <div className="flex flex-none gap-2">
@@ -494,14 +451,10 @@ export default function LandingPage({ copy }: { copy: LandingCopy }) {
           </div>
           <div className="mt-20 grid gap-6 lg:grid-cols-[0.28fr_0.72fr] lg:items-end">
             <div className="pb-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6f5ce7]">Selected output</p>
-              <p className="mt-3 text-[14px] leading-7 text-[#403d49]/64">
-                {copy.locale === 'zh-CN'
-                  ? '知识只有进入真实方案、分析或复盘，才暴露出理解错误和适用边界。'
-                  : 'Knowledge reveals its gaps only when it enters a real design, analysis, or retrospective.'}
-              </p>
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6f5ce7]">{copy.scenes.reveal.label}</p>
+              <p className="mt-3 text-[14px] leading-7 text-[#403d49]/64">{copy.scenes.reveal.body}</p>
             </div>
-            <OutputScene locale={copy.locale} />
+            <RevealScene locale={copy.locale} />
           </div>
         </div>
       </section>
