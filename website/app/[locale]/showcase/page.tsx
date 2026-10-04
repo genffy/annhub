@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 
-export default function Showcase({ params: { locale } }: { params: { locale: string } }) {
+export default async function Showcase({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params
   redirect(`/${locale}`)
 }

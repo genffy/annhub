@@ -26,11 +26,11 @@ AnnHub 的公开网站与产品展示页。网站代码位于独立 Next.js 应�
 
 ```bash
 cd website
-npm install
+npm ci
 npm run dev
 ```
 
-默认开发地址为 `http://localhost:3001`，具体端口以 Next.js 启动输出为准。
+默认开发地址为 `http://localhost:3001`，具体端口以 Next.js 启动输出为准。技术栈是 Next.js 16、React 19 和 next-intl 4，需要 Node.js 20.9 以上（仓库根目录 `.node-version`）。`npm run lint` 直接运行 ESLint（Next 16 已移除 `next lint`）；`middleware.ts` 仍是被弃用的文件名（Next 16 改称 `proxy`），迁移前先确认部署平台的 Next.js 插件支持。
 
 ## 构建
 

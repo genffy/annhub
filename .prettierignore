@@ -28,3 +28,4 @@ docs/design/v2/index.html
 
 # Static pages and test pages: whitespace is content here
 **/*.html
+website/next-env.d.ts

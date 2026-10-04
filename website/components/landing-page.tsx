@@ -10,7 +10,7 @@ import {
   Check,
   ChevronRight,
   FileText,
-  Github,
+  GitBranch,
   Highlighter,
   Laptop,
   LockKeyhole,
@@ -569,7 +569,7 @@ export default function LandingPage({ copy }: { copy: LandingCopy }) {
           </div>
           <div className="flex flex-wrap gap-x-5 gap-y-3 text-[11px] font-semibold text-[#403d49]/58">
             <Link href={ROADMAP_URL} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 hover:text-[#6f5ce7]">
-              <Github size={13} />
+              <GitBranch size={13} />
               {copy.footer.roadmap}
             </Link>
             <Link href="https://github.com/genffy/annhub" target="_blank" rel="noopener noreferrer" className="hover:text-[#6f5ce7]">
