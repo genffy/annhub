@@ -154,7 +154,7 @@ function Selection() {
 
   // ── Mode A state ──
   const [menuVisible, setMenuVisible] = useState(false)
-  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number; placement: 'above' | 'below' }>({ x: 0, y: 0, placement: 'above' })
   const [selectionRange, setSelectionRange] = useState<Range | null>(null)
   const [actions, setActions] = useState<HoverMenuAction[]>(getDefaultActions)
 
@@ -252,22 +252,22 @@ function Selection() {
   }, [])
 
   // ── Calculate menu position near selection end ──
-  const computeMenuPosition = useCallback((rect: DOMRect): { x: number; y: number } => {
+  // `y` is the menu's bottom edge when placed above the selection and its top edge when below, so the
+  // consequence hint (which adds a line on the far side) never covers the selected text.
+  const computeMenuPosition = useCallback((rect: DOMRect): { x: number; y: number; placement: 'above' | 'below' } => {
     const viewW = window.innerWidth
-    const menuEstW = 220
-    const menuEstH = 40
+    const menuEstW = 360 // four icon+label actions (five on media pages)
+    const menuRowH = 40
 
     let x = rect.right
-    let y = rect.top - menuEstH - 8 // prefer above
 
     // Clamp horizontal
     if (x + menuEstW > viewW - 10) x = viewW - menuEstW - 10
     if (x < 10) x = 10
 
-    // Flip below if no room above
-    if (y < 10) y = rect.bottom + 8
-
-    return { x, y }
+    // Prefer above; flip below if the row does not fit
+    const above = rect.top - 8 - menuRowH >= 10
+    return above ? { x, y: rect.top - 8, placement: 'above' } : { x, y: rect.bottom + 8, placement: 'below' }
   }, [])
 
   // ── Selection event handlers ──

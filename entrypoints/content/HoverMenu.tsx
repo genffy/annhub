@@ -21,8 +21,11 @@ import type { HoverMenuAction, HoverMenuIcon } from '../../types/action'
 import { uiText } from '../../utils/ui-text'
 
 export interface HoverMenuProps {
-  /** Pixel position (fixed) for the menu */
-  position: { x: number; y: number }
+  /**
+   * Pixel position (fixed). `y` is the bottom edge when `placement` is 'above' the selection
+   * and the top edge when 'below', so growth (the hint line) happens away from the selection.
+   */
+  position: { x: number; y: number; placement: 'above' | 'below' }
   /** Currently selected Range for context */
   selectedRange: Range
   /** Ordered list of enabled actions */
@@ -151,13 +154,18 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
   const sorted = [...actions].filter(a => a.enabled).sort((a, b) => a.order - b.order)
   const hintAction = sorted.find(a => a.id === hintActionId)
 
+  const above = position.placement === 'above'
+  const anchor: React.CSSProperties = above
+    ? { bottom: `${window.innerHeight - position.y - SAFE_PADDING}px` }
+    : { top: `${position.y - SAFE_PADDING}px` }
+
   if (showSuccess) {
     return (
       <div
         style={{
           position: 'fixed',
           left: `${position.x}px`,
-          top: `${position.y}px`,
+          top: `${above ? position.y - 44 : position.y}px`,
           zIndex: 999999,
           padding: `${SAFE_PADDING}px`,
         }}
@@ -188,7 +196,7 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
       style={{
         position: 'fixed',
         left: `${position.x - SAFE_PADDING}px`,
-        top: `${position.y - SAFE_PADDING}px`,
+        ...anchor,
         zIndex: 999999,
         padding: `${SAFE_PADDING}px`,
       }}
@@ -196,7 +204,8 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
       <div
         style={{
           display: 'flex',
-          flexDirection: 'column',
+          // Above the selection the hint sits on top of the row, so the row never moves when it appears.
+          flexDirection: above ? 'column-reverse' : 'column',
           gap: '0px',
           background: 'rgba(30, 30, 30, 0.96)',
           borderRadius: '10px',
@@ -260,11 +269,13 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
             data-testid="hover-hint"
             style={{
               padding: '6px 12px',
-              borderTop: '1px solid rgba(255,255,255,0.08)',
+              [above ? 'borderBottom' : 'borderTop']: '1px solid rgba(255,255,255,0.08)',
               color: '#c8c8d0',
               fontSize: '12px',
               lineHeight: 1.5,
-              maxWidth: '320px',
+              // Wrap inside the action row instead of widening the menu.
+              width: 0,
+              minWidth: '100%',
             }}
           >
             {hintAction.hint}

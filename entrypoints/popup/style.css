@@ -1,8 +1,9 @@
 @import '../../styles/globals.css';
+@import '../../styles/tokens.css';
 
 :root {
-  color: #0f172a;
-  background: #f8fafc;
+  color: var(--ann-text);
+  background: var(--ann-page);
   font-family:
     Inter,
     system-ui,
@@ -23,7 +24,7 @@
 body {
   width: 320px;
   margin: 0;
-  background: #f8fafc;
+  background: var(--ann-page);
 }
 
 button {
@@ -37,13 +38,13 @@ button {
 
 .ann-popup__header {
   margin-bottom: 10px;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--ann-border);
   padding: 4px 2px 10px;
 }
 
 .ann-popup__header h1 {
   margin: 0;
-  color: #0f172a;
+  color: var(--ann-text);
   font-size: 15px;
   font-weight: 700;
   line-height: 1.2;
@@ -54,7 +55,7 @@ button {
   align-items: center;
   gap: 6px;
   margin: 4px 0 0;
-  color: #475569;
+  color: var(--ann-muted);
   font-size: 12px;
 }
 
@@ -98,23 +99,23 @@ button {
 
 .ann-popup__item:hover,
 .ann-popup__item:focus-visible {
-  background: #eef2f7;
+  background: var(--ann-surface-alt);
 }
 
 .ann-popup__icon {
   display: inline-flex;
-  color: #673ab8;
+  color: var(--ann-accent);
 }
 
 .ann-popup__label {
   flex: 1;
   font-size: 14px;
-  color: #0f172a;
+  color: var(--ann-text);
 }
 
 .ann-popup__meta {
   font-size: 12px;
-  color: #64748b;
+  color: var(--ann-muted);
 }
 
 .ann-popup__desktop {
@@ -123,22 +124,22 @@ button {
   justify-content: space-between;
   gap: 10px;
   margin-top: 10px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--ann-border);
   padding: 10px 2px 2px;
   font-size: 13px;
 }
 
 .ann-popup__desktop p {
   margin: 3px 0 0;
-  color: #64748b;
+  color: var(--ann-muted);
   font-size: 12px;
 }
 
 .ann-popup__action {
-  border: 1px solid #673ab8;
+  border: 1px solid var(--ann-accent);
   border-radius: 8px;
-  background: #fff;
-  color: #673ab8;
+  background: var(--ann-surface);
+  color: var(--ann-accent);
   padding: 5px 10px;
   font-size: 12px;
   cursor: pointer;
@@ -147,8 +148,8 @@ button {
 
 .ann-popup__hint {
   margin-top: 10px;
-  border-top: 1px solid #e2e8f0;
+  border-top: 1px solid var(--ann-border);
   padding: 8px 2px 0;
-  color: #64748b;
+  color: var(--ann-muted);
   font-size: 12px;
 }

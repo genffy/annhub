@@ -95,19 +95,19 @@ function DesktopConnectionCard() {
     <SettingsSection title="Desktop 连接" description="通过本机接口把碎片与图片逐条写入 macOS Desktop（127.0.0.1:8765）">
       <div className="space-y-3 text-sm">
         <label className="block space-y-1">
-          <span className="text-xs text-slate-500">接口地址</span>
-          <input className="w-full rounded-md border border-slate-300 px-3 py-2" value={endpoint} onChange={e => setEndpoint(e.target.value)} placeholder="http://127.0.0.1:8765" />
+          <span className="text-xs text-ann-muted">接口地址</span>
+          <input className="w-full rounded-md border border-ann-border px-3 py-2" value={endpoint} onChange={e => setEndpoint(e.target.value)} placeholder="http://127.0.0.1:8765" />
         </label>
         <label className="block space-y-1">
-          <span className="text-xs text-slate-500">配对码（在 Desktop 的「系统」页复制）</span>
-          <input className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono" value={token} onChange={e => setToken(e.target.value)} placeholder="粘贴 Desktop 显示的配对码" />
+          <span className="text-xs text-ann-muted">配对码（在 Desktop 的「系统」页复制）</span>
+          <input className="w-full rounded-md border border-ann-border px-3 py-2 font-mono" value={token} onChange={e => setToken(e.target.value)} placeholder="粘贴 Desktop 显示的配对码" />
         </label>
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={autoSync} onChange={e => setAutoSync(e.target.checked)} />
           保存后自动逐条交付（失败时保留待发送队列）
         </label>
         {block && (
-          <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-600" data-testid="desktop-status">
+          <div className="rounded-md bg-ann-alt p-3 text-xs text-ann-muted" data-testid="desktop-status">
             <div>
               状态：<strong>{block.status.detail}</strong>
             </div>
@@ -119,15 +119,15 @@ function DesktopConnectionCard() {
                 上次交付：{block.state.lastResult.deliveredFragments} 条 / {block.state.lastResult.deliveredAssets} 图
               </div>
             )}
-            {block.state.lastError && <div className="text-rose-600">最近错误：{block.state.lastError}</div>}
+            {block.state.lastError && <div className="text-ann-danger">最近错误：{block.state.lastError}</div>}
           </div>
         )}
         {message && <StatusMessage tone={message.kind === 'success' ? 'success' : 'error'}>{message.text}</StatusMessage>}
         <div className="flex gap-2">
-          <button className="rounded-md bg-slate-950 px-4 py-2 text-sm text-white disabled:opacity-50" onClick={save} disabled={busy}>
+          <button className="rounded-md bg-ann-accent px-4 py-2 text-sm text-ann-on-accent disabled:opacity-50" onClick={save} disabled={busy}>
             保存配置
           </button>
-          <button className="rounded-md border border-slate-300 px-4 py-2 text-sm disabled:opacity-50" onClick={flush} disabled={busy || !token} data-testid="flush-delivery">
+          <button className="rounded-md border border-ann-border px-4 py-2 text-sm disabled:opacity-50" onClick={flush} disabled={busy || !token} data-testid="flush-delivery">
             立即交付待发送项
           </button>
         </div>
@@ -156,25 +156,25 @@ function SyncPanelCard() {
     <SettingsSection title="双向同步" description="扩展会拉取 Desktop 回传的复习结果；无法应用的项目会出现在下面的报告中。">
       <div className="space-y-3 text-sm">
         {state === null ? (
-          <div className="text-xs text-slate-500">加载中…</div>
+          <div className="text-xs text-ann-muted">加载中…</div>
         ) : (
-          <div className="rounded-md bg-slate-50 p-3 text-xs text-slate-600" data-testid="sync-state">
+          <div className="rounded-md bg-ann-alt p-3 text-xs text-ann-muted" data-testid="sync-state">
             <div>上次拉取：{state.lastPullAt ? new Date(state.lastPullAt).toLocaleString() : '尚未同步'}</div>
             {state.lastPull && (
               <>
                 <div>
                   最近一批：应用 {state.lastPull.appliedChanges} 条变更，{state.lastPull.reports} 条报告
                 </div>
-                {state.lastPull.errors.length > 0 && <div className="text-rose-600">错误：{state.lastPull.errors[0]}</div>}
+                {state.lastPull.errors.length > 0 && <div className="text-ann-danger">错误：{state.lastPull.errors[0]}</div>}
               </>
             )}
             {!state.lastPull && <div>连接 Desktop 并点击上方的「立即交付待发送项」即可开始同步。</div>}
           </div>
         )}
         {reports !== null && reports.length > 0 && (
-          <div className="rounded-md border border-slate-200 p-3 text-xs" data-testid="sync-reports">
-            <div className="mb-1 font-medium text-slate-700">同步报告（最近 {reports.length} 条）</div>
-            <ul className="list-disc space-y-1 pl-4 text-slate-600">
+          <div className="rounded-md border border-ann-border p-3 text-xs" data-testid="sync-reports">
+            <div className="mb-1 font-medium text-ann-text">同步报告（最近 {reports.length} 条）</div>
+            <ul className="list-disc space-y-1 pl-4 text-ann-muted">
               {reports.map(report => (
                 <li key={report.id}>
                   {new Date(report.at).toLocaleString()} · {report.type} · {report.reason}
@@ -202,18 +202,18 @@ function MetricsCard() {
   if (!metrics) return null
   return (
     <SettingsSection title="采集完成率（本地统计）" description="仅记录事件计数，不记录任何正文内容。">
-      <div className="grid grid-cols-2 gap-2 text-xs text-slate-600 sm:grid-cols-4" data-testid="capture-metrics">
-        <div className="rounded-md bg-slate-50 p-2">打开采集 {metrics.modalOpened}</div>
-        <div className="rounded-md bg-slate-50 p-2">到达核验 {metrics.reachedVerify}</div>
-        <div className="rounded-md bg-slate-50 p-2">到达应用 {metrics.reachedApply}</div>
-        <div className="rounded-md bg-slate-50 p-2">保存成功 {metrics.saved}</div>
+      <div className="grid grid-cols-2 gap-2 text-xs text-ann-muted sm:grid-cols-4" data-testid="capture-metrics">
+        <div className="rounded-md bg-ann-alt p-2">打开采集 {metrics.modalOpened}</div>
+        <div className="rounded-md bg-ann-alt p-2">到达核验 {metrics.reachedVerify}</div>
+        <div className="rounded-md bg-ann-alt p-2">到达应用 {metrics.reachedApply}</div>
+        <div className="rounded-md bg-ann-alt p-2">保存成功 {metrics.saved}</div>
         {Object.keys(metrics.exited).length > 0 && (
-          <div className="col-span-2 rounded-md bg-slate-50 p-2 sm:col-span-4">
+          <div className="col-span-2 rounded-md bg-ann-alt p-2 sm:col-span-4">
             退出阶段：{Object.entries(metrics.exited).map(([step, count]) => `${step} × ${count}`).join('、')}
           </div>
         )}
         {metrics.exitedWithInput > 0 && (
-          <div className="col-span-2 rounded-md bg-slate-50 p-2 sm:col-span-4" data-testid="safe-exit-metrics">
+          <div className="col-span-2 rounded-md bg-ann-alt p-2 sm:col-span-4" data-testid="safe-exit-metrics">
             放弃时已有输入 {metrics.exitedWithInput} 次 · 改存高亮 {metrics.fallbacks.highlight} · 改存剪藏 {metrics.fallbacks.clip}（安全出口使用率{' '}
             {Math.round(((metrics.fallbacks.highlight + metrics.fallbacks.clip) / metrics.exitedWithInput) * 100)}%）
           </div>
@@ -257,11 +257,11 @@ function OrphanAssetsCard() {
   if (orphans === null) return null
   return (
     <SettingsSection title="孤儿图片资产" description="无任何截图集/碎片引用且无待交付任务的图片；可安全清理以释放空间。">
-      <div className="space-y-3 text-sm text-slate-600" data-testid="orphan-assets">
+      <div className="space-y-3 text-sm text-ann-muted" data-testid="orphan-assets">
         <div>{orphans.length === 0 ? '没有孤儿资产。' : `${orphans.length} 个孤儿资产（如 ${(orphans.reduce((n, a) => n + a.byteLength, 0) / 1024 / 1024).toFixed(1)}MB）`}</div>
         {message && <div>{message.kind === 'success' ? <StatusMessage tone="success">{message.text}</StatusMessage> : <StatusMessage tone="error">{message.text}</StatusMessage>}</div>}
         {orphans.length > 0 && (
-          <button className="rounded-md bg-slate-950 px-4 py-2 text-sm text-white disabled:opacity-50" onClick={cleanup} disabled={busy} data-testid="cleanup-orphans">
+          <button className="rounded-md bg-ann-accent px-4 py-2 text-sm text-ann-on-accent disabled:opacity-50" onClick={cleanup} disabled={busy} data-testid="cleanup-orphans">
             {busy ? '清理中…' : '清理孤儿资产'}
           </button>
         )}
@@ -320,10 +320,10 @@ function LlmCard() {
 
   const field = (label: string, key: keyof LlmConfig, placeholder: string, type = 'text') => (
     <label className="block space-y-1">
-      <span className="text-xs text-slate-500">{label}</span>
+      <span className="text-xs text-ann-muted">{label}</span>
       <input
         type={type}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 font-mono text-xs"
+        className="w-full rounded-md border border-ann-border px-3 py-2 font-mono text-xs"
         value={String(config[key] ?? '')}
         placeholder={placeholder}
         onChange={e => setConfig({ ...config, [key]: e.target.value })}
@@ -359,10 +359,10 @@ function LlmCard() {
         {field('模型', 'model', 'gpt-…')}
         {message && <div>{message.kind === 'success' ? <StatusMessage tone="success">{message.text}</StatusMessage> : <StatusMessage tone="error">{message.text}</StatusMessage>}</div>}
         <div className="flex gap-2">
-          <button className="rounded-md bg-slate-950 px-4 py-2 text-sm text-white disabled:opacity-50" onClick={save} disabled={busy}>
+          <button className="rounded-md bg-ann-accent px-4 py-2 text-sm text-ann-on-accent disabled:opacity-50" onClick={save} disabled={busy}>
             保存
           </button>
-          <button className="rounded-md border border-slate-300 px-4 py-2 text-sm disabled:opacity-50" onClick={test} disabled={busy || !config.baseUrl}>
+          <button className="rounded-md border border-ann-border px-4 py-2 text-sm disabled:opacity-50" onClick={test} disabled={busy || !config.baseUrl}>
             测试连接
           </button>
         </div>
@@ -383,7 +383,7 @@ function DataManagementCard() {
 
   return (
     <SettingsSection title="数据管理" description="本地数据概况。「导出内容」的唯一入口在碎片库的更多菜单（Markdown + 原图 ZIP，不是数据库备份）。">
-      <div className="space-y-3 text-sm text-slate-600">
+      <div className="space-y-3 text-sm text-ann-muted">
         {stats && (
           <div>
             本地学习核心：{stats.total} 条碎片（本周新增 {stats.newThisWeek}）

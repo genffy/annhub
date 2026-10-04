@@ -75,6 +75,6 @@ describe('pullDesktopChanges (storage.md §9)', () => {
       apply: async () => ({ reports: [] }),
     }, fetchImpl as unknown as typeof fetch)
     expect(fetchImpl).not.toHaveBeenCalled()
-    expect(result.errors[0]).toContain('未配置 Token')
+    expect(result.errors[0]).toContain('未配置配对码')
   })
 })

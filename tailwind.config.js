@@ -20,6 +20,21 @@ export default {
     },
     extend: {
       colors: {
+        ann: {
+          page: "var(--ann-page)",
+          surface: "var(--ann-surface)",
+          alt: "var(--ann-surface-alt)",
+          border: "var(--ann-border)",
+          text: "var(--ann-text)",
+          muted: "var(--ann-muted)",
+          accent: "var(--ann-accent)",
+          "on-accent": "var(--ann-accent-contrast)",
+          "accent-soft": "var(--ann-accent-soft)",
+          danger: "var(--ann-danger)",
+          "danger-bg": "var(--ann-danger-bg)",
+          success: "var(--ann-success)",
+          "success-bg": "var(--ann-success-bg)",
+        },
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",

@@ -44,7 +44,7 @@ function authHeaders(token: string): Record<string, string> {
 }
 
 export async function pingHub(config: DirectConnectConfig, fetchImpl: typeof fetch = fetch): Promise<DirectConnectStatus> {
-  if (!config.token) return { online: false, paired: false, detail: '未配置 Token（在 Desktop 系统页获取）' }
+  if (!config.token) return { online: false, paired: false, detail: '未配置配对码（在 Desktop 的「系统」页复制）' }
   try {
     const res = await fetchImpl(`${config.endpoint}/health`, { method: 'GET' })
     if (!res.ok) return { online: false, paired: false, detail: `HTTP ${res.status}` }
@@ -83,7 +83,7 @@ const isFragmentEvent = (e: OutboxEvent) => e.type === 'fragment.created' || e.t
 export async function flushPendingDeliveries(config: DirectConnectConfig, deps: DeliveryDeps, fetchImpl: typeof fetch = fetch): Promise<DeliveryResult> {
   const result: DeliveryResult = { deliveredFragments: 0, deliveredAssets: 0, pruned: 0, errors: [], authFailed: false, unreachable: false }
   if (!config.token) {
-    result.errors.push('未配置 Token（在 Desktop 系统页获取）')
+    result.errors.push('未配置配对码（在 Desktop 的「系统」页复制）')
     return result
   }
 
@@ -93,7 +93,7 @@ export async function flushPendingDeliveries(config: DirectConnectConfig, deps: 
 
   const handleAuthFailure = (status: number) => {
     result.authFailed = true
-    result.errors.push(status === 401 ? 'Token 不匹配（Desktop 已与其他 Token 配对）' : '来源被拒绝（403）')
+    result.errors.push(status === 401 ? '配对码不匹配（Desktop 已与其他配对码配对，请重新配对）' : '来源被拒绝（403）')
   }
 
   for (const event of ordered) {
@@ -247,7 +247,7 @@ export interface PullResult {
 export async function pullDesktopChanges(config: DirectConnectConfig, deps: PullDeps, fetchImpl: typeof fetch = fetch): Promise<PullResult> {
   const result: PullResult = { appliedChanges: 0, reports: 0, errors: [], authFailed: false, unreachable: false }
   if (!config.token) {
-    result.errors.push('未配置 Token（在 Desktop 系统页获取）')
+    result.errors.push('未配置配对码（在 Desktop 的「系统」页复制）')
     return result
   }
   let cursor = await deps.getCursor()
@@ -264,7 +264,7 @@ export async function pullDesktopChanges(config: DirectConnectConfig, deps: Pull
     }
     if (res.status === 401 || res.status === 403) {
       result.authFailed = true
-      result.errors.push('Token 不匹配（Desktop 已与其他 Token 配对）')
+      result.errors.push('配对码不匹配（Desktop 已与其他配对码配对，请重新配对）')
       break
     }
     if (!res.ok) {

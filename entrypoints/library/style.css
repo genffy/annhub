@@ -1,4 +1,5 @@
 @import '../../styles/globals.css';
+@import '../../styles/tokens.css';
 
 * {
   margin: 0;
@@ -10,8 +11,8 @@ html,
 body {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
-  background-color: #f8f9fa;
-  color: #1a1d24;
+  background-color: var(--ann-page);
+  color: var(--ann-text);
 }
 
 #root {
@@ -45,7 +46,7 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  border-bottom: 1px solid #e8e8ec;
+  border-bottom: 1px solid var(--ann-border);
   padding-bottom: 8px;
 }
 
@@ -58,7 +59,7 @@ body {
 .library-nav a {
   border: none;
   background: transparent;
-  color: #3c4048;
+  color: var(--ann-text);
   font-size: 14px;
   padding: 6px 12px;
   border-radius: 8px;
@@ -68,13 +69,13 @@ body {
 
 .library-nav button:hover,
 .library-nav a:hover {
-  background: #eef0f4;
+  background: var(--ann-surface-alt);
 }
 
 /* The active page is also underlined, so it is not signalled by colour alone. */
 .library-nav button.active {
-  background: #1a1d24;
-  color: #fff;
+  background: var(--ann-accent);
+  color: var(--ann-accent-contrast);
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -91,8 +92,8 @@ body {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  border: 1px solid #d6d8de;
-  background: #fff;
+  border: 1px solid var(--ann-border);
+  background: var(--ann-surface);
   border-radius: 999px;
   padding: 3px 10px;
 }
@@ -117,9 +118,9 @@ body {
 }
 
 button.primary-outline {
-  border: 1px solid #673ab8;
-  background: #fff;
-  color: #673ab8;
+  border: 1px solid var(--ann-accent);
+  background: var(--ann-surface);
+  color: var(--ann-accent);
   border-radius: 8px;
   padding: 5px 12px;
   font-size: 13px;
@@ -131,8 +132,8 @@ button.primary-outline {
   right: 0;
   top: 120%;
   z-index: 30;
-  background: #fff;
-  border: 1px solid #d6d8de;
+  background: var(--ann-surface);
+  border: 1px solid var(--ann-border);
   border-radius: 10px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   display: flex;
@@ -151,7 +152,7 @@ button.primary-outline {
 }
 
 .more-menu button:hover:not(:disabled) {
-  background: #f1f1f4;
+  background: var(--ann-surface-alt);
 }
 
 .desktop-panel {
@@ -160,12 +161,12 @@ button.primary-outline {
   right: 0;
   top: 100%;
   z-index: 30;
-  background: #f8f9fb;
-  border: 1px solid #d6d8de;
+  background: var(--ann-surface-alt);
+  border: 1px solid var(--ann-border);
   border-radius: 12px;
   padding: 12px 16px;
   font-size: 13px;
-  color: #3c4048;
+  color: var(--ann-text);
   line-height: 1.7;
 }
 
@@ -173,50 +174,11 @@ button.primary-outline {
   display: flex;
   gap: 14px;
   font-size: 13px;
-  color: #3c4048;
-  background: #fff;
-  border: 1px solid #e8e8ec;
+  color: var(--ann-text);
+  background: var(--ann-surface);
+  border: 1px solid var(--ann-border);
   border-radius: 8px;
   padding: 6px 12px;
-}
-
-/* 客户端导流区：固定展示，不可关闭 */
-.app-banner {
-  margin-top: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  background: linear-gradient(135deg, #1f2733, #2d3a54);
-  color: #fff;
-  border-radius: 10px;
-  padding: 12px 16px;
-}
-
-.app-banner p {
-  font-size: 12px;
-  opacity: 0.85;
-  margin-top: 2px;
-}
-
-.app-banner-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.app-banner-actions a {
-  background: rgba(255, 255, 255, 0.14);
-  color: #fff;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  border-radius: 8px;
-  padding: 6px 12px;
-  font-size: 13px;
-  text-decoration: none;
-}
-
-.app-banner-actions a:hover {
-  background: rgba(255, 255, 255, 0.24);
 }
 
 .library-toolbar {
@@ -227,15 +189,80 @@ button.primary-outline {
 
 .library-search {
   flex: 1;
-  border: 1px solid #d6d8de;
+  border: 1px solid var(--ann-border);
+  background: var(--ann-surface);
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 14px;
 }
 
+.library-search input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  outline: none;
+}
+
+/* First-use guide and the post-first-fragment connect hint */
+.guide-card {
+  margin-top: 14px;
+  background: var(--ann-surface);
+  border: 1px solid var(--ann-border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.guide-card.dashed {
+  border-style: dashed;
+  background: var(--ann-surface-alt);
+}
+
+.guide-card strong {
+  font-size: 15px;
+}
+
+.guide-card ol {
+  padding-left: 18px;
+  margin: 4px 0;
+}
+
+.guide-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.guide-actions button,
+.guide-actions a {
+  border: 1px solid var(--ann-border);
+  background: var(--ann-surface);
+  color: var(--ann-text);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+/* Page-level primary action (新建灵感) */
+.library-sub button.primary {
+  border: none;
+  background: var(--ann-accent);
+  color: var(--ann-accent-contrast);
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .clear-filters {
-  border: 1px solid #d6d8de;
-  background: #fff;
+  border: 1px solid var(--ann-border);
+  background: var(--ann-surface);
   border-radius: 8px;
   padding: 8px 12px;
   font-size: 13px;
@@ -258,7 +285,7 @@ button.primary-outline {
 
 .filter-label {
   font-size: 12px;
-  color: #636977;
+  color: var(--ann-muted);
   min-width: 32px;
 }
 
@@ -269,19 +296,19 @@ button.primary-outline {
 }
 
 .filter-chip {
-  border: 1px solid #d6d8de;
-  background: #fff;
+  border: 1px solid var(--ann-border);
+  background: var(--ann-surface);
   border-radius: 999px;
   padding: 2px 10px;
   font-size: 12px;
   cursor: pointer;
-  color: #3c4048;
+  color: var(--ann-text);
 }
 
 .filter-chip.active {
-  background: #1a1d24;
-  border-color: #1a1d24;
-  color: #fff;
+  background: var(--ann-accent);
+  border-color: var(--ann-accent);
+  color: var(--ann-accent-contrast);
 }
 
 .library-list {
@@ -292,19 +319,19 @@ button.primary-outline {
 }
 
 .library-empty {
-  background: #fff;
-  border: 1px solid #e8e8ec;
+  background: var(--ann-surface);
+  border: 1px solid var(--ann-border);
   border-radius: 10px;
   padding: 28px 20px;
   text-align: center;
-  color: #636977;
+  color: var(--ann-muted);
   font-size: 14px;
   line-height: 1.8;
 }
 
 .fragment-card {
-  background: #fff;
-  border: 1px solid #e8e8ec;
+  background: var(--ann-surface);
+  border: 1px solid var(--ann-border);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -341,35 +368,35 @@ button.primary-outline {
 
 .badge {
   font-size: 11px;
-  border: 1px solid #e0e2e8;
+  border: 1px solid var(--ann-border);
   border-radius: 4px;
   padding: 1px 6px;
-  color: #636977;
+  color: var(--ann-muted);
   white-space: nowrap;
 }
 
 .badge-register-formal {
-  color: #1d4ed8;
-  border-color: #bfdbfe;
-  background: #eff6ff;
+  color: var(--ann-accent);
+  border-color: var(--ann-border);
+  background: var(--ann-accent-soft);
 }
 
 .badge-register-casual {
-  color: #7c3aed;
-  border-color: #ddd6fe;
-  background: #f5f3ff;
+  color: var(--ann-accent);
+  border-color: var(--ann-border);
+  background: var(--ann-accent-soft);
 }
 
 .fragment-cloze {
   margin-top: 6px;
   font-size: 14px;
   line-height: 1.65;
-  color: #3c4048;
+  color: var(--ann-text);
   word-break: break-word;
 }
 
 .fragment-details {
-  border-top: 1px solid #eef0f3;
+  border-top: 1px solid var(--ann-border);
   padding: 10px 14px 12px;
   display: flex;
   flex-direction: column;
@@ -381,12 +408,12 @@ button.primary-outline {
 .detail-label {
   display: block;
   font-size: 11px;
-  color: #8b8d98;
+  color: var(--ann-muted);
   margin-bottom: 2px;
 }
 
 .fragment-excerpt {
-  color: #3c4048;
+  color: var(--ann-text);
   word-break: break-word;
 }
 
@@ -398,10 +425,10 @@ button.primary-outline {
 
 .tag {
   font-size: 12px;
-  background: #f1f1f4;
+  background: var(--ann-surface-alt);
   border-radius: 4px;
   padding: 1px 8px;
-  color: #3c4048;
+  color: var(--ann-text);
 }
 
 .fragment-actions {
@@ -413,12 +440,12 @@ button.primary-outline {
 }
 
 .fragment-actions a {
-  color: #1a1d24;
+  color: var(--ann-text);
 }
 
 .fragment-actions button {
-  border: 1px solid #d6d8de;
-  background: #fff;
+  border: 1px solid var(--ann-border);
+  background: var(--ann-surface);
   border-radius: 6px;
   padding: 3px 10px;
   cursor: pointer;
@@ -426,18 +453,18 @@ button.primary-outline {
 }
 
 .fragment-actions button.danger {
-  color: #c6373c;
-  border-color: #e5a0a2;
+  color: var(--ann-danger);
+  border-color: var(--ann-danger);
 }
 
 .fragment-date {
-  color: #8b8d98;
+  color: var(--ann-muted);
   font-size: 12px;
   margin-left: auto;
 }
 
 .fragment-editor {
-  border-top: 1px solid #eef0f3;
+  border-top: 1px solid var(--ann-border);
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
@@ -446,12 +473,12 @@ button.primary-outline {
 
 .fragment-editor label {
   font-size: 12px;
-  color: #636977;
+  color: var(--ann-muted);
 }
 
 .fragment-editor textarea,
 .fragment-editor input {
-  border: 1px solid #d6d8de;
+  border: 1px solid var(--ann-border);
   border-radius: 8px;
   padding: 7px 10px;
   font-size: 14px;
@@ -460,7 +487,7 @@ button.primary-outline {
 }
 
 .editor-error {
-  color: #c6373c;
+  color: var(--ann-danger);
   font-size: 13px;
 }
 
@@ -471,17 +498,17 @@ button.primary-outline {
 }
 
 .editor-actions button {
-  border: 1px solid #d6d8de;
-  background: #fff;
+  border: 1px solid var(--ann-border);
+  background: var(--ann-surface);
   border-radius: 8px;
   padding: 6px 14px;
   cursor: pointer;
 }
 
 .editor-actions button.primary {
-  background: #1a1d24;
-  color: #fff;
-  border-color: #1a1d24;
+  background: var(--ann-accent);
+  color: var(--ann-accent-contrast);
+  border-color: var(--ann-accent);
 }
 
 .editor-actions button:disabled {
@@ -499,10 +526,10 @@ button.primary-outline {
 
 .screenshot-card {
   margin: 0;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--ann-border);
   border-radius: 12px;
   overflow: hidden;
-  background: #fff;
+  background: var(--ann-surface);
 }
 
 .screenshot-card a {
@@ -515,7 +542,7 @@ button.primary-outline {
   max-height: 220px;
   object-fit: cover;
   object-position: top left;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid var(--ann-border);
 }
 
 .screenshot-card figcaption {
@@ -525,7 +552,7 @@ button.primary-outline {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #64748b;
+  color: var(--ann-muted);
 }
 
 .screenshot-meta {
@@ -537,7 +564,7 @@ button.primary-outline {
 
 .screenshot-source {
   font-weight: 600;
-  color: #334155;
+  color: var(--ann-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -552,11 +579,11 @@ button.primary-outline {
 .screenshot-actions a,
 .screenshot-actions button {
   font-size: 12px;
-  color: #0f172a;
-  border: 1px solid #cbd5e1;
+  color: var(--ann-text);
+  border: 1px solid var(--ann-border);
   border-radius: 6px;
   padding: 4px 10px;
-  background: #fff;
+  background: var(--ann-surface);
   cursor: pointer;
   text-decoration: none;
 }

@@ -381,10 +381,10 @@ export default function App() {
       {view === 'fragments' && (
         <>
           {onboardingDismissed === false && (
-            <div className="fragment-card" style={{ border: '1px dashed #b6bac3', background: '#f8f9fb' }} data-testid="onboarding-guide">
-              <div className="fragment-content">{uiText('library.onboarding.title')}</div>
-              <div className="fragment-excerpt">{uiText('library.onboarding.body')}</div>
-              <div className="fragment-actions">
+            <div className="guide-card dashed" data-testid="onboarding-guide">
+              <strong>{uiText('library.onboarding.title')}</strong>
+              <p>{uiText('library.onboarding.body')}</p>
+              <div className="guide-actions">
                 <button onClick={() => window.open(chrome.runtime.getURL('/sample.html'), '_blank')} data-testid="onboarding-sample">
                   打开示例页面
                 </button>
@@ -395,14 +395,14 @@ export default function App() {
             </div>
           )}
           {connectHintDismissed === false && connection && !connection.paired && (stats?.total ?? 0) > 0 && (
-            <div className="fragment-card" style={{ border: '1px solid #d6d8de', background: '#fff' }} data-testid="connect-hint">
-              <div className="fragment-content">连接 Desktop 开始复习</div>
-              <ol className="fragment-excerpt" style={{ paddingLeft: 18 }}>
+            <div className="guide-card" data-testid="connect-hint">
+              <strong>连接 Desktop 开始复习</strong>
+              <ol>
                 <li>下载并启动 Desktop</li>
                 <li>在 Desktop 的「系统」页复制配对码</li>
                 <li>在扩展的设置中输入配对码，状态变为「已连接」</li>
               </ol>
-              <div className="fragment-actions">
+              <div className="guide-actions">
                 <a href={settingsUrl}>去设置</a>
                 <button onClick={dismissConnectHint} data-testid="connect-hint-dismiss">
                   跳过
