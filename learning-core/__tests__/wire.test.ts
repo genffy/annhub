@@ -50,3 +50,29 @@ describe('delivery constants', () => {
     expect(MAX_IMAGE_BYTES).toBe(10 * 1024 * 1024)
   })
 })
+
+describe('undefined members (a fragment saved without the optional understanding)', () => {
+  it('are absent from canonical JSON, like in JSON.stringify and in Swift', async () => {
+    expect(canonicalJson({ b: 1, a: undefined, c: { d: undefined, e: 'x' } })).toBe('{"b":1,"c":{"e":"x"}}')
+    const withUndefined = makeFragment()
+    const processing = withUndefined.processing as { guess?: string }
+    processing.guess = undefined
+    const without = structuredClone(withUndefined)
+    delete (without.processing as { guess?: string }).guess
+    expect('guess' in withUndefined.processing).toBe(true)
+    expect(await fragmentWireHash(toFragmentWire(withUndefined))).toBe(await fragmentWireHash(toFragmentWire(without)))
+  })
+
+  it('hash exactly what the request body carries', async () => {
+    const f = makeFragment()
+    ;(f.processing as { guess?: string }).guess = undefined
+    const wire = toFragmentWire(f)
+    const received = JSON.parse(JSON.stringify(wire)) // what Desktop parses from the PUT body
+    expect(await fragmentWireHash(wire)).toBe(await fragmentWireHash(received))
+  })
+
+  it('still reject values that are not JSON at all', () => {
+    expect(() => canonicalJson({ a: () => 1 })).toThrow('unsupported')
+    expect(() => canonicalJson([undefined])).toThrow('unsupported')
+  })
+})

@@ -58,8 +58,15 @@ export function canonicalJson(value: unknown): string {
   if (typeof value === 'string') return canonicalString(value)
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
   if (typeof value === 'object') {
-    const keys = Object.keys(value as Record<string, unknown>).sort()
-    return `{${keys.map(k => `${canonicalString(k)}:${canonicalJson((value as Record<string, unknown>)[k])}`).join(',')}}`
+    // An `undefined` member is an absent member, exactly as JSON.stringify (the request body) and the
+    // Swift side (nil is omitted) treat it. A fragment saved without the optional understanding
+    // carries `processing.guess: undefined` after the IndexedDB round trip; rejecting it here made
+    // such a fragment impossible to hash, so its delivery threw before any request was sent.
+    const record = value as Record<string, unknown>
+    const keys = Object.keys(record)
+      .filter(k => record[k] !== undefined)
+      .sort()
+    return `{${keys.map(k => `${canonicalString(k)}:${canonicalJson(record[k])}`).join(',')}}`
   }
   throw new Error(`canonicalJson: unsupported value ${typeof value}`)
 }

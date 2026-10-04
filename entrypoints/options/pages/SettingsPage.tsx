@@ -15,13 +15,25 @@ import { PageHeader, SettingsSection, StatusMessage } from '../components/ui'
 interface DirectConnectBlock {
   config: { endpoint: string; autoSync: boolean; hasToken: boolean }
   status: { online: boolean; paired: boolean; detail: string; lastSyncAt?: number }
-  pending: { pendingFragments: number; pendingAssets: number }
+  pending: { pendingFragments: number; pendingAssets: number; rejected: number }
+  /** Items Desktop refused for good: kept in the queue, parked until the user decides. */
+  rejected: Array<{ eventId: string; kind: 'fragment' | 'asset'; targetId: string; code: string; status: number; at: number }>
   state: {
     lastError?: string
     lastResult?: { deliveredFragments: number; deliveredAssets: number }
     lastPullAt?: number
     lastPull?: { appliedChanges: number; reports: number; errors: string[] }
   }
+}
+
+const REJECTION_LABELS: Record<string, string> = {
+  DESKTOP_DELETED: '已在 Desktop 删除，不会再带回',
+  CONFLICT: '与 Desktop 已有的记录冲突',
+  TOO_LARGE: '图片超过上限，本地原图已保留',
+  INVALID: '未通过 Desktop 校验',
+  REJECTED: '被 Desktop 拒绝',
+  DESKTOP_ERROR: 'Desktop 反复报错，已暂停重试',
+  LOCAL_INVALID: '本地记录无法生成交付请求',
 }
 
 export default function SettingsPage() {
@@ -79,6 +91,22 @@ function DesktopConnectionCard() {
     try {
       const response = await MessageUtils.sendMessage({ type: 'SET_DESKTOP_DIRECT_CONNECT', config: { token: '' } })
       setMessage(response.success ? { kind: 'success', text: '已取消配对，保存的配对码已清除' } : { kind: 'error', text: response.error || '取消配对失败' })
+      await load()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const resolveRejected = async (action: 'retry' | 'dismiss') => {
+    if (action === 'dismiss' && !window.confirm('忽略这些项后，它们不会再交付到 Desktop（本地记录不受影响）。继续？')) return
+    setBusy(true)
+    try {
+      const response = await MessageUtils.sendMessage<{ count: number }>({ type: 'RESOLVE_REJECTED_DELIVERIES', action })
+      setMessage(
+        response.success
+          ? { kind: 'success', text: action === 'retry' ? `已重新尝试 ${response.data?.count ?? 0} 项` : `已忽略 ${response.data?.count ?? 0} 项` }
+          : { kind: 'error', text: response.error || '操作失败' },
+      )
       await load()
     } finally {
       setBusy(false)
@@ -146,6 +174,37 @@ function DesktopConnectionCard() {
               </div>
             )}
             {block.state.lastError && <div className="text-ann-danger">最近错误：{block.state.lastError}</div>}
+          </div>
+        )}
+        {block && block.rejected.length > 0 && (
+          <div className="space-y-2 rounded-md border border-ann-danger p-3 text-xs" data-testid="rejected-deliveries">
+            <div className="font-medium text-ann-danger">{block.pending.rejected} 项未能交付到 Desktop，已暂停自动重试</div>
+            <ul className="space-y-1 text-ann-muted">
+              {block.rejected.map(item => (
+                <li key={item.eventId} data-testid="rejected-item">
+                  {item.kind === 'asset' ? '图片' : '碎片'} <span className="font-mono">{item.targetId.slice(0, 14)}</span> · {REJECTION_LABELS[item.code] ?? item.code}
+                  {item.status > 0 ? `（HTTP ${item.status}）` : ''}
+                </li>
+              ))}
+            </ul>
+            <div className="flex gap-2">
+              <button
+                className="rounded-md border border-ann-border px-3 py-1 disabled:opacity-50"
+                onClick={() => void resolveRejected('retry')}
+                disabled={busy}
+                data-testid="rejected-retry"
+              >
+                重新尝试
+              </button>
+              <button
+                className="rounded-md border border-ann-border px-3 py-1 disabled:opacity-50"
+                onClick={() => void resolveRejected('dismiss')}
+                disabled={busy}
+                data-testid="rejected-dismiss"
+              >
+                忽略这些项
+              </button>
+            </div>
           </div>
         )}
         {message && <StatusMessage tone={message.kind === 'success' ? 'success' : 'error'}>{message.text}</StatusMessage>}

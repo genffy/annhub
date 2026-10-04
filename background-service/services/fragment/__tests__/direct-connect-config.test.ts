@@ -30,8 +30,9 @@ describe('direct-connect configuration', () => {
     for (const key of Object.keys(store)) delete store[key]
     vi.restoreAllMocks()
     // The status block reads the IndexedDB outbox, which jsdom does not have; the config is what is under test.
-    vi.spyOn(service(), 'getDeliveryStats').mockResolvedValue({ pendingFragments: 0, pendingAssets: 0 } as never)
+    vi.spyOn(service(), 'getDeliveryStats').mockResolvedValue({ pendingFragments: 0, pendingAssets: 0, rejected: 0 })
     vi.spyOn(service(), 'getDeliveryState').mockResolvedValue({})
+    vi.spyOn(service(), 'getRejectedDeliveries').mockResolvedValue([])
   })
 
   it('never returns the pairing code to a page, only whether one is stored', async () => {

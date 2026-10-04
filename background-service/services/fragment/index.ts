@@ -8,7 +8,7 @@ import type { ResponseMessage } from '../../../types/messages'
 import { Logger } from '../../../utils/logger'
 import { FragmentStore, type FragmentPatch, type FragmentSaveOutcome } from '../../../learning-core/fragment-store'
 import type { CreateFragmentInput } from '../../../learning-core/factory'
-import type { FragmentRecord, FragmentLocator, VerifiedResult } from '../../../learning-core/types'
+import type { FragmentRecord, FragmentLocator, OutboxRejectionCode, VerifiedResult } from '../../../learning-core/types'
 import { runFragmentQuery, type FragmentQuery, type FragmentQueryResult } from '../../../learning-core/query'
 import { normalizeHost } from '../../../learning-core/normalize'
 import { buildExportZip, type ExportManifest, type ExportHighlight, type ExportClip } from '../../../learning-core/markdown-export'
@@ -32,6 +32,15 @@ import {
   type PullResult,
 } from './direct-connect'
 import { fragmentMessageHandlers } from './message-handles'
+
+export interface RejectedDelivery {
+  eventId: string
+  kind: 'fragment' | 'asset'
+  targetId: string
+  code: OutboxRejectionCode
+  status: number
+  at: number
+}
 
 const DEVICE_ID_KEY = 'fragmentDeviceId'
 const CAPTURE_CONFIG_KEY = 'fragmentCaptureConfigV2'
@@ -321,8 +330,13 @@ export class FragmentService implements IService {
       getAsset: id => this.store.getAsset(id),
       prune: ids => this.store.pruneEvents(ids),
       markAttempt: id => this.store.markEventAttempt(id),
+      markFailure: id => this.store.markEventFailure(id),
+      reject: (id, rejection) => this.store.rejectEvent(id, rejection),
     })
     const deliveryState: DeliveryState = { lastSyncAt: Date.now(), lastResult: result, lastError: result.errors[0] }
+    // A refusal outlives this run's error list: while any item waits on the user, say so.
+    const parked = (await this.store.getDeliveryStats()).rejected
+    if (!deliveryState.lastError && parked > 0) deliveryState.lastError = `${parked} 项未能交付到 Desktop，需要处理（设置 → Desktop 连接）`
 
     // R3: after delivery, drain Desktop-originated review changes. Auth
     // failure stops both directions.
@@ -344,6 +358,32 @@ export class FragmentService implements IService {
     }
     await this.setDeliveryState(deliveryState)
     return result
+  }
+
+  /** Items Desktop refused for good, for the settings page: what, why and when. */
+  async getRejectedDeliveries(limit = 20): Promise<RejectedDelivery[]> {
+    const events = await this.store.getRejectedEvents()
+    return events.slice(0, limit).map(event => ({
+      eventId: event.eventId,
+      kind: event.type === 'asset.created' ? ('asset' as const) : ('fragment' as const),
+      targetId: (event.payload as { fragmentId?: string; assetId?: string } | null)?.fragmentId ?? (event.payload as { assetId?: string } | null)?.assetId ?? '',
+      code: event.rejection!.code,
+      status: event.rejection!.status,
+      at: event.rejection!.at,
+    }))
+  }
+
+  /** `retry` puts every refused item back in the queue and delivers; `dismiss` drops them for good. */
+  async resolveRejectedDeliveries(action: 'retry' | 'dismiss'): Promise<{ count: number; result?: DeliveryResult }> {
+    if (action === 'dismiss') {
+      const ids = (await this.store.getRejectedEvents()).map(event => event.eventId)
+      await this.store.pruneEvents(ids)
+      // The "N items could not be delivered" notice belongs to the items just dismissed.
+      await this.setDeliveryState({ ...(await this.getDeliveryState()), lastError: undefined })
+      return { count: ids.length }
+    }
+    const count = await this.store.reopenRejectedEvents()
+    return { count, result: await this.flushDeliveries() }
   }
 
   async getSyncReports(limit = 20): Promise<Array<{ id: string; type: string; reason: string; detail?: string; at: number }>> {

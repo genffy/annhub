@@ -422,6 +422,12 @@ export interface FlushDesktopDirectConnectMessage extends BaseMessage {
   type: 'FLUSH_DESKTOP_DIRECT_CONNECT'
 }
 
+/** Items Desktop refused stay queued but parked: `retry` re-queues and delivers them, `dismiss` drops them. */
+export interface ResolveRejectedDeliveriesMessage extends BaseMessage {
+  type: 'RESOLVE_REJECTED_DELIVERIES'
+  action: 'retry' | 'dismiss'
+}
+
 /** The single user export runs page-side (entrypoints/export-content.ts): Blobs cannot cross runtime messaging. */
 
 export interface CaptureConfig {
@@ -531,6 +537,7 @@ export type UIToBackgroundMessage =
   | GetDirectConnectConfigMessage
   | SetDirectConnectConfigMessage
   | FlushDesktopDirectConnectMessage
+  | ResolveRejectedDeliveriesMessage
   | GetTabIdMessage
   | GetOrphanAssetsMessage
   | CleanupOrphanAssetsMessage

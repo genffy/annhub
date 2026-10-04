@@ -189,6 +189,26 @@ export interface ScreenshotRecord {
 
 export type SyncEventType = 'fragment.created' | 'fragment.updated' | 'asset.created' | 'review.rated'
 
+/**
+ * Why Desktop will not take a pending item. A rejected event is kept (the user's
+ * record stays queued and visible) but is no longer retried automatically; only
+ * a persisted confirmation removes a pending task (storage.md §8).
+ */
+export type OutboxRejectionCode =
+  | 'DESKTOP_DELETED' // 410: Desktop deleted this ID locally; it must not come back
+  | 'CONFLICT' // 409: same revision, different content (or a different image under the same id)
+  | 'TOO_LARGE' // 413: image above the shared MAX_IMAGE_BYTES
+  | 'INVALID' // 422: Desktop's validation refused it
+  | 'REJECTED' // any other 4xx
+  | 'DESKTOP_ERROR' // repeated 5xx for this one item
+  | 'LOCAL_INVALID' // the stored record cannot be turned into a request; nothing was sent
+
+export interface OutboxRejection {
+  code: OutboxRejectionCode
+  status: number
+  at: number
+}
+
 export interface OutboxEvent {
   eventId: string
   deviceId: string
@@ -197,6 +217,10 @@ export interface OutboxEvent {
   createdAt: number
   attempts: number
   lastAttemptAt?: number
+  /** Responses from Desktop that were server errors (5xx) for this item. */
+  failures?: number
+  /** Set when Desktop refused the item for good; cleared by an explicit retry. */
+  rejection?: OutboxRejection
 }
 
 // ── Validation errors (fragments.md §7) ─────────────────────────────────
