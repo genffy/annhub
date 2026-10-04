@@ -1,6 +1,6 @@
 /**
  * Extension surfaces (extension.md §2.2, §2.3, §5, D-11/D-12/D-13): toolbar
- * popup, the three first-level pages, the more menu, and the localized wording.
+ * popup, the three first-level pages, the more menu and the Chinese wording (English is covered by english-ui.spec.ts).
  */
 import { test, expect } from './fixtures'
 import {
@@ -122,23 +122,5 @@ test.describe('library navigation (§2.2, §5.1, D-13)', () => {
     await expect(hint).toContainText('在 Desktop 的「系统」页复制配对码')
     await hint.getByTestId('connect-hint-dismiss').click()
     await expect(hint).toHaveCount(0)
-  })
-})
-
-test.describe('English UI wording (D-11)', () => {
-  test.use({ uiLocale: 'en-US' })
-
-  test('the first menu item and library strings say “Fragment”', async ({ page, context, extensionId }) => {
-    await clearFragmentStoreViaServiceWorker(context)
-    await page.goto(`chrome-extension://${extensionId}/library.html`)
-    await expect(page.getByTestId('fragment-search')).toHaveAttribute('placeholder', 'Search Fragments…')
-    await expect(page.getByTestId('onboarding-guide')).toContainText('Highlight ≠ Fragment')
-
-    await navigateToFragmentPage(page)
-    const { selectText, waitForHoverMenu } = await import('./helpers')
-    await selectText(page, '[data-testid="fragment-target"]')
-    const menu = await waitForHoverMenu(page)
-    await expect(menu.getByTestId('hover-action-save-fragment')).toContainText('Fragment')
-    await expect(menu.getByTestId('hover-action-clip')).toContainText('Clip')
   })
 })
