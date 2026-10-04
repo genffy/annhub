@@ -177,12 +177,8 @@ export default function App() {
   }, [view, highlights, loadHighlights])
 
   const loadClips = useCallback(async () => {
-    const response = await MessageUtils.sendMessage<{ 'ann-clips'?: ClipRecord[] }>({ type: 'GET_STORAGE', key: 'ann-clips' })
-    if (response.success && response.data) {
-      setClips(response.data['ann-clips'] ?? [])
-    } else {
-      setClips([])
-    }
+    const response = await MessageUtils.sendMessage<ClipRecord[]>({ type: 'GET_CLIPS' })
+    setClips(response.success && Array.isArray(response.data) ? response.data : [])
   }, [])
 
   useEffect(() => {

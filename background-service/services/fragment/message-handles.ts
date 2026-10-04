@@ -5,17 +5,8 @@
  */
 import MessageUtils from '../../../utils/message'
 import type { ResponseMessage } from '../../../types/messages'
+import { forbiddenResponse, isExtensionPageSender } from '../../sender'
 import { FragmentService } from './index'
-
-function isExtensionPageSender(sender: chrome.runtime.MessageSender): boolean {
-  const url = sender.url ?? ''
-  if (url.startsWith(chrome.runtime.getURL(''))) return true
-  return !sender.tab && sender.id === chrome.runtime.id
-}
-
-function forbiddenResponse(): ResponseMessage {
-  return MessageUtils.createResponse(false, undefined, 'Forbidden: extension page context required')
-}
 
 const fail = (error: unknown): ResponseMessage => MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
 

@@ -1,19 +1,7 @@
 import MessageUtils from '../../../utils/message'
+import { forbiddenResponse, isExtensionPageSender } from '../../sender'
 import { VocabularyService } from '.'
 import type { ResponseMessage } from '../../../types/messages'
-
-function isExtensionPageSender(sender: chrome.runtime.MessageSender): boolean {
-  const url = sender.url ?? ''
-  if (url.startsWith(chrome.runtime.getURL(''))) {
-    return true
-  }
-  // Fallback for some extension contexts where sender.url may be empty.
-  return !sender.tab && sender.id === chrome.runtime.id
-}
-
-function forbiddenResponse(): ResponseMessage {
-  return MessageUtils.createResponse(false, undefined, 'Forbidden: extension page context required')
-}
 
 export const messageHandlers: Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> = {
   GET_VOCAB_CONFIG: async (): Promise<ResponseMessage> => {

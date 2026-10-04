@@ -58,12 +58,18 @@ export interface OpenExtensionPageMessage extends BaseMessage {
   params?: ExtensionPageParams
 }
 
+/** Library → background: every saved clip, oldest first. */
+export interface GetClipsMessage extends BaseMessage {
+  type: 'GET_CLIPS'
+}
+
 /** Removes one saved clip — the undo behind the “已剪藏” toast (extension.md §3.3). */
 export interface DeleteClipMessage extends BaseMessage {
   type: 'DELETE_CLIP'
   id: string
 }
 
+/** Background → content (keyboard shortcut); content scripts handle it, the service worker does not. */
 export interface ToggleHighlighterModeMessage extends BaseMessage {
   type: 'TOGGLE_HIGHLIGHTER_MODE'
 }
@@ -90,22 +96,6 @@ export interface HighlightStatsResponse {
   active: number
   archived: number
   deleted: number
-}
-
-export interface GetStorageMessage extends BaseMessage {
-  type: 'GET_STORAGE'
-  key: string
-}
-
-export interface SetStorageMessage extends BaseMessage {
-  type: 'SET_STORAGE'
-  key: string
-  value: any
-}
-
-export interface ClearStorageMessage extends BaseMessage {
-  type: 'CLEAR_STORAGE'
-  key?: string
 }
 
 export interface CaptureTabMessage extends BaseMessage {
@@ -493,18 +483,15 @@ export type UIToBackgroundMessage =
   | GetCurrentPageHighlightsMessage
   | LocateHighlightMessage
   | GetHighlightStatsMessage
-  | GetStorageMessage
-  | SetStorageMessage
-  | ClearStorageMessage
   | CaptureTabMessage
   | InitializeMessage
   | GetVersionMessage
   | GetStatusMessage
   | ClearAllHighlightsMessage
   | SaveClipMessage
+  | GetClipsMessage
   | DeleteClipMessage
   | OpenExtensionPageMessage
-  | ToggleHighlighterModeMessage
   | GetVocabConfigMessage
   | SetVocabConfigMessage
   | GetLlmConfigMessage
@@ -567,6 +554,7 @@ export type BackgroundToUIMessage =
   | ScreenshotCapturedMessage
   | ScreenshotErrorMessage
   | TriggerScreenshotMessage
+  | ToggleHighlighterModeMessage
 
 export type MessageHandler<T extends BaseMessage = BaseMessage> = (
   message: T,

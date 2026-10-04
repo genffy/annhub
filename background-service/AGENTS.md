@@ -6,7 +6,7 @@
 ## 服务边界
 
 - `index.ts` 注册服务；`service-manager.ts` 管生命周期和消息处理；`event-handlers/` 接入命令、runtime 与安装事件。
-- 新消息先在 `types/messages.ts` 登记，再同步 service handler、调用方和测试。写类消息按现有 sender 权限模型校验；敏感配置读取不得回传密钥。
+- 新消息先在 `types/messages.ts` 登记，再同步 service handler、调用方和测试。读取用户数据、写类消息按 `sender.ts` 的 `isExtensionPageSender` 校验，不要再复制判断；敏感配置读取不得回传密钥。`__tests__/message-protocol.test.ts` 会检查 `UIToBackgroundMessage` 中每个类型都有 handler，后台发往内容脚本的消息放进 `BackgroundToUIMessage`。
 - Service Worker 可重启。持久状态放存储层，不能只放服务实例内存；错误响应要让调用方区分失败与成功。
 
 ## 领域接线
