@@ -2,7 +2,7 @@ import { Logger } from '../utils/logger'
 import type { SupportedServices } from './service-context'
 import { ServiceContext } from './service-context'
 import MessageUtils from '../utils/message'
-import type { ResponseMessage, SystemStatus } from '../types/messages'
+import type { ResponseMessage } from '../types/messages'
 import { EXTENSION_PAGES, openExtensionPage } from '../utils/extension-pages'
 
 export interface IService {
@@ -66,19 +66,9 @@ export class ServiceManager {
       this.serviceContext.startInitialization()
       Logger.info(`[ServiceManager] Starting initialization of ${this.services.size} services`)
 
-      const initOrder = ['config', 'highlight', 'vocabulary']
-
-      for (const serviceName of initOrder) {
-        const service = this.services.get(serviceName)
-        if (service) {
-          await this.initializeService(service, forceReinitialize)
-        }
-      }
-
-      for (const [name, service] of this.services) {
-        if (!initOrder.includes(name)) {
-          await this.initializeService(service, forceReinitialize)
-        }
+      // Registration order is initialization order.
+      for (const service of this.services.values()) {
+        await this.initializeService(service, forceReinitialize)
       }
 
       this.registerMessageHandlers()
@@ -125,10 +115,7 @@ export class ServiceManager {
         Logger.info(`[ServiceManager] Collected ${Object.keys(handlers).length} message handlers from service ${serviceName}`)
       }
 
-      // System-level handlers (cross-service status), owned by the manager rather than any one
-      // service. Routed through the same registry so there is a single authoritative responder —
-      // unlike the PING heartbeat in RuntimeHandler, which lives on a separate onMessage listener.
-      Object.assign(allHandlers, this.getSystemMessageHandlers())
+      Object.assign(allHandlers, this.getNavigationHandlers())
 
       browser.runtime.onMessage.addListener(MessageUtils.createMessageHandler(allHandlers))
 
@@ -192,28 +179,12 @@ export class ServiceManager {
     return this.serviceContext.isReady() && Array.from(this.services.values()).every(service => service.isInitialized())
   }
 
-  private buildSystemStatus(): SystemStatus {
-    return {
-      isInitialized: this.isAllServicesReady(),
-      services: this.getServiceStatus(),
-      version: browser.runtime.getManifest().version,
-    }
-  }
-
   /**
-   * Cross-service system messages. These complete the typed health/status protocol declared in
-   * `types/messages.ts` (previously declared but unrouted → "Unknown message type"). `PING` stays
-   * in `RuntimeHandler` as the lower-level service-worker-aliveness probe.
+   * Messages the manager itself answers. Content scripts cannot navigate to chrome-extension://
+   * pages; only our own page set is openable.
    */
-  private getSystemMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
+  private getNavigationHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
     return {
-      GET_STATUS: async (): Promise<ResponseMessage<SystemStatus>> => {
-        return MessageUtils.createResponse<SystemStatus>(true, this.buildSystemStatus())
-      },
-      GET_VERSION: async (): Promise<ResponseMessage<{ version: string }>> => {
-        return MessageUtils.createResponse(true, { version: browser.runtime.getManifest().version })
-      },
-      // Content scripts cannot navigate to chrome-extension:// pages; only our own page set is openable.
       OPEN_EXTENSION_PAGE: async (message): Promise<ResponseMessage> => {
         if (!EXTENSION_PAGES.includes(message.page)) {
           return MessageUtils.createResponse(false, undefined, `Unknown extension page: ${String(message.page)}`)
@@ -224,13 +195,6 @@ export class ServiceManager {
         } catch (error) {
           return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : 'Unknown error')
         }
-      },
-      INITIALIZE: async (): Promise<ResponseMessage<SystemStatus>> => {
-        // Idempotent recovery: only (re)initialize when not already ready, then report status.
-        if (!this.isAllServicesReady()) {
-          await this.initializeServices()
-        }
-        return MessageUtils.createResponse<SystemStatus>(true, this.buildSystemStatus())
       },
     }
   }

@@ -1,5 +1,5 @@
 /**
- * Mode A (Sniper Mode) — Hover Menu E2E Tests
+ * Hover menu E2E tests.
  * v2 four-action contract (extension PRD §2.1): Fragment / 高亮 / 剪藏 / 截图.
  */
 import { test, expect } from './fixtures'
@@ -16,7 +16,7 @@ import {
   clearHighlightsFromServiceWorker,
 } from './helpers'
 
-test.describe('Mode A — Sniper Mode (Hover Menu)', () => {
+test.describe('Hover menu', () => {
   test.beforeEach(async ({ page, context }) => {
     await clearClipsFromServiceWorker(context)
     await clearHighlightsFromServiceWorker(context)

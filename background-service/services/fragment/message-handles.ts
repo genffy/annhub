@@ -66,15 +66,6 @@ export const fragmentMessageHandlers: Record<string, (message: any, sender: chro
     }
   },
 
-  CHECK_FRAGMENT_DUPLICATE: async (message): Promise<ResponseMessage> => {
-    try {
-      const duplicateOf = await FragmentService.getInstance().findDuplicate(message.content, message.excerpt, message.sourceUrl)
-      return MessageUtils.createResponse(true, { duplicateOf })
-    } catch (error) {
-      return fail(error)
-    }
-  },
-
   // The pairing code authorizes writes to the Desktop library, so it is never returned: pages see
   // `hasToken`, and only extension pages may ask at all.
   GET_DESKTOP_DIRECT_CONNECT: async (_message, sender): Promise<ResponseMessage> => {

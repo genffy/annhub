@@ -14,7 +14,7 @@
 - `services/fragment/` 负责 wire 到 domain 的适配；创建和校验调用 `learning-core/`，不复制领域规则。Fragment、ReviewLog 和 Outbox 的事务边界以共享 store 与 [存储契约](../docs/v2/storage.md) 为准。输出工坊与知识关系已由 D-10 移出产品范围，代码中不再有对应服务、消息或存储。
 - `services/fragment/direct-connect.ts` 是扩展→Desktop 逐项交付（`PUT /v1/fragments/{id}`、`PUT /v1/assets/{id}`）：只有 201/200（Desktop 已持久化）或本地记录已不存在才删除待发送任务。410/409/413/422 和其他 4xx 不会删除：任务标记 `rejection` 后停止自动重试，在设置页列出原因，用户选择重试或忽略（`RESOLVE_REJECTED_DELIVERIES`）。单项 5xx 只计失败并继续下一项，同一项反复失败（`MAX_SERVER_FAILURES`）后同样搁置，连续几项 5xx 才结束本轮；401/403 停止自动重试；网络错误保留队列由 alarm（`annhub-delivery-retry`）重试。哈希与请求体一致：`canonicalJson` 把 `undefined` 成员当作不存在。网络请求不得进入 IndexedDB 事务。配对码只在 service worker 内读取：`GET_DESKTOP_DIRECT_CONNECT` 只给扩展页面返回 `hasToken`，写入端点必须是 `http` 回环地址（`normalizeEndpoint`），已存的非回环端点读取时改回默认值，保证配对码不会发往本机以外。
 - `services/screenshot/` 只承担浏览器截图 API、跨域资源、下载和截图集入库。处理后的图像从 content 以 `dataUrl` 传输（runtime 消息不能携带 Blob），service worker 转 Blob 后与截图元数据同事务写入共享 `fragment-store` 的 `assets`/`screenshots` stores（[存储契约](../docs/v2/storage.md) §3.3）。
-- `services/llm/` 是可选路径，失败必须能回到手工处理。历史专项服务（词表标注、欧路）保持隔离，不增加新产品接线；Logseq 服务已删除。
+- `services/llm/` 只做可选 Provider（[ai.md §8](../docs/v2/ai.md)）：保存用户自己的接口与密钥，测试连接；密钥不回传页面。失败必须能回到手工处理。
 - ZIP 导出在扩展页面侧执行（`utils/export-content.ts`）：页面直连共享 IndexedDB 读图片字节，高亮/剪藏经 JSON 消息获取；不要把 Blob 放进 runtime 消息。
 
 ## 验证

@@ -1,33 +1,11 @@
-import './App.css'
 import { i18n } from '#i18n'
 import { Images, Library, Settings, Sparkles } from 'lucide-react'
 import { extensionPageUrl } from '../../utils/extension-pages'
 
 import SettingsPage from './pages/SettingsPage'
 
-import type { Route } from './hooks/useRouter'
-import { useRouter } from './hooks/useRouter'
-
+/** Settings is the third first-level page (extension.md §2.2); the other two are separate pages. */
 function App() {
-  const routes: Route[] = [{ path: '/settings', component: SettingsPage }]
-
-  const { currentPath, currentRoute, navigate, isActive } = useRouter(routes, '/settings')
-
-  const menuItems = [{ id: 'settings', label: '设置', icon: Settings, path: '/settings' }]
-
-  const renderCurrentPage = () => {
-    if (!currentRoute) return null
-
-    const Component = currentRoute.component
-
-    switch (currentPath) {
-      case '/settings':
-        return <Component />
-      default:
-        return <SettingsPage />
-    }
-  }
-
   return (
     <div className="min-h-screen bg-ann-page text-ann-text">
       <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 border-r border-ann-border bg-ann-surface p-4 shadow-sm backdrop-blur lg:flex lg:flex-col">
@@ -49,9 +27,10 @@ function App() {
             <Images className="h-4 w-4" />
             <span>截图集</span>
           </a>
-          {menuItems.map(item => (
-            <NavItem key={item.id} active={isActive(item.path)} icon={item.icon} label={item.label} onClick={() => navigate(item.path)} />
-          ))}
+          <span className={navLinkClass(true)} aria-current="page">
+            <Settings className="h-4 w-4" />
+            <span>设置</span>
+          </span>
         </nav>
       </aside>
 
@@ -69,21 +48,16 @@ function App() {
             <Images className="h-4 w-4" />
             截图集
           </a>
-          {menuItems.map(item => (
-            <button
-              key={item.id}
-              type="button"
-              className={`inline-flex shrink-0 items-center gap-2 rounded-full px-3 py-2 text-sm transition ${isActive(item.path) ? 'bg-ann-accent text-ann-on-accent' : 'bg-ann-alt text-ann-muted hover:bg-ann-alt'}`}
-              onClick={() => navigate(item.path)}
-            >
-              <item.icon className="h-4 w-4" />
-              {item.label}
-            </button>
-          ))}
+          <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-ann-accent px-3 py-2 text-sm text-ann-on-accent" aria-current="page">
+            <Settings className="h-4 w-4" />
+            设置
+          </span>
         </nav>
       </header>
 
-      <main className="w-full px-4 py-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:px-8 lg:py-8">{renderCurrentPage()}</main>
+      <main className="w-full px-4 py-6 lg:ml-64 lg:w-[calc(100%-16rem)] lg:px-8 lg:py-8">
+        <SettingsPage />
+      </main>
     </div>
   )
 }
@@ -92,20 +66,5 @@ const navLinkClass = (active: boolean) =>
   `flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
     active ? 'bg-ann-accent text-ann-on-accent shadow-sm' : 'text-ann-muted hover:bg-ann-alt hover:text-ann-text'
   }`
-
-function NavItem({ active, icon: Icon, label, onClick }: { active: boolean; icon: typeof Settings; label: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
-        active ? 'bg-ann-accent text-ann-on-accent shadow-sm' : 'text-ann-muted hover:bg-ann-alt hover:text-ann-text'
-      }`}
-      onClick={onClick}
-    >
-      <Icon className="h-4 w-4" />
-      <span>{label}</span>
-    </button>
-  )
-}
 
 export default App

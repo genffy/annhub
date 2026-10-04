@@ -79,7 +79,6 @@ test.describe('library navigation (§2.2, §5.1, D-13)', () => {
           source_url: 'https://example.com/post',
           source_title: 'Example post',
           capture_time: '2026-10-04T00:00:00.000Z',
-          mode_used: 'Mode A',
           content: 'A clipped sentence worth keeping.',
           context_before: 'Before ',
           context_after: ' after.',

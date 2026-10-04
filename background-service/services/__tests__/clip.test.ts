@@ -21,7 +21,6 @@ const clip = (id: string): ClipRecord => ({
   source_url: 'https://example.com/a',
   source_title: 'A',
   capture_time: '2026-10-04T00:00:00.000Z',
-  mode_used: 'Mode A',
   content: `text ${id}`,
   context_before: '',
   context_after: '',

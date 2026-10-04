@@ -28,4 +28,4 @@ cp -R .output/chrome-mv3 "$ANNHUB_TEST_DIR/chrome-mv3"
 printf '%s\n' "$ANNHUB_TEST_DIR/chrome-mv3"
 ```
 
-把最后输出的真实路径传给 `install_extension`。实测 content script 注入时，页面应有带 `shadowRoot` 的 `ann-selection`；触发 Mode A 后检查 shadowRoot 中的选区操作按钮。只操作该 MCP 的独立 profile，终止进程时须精确匹配其 `--user-data-dir`，不要影响日常 Chrome。
+把最后输出的真实路径传给 `install_extension`。实测 content script 注入时，页面应有带 `shadowRoot` 的 `ann-selection`；选中文本后检查 shadowRoot 中的选区菜单按钮。只操作该 MCP 的独立 profile，终止进程时须精确匹配其 `--user-data-dir`，不要影响日常 Chrome。

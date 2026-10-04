@@ -1,21 +1,21 @@
 /**
- * Mode B (Machine-Gun Mode) E2E Tests
+ * Continuous highlight mode E2E tests (extension.md §10: Alt+H / Cmd+Shift+H)
  *
  * Uses `selectText` (programmatic JS selection + single mouseup) instead of
  * triple-click, because triple-click fires 3 mouseup events that each
- * trigger a capture in Mode B.
+ * create a highlight in the continuous mode.
  */
 import { test, expect } from './fixtures'
 import { navigateToTestPage, selectText, waitForCapsule, pressToggleHighlighter, getAnnShadowRoot } from './helpers'
 
-test.describe('Mode B — Machine-Gun Mode (Silent Capture)', () => {
+test.describe('Continuous highlight mode', () => {
   test.beforeEach(async ({ page }) => {
     await navigateToTestPage(page)
     await pressToggleHighlighter(page)
     await waitForCapsule(page)
   })
 
-  test('hover menu does NOT appear in Mode B', async ({ page }) => {
+  test('hover menu does NOT appear in the continuous mode', async ({ page }) => {
     await selectText(page, '[data-testid="english-hello"]')
     await page.waitForTimeout(500)
 
@@ -24,7 +24,7 @@ test.describe('Mode B — Machine-Gun Mode (Silent Capture)', () => {
     expect(menuCount).toBe(0)
   })
 
-  test('selected text gets <mark> highlight in Mode B', async ({ page }) => {
+  test('selected text gets a highlight in the continuous mode', async ({ page }) => {
     await selectText(page, '[data-testid="english-hello"]')
     // Wait for the async highlight pipeline (message → IDB → DOM) to complete
     await page.waitForSelector('.ann-highlight', { state: 'attached', timeout: 5000 })
@@ -33,7 +33,7 @@ test.describe('Mode B — Machine-Gun Mode (Silent Capture)', () => {
     expect(markCount).toBeGreaterThanOrEqual(1)
   })
 
-  test('capsule shows capture count after selection', async ({ page }) => {
+  test('capsule shows the highlight count after a selection', async ({ page }) => {
     await selectText(page, '[data-testid="english-hello"]')
 
     const capsule = await waitForCapsule(page)
@@ -42,7 +42,7 @@ test.describe('Mode B — Machine-Gun Mode (Silent Capture)', () => {
     await expect.poll(async () => capsule.evaluate((el: Element) => el.textContent || '')).toMatch(/\b1\b/)
   })
 
-  test('multiple captures increment counter', async ({ page }) => {
+  test('multiple selections increment the counter', async ({ page }) => {
     await selectText(page, '[data-testid="english-hello"]')
     const capsule = await waitForCapsule(page)
     await expect.poll(async () => capsule.evaluate((el: Element) => el.textContent || '')).toMatch(/\b1\b/)

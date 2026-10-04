@@ -196,7 +196,7 @@ export class HighlightDOMManager {
     if (!parent) return
 
     // Respect manual-highlight DOM policy: skip extension UI / nested annotation markers / contenteditable
-    if (parent instanceof Element && shouldSkipElement(parent, 'manual-highlight')) {
+    if (parent instanceof Element && shouldSkipElement(parent)) {
       Logger.debug('[HighlightDOMManager] Skipping wrap (manual-highlight policy)', parent.tagName)
       return
     }

@@ -13,7 +13,7 @@ export type ExtensionPageParams = { new?: 'inspiration'; export?: '1'; desktop?:
 
 export const EXTENSION_PAGES: readonly ExtensionPage[] = ['library', 'screenshots', 'highlights', 'clips', 'settings']
 
-export function extensionPagePath(page: ExtensionPage, params: ExtensionPageParams = {}): string {
+function extensionPagePath(page: ExtensionPage, params: ExtensionPageParams = {}): string {
   if (page === 'settings') return '/options.html#/settings'
   const query = new URLSearchParams(params as Record<string, string>).toString()
   const view = page === 'library' ? 'fragments' : page

@@ -1,5 +1,5 @@
 /**
- * HoverMenu — the selection menu of Mode A (extension.md §2.1).
+ * HoverMenu — the selection menu (extension.md §2.1).
  *
  * Each action is icon + short text. Hovering or keyboard-focusing an action
  * for ~300ms shows its consequence hint ("time · output · enters review?"),

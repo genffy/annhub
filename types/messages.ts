@@ -1,6 +1,6 @@
 import type { HighlightRecord, HighlightQuery } from './highlight'
 import type { ClipRecord } from './clip'
-import type { VocabConfig, LlmConfig, VocabLearningEvent, VocabSyncState } from './vocabulary'
+import type { LlmConfig } from './llm'
 import type { FragmentKind, FragmentRecord, ScreenshotRecord, ImageAsset } from '../learning-core/types'
 import type { FragmentPatch } from '../learning-core/fragment-store'
 import type { ExtensionPage, ExtensionPageParams } from '../utils/extension-pages'
@@ -103,18 +103,6 @@ export interface CaptureTabMessage extends BaseMessage {
   requestId: string
 }
 
-export interface ScreenshotCapturedMessage extends BaseMessage {
-  type: 'SCREENSHOT_CAPTURED'
-  dataUrl: string
-  requestId: string
-}
-
-export interface ScreenshotErrorMessage extends BaseMessage {
-  type: 'SCREENSHOT_ERROR'
-  error: string
-  requestId: string
-}
-
 export interface TriggerScreenshotMessage extends BaseMessage {
   type: 'TRIGGER_SCREENSHOT'
   command: string
@@ -160,35 +148,7 @@ export interface DeleteScreenshotMessage extends BaseMessage {
   data: { id: string }
 }
 
-export interface InitializeMessage extends BaseMessage {
-  type: 'INITIALIZE'
-}
-
-export interface GetVersionMessage extends BaseMessage {
-  type: 'GET_VERSION'
-}
-
-export interface GetStatusMessage extends BaseMessage {
-  type: 'GET_STATUS'
-}
-
-export interface SystemStatus {
-  isInitialized: boolean
-  /** Per-service readiness, keyed by service name (config/highlight/clip/logseq/vocabulary/fragment). */
-  services: Record<string, boolean>
-  version: string
-}
-
-// ── Vocabulary & LLM messages ──
-
-export interface GetVocabConfigMessage extends BaseMessage {
-  type: 'GET_VOCAB_CONFIG'
-}
-
-export interface SetVocabConfigMessage extends BaseMessage {
-  type: 'SET_VOCAB_CONFIG'
-  config: Partial<VocabConfig>
-}
+// ── Optional model Provider (ai.md §8) ──
 
 export interface GetLlmConfigMessage extends BaseMessage {
   type: 'GET_LLM_CONFIG'
@@ -199,148 +159,9 @@ export interface SetLlmConfigMessage extends BaseMessage {
   config: Partial<LlmConfig>
 }
 
-export interface GetVocabSnapshotMessage extends BaseMessage {
-  type: 'GET_VOCAB_SNAPSHOT'
-  words?: string[]
-}
-
-export interface RefreshVocabMessage extends BaseMessage {
-  type: 'REFRESH_VOCAB'
-  force?: boolean
-}
-
-export interface GetEudicCategoriesMessage extends BaseMessage {
-  type: 'GET_EUDIC_CATEGORIES'
-  language?: string
-}
-
-export interface CreateEudicCategoryMessage extends BaseMessage {
-  type: 'CREATE_EUDIC_CATEGORY'
-  name: string
-  language?: string
-}
-
-export interface RenameEudicCategoryMessage extends BaseMessage {
-  type: 'RENAME_EUDIC_CATEGORY'
-  id: string
-  name: string
-  language?: string
-}
-
-export interface DeleteEudicCategoryMessage extends BaseMessage {
-  type: 'DELETE_EUDIC_CATEGORY'
-  id: string
-  name: string
-  language?: string
-}
-
-export interface GetEudicWordsMessage extends BaseMessage {
-  type: 'GET_EUDIC_WORDS'
-  categoryId: string
-  language?: string
-  page?: number
-  pageSize?: number
-}
-
-export interface AddEudicWordMessage extends BaseMessage {
-  type: 'ADD_EUDIC_WORD'
-  word: string
-  language?: string
-  star?: number
-  contextLine?: string
-  categoryIds?: string[]
-}
-
-export interface DeleteEudicWordsMessage extends BaseMessage {
-  type: 'DELETE_EUDIC_WORDS'
-  categoryId: string
-  words: string[]
-  language?: string
-}
-
-export interface GetEudicWordMessage extends BaseMessage {
-  type: 'GET_EUDIC_WORD'
-  word: string
-  language?: string
-}
-
-export interface ContextGlossMessage extends BaseMessage {
-  type: 'CONTEXT_GLOSS'
-  word: string
-  sentence: string
-  targetLanguage?: string
-}
-
-export interface SelectAndGlossMessage extends BaseMessage {
-  type: 'SELECT_AND_GLOSS'
-  candidates: Array<{ word: string; sentence: string }>
-  targetLanguage?: string
-}
-
-export interface FetchLlmModelsMessage extends BaseMessage {
-  type: 'FETCH_LLM_MODELS'
-  config?: Partial<LlmConfig>
-}
-
 export interface TestLlmConnectionMessage extends BaseMessage {
   type: 'TEST_LLM_CONNECTION'
   config?: Partial<LlmConfig>
-}
-
-export interface EnsureVocabLearningCategoryMessage extends BaseMessage {
-  type: 'ENSURE_VOCAB_LEARNING_CATEGORY'
-  language?: string
-  name?: string
-}
-
-export interface SelectVocabLearningCategoryMessage extends BaseMessage {
-  type: 'SELECT_VOCAB_LEARNING_CATEGORY'
-  categoryId: string
-}
-
-export interface EnsureVocabMasteredCategoryMessage extends BaseMessage {
-  type: 'ENSURE_VOCAB_MASTERED_CATEGORY'
-  language?: string
-  name?: string
-}
-
-export interface SelectVocabMasteredCategoryMessage extends BaseMessage {
-  type: 'SELECT_VOCAB_MASTERED_CATEGORY'
-  categoryId: string
-}
-
-export interface SyncVocabLearningProfileMessage extends BaseMessage {
-  type: 'SYNC_VOCAB_LEARNING_PROFILE'
-  force?: boolean
-}
-
-export interface RecordVocabLearningEventMessage extends BaseMessage {
-  type: 'RECORD_VOCAB_LEARNING_EVENT'
-  event: VocabLearningEvent
-}
-
-export interface FlushVocabLearningPendingMessage extends BaseMessage {
-  type: 'FLUSH_VOCAB_LEARNING_PENDING'
-}
-
-export interface GetVocabLearningSyncStateMessage extends BaseMessage {
-  type: 'GET_VOCAB_LEARNING_SYNC_STATE'
-}
-
-export interface GetVocabLearningProfileMessage extends BaseMessage {
-  type: 'GET_VOCAB_LEARNING_PROFILE'
-  words?: string[]
-}
-
-export interface ResetVocabWordLearningMessage extends BaseMessage {
-  type: 'RESET_VOCAB_WORD_LEARNING'
-  word: string
-  language?: string
-}
-
-export interface RecordVocabExposuresMessage extends BaseMessage {
-  type: 'RECORD_VOCAB_EXPOSURES'
-  words: string[]
 }
 
 // ── Fragment capture (L1 + L2) messages ──
@@ -398,13 +219,6 @@ export interface FragmentStatsResponse {
   newThisWeek: number
   /** Fragments whose `review.nextReviewAt` has passed (Desktop-returned state once R3 data arrived). */
   due: number
-}
-
-export interface CheckFragmentDuplicateMessage extends BaseMessage {
-  type: 'CHECK_FRAGMENT_DUPLICATE'
-  content: string
-  excerpt: string
-  sourceUrl: string
 }
 
 /** Desktop direct connection (storage §6): read/write config, ping, one-shot sync. */
@@ -491,49 +305,19 @@ export type UIToBackgroundMessage =
   | LocateHighlightMessage
   | GetHighlightStatsMessage
   | CaptureTabMessage
-  | InitializeMessage
-  | GetVersionMessage
-  | GetStatusMessage
   | ClearAllHighlightsMessage
   | SaveClipMessage
   | GetClipsMessage
   | DeleteClipMessage
   | OpenExtensionPageMessage
-  | GetVocabConfigMessage
-  | SetVocabConfigMessage
   | GetLlmConfigMessage
   | SetLlmConfigMessage
-  | FetchLlmModelsMessage
   | TestLlmConnectionMessage
-  | GetVocabSnapshotMessage
-  | RefreshVocabMessage
-  | GetEudicCategoriesMessage
-  | CreateEudicCategoryMessage
-  | RenameEudicCategoryMessage
-  | DeleteEudicCategoryMessage
-  | GetEudicWordsMessage
-  | AddEudicWordMessage
-  | DeleteEudicWordsMessage
-  | GetEudicWordMessage
-  | ContextGlossMessage
-  | SelectAndGlossMessage
-  | EnsureVocabLearningCategoryMessage
-  | SelectVocabLearningCategoryMessage
-  | EnsureVocabMasteredCategoryMessage
-  | SelectVocabMasteredCategoryMessage
-  | SyncVocabLearningProfileMessage
-  | RecordVocabLearningEventMessage
-  | FlushVocabLearningPendingMessage
-  | GetVocabLearningSyncStateMessage
-  | GetVocabLearningProfileMessage
-  | ResetVocabWordLearningMessage
-  | RecordVocabExposuresMessage
   | SaveFragmentMessage
   | GetFragmentsMessage
   | UpdateFragmentMessage
   | DeleteFragmentMessage
   | GetFragmentStatsMessage
-  | CheckFragmentDuplicateMessage
   | GetDirectConnectConfigMessage
   | SetDirectConnectConfigMessage
   | FlushDesktopDirectConnectMessage
@@ -551,27 +335,11 @@ export type BackgroundToUIMessage =
   | ResponseMessage<HighlightRecord[]>
   | ResponseMessage<HighlightRecord>
   | ResponseMessage<HighlightStatsResponse>
-  | ResponseMessage<SystemStatus>
-  | ResponseMessage<VocabSyncState>
   | ResponseMessage<FragmentSaveResponse>
   | ResponseMessage<FragmentQueryResult>
   | ResponseMessage<FragmentStatsResponse>
   | ResponseMessage<ScreenshotLibraryItem[]>
   | ResponseMessage<CaptureConfig>
   | ResponseMessage<any>
-  | ScreenshotCapturedMessage
-  | ScreenshotErrorMessage
   | TriggerScreenshotMessage
   | ToggleHighlighterModeMessage
-
-export type MessageHandler<T extends BaseMessage = BaseMessage> = (
-  message: T,
-  sender: chrome.runtime.MessageSender,
-  sendResponse: (response: ResponseMessage) => void,
-) => void | Promise<void>
-
-export interface MessageUtils {
-  sendMessage: <T = any>(message: UIToBackgroundMessage) => Promise<ResponseMessage<T>>
-  createResponse: <T = any>(success: boolean, data?: T, error?: string) => ResponseMessage<T>
-  generateRequestId: () => string
-}

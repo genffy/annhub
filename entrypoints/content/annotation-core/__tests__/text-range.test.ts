@@ -55,35 +55,19 @@ describe('annotation text range helpers', () => {
     expect(index).toBe('before (v1.2) '.length)
   })
 
-  it('respects manual-highlight intent: skips text inside existing annotation markers', () => {
+  it('skips text inside existing annotation markers', () => {
     setupDOM('<main><p>Alpha ubiquitous beta.</p><p><span data-highlight-id="x">ubiquitous</span></p></main>')
 
-    const range = findTextRangeInElement(document.querySelector('main') as Element, 'ubiquitous', {}, { intent: 'manual-highlight' })
+    const range = findTextRangeInElement(document.querySelector('main') as Element, 'ubiquitous')
 
     // The first ubiquitous (in plain <p>) should be matched, not the one already wrapped
     expect(range?.toString()).toBe('ubiquitous')
     expect(range?.startContainer.parentElement?.tagName).toBe('P')
   })
 
-  it('respects auto-vocab intent: skips link/button text', () => {
-    setupDOM('<main><a href="#">ubiquitous link</a><p>ubiquitous content</p></main>')
-
-    const range = findTextRangeInElement(document.querySelector('main') as Element, 'ubiquitous', {}, { intent: 'auto-vocab' })
-
-    expect(range?.toString()).toBe('ubiquitous')
-    expect(range?.startContainer.parentElement?.tagName).toBe('P')
-  })
-
-  it('collectTextNodes applies a safe default intent (skips unsafe nodes) and filters by intent', () => {
+  it('collectTextNodes skips unsafe nodes (script) but keeps links and article text', () => {
     setupDOM('<main><script>var a = 1</script><a href="#">link text</a><p>article text</p></main>')
-    const root = document.querySelector('main') as Element
 
-    // No intent → default 'manual-highlight': always skips unsafe nodes (here <script>) but
-    // keeps links. 'auto-vocab' additionally skips link text.
-    const def = collectTextNodes(root).map(n => n.textContent)
-    const autoVocab = collectTextNodes(root, { intent: 'auto-vocab' }).map(n => n.textContent)
-
-    expect(def).toEqual(['link text', 'article text'])
-    expect(autoVocab).toEqual(['article text'])
+    expect(collectTextNodes(document.querySelector('main') as Element).map(n => n.textContent)).toEqual(['link text', 'article text'])
   })
 })

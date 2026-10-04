@@ -18,7 +18,6 @@ export default tseslint.config(
       'app/**',
       'fixtures/**',
       'scripts/data/**',
-      'entrypoints/content/vocab-label/frequency-band-data.ts',
     ],
   },
   js.configs.recommended,

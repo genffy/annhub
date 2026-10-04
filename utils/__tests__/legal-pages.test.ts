@@ -54,8 +54,8 @@ describe('legal pages', () => {
     ['privacy policy', privacy],
     ['terms of service', terms],
   ])('%s has no removed feature and ships both languages', (_name, page) => {
-    expect(page).not.toMatch(/logseq/i)
-    expect(page).not.toMatch(/Mode [AB]\b/)
+    // None of these is in docs/v2; a policy that mentions one describes a product that no longer exists.
+    expect(page).not.toMatch(/logseq|eudic|欧路|vocabulary|词汇|词表|side panel|sidepanel|侧边栏|Mode [AB]\b/i)
     expect(page).toContain('lang="en" id="en"')
     expect(page).toContain('lang="zh-CN" id="zh"')
   })

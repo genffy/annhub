@@ -19,8 +19,7 @@ export default defineConfig({
     default_locale: 'en',
     // `tabs` and `activeTab` are omitted on purpose: the `<all_urls>` host permission already grants
     // everything they would (tab URLs and titles, capturing the visible tab).
-    permissions: ['storage', 'commands', 'sidePanel', 'alarms', 'downloads', 'scripting'],
-    // sidePanel (114) is the newest API the extension depends on.
+    permissions: ['storage', 'commands', 'alarms', 'downloads', 'scripting'],
     minimum_chrome_version: '114',
     host_permissions: ['http://127.0.0.1:8765/*', '<all_urls>'],
     action: {
@@ -30,9 +29,6 @@ export default defineConfig({
     options_ui: {
       page: 'options/index.html',
       open_in_tab: true,
-    },
-    side_panel: {
-      default_path: 'sidepanel/index.html',
     },
 
     commands: {
@@ -49,7 +45,7 @@ export default defineConfig({
           default: 'Alt+H',
           mac: 'Command+Shift+H',
         },
-        description: 'Toggle highlighter / machine-gun capture mode',
+        description: 'Toggle continuous highlight mode',
         global: false,
       },
     },

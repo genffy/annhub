@@ -1,5 +1,5 @@
 /**
- * Mode Switching E2E Tests
+ * Entering and leaving the continuous highlight mode
  */
 import { test, expect } from './fixtures'
 import {
@@ -13,16 +13,16 @@ import {
   getAnnShadowRoot,
 } from './helpers'
 
-test.describe('Mode Switching', () => {
+test.describe('Continuous highlight mode switching', () => {
   test.beforeEach(async ({ page }) => {
     await navigateToTestPage(page)
   })
 
-  test('Alt+H shortcut enters Mode B from a selection', async ({ page }) => {
+  test('Alt+H shortcut enters the continuous mode from a selection', async ({ page }) => {
     await tripleClickSelect(page, '[data-testid="english-hello"]')
     await waitForHoverMenu(page)
 
-    // v2 menu has no Mode B toggle — the shortcut is the entry point (PRD §10).
+    // The menu has no toggle for it — the shortcut is the entry point (extension.md §10).
     await pressToggleHighlighter(page)
     await page.waitForTimeout(500)
 
@@ -34,19 +34,19 @@ test.describe('Mode Switching', () => {
     expect(menuCount).toBe(0)
   })
 
-  test('Esc exits Mode B back to Mode A', async ({ page }) => {
+  test('Esc leaves the continuous mode and brings the hover menu back', async ({ page }) => {
     await pressToggleHighlighter(page)
     await waitForCapsule(page)
 
     await page.keyboard.press('Escape')
     await waitForCapsuleHidden(page)
 
-    // Back in Mode A: select text → should show hover menu
+    // Back to the default: select text → should show the hover menu
     await tripleClickSelect(page, '[data-testid="english-hello"]')
     await waitForHoverMenu(page)
   })
 
-  test('keyboard shortcut toggles Mode B on/off', async ({ page }) => {
+  test('keyboard shortcut toggles the continuous mode on/off', async ({ page }) => {
     await pressToggleHighlighter(page)
     await waitForCapsule(page)
 
@@ -54,7 +54,7 @@ test.describe('Mode Switching', () => {
     await waitForCapsuleHidden(page)
   })
 
-  test('✖️ button exits Mode B', async ({ page }) => {
+  test('✖️ button leaves the continuous mode', async ({ page }) => {
     await pressToggleHighlighter(page)
     const capsule = await waitForCapsule(page)
 

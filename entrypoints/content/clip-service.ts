@@ -26,7 +26,7 @@ export class ClipService {
    * Capture the current selection and persist it.
    * Returns the saved ClipRecord on success, or null on failure.
    */
-  async captureSelection(range: Range, mode: 'Mode A' | 'Mode B', userNote?: string): Promise<ClipRecord | null> {
+  async captureSelection(range: Range, userNote?: string): Promise<ClipRecord | null> {
     const content = range.toString().trim()
     if (!content || content.length <= 2) return null
 
@@ -43,7 +43,6 @@ export class ClipService {
       source_url: window.location.href,
       source_title: document.title,
       capture_time: new Date().toISOString(),
-      mode_used: mode,
       content,
       context_before: before,
       context_after: after,

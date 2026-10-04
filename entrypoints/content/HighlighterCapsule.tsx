@@ -1,5 +1,5 @@
 /**
- * HighlighterCapsule — fixed status pill for Mode B (machine-gun mode).
+ * HighlighterCapsule — fixed status pill for the continuous highlight mode (extension.md §10).
  *
  * Shows a compact semi-transparent capsule at the top-right corner.
  * Displays a pulsing green dot and a +1 float animation on each capture.
@@ -7,9 +7,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 
 interface HighlighterCapsuleProps {
-  /** Number of captures in the current Mode B session */
+  /** Number of captures in the current continuous highlight session */
   captureCount: number
-  /** Called when the user clicks ✖️ to exit Mode B */
+  /** Called when the user clicks ✖️ to leave the continuous highlight mode */
   onExit: () => void
 }
 

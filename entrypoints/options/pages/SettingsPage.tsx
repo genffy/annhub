@@ -4,12 +4,10 @@
  *   2. 采集偏好（深度模式）
  *   3. LLM 配置（可选加速器；Provider 直连）
  *   4. 数据管理（唯一的 Markdown ZIP 导出 + 存储概况）
- * Old English-specialty tabs (vocab/eudic/logseq/family mode) are removed per
- * roadmap R1.1; the vocab annotation layer itself stays dormant in content.
  */
 import { useCallback, useEffect, useState } from 'react'
 import MessageUtils from '../../../utils/message'
-import type { LlmConfig } from '../../../types/vocabulary'
+import type { LlmConfigPublic } from '../../../types/llm'
 import { PageHeader, SettingsSection, StatusMessage } from '../components/ui'
 
 interface DirectConnectBlock {
@@ -417,37 +415,33 @@ function CapturePreferenceCard() {
 }
 
 function LlmCard() {
-  const [config, setConfig] = useState<LlmConfig | null>(null)
+  const [config, setConfig] = useState<LlmConfigPublic | null>(null)
+  // The stored key is never sent to this page: the field starts empty and an empty field keeps it.
+  const [apiKey, setApiKey] = useState('')
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
 
-  useEffect(() => {
-    void (async () => {
-      const response = await MessageUtils.sendMessage<LlmConfig>({ type: 'GET_LLM_CONFIG' })
-      if (response.success && response.data) setConfig(response.data)
-    })()
+  const load = useCallback(async () => {
+    const response = await MessageUtils.sendMessage<LlmConfigPublic>({ type: 'GET_LLM_CONFIG' })
+    if (response.success && response.data) setConfig(response.data)
   }, [])
+
+  useEffect(() => {
+    void load()
+  }, [load])
 
   if (!config) return null
 
-  const field = (label: string, key: keyof LlmConfig, placeholder: string, type = 'text') => (
-    <label className="block space-y-1">
-      <span className="text-xs text-ann-muted">{label}</span>
-      <input
-        type={type}
-        className="w-full rounded-md border border-ann-border px-3 py-2 font-mono text-xs"
-        value={String(config[key] ?? '')}
-        placeholder={placeholder}
-        onChange={e => setConfig({ ...config, [key]: e.target.value })}
-      />
-    </label>
-  )
+  const typedKey = apiKey.trim()
+  const formValues = { baseUrl: config.baseUrl, model: config.model, ...(typedKey ? { apiKey: typedKey } : {}) }
 
   const save = async () => {
     setBusy(true)
     try {
-      const response = await MessageUtils.sendMessage({ type: 'SET_LLM_CONFIG', config: { baseUrl: config.baseUrl, apiKey: config.apiKey, model: config.model } })
+      const response = await MessageUtils.sendMessage({ type: 'SET_LLM_CONFIG', config: formValues })
       setMessage(response.success ? { kind: 'success', text: '已保存 LLM 配置' } : { kind: 'error', text: response.error || '保存失败' })
+      if (response.success) setApiKey('')
+      await load()
     } finally {
       setBusy(false)
     }
@@ -456,22 +450,38 @@ function LlmCard() {
   const test = async () => {
     setBusy(true)
     try {
-      const response = await MessageUtils.sendMessage<{ ok: boolean; modelCount?: number }>({
-        type: 'TEST_LLM_CONNECTION',
-        config: { baseUrl: config.baseUrl, apiKey: config.apiKey, model: config.model },
-      })
-      setMessage(response.success ? { kind: 'success', text: `连接可用（${response.data?.modelCount ?? 0} 个模型）` } : { kind: 'error', text: response.error || '连接失败' })
+      const response = await MessageUtils.sendMessage<{ ok: boolean; availableModels?: unknown[] }>({ type: 'TEST_LLM_CONNECTION', config: formValues })
+      setMessage(
+        response.success
+          ? { kind: 'success', text: response.data?.availableModels ? `连接可用（${response.data.availableModels.length} 个模型）` : '连接可用' }
+          : { kind: 'error', text: response.error || '连接失败' },
+      )
     } finally {
       setBusy(false)
     }
   }
 
+  const textField = (label: string, value: string, placeholder: string, onChange: (value: string) => void, extra: { type?: string; testId?: string } = {}) => (
+    <label className="block space-y-1">
+      <span className="text-xs text-ann-muted">{label}</span>
+      <input
+        type={extra.type ?? 'text'}
+        autoComplete="off"
+        data-testid={extra.testId}
+        className="w-full rounded-md border border-ann-border px-3 py-2 font-mono text-xs"
+        value={value}
+        placeholder={placeholder}
+        onChange={e => onChange(e.target.value)}
+      />
+    </label>
+  )
+
   return (
     <SettingsSection title="LLM 配置（可选）" description="核验建议等能力的可选加速器；关闭后采集、复习与导出全部可用。密钥只保存在本地。">
       <div className="space-y-3 text-sm">
-        {field('Base URL（OpenAI 兼容）', 'baseUrl', 'https://api.example.com/v1')}
-        {field('API Key', 'apiKey', 'sk-…', 'password')}
-        {field('模型', 'model', 'gpt-…')}
+        {textField('Base URL（OpenAI 兼容）', config.baseUrl, 'https://api.example.com/v1', baseUrl => setConfig({ ...config, baseUrl }), { testId: 'llm-base-url' })}
+        {textField('API Key', apiKey, config.hasApiKey ? '已保存（不会显示），留空则保持不变' : 'sk-…', setApiKey, { type: 'password', testId: 'llm-api-key' })}
+        {textField('模型', config.model, 'gpt-…', model => setConfig({ ...config, model }), { testId: 'llm-model' })}
         {message && (
           <div>{message.kind === 'success' ? <StatusMessage tone="success">{message.text}</StatusMessage> : <StatusMessage tone="error">{message.text}</StatusMessage>}</div>
         )}
@@ -479,7 +489,7 @@ function LlmCard() {
           <button className="rounded-md bg-ann-accent px-4 py-2 text-sm text-ann-on-accent disabled:opacity-50" onClick={save} disabled={busy}>
             保存
           </button>
-          <button className="rounded-md border border-ann-border px-4 py-2 text-sm disabled:opacity-50" onClick={test} disabled={busy || !config.baseUrl}>
+          <button className="rounded-md border border-ann-border px-4 py-2 text-sm disabled:opacity-50" onClick={test} disabled={busy || !config.baseUrl} data-testid="llm-test">
             测试连接
           </button>
         </div>

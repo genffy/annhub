@@ -201,10 +201,6 @@ export class FragmentService implements IService {
     return this.store.deleteFragment(id)
   }
 
-  findDuplicate(content: string, excerpt: string, sourceUrl: string) {
-    return this.store.findDuplicate({ content, excerpt, sourceUrl })
-  }
-
   getStats() {
     return this.store.getStats()
   }

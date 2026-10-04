@@ -2,10 +2,9 @@ import { Logger } from '../utils/logger'
 import { ServiceManager, type IService } from './service-manager'
 import { EventHandlerManager } from './event-handlers'
 import { ServiceContext } from './service-context'
-import { ConfigService } from './services/config'
 import { HighlightService } from './services/highlight'
 import { ClipService } from './services/clip'
-import { VocabularyService } from './services/vocabulary'
+import { LlmService } from './services/llm'
 import { FragmentService } from './services/fragment'
 import { ScreenshotService } from './services/screenshot'
 
@@ -56,10 +55,9 @@ export class BackgroundServiceManager {
     Logger.info('[BackgroundServiceManager] Registering services...')
 
     const services: IService[] = [
-      ConfigService.getInstance(),
       HighlightService.getInstance(),
       ClipService.getInstance(),
-      VocabularyService.getInstance(),
+      LlmService.getInstance(),
       FragmentService.getInstance(),
       ScreenshotService.getInstance(),
     ]
@@ -122,14 +120,6 @@ export class BackgroundServiceManager {
   }
 }
 
-export { ServiceManager } from './service-manager'
-export type { IService } from './service-manager'
-export { EventHandlerManager } from './event-handlers'
-export { ServiceContext } from './service-context'
-export { ConfigService } from './services/config'
-export { HighlightService } from './services/highlight'
-export { VocabularyService } from './services/vocabulary'
 export { FragmentService } from './services/fragment'
-export { ScreenshotService } from './services/screenshot'
 
 export default BackgroundServiceManager.getInstance()

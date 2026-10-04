@@ -14,7 +14,7 @@ function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name)
     if (statSync(path).isDirectory()) return name === '__tests__' ? [] : sourceFiles(path)
-    return path.endsWith('.ts') ? [path] : []
+    return /\.tsx?$/.test(path) ? [path] : []
   })
 }
 
@@ -29,23 +29,39 @@ function declaredUiMessageTypes(): string[] {
   })
 }
 
+/** Every `type: 'X'` literal in production code outside the type declarations: that is where messages are sent. */
+function sentTypes(): Set<string> {
+  const sent = new Set<string>()
+  for (const dir of ['background-service', 'entrypoints', 'components', 'utils']) {
+    for (const file of sourceFiles(join(root, dir))) {
+      for (const match of readFileSync(file, 'utf8').matchAll(/\btype:\s*'([A-Z][A-Z0-9_]+)'/g)) sent.add(match[1]!)
+    }
+  }
+  return sent
+}
+
 function handledTypes(): Set<string> {
   const handled = new Set<string>()
   for (const file of sourceFiles(join(root, 'background-service'))) {
-    for (const match of readFileSync(file, 'utf8').matchAll(/^\s+'?([A-Z][A-Z0-9_]+)'?\s*:\s*(?:async\b|\()/gm)) handled.add(match[1]!)
+    for (const match of readFileSync(file, 'utf8').matchAll(/^\s+'?([A-Z][A-Z0-9_]+)'?\s*:\s*(?:async\b|\(|[a-zA-Z]+\()/gm)) handled.add(match[1]!)
   }
   return handled
 }
 
 describe('message protocol', () => {
   it('finds the declared message types', () => {
-    expect(declaredUiMessageTypes().length).toBeGreaterThan(40)
+    expect(declaredUiMessageTypes().length).toBeGreaterThan(25)
   })
 
   it('registers a handler for every UIToBackgroundMessage type', () => {
     const handled = handledTypes()
     const missing = declaredUiMessageTypes().filter(type => !handled.has(type))
     expect(missing).toEqual([])
+  })
+
+  it('has no declared message that nothing sends (a handler nobody calls is dead protocol)', () => {
+    const sent = sentTypes()
+    expect(declaredUiMessageTypes().filter(type => !sent.has(type))).toEqual([])
   })
 
   it('declares every type once', () => {

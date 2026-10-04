@@ -66,14 +66,13 @@ AnnHub 只解决一条主链路：
 annhub/
 ├── entrypoints/
 │   ├── content/                 # 页面内采集、高亮与截图
-│   │   ├── annotation-core/     # 页面规则、DOM policy、Range 与 marker 工具
+│   │   ├── annotation-core/     # 站点规则、DOM policy、Range 与 marker 工具
 │   │   ├── highlight/           # 高亮创建、恢复与删除
 │   │   ├── capture/             # 碎片采集流程
 │   │   └── screenshot/          # 区域/元素截图与匿名处理
-│   ├── options/                 # 设置与数据迁移
+│   ├── options/                 # 设置页
 │   ├── library/                 # 碎片库与截图集
-│   ├── popup/
-│   └── sidepanel/
+│   └── popup/
 ├── background-service/
 │   └── services/
 │       ├── fragment/            # 碎片服务
