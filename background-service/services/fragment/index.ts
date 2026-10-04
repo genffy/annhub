@@ -6,15 +6,13 @@
 import type { IService } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
 import { Logger } from '../../../utils/logger'
+import { uiText } from '../../../utils/ui-text'
 import { FragmentStore, type FragmentPatch, type FragmentSaveOutcome } from '../../../learning-core/fragment-store'
 import type { CreateFragmentInput } from '../../../learning-core/factory'
 import type { FragmentRecord, FragmentLocator, OutboxRejectionCode, VerifiedResult } from '../../../learning-core/types'
 import { runFragmentQuery, type FragmentQuery, type FragmentQueryResult } from '../../../learning-core/query'
 import { normalizeHost } from '../../../learning-core/normalize'
-import { buildExportZip, type ExportManifest, type ExportHighlight, type ExportClip } from '../../../learning-core/markdown-export'
 import { quotaAvailable } from '../../../utils/storage-quota'
-import { HighlightService } from '../highlight'
-import { ClipService } from '../clip'
 import type { SaveFragmentInput } from '../../../types/messages'
 import {
   DEFAULT_DIRECT_CONNECT,
@@ -217,42 +215,6 @@ export class FragmentService implements IService {
     return this.store.cleanupOrphanAssets()
   }
 
-  // ── the single user export: Markdown + images ZIP (storage.md §7) ────
-
-  async exportContentZip(): Promise<{ blob: Blob; manifest: ExportManifest }> {
-    const [fragments, highlights, clips, screenshots] = await Promise.all([
-      this.store.getAllFragments(),
-      HighlightService.getInstance().getHighlights(),
-      ClipService.getInstance().getClips(),
-      this.store.listScreenshots(),
-    ])
-    const exportHighlights: ExportHighlight[] = highlights
-      .filter(h => h.status === 'active')
-      .map(h => ({
-        id: h.id,
-        text: h.originalText,
-        note: h.user_note,
-        sourceUrl: h.metadata.sourceUrl ?? h.url,
-        sourceTitle: h.metadata.pageTitle,
-        createdAt: h.timestamp,
-      }))
-    const exportClips: ExportClip[] = clips.map(c => ({
-      id: c.id,
-      text: c.content,
-      sourceUrl: c.source_detail_url ?? c.source_url,
-      sourceTitle: c.source_title,
-      createdAt: Date.parse(c.capture_time) || Date.now(),
-    }))
-    return buildExportZip({
-      exportedAt: Date.now(),
-      fragments,
-      highlights: exportHighlights,
-      clips: exportClips,
-      screenshots: screenshots.map(({ asset, ...record }) => record),
-      getAsset: async id => this.store.getAsset(id),
-    })
-  }
-
   // ── capture config (chrome.storage.local — preferences never enter the learning core) ──
 
   async getCaptureConfig(): Promise<CaptureConfig> {
@@ -332,7 +294,7 @@ export class FragmentService implements IService {
     const deliveryState: DeliveryState = { lastSyncAt: Date.now(), lastResult: result, lastError: result.errors[0] }
     // A refusal outlives this run's error list: while any item waits on the user, say so.
     const parked = (await this.store.getDeliveryStats()).rejected
-    if (!deliveryState.lastError && parked > 0) deliveryState.lastError = `${parked} 项未能交付到 Desktop，需要处理（设置 → Desktop 连接）`
+    if (!deliveryState.lastError && parked > 0) deliveryState.lastError = uiText('desktop.needsAttention', { count: parked })
 
     // R3: after delivery, drain Desktop-originated review changes. Auth
     // failure stops both directions.

@@ -7,6 +7,7 @@ export default defineConfig({
     include: ['**/*.test.ts'],
     exclude: ['node_modules', '.output', 'e2e', 'website'],
     globals: true,
+    setupFiles: ['./vitest.setup.ts'],
     coverage: {
       reportsDirectory: './coverage',
     },

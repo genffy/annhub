@@ -1,8 +1,11 @@
 /**
  * What the capture window can hand back to the user when saving fails or the
- * window is abandoned (extension.md §4.1 / §9): the typed 理解、核验、应用
- * text must never be lost. Pure helpers, so the wording is testable.
+ * window is abandoned (extension.md §4.1 / §9): the typed understanding,
+ * verification and application text must never be lost. Pure helpers, so the
+ * wording is testable in both languages.
  */
+import { uiText, type UiLanguage } from '../../../utils/ui-text'
+
 export interface RecoverableInput {
   kindLabel: string
   content: string
@@ -18,35 +21,39 @@ export interface RecoverableInput {
   details: Array<[label: string, value: string]>
 }
 
-const line = (label: string, value: string): string | null => (value.trim() ? `${label}：${value.trim()}` : null)
+const line = (label: string, value: string, lang?: UiLanguage): string | null => (value.trim() ? uiText('capture.line', { label, value: value.trim() }, lang) : null)
 
 /**
  * The note attached when the window is converted to a Highlight or a Clip: the
- * user's own processing text, so “改存” keeps what they wrote. The selected
+ * user's own processing text, so “save as” keeps what they wrote. The selected
  * text and its context are already stored by the Highlight / Clip itself.
  */
-export function fallbackNote(input: RecoverableInput): string {
+export function fallbackNote(input: RecoverableInput, lang?: UiLanguage): string {
   return [
-    line('理解', input.guess),
-    line('核验摘要', input.summary),
-    line('核验备注', input.notes),
-    line('应用', input.use),
-    ...input.details.map(([label, value]) => line(label, value)),
-    line('标签', input.tags),
+    line(uiText('capture.note.guess', {}, lang), input.guess, lang),
+    line(uiText('capture.note.summary', {}, lang), input.summary, lang),
+    line(uiText('capture.note.notes', {}, lang), input.notes, lang),
+    line(uiText('capture.note.use', {}, lang), input.use, lang),
+    ...input.details.map(([label, value]) => line(label, value, lang)),
+    line(uiText('capture.note.tags', {}, lang), input.tags, lang),
   ]
     .filter((l): l is string => l !== null)
     .join('\n')
 }
 
-/** Everything the user typed, as plain text for “复制我的输入”. */
-export function copyableInput(input: RecoverableInput): string {
+/** Everything the user typed, as plain text for “Copy my input”. */
+export function copyableInput(input: RecoverableInput, lang?: UiLanguage): string {
   const header = [
-    `类型：${input.kindLabel}`,
-    line('内容', input.content),
-    line('上下文', input.excerpt),
-    line('来源', input.sourceTitle ? `${input.sourceTitle}（${input.sourceUrl}）` : input.sourceUrl),
+    line(uiText('capture.copy.kind', {}, lang), input.kindLabel, lang),
+    line(uiText('capture.copy.content', {}, lang), input.content, lang),
+    line(uiText('capture.copy.context', {}, lang), input.excerpt, lang),
+    line(
+      uiText('capture.copy.source', {}, lang),
+      input.sourceTitle ? uiText('capture.copy.sourceWithTitle', { title: input.sourceTitle, url: input.sourceUrl }, lang) : input.sourceUrl,
+      lang,
+    ),
   ]
-  return [...header, fallbackNote(input)].filter((l): l is string => !!l && l.trim() !== '').join('\n')
+  return [...header, fallbackNote(input, lang)].filter((l): l is string => !!l && l.trim() !== '').join('\n')
 }
 
 /** Whether there is anything the user typed that closing would lose. */

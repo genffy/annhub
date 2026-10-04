@@ -118,7 +118,8 @@ export function applyDesktopChanges(changes: DesktopChange[], local: ApplyLocalS
             type: change.type,
             fragmentId: change.fragmentId,
             reason: 'STALE_REVIEW',
-            detail: `评分时间早于本地最新评分（${new Date(change.log.reviewedAt).toISOString()} < ${new Date(existing.review.lastReviewedAt!).toISOString()}），已保留较新状态`,
+            // Language-neutral on purpose: the Settings page words the reason; the detail is only the two times.
+            detail: `${new Date(change.log.reviewedAt).toISOString()} < ${new Date(existing.review.lastReviewedAt!).toISOString()}`,
             at: now,
           })
         }

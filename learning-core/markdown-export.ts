@@ -4,7 +4,9 @@
  * Readable by tools like Obsidian; NOT a lossless AnnHub database restore.
  * Environment-neutral: the host passes records + an asset reader; this module
  * derives the file set, YAML frontmatter (via serializer, never hand-built),
- * relative image links and the missing-asset manifest.
+ * relative image links and the missing-asset manifest. The headings and labels of the files
+ * follow the language the export was started in (`ExportLanguage`); keys, front matter fields
+ * and paths never change with it.
  */
 import type { FragmentRecord, ImageAsset, ScreenshotRecord } from './types'
 import { buildZip, type ZipEntry } from './zip'
@@ -26,8 +28,12 @@ export interface ExportClip {
   createdAt: number
 }
 
+/** The interface language the export is worded in (D-14). */
+export type ExportLanguage = 'zh' | 'en'
+
 export interface ExportInput {
   exportedAt: number
+  lang: ExportLanguage
   fragments: FragmentRecord[]
   highlights: ExportHighlight[]
   clips: ExportClip[]
@@ -39,19 +45,127 @@ export interface ExportManifest {
   exportedAt: number
   formatVersion: 'annhub-markdown-zip-1'
   counts: { fragments: number; highlights: number; clips: number; screenshots: number; assets: number }
-  /** Assets referenced but not found locally — the UI must show 部分导出. */
+  /** Assets referenced but not found locally — the UI must show “partial export”. */
   missingAssets: string[]
   partial: boolean
 }
 
 const SAFE_ID = /^[A-Za-z0-9_-]+$/
 
-const REVIEW_STATE_LABELS: Record<FragmentRecord['review']['state'], string> = {
-  new: '新建',
-  learning: '学习中',
-  review: '复习中',
-  relearning: '重新学习',
+interface ExportText {
+  reviewStates: Record<FragmentRecord['review']['state'], string>
+  context: string
+  sourceLine: (title: string, host: string) => string
+  understanding: string
+  notFilled: string
+  verification: string
+  confirmed: (source: string, at: string) => string
+  summary: (text: string) => string
+  notes: (text: string) => string
+  apply: string
+  screenshot: string
+  missingAsset: (id: string) => string
+  missingAssetShort: string
+  reviewSummary: string
+  reviewState: (label: string, repetitions: number, lapses: number) => string
+  lastReviewed: (at: string) => string
+  nextReview: (at: string, days: number) => string
+  tags: (tags: string[]) => string
+  highlight: string
+  note: string
+  clip: string
+  readme: (manifest: ExportManifest, at: string) => string[]
 }
+
+const EXPORT_TEXT: Record<ExportLanguage, ExportText> = {
+  zh: {
+    reviewStates: { new: '新建', learning: '学习中', review: '复习中', relearning: '重新学习' },
+    context: '页面语境',
+    sourceLine: (title, host) => `> 来源：${title}（${host}）`,
+    understanding: '理解',
+    notFilled: '（未填写）',
+    verification: '核验',
+    confirmed: (source, at) => `已确认（来源：${source}，${at}）`,
+    summary: text => `摘要：${text}`,
+    notes: text => `备注：${text}`,
+    apply: '应用',
+    screenshot: '截图',
+    missingAsset: id => `图片缺失（资产 ${id} 不在本地库中）`,
+    missingAssetShort: '图片缺失（资产不在本地库中）',
+    reviewSummary: '复习摘要',
+    reviewState: (label, repetitions, lapses) => `状态：${label}（复习 ${repetitions} 次，遗忘 ${lapses} 次）`,
+    lastReviewed: at => `最近复习：${at}`,
+    nextReview: (at, days) => `下次复习：${at}（间隔 ${days} 天）`,
+    tags: tags => `标签：${tags.join('、')}`,
+    highlight: '高亮',
+    note: '备注',
+    clip: '剪藏',
+    readme: (manifest, at) => [
+      '# AnnHub 内容导出',
+      '',
+      '这是扩展内容的可阅读导出（Markdown + 已保存原图），供 Obsidian 等工具使用。',
+      '它不是 AnnHub 数据库的备份，不承诺恢复复习调度、日志或 Desktop 状态。',
+      '',
+      `- 格式版本：${manifest.formatVersion}`,
+      `- 导出时间：${at}`,
+      `- Fragment：${manifest.counts.fragments} 条（fragments/）`,
+      `- 高亮：${manifest.counts.highlights} 条（highlights/）`,
+      `- 剪藏：${manifest.counts.clips} 条（clips/）`,
+      `- 截图：${manifest.counts.screenshots} 条（screenshots/）`,
+      `- 图片资产：${manifest.counts.assets} 个（assets/）`,
+      ...(manifest.partial ? ['', `**部分导出**：以下 ${manifest.missingAssets.length} 个图片资产缺失，未写入 ZIP：`, ...manifest.missingAssets.map(id => `- ${id}`)] : []),
+      '',
+      '不包含：未提交的表单、Desktop 独有的复习日志、交付队列、Provider 密钥与 UI 偏好。',
+    ],
+  },
+  en: {
+    reviewStates: { new: 'New', learning: 'Learning', review: 'Review', relearning: 'Relearning' },
+    context: 'Page context',
+    sourceLine: (title, host) => `> Source: ${title} (${host})`,
+    understanding: 'Understanding',
+    notFilled: '(not filled in)',
+    verification: 'Verification',
+    confirmed: (source, at) => `Confirmed (source: ${source}, ${at})`,
+    summary: text => `Summary: ${text}`,
+    notes: text => `Notes: ${text}`,
+    apply: 'Apply',
+    screenshot: 'Screenshot',
+    missingAsset: id => `Image missing (asset ${id} is not in the local library)`,
+    missingAssetShort: 'Image missing (the asset is not in the local library)',
+    reviewSummary: 'Review summary',
+    reviewState: (label, repetitions, lapses) => `State: ${label} (${repetitions} reviews, ${lapses} lapses)`,
+    lastReviewed: at => `Last reviewed: ${at}`,
+    nextReview: (at, days) => `Next review: ${at} (interval ${days} days)`,
+    tags: tags => `Tags: ${tags.join(', ')}`,
+    highlight: 'Highlight',
+    note: 'Note',
+    clip: 'Clip',
+    readme: (manifest, at) => [
+      '# AnnHub content export',
+      '',
+      'A readable export of the extension’s content (Markdown + the saved original images) for tools such as Obsidian.',
+      'It is not a backup of the AnnHub database and does not promise to restore review scheduling, logs or Desktop state.',
+      '',
+      `- Format version: ${manifest.formatVersion}`,
+      `- Exported at: ${at}`,
+      `- Fragments: ${manifest.counts.fragments} (fragments/)`,
+      `- Highlights: ${manifest.counts.highlights} (highlights/)`,
+      `- Clips: ${manifest.counts.clips} (clips/)`,
+      `- Screenshots: ${manifest.counts.screenshots} (screenshots/)`,
+      `- Image assets: ${manifest.counts.assets} (assets/)`,
+      ...(manifest.partial
+        ? [
+            '',
+            `**Partial export**: the following ${manifest.missingAssets.length} image asset(s) are missing and were not written to the ZIP:`,
+            ...manifest.missingAssets.map(id => `- ${id}`),
+          ]
+        : []),
+      '',
+      'Not included: unsaved forms, review logs that exist only on Desktop, the delivery queue, Provider keys and UI preferences.',
+    ],
+  },
+}
+
 const MIME_EXT: Record<ImageAsset['mimeType'], string> = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
@@ -86,48 +200,44 @@ export function yamlFrontmatter(fields: Array<[string, string | string[] | numbe
   return lines.join('\n')
 }
 
-function fragmentBody(f: FragmentRecord, assets: AssetLinks): string {
+function fragmentBody(f: FragmentRecord, assets: AssetLinks, t: ExportText): string {
   const sections: string[] = []
   sections.push(`# ${f.content}`)
 
-  sections.push('## 页面语境')
+  sections.push(`## ${t.context}`)
   sections.push(f.context.excerpt)
-  if (f.context.sourceTitle) sections.push(`> 来源：${f.context.sourceTitle}（${f.context.sourceHost}）`)
+  if (f.context.sourceTitle) sections.push(t.sourceLine(f.context.sourceTitle, f.context.sourceHost))
 
-  sections.push('## 理解')
-  sections.push(f.processing.guess?.trim() || '（未填写）')
+  sections.push(`## ${t.understanding}`)
+  sections.push(f.processing.guess?.trim() || t.notFilled)
 
-  sections.push('## 核验')
+  sections.push(`## ${t.verification}`)
   const v = f.processing.verified
-  const parts: string[] = [`已确认（来源：${v.source}，${iso(v.confirmedAt)}）`]
-  if (v.summary) parts.push(`摘要：${v.summary}`)
-  if (v.notes) parts.push(`备注：${v.notes}`)
+  const parts: string[] = [t.confirmed(v.source, iso(v.confirmedAt))]
+  if (v.summary) parts.push(t.summary(v.summary))
+  if (v.notes) parts.push(t.notes(v.notes))
   sections.push(parts.join('\n'))
 
-  sections.push('## 应用')
+  sections.push(`## ${t.apply}`)
   sections.push(f.processing.use)
 
   if (f.kind === 'visual') {
     const ids = (f.detail as { attachmentIds: string[] }).attachmentIds
-    sections.push('## 截图')
-    sections.push(ids.map(id => (assets.ext.has(id) ? `![截图](../assets/${id}.${assets.ext.get(id)})` : `图片缺失（资产 ${id} 不在本地库中）`)).join('\n'))
+    sections.push(`## ${t.screenshot}`)
+    sections.push(ids.map(id => (assets.ext.has(id) ? `![${t.screenshot}](../assets/${id}.${assets.ext.get(id)})` : t.missingAsset(id))).join('\n'))
   }
   const r = f.review
   if (r.lastReviewedAt !== undefined) {
-    sections.push('## 复习摘要')
+    sections.push(`## ${t.reviewSummary}`)
     sections.push(
-      [
-        `状态：${REVIEW_STATE_LABELS[r.state]}（复习 ${r.repetitions} 次，遗忘 ${r.lapses} 次）`,
-        `最近复习：${iso(r.lastReviewedAt)}`,
-        `下次复习：${iso(r.nextReviewAt)}（间隔 ${r.intervalDays} 天）`,
-      ].join('\n'),
+      [t.reviewState(t.reviewStates[r.state], r.repetitions, r.lapses), t.lastReviewed(iso(r.lastReviewedAt)), t.nextReview(iso(r.nextReviewAt), r.intervalDays)].join('\n'),
     )
   }
-  if (f.tags.length) sections.push(`标签：${f.tags.join('、')}`)
+  if (f.tags.length) sections.push(t.tags(f.tags))
   return sections.join('\n\n')
 }
 
-function fragmentMarkdown(f: FragmentRecord, assets: AssetLinks): string {
+function fragmentMarkdown(f: FragmentRecord, assets: AssetLinks, t: ExportText): string {
   const fields: Array<[string, string | string[] | number]> = [
     ['annhub_id', f.id],
     ['kind', f.kind],
@@ -138,10 +248,10 @@ function fragmentMarkdown(f: FragmentRecord, assets: AssetLinks): string {
   if (f.context.sourceTitle) fields.push(['source_title', f.context.sourceTitle])
   if (f.tags.length) fields.push(['tags', f.tags])
   if (f.kind === 'visual') fields.push(['asset_ids', (f.detail as { attachmentIds: string[] }).attachmentIds])
-  return `${yamlFrontmatter(fields)}\n\n${fragmentBody(f, assets)}\n`
+  return `${yamlFrontmatter(fields)}\n\n${fragmentBody(f, assets, t)}\n`
 }
 
-function highlightMarkdown(h: ExportHighlight): string {
+function highlightMarkdown(h: ExportHighlight, t: ExportText): string {
   const fields: Array<[string, string | number]> = [
     ['annhub_id', h.id],
     ['kind', 'highlight'],
@@ -149,12 +259,12 @@ function highlightMarkdown(h: ExportHighlight): string {
     ['created_at', iso(h.createdAt)],
   ]
   if (h.sourceTitle) fields.push(['source_title', h.sourceTitle])
-  const body = [`# 高亮\n\n${h.text}`]
-  if (h.note) body.push(`## 备注\n\n${h.note}`)
+  const body = [`# ${t.highlight}\n\n${h.text}`]
+  if (h.note) body.push(`## ${t.note}\n\n${h.note}`)
   return `${yamlFrontmatter(fields)}\n\n${body.join('\n\n')}\n`
 }
 
-function clipMarkdown(c: ExportClip): string {
+function clipMarkdown(c: ExportClip, t: ExportText): string {
   const fields: Array<[string, string | number]> = [
     ['annhub_id', c.id],
     ['kind', 'clip'],
@@ -162,10 +272,10 @@ function clipMarkdown(c: ExportClip): string {
     ['created_at', iso(c.createdAt)],
   ]
   if (c.sourceTitle) fields.push(['source_title', c.sourceTitle])
-  return `${yamlFrontmatter(fields)}\n\n# 剪藏\n\n${c.text}\n`
+  return `${yamlFrontmatter(fields)}\n\n# ${t.clip}\n\n${c.text}\n`
 }
 
-function screenshotMarkdown(s: ScreenshotRecord, assetPresent: boolean, ext: string): string {
+function screenshotMarkdown(s: ScreenshotRecord, assetPresent: boolean, ext: string, t: ExportText): string {
   const fields: Array<[string, string | number]> = [
     ['annhub_id', s.id],
     ['kind', 'screenshot'],
@@ -174,30 +284,12 @@ function screenshotMarkdown(s: ScreenshotRecord, assetPresent: boolean, ext: str
     ['captured_at', iso(s.capturedAt)],
   ]
   if (s.sourceTitle) fields.push(['source_title', s.sourceTitle])
-  const body = assetPresent ? `![截图](../assets/${s.assetId}.${ext})` : '图片缺失（资产不在本地库中）'
-  return `${yamlFrontmatter(fields)}\n\n# 截图\n\n${body}\n`
+  const body = assetPresent ? `![${t.screenshot}](../assets/${s.assetId}.${ext})` : t.missingAssetShort
+  return `${yamlFrontmatter(fields)}\n\n# ${t.screenshot}\n\n${body}\n`
 }
 
-function readmeMarkdown(manifest: ExportManifest): string {
-  const lines = [
-    '# AnnHub 内容导出',
-    '',
-    '这是扩展内容的可阅读导出（Markdown + 已保存原图），供 Obsidian 等工具使用。',
-    '它不是 AnnHub 数据库的备份，不承诺恢复复习调度、日志或 Desktop 状态。',
-    '',
-    `- 格式版本：${manifest.formatVersion}`,
-    `- 导出时间：${iso(manifest.exportedAt)}`,
-    `- Fragment：${manifest.counts.fragments} 条（fragments/）`,
-    `- 高亮：${manifest.counts.highlights} 条（highlights/）`,
-    `- 剪藏：${manifest.counts.clips} 条（clips/）`,
-    `- 截图：${manifest.counts.screenshots} 条（screenshots/）`,
-    `- 图片资产：${manifest.counts.assets} 个（assets/）`,
-  ]
-  if (manifest.partial) {
-    lines.push('', `**部分导出**：以下 ${manifest.missingAssets.length} 个图片资产缺失，未写入 ZIP：`, ...manifest.missingAssets.map(id => `- ${id}`))
-  }
-  lines.push('', '不包含：未提交的表单、Desktop 独有的复习日志、交付队列、Provider 密钥与 UI 偏好。')
-  return lines.join('\n') + '\n'
+function readmeMarkdown(manifest: ExportManifest, t: ExportText): string {
+  return t.readme(manifest, iso(manifest.exportedAt)).join('\n') + '\n'
 }
 
 /** Blob → bytes with a FileReader fallback (jsdom-era Blobs lack arrayBuffer). */
@@ -218,6 +310,7 @@ export async function blobBytes(blob: Blob): Promise<Uint8Array> {
  */
 export async function buildExportZip(input: ExportInput): Promise<{ blob: Blob; manifest: ExportManifest }> {
   const { fragments, highlights, clips, screenshots } = input
+  const t = EXPORT_TEXT[input.lang]
   for (const list of [fragments.map(f => f.id), highlights.map(h => h.id), clips.map(c => c.id), screenshots.map(s => s.id)].flat()) {
     if (!SAFE_ID.test(list)) throw new Error(`UNSAFE_ID:${list}`)
   }
@@ -261,13 +354,13 @@ export async function buildExportZip(input: ExportInput): Promise<{ blob: Blob; 
     partial: missingAssets.length > 0,
   }
 
-  for (const f of fragments) entries.push({ name: `fragments/${f.id}.md`, data: new TextEncoder().encode(fragmentMarkdown(f, { ext: assetExt })) })
-  for (const h of highlights) entries.push({ name: `highlights/${h.id}.md`, data: new TextEncoder().encode(highlightMarkdown(h)) })
-  for (const c of clips) entries.push({ name: `clips/${c.id}.md`, data: new TextEncoder().encode(clipMarkdown(c)) })
+  for (const f of fragments) entries.push({ name: `fragments/${f.id}.md`, data: new TextEncoder().encode(fragmentMarkdown(f, { ext: assetExt }, t)) })
+  for (const h of highlights) entries.push({ name: `highlights/${h.id}.md`, data: new TextEncoder().encode(highlightMarkdown(h, t)) })
+  for (const c of clips) entries.push({ name: `clips/${c.id}.md`, data: new TextEncoder().encode(clipMarkdown(c, t)) })
   for (const s of screenshots) {
-    entries.push({ name: `screenshots/${s.id}.md`, data: new TextEncoder().encode(screenshotMarkdown(s, includedAssets.has(s.assetId), assetExt.get(s.assetId) ?? 'png')) })
+    entries.push({ name: `screenshots/${s.id}.md`, data: new TextEncoder().encode(screenshotMarkdown(s, includedAssets.has(s.assetId), assetExt.get(s.assetId) ?? 'png', t)) })
   }
-  entries.unshift({ name: 'README.md', data: new TextEncoder().encode(readmeMarkdown(manifest)) })
+  entries.unshift({ name: 'README.md', data: new TextEncoder().encode(readmeMarkdown(manifest, t)) })
 
   // Final sanity check: record counts and attachment references (storage.md §7).
   const expected = 1 + fragments.length + highlights.length + clips.length + screenshots.length + includedAssets.size

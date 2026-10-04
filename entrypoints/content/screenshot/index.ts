@@ -12,6 +12,7 @@
  */
 
 import MessageUtils from '../../../utils/message'
+import { uiText } from '../../../utils/ui-text'
 import type { ViewportRect } from './crop'
 import { computeCropSource, CropError } from './crop'
 import { detectIdentityRects } from './detect'
@@ -159,7 +160,11 @@ class ScreenshotSession {
   private syncHint(): void {
     if (!this.hintEl) return
     this.hintEl.innerHTML = ''
-    this.hintEl.append(this.textNode('拖拽=区域截图 · 单击=元素截图 · Esc 取消 · '), this.boldNode('A'), this.textNode(` 匿名：${this.anonymizeOn ? '开' : '关'}`))
+    this.hintEl.append(
+      this.textNode(uiText('shot.hint')),
+      this.boldNode('A'),
+      this.textNode(uiText('shot.anonymize', { state: uiText(this.anonymizeOn ? 'shot.on' : 'shot.off') })),
+    )
   }
   private textNode(t: string): Text {
     return this.doc.createTextNode(t)
@@ -302,11 +307,11 @@ class ScreenshotSession {
         requestId: `shot-${Date.now()}`,
       })
       if (!response.success || !response.data?.dataUrl) {
-        throw new Error(response.error || '截图失败')
+        throw new Error(response.error || uiText('shot.error.capture'))
       }
       dataUrl = response.data.dataUrl
     } catch (error) {
-      if (!this.exited) this.showError(error instanceof Error ? error.message : '截图失败')
+      if (!this.exited) this.showError(error instanceof Error ? error.message : uiText('shot.error.capture'))
       return
     } finally {
       this.host.style.display = ''
@@ -317,7 +322,7 @@ class ScreenshotSession {
     try {
       this.croppedCanvas = await this.cropToCanvas(dataUrl, selection)
     } catch (error) {
-      if (!this.exited) this.showError(error instanceof CropError ? error.message : '截图裁剪失败')
+      if (!this.exited) this.showError(error instanceof CropError ? error.message : uiText('shot.error.crop'))
       return
     }
     if (this.exited) return
@@ -346,7 +351,7 @@ class ScreenshotSession {
     try {
       this.croppedCanvas = await captureElement(element, { anonymize: this.anonymizeOn })
     } catch (error) {
-      if (!this.exited) this.showError(error instanceof Error ? error.message : '元素截图失败')
+      if (!this.exited) this.showError(error instanceof Error ? error.message : uiText('shot.error.element'))
       return
     }
     if (this.exited) return
@@ -376,7 +381,7 @@ class ScreenshotSession {
           reject(error instanceof Error ? error : new Error('crop failed'))
         }
       }
-      img.onerror = () => reject(new Error('截图数据解码失败'))
+      img.onerror = () => reject(new Error(uiText('shot.error.decode')))
       img.src = dataUrl
     })
   }
@@ -555,9 +560,9 @@ class ScreenshotSession {
   private openTextInput(point: Point, displayPoint: Point): void {
     this.textInput?.remove()
     const input = this.doc.createElement('textarea')
-    input.setAttribute('aria-label', '截图文字')
+    input.setAttribute('aria-label', uiText('shot.textInput.label'))
     input.setAttribute(ROOT_ATTR, 'screenshot-text-input')
-    input.placeholder = '输入文字'
+    input.placeholder = uiText('shot.textInput.placeholder')
     const panel = this.previewEl!.getBoundingClientRect()
     const view = this.doc.defaultView!
     input.style.width = `${Math.min(210, view.innerWidth - 24)}px`
@@ -615,11 +620,11 @@ class ScreenshotSession {
           capturedAt,
         },
       })
-      if (!response.success) throw new Error(response.error || (persist ? '保存失败' : '下载失败'))
+      if (!response.success) throw new Error(response.error || uiText(persist ? 'shot.error.saveFailed' : 'shot.error.downloadFailed'))
       if (persist) exitScreenshotMode()
-      else this.showNotice('PNG 已下载')
+      else this.showNotice(uiText('shot.downloaded'))
     } catch (error) {
-      this.showNotice(error instanceof Error ? error.message : '截图操作失败', true)
+      this.showNotice(error instanceof Error ? error.message : uiText('shot.error.action'), true)
     } finally {
       this.busy = false
       this.updateToolbar()
@@ -641,9 +646,9 @@ class ScreenshotSession {
     panel.style.pointerEvents = 'auto'
     const text = this.doc.createElement('div')
     text.className = 'ann-shot-error'
-    text.textContent = `截图失败：${message}`
+    text.textContent = uiText('shot.failed', { message })
     const close = this.doc.createElement('button')
-    close.textContent = '关闭'
+    close.textContent = uiText('common.close')
     close.onclick = () => exitScreenshotMode()
     panel.append(text, close)
     this.host.appendChild(panel)

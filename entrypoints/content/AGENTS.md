@@ -21,7 +21,7 @@
 - Modal 分标准“核验 -> 应用”与深度“理解 -> 核验 -> 应用”两种流程（深度模式是全局偏好，单次可切）。核验步骤是来源语境对照卡 + “确认已核对”勾选 + 核验来源（原文 / 手工），摘要/备注默认折叠；修改 content/excerpt/source/kind 或核验来源会清除确认。“回到原文”把窗口收成底部条并滚动、标记选区（CSS Custom Highlight），已填内容保留。保存要求应用非空且不是 content/excerpt 的复述——没有语言词数门槛；重复内容先提示，用户确认后可强制保存。
 - 关闭时有输入必须经 `CloseDialog`：继续编辑 / 改存为高亮 / 改存为剪藏 / 放弃（页面选区已不存在的草稿只有前后两项）；改存把已填文字写进备注，埋点记 `fallback`。保存失败保留全部输入并提供重试 / 复制我的输入 / 改存为剪藏 / 导出内容；保存前先做配额校验。
 - “同时高亮原文”在 Fragment 保存成功后单独执行，失败不回滚 Fragment，成功态给出“重试高亮”。表单状态 300ms 防抖写入 `chrome.storage.session`（SW 启动时开放给 untrusted context），同会话导航后可恢复；保存失败保留全部输入；卸载时清理监听器和定时器。
-- 界面文案按语言本地化（D-11）：用户可见的“碎片 / Fragment”等词只经 `utils/ui-text.ts`，每个 key 必须同时给出 zh 与 en；窗口配色只用 `capture/theme.tsx` 的令牌（品牌紫 + 亮暗外观）。
+- 界面文案按语言本地化（D-11）：用户可见的文案（含“碎片 / Fragment”）只经 `utils/ui-text/`，每个 key 必须同时给出 zh 与 en，语言随浏览器界面语言，不写死中文或英文；窗口配色只用 `capture/theme.tsx` 的令牌（品牌紫 + 亮暗外观）。
 - kind、核验字段和最新产品语义以 [docs/v2/fragments.md](../../docs/v2/fragments.md) 与 [docs/v2/processing.md](../../docs/v2/processing.md) 为准，当前实现以源码为准。改采集流程时跑 capture 单测和 Fragment E2E。
 
 ## 截图

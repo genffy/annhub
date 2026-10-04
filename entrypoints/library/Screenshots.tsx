@@ -1,8 +1,8 @@
 /**
- * 碎片库「截图」视图 — 截图集（docs/v2/screenshot.md、storage.md §3.5）。
+ * Fragment library “Screenshots” view — the screenshot library (docs/v2/screenshot.md, storage.md §3.5).
  * Records come from GET_SCREENSHOTS; image BYTES are read directly from the
  * shared fragment-store asset store (same extension origin — no Blob over
- * messaging). 转为 Fragment opens the visual form: user writes the key-detail
+ * messaging). Converting to a Fragment opens the visual form: user writes the key-detail
  * description (content), context and use, confirms verification, and the same
  * transaction enqueues the asset delivery task.
  */
@@ -44,7 +44,7 @@ export default function ScreenshotsView({ onSaved }: { onSaved: () => void }) {
   }, [load])
 
   const remove = async (id: string) => {
-    if (!window.confirm('删除该截图？若已有碎片引用该图片，图片仍会保留。')) return
+    if (!window.confirm(uiText('shots.confirmDelete'))) return
     await MessageUtils.sendMessage({ type: 'DELETE_SCREENSHOT', data: { id } })
     setItems(prev => prev?.filter(item => item.id !== id) ?? null)
   }
@@ -52,7 +52,7 @@ export default function ScreenshotsView({ onSaved }: { onSaved: () => void }) {
   if (items === null) {
     return (
       <main className="library-list">
-        <p className="library-empty">加载中…</p>
+        <p className="library-empty">{uiText('common.loading')}</p>
       </main>
     )
   }
@@ -61,9 +61,13 @@ export default function ScreenshotsView({ onSaved }: { onSaved: () => void }) {
     return (
       <main className="library-list">
         <div className="library-empty" data-testid="screenshots-empty">
-          <p>还没有截图采集。</p>
+          <p>{uiText('shots.empty.title')}</p>
           <p>
-            在任意网页按 <strong>Ctrl+Shift+S</strong>（macOS <strong>Cmd+Shift+S</strong>），拖拽截取区域或单击截取元素；确认入库的截图会出现在这里。
+            {uiText('shots.empty.before')}
+            <strong>Ctrl+Shift+S</strong>
+            {uiText('shots.empty.middle')}
+            <strong>Cmd+Shift+S</strong>
+            {uiText('shots.empty.after')}
           </p>
         </div>
       </main>
@@ -75,10 +79,14 @@ export default function ScreenshotsView({ onSaved }: { onSaved: () => void }) {
       <main className="library-list screenshots-list" data-testid="screenshots-list">
         {items.map(item => (
           <figure className="screenshot-card" key={item.id} data-testid="screenshot-card">
-            {item.objectUrl ? <img src={item.objectUrl} alt={item.sourceTitle || '截图'} loading="lazy" /> : <div className="screenshot-missing">图片缺失（资产不在本地库中）</div>}
+            {item.objectUrl ? (
+              <img src={item.objectUrl} alt={item.sourceTitle || uiText('shots.alt')} loading="lazy" />
+            ) : (
+              <div className="screenshot-missing">{uiText('shots.missing')}</div>
+            )}
             <figcaption>
               <div className="screenshot-meta">
-                {item.sourceUrl ? <span className="screenshot-source">{safeHost(item.sourceUrl)}</span> : <span className="screenshot-source">本地</span>}
+                {item.sourceUrl ? <span className="screenshot-source">{safeHost(item.sourceUrl)}</span> : <span className="screenshot-source">{uiText('shots.local')}</span>}
                 <time>{new Date(item.capturedAt).toLocaleString()}</time>
               </div>
               <div className="screenshot-actions">
@@ -86,7 +94,7 @@ export default function ScreenshotsView({ onSaved }: { onSaved: () => void }) {
                   {uiText('library.convert')}
                 </button>
                 <button type="button" onClick={() => remove(item.id)} data-testid="screenshot-delete">
-                  删除
+                  {uiText('common.delete')}
                 </button>
               </div>
             </figcaption>
@@ -111,7 +119,9 @@ export default function ScreenshotsView({ onSaved }: { onSaved: () => void }) {
 function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: ScreenshotRecord; onClose: () => void; onSaved: () => void }) {
   const [content, setContent] = useState('')
   const [contextText, setContextText] = useState(
-    screenshot.sourceTitle ? `（来自 ${safeHost(screenshot.sourceUrl)}：${screenshot.sourceTitle}）` : `（来自 ${safeHost(screenshot.sourceUrl)}）`,
+    screenshot.sourceTitle
+      ? uiText('visual.contextFromTitle', { host: safeHost(screenshot.sourceUrl), title: screenshot.sourceTitle })
+      : uiText('visual.contextFrom', { host: safeHost(screenshot.sourceUrl) }),
   )
   const [useText, setUse] = useState('')
   const [verified, setVerified] = useState<{ confirmedAt: number; source: 'source-material' | 'manual' } | null>(null)
@@ -121,8 +131,8 @@ function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: Screens
 
   const useInvalid = (() => {
     const use = useText.trim()
-    if (!use) return useText ? '应用不能为空' : ''
-    if (use === content.trim()) return '应用不能只复述描述'
+    if (!use) return useText ? uiText('capture.use.empty') : ''
+    if (use === content.trim()) return uiText('visual.use.repeatsDescription')
     return ''
   })()
 
@@ -147,10 +157,10 @@ function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: Screens
           detail: { attachmentIds: [screenshot.assetId] },
         },
       })
-      if (!response.success) throw new Error(response.error || '保存失败')
+      if (!response.success) throw new Error(response.error || uiText('capture.error.saveFailed'))
       const data = response.data as { fragment?: FragmentRecord; duplicateOf?: FragmentRecord }
       if (!data.fragment && data.duplicateOf) {
-        if (!window.confirm('已保存过相同描述的视觉碎片。仍要保存？')) {
+        if (!window.confirm(uiText('visual.duplicate'))) {
           setSaving(false)
           return
         }
@@ -170,11 +180,11 @@ function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: Screens
             detail: { attachmentIds: [screenshot.assetId] },
           },
         })
-        if (!retry.success) throw new Error(retry.error || '保存失败')
+        if (!retry.success) throw new Error(retry.error || uiText('capture.error.saveFailed'))
       }
       onSaved()
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存失败（输入已保留）')
+      setError(err instanceof Error ? err.message : uiText('library.editor.saveFailed'))
     } finally {
       setSaving(false)
     }
@@ -183,7 +193,7 @@ function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: Screens
   return (
     <div className="fragment-editor visual-form" data-ann-ui="visual-form">
       <h3>{uiText('library.convertVisual')}</h3>
-      <label className="filter-label">关键细节描述（必填，content）</label>
+      <label className="filter-label">{uiText('visual.content.label')}</label>
       <textarea
         rows={3}
         maxLength={500}
@@ -192,10 +202,10 @@ function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: Screens
           setContent(e.target.value)
           setVerified(null)
         }}
-        placeholder="这张截图里值得记住的结构、数字或设计细节"
+        placeholder={uiText('visual.content.placeholder')}
         data-testid="visual-content"
       />
-      <label className="filter-label">页面语境（可选，接在描述后）</label>
+      <label className="filter-label">{uiText('visual.context.label')}</label>
       <textarea
         rows={2}
         value={contextText}
@@ -204,10 +214,10 @@ function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: Screens
           setVerified(null)
         }}
       />
-      <label className="filter-label">摘要（可选）</label>
+      <label className="filter-label">{uiText('capture.verify.summary')}</label>
       <textarea rows={2} value={summary} onChange={e => setSummary(e.target.value)} />
       <div>
-        <div className="filter-label">核验 — 对照原图与页面语境</div>
+        <div className="filter-label">{uiText('visual.verify.title')}</div>
         <label className="verify-confirm">
           <input
             type="checkbox"
@@ -215,18 +225,18 @@ function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: Screens
             onChange={e => setVerified(e.target.checked ? { confirmedAt: Date.now(), source: 'source-material' } : null)}
             data-testid="visual-verify"
           />
-          确认已核对
+          {uiText('capture.verify.confirm')}
         </label>
-        {verified && <div className="editor-note">已确认核对（原文材料，{new Date(verified.confirmedAt).toLocaleTimeString()}）。修改描述或语境后需重新确认。</div>}
+        {verified && <div className="editor-note">{uiText('visual.verify.note', { time: new Date(verified.confirmedAt).toLocaleTimeString() })}</div>}
       </div>
-      <label className="filter-label">应用（必填）</label>
-      <textarea rows={2} value={useText} onChange={e => setUse(e.target.value)} placeholder="准备在哪个任务中使用或检验这张图？" data-testid="visual-use" />
+      <label className="filter-label">{uiText('visual.use.label')}</label>
+      <textarea rows={2} value={useText} onChange={e => setUse(e.target.value)} placeholder={uiText('visual.use.placeholder')} data-testid="visual-use" />
       {useInvalid && <p className="editor-error">{useInvalid}</p>}
       {error && <p className="editor-error">{error}</p>}
       <div className="editor-actions">
-        <button onClick={onClose}>取消</button>
+        <button onClick={onClose}>{uiText('common.cancel')}</button>
         <button className="primary" onClick={save} disabled={saving || !!useInvalid || !verified || !content.trim()} data-testid="visual-save">
-          {saving ? '保存中…' : '保存视觉碎片'}
+          {uiText(saving ? 'capture.saving' : 'visual.save')}
         </button>
       </div>
     </div>

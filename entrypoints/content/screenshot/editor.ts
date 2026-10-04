@@ -1,3 +1,4 @@
+import { uiText } from '../../../utils/ui-text'
 import type { ViewportRect } from './crop'
 import { mosaicBlockSize, pixelateRegion } from './mosaic'
 
@@ -8,7 +9,7 @@ export type Annotation = { tool: DrawTool; start: Point; end: Point; points: Poi
 
 export function renderScreenshot(target: HTMLCanvasElement, source: HTMLCanvasElement, masks: ViewportRect[], annotations: Annotation[], scale: number): void {
   const ctx = target.getContext('2d')
-  if (!ctx) throw new Error('无法编辑截图')
+  if (!ctx) throw new Error(uiText('shot.error.edit'))
   ctx.clearRect(0, 0, target.width, target.height)
   ctx.drawImage(source, 0, 0)
 

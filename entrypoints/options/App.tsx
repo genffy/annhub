@@ -1,6 +1,6 @@
-import { i18n } from '#i18n'
 import { Images, Library, Settings, Sparkles } from 'lucide-react'
 import { extensionPageUrl } from '../../utils/extension-pages'
+import { uiText } from '../../utils/ui-text'
 
 import SettingsPage from './pages/SettingsPage'
 
@@ -15,21 +15,21 @@ function App() {
           </span>
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold leading-none text-ann-text">AnnHub</p>
-            <p className="mt-1 truncate text-xs text-ann-muted">{i18n.t('options.name')}</p>
+            <p className="mt-1 truncate text-xs text-ann-muted">{uiText('library.nav.settings')}</p>
           </div>
         </div>
         <nav className="flex flex-1 flex-col gap-1" aria-label="AnnHub">
           <a className={navLinkClass(false)} href={extensionPageUrl('library')} data-testid="nav-library">
             <Library className="h-4 w-4" />
-            <span>碎片库</span>
+            <span>{uiText('library.nav.fragments')}</span>
           </a>
           <a className={navLinkClass(false)} href={extensionPageUrl('screenshots')} data-testid="nav-screenshots">
             <Images className="h-4 w-4" />
-            <span>截图集</span>
+            <span>{uiText('library.nav.screenshots')}</span>
           </a>
           <span className={navLinkClass(true)} aria-current="page">
             <Settings className="h-4 w-4" />
-            <span>设置</span>
+            <span>{uiText('library.nav.settings')}</span>
           </span>
         </nav>
       </aside>
@@ -37,20 +37,20 @@ function App() {
       <header className="sticky top-0 z-10 border-b border-ann-border bg-ann-surface px-4 py-3 backdrop-blur lg:hidden">
         <div className="mb-3 flex items-center gap-2 font-semibold">
           <Sparkles className="h-5 w-5" />
-          <span>{i18n.t('options.name')}</span>
+          <span>{uiText('library.nav.settings')}</span>
         </div>
         <nav className="flex gap-2 overflow-x-auto">
           <a className="inline-flex shrink-0 items-center gap-2 rounded-full bg-ann-alt px-3 py-2 text-sm text-ann-muted hover:bg-ann-alt" href={extensionPageUrl('library')}>
             <Library className="h-4 w-4" />
-            碎片库
+            {uiText('library.nav.fragments')}
           </a>
           <a className="inline-flex shrink-0 items-center gap-2 rounded-full bg-ann-alt px-3 py-2 text-sm text-ann-muted hover:bg-ann-alt" href={extensionPageUrl('screenshots')}>
             <Images className="h-4 w-4" />
-            截图集
+            {uiText('library.nav.screenshots')}
           </a>
           <span className="inline-flex shrink-0 items-center gap-2 rounded-full bg-ann-accent px-3 py-2 text-sm text-ann-on-accent" aria-current="page">
             <Settings className="h-4 w-4" />
-            设置
+            {uiText('library.nav.settings')}
           </span>
         </nav>
       </header>

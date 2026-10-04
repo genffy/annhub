@@ -9,6 +9,7 @@ import MessageUtils from '../../utils/message'
 import { openExtensionPage, type ExtensionPage, type ExtensionPageParams } from '../../utils/extension-pages'
 import type { Connection } from '../../utils/connection-status'
 import type { FragmentStatsResponse, ScreenshotLibraryItem } from '../../types/messages'
+import { uiText } from '../../utils/ui-text'
 import { popupViewModel, type PopupData } from './view-model'
 
 interface DirectConnectResponse {
@@ -54,9 +55,15 @@ export default function App() {
 
   const view = popupViewModel(data)
   const entries: Array<{ icon: LucideIcon; label: string; meta: string; onClick: () => void; testId: string }> = [
-    { icon: Lightbulb, label: '新建灵感', meta: '无需选区', onClick: () => open('library', { new: 'inspiration' }), testId: 'popup-new-inspiration' },
-    { icon: Library, label: '打开碎片库', meta: view.libraryCount ?? '', onClick: () => open('library'), testId: 'popup-open-library' },
-    { icon: Images, label: '打开截图集', meta: view.screenshotCount ?? '', onClick: () => open('screenshots'), testId: 'popup-open-screenshots' },
+    {
+      icon: Lightbulb,
+      label: uiText('popup.newInspiration'),
+      meta: uiText('popup.newInspiration.meta'),
+      onClick: () => open('library', { new: 'inspiration' }),
+      testId: 'popup-new-inspiration',
+    },
+    { icon: Library, label: uiText('popup.openLibrary'), meta: view.libraryCount ?? '', onClick: () => open('library'), testId: 'popup-open-library' },
+    { icon: Images, label: uiText('popup.openScreenshots'), meta: view.screenshotCount ?? '', onClick: () => open('screenshots'), testId: 'popup-open-screenshots' },
   ]
 
   return (
@@ -66,7 +73,7 @@ export default function App() {
         {view.status && (
           <p className="ann-popup__status" data-state={view.status.state} data-testid="popup-status">
             <span className="ann-popup__dot" aria-hidden="true" />
-            {view.status.state === 'unpaired' ? `Desktop：${view.status.label}` : view.status.label}
+            {view.status.state === 'unpaired' ? uiText('popup.unpaired', { label: view.status.label }) : view.status.label}
           </p>
         )}
       </header>
@@ -92,12 +99,12 @@ export default function App() {
             </p>
           </div>
           <button type="button" className="ann-popup__action" onClick={() => open('library', { desktop: '1' })}>
-            打开 Desktop
+            {uiText('popup.openDesktop')}
           </button>
         </section>
       )}
 
-      <footer className="ann-popup__hint">选中网页文字即可保存 / {isMac ? 'Cmd' : 'Ctrl'}+Shift+S 截图</footer>
+      <footer className="ann-popup__hint">{uiText('popup.hint', { shortcut: `${isMac ? 'Cmd' : 'Ctrl'}+Shift+S` })}</footer>
     </main>
   )
 }

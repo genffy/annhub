@@ -17,6 +17,7 @@
 import type { FragmentRecord, ImageAsset, OutboxEvent, OutboxRejection, OutboxRejectionCode } from '../../../learning-core/types'
 import type { ChangesPage, SeqChange } from '../../../learning-core/sync'
 import { toFragmentWire, fragmentWireHash } from '../../../learning-core/wire'
+import { uiText } from '../../../utils/ui-text'
 
 export interface DirectConnectConfig {
   endpoint: string
@@ -55,11 +56,11 @@ export function normalizeEndpoint(raw: string): string {
   try {
     url = new URL(raw.trim())
   } catch {
-    throw new Error('接口地址不是有效的 URL')
+    throw new Error(uiText('desktop.error.invalidUrl'))
   }
   const loopback = url.protocol === 'http:' && LOOPBACK_HOSTS.has(url.hostname) && !url.username && !url.password
   const bare = (url.pathname === '/' || url.pathname === '') && !url.search && !url.hash
-  if (!loopback || !bare) throw new Error('接口地址必须是本机的 Desktop 服务，例如 http://127.0.0.1:8765')
+  if (!loopback || !bare) throw new Error(uiText('desktop.error.notLoopback'))
   return url.origin
 }
 
@@ -84,13 +85,13 @@ function authHeaders(token: string): Record<string, string> {
 }
 
 export async function pingHub(config: DirectConnectConfig, fetchImpl: typeof fetch = fetch): Promise<DirectConnectStatus> {
-  if (!config.token) return { online: false, paired: false, detail: '未配置配对码（在 Desktop 的「系统」页复制）' }
+  if (!config.token) return { online: false, paired: false, detail: uiText('desktop.status.noToken') }
   try {
     const res = await fetchImpl(`${config.endpoint}/health`, { method: 'GET' })
     if (!res.ok) return { online: false, paired: false, detail: `HTTP ${res.status}` }
-    return { online: true, paired: true, detail: '在线' }
+    return { online: true, paired: true, detail: uiText('desktop.status.online') }
   } catch {
-    return { online: false, paired: true, detail: 'Desktop 未运行或端口不可达' }
+    return { online: false, paired: true, detail: uiText('desktop.status.unreachable') }
   }
 }
 
@@ -140,22 +141,22 @@ const MAX_CONSECUTIVE_SERVER_ERRORS = 3
 function rejectionFor(status: number, label: string): { code: OutboxRejectionCode; message: string } {
   switch (status) {
     case 410:
-      return { code: 'DESKTOP_DELETED', message: `${label} 已在 Desktop 本地删除，不再交付` }
+      return { code: 'DESKTOP_DELETED', message: uiText('desktop.item.deleted', { label }) }
     case 409:
-      return { code: 'CONFLICT', message: `${label} 与 Desktop 已有记录冲突（409），未交付` }
+      return { code: 'CONFLICT', message: uiText('desktop.item.conflict', { label }) }
     case 413:
-      return { code: 'TOO_LARGE', message: `${label} 超过双方上限（413），未交付；本地原图已保留` }
+      return { code: 'TOO_LARGE', message: uiText('desktop.item.tooLarge', { label }) }
     case 422:
-      return { code: 'INVALID', message: `${label} 未通过 Desktop 校验（422），未交付` }
+      return { code: 'INVALID', message: uiText('desktop.item.invalid', { label }) }
     default:
-      return { code: 'REJECTED', message: `${label} 被 Desktop 拒绝（HTTP ${status}），未交付` }
+      return { code: 'REJECTED', message: uiText('desktop.item.rejected', { label, status }) }
   }
 }
 
 export async function flushPendingDeliveries(config: DirectConnectConfig, deps: DeliveryDeps, fetchImpl: typeof fetch = fetch): Promise<DeliveryResult> {
   const result: DeliveryResult = { deliveredFragments: 0, deliveredAssets: 0, pruned: 0, rejected: 0, errors: [], authFailed: false, unreachable: false }
   if (!config.token) {
-    result.errors.push('未配置配对码（在 Desktop 的「系统」页复制）')
+    result.errors.push(uiText('desktop.status.noToken'))
     return result
   }
 
@@ -171,7 +172,7 @@ export async function flushPendingDeliveries(config: DirectConnectConfig, deps: 
   const settle = async (event: OutboxEvent, status: number, label: string): Promise<Outcome> => {
     if (status === 401 || status === 403) {
       result.authFailed = true
-      result.errors.push(status === 401 ? '配对码不匹配（Desktop 已与其他配对码配对，请重新配对）' : '来源被拒绝（403）')
+      result.errors.push(uiText(status === 401 ? 'desktop.error.tokenMismatch' : 'desktop.error.originRejected'))
       return 'stop'
     }
     if (status >= 500) {
@@ -182,9 +183,9 @@ export async function flushPendingDeliveries(config: DirectConnectConfig, deps: 
       if (failures >= MAX_SERVER_FAILURES) {
         await deps.reject(event.eventId, { code: 'DESKTOP_ERROR', status, at: Date.now() })
         result.rejected++
-        result.errors.push(`${label} 多次收到 Desktop 错误（HTTP ${status}），已暂停自动重试`)
+        result.errors.push(uiText('desktop.item.parked', { label, status }))
       } else {
-        result.errors.push(`${label}：Desktop 错误 HTTP ${status}，稍后重试`)
+        result.errors.push(uiText('desktop.item.retryLater', { label, status }))
       }
       return consecutiveServerErrors >= MAX_CONSECUTIVE_SERVER_ERRORS ? 'stop' : 'next'
     }
@@ -197,7 +198,7 @@ export async function flushPendingDeliveries(config: DirectConnectConfig, deps: 
 
   const unreachable = (): Outcome => {
     result.unreachable = true
-    result.errors.push('Desktop 未运行或端口不可达')
+    result.errors.push(uiText('desktop.status.unreachable'))
     return 'stop'
   }
 
@@ -223,7 +224,7 @@ export async function flushPendingDeliveries(config: DirectConnectConfig, deps: 
         // A record that cannot be serialized must not abort the run and block every item behind it.
         await deps.reject(event.eventId, { code: 'LOCAL_INVALID', status: 0, at: Date.now() })
         result.rejected++
-        result.errors.push(`碎片 ${fragmentId} 无法生成交付请求，已跳过：${error instanceof Error ? error.message : String(error)}`)
+        result.errors.push(uiText('desktop.item.localInvalid', { id: fragmentId, error: error instanceof Error ? error.message : String(error) }))
         continue
       }
       let res: Response
@@ -241,7 +242,7 @@ export async function flushPendingDeliveries(config: DirectConnectConfig, deps: 
         result.deliveredFragments++
         outcome = 'delivered'
       } else {
-        outcome = await settle(event, res.status, `碎片 ${fragmentId}`)
+        outcome = await settle(event, res.status, uiText('desktop.label.fragment', { id: fragmentId }))
       }
     } else if (event.type === 'asset.created') {
       const { assetId } = event.payload as AssetDeliveryPayload
@@ -270,7 +271,7 @@ export async function flushPendingDeliveries(config: DirectConnectConfig, deps: 
         result.deliveredAssets++
         outcome = 'delivered'
       } else {
-        outcome = await settle(event, res.status, `图片 ${assetId}`)
+        outcome = await settle(event, res.status, uiText('desktop.label.image', { id: assetId }))
       }
     } else {
       continue
@@ -315,7 +316,7 @@ export interface PullResult {
 export async function pullDesktopChanges(config: DirectConnectConfig, deps: PullDeps, fetchImpl: typeof fetch = fetch): Promise<PullResult> {
   const result: PullResult = { appliedChanges: 0, reports: 0, errors: [], authFailed: false, unreachable: false }
   if (!config.token) {
-    result.errors.push('未配置配对码（在 Desktop 的「系统」页复制）')
+    result.errors.push(uiText('desktop.status.noToken'))
     return result
   }
   let cursor = await deps.getCursor()
@@ -327,16 +328,16 @@ export async function pullDesktopChanges(config: DirectConnectConfig, deps: Pull
       })
     } catch {
       result.unreachable = true
-      result.errors.push('Desktop 未运行或端口不可达')
+      result.errors.push(uiText('desktop.status.unreachable'))
       break
     }
     if (res.status === 401 || res.status === 403) {
       result.authFailed = true
-      result.errors.push('配对码不匹配（Desktop 已与其他配对码配对，请重新配对）')
+      result.errors.push(uiText('desktop.error.tokenMismatch'))
       break
     }
     if (!res.ok) {
-      result.errors.push(`拉取变更失败 HTTP ${res.status}`)
+      result.errors.push(uiText('desktop.error.pullFailed', { status: res.status }))
       break
     }
     const page = (await res.json()) as ChangesPage

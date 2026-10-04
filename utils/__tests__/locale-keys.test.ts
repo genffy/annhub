@@ -3,28 +3,21 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 
 /**
- * `locales/en.yaml` holds the manifest strings and the few `i18n.t()` keys still
- * in use. It once carried the word-book UI of a removed feature and a store name
- * for a product that no longer exists; keep it exactly as large as its callers.
+ * `locales/*.yaml` hold the strings Chrome reads from the manifest (`__MSG_<key>__`) and
+ * nothing else: the interface is localized by `utils/ui-text/`. The files once carried the
+ * word-book UI of a removed feature; keep them exactly as large as the manifest.
  */
 
 const root = resolve(__dirname, '../..')
-const MANIFEST_KEYS = ['extName', 'extDescription']
 
-/** en.yaml is plain nested maps with quoted scalars; no YAML library needed. */
+/** The locale files are flat maps with quoted scalars; no YAML library needed. */
 function flatKeys(file: string): Map<string, string> {
   const keys = new Map<string, string>()
-  const stack: { indent: number; key: string }[] = []
   for (const line of readFileSync(file, 'utf8').split('\n')) {
     if (!line.trim() || line.trim().startsWith('#')) continue
-    const match = /^(\s*)([A-Za-z0-9_]+):\s*(.*)$/.exec(line)
+    const match = /^([A-Za-z0-9_]+):\s*'(.*)'\s*$/.exec(line)
     if (!match) throw new Error(`Unsupported YAML line in ${file}: ${line}`)
-    const indent = match[1]!.length
-    while (stack.length && stack[stack.length - 1]!.indent >= indent) stack.pop()
-    const path = [...stack.map(entry => entry.key), match[2]!].join('.')
-    const value = match[3]!.trim()
-    if (value) keys.set(path, value.replace(/^'(.*)'$/, '$1'))
-    else stack.push({ indent, key: match[2]! })
+    keys.set(match[1]!, match[2]!)
   }
   return keys
 }
@@ -38,34 +31,29 @@ function sourceFiles(dir: string): string[] {
   })
 }
 
-function usedKeys(): { literal: Set<string>; dynamic: string[] } {
-  const literal = new Set<string>()
-  const dynamic: string[] = []
-  for (const dir of ['entrypoints', 'components', 'utils', 'background-service']) {
-    for (const file of sourceFiles(join(root, dir))) {
-      for (const match of readFileSync(file, 'utf8').matchAll(/\bi18n\.t\(\s*([^,)]+)/g)) {
-        const arg = match[1]!.trim()
-        const quoted = /^'([^']+)'$/.exec(arg)
-        if (quoted) literal.add(quoted[1]!)
-        else dynamic.push(`${file}: i18n.t(${arg})`)
-      }
-    }
-  }
-  return { literal, dynamic }
-}
-
 describe('locales', () => {
   const english = flatKeys(join(root, 'locales/en.yaml'))
+  const chinese = flatKeys(join(root, 'locales/zh_CN.yaml'))
+  const manifestSource = readFileSync(join(root, 'wxt.config.ts'), 'utf8')
+  const referenced = new Set([...manifestSource.matchAll(/__MSG_(\w+)__/g)].map(match => match[1]!))
 
-  it('only calls i18n.t with a literal key that exists', () => {
-    const { literal, dynamic } = usedKeys()
-    expect(dynamic).toEqual([])
-    expect([...literal].filter(key => !english.has(key))).toEqual([])
+  it('defines every key the manifest references, and nothing else', () => {
+    expect([...referenced].filter(key => !english.has(key))).toEqual([])
+    expect([...english.keys()].filter(key => !referenced.has(key))).toEqual([])
   })
 
-  it('has no key that nothing uses', () => {
-    const { literal } = usedKeys()
-    expect([...english.keys()].filter(key => !literal.has(key) && !MANIFEST_KEYS.includes(key))).toEqual([])
+  it('translates exactly the keys of the default locale', () => {
+    expect([...chinese.keys()].sort()).toEqual([...english.keys()].sort())
+  })
+
+  it('leaves product wording to utils/ui-text instead of i18n.t', () => {
+    const offenders: string[] = []
+    for (const dir of ['entrypoints', 'components', 'utils', 'background-service']) {
+      for (const file of sourceFiles(join(root, dir))) {
+        if (/\bi18n\.t\(|#i18n/.test(readFileSync(file, 'utf8'))) offenders.push(file)
+      }
+    }
+    expect(offenders).toEqual([])
   })
 
   it('names the product after what it does now', () => {
@@ -76,15 +64,9 @@ describe('locales', () => {
   })
 
   it('keeps the manifest strings within the Chrome Web Store limits', () => {
-    for (const file of ['en.yaml', 'zh_CN.yaml']) {
-      const keys = flatKeys(join(root, 'locales', file))
+    for (const keys of [english, chinese]) {
       expect(keys.get('extName')!.length).toBeLessThanOrEqual(75)
       expect(keys.get('extDescription')!.length).toBeLessThanOrEqual(132)
     }
-  })
-
-  it('translates only keys the default locale defines', () => {
-    const chinese = flatKeys(join(root, 'locales/zh_CN.yaml'))
-    expect([...chinese.keys()].filter(key => !english.has(key))).toEqual([])
   })
 })

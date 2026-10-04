@@ -40,7 +40,7 @@ export default defineConfig({
           default: 'Ctrl+Shift+S',
           mac: 'Command+Shift+S',
         },
-        description: 'Capture selected text area for annotation',
+        description: '__MSG_commandScreenshot__',
         global: false,
       },
       'toggle-highlighter': {
@@ -48,7 +48,7 @@ export default defineConfig({
           default: 'Alt+H',
           mac: 'Command+Shift+H',
         },
-        description: 'Toggle continuous highlight mode',
+        description: '__MSG_commandHighlighter__',
         global: false,
       },
     },

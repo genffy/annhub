@@ -5,6 +5,7 @@
  * Displays a pulsing green dot and a +1 float animation on each capture.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { uiText } from '../../utils/ui-text'
 
 interface HighlighterCapsuleProps {
   /** Number of captures in the current continuous highlight session */
@@ -89,7 +90,7 @@ export default function HighlighterCapsule({ captureCount, onExit }: Highlighter
       />
 
       {/* Status text */}
-      <span style={{ color: '#a0d8a0', fontWeight: 500 }}>采集中...</span>
+      <span style={{ color: '#a0d8a0', fontWeight: 500 }}>{uiText('capsule.capturing')}</span>
 
       {/* Capture counter */}
       {captureCount > 0 && (
@@ -140,7 +141,7 @@ export default function HighlighterCapsule({ captureCount, onExit }: Highlighter
       {/* Exit button */}
       <button
         onClick={onExit}
-        title="退出 (Esc)"
+        title={uiText('capsule.exit')}
         style={{
           background: 'transparent',
           border: 'none',
