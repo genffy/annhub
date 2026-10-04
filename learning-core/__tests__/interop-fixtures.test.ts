@@ -4,7 +4,9 @@
  * THIS TypeScript implementation and consumed by the Swift test suite
  * (app/Tests/AnnHubCoreTests via scripts/sync-interop-fixtures.sh).
  *
- * Run with WRITE_FIXTURES=1 to (re)generate the files; without it, the test
+ * Run with WRITE_FIXTURES=1 to (re)generate the files (the fragment fixtures carry random ids, so
+ * the Swift tests change with them; WRITE_REVIEW_FIXTURE=1 regenerates only review-questions.json);
+ * without it, the test
  * validates the checked-in fixtures against the current code — a regression
  * guard for both ends of the wire contract.
  */
@@ -16,6 +18,7 @@ import { createFragment, createReviewState } from '../factory'
 import { canonicalJson, sha256Hex, toFragmentWire } from '../wire'
 import { crc32 } from '../zip'
 import { validateFragment } from '../validate'
+import { REVIEW_QUESTIONS } from '../review'
 import type { FragmentRecord } from '../types'
 
 const FIXTURE_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../fixtures/interop')
@@ -244,10 +247,20 @@ async function finalizeHashes() {
   writeFileSync(resolve(FIXTURE_DIR, 'asset-meta.json'), JSON.stringify(assetMeta, null, 2))
 }
 
+/** Deterministic, so it can be regenerated alone: the fragment fixtures carry random ids and change on every write. */
+function writeReviewQuestions(): void {
+  mkdirSync(FIXTURE_DIR, { recursive: true })
+  writeFileSync(resolve(FIXTURE_DIR, 'review-questions.json'), JSON.stringify(REVIEW_QUESTIONS, null, 2) + '\n')
+}
+
 describe('interop fixtures (docs/v2/storage.md §8 wire contract)', () => {
+  if (process.env.WRITE_REVIEW_FIXTURE === '1') {
+    it('generates the review wording fixture', () => writeReviewQuestions())
+  }
   if (WRITE) {
     it('generates the canonical fixture set', async () => {
       buildFixtures()
+      writeReviewQuestions()
       await finalizeHashes()
       console.log(`fixtures written to ${FIXTURE_DIR}`)
     })
@@ -296,6 +309,9 @@ describe('interop fixtures (docs/v2/storage.md §8 wire contract)', () => {
       expect(result.ok, rejection.name).toBe(false)
       expect(result.code, rejection.name).toBe(rejection.expectedCode)
     }
+
+    // The review wording Desktop shows (both languages) is the table in review.ts.
+    expect(JSON.parse(readFileSync(resolve(FIXTURE_DIR, 'review-questions.json'), 'utf8'))).toEqual(JSON.parse(JSON.stringify(REVIEW_QUESTIONS)))
 
     // Asset bytes hash to the recorded digest.
     const png = new Uint8Array(readFileSync(resolve(FIXTURE_DIR, 'asset.png')))

@@ -1,5 +1,4 @@
-// Review-session contract — mirrors learning-core/review.ts exactly
-// (review.md §4/§5 + desktop.md §5).
+// Review-session contract — mirrors learning-core/review.ts (review.md §4/§5 + desktop.md §5).
 //
 // Review runs on the Desktop; the Extension never implements this. R1 gives
 // every enabled kind exactly one self-eval question; answers are user-judged
@@ -22,60 +21,92 @@ public struct ReviewQuestionSpec: Equatable, Sendable {
     }
 }
 
-/// Per-kind question + hint ladder; text must match review.ts byte-for-byte.
-public let REVIEW_QUESTIONS: [String: ReviewQuestionSpec] = [
-    "excerpt": ReviewQuestionSpec(
-        kind: "excerpt",
-        question: "这段材料的核心观点是什么？为什么值得保留？",
-        hints: ["来源与出处", "前后文语境", "原文本身", "核验确认"]
-    ),
-    "concept": ReviewQuestionSpec(
-        kind: "concept",
-        question: "用自己的话解释它，并给出一个适用边界。",
-        hints: ["关键词", "上下文", "定义与示例", "核验摘要"]
-    ),
-    "claim": ReviewQuestionSpec(
-        kind: "claim",
-        question: "这个主张依赖哪些前提和证据？",
-        hints: ["主题", "证据片段", "原文", "核验确认"]
-    ),
-    "procedure": ReviewQuestionSpec(
-        kind: "procedure",
-        question: "从目标出发重建关键步骤和失败条件。",
-        hints: ["步骤数", "首步", "完整流程", "核验确认"]
-    ),
-    "decision": ReviewQuestionSpec(
-        kind: "decision",
-        question: "当时有哪些约束，为什么没有选其他方案？",
-        hints: ["结论", "约束", "理由", "核验确认"]
-    ),
-    "question": ReviewQuestionSpec(
-        kind: "question",
-        question: "当前假设、证据和下一步验证分别是什么？",
-        hints: ["主题", "最近证据", "当前结论", "核验确认"]
-    ),
-    "visual": ReviewQuestionSpec(
-        kind: "visual",
-        question: "这张图的关键细节、结构或意图是什么？",
-        hints: ["结构关键词", "文字描述", "原图", "核验确认"]
-    ),
-    "inspiration": ReviewQuestionSpec(
-        kind: "inspiration",
-        question: "当时由什么触发这个想法？现在还认可什么？",
-        hints: ["触发背景", "原记录", "后续修订", "核验确认"]
-    ),
-    "media-clip": ReviewQuestionSpec(
-        kind: "media-clip",
-        question: "回忆这段媒体材料的要点与时间定位。",
-        hints: ["主题", "要点", "原片段", "核验确认"]
-    ),
+/// Per-kind question + hint ladder in both languages. The text is the table in review.ts; the
+/// checked-in fixture `review-questions.json` is generated from it and compared in the tests.
+public let REVIEW_QUESTIONS: [String: [UILanguage: ReviewQuestionSpec]] = [
+    "excerpt": [
+        .zh: ReviewQuestionSpec(
+            kind: "excerpt", question: "这段材料的核心观点是什么？为什么值得保留？",
+            hints: ["来源与出处", "前后文语境", "原文本身", "核验确认"]),
+        .en: ReviewQuestionSpec(
+            kind: "excerpt", question: "What is the core point of this passage? Why is it worth keeping?",
+            hints: ["Source and origin", "Surrounding context", "The original text itself", "Verification status"]),
+    ],
+    "concept": [
+        .zh: ReviewQuestionSpec(
+            kind: "concept", question: "用自己的话解释它，并给出一个适用边界。",
+            hints: ["关键词", "上下文", "定义与示例", "核验摘要"]),
+        .en: ReviewQuestionSpec(
+            kind: "concept", question: "Explain it in your own words and give one boundary where it applies.",
+            hints: ["Keywords", "Context", "Definition and examples", "Verification summary"]),
+    ],
+    "claim": [
+        .zh: ReviewQuestionSpec(
+            kind: "claim", question: "这个主张依赖哪些前提和证据？",
+            hints: ["主题", "证据片段", "原文", "核验确认"]),
+        .en: ReviewQuestionSpec(
+            kind: "claim", question: "Which premises and evidence does this claim rest on?",
+            hints: ["Topic", "Evidence excerpt", "Original text", "Verification status"]),
+    ],
+    "procedure": [
+        .zh: ReviewQuestionSpec(
+            kind: "procedure", question: "从目标出发重建关键步骤和失败条件。",
+            hints: ["步骤数", "首步", "完整流程", "核验确认"]),
+        .en: ReviewQuestionSpec(
+            kind: "procedure", question: "Rebuild the key steps and the failure conditions, starting from the goal.",
+            hints: ["Number of steps", "First step", "The full procedure", "Verification status"]),
+    ],
+    "decision": [
+        .zh: ReviewQuestionSpec(
+            kind: "decision", question: "当时有哪些约束，为什么没有选其他方案？",
+            hints: ["结论", "约束", "理由", "核验确认"]),
+        .en: ReviewQuestionSpec(
+            kind: "decision", question: "What constraints applied then, and why were the other options not chosen?",
+            hints: ["Conclusion", "Constraints", "Rationale", "Verification status"]),
+    ],
+    "question": [
+        .zh: ReviewQuestionSpec(
+            kind: "question", question: "当前假设、证据和下一步验证分别是什么？",
+            hints: ["主题", "最近证据", "当前结论", "核验确认"]),
+        .en: ReviewQuestionSpec(
+            kind: "question", question: "What are the current hypothesis, the evidence and the next verification?",
+            hints: ["Topic", "Latest evidence", "Current conclusion", "Verification status"]),
+    ],
+    "visual": [
+        .zh: ReviewQuestionSpec(
+            kind: "visual", question: "这张图的关键细节、结构或意图是什么？",
+            hints: ["结构关键词", "文字描述", "原图", "核验确认"]),
+        .en: ReviewQuestionSpec(
+            kind: "visual", question: "What are the key details, structure or intent of this image?",
+            hints: ["Structure keywords", "Text description", "Original image", "Verification status"]),
+    ],
+    "inspiration": [
+        .zh: ReviewQuestionSpec(
+            kind: "inspiration", question: "当时由什么触发这个想法？现在还认可什么？",
+            hints: ["触发背景", "原记录", "后续修订", "核验确认"]),
+        .en: ReviewQuestionSpec(
+            kind: "inspiration", question: "What triggered this idea back then? What do you still agree with now?",
+            hints: ["Trigger background", "Original note", "Later revisions", "Verification status"]),
+    ],
+    "media-clip": [
+        .zh: ReviewQuestionSpec(
+            kind: "media-clip", question: "回忆这段媒体材料的要点与时间定位。",
+            hints: ["主题", "要点", "原片段", "核验确认"]),
+        .en: ReviewQuestionSpec(
+            kind: "media-clip", question: "Recall the key points of this media passage and where it sits in time.",
+            hints: ["Topic", "Key points", "Original clip", "Verification status"]),
+    ],
 ]
 
-public func reviewQuestion(for kind: String) -> ReviewQuestionSpec {
-    REVIEW_QUESTIONS[kind]
-        ?? ReviewQuestionSpec(
-            kind: kind, question: "回忆这条碎片的关键内容。", hints: ["主题", "上下文", "原文", "核验确认"]
-        )
+/// The question for a kind; an unknown kind gets a generic one.
+public func reviewQuestion(for kind: String, lang: UILanguage = .current) -> ReviewQuestionSpec {
+    if let spec = REVIEW_QUESTIONS[kind]?[lang] { return spec }
+    return ReviewQuestionSpec(
+        kind: kind, question: t(.reviewFallbackQuestion, lang: lang),
+        hints: [
+            t(.hintTopic, lang: lang), t(.hint2Label, lang: lang), t(.hint3Label, lang: lang),
+            t(.hint4Label, lang: lang),
+        ])
 }
 
 // ── hint ladder content (desktop.md §5.3) ────────────────────────────────
@@ -94,15 +125,15 @@ public func maskedExcerpt(_ fragment: FragmentRecord) -> String {
 }
 
 /// L4: 核验确认状态 + 摘要；无摘要时回看原始语境.
-public func verificationHint(_ fragment: FragmentRecord) -> String {
+public func verificationHint(_ fragment: FragmentRecord, lang: UILanguage = .current) -> String {
     guard let verified = fragment.processing.verified else {
-        return "核验确认状态：未核验"
+        return t(.verificationNone, lang: lang)
     }
-    let status = "核验确认状态：已确认（来源：\(verified.source)）"
+    let status = t(.verificationConfirmed, ["source": verified.source], lang: lang)
     if let summary = verified.summary, !summary.isEmpty {
-        return "\(status)\n摘要：\(summary)"
+        return "\(status)\n\(t(.verificationSummary, ["summary": summary], lang: lang))"
     }
-    return "\(status)\n已确认，无摘要 — 回看原始语境"
+    return "\(status)\n\(t(.verificationNoSummary, lang: lang))"
 }
 
 // ── daily / session caps (review.md §5) ─────────────────────────────────

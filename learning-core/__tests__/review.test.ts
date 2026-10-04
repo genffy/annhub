@@ -4,12 +4,24 @@ import { ENABLED_FRAGMENT_KINDS } from '../types'
 import { makeFragment, NOW } from './helpers'
 
 describe('REVIEW_QUESTIONS (review.md §4 / desktop.md §5.2)', () => {
-  it('covers every enabled kind plus the registered media-clip', () => {
+  it('covers every enabled kind plus the registered media-clip, in both languages', () => {
     for (const kind of ENABLED_FRAGMENT_KINDS) {
-      expect(REVIEW_QUESTIONS[kind], kind).toBeDefined()
-      expect(REVIEW_QUESTIONS[kind]!.hints).toHaveLength(4)
+      for (const lang of ['zh', 'en'] as const) {
+        const spec = REVIEW_QUESTIONS[kind]?.[lang]
+        expect(spec, `${kind} ${lang}`).toBeDefined()
+        expect(spec!.kind).toBe(kind)
+        expect(spec!.question.trim()).not.toBe('')
+        expect(spec!.hints, `${kind} ${lang}`).toHaveLength(4)
+      }
     }
     expect(REVIEW_QUESTIONS['media-clip']).toBeDefined()
+  })
+
+  it('keeps the languages apart: no Chinese in the English wording', () => {
+    for (const specs of Object.values(REVIEW_QUESTIONS)) {
+      expect(`${specs.en.question} ${specs.en.hints.join(' ')}`).not.toMatch(/\p{Script=Han}/u)
+      expect(`${specs.zh.question} ${specs.zh.hints.join(' ')}`).toMatch(/\p{Script=Han}/u)
+    }
   })
 })
 

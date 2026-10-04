@@ -7,15 +7,15 @@
 
 `learning-core/` 是纯 TypeScript 领域核心，不依赖 `chrome.*`、DOM、React 或 Swift。扩展门面与 Desktop 对应实现复用同一逻辑契约，不在调用方复制规则。
 
-| 规则               | 文件                                                 |
-| ------------------ | ---------------------------------------------------- |
-| 类型与建档         | `types.ts`、`factory.ts`                             |
-| 归一化与校验       | `normalize.ts`、`validate.ts`                        |
-| 调度与复习题型     | `scheduler.ts`、`review.ts`                          |
-| 检索               | `query.ts`                                           |
-| 逐项交付 wire 契约 | `wire.ts`（规范 JSON + SHA-256，Swift 端逐字节镜像） |
-| Markdown ZIP 导出  | `zip.ts`、`markdown-export.ts`                       |
-| IndexedDB v4       | `fragment-store.ts`                                  |
+| 规则               | 文件                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| 类型与建档         | `types.ts`、`factory.ts`                                                                                                |
+| 归一化与校验       | `normalize.ts`、`validate.ts`                                                                                           |
+| 调度与复习题型     | `scheduler.ts`、`review.ts`（题面与提示梯度含中英文，`fixtures/interop/review-questions.json` 由它生成并供 Swift 对照） |
+| 检索               | `query.ts`                                                                                                              |
+| 逐项交付 wire 契约 | `wire.ts`（规范 JSON + SHA-256，Swift 端逐字节镜像）                                                                    |
+| Markdown ZIP 导出  | `zip.ts`、`markdown-export.ts`                                                                                          |
+| IndexedDB v4       | `fragment-store.ts`                                                                                                     |
 
 当前 wire 版本为 schema v4，`types.ts` 和 `validate.ts` 是运行时真源；产品契约见 [Fragment 契约](../docs/v2/fragments.md)。`wire.ts` 的 canonicalJson 规则是扩展↔Desktop 哈希一致性的前提，改动必须同步 `app/Sources/AnnHubCore/Wire.swift` 与 `fixtures/interop/`（`WRITE_FIXTURES=1 npx vitest run learning-core/__tests__/interop-fixtures.test.ts` 重生成后 `scripts/sync-interop-fixtures.sh` 同步到 Swift）。
 
