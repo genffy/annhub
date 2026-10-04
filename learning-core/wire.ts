@@ -8,6 +8,7 @@
  *     lowercase hex (validation already rejects them in stored text)
  *   - integers render as digits; non-integers round to 6 decimals with
  *     trailing zeros trimmed (rect floats live in [0, 1])
+ *   - `undefined` object properties are omitted, like JSON.stringify does
  * The Swift side mirrors this exact algorithm — change both or neither.
  */
 import { nanoid } from 'nanoid'
@@ -50,16 +51,26 @@ function canonicalNumber(n: number): string {
   return fixed.includes('.') ? fixed.replace(/0+$/, '').replace(/\.$/, '') : fixed
 }
 
+/**
+ * `undefined` follows JSON.stringify: an object property holding it does not exist (so the
+ * hash covers exactly the bytes that are sent), an array element holding it is `null`. A record
+ * read back from IndexedDB keeps such properties — a fragment saved in standard mode has
+ * `processing.guess` and, without a page title, `context.sourceTitle` as own `undefined` keys —
+ * and throwing on them stopped every real capture from reaching the Desktop.
+ */
 export function canonicalJson(value: unknown): string {
   if (value === null) return 'null'
   if (value === true) return 'true'
   if (value === false) return 'false'
   if (typeof value === 'number') return canonicalNumber(value)
   if (typeof value === 'string') return canonicalString(value)
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (Array.isArray(value)) return `[${value.map(item => (item === undefined ? 'null' : canonicalJson(item))).join(',')}]`
   if (typeof value === 'object') {
-    const keys = Object.keys(value as Record<string, unknown>).sort()
-    return `{${keys.map(k => `${canonicalString(k)}:${canonicalJson((value as Record<string, unknown>)[k])}`).join(',')}}`
+    const record = value as Record<string, unknown>
+    const keys = Object.keys(record)
+      .filter(key => record[key] !== undefined)
+      .sort()
+    return `{${keys.map(k => `${canonicalString(k)}:${canonicalJson(record[k])}`).join(',')}}`
   }
   throw new Error(`canonicalJson: unsupported value ${typeof value}`)
 }

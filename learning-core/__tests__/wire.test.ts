@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { canonicalJson, sha256Hex, fragmentWireHash, toFragmentWire, MAX_IMAGE_BYTES } from '../wire'
-import { makeFragment } from './helpers'
+import { createFragment } from '../factory'
+import { makeFragment, EXCERPT, NOW, VERIFIED } from './helpers'
 
 describe('canonicalJson (wire contract, mirrored in Swift)', () => {
   it('sorts object keys and emits no whitespace', () => {
@@ -20,6 +21,20 @@ describe('canonicalJson (wire contract, mirrored in Swift)', () => {
   it('preserves array order and handles nested structures', () => {
     expect(canonicalJson({ list: [{ z: 1, a: [true, null] }] })).toBe('{"list":[{"a":[true,null],"z":1}]}')
   })
+
+  it('treats undefined like JSON.stringify: omitted from objects, null in arrays', () => {
+    expect(canonicalJson({ a: undefined, b: 1 })).toBe('{"b":1}')
+    expect(canonicalJson({ list: [1, undefined, 3] })).toBe('{"list":[1,null,3]}')
+    expect(canonicalJson({ nested: { gone: undefined } })).toBe('{"nested":{}}')
+    // The canonical form is exactly what survives a trip over the wire.
+    const value = { a: undefined, b: [undefined, { c: undefined, d: 'x' }] }
+    expect(canonicalJson(value)).toBe(canonicalJson(JSON.parse(JSON.stringify(value))))
+  })
+
+  it('still refuses what JSON cannot carry', () => {
+    expect(() => canonicalJson(undefined)).toThrow('unsupported value undefined')
+    expect(() => canonicalJson(() => 1)).toThrow('unsupported value function')
+  })
 })
 
 describe('toFragmentWire (storage.md §8)', () => {
@@ -28,6 +43,43 @@ describe('toFragmentWire (storage.md §8)', () => {
     expect('review' in wire).toBe(false)
     expect(wire.captureRevision).toBe(1)
     expect(wire.schemaVersion).toBe(4)
+  })
+})
+
+describe('a fragment as the capture UI saves it', () => {
+  // Standard mode has no 理解, and a page can lack a title: the record then carries `guess` and
+  // `sourceTitle` as own properties whose value is undefined — and so does a copy read back from
+  // IndexedDB (structured clone keeps them). It must still be deliverable.
+  const captured = () =>
+    createFragment<'concept'>({
+      kind: 'concept',
+      content: 'hawkish pivot',
+      context: { excerpt: EXCERPT, sourceUrl: 'https://www.wsj.com/a', sourceHost: 'wsj.com', sourceTitle: undefined, locator: { type: 'none' } },
+      processing: { guess: undefined, verified: { ...VERIFIED }, use: '在下周的宏观复盘里用它解释债券抛售。' },
+      detail: {},
+      tags: [],
+      now: NOW,
+    })
+
+  it('really has undefined-valued keys (the premise of the regression)', () => {
+    const record = structuredClone(captured())
+    expect('guess' in record.processing).toBe(true)
+    expect(record.processing.guess).toBeUndefined()
+    expect('sourceTitle' in record.context).toBe(true)
+  })
+
+  it('can be wired and hashed, and hashes like the JSON the Desktop receives', async () => {
+    const record = structuredClone(captured())
+    const wire = toFragmentWire(record)
+    const hash = await fragmentWireHash(wire)
+    expect(hash).toMatch(/^[0-9a-f]{64}$/)
+    // The Desktop hashes the tree it decoded from the request body.
+    expect(hash).toBe(await fragmentWireHash(JSON.parse(JSON.stringify(wire))))
+    // And the same record with those keys absent is the same delivery.
+    const bare = structuredClone(record) as typeof record
+    delete (bare.processing as { guess?: string }).guess
+    delete (bare.context as { sourceTitle?: string }).sourceTitle
+    expect(hash).toBe(await fragmentWireHash(toFragmentWire(bare)))
   })
 })
 
