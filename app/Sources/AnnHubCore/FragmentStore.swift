@@ -66,6 +66,20 @@ public final class FragmentStore: @unchecked Sendable {
     let decoder = JSONDecoder.learningCore()
     private let path: String
 
+    /// One SQLite connection serves the Desktop UI and the hub's per-request threads. SQLite
+    /// (FULLMUTEX) serializes single calls, not a `BEGIN … COMMIT` sequence or a read-then-write,
+    /// so every public entry point holds this lock for its whole body. Recursive: public methods
+    /// call each other and `transaction` bodies call store helpers.
+    private let lock = NSRecursiveLock()
+
+    /// Runs `body` with the store held, for callers that need several store calls to be atomic
+    /// (the hub's check-then-write delivery paths).
+    public func exclusive<T>(_ body: () throws -> T) rethrows -> T {
+        lock.lock()
+        defer { lock.unlock() }
+        return try body()
+    }
+
     public init(path: String, deviceId: String) throws {
         self.deviceId = deviceId
         self.path = path
@@ -273,12 +287,16 @@ public final class FragmentStore: @unchecked Sendable {
     /// it). Hub deliveries never feed the change log (echo exclusion) and no
     /// longer enqueue outbox rows — the extension already owns these facts.
     public func upsertFragment(_ record: FragmentRecord, deviceId: String, payloadHash: String) throws {
+        lock.lock()
+        defer { lock.unlock() }
         try transaction {
             try insertFragmentRow(record, deviceId: deviceId, payloadHash: payloadHash)
         }
     }
 
     public func getFragment(id: String) throws -> FragmentRecord? {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare("SELECT * FROM fragments WHERE id = ? LIMIT 1")
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, id)
@@ -287,6 +305,8 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     public func getFragments() throws -> [FragmentRecord] {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare("SELECT * FROM fragments ORDER BY created_at DESC, id ASC")
         defer { sqlite3_finalize(stmt) }
         var out: [FragmentRecord] = []
@@ -298,11 +318,15 @@ public final class FragmentStore: @unchecked Sendable {
 
     /// Query through the shared rule set (Query.swift).
     public func listFragments(_ query: FragmentQuery = FragmentQuery()) throws -> FragmentQueryResult {
-        runFragmentQuery(try getFragments(), query: query)
+        lock.lock()
+        defer { lock.unlock() }
+        return runFragmentQuery(try getFragments(), query: query)
     }
 
     /// Stored capture revision for a delivered fragment, nil when absent.
     public func fragmentRevision(id: String) throws -> Int? {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare("SELECT capture_revision FROM fragments WHERE id = ? LIMIT 1")
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, id)
@@ -312,6 +336,8 @@ public final class FragmentStore: @unchecked Sendable {
 
     /// Delivery bookkeeping (revision + stored payload hash + device id).
     public func fragmentDelivery(id: String) throws -> FragmentDelivery? {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare(
             "SELECT capture_revision, source_payload_hash, source_device_id FROM fragments WHERE id = ? LIMIT 1"
         )
@@ -326,6 +352,8 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     public func isDeleted(id: String) throws -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare("SELECT 1 FROM fragment_deletions WHERE fragment_id = ? LIMIT 1")
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, id)
@@ -337,6 +365,8 @@ public final class FragmentStore: @unchecked Sendable {
     /// informational fragment.deleted change row (the extension keeps its own
     /// copy; deletes never propagate).
     public func deleteFragment(id: String, now: Int? = nil) throws {
+        lock.lock()
+        defer { lock.unlock() }
         let now = now ?? currentMs()
         try transaction {
             for sql in [
@@ -365,6 +395,8 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     public func getLocalDeletions() throws -> [LocalDeletion] {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare("SELECT fragment_id, deleted_at FROM fragment_deletions ORDER BY deleted_at ASC")
         defer { sqlite3_finalize(stmt) }
         var out: [LocalDeletion] = []
@@ -379,6 +411,8 @@ public final class FragmentStore: @unchecked Sendable {
     @discardableResult
     public func rateFragment(id: String, rating: ReviewRating, usedHint: Bool, now: Int? = nil) throws -> RatedFragment
     {
+        lock.lock()
+        defer { lock.unlock() }
         // The fragment read lives INSIDE the BEGIN IMMEDIATE transaction:
         // read-modify-write must be atomic vs extension PUTs on other queues
         // (a concurrent write between read and write would be lost).
@@ -415,17 +449,19 @@ public final class FragmentStore: @unchecked Sendable {
     /// (the log still records, idempotent by id). updatedAt never moves
     /// backwards.
     public func applyExternalReview(fragmentId: String, review: ReviewState, log: ReviewLog) throws {
-        guard var fragment = try getFragment(id: fragmentId) else {
-            throw StoreError.notFound("fragment not found: \(fragmentId)")
-        }
-        let isNewer =
-            fragment.review.lastReviewedAt == nil
-            || log.reviewedAt >= fragment.review.lastReviewedAt!
-        if isNewer {
-            fragment.review = review
-        }
-        fragment.updatedAt = max(fragment.updatedAt, log.reviewedAt)
+        lock.lock()
+        defer { lock.unlock() }
         try transaction {
+            guard var fragment = try getFragment(id: fragmentId) else {
+                throw StoreError.notFound("fragment not found: \(fragmentId)")
+            }
+            let isNewer =
+                fragment.review.lastReviewedAt == nil
+                || log.reviewedAt >= fragment.review.lastReviewedAt!
+            if isNewer {
+                fragment.review = review
+            }
+            fragment.updatedAt = max(fragment.updatedAt, log.reviewedAt)
             try insertFragmentRow(
                 fragment,
                 deviceId: try storedDeviceId(id: fragmentId),
@@ -466,6 +502,8 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     public func getReviewLogs() throws -> [ReviewLog] {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare("SELECT * FROM review_logs ORDER BY reviewed_at ASC")
         defer { sqlite3_finalize(stmt) }
         var out: [ReviewLog] = []
@@ -486,6 +524,8 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     public func reviewLogCount(fragmentId: String) throws -> Int {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare("SELECT COUNT(*) FROM review_logs WHERE target_fragment_id = ?")
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, fragmentId)
@@ -498,6 +538,8 @@ public final class FragmentStore: @unchecked Sendable {
     /// Idempotent per (id, sha256); same id with a different hash conflicts.
     @discardableResult
     public func putAsset(_ asset: ImageAsset, bytes: Data) throws -> AssetPutOutcome {
+        lock.lock()
+        defer { lock.unlock() }
         if let existing = try getAsset(id: asset.id) {
             if existing.metadata.sha256 == asset.sha256 { return .duplicate }
             throw StoreError.assetConflict(existingSha256: existing.metadata.sha256)
@@ -527,6 +569,8 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     public func assetExists(id: String) throws -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare("SELECT 1 FROM assets WHERE id = ? LIMIT 1")
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, id)
@@ -534,6 +578,8 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     public func getAsset(id: String) throws -> (metadata: ImageAsset, bytes: Data)? {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare("SELECT * FROM assets WHERE id = ? LIMIT 1")
         defer { sqlite3_finalize(stmt) }
         bindText(stmt, 1, id)
@@ -562,6 +608,8 @@ public final class FragmentStore: @unchecked Sendable {
     /// Visual fragments whose attachment ids are not all present in the
     /// assets table — the Desktop "附件缺失" derivation (storage.md §3.5).
     public func missingAttachmentCount() throws -> Int {
+        lock.lock()
+        defer { lock.unlock() }
         var missing = 0
         for fragment in try getFragments() where fragment.kind == "visual" {
             let ids = fragment.attachmentIds
@@ -583,6 +631,8 @@ public final class FragmentStore: @unchecked Sendable {
     // seq > pulledCursor.
 
     public func outboxCount() throws -> Int {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare("SELECT COUNT(*) FROM outbox_events")
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return 0 }
@@ -611,6 +661,8 @@ public final class FragmentStore: @unchecked Sendable {
 
     /// Rows with seq > cursor, ascending, at most `limit`.
     public func changes(after cursor: Int, limit: Int) throws -> [ChangeLogRow] {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare(
             """
             SELECT seq, type, payload_json, created_at FROM change_log
@@ -633,10 +685,14 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     public func changeLogCount() throws -> Int {
-        try countRows("change_log")
+        lock.lock()
+        defer { lock.unlock() }
+        return try countRows("change_log")
     }
 
     public func maxChangeSeq() throws -> Int {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare("SELECT COALESCE(MAX(seq), 0) FROM change_log")
         defer { sqlite3_finalize(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return 0 }
@@ -646,7 +702,9 @@ public final class FragmentStore: @unchecked Sendable {
     /// Desktop 变更队列条数: rows not yet pulled by the extension (approximate
     /// per storage.md §9 — total minus the last pulled cursor).
     public func pendingChangeCount() throws -> Int {
-        max(0, try changeLogCount() - pulledCursor())
+        lock.lock()
+        defer { lock.unlock() }
+        return max(0, try changeLogCount() - pulledCursor())
     }
 
     // ── /v1/events idempotency ───────────────────────────────────────────
@@ -655,6 +713,8 @@ public final class FragmentStore: @unchecked Sendable {
     /// the event was already applied.
     @discardableResult
     public func markApplied(deviceId: String, eventId: String, now: Int? = nil) throws -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
         let now = now ?? currentMs()
         let stmt = try prepare(
             """
@@ -671,6 +731,8 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     public func isApplied(deviceId: String, eventId: String) throws -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
         let stmt = try prepare(
             """
             SELECT 1 FROM applied_events WHERE event_id = ? AND device_id = ? LIMIT 1
@@ -687,15 +749,21 @@ public final class FragmentStore: @unchecked Sendable {
     private static let lastPulledAtKey = "last_pulled_at"
 
     public func pulledCursor() -> Int {
-        syncStateValue(Self.pulledCursorKey) ?? 0
+        lock.lock()
+        defer { lock.unlock() }
+        return syncStateValue(Self.pulledCursorKey) ?? 0
     }
 
     public func lastPulledAt() -> Int? {
-        syncStateValue(Self.lastPulledAtKey)
+        lock.lock()
+        defer { lock.unlock() }
+        return syncStateValue(Self.lastPulledAtKey)
     }
 
     /// Advance-only cursor update, recorded when the extension pulls a page.
     public func setPulledCursor(_ seq: Int, at now: Int? = nil) {
+        lock.lock()
+        defer { lock.unlock() }
         let now = now ?? currentMs()
         let next = max(pulledCursor(), seq)
         setSyncState(Self.pulledCursorKey, next)
@@ -728,6 +796,8 @@ public final class FragmentStore: @unchecked Sendable {
     // ── transactions & stats ─────────────────────────────────────────────
 
     func transaction(_ body: () throws -> Void) throws {
+        lock.lock()
+        defer { lock.unlock() }
         try execute("BEGIN IMMEDIATE")
         do {
             try body()
@@ -746,7 +816,9 @@ public final class FragmentStore: @unchecked Sendable {
     }
 
     public func stats() throws -> StoreStats {
-        StoreStats(
+        lock.lock()
+        defer { lock.unlock() }
+        return StoreStats(
             fragments: try countRows("fragments"),
             reviewLogs: try countRows("review_logs"),
             assets: try countRows("assets"),

@@ -251,6 +251,15 @@ public final class DesktopHub: @unchecked Sendable {
     private func deliverFragment(
         _ record: FragmentRecord, deviceId: String, payloadHash: String
     ) throws -> FragmentDeliveryOutcome {
+        // Check-then-write: two deliveries of one id must not both see "first write".
+        try store.exclusive {
+            try deliverFragmentLocked(record, deviceId: deviceId, payloadHash: payloadHash)
+        }
+    }
+
+    private func deliverFragmentLocked(
+        _ record: FragmentRecord, deviceId: String, payloadHash: String
+    ) throws -> FragmentDeliveryOutcome {
         if try store.isDeleted(id: record.id) {
             return .deleted
         }
@@ -381,26 +390,29 @@ public final class DesktopHub: @unchecked Sendable {
         )
 
         do {
-            if let existing = try store.getAsset(id: urlId) {
-                if existing.metadata.sha256 == actualSha {
-                    return .json(
-                        200,
-                        [
-                            "id": urlId,
-                            "byteLength": existing.metadata.byteLength,
-                            "sha256": existing.metadata.sha256,
-                        ])
+            // Check-then-insert: concurrent uploads of one id answer 201 once, then 200/409.
+            return try store.exclusive { () throws -> HubResponse in
+                if let existing = try store.getAsset(id: urlId) {
+                    if existing.metadata.sha256 == actualSha {
+                        return .json(
+                            200,
+                            [
+                                "id": urlId,
+                                "byteLength": existing.metadata.byteLength,
+                                "sha256": existing.metadata.sha256,
+                            ])
+                    }
+                    return .json(409, ["error": "conflict"])
                 }
-                return .json(409, ["error": "conflict"])
+                _ = try store.putAsset(asset, bytes: bytes)
+                return .json(
+                    201,
+                    [
+                        "id": urlId,
+                        "byteLength": bytes.count,
+                        "sha256": actualSha,
+                    ])
             }
-            _ = try store.putAsset(asset, bytes: bytes)
-            return .json(
-                201,
-                [
-                    "id": urlId,
-                    "byteLength": bytes.count,
-                    "sha256": actualSha,
-                ])
         } catch {
             return .json(500, ["error": "storage error"])
         }
