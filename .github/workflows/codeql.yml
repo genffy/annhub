@@ -7,6 +7,7 @@ on:
   push:
     branches: [main]
   merge_group:
+  workflow_dispatch:
   schedule:
     - cron: '17 4 * * 1' # weekly, so new queries also run against unchanged code
 

@@ -116,19 +116,21 @@ npm run compile
 
 开发构建位于 `.output/chrome-mv3/`。在 `chrome://extensions/` 开启开发者模式后加载该目录。
 
-### 测试
+### 测试与提交前检查
 
 ```bash
-npm test
+npm run verify                    # 格式、ESLint、类型、vitest、文档链接
 npm run build && npx playwright test
 ```
+
+`npm run format` 一次修复格式。CI 跑同样的命令，外加 CodeQL、依赖审查、Swift 格式与 macOS 构建；细节与仓库设置见 [发布与供应链](./docs/releasing.md)。
 
 原生核心与 Desktop：
 
 ```bash
 cd app
 swift test
-xcodegen generate
+xcodegen generate                 # AnnHub.xcodeproj 由 project.yml 生成，不入库
 xcodebuild -project AnnHub.xcodeproj -scheme AnnHubDesktop \
   -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
 ```
@@ -150,6 +152,7 @@ xcodebuild -project AnnHub.xcodeproj -scheme AnnHubDesktop \
 - [验证计划与决策登记](./docs/v2/validation.md)
 - [截图采集设计](./docs/v2/screenshot.md)
 - [UX/UI 设计稿](./docs/design/v2/README.md)
+- [发布与供应链](./docs/releasing.md)、[扩展权限说明](./docs/extension-permissions.md)、[安全策略](./SECURITY.md)
 
 ## License
 
