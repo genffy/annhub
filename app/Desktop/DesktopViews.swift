@@ -38,15 +38,6 @@ func writtenDayLabel(_ ms: Int) -> String {
     relativeDayLabel(dayStart: startOfLocalDay(ms), now: nowMs())
 }
 
-func verifiedSourceLabel(_ source: String) -> String {
-    switch source {
-    case "source-material": return "原文材料"
-    case "llm": return "模型建议（已确认）"
-    case "manual": return "手工核对"
-    default: return source
-    }
-}
-
 // ── sidebar root (desktop.md §2: three sections; default 今日; empty → 碎片库)
 
 enum DesktopSection: String, CaseIterable, Identifiable, Hashable {
@@ -55,6 +46,15 @@ enum DesktopSection: String, CaseIterable, Identifiable, Hashable {
     case system = "系统"
 
     var id: String { rawValue }
+
+    /// Stable name for launch arguments (`--annhub-section=library`).
+    var slug: String {
+        switch self {
+        case .today: return "today"
+        case .library: return "library"
+        case .system: return "system"
+        }
+    }
 
     var icon: String {
         switch self {
@@ -72,57 +72,63 @@ enum DesktopSection: String, CaseIterable, Identifiable, Hashable {
 
 struct RootSidebarView: View {
     @EnvironmentObject var model: DesktopModel
-    /// Set once a section is picked (or an in-page action navigates); until
-    /// then the default applies.
-    @State private var selected: DesktopSection?
-
-    private var section: DesktopSection {
-        if let selected { return selected }
-        // 首次安装且没有数据时默认进入「碎片库」空状态 (desktop.md §2).
-        return model.fragments.isEmpty ? .library : .today
-    }
 
     var body: some View {
         NavigationSplitView {
             VStack(spacing: 0) {
                 List {
                     ForEach(DesktopSection.allCases) { item in
+                        // ⌘1…⌘3 are menu items (DesktopCommands); the sidebar is for the mouse.
                         Button {
-                            selected = item
+                            model.go(item)
                         } label: {
                             Label(item.rawValue, systemImage: item.icon)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .keyboardShortcut(item.shortcut, modifiers: .command)
+                        .accessibilityAddTraits(model.section == item ? .isSelected : [])
                         .listRowBackground(
-                            section == item ? Color.annBrand.opacity(0.18) : Color.clear
+                            model.section == item ? Color.annBrand.opacity(0.18) : Color.clear
                         )
                     }
                 }
                 Divider()
-                // Cmd+, — a menu-bar app has no app menu to carry the shortcut.
-                SettingsLink {
+                Button {
+                    AppPresence.openPreferences()
+                } label: {
                     Label("偏好设置…", systemImage: "slider.horizontal.3")
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 12).padding(.vertical, 8)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .keyboardShortcut(",", modifiers: .command)
-                .simultaneousGesture(TapGesture().onEnded { NSApp.activate(ignoringOtherApps: true) })
             }
             .navigationSplitViewColumnWidth(180)
         } detail: {
-            switch section {
+            switch model.section {
             case .today:
-                TodayView(onOpenLibrary: { selected = .library }).navigationTitle("今日")
+                TodayView(onOpenLibrary: { model.go(.library) }).navigationTitle("今日")
             case .library:
-                LibraryView(onOpenSystem: { selected = .system }).navigationTitle("碎片库")
+                LibraryView(onOpenSystem: { model.go(.system) }).navigationTitle("碎片库")
             case .system:
                 SystemView().navigationTitle("系统")
             }
+        }
+        .toolbar {
+            // desktop.md §9: the toolbar's one control is the way into ⌘K.
+            ToolbarItem(placement: .automatic) {
+                Button {
+                    model.paletteVisible = true
+                } label: {
+                    Label("搜索与命令", systemImage: "magnifyingglass")
+                }
+                .help("搜索碎片与命令（⌘K）")
+            }
+        }
+        .overlay { CommandPaletteOverlay() }
+        .sheet(isPresented: $model.reviewSheetPresented) {
+            ReviewSessionView().frame(minWidth: 680, minHeight: 540)
         }
         .frame(minWidth: 980, minHeight: 600)
         .tint(.annBrand)
@@ -135,13 +141,9 @@ struct RootSidebarView: View {
 struct TodayView: View {
     @EnvironmentObject var model: DesktopModel
     let onOpenLibrary: () -> Void
-    @State private var reviewing = false
     @State private var detail: FragmentRecord?
 
-    private var resumable: ReviewSessionState? {
-        guard let session = model.session, session.cursor < session.fragmentIds.count else { return nil }
-        return session
-    }
+    private var resumable: ReviewSessionState? { model.resumableSession }
 
     var body: some View {
         let plan = model.dailyPlan
@@ -182,9 +184,6 @@ struct TodayView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .sheet(isPresented: $reviewing) {
-            ReviewSessionView().frame(minWidth: 680, minHeight: 540)
-        }
         .sheet(item: $detail) { fragment in
             FragmentDetailSheet(fragment: fragment).frame(minWidth: 560, minHeight: 480)
         }
@@ -214,12 +213,12 @@ struct TodayView: View {
                 Spacer()
                 if plan.limitReached {
                     Button("再来一轮（超出建议量）") {
-                        if model.startReviewSession(overflow: true) { reviewing = true }
+                        if model.startReviewSession(overflow: true) { model.reviewSheetPresented = true }
                     }
                 } else if plan.due.isEmpty {
                     Button("整理最近碎片", action: onOpenLibrary)
                 } else {
-                    Button("开始复习") { reviewing = true }
+                    Button("开始复习") { model.reviewSheetPresented = true }
                         .buttonStyle(.borderedProminent)
                 }
             }
@@ -229,7 +228,7 @@ struct TodayView: View {
             }
             if let session = resumable {
                 Button {
-                    reviewing = true
+                    model.reviewSheetPresented = true
                 } label: {
                     Label("继续复习 \(session.cursor)/\(session.fragmentIds.count)", systemImage: "arrow.clockwise")
                 }
@@ -240,878 +239,6 @@ struct TodayView: View {
     /// 45 seconds per card (desktop.md §3.2).
     private func estimatedMinutes(_ count: Int) -> Int {
         Int(ceil(Double(count * SESSION_SECONDS_PER_CARD) / 60))
-    }
-}
-
-// ── 碎片库 (desktop.md §4) ──────────────────────────────────────────────
-
-/// Library columns (desktop.md §4.2). 内容/类型 are non-hideable; the hidden
-/// set persists in UserDefaults.
-enum LibraryColumn: String, CaseIterable, Identifiable {
-    case content, kind, source, tags, review, capturedAt
-
-    var id: String { rawValue }
-
-    var label: String {
-        switch self {
-        case .content: return "内容"
-        case .kind: return "类型"
-        case .source: return "来源"
-        case .tags: return "标签"
-        case .review: return "复习"
-        case .capturedAt: return "采集时间"
-        }
-    }
-
-    /// desktop.md §4.2: content、kind 不可隐藏.
-    var isHideable: Bool {
-        self != .content && self != .kind
-    }
-}
-
-struct LibraryView: View {
-    @EnvironmentObject var model: DesktopModel
-    let onOpenSystem: () -> Void
-
-    @State private var search = ""
-    @State private var kindFilter: Set<String> = []
-    @State private var hostFilter: Set<String> = []
-    @State private var tagFilter: Set<String> = []
-    @State private var statusFilter: Set<ReviewStatus> = []
-    /// Pages accumulate through the stable cursor (search.md §3).
-    @State private var items: [FragmentRecord] = []
-    @State private var total = 0
-    @State private var nextCursor: String?
-    @State private var selection = Set<FragmentRecord.ID>()
-    @State private var detailSheet: FragmentRecord?
-    @State private var confirmDelete: FragmentRecord?
-    @State private var pairCodeCopied = false
-    /// Hidden columns (desktop.md §4.2), persisted in UserDefaults.
-    @State private var hiddenColumns: Set<LibraryColumn> = []
-
-    private static let hiddenColumnsKey = "annhub.desktop.libraryHiddenColumns"
-    /// Below this width the detail column becomes a sheet (desktop.md §4.1).
-    private static let threeColumnMinWidth: CGFloat = 860
-    /// Chips beyond the most frequent few stay reachable through search.
-    private static let maxFilterOptions = 12
-
-    private var hasActiveFilters: Bool {
-        !search.isEmpty || !kindFilter.isEmpty || !hostFilter.isEmpty || !tagFilter.isEmpty || !statusFilter.isEmpty
-    }
-
-    private func makeQuery(cursor: String?) -> FragmentQuery {
-        FragmentQuery(
-            search: search,
-            kinds: kindFilter.isEmpty ? nil : Array(kindFilter),
-            hosts: hostFilter.isEmpty ? nil : Array(hostFilter),
-            tags: tagFilter.isEmpty ? nil : Array(tagFilter),
-            cursor: cursor
-        )
-    }
-
-    /// Review status is Desktop-local truth, applied before the shared query.
-    private var pool: [FragmentRecord] {
-        filterByReviewStatus(model.fragments, statuses: statusFilter, now: nowMs())
-    }
-
-    private func refresh() {
-        let result = runFragmentQuery(pool, query: makeQuery(cursor: nil))
-        items = result.items
-        total = result.total
-        nextCursor = result.nextCursor
-        let visible = Set(result.items.map(\.id))
-        selection = selection.filter { visible.contains($0) }
-    }
-
-    private func loadMore() {
-        guard let cursor = nextCursor else { return }
-        let result = runFragmentQuery(pool, query: makeQuery(cursor: cursor))
-        items.append(contentsOf: result.items)
-        nextCursor = result.nextCursor
-    }
-
-    private func clearFilters() {
-        search = ""
-        kindFilter = []
-        hostFilter = []
-        tagFilter = []
-        statusFilter = []
-    }
-
-    private var selectedFragment: FragmentRecord? {
-        guard selection.count == 1, let id = selection.first else { return nil }
-        return items.first { $0.id == id }
-    }
-
-    var body: some View {
-        if model.fragments.isEmpty {
-            emptyState
-        } else {
-            library
-        }
-    }
-
-    /// First run (desktop.md §2): the two steps that connect the extension, and
-    /// the one that most often breaks — copying the pairing code — one click away.
-    private var emptyState: some View {
-        VStack(spacing: 16) {
-            Text("还没有碎片。").font(.title2.bold())
-            VStack(alignment: .leading, spacing: 6) {
-                Text("1. 在 Chrome 中安装 AnnHub 扩展，保存第一个碎片")
-                Text("2. 在“系统”页复制配对码，输入到扩展")
-            }
-            Text("扩展里的碎片会在这里逐条出现；没有 Desktop 时扩展也能独立使用。")
-                .font(.footnote).foregroundStyle(.secondary)
-            HStack(spacing: 10) {
-                Button("打开系统页", action: onOpenSystem)
-                    .buttonStyle(.borderedProminent)
-                Button(pairCodeCopied ? "已复制" : "复制配对码") {
-                    model.copyPairToken()
-                    pairCodeCopied = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { pairCodeCopied = false }
-                }
-            }
-            HStack(spacing: 6) {
-                Image(systemName: model.hubListening ? "circle.fill" : "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(model.hubListening ? Color.green : Color.orange)
-                    .accessibilityHidden(true)
-                Text(model.hubListening ? "正在监听 127.0.0.1 · 等待第一条碎片" : model.hubState)
-                    .font(.footnote).foregroundStyle(.secondary)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(32)
-    }
-
-    /// Three columns (desktop.md §4.1): filters | list | detail. A narrow window
-    /// drops the detail column; the detail then opens as a sheet.
-    private var library: some View {
-        GeometryReader { proxy in
-            let detailColumn = proxy.size.width >= Self.threeColumnMinWidth
-            HStack(spacing: 0) {
-                filterSidebar.frame(width: 170)
-                Divider()
-                listColumn(detailAsColumn: detailColumn)
-                if detailColumn {
-                    Divider()
-                    detailPanel.frame(width: 320)
-                }
-            }
-        }
-        .searchable(text: $search, prompt: "搜索内容/核验/应用/标签")
-        .toolbar {
-            // 列显隐 (desktop.md §4.2): 内容/类型 不可隐藏，其余按需收起。
-            ToolbarItem(placement: .automatic) {
-                Menu {
-                    ForEach(LibraryColumn.allCases) { column in
-                        Button {
-                            toggleColumn(column)
-                        } label: {
-                            if hiddenColumns.contains(column) {
-                                Label(column.label, systemImage: "circle")
-                            } else {
-                                Label(column.label, systemImage: "checkmark.circle")
-                            }
-                        }
-                        .disabled(!column.isHideable)
-                    }
-                } label: {
-                    Label("列", systemImage: "tablecolumns")
-                }
-            }
-        }
-        .onAppear {
-            loadHiddenColumns()
-            refresh()
-        }
-        .onChange(of: search) { refresh() }
-        .onChange(of: kindFilter) { refresh() }
-        .onChange(of: hostFilter) { refresh() }
-        .onChange(of: tagFilter) { refresh() }
-        .onChange(of: statusFilter) { refresh() }
-        .onChange(of: model.revision) { refresh() }
-        .sheet(item: $detailSheet) { fragment in
-            FragmentDetailSheet(fragment: fragment).frame(minWidth: 560, minHeight: 480)
-        }
-        .confirmationDialog(
-            "删除本地副本？",
-            isPresented: Binding(
-                get: { confirmDelete != nil },
-                set: { if !$0 { confirmDelete = nil } }
-            ),
-            titleVisibility: .visible
-        ) {
-            Button("删除本地副本（复习日志一并删除，扩展重试将被拒绝）", role: .destructive) {
-                if let fragment = confirmDelete {
-                    model.deleteLocal(fragment.id)
-                }
-                confirmDelete = nil
-            }
-        } message: {
-            if let fragment = confirmDelete {
-                Text(fragment.content)
-            }
-        }
-    }
-
-    // ── left: filters ────────────────────────────────────────────────────
-
-    private var filterSidebar: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                filterGroup("类型", options: collectKinds(model.fragments), label: kindLabel, selection: $kindFilter)
-                filterGroup(
-                    "复习", options: ReviewStatus.allCases, label: { $0.label }, selection: $statusFilter
-                )
-                filterGroup(
-                    "来源", options: Array(collectHosts(model.fragments).prefix(Self.maxFilterOptions)),
-                    label: { $0 }, selection: $hostFilter
-                )
-                filterGroup(
-                    "标签", options: Array(collectTags(model.fragments).prefix(Self.maxFilterOptions)),
-                    label: { "#\($0)" }, selection: $tagFilter
-                )
-                if hasActiveFilters {
-                    Button("清除筛选", action: clearFilters)
-                        .controlSize(.small)
-                }
-            }
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
-    }
-
-    @ViewBuilder
-    private func filterGroup<T: Hashable>(
-        _ title: String, options: [T], label: @escaping (T) -> String, selection: Binding<Set<T>>
-    ) -> some View {
-        if !options.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).font(.subheadline.bold()).foregroundStyle(.secondary)
-                ForEach(options, id: \.self) { option in
-                    Toggle(
-                        label(option),
-                        isOn: Binding(
-                            get: { selection.wrappedValue.contains(option) },
-                            set: { on in
-                                if on {
-                                    selection.wrappedValue.insert(option)
-                                } else {
-                                    selection.wrappedValue.remove(option)
-                                }
-                            }
-                        )
-                    )
-                    .toggleStyle(.checkbox)
-                    .lineLimit(1)
-                }
-            }
-        }
-    }
-
-    // ── middle: list ─────────────────────────────────────────────────────
-
-    private func listColumn(detailAsColumn: Bool) -> some View {
-        VStack(spacing: 0) {
-            if items.isEmpty {
-                VStack(spacing: 10) {
-                    Text("没有符合条件的碎片").foregroundStyle(.secondary)
-                    if hasActiveFilters {
-                        Button("清除筛选", action: clearFilters)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                table(detailAsColumn: detailAsColumn)
-            }
-            Divider()
-            HStack {
-                Text("已显示 \(items.count) / 符合 \(total) / 共 \(model.fragments.count) 条")
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                if nextCursor != nil {
-                    Button("显示更多", action: loadMore).controlSize(.small)
-                }
-            }
-            .padding(.horizontal, 12).padding(.vertical, 6)
-        }
-    }
-
-    private func table(detailAsColumn: Bool) -> some View {
-        Table(items, selection: $selection) {
-            TableColumn("内容", value: \.content)
-            TableColumn("类型") { row in Text(kindLabel(row.kind)).font(.caption) }
-            if !hiddenColumns.contains(.source) {
-                TableColumn("来源", value: \.context.sourceHost).width(min: 90)
-            }
-            if !hiddenColumns.contains(.tags) {
-                TableColumn("标签") { row in
-                    Text(row.tags.joined(separator: "、")).font(.caption).lineLimit(1)
-                }
-            }
-            if !hiddenColumns.contains(.review) {
-                TableColumn("复习") { row in
-                    Text(reviewStatus(of: row, now: nowMs()).label).font(.caption)
-                }
-            }
-            if !hiddenColumns.contains(.capturedAt) {
-                TableColumn("采集时间") { row in
-                    Text(Date(timeIntervalSince1970: Double(row.context.capturedAt) / 1000), style: .date)
-                        .font(.caption)
-                }
-            }
-        }
-        .contextMenu(forSelectionType: FragmentRecord.ID.self) { ids in
-            if let id = ids.first, let fragment = items.first(where: { $0.id == id }) {
-                if !detailAsColumn {
-                    Button("查看详情") { detailSheet = fragment }
-                }
-                Button("删除本地副本…", role: .destructive) {
-                    confirmDelete = fragment
-                }
-            }
-        } primaryAction: { ids in
-            // The detail column already shows the selection; only the narrow
-            // layout needs the sheet.
-            if !detailAsColumn, let id = ids.first {
-                detailSheet = items.first { $0.id == id }
-            }
-        }
-    }
-
-    // ── right: detail ────────────────────────────────────────────────────
-
-    @ViewBuilder
-    private var detailPanel: some View {
-        if let fragment = selectedFragment {
-            FragmentDetailView(fragment: fragment, onDelete: { confirmDelete = fragment })
-                .id(fragment.id)
-        } else {
-            Text("选择一条碎片查看详情")
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-    }
-
-    private func toggleColumn(_ column: LibraryColumn) {
-        guard column.isHideable else { return }
-        if hiddenColumns.contains(column) {
-            hiddenColumns.remove(column)
-        } else {
-            hiddenColumns.insert(column)
-        }
-        persistHiddenColumns()
-    }
-
-    private func loadHiddenColumns() {
-        let raw = UserDefaults.standard.stringArray(forKey: Self.hiddenColumnsKey) ?? []
-        hiddenColumns = Set(raw.compactMap(LibraryColumn.init(rawValue:)).filter(\.isHideable))
-    }
-
-    private func persistHiddenColumns() {
-        UserDefaults.standard.set(
-            hiddenColumns.map(\.rawValue),
-            forKey: Self.hiddenColumnsKey
-        )
-    }
-}
-
-// ── 碎片详情（顺序按 desktop.md §4.3：加工在前，原文在后）──────────────
-
-/// The detail column of the library, and the body of the sheet in a narrow
-/// window. R1 capture fields are read-only; Desktop can delete its own copy.
-struct FragmentDetailView: View {
-    @EnvironmentObject var model: DesktopModel
-    let fragment: FragmentRecord
-    var onDelete: (() -> Void)?
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                // 1. 内容和 kind
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(alignment: .top) {
-                        Text(fragment.content).font(.title2.bold())
-                        Spacer()
-                        Text(kindLabel(fragment.kind))
-                            .font(.caption)
-                            .padding(.horizontal, 8).padding(.vertical, 3)
-                            .background(Color.annBrand.opacity(0.18), in: Capsule())
-                    }
-                    if let caption = kindCaption {
-                        Text(caption).font(.footnote).foregroundStyle(.secondary)
-                    }
-                }
-
-                if fragment.kind == "visual" {
-                    visualSection
-                }
-
-                if fragment.kind == "media-clip", let clip = fragment.mediaClipDetail {
-                    detailSection("时间区间") {
-                        Text("\(mmss(clip.startMs)) – \(mmss(clip.endMs))")
-                            .font(.callout.monospacedDigit())
-                    }
-                }
-
-                // 2. 用户应用
-                detailSection("用户应用") {
-                    Text(fragment.processing.use)
-                }
-
-                // 3. 核验确认
-                detailSection("核验确认") {
-                    if let verified = fragment.processing.verified {
-                        VStack(alignment: .leading, spacing: 4) {
-                            LabeledContent("确认时间") {
-                                Text(Date(timeIntervalSince1970: Double(verified.confirmedAt) / 1000), style: .date)
-                                Text(Date(timeIntervalSince1970: Double(verified.confirmedAt) / 1000), style: .time)
-                            }
-                            LabeledContent("来源") { Text(verifiedSourceLabel(verified.source)) }
-                            if let summary = verified.summary, !summary.isEmpty {
-                                LabeledContent("摘要") { Text(summary) }
-                            }
-                            if let notes = verified.notes, !notes.isEmpty {
-                                LabeledContent("备注") { Text(notes) }
-                            }
-                        }
-                    } else {
-                        Text("未确认").foregroundStyle(.secondary)
-                    }
-                }
-
-                // 4. 原始语境和回到来源
-                detailSection("原始语境") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(fragment.context.excerpt)
-                        if let title = fragment.context.sourceTitle, !title.isEmpty {
-                            Text(title).font(.footnote).foregroundStyle(.secondary)
-                        }
-                        if let url = URL(string: fragment.context.sourceUrl) {
-                            Link("回到来源：\(fragment.context.sourceHost)", destination: url)
-                                .font(.callout)
-                        } else {
-                            Text(fragment.context.sourceUrl).font(.footnote)
-                        }
-                    }
-                }
-
-                // 5. 复习摘要
-                detailSection("复习摘要") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        LabeledContent("复习次数") { Text("\(fragment.review.repetitions)") }
-                        LabeledContent("失误次数") { Text("\(fragment.review.lapses)") }
-                        if let last = fragment.review.lastReviewedAt {
-                            LabeledContent("上次复习") {
-                                Text(Date(timeIntervalSince1970: Double(last) / 1000), style: .date)
-                                Text(Date(timeIntervalSince1970: Double(last) / 1000), style: .time)
-                            }
-                        }
-                        LabeledContent("下次到期") {
-                            Text(Date(timeIntervalSince1970: Double(fragment.review.nextReviewAt) / 1000), style: .date)
-                            Text(Date(timeIntervalSince1970: Double(fragment.review.nextReviewAt) / 1000), style: .time)
-                        }
-                    }
-                }
-
-                // 6. 标签和元数据
-                detailSection("标签") {
-                    if fragment.tags.isEmpty {
-                        Text("无").foregroundStyle(.secondary)
-                    } else {
-                        HStack {
-                            ForEach(fragment.tags, id: \.self) { tag in
-                                Text("#\(tag)").font(.caption)
-                                    .padding(.horizontal, 6).padding(.vertical, 2)
-                                    .background(Color.nsSecondary, in: Capsule())
-                            }
-                        }
-                    }
-                }
-
-                // Desktop deletes only its own copy (desktop.md §4.4).
-                if let onDelete {
-                    Divider()
-                    Button("删除本地副本…", role: .destructive, action: onDelete)
-                }
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-
-    private var kindCaption: String? {
-        switch fragment.kind {
-        case "concept":
-            return fragment.conceptDetail?.definition
-        case "decision":
-            return fragment.decisionDetail?.rationale
-        case "question":
-            return fragment.questionDetail.map { "状态：\($0.status)" }
-        default:
-            return nil
-        }
-    }
-
-    private var visualSection: some View {
-        Group {
-            if let assetId = fragment.attachmentIds.first {
-                if let image = model.assetImage(assetId: assetId) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxHeight: 220)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                        Text("图片资产 \(assetId)").font(.caption).foregroundStyle(.secondary)
-                    }
-                } else {
-                    Label("附件缺失，待重试（\(assetId)）", systemImage: "exclamationmark.triangle")
-                        .font(.footnote)
-                        .foregroundStyle(.orange)
-                }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func detailSection<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.subheadline.bold()).foregroundStyle(.secondary)
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.top, 4)
-    }
-}
-
-/// The same detail as a sheet (Today's recent writes; the library in a narrow window).
-struct FragmentDetailSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    let fragment: FragmentRecord
-
-    var body: some View {
-        FragmentDetailView(fragment: fragment)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("关闭") { dismiss() } }
-            }
-    }
-}
-
-// ── 复习会话 (desktop.md §5) ────────────────────────────────────────────
-
-struct ReviewSessionView: View {
-    @EnvironmentObject var model: DesktopModel
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var usedHint = false
-    @State private var revealed = false
-    @State private var hintCount = 0
-
-    private var fragment: FragmentRecord? { model.currentFragment }
-    private var spec: ReviewQuestionSpec {
-        fragment.map { reviewQuestion(for: $0.kind) } ?? ReviewQuestionSpec(kind: "", question: "", hints: [])
-    }
-
-    var body: some View {
-        VStack(spacing: 16) {
-            if let fragment {
-                cardView(fragment)
-            } else {
-                completionView
-            }
-        }
-        .padding(24)
-        .frame(minWidth: 640, minHeight: 500)
-        .onAppear {
-            if model.session == nil {
-                // A fresh sheet never shows a previous round's wrap-up.
-                model.wrapUp = nil
-                _ = model.startReviewSession()
-            }
-            resetCard()
-        }
-    }
-
-    // MARK: card
-
-    private func cardView(_ fragment: FragmentRecord) -> some View {
-        let session = model.session
-        let total = session?.fragmentIds.count ?? 0
-        let index = (session?.cursor ?? 0) + 1
-        return VStack(spacing: 14) {
-            HStack {
-                Text("\(kindLabel(fragment.kind)) \(index)/\(total)").foregroundStyle(.secondary)
-                if usedHint {
-                    Label("已用提示", systemImage: "lightbulb")
-                        .font(.caption).foregroundStyle(.orange)
-                }
-                Spacer()
-                Button("跳过") {
-                    model.skipCurrent(reason: "手动跳过"); resetCard()
-                }
-                Button("结束") { dismiss() }
-            }
-
-            // 题面（按 kind 的默认题型，desktop.md §5.2）
-            VStack(alignment: .leading, spacing: 10) {
-                Text(spec.question).font(.title2.bold())
-                Text("主题：\(String(fragment.content.prefix(40)))")
-                    .font(.footnote).foregroundStyle(.secondary)
-                if fragment.kind == "visual" {
-                    Text("先回忆，再揭示查看文字描述与截图。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                } else if fragment.kind == "media-clip" {
-                    Text("先回忆要点与时间定位，再揭示核对转写。")
-                        .font(.footnote).foregroundStyle(.secondary)
-                } else {
-                    Text("先自己作答，再点「揭示」")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding()
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-
-            // R4 视觉遮挡：揭示前只给像素化图片（roadmap R4.1）。
-            if fragment.kind == "visual", !revealed, let assetId = fragment.attachmentIds.first,
-                let image = model.assetImage(assetId: assetId), let occluded = occludedImage(image)
-            {
-                VStack(spacing: 4) {
-                    Image(nsImage: occluded)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxHeight: 180)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                    Text("图片已遮挡")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-            }
-
-            // 提示梯度（desktop.md §5.3 四级）：使用任何提示都写入 usedHint
-            // (review.md §4)；评分 1..4 仍只在揭示后可用。
-            if !revealed {
-                VStack(alignment: .leading, spacing: 8) {
-                    HStack(spacing: 8) {
-                        ForEach(Array(spec.hints.enumerated()), id: \.offset) { idx, hint in
-                            Button("提示 \(idx + 1)：\(hint)") {
-                                if hintCount < idx + 1 { hintCount = idx + 1 }
-                                usedHint = true
-                            }
-                            .disabled(idx > hintCount)  // 梯度按顺序解锁
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                        }
-                        Spacer()
-                        Button {
-                            reveal()
-                        } label: {
-                            Text("揭示").bold()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-
-                    // 已解锁提示的实际内容（L1 结构提示 → L2 来源与标签 →
-                    // L3 遮蔽答案的摘录 → L4 核验确认状态与摘要）
-                    if usedHint {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ForEach(1...max(hintCount, 1), id: \.self) { level in
-                                Text(hintText(level, fragment))
-                            }
-                        }
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(10)
-                        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
-                    }
-                }
-            } else {
-                referenceView(fragment)
-                ratingButtons(fragment)
-            }
-            Spacer()
-        }
-    }
-
-    /// 揭示后的参考信息 (desktop.md §5.1 ③)：你的理解、核验确认、你的应用，
-    /// 并保留「回到来源」；visual 揭示原图；media-clip 揭示时间区间 (R4)。
-    private func referenceView(_ fragment: FragmentRecord) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("你的理解：\(fragment.content)").font(.headline)
-            Text(verificationLine(fragment)).foregroundStyle(.secondary)
-            Text("你的应用：\(fragment.processing.use)")
-            if fragment.kind == "media-clip" {
-                Text("时间区间：\(mediaClipRangeLabel(fragment))")
-                    .font(.callout.monospacedDigit())
-            }
-            Text(fragment.context.excerpt)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-            if fragment.kind == "visual", let assetId = fragment.attachmentIds.first {
-                if let image = model.assetImage(assetId: assetId) {
-                    Image(nsImage: image)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxHeight: 160)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                } else {
-                    Label("附件缺失，待重试", systemImage: "exclamationmark.triangle")
-                        .font(.caption).foregroundStyle(.orange)
-                }
-            }
-            if let url = URL(string: fragment.context.sourceUrl) {
-                Link("回到来源：\(fragment.context.sourceHost)", destination: url)
-                    .font(.callout)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color.annBrand.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
-    }
-
-    private func verificationLine(_ fragment: FragmentRecord) -> String {
-        guard let verified = fragment.processing.verified else { return "核验：未确认" }
-        var line = "核验：已确认，来源：\(verifiedSourceLabel(verified.source))"
-        if let summary = verified.summary, !summary.isEmpty {
-            line += "；摘要：\(summary)"
-        }
-        return line
-    }
-
-    /// media-clip 的 mm:ss 时间区间：detail 优先，locator 兜底。
-    private func mediaClipRangeLabel(_ fragment: FragmentRecord) -> String {
-        if let clip = fragment.mediaClipDetail {
-            return "\(mmss(clip.startMs)) – \(mmss(clip.endMs))"
-        }
-        if case let .time(startMs, endMs) = fragment.context.locator {
-            return "\(mmss(startMs)) – \(mmss(endMs))"
-        }
-        return "未知区间"
-    }
-
-    /// 评分按钮只能在揭示后出现，展示预计下次间隔；1-4 快捷键 (desktop.md §5/§9)。
-    private func ratingButtons(_ fragment: FragmentRecord) -> some View {
-        HStack(spacing: 12) {
-            ForEach(Array(ReviewRating.allCases.enumerated()), id: \.element) { idx, rating in
-                Button {
-                    guard model.rateCurrent(rating, usedHint: usedHint) else { return }
-                    resetCard()
-                } label: {
-                    VStack {
-                        Text("\(idx + 1) \(label(rating))")
-                        Text("\(previewInterval(fragment.review, rating: rating, now: nowMs())) 天")
-                            .font(.caption).foregroundStyle(.secondary)
-                    }
-                    .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(tint(rating))
-                .keyboardShortcut(KeyEquivalent(Character("\(idx + 1)")), modifiers: [])
-            }
-        }
-    }
-
-    /// 四级提示的实际内容 (desktop.md §5.3)；纯内容构造在 AnnHubCore
-    /// (maskedExcerpt / verificationHint)。
-    private func hintText(_ level: Int, _ fragment: FragmentRecord) -> String {
-        switch level {
-        case 1:
-            // L1: kind 特定的关键词或结构提示。
-            return "提示 1（\(spec.hints.first ?? "")）：回忆\(spec.hints.first ?? "")相关的结构。"
-        case 2:
-            // L2: sourceTitle 和 tags 的实际值。
-            let title = fragment.context.sourceTitle ?? fragment.context.sourceHost
-            let tags = fragment.tags.map { "#\($0)" }.joined(separator: " ")
-            return "提示 2（\(spec.hints.count > 1 ? spec.hints[1] : "上下文")）：来源「\(title)」\(tags.isEmpty ? "无标签" : tags)"
-        case 3:
-            // L3: excerpt 的非答案部分 —— 答案内容以 ﹏﹏﹏ 遮蔽。
-            return "提示 3（\(spec.hints.count > 2 ? spec.hints[2] : "原文")）：\(maskedExcerpt(fragment))"
-        default:
-            // L4: 核验确认状态 + 摘要；无摘要时回看原始语境。
-            return "提示 4（\(spec.hints.count > 3 ? spec.hints[3] : "核验确认")）：\(verificationHint(fragment))"
-        }
-    }
-
-    private func reveal() {
-        revealed = true
-    }
-
-    private func resetCard() {
-        usedHint = false
-        revealed = false
-        hintCount = 0
-    }
-
-    // MARK: wrap-up (desktop.md §5.5)
-
-    /// States facts only — no streaks, badges or celebration. When the day's
-    /// suggested amount is used up it says so and offers 再来一轮 beyond it.
-    private var completionView: some View {
-        let plan = model.dailyPlan
-        return VStack(spacing: 14) {
-            Spacer()
-            if let wrap = model.wrapUp {
-                Text("这一轮完成了").font(.title2.bold())
-                Text("已评分 \(wrap.rated) 条 / 其中 \(wrap.usedHint) 条用过提示 / \(wrap.again) 条「再来一次」")
-                if wrap.skipped > 0 {
-                    Text("跳过 \(wrap.skipped) 条（碎片已删除或手动跳过）")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-                Text(upcomingLine(wrap)).foregroundStyle(.secondary)
-            } else {
-                Text("今天没有到期复习").font(.title3)
-            }
-            if plan.limitReached {
-                Text("建议量 \(plan.ratedToday) / \(plan.dailyLimit)；还有 \(plan.due.count) 条到期，保留原到期时间，明天继续")
-                    .font(.callout).foregroundStyle(.secondary)
-            }
-            HStack(spacing: 12) {
-                Button("回到今日") {
-                    model.wrapUp = nil
-                    dismiss()
-                }
-                if plan.limitReached {
-                    Button("再来一轮（超出建议量）") { startRound(overflow: true) }
-                } else if !plan.suggested.isEmpty {
-                    Button("继续下一会话（还有 \(plan.due.count) 条到期）") { startRound(overflow: false) }
-                        .buttonStyle(.borderedProminent)
-                }
-            }
-            Spacer()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func upcomingLine(_ wrap: SessionWrapUp) -> String {
-        guard !wrap.upcoming.isEmpty else { return "下一批到期：暂无" }
-        let now = nowMs()
-        let parts = wrap.upcoming.map { "\(relativeDayLabel(dayStart: $0.dayStart, now: now)) \($0.count) 条" }
-        return "下一批到期：" + parts.joined(separator: " / ")
-    }
-
-    private func startRound(overflow: Bool) {
-        if model.startReviewSession(overflow: overflow) { resetCard() }
-    }
-
-    private func label(_ r: ReviewRating) -> String {
-        switch r {
-        case .again: return "再来一次";
-        case .hard: return "较难";
-        case .good: return "良好";
-        case .easy: return "容易"
-        }
-    }
-
-    private func tint(_ r: ReviewRating) -> Color {
-        switch r {
-        case .again: return .red;
-        case .hard: return .orange;
-        case .good: return .blue;
-        case .easy: return .green
-        }
     }
 }
 
@@ -1150,6 +277,10 @@ struct SystemView: View {
                     .foregroundStyle(model.hubListening ? Color.green : Color.orange)
                     .accessibilityHidden(true)
                 Text(model.hubListening ? "本地服务运行中，仅监听本机" : model.hubState)
+                if model.hubFailed && model.storeError == nil {
+                    Button("重试启动") { model.restartHub() }
+                        .controlSize(.small)
+                }
             }
             LabeledContent("配对码") {
                 HStack(spacing: 8) {
@@ -1203,7 +334,9 @@ struct SystemView: View {
         Section {
             DisclosureGroup("技术信息", isExpanded: $technicalExpanded) {
                 Group {
-                    LabeledContent("服务地址") { Text("http://127.0.0.1:8765") }
+                    LabeledContent("服务地址") {
+                        Text("http://127.0.0.1:\(model.hubPort ?? model.config.port)")
+                    }
                     LabeledContent("设备") {
                         Text(model.store.deviceId).font(.system(.caption, design: .monospaced))
                     }

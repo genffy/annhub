@@ -42,8 +42,29 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: AnnHub
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
         INFOPLIST_KEY_NSHumanReadableCopyright: 'Copyright © AnnHub'
+  # Unit tests for the Desktop's own code (model, palette, windows, rendering). The sources are
+  # compiled into the bundle, minus the @main entry file, so the tests run without launching
+  # the app: no menu-bar item, no hub on a real port, nothing of the user's data.
+  AnnHubDesktopTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: DesktopTests
+      - path: Desktop
+        excludes:
+          - AnnHubDesktopApp.swift
+    dependencies:
+      - package: AnnHubCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.annhub.desktop.tests
+        GENERATE_INFOPLIST_FILE: 'YES'
+        ENABLE_HARDENED_RUNTIME: 'NO'
 schemes:
   AnnHubDesktop:
     build:
       targets:
         AnnHubDesktop: all
+    test:
+      targets:
+        - AnnHubDesktopTests
