@@ -61,8 +61,9 @@ function DesktopConnectionCard() {
   const [autoSync, setAutoSync] = useState(false)
   const [message, setMessage] = useState<{ kind: 'success' | 'error'; text: string } | null>(null)
   const [busy, setBusy] = useState(false)
-  // Saving sends the whole form, so it waits until the stored settings have been asked for: before
-  // that the endpoint field is still empty and a quick save would be refused as an invalid URL.
+  // The form is the stored settings plus what the user changes. Until the stored settings have come
+  // back there is nothing to change yet, and a late answer would overwrite what was typed meanwhile
+  // (or a quick save would send an empty endpoint), so the form waits for them.
   const [asked, setAsked] = useState(false)
 
   const load = useCallback(async () => {
@@ -147,26 +148,28 @@ function DesktopConnectionCard() {
         <label className="block space-y-1">
           <span className="text-xs text-ann-muted">{uiText('settings.desktop.endpoint')}</span>
           <input
-            className="w-full rounded-md border border-ann-border px-3 py-2"
+            className="w-full rounded-md border border-ann-border px-3 py-2 disabled:opacity-60"
             value={endpoint}
             onChange={e => setEndpoint(e.target.value)}
             placeholder="http://127.0.0.1:8765"
+            disabled={!asked}
           />
         </label>
         <label className="block space-y-1">
           <span className="text-xs text-ann-muted">{uiText('settings.desktop.token')}</span>
           <input
-            className="w-full rounded-md border border-ann-border px-3 py-2 font-mono"
+            className="w-full rounded-md border border-ann-border px-3 py-2 font-mono disabled:opacity-60"
             type="password"
             autoComplete="off"
             data-testid="pair-token-input"
             value={token}
             onChange={e => setToken(e.target.value)}
+            disabled={!asked}
             placeholder={uiText(block?.config.hasToken ? 'settings.secretKept' : 'settings.desktop.tokenPlaceholder')}
           />
         </label>
         <label className="flex items-center gap-2">
-          <input type="checkbox" checked={autoSync} onChange={e => setAutoSync(e.target.checked)} />
+          <input type="checkbox" checked={autoSync} onChange={e => setAutoSync(e.target.checked)} disabled={!asked} />
           {uiText('settings.desktop.autoSync')}
         </label>
         {block && (
