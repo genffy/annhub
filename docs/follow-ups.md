@@ -34,7 +34,7 @@
 
 本机验证不了、或还需要人看一眼的项目。
 
-- **Netlify 部署后的路由**：生产构建先后两次失败：第一次是 Netlify 给站点装了 v4 运行时，第二次是 main 上合进了 Tailwind 4 等大版本，构建在 `next build` 就失败，运行时还没轮到加载。原因和修法（`base = "website"`，运行时声明在 `netlify.toml` 并装在 `website/package.json`）见 [website/README.md](../website/README.md) 的「部署」。本机用 Netlify CLI 构建通过：日志里是 `Using Next.js Runtime - v5.16.1`，`proxy.ts` 被打包成中间件边缘函数，matcher 与 `proxy.ts` 一致。但本机的 `netlify serve` 在子目录 base 下所有路由都返回 500（它重打包的函数副本里没有 `.next`，部署用的 zip 里有），验证不了路由。下一次生产部署后确认：日志显示 `Using Next.js Runtime - v5`；`/` 跳到 `/zh-CN`，`/en` 返回 200，`/privacy-policy` 与 `/terms-of-service` 返回静态页。
+- **Netlify 部署后的路由**：生产部署先后三次没成功：第一次是 Netlify 给站点装了 v4 运行时，第二次是 main 上合进了 Tailwind 4 等大版本，构建在 `next build` 就失败，运行时还没轮到加载；第三次是 #64 合并后，部署在构建之前就被 `ignore` 命令取消了（部署页写 “Canceled build due to no content change”，不是构建失败，也不是 CI 里设了只在打 tag 时部署，仓库里没有任何工作流会和 Netlify 打交道）。`ignore` 的修法见 [website/README.md](../website/README.md) 的「部署」，修复合并后要再确认一次部署真的发生。前两次的原因和修法（`base = "website"`，运行时声明在 `netlify.toml` 并装在 `website/package.json`）见 [website/README.md](../website/README.md) 的「部署」。本机用 Netlify CLI 构建通过：日志里是 `Using Next.js Runtime - v5.16.1`，`proxy.ts` 被打包成中间件边缘函数，matcher 与 `proxy.ts` 一致。但本机的 `netlify serve` 在子目录 base 下所有路由都返回 500（它重打包的函数副本里没有 `.next`，部署用的 zip 里有），验证不了路由。下一次生产部署后确认：日志显示 `Using Next.js Runtime - v5`；`/` 跳到 `/zh-CN`，`/en` 返回 200，`/privacy-policy` 与 `/terms-of-service` 返回静态页。
 - **系统自带控件的语言**：应用解析出的语言随用户语言列表变化，已由真实进程的两端连测验证；菜单、对话框按钮、日期选择器是否真的跟着变，要在简体中文和繁体中文的系统上目测一次。
 - **人工走查**（[路线图 §5](./v2/roadmap.md)）：亮暗外观、VoiceOver、复习提醒的通知授权、点击菜单栏图标、在 Desktop 里评分后回传扩展、用鼠标完整做一轮复习。
 - **Desktop 发布流程**：`release-desktop.yml` 的签名与公证从未实际运行。

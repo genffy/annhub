@@ -14,8 +14,16 @@
 
   # 联动：ignore 在 base 目录里运行，路径要用 :/ 从仓库根起算。写成 `-- website` 会变成 website/website，
   # 永远没有差异，等于永远跳过构建。netlify.toml 本身也算在内，否则只改配置不会部署。
-  # 退出码 0 表示跳过构建，非 0 才继续；还没有成功的部署（CACHED_COMMIT_REF 为空）时直接构建。
-  ignore = "test -n \"$CACHED_COMMIT_REF\" && git diff --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- ':/website' ':/netlify.toml'"
+  # 退出码 0 表示跳过构建，非 0 才继续，所以每一步都往“构建”的方向失败。只有上一次构建的提交确实是
+  # COMMIT_REF 的祖先、且监视的路径没有差异，才跳过。下面三种情形一律构建：
+  #   - CACHED_COMMIT_REF 为空，或等于 COMMIT_REF。Netlify 文档写明没有缓存的构建里两者相等，diff 恒为空，
+  #     不排除就会把没有缓存的构建当成“无变化”；
+  #   - CACHED_COMMIT_REF 不是 COMMIT_REF 的祖先，例如 PR 预览的头提交：rebase 或 squash 合并后它不在 main 的历史里，
+  #     内容却和合并结果完全相同；
+  #   - 取不到 CACHED_COMMIT_REF 对应的提交，git 报错。
+  # 前两种情形都会让旧写法把 #64 合并后的生产部署取消（Netlify 对任何 ignore 取消都报“Canceled build due to no
+  # content change”，所以报错信息分辨不出原因）。netlify-ignore.test.ts 用真实的 git 仓库执行这条命令。
+  ignore = "test -n \"$CACHED_COMMIT_REF\" && test \"$CACHED_COMMIT_REF\" != \"$COMMIT_REF\" && git merge-base --is-ancestor \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" && git diff --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- ':/website' ':/netlify.toml'"
 
 [build.environment]
   # 联动：与仓库根的 .node-version 一致。base 不是仓库根，Netlify 在 website/ 里找不到那份文件，所以这里要写一份。
