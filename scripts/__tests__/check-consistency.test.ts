@@ -18,13 +18,15 @@ const GOOD_FILES: Record<string, string> = {
   'README.md': 'Requires Node.js 24.x or later.\n',
   'package.json': json({
     scripts: { 'check:consistency': 'node scripts/check-consistency.mjs', 'verify': 'npm run format:check && npm test && npm run check:consistency' },
-    devDependencies: { '@types/node': '^24.0.3' },
+    devDependencies: { '@types/node': '^24.0.3', 'tailwindcss': '^3.4.19' },
     engines: { node: '>=24.0.0' },
   }),
+  'postcss.config.cjs': 'module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }\n',
   'website/package.json': json({
     dependencies: { 'next': '^16.3.8', 'react': '^19.3.0', 'next-intl': '^4.14.9' },
-    devDependencies: { 'eslint-config-next': '^16.3.8', '@types/node': '^24.19.1' },
+    devDependencies: { 'eslint-config-next': '^16.3.8', '@types/node': '^24.19.1', '@netlify/plugin-nextjs': '^5.16.1', 'tailwindcss': '^3.4.19' },
   }),
+  'website/postcss.config.js': 'module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }\n',
   'website/README.md': 'Built with Next.js 16, React 19 and next-intl 4.\n',
   'website/public/privacy-policy.html': '<html></html>\n',
   'netlify.toml': `[build]
@@ -40,6 +42,9 @@ const GOOD_FILES: Record<string, string> = {
   from = "/privacy-policy"
   to = "/privacy-policy.html"
   status = 200
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 `,
   '.github/dependabot.yml': `version: 2
 updates:
@@ -97,6 +102,13 @@ function edit(file: string, from: string | RegExp, to: string): string {
   const next = text.replace(from, to)
   if (next === text) throw new Error(`test setup: ${String(from)} not found in ${file}`)
   return next
+}
+
+/** The good package.json after a change to its parsed content. */
+function manifestWith(file: string, change: (manifest: any) => void): string {
+  const manifest = JSON.parse(GOOD_FILES[file]!)
+  change(manifest)
+  return json(manifest)
 }
 
 function expectFailure(overrides: Record<string, string | null>, ...messages: string[]) {
@@ -159,21 +171,62 @@ describe('check-consistency', () => {
     })
   })
 
-  describe('netlify.toml', () => {
-    it('catches a base that is not the Next.js app (the legacy v4 runtime is selected then)', () => {
-      expectFailure({ 'netlify.toml': edit('netlify.toml', 'base = "website"', 'base = "/"') }, '[build] base is "/", but the Next.js app is in /website', 'legacy v4 runtime')
+  describe('Tailwind CSS', () => {
+    const v4Config = "module.exports = { plugins: { '@tailwindcss/postcss': {} } }\n"
+
+    it('catches a Tailwind CSS 4 bump that the PostCSS setup has not followed', () => {
+      expectFailure(
+        { 'website/package.json': manifestWith('website/package.json', manifest => (manifest.devDependencies.tailwindcss = '^4.3.3')) },
+        'website/package.json: tailwindcss ^4.3.3 needs @tailwindcss/postcss',
+        'website/postcss.config.js: uses tailwindcss itself as a PostCSS plugin',
+      )
     })
 
-    it('catches the unpinned legacy plugin declaration', () => {
-      expectFailure({ 'netlify.toml': `${GOOD_FILES['netlify.toml']}\n[[plugins]]\n  package = "@netlify/plugin-nextjs"\n` }, 'declares @netlify/plugin-nextjs without pinning it')
-    })
-
-    it('accepts the plugin when the app pins it in package.json', () => {
+    it('accepts Tailwind CSS 4 with its own PostCSS plugin, and ignores a mention in a comment', () => {
       const { status, output } = check({
-        'netlify.toml': `${GOOD_FILES['netlify.toml']}\n[[plugins]]\n  package = "@netlify/plugin-nextjs"\n`,
-        'website/package.json': edit('website/package.json', '"eslint-config-next"', '"@netlify/plugin-nextjs": "^5.16.0",\n    "eslint-config-next"'),
+        'website/package.json': manifestWith('website/package.json', manifest => {
+          manifest.devDependencies.tailwindcss = '^4.3.3'
+          manifest.devDependencies['@tailwindcss/postcss'] = '^4.3.3'
+        }),
+        'website/postcss.config.js': `// was: plugins: { tailwindcss: {} }\n/* tailwindcss: {} */\n${v4Config}`,
       })
       expect(status, output).toBe(0)
+    })
+
+    it('catches the Tailwind CSS 4 plugin next to Tailwind CSS 3', () => {
+      expectFailure({ 'website/postcss.config.js': v4Config }, 'website/postcss.config.js: uses @tailwindcss/postcss, which is the plugin for Tailwind CSS 4')
+    })
+  })
+
+  describe('netlify.toml', () => {
+    it('catches a base that is not the Next.js app (Netlify installs the legacy v4 runtime then)', () => {
+      expectFailure(
+        { 'netlify.toml': edit('netlify.toml', 'base = "website"', 'base = "/"') },
+        '[build] base is "/", but the Next.js app is in /website',
+        'the legacy v4 for Next.js before 13.5',
+      )
+    })
+
+    it('catches a Next.js app that is deployed without the runtime declared', () => {
+      expectFailure(
+        { 'netlify.toml': edit('netlify.toml', '\n[[plugins]]\n  package = "@netlify/plugin-nextjs"\n', '') },
+        '[[plugins]] does not declare @netlify/plugin-nextjs',
+        'deploys only the .next directory',
+      )
+    })
+
+    it('catches a runtime that is declared but not installed in the app (Netlify then picks its own, v4)', () => {
+      expectFailure(
+        { 'website/package.json': manifestWith('website/package.json', manifest => delete manifest.devDependencies['@netlify/plugin-nextjs']) },
+        '[[plugins]] declares @netlify/plugin-nextjs, but website/package.json does not depend on it',
+      )
+    })
+
+    it('catches the legacy runtime major for a current Next.js', () => {
+      expectFailure(
+        { 'website/package.json': manifestWith('website/package.json', manifest => (manifest.devDependencies['@netlify/plugin-nextjs'] = '^4.41.6')) },
+        '@netlify/plugin-nextjs ^4.41.6 is the legacy runtime for Next.js before 13.5',
+      )
     })
 
     it('catches a publish directory that is not .next, or is left to the dashboard', () => {

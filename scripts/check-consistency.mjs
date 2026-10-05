@@ -70,6 +70,7 @@ const manifests = files
   .map(file => ({ file, directory: file === 'package.json' ? '' : file.slice(0, -'/package.json'.length), json: readJson(file) ?? {} }))
 const dependenciesOf = ({ json }) => ({ ...json.dependencies, ...json.devDependencies })
 const nextApps = manifests.filter(manifest => dependenciesOf(manifest).next !== undefined)
+const NEXT_RUNTIME = '@netlify/plugin-nextjs'
 
 /** `/` for the repository root, `/website` for a subdirectory: how Dependabot and Netlify write them. */
 const normalizeDirectory = directory => {
@@ -231,6 +232,36 @@ function checkNext() {
   }
 }
 
+// --- Tailwind CSS: the major decides how PostCSS has to be set up. -------------------------------
+
+const POSTCSS_CONFIGS = ['postcss.config.js', 'postcss.config.cjs', 'postcss.config.mjs', 'postcss.config.ts']
+
+function checkTailwind() {
+  for (const manifest of manifests) {
+    const { file, directory } = manifest
+    const dependencies = dependenciesOf(manifest)
+    const major = majorOf(dependencies.tailwindcss)
+    if (major === null) continue
+
+    const configFile = POSTCSS_CONFIGS.map(name => (directory ? `${directory}/${name}` : name)).find(exists)
+    // A mention in a comment is not a plugin.
+    const config = configFile
+      ? read(configFile)
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/^\s*\/\/.*$/gm, '')
+      : ''
+    if (major >= 4) {
+      const integration = ['@tailwindcss/postcss', '@tailwindcss/vite', '@tailwindcss/cli'].some(name => dependencies[name] !== undefined)
+      if (!integration)
+        fail(file, `tailwindcss ${dependencies.tailwindcss} needs @tailwindcss/postcss (or @tailwindcss/vite): since Tailwind CSS 4 the PostCSS plugin is a separate package`)
+      if (/(?<![@\w/-])tailwindcss(?![\w/-])/.test(config))
+        fail(configFile, `uses tailwindcss itself as a PostCSS plugin, which Tailwind CSS ${major} no longer allows; use @tailwindcss/postcss`)
+    } else if (config.includes('@tailwindcss/postcss')) {
+      fail(configFile, `uses @tailwindcss/postcss, which is the plugin for Tailwind CSS 4, but ${file} has tailwindcss ${dependencies.tailwindcss}`)
+    }
+  }
+}
+
 // --- Netlify: the site config has to describe the app that is really there. ----------------------
 
 function checkNetlify() {
@@ -251,17 +282,27 @@ function checkNetlify() {
     const where = nextApps.map(({ directory }) => normalizeDirectory(directory)).join(', ')
     fail(
       'netlify.toml',
-      `[build] base is "${base || '/'}", but the Next.js app is in ${where}. Netlify detects the framework, and so installs the Next.js runtime, only in the base directory; anywhere else it falls back to the legacy v4 runtime`,
+      `[build] base is "${base || '/'}", but the Next.js app is in ${where}. Netlify installs dependencies, and looks for the Next.js runtime plugin, in the base directory; anywhere else it installs a copy of its own choosing, the legacy v4 for Next.js before 13.5`,
     )
   }
 
-  const pinned = app !== undefined && dependenciesOf(app)['@netlify/plugin-nextjs'] !== undefined
-  for (const plugin of arrays.plugins ?? []) {
-    if (plugin.package === '@netlify/plugin-nextjs' && !pinned) {
+  if (app) {
+    // Netlify only loads a runtime automatically when it is installed in the site settings. Declared here and installed in the
+    // app, the lockfile decides the version; declared only, Netlify installs its own pinned copy (v4); not declared, there is none.
+    const declared = (arrays.plugins ?? []).some(plugin => plugin.package === NEXT_RUNTIME)
+    const installed = dependenciesOf(app)[NEXT_RUNTIME]
+    if (!declared) {
       fail(
         'netlify.toml',
-        '[[plugins]] declares @netlify/plugin-nextjs without pinning it in the app package.json, so Netlify installs the legacy v4 runtime (Next.js before 13.5). Remove the declaration: the current runtime is installed automatically',
+        `[[plugins]] does not declare ${NEXT_RUNTIME}. Netlify only loads the Next.js runtime by itself for sites that have it in their settings; without it the build has no runtime and deploys only the .next directory`,
       )
+    } else if (installed === undefined) {
+      fail(
+        'netlify.toml',
+        `[[plugins]] declares ${NEXT_RUNTIME}, but ${app.file} does not depend on it, so Netlify installs a copy of its own choosing: the legacy v4 for Next.js before 13.5. Install it in the app so the lockfile decides the version`,
+      )
+    } else if (majorOf(installed) < 5) {
+      fail(app.file, `${NEXT_RUNTIME} ${installed} is the legacy runtime for Next.js before 13.5; the app is on Next.js ${majorOf(dependenciesOf(app).next)}`)
     }
   }
 
@@ -417,6 +458,7 @@ function checkGate() {
 
 checkNode()
 checkNext()
+checkTailwind()
 checkNetlify()
 checkPackageDirectories()
 checkGate()
