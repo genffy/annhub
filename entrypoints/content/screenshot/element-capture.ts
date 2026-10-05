@@ -4,7 +4,8 @@
  * html-to-image. Unlike viewport capture this can exceed the visible area.
  * Cross-origin images are inlined first via the background FETCH_RESOURCE
  * message (host permissions bypass page CORS — the fetch html-to-image does
- * from page context cannot).
+ * from page context cannot). The background only fetches public http(s) images;
+ * an image it declines keeps its address and renders if the page can load it.
  */
 
 import { toCanvas } from 'html-to-image'

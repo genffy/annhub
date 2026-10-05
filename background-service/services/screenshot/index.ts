@@ -9,6 +9,8 @@
  */
 import type { IService } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
+import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
+import { RESOURCE_TIMEOUT_MS, assertFetchableUrl, readImage } from './fetch-policy'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
 import { uiText } from '../../../utils/ui-text'
@@ -43,10 +45,10 @@ export class ScreenshotService implements IService {
 
   getMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
     return {
-      CAPTURE_VISIBLE_TAB: async message => {
+      CAPTURE_VISIBLE_TAB: async (message, sender) => {
         const requestId = (message as { requestId?: string }).requestId ?? 'unknown'
         try {
-          const dataUrl = await this.captureVisibleTab()
+          const dataUrl = await this.captureSenderTab(sender)
           Logger.info(`[ScreenshotService] Captured visible tab (request ${requestId})`)
           return MessageUtils.createResponse(true, { dataUrl, requestId })
         } catch (error) {
@@ -120,7 +122,9 @@ export class ScreenshotService implements IService {
         }
       },
 
-      FETCH_RESOURCE: async message => {
+      FETCH_RESOURCE: async (message, sender) => {
+        // Only a page's own content script asks for this, and only to inline an image into an element capture.
+        if (!isTopFrameTabSender(sender)) return MessageUtils.createResponse(false, undefined, 'Forbidden: a tab is required')
         try {
           const { url } = (message as { data: { url: string } }).data
           const dataUrl = await this.fetchAsDataUrl(url)
@@ -131,7 +135,8 @@ export class ScreenshotService implements IService {
         }
       },
 
-      GET_SCREENSHOTS: async () => {
+      GET_SCREENSHOTS: async (_message, sender) => {
+        if (!isExtensionPageSender(sender)) return forbiddenResponse()
         try {
           return MessageUtils.createResponse(true, await this.store.listScreenshots())
         } catch (error) {
@@ -139,7 +144,8 @@ export class ScreenshotService implements IService {
         }
       },
 
-      DELETE_SCREENSHOT: async message => {
+      DELETE_SCREENSHOT: async (message, sender) => {
+        if (!isExtensionPageSender(sender)) return forbiddenResponse()
         try {
           const { id } = (message as { data: { id: string } }).data
           await this.store.deleteScreenshot(id)
@@ -164,31 +170,37 @@ export class ScreenshotService implements IService {
     return this.store
   }
 
-  private async captureVisibleTab(): Promise<string> {
-    // PNG keeps text crisp; the viewport-only limitation is documented in
-    // docs/v2/screenshot.md: region capture uses viewport pixels.
-    return new Promise<string>((resolve, reject) => {
-      chrome.tabs.captureVisibleTab(chrome.windows.WINDOW_ID_CURRENT, { format: 'png' }, dataUrl => {
-        const error = chrome.runtime.lastError
-        if (error || !dataUrl) {
-          reject(new Error(error?.message || 'captureVisibleTab returned no image'))
-          return
-        }
-        resolve(dataUrl)
-      })
-    })
+  /**
+   * Photographs the tab that asked, and only while it is the one on screen. `captureVisibleTab`
+   * takes the active tab of a window whoever asks, so the current window's tab was whatever the user
+   * happened to be looking at: a page in a background tab or another window could have had a picture
+   * of it. The window is the sender's own, and the sender must be its active tab both before and after
+   * the capture (a tab switch in between would otherwise hand back another page).
+   */
+  private async captureSenderTab(sender: chrome.runtime.MessageSender): Promise<string> {
+    const notVisible = () => new Error(uiText('shot.error.notVisible'))
+    if (!isTopFrameTabSender(sender)) throw notVisible()
+    const tabId = sender.tab!.id!
+    const before = await chrome.tabs.get(tabId)
+    if (!before.active) throw notVisible()
+    const dataUrl = await captureWindow(before.windowId)
+    const after = await chrome.tabs.get(tabId)
+    if (!after.active || after.windowId !== before.windowId) throw notVisible()
+    return dataUrl
   }
 
   /**
-   * Cross-origin resource fetch for element capture image inlining. The
-   * extension's <all_urls> host permission lets the background bypass page
-   * CORS — the page-context fetch that html-to-image does cannot.
+   * Cross-origin resource fetch for element capture image inlining. The extension's <all_urls> host
+   * permission lets the background bypass page CORS, which the page-context fetch html-to-image does
+   * cannot; `fetch-policy.ts` is what keeps that from being a proxy to the user's own network.
    */
-  private async fetchAsDataUrl(url: string): Promise<string> {
-    const response = await fetch(url)
-    if (!response.ok) throw new Error(`fetch ${url} failed: ${response.status}`)
-    const blob = await response.blob()
-    return blobToDataUrl(blob)
+  private async fetchAsDataUrl(raw: string): Promise<string> {
+    const url = assertFetchableUrl(raw)
+    const response = await fetch(url, { credentials: 'omit', signal: AbortSignal.timeout(RESOURCE_TIMEOUT_MS) })
+    // A redirect can lead anywhere: the address the answer finally came from has to pass too.
+    if (response.redirected) assertFetchableUrl(response.url)
+    if (!response.ok) throw new Error(`fetch failed: ${response.status}`)
+    return blobToDataUrl(await readImage(response))
   }
 
   private downloadDataUrl(dataUrl: string, filename: string): Promise<number> {
@@ -203,6 +215,21 @@ export class ScreenshotService implements IService {
       })
     })
   }
+}
+
+// PNG keeps text crisp; the viewport-only limitation is documented in docs/v2/screenshot.md:
+// region capture uses viewport pixels.
+function captureWindow(windowId: number): Promise<string> {
+  return new Promise<string>((resolve, reject) => {
+    chrome.tabs.captureVisibleTab(windowId, { format: 'png' }, dataUrl => {
+      const error = chrome.runtime.lastError
+      if (error || !dataUrl) {
+        reject(new Error(error?.message || 'captureVisibleTab returned no image'))
+        return
+      }
+      resolve(dataUrl)
+    })
+  })
 }
 
 // ── blob helpers (SW-safe; FileReader fallback for jsdom) ───────────────

@@ -129,7 +129,7 @@ export interface SaveScreenshotMessage extends BaseMessage {
   }
 }
 
-/** Content → background: fetch a cross-origin resource as a dataUrl (host permissions bypass page CORS). Used to inline images for element capture. */
+/** Content → background: fetch a public cross-origin image as a dataUrl (host permissions bypass page CORS; private networks and non-images are refused). Used to inline images for element capture. */
 export interface FetchResourceMessage extends BaseMessage {
   type: 'FETCH_RESOURCE'
   data: { url: string }

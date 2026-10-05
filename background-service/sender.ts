@@ -13,6 +13,11 @@ export function isExtensionPageSender(sender: chrome.runtime.MessageSender): boo
   return !sender.tab && sender.id === chrome.runtime.id
 }
 
+/** A message from the top frame of a browser tab: a content script on the page, or an extension page open in a tab. */
+export function isTopFrameTabSender(sender: chrome.runtime.MessageSender): boolean {
+  return sender.tab?.id !== undefined && sender.frameId === 0
+}
+
 export function forbiddenResponse(): ResponseMessage {
   return MessageUtils.createResponse(false, undefined, 'Forbidden: extension page context required')
 }

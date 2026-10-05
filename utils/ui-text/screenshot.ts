@@ -36,6 +36,10 @@ export const screenshot = defineMessages({
   'shot.downloaded': { zh: 'PNG 已下载', en: 'PNG downloaded' },
   'shot.failed': { zh: '截图失败：{message}', en: 'Screenshot failed: {message}' },
   'shot.error.capture': { zh: '截图失败', en: 'Screenshot failed' },
+  'shot.error.notVisible': {
+    zh: '这个标签页已不在屏幕上，没有截图（切换了标签页？）',
+    en: 'This tab is no longer the one on screen, so nothing was captured (did you switch tabs?)',
+  },
   'shot.error.crop': { zh: '截图裁剪失败', en: 'Cropping the screenshot failed' },
   'shot.error.element': { zh: '元素截图失败', en: 'Capturing the element failed' },
   'shot.error.decode': { zh: '截图数据解码失败', en: 'Could not decode the screenshot data' },
