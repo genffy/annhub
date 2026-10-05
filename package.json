@@ -36,7 +36,7 @@
     "html-to-image": "^1.11.13",
     "idb": "^8.0.3",
     "lucide-react": "^0.574.0",
-    "nanoid": "^5.1.5",
+    "nanoid": "^6.0.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwind-merge": "^3.4.1"
