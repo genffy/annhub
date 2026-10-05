@@ -1,29 +1,62 @@
 version: 2
 
-# A cooldown keeps brand-new releases out for a week, which is when most compromised
-# packages are noticed and pulled. Security updates ignore the cooldown.
+# Every Dependabot pull request runs the whole merge gate, a macOS build among it, so the number of
+# pull requests is what costs. Four things keep it small:
+#   - Monthly, not weekly. Security updates are not on this schedule: they arrive when an advisory
+#     is published.
+#   - At most 3 open version-update pull requests per directory. Security updates do not count.
+#   - Packages that have to move together share a group, so one pull request changes all of them
+#     instead of several that each fail alone: React and its types, Next.js and its ESLint config,
+#     the TypeScript and ESLint toolchain.
+#   - A cooldown keeps brand-new releases out for a week, which is when most compromised packages
+#     are noticed and pulled. Security updates ignore the cooldown.
+#
+# Major versions are not ignored on purpose: `ignore` also applies to security updates, so it would
+# hold back a fix that only exists in the next major. A major pull request is where a migration
+# starts: push the follow-up changes onto its branch, following AGENTS.md「联动一致性」, or close it.
+
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 3
     cooldown:
       default-days: 7
     commit-message:
       prefix: 'chore(deps)'
+    ignore:
+      # The type definitions follow the runtime in `.node-version` (`npm run check:consistency` enforces
+      # it), so a new major is raised together with the Node.js version, by hand. It carries no runtime code.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
+      react:
+        patterns: [react, react-dom, '@types/react', '@types/react-dom']
+      toolchain:
+        patterns: [typescript, typescript-eslint, eslint, '@eslint/*', 'eslint-*', globals]
       minor-and-patch:
         update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /website
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 3
     cooldown:
       default-days: 7
     commit-message:
       prefix: 'chore(deps)'
+    ignore:
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
     groups:
+      next:
+        patterns: [next, eslint-config-next, next-intl]
+      react:
+        patterns: [react, react-dom, '@types/react', '@types/react-dom']
+      toolchain:
+        patterns: [typescript, typescript-eslint, eslint, '@eslint/*', 'eslint-*']
       minor-and-patch:
         update-types: [minor, patch]
 
@@ -32,7 +65,7 @@ updates:
       - /
       - /.github/actions/setup-xcodegen
     schedule:
-      interval: weekly
+      interval: monthly
     cooldown:
       default-days: 7
     commit-message:

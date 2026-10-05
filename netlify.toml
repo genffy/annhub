@@ -1,24 +1,25 @@
-# Netlify 配置文件
-# 文档: https://docs.netlify.com/configure-builds/file-based-configuration/
+# Netlify 配置。文档: https://docs.netlify.com/build/configure-builds/file-based-configuration/
+#
+# 站点是 website/ 里的 Next.js 应用。改这个文件前先读 website/README.md 的「部署」和 AGENTS.md 的「联动一致性」；
+# 标了「联动」的几处由 scripts/check-consistency.mjs 核对。
 
 [build]
-  # 基础目录保持在根目录，这样可以读取 .node-version
-  base = "/"
-  
-  # 构建命令：先安装 website 依赖，再构建
-  command = "cd website && npm ci && npm run build"
-  
-  # 发布目录 - 使用 Next.js plugin 时会自动处理，不需要手动设置
-  # publish = "website/.next"  # 注释掉，让插件自动处理
-  
-  # 只允许 production(main) 构建；main 上 website/ 无变化时也跳过。
-  # Netlify 的 ignore 命令返回 0 表示跳过构建，返回非 0 才继续构建。
-  ignore = "test \"$CONTEXT\" != \"production\" || git diff --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- website"
+  # 联动：必须是含 next 依赖的应用目录。Netlify 只在 base 里检测框架、安装依赖、读 .node-version；
+  # 检测到 next 后才会自动使用 Next.js 运行时（OpenNext 适配器）。base 留在仓库根目录就检测不到，
+  # 会退回面向 Next 13.5 之前的旧运行时，Next 16 在它打包函数的那一步失败。
+  base = "website"
+  command = "npm run build"
+  # 相对 base；Next.js 运行时只认 .next。
+  publish = ".next"
+
+  # 联动：ignore 在 base 目录里运行，路径要用 :/ 从仓库根起算。写成 `-- website` 会变成 website/website，
+  # 永远没有差异，等于永远跳过构建。netlify.toml 本身也算在内，否则只改配置不会部署。
+  # 退出码 0 表示跳过构建，非 0 才继续；还没有成功的部署（CACHED_COMMIT_REF 为空）时直接构建。
+  ignore = "test -n \"$CACHED_COMMIT_REF\" && git diff --quiet \"$CACHED_COMMIT_REF\" \"$COMMIT_REF\" -- ':/website' ':/netlify.toml'"
 
 [build.environment]
-  # Node.js 版本（会优先使用根目录的 .node-version，这里作为备用）
+  # 联动：与仓库根的 .node-version 一致。base 不是仓库根，Netlify 在 website/ 里找不到那份文件，所以这里要写一份。
   NODE_VERSION = "24"
-  
 
 [build.processing]
   skip_processing = false
@@ -26,6 +27,7 @@
 [build.processing.html]
   pretty_urls = false
 
+# 联动：目标文件在 website/public/，website/proxy.ts 的 matcher 也要放过这两条路径（不加语言前缀）。
 [[redirects]]
   from = "/privacy-policy"
   to = "/privacy-policy.html"
@@ -46,11 +48,8 @@
   to = "/terms-of-service.html"
   status = 200
 
-# Netlify Essential Next.js Plugin - 自动处理 Next.js 部署
-# 包括 SSR、图片优化、Middleware 等功能
-# 注意：此插件不支持任何 inputs 配置项，图片优化会自动处理，无需手动配置
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
+# 不要在这里声明 @netlify/plugin-nextjs。Next.js 运行时由 Netlify 在检测到 next 后自动安装并保持最新；
+# 声明了、又没有固定在 website/package.json 里，Netlify 会装面向旧版 Next 的 v4。
 
 # 非生产上下文不做自动部署；这里保留显式兜底，避免 UI 设置被误打开后跑构建。
 [context.deploy-preview]
@@ -58,7 +57,3 @@
 
 [context.branch-deploy]
   ignore = "exit 0"
-
-# 生产环境配置
-[context.production]
-  command = "cd website && npm ci && npm run build"

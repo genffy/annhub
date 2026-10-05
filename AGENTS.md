@@ -1,7 +1,7 @@
 # AnnHub 工程约定
 
 > 本文件只放跨目录通用规则。当前代码的局部维护提示见下表的 `AGENTS.md`。
-> 更新：2026-10-04。
+> 更新：2026-10-05。
 
 ## 项目与真源
 
@@ -24,7 +24,7 @@
 | `e2e/`                 | [Playwright 与浏览器实测](e2e/AGENTS.md)                   |
 | `docs/v2/`             | [已确认产品文档维护](docs/v2/AGENTS.md)                    |
 
-`website/` 是独立 Next.js 应用，运行方式见 [website/README.md](website/README.md)。其他扩展入口的事实以相邻源码为准。
+`website/` 是独立 Next.js 应用，运行方式和 Netlify 部署的注意事项见 [website/README.md](website/README.md)。其他扩展入口的事实以相邻源码为准。
 
 ## 跨目录规则
 
@@ -35,13 +35,33 @@
 5. 保存失败、返回或关闭流程不得丢失用户已输入的内容。不回退与当前任务无关的工作区改动。
 6. 模块、消息、快捷键或数据契约变化时，更新受影响的 `README.md` 与 `docs/`；只在全局规则或目录导航变化时修改本文件。
 
+## 联动一致性（强制）
+
+环境、依赖、构建和部署的值同时写在多个文件里。只改其中一处、漏掉其余，是反复出现的错误（Node 版本、Next.js 版本、Netlify 配置都出现过），类型检查和单测发现不了。
+
+1. **先找全，再动手。** 改任何版本号、包名、目录名、命令或 CI / 部署配置之前，先 `git grep` 这个值，列出全部出现处，范围至少含 `.github/`、`netlify.toml`、各 `package.json`、`README.md`、`docs/`、`app/project.yml`。改完再搜一遍，确认没有残留。
+2. **一个值一个真源。** 其余位置引用它或与它一致；不新增第二份真源，文档和本文件不抄版本号（抄了就会过期）。
+3. **按下表联动。** 改左列，右列在同一个提交里一起改。表里没有的联动，按第 1 条自己找，并补进表和 `scripts/check-consistency.mjs`。
+4. **断言兜底，不许绕。** `npm run check:consistency`（在 `verify` 和 CI 里）把能机器核对的联动写成断言。它失败说明漏改了某处：去改那一处，不要删断言、放宽匹配或加豁免来求绿。新增联动点时同步加断言和测试。
+5. **主版本升级是迁移，不是改 `package.json`。** Node、Next.js、React、Tailwind、ESLint、TypeScript 的主版本变化，按下表逐项核对，并在本地跑对应的构建（website：`cd website && npm run build`）。Dependabot 开的主版本 PR 只是起点，要在它的分支上补齐联动改动。
+6. **PR 描述写明核对过的位置**：列出搜过的命令和命中的文件，不要只写“已核对”。
+
+| 改这里                                    | 同一个提交里核对                                                                                                                                                                                                                                                                                                 |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.node-version`（Node 的唯一真源）        | `netlify.toml` 的 `NODE_VERSION`；各 `package.json` 的 `engines.node` 和 `@types/node` 主版本；根 `README.md` 的运行环境；workflow 只用 `node-version-file`，不写死版本                                                                                                                                          |
+| `website/package.json` 的 `next`、`react` | `eslint-config-next` 同主版本；`website/README.md` 的技术栈；`proxy.ts`、`next.config.js` 等约定文件；`netlify.toml`（见下一行）；`cd website && npm run build`                                                                                                                                                  |
+| `netlify.toml`                            | `base` 是含 `next` 的应用目录（Netlify 只在 base 里检测框架并选运行时）；不声明 `@netlify/plugin-nextjs`；`publish = ".next"`；`ignore` 在 base 里运行，路径用 `:/` 从仓库根写，并覆盖 `netlify.toml`；`NODE_VERSION`；`[[redirects]]` 指向的文件在 `public/`；[website/README.md](website/README.md) 的「部署」 |
+| 新增、移动含 `package.json` 的目录        | `.github/dependabot.yml`；`scheduled-audit.yml` 的矩阵；CI 里的安装与构建步骤；`scripts/check-lockfiles.mjs` 的列表；`netlify.toml`                                                                                                                                                                              |
+| `package.json` 的 `scripts`、CI 任务      | `verify` 与 CI 运行同样的命令；`.github/rulesets/main.json` 的必需检查名；本文件「验证入口」                                                                                                                                                                                                                     |
+
 ## 验证入口
 
-- 提交前跑 `npm run verify`（format:check → lint → compile → vitest → check:docs → check:lockfiles）。格式由 Prettier 负责，`npm run format` 一次修复；ESLint 只管正确性。
+- 提交前跑 `npm run verify`（format:check → lint → compile → vitest → check:docs → check:lockfiles → check:consistency）。格式由 Prettier 负责，`npm run format` 一次修复；ESLint 只管正确性。
 - 扩展构建：`npm run build`。浏览器 E2E：先构建，再 `npx playwright test <spec>`；现有 `.output` 不会因源码变化自动重建。手工 Chrome 实测见 [e2e/README.md](e2e/README.md)。
 - 原生端：`cd app && swift test`；Desktop 构建命令见 [app/AGENTS.md](app/AGENTS.md)。Swift 与 Desktop 只能在 macOS 上构建。
 - 按改动范围运行相关测试；跨端契约、消息协议和截图链路的最低验证见对应目录约定。
 - CI（`.github/workflows/`）运行同样的命令，并加上 CodeQL、依赖审查和 macOS 构建；合并以 CI 为准。CI 失败先在本地用上面的命令复现，不要跳过、禁用或隔离测试来求绿。
+- CI 的任务不按路径过滤：有测试会读其他目录的文件（法律页测试读 `website/public/`），一份“不影响该任务的路径”清单就是又一处隐藏联动。要少跑，靠 Dependabot 分组和取消过期运行，不要加 `paths`。必需检查所在的工作流更不能加：被跳过的必需检查会一直 pending，阻塞合并（`check:consistency` 会拦）。
 
 ## 生成物与提交
 

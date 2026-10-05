@@ -2,6 +2,12 @@ name: CI
 
 # The merge gate. Every job runs on pull requests, on pushes to main and in the merge queue;
 # `ci-pass` is the single status that branch protection requires.
+#
+# There is deliberately no path filter. Some tests read files outside their own directory
+# (utils/__tests__/legal-pages.test.ts reads website/public/*.html), so a list of paths that
+# "cannot affect" a job is one more hidden coupling, and it would skip a test that should fail.
+# Cut the number of runs instead: Dependabot is monthly and grouped (.github/dependabot.yml),
+# and a new push cancels the run it supersedes (concurrency below).
 on:
   pull_request:
   push:
@@ -55,6 +61,9 @@ jobs:
 
       - name: Lockfiles use the public registry
         run: npm run check:lockfiles
+
+      - name: Related settings agree (Node.js, Next.js, Netlify, package directories)
+        run: npm run check:consistency
 
       - name: Swift fixtures match the TypeScript source
         run: |
