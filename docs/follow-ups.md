@@ -30,7 +30,6 @@
 
 本机验证不了、或还需要人看一眼的项目。
 
-- **GitHub 上的 CI 首次完整运行**：macOS 任务（Desktop 构建与测试、macos-26 上的两端连测）、Swift 6.0.3 镜像里的 swift-format（本地是 6.3）、CodeQL、依赖审查。
 - **Netlify 上 Next 16 的 `proxy.ts`**：本地 Node 24 下类型检查、lint、构建都通过，构建输出把它识别为 Proxy (Middleware)；`@netlify/plugin-nextjs` 在 Netlify 上能否运行要部署后才知道。
 - **系统自带控件的语言**：应用解析出的语言随用户语言列表变化，已由真实进程的两端连测验证；菜单、对话框按钮、日期选择器是否真的跟着变，要在简体中文和繁体中文的系统上目测一次。
 - **人工走查**（[路线图 §5](./v2/roadmap.md)）：亮暗外观、VoiceOver、复习提醒的通知授权、点击菜单栏图标、在 Desktop 里评分后回传扩展、用鼠标完整做一轮复习。
