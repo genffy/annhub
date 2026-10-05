@@ -14,10 +14,14 @@ const markdownFiles = execFileSync('git', ['ls-files', '*.md'], { cwd: root, enc
 
 /** GitHub's heading slug: lowercase, drop punctuation, spaces to hyphens. */
 function slugify(heading) {
-  return heading
-    .trim()
-    .toLowerCase()
-    .replace(/<[^>]+>/g, '')
+  let text = heading.trim().toLowerCase()
+  // Inline HTML is dropped, keeping its text. One pass can leave a new tag behind (`<<b>b>`), so go on until it is stable.
+  let previous
+  do {
+    previous = text
+    text = text.replace(/<[^>]+>/g, '')
+  } while (text !== previous)
+  return text
     .replace(/[`*_~[\]()]/g, '')
     .replace(/[^\p{L}\p{N}\s-]/gu, '')
     .replace(/\s/g, '-')
