@@ -16,6 +16,9 @@ export class InstallationHandler {
       try {
         Logger.info('[InstallationHandler] Extension installed/updated, details:', details)
 
+        // The typings list every reason, so inside `default` `details` is `never`; Chrome can still add one later.
+        const reason: string = details.reason
+
         switch (details.reason) {
           case 'install':
             Logger.info('[InstallationHandler] Extension first installation detected')
@@ -38,7 +41,7 @@ export class InstallationHandler {
             break
 
           default:
-            Logger.info('[InstallationHandler] Unknown installation reason:', details.reason)
+            Logger.info('[InstallationHandler] Unknown installation reason:', reason)
         }
 
         Logger.info('[InstallationHandler] Installation/update handling completed successfully')
