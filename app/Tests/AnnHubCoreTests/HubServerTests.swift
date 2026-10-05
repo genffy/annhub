@@ -508,12 +508,47 @@ final class HubServerSocketTests: XCTestCase {
         }
     }
 
+    // `NWListener.cancel()` is asynchronous: a stop that only cancels returns while the port still
+    // accepts, which one connection in a few attempts caught. Repeated, so a stop that does not wait
+    // for the release cannot pass by luck.
+    func testStopReleasesThePortBeforeItReturns() throws {
+        let hub = DesktopHub(store: try freshStore(), pairToken: "X", allowedExtensionIds: [testExtensionId])
+        for round in 1...40 {
+            let server = HubServer(hub: hub, port: 0)
+            server.start()
+            let port = try waitForReady(server)
+            server.stop()
+            XCTAssertThrowsError(try RawSocket(port: port), "round \(round): the port accepted after stop() returned") {
+                error in
+                XCTAssertEqual((error as? POSIXError)?.code, .ECONNREFUSED)
+            }
+        }
+    }
+
+    // The system page's retry stops the hub and starts a new one on the same port at once.
+    func testAHubRestartedOnItsPortBindsAtOnce() throws {
+        let hub = DesktopHub(store: try freshStore(), pairToken: "X", allowedExtensionIds: [testExtensionId])
+        var server = HubServer(hub: hub, port: 0)
+        server.start()
+        let port = try waitForReady(server)
+        defer { server.stop() }
+        for round in 1...20 {
+            server.stop()
+            server = HubServer(hub: hub, port: port)
+            server.start()
+            let deadline = Date().addingTimeInterval(5)
+            while Date() < deadline, server.state == .idle || server.state == .starting {
+                Thread.sleep(forTimeInterval: 0.002)
+            }
+            XCTAssertEqual(server.state, .ready(port: port), "round \(round): the restarted hub did not bind")
+        }
+    }
+
     func testTheRequestedFixedPortIsHonoured() throws {
         // Find a free port, release it, then ask the hub for exactly that one.
         let probe = try startHub()
         let wanted = probe.port
         probe.stop()
-        Thread.sleep(forTimeInterval: 0.1)
         let hub = try startHub(port: wanted)
         defer { hub.stop() }
         XCTAssertEqual(hub.port, wanted)

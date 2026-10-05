@@ -94,6 +94,8 @@ public final class HubServer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "annhub.hub", attributes: .concurrent)
     private let lock = NSLock()
     private var listener: NWListener?
+    /// Signalled when the current listener has been cancelled, which is when its port is released.
+    private var listenerClosed: DispatchSemaphore?
     private var currentState: State = .idle
     private var connections: [ObjectIdentifier: HubConnection] = [:]
 
@@ -152,6 +154,7 @@ public final class HubServer: @unchecked Sendable {
         listener.newConnectionHandler = { [weak self] connection in
             self?.accept(connection)
         }
+        let closed = DispatchSemaphore(value: 0)
         listener.stateUpdateHandler = { [weak self, weak listener] state in
             guard let self, let listener else { return }
             switch state {
@@ -168,6 +171,7 @@ public final class HubServer: @unchecked Sendable {
                 // port will not free itself, so report it. It may still recover.
                 self.transition(to: .failed(Self.describe(error, port: self.requestedPort)))
             case .cancelled:
+                closed.signal()  // first: a `stop()` is waiting for it
                 self.discard(listener)
                 if case .failed = self.state { return }
                 self.transition(to: .idle)
@@ -177,6 +181,7 @@ public final class HubServer: @unchecked Sendable {
         }
         lock.lock()
         self.listener = listener
+        self.listenerClosed = closed
         lock.unlock()
         transition(to: .starting)
         listener.start(queue: queue)
@@ -185,19 +190,29 @@ public final class HubServer: @unchecked Sendable {
     /// Forgets a listener that has ended so `start()` can bind again.
     private func discard(_ ended: NWListener) {
         lock.lock()
-        if listener === ended { listener = nil }
+        if listener === ended {
+            listener = nil
+            listenerClosed = nil
+        }
         lock.unlock()
     }
 
+    /// Stops listening. When it returns the port has been released, so a new hub can bind it at once
+    /// (`DesktopModel.restartHub`) and nothing can connect to the old one: `NWListener.cancel()` alone
+    /// is asynchronous and the port keeps accepting for a moment. The wait is bounded; a listener that
+    /// never reports back does not hold the caller.
     public func stop() {
         lock.lock()
         let listener = self.listener
+        let closed = self.listenerClosed
         self.listener = nil
+        self.listenerClosed = nil
         let open = Array(connections.values)
         connections.removeAll()
         lock.unlock()
         listener?.cancel()
         open.forEach { $0.close() }
+        if listener != nil { _ = closed?.wait(timeout: .now() + 1) }
         transition(to: .idle)
     }
 
