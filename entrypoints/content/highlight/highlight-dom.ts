@@ -634,7 +634,7 @@ export class HighlightDOMManager {
       const href = (link as HTMLAnchorElement).href
       if (!href) continue
 
-      if (href.startsWith('javascript:') || href === currentUrl || href === currentUrl + '#' || href.startsWith('#')) {
+      if (href === currentUrl || href === currentUrl + '#' || href.startsWith('#')) {
         continue
       }
 
@@ -643,6 +643,9 @@ export class HighlightDOMManager {
 
       try {
         const linkUrl = new URL(href)
+
+        // Only a web page can be a source: `javascript:`, `data:`, `mailto:` and the like are not permalinks.
+        if (linkUrl.protocol !== 'http:' && linkUrl.protocol !== 'https:') continue
 
         if (linkUrl.origin === origin && linkUrl.pathname !== currentPath) {
           const linkSegments = linkUrl.pathname.split('/').filter(Boolean).length

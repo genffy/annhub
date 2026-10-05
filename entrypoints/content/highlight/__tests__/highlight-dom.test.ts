@@ -119,6 +119,46 @@ describe('HighlightDOMManager.generateSelector', () => {
   })
 })
 
+// ─── findSourceUrl: generic permalink ───────────────────────────────────────
+
+describe('HighlightDOMManager.findSourceUrl without a site rule', () => {
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  function selectionIn(html: string): Range {
+    document.body.innerHTML = `<article><p>quoted words</p>${html}</article>`
+    const range = document.createRange()
+    range.selectNodeContents(document.querySelector('p')!)
+    return range
+  }
+
+  it('takes a link into another page of the same site, deeper than the current one', () => {
+    const range = selectionIn(`
+      <a href="/">Home page</a>
+      <a href="/posts/42">Read the post</a>`)
+    expect(HighlightDOMManager.findSourceUrl(range)).toBe(`${window.location.origin}/posts/42`)
+  })
+
+  it('never takes a link that is not a web page, whatever its scheme', () => {
+    const range = selectionIn(`
+      <a href="javascript:void(0)">Open the post</a>
+      <a href="JaVaScRiPt:void(0)">Open the post</a>
+      <a href="data:text/html,hello">Open the post</a>
+      <a href="vbscript:msgbox(1)">Open the post</a>
+      <a href="mailto:author@example.com">Mail the author</a>
+      <a href="https://elsewhere.example/original">The original</a>`)
+    expect(HighlightDOMManager.findSourceUrl(range)).toBe('https://elsewhere.example/original')
+  })
+
+  it('has no source when every link in the post is not a web page', () => {
+    const range = selectionIn(`
+      <a href="data:text/html,hello">Open the post</a>
+      <a href="tel:+10000000000">Call the author</a>`)
+    expect(HighlightDOMManager.findSourceUrl(range)).toBeNull()
+  })
+})
+
 // ─── Tweet status regex patterns ────────────────────────────────────────────
 
 describe('Tweet status URL patterns', () => {
