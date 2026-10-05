@@ -417,11 +417,32 @@ export async function getScreenshotsFromServiceWorker(context: any): Promise<any
 // Screenshot capture helpers (shared by the screenshot and Desktop specs)
 // ────────────────────────────────────────────────────────────────────────────
 
-/** Fires the capture-screenshot command on the fixture page (screenshot.html). */
+/**
+ * What the keyboard shortcut does: the background messages the content script of the tab showing
+ * `page`. Not a DOM event on the page — the page's own scripts can dispatch those, and the extension
+ * must not take them for the user (see the capture spec's "a page cannot start a capture").
+ * The content script registers its listener a moment after its shadow host appears, so a message
+ * that finds nobody is sent again.
+ */
 export async function triggerScreenshot(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    window.dispatchEvent(new CustomEvent('ann-screenshot-trigger', { detail: { command: 'capture-screenshot' } }))
-  })
+  const worker = await ensureServiceWorker(page.context())
+  const url = page.url()
+  const deadline = Date.now() + 10_000
+  for (;;) {
+    const error = await worker.evaluate(async pageUrl => {
+      const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === pageUrl)
+      if (tab?.id === undefined) return `no tab shows ${pageUrl}`
+      try {
+        await chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_SCREENSHOT', command: 'capture-screenshot' })
+        return ''
+      } catch (failure) {
+        return failure instanceof Error ? failure.message : String(failure)
+      }
+    }, url)
+    if (!error) return
+    if (Date.now() > deadline) throw new Error(`The screenshot trigger never reached the page: ${error}`)
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
 }
 
 /** Drags a region over the fixture post; returns the selection rectangle in page coordinates. */

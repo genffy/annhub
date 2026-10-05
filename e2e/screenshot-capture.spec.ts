@@ -4,6 +4,7 @@
  * separate PNG download and library save, anonymization, cancel and errors.
  */
 import { test, expect } from './fixtures'
+import { SCREENSHOT_TRIGGER_GLOBAL } from '../constants'
 import { clearFragmentStoreViaServiceWorker, dragRegion, ensureServiceWorker, getFragmentsFromServiceWorker, triggerScreenshot } from './helpers'
 
 /** Wrap chrome.downloads.download to record options (Playwright reroutes the real files). */
@@ -287,6 +288,57 @@ test.describe('Screenshot capture', () => {
     await page.mouse.up()
     await expect(page.locator('[data-ann-ui="screenshot-undo"]')).toBeEnabled()
     await page.keyboard.press('Escape')
+  })
+
+  test('a page cannot start a capture or drive one: only the user and the extension can', async ({ page }) => {
+    const session = page.locator('[data-ann-ui="screenshot-session"]')
+
+    // The event the extension used to listen for on window; any script in the page can dispatch it.
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('ann-screenshot-trigger', { detail: { command: 'capture-screenshot' } })))
+    await page.waitForTimeout(300)
+    await expect(session).toHaveCount(0)
+
+    // In a session the extension did open, input the page makes up moves nothing.
+    await triggerScreenshot(page)
+    await expect(session).toHaveCount(1)
+    await page.evaluate(() => {
+      const post = document.querySelector('[data-testid="screenshot-post"]')!.getBoundingClientRect()
+      const pointer = (type: string, x: number, y: number) => document.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, button: 0, clientX: x, clientY: y }))
+      pointer('pointerdown', post.x + 5, post.y + 5)
+      pointer('pointermove', post.x + 300, post.y + 160)
+      pointer('pointerup', post.x + 300, post.y + 160)
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    await page.waitForTimeout(500)
+    await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toHaveCount(0)
+    await expect(page.locator('.ann-shot-rect')).toHaveCount(0)
+    await expect(session).toHaveCount(1) // the script's Escape did not cancel it either
+
+    // The user's own drag goes through on the same session.
+    await dragRegion(page)
+    await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible({ timeout: 10_000 })
+  })
+
+  test("the background's last resort calls into the content script's own world, which the page cannot reach", async ({ page, context }) => {
+    const worker = await ensureServiceWorker(context)
+    // What command-handler.ts runs when a tab's content script does not answer the shortcut's message.
+    await worker.evaluate(
+      async ({ pageUrl, name }) => {
+        const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === pageUrl)!
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id! },
+          world: 'ISOLATED',
+          func: (global: string) => {
+            const enter = (globalThis as Record<string, unknown>)[global]
+            if (typeof enter === 'function') enter()
+          },
+          args: [name],
+        })
+      },
+      { pageUrl: page.url(), name: SCREENSHOT_TRIGGER_GLOBAL },
+    )
+    await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(1)
+    expect(await page.evaluate(name => name in window, SCREENSHOT_TRIGGER_GLOBAL)).toBe(false)
   })
 
   test('narrow viewport keeps cancel and confirm visible beside a scrollable tool strip', async ({ page }) => {

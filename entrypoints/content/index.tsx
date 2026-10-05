@@ -12,6 +12,7 @@ import MediaCaptureModal from './media/MediaCaptureModal'
 import { detectMediaTargets, type MediaTarget } from './media/detect'
 import ClipToast from './ClipToast'
 import { enterScreenshotMode } from './screenshot'
+import { SCREENSHOT_TRIGGER_GLOBAL } from '../../constants'
 import MessageUtils from '../../utils/message'
 import { Logger } from '../../utils/logger'
 import type { HighlightRecord } from '../../types/highlight'
@@ -242,12 +243,15 @@ function Selection() {
     return () => chrome.runtime.onMessage.removeListener(handler)
   }, [])
 
-  // ── Screenshot fallback trigger: background dispatches this CustomEvent when
-  // tabs.sendMessage has no receiver (e.g. cold frame) — docs/v2/screenshot.md.
+  // ── Screenshot fallback trigger: when tabs.sendMessage has no receiver, the background runs a function in
+  // this isolated world that calls this (command-handler.ts). A window CustomEvent would let the page start
+  // a capture itself: the page's scripts can dispatch it too, an isolated-world global they cannot reach.
   useEffect(() => {
-    const handler = () => enterScreenshotMode()
-    window.addEventListener('ann-screenshot-trigger', handler)
-    return () => window.removeEventListener('ann-screenshot-trigger', handler)
+    const world = globalThis as Record<string, unknown>
+    world[SCREENSHOT_TRIGGER_GLOBAL] = enterScreenshotMode
+    return () => {
+      delete world[SCREENSHOT_TRIGGER_GLOBAL]
+    }
   }, [])
 
   // ── Calculate menu position near selection end ──

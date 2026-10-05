@@ -27,5 +27,6 @@
 ## 截图
 
 - 区域截图从视口 CSS 坐标按 dpr 裁剪；调用 `captureVisibleTab` 前隐藏扩展 UI。元素截图经离屏克隆栅格化，跨域资源由 background 内联。
+- 会话在页面 DOM 里，页面脚本能派发任何事件，所以截图会话的指针与按键只认 `user-input.ts` 的 `isUserInput`（`event.isTrusted`）；触发只走 background 的消息，兜底触发是调用隔离环境里注册的 `SCREENSHOT_TRIGGER_GLOBAL`，不要再用 `window` 自定义事件。任何会走到特权 API（截取、跨域代取）的新入口都按同样的规则：起点是用户输入或扩展自己的消息。jsdom 的事件都不可信，单测里 mock `isUserInput`。
 - 选区内本地标注与马赛克只把处理后的 PNG 交给后台；保存和下载失败时保留编辑会话。目标资产与 `visual` 契约见 [docs/v2/screenshot.md](../../docs/v2/screenshot.md)。
 - 改截图链路时跑 `entrypoints/content/screenshot/__tests__`，构建扩展后跑 `e2e/screenshot-capture.spec.ts`。

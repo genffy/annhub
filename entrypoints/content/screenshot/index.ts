@@ -9,10 +9,16 @@
  * Anonymize ('A', default on): identity elements are covered with gray
  * placeholders before the shot (region: live overlays, element: clone swap).
  * Confirm saves to the screenshot library; download is a separate command.
+ *
+ * The session lives in the page's DOM, so the page's scripts can dispatch events at it. Only the
+ * user's own pointer and keyboard input (`isUserInput`) moves it along; a script cannot drag a
+ * region or click an element for the user, which is what stands between a page and the
+ * privileged capture and fetch calls behind them.
  */
 
 import MessageUtils from '../../../utils/message'
 import { uiText } from '../../../utils/ui-text'
+import { isUserInput } from '../user-input'
 import type { ViewportRect } from './crop'
 import { computeCropSource, CropError } from './crop'
 import { detectIdentityRects } from './detect'
@@ -25,7 +31,6 @@ import { renderScreenshot, type Annotation, type Point, type ScreenshotTool } fr
 
 const ROOT_ATTR = 'data-ann-ui'
 const ROOT_VALUE = 'screenshot-session'
-export const TRIGGER_EVENT = 'ann-screenshot-trigger'
 
 let activeSession: ScreenshotSession | null = null
 
@@ -73,6 +78,7 @@ class ScreenshotSession {
   private capturedDpr = 1
   private anonymizeOn = true
   private readonly onKeydown = (e: KeyboardEvent) => {
+    if (!isUserInput(e)) return
     if (e.key === 'Escape') {
       e.preventDefault()
       e.stopPropagation()
@@ -199,6 +205,7 @@ class ScreenshotSession {
 
   private onPointerDown = (e: PointerEvent) => {
     if (this.state !== 'selecting') return
+    if (!isUserInput(e)) return
     if (e.target instanceof Node && this.host.contains(e.target)) return
     if (e.button !== 0) return
     e.preventDefault()
@@ -213,6 +220,7 @@ class ScreenshotSession {
     rect.appendChild(size)
 
     const move = (ev: PointerEvent) => {
+      if (!isUserInput(ev)) return
       const x0 = Math.max(0, Math.min(origin.x, ev.clientX))
       const y0 = Math.max(0, Math.min(origin.y, ev.clientY))
       const x1 = Math.min(this.doc.defaultView!.innerWidth, Math.max(origin.x, ev.clientX))
@@ -232,6 +240,7 @@ class ScreenshotSession {
       size.style.top = y0 < 28 ? 'calc(100% + 6px)' : ''
     }
     const up = (ev: PointerEvent) => {
+      if (!isUserInput(ev)) return
       detach()
       const width = Math.abs(ev.clientX - origin.x)
       const height = Math.abs(ev.clientY - origin.y)

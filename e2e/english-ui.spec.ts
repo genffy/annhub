@@ -13,6 +13,7 @@ import {
   navigateToFragmentPage,
   selectText,
   setCaptureConfigViaServiceWorker,
+  triggerScreenshot,
   waitForCaptureModal,
   waitForHoverMenu,
 } from './helpers'
@@ -134,7 +135,7 @@ test.describe('English interface (D-15)', () => {
   test('the screenshot overlay, toolbar and error panel speak English', async ({ context, page }) => {
     await page.goto('http://localhost:8173/screenshot.html')
     await page.waitForSelector('ann-selection', { state: 'attached' })
-    await page.evaluate(() => window.dispatchEvent(new CustomEvent('ann-screenshot-trigger', { detail: { command: 'capture-screenshot' } })))
+    await triggerScreenshot(page)
     const overlay = page.locator('[data-ann-ui="screenshot-overlay"]')
     await expect(overlay).toContainText('Drag = area · Click = element · Esc to cancel · A Anonymize: on')
 
@@ -162,7 +163,7 @@ test.describe('English interface (D-15)', () => {
         cb(undefined)
       }) as unknown as typeof chrome.tabs.captureVisibleTab
     })
-    await page.evaluate(() => window.dispatchEvent(new CustomEvent('ann-screenshot-trigger', { detail: { command: 'capture-screenshot' } })))
+    await triggerScreenshot(page)
     await expect(overlay).toBeVisible()
     await page.mouse.move(box.x + 5, box.y + 5)
     await page.mouse.down()
