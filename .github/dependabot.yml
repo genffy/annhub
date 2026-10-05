@@ -5,15 +5,19 @@ version: 2
 #   - Monthly, not weekly. Security updates are not on this schedule: they arrive when an advisory
 #     is published.
 #   - At most 3 open version-update pull requests per directory. Security updates do not count.
-#   - Packages that have to move together share a group, so one pull request changes all of them
-#     instead of several that each fail alone: React and its types, Next.js and its ESLint config,
-#     the TypeScript and ESLint toolchain.
+#   - One group per directory, for minor and patch updates only. Majors are not grouped: a group that
+#     took in eslint and typescript replaced their two individual pull requests with one that read
+#     like routine maintenance, and it was merged with a red build. A major stays an individual pull
+#     request, with its own title and its own red check.
 #   - A cooldown keeps brand-new releases out for a week, which is when most compromised packages
 #     are noticed and pulled. Security updates ignore the cooldown.
 #
-# Major versions are not ignored on purpose: `ignore` also applies to security updates, so it would
-# hold back a fix that only exists in the next major. A major pull request is where a migration
-# starts: push the follow-up changes onto its branch, following AGENTS.md「联动一致性」, or close it.
+# A major pull request is where a migration starts: push the follow-up changes onto its branch,
+# following AGENTS.md「联动一致性」, or close it. Do not merge one while it is red.
+#
+# `ignore` also applies to security updates, so it is used only for build tooling without runtime
+# exposure whose next major needs a migration this project has not done. Each entry says what that is;
+# delete the entry when the migration is done.
 
 updates:
   - package-ecosystem: npm
@@ -27,14 +31,17 @@ updates:
       prefix: 'chore(deps)'
     ignore:
       # The type definitions follow the runtime in `.node-version` (`npm run check:consistency` enforces
-      # it), so a new major is raised together with the Node.js version, by hand. It carries no runtime code.
+      # it), so a new major is raised together with the Node.js version, by hand.
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
+      # Tailwind CSS 4 moves the PostCSS plugin into @tailwindcss/postcss and the configuration into CSS:
+      # a migration that needs a visual comparison. `npm run check:consistency` catches a bump without it.
+      - dependency-name: tailwindcss
+        update-types: ['version-update:semver-major']
+      # typescript-eslint supports TypeScript only below 6.1, and with TypeScript 7 `npm run lint` fails.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
     groups:
-      react:
-        patterns: [react, react-dom, '@types/react', '@types/react-dom']
-      toolchain:
-        patterns: [typescript, typescript-eslint, eslint, '@eslint/*', 'eslint-*', globals]
       minor-and-patch:
         update-types: [minor, patch]
 
@@ -50,13 +57,14 @@ updates:
     ignore:
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
+      - dependency-name: tailwindcss
+        update-types: ['version-update:semver-major']
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
+      # eslint-config-next 16 bundles plugins (import, jsx-a11y, react) whose peer ranges stop at ESLint 9.
+      - dependency-name: eslint
+        update-types: ['version-update:semver-major']
     groups:
-      next:
-        patterns: [next, eslint-config-next, next-intl]
-      react:
-        patterns: [react, react-dom, '@types/react', '@types/react-dom']
-      toolchain:
-        patterns: [typescript, typescript-eslint, eslint, '@eslint/*', 'eslint-*']
       minor-and-patch:
         update-types: [minor, patch]
 

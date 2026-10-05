@@ -22,7 +22,7 @@
 
 - `scheduled-audit.yml`：每周对运行时依赖做 `npm audit`。新公告不应让无关 PR 变红，所以不放进门禁。
 - `scorecard.yml`：OpenSSF Scorecard，每周与分支保护变更时运行，结果进 Security 页。
-- Dependabot（`.github/dependabot.yml`）：每个 Dependabot PR 都要跑完整门禁（含 macOS），所以要控制 PR 的数量。npm 与 GitHub Actions 每月更新；每个 npm 目录同时最多开 3 个版本更新 PR；必须一起升级的包（React 与其类型、Next.js 与其 ESLint 配置、TypeScript 与 ESLint 工具链）同组，一个 PR 一起改；新版本先冷却 7 天。安全更新不受计划、冷却和数量上限限制。主版本不忽略（`ignore` 会同时拦住只在新主版本里修复的安全更新），只有 `@types/node` 的主版本例外：它跟 `.node-version`，手工一起升。主版本 PR 是迁移的起点，按 [AGENTS.md「联动一致性」](../AGENTS.md#联动一致性强制)在它的分支上补齐。
+- Dependabot（`.github/dependabot.yml`）：每个 Dependabot PR 都要跑完整门禁（含 macOS），所以要控制 PR 的数量。npm 与 GitHub Actions 每月更新；每个 npm 目录同时最多开 3 个版本更新 PR；每个目录只有一个 minor / patch 分组，主版本不分组（eslint 10 和 typescript 7 的两个独立 PR 曾被合成一个 “toolchain” 分组 PR，看起来像例行维护，红着就被合并了）；新版本先冷却 7 天。安全更新不受计划、冷却和数量上限限制。`ignore` 会同时拦住安全更新，所以只用在没有运行时暴露、且下一个主版本需要迁移的构建工具上：`@types/node`（跟 `.node-version`，手工一起升）、`tailwindcss`、`typescript`，以及 website 的 `eslint`；做完迁移就删掉对应条目。其余主版本 PR 是迁移的起点，按 [AGENTS.md「联动一致性」](../AGENTS.md#联动一致性强制)在它的分支上补齐，CI 红着不要合并。
 
 所有第三方 action 都固定到完整 commit SHA（注释里写版本），默认 `permissions: {}`，每个任务只声明自己需要的权限，checkout 不保留凭据。更新由 Dependabot 提交。
 

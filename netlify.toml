@@ -4,9 +4,9 @@
 # 标了「联动」的几处由 scripts/check-consistency.mjs 核对。
 
 [build]
-  # 联动：必须是含 next 依赖的应用目录。Netlify 只在 base 里检测框架、安装依赖、读 .node-version；
-  # 检测到 next 后才会自动使用 Next.js 运行时（OpenNext 适配器）。base 留在仓库根目录就检测不到，
-  # 会退回面向 Next 13.5 之前的旧运行时，Next 16 在它打包函数的那一步失败。
+  # 联动：必须是含 next 依赖的应用目录。Netlify 只在 base 里装依赖、读 .node-version，插件也从 base 的
+  # node_modules 里找（见下面的 [[plugins]]）。base 留在仓库根目录，插件就不在那里，Netlify 会另装一份
+  # 它自己选的旧版 v4（面向 Next 13.5 之前），Next 16 在它打包函数的那一步失败。
   base = "website"
   command = "npm run build"
   # 相对 base；Next.js 运行时只认 .next。
@@ -48,8 +48,12 @@
   to = "/terms-of-service.html"
   status = 200
 
-# 不要在这里声明 @netlify/plugin-nextjs。Next.js 运行时由 Netlify 在检测到 next 后自动安装并保持最新；
-# 声明了、又没有固定在 website/package.json 里，Netlify 会装面向旧版 Next 的 v4。
+# 联动：Next.js 运行时在这里声明，版本固定在 website/package.json（进 lockfile，由 Dependabot 月度升级）。
+# Netlify 只自动加载装在站点设置里的运行时，这个站点没有：不声明，构建里就没有运行时，部署出去的只是 .next 目录。
+# 装在 package.json 里的插件被直接使用，不再经过 Netlify 的版本钉住与兼容规则；只声明、不固定，
+# Netlify 会自己装一份旧版 v4。
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
 # 非生产上下文不做自动部署；这里保留显式兜底，避免 UI 设置被误打开后跑构建。
 [context.deploy-preview]

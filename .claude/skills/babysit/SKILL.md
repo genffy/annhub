@@ -29,8 +29,8 @@ actionlint and zizmor checks. See `docs/releasing.md` for the full map.
   `--repeat-each`).
 - Do not hand-edit `package-lock.json`, `fixtures/`, or the generated Xcode project; a hook blocks it and says which command regenerates them.
 - Add or change a dependency only with a reason, and keep `npm audit --omit=dev` clean.
-- A Dependabot pull request for a major version is where a migration starts, not something to merge because it is green. Go through
-  AGENTS.md「联动一致性」 for that package and push the related changes onto its branch.
+- A Dependabot pull request for a major version is where a migration starts, not something to merge because it is green, and never
+  while it is red. Go through AGENTS.md「联动一致性」 for that package and push the related changes onto its branch.
 - Workflow changes: pin every action to a full commit SHA with the version in a comment, keep `permissions` minimal per job, and pass
   `${{ }}` values through `env:` instead of interpolating them into `run:`. Do not add `paths` or `branches` filters to `pull_request`
   (see AGENTS.md「验证入口」): a skipped workflow leaves its required check pending and blocks the merge.
