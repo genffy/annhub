@@ -14,6 +14,7 @@
 | 合并方式                   | 这个分支带着多个提交和两次与上游的合并。合并 PR 时是保留历史（merge commit）还是 squash                                                                                                                                                                                                                                                                                     | 保留历史：每个提交都对应一个完整改动，可以单独回退                           |
 | 截图界面里的像素对页面可见 | 预览画布和元素截图的离屏克隆都在页面自己的 DOM 里，页面的脚本读得到用户在这个页面上截下的像素，包括页面里跨域 iframe 的画面。页面伪造输入、跨标签页截取、代取私有网络地址这三条路已经堵上，这一条没有。彻底解决要把编辑界面放进扩展自己来源的 iframe 或独立窗口，改动大，E2E 选择器也要跟着改；关闭 shadow root 挡不住预先改写 `attachShadow` 的页面，Playwright 也看不进去 | 保持现状：会话由用户本人开始，只影响用户主动截取的页面                       |
 | `scripting` 权限的用途     | 它唯一的用途是快捷键的兜底触发：`tabs.sendMessage` 没人应答时再注入一次调用。内容脚本不在页面里时，这次调用同样没有接收者，所以兜底几乎不会生效。兜底改成直接调用后，`docs/extension-permissions.md` 已改，隐私政策的权限表仍写“注入一个事件”（`website/public/privacy-policy.html` 的中英文两处）。去掉这个权限要同时改隐私政策和商店的权限说明                            | 保留权限；通读隐私政策时顺带改这一行的措辞                                   |
+| Netlify 的预览与分支部署   | 仓库里的 `ignore = "exit 0"` 让它们被跳过（看板显示 Canceled，没有真的构建），但每个 PR 的每次推送仍会在 Netlify 看板和 PR 检查里留下一条。彻底不出现要在后台关掉，位置见 [website/README.md](../website/README.md) 的「部署」                                                                                                                                              | 保持现状：只留下 Canceled 条目，不消耗构建                                   |
 | CodeQL 的 6 条中危告警     | `e2e/desktop-two-end.spec.ts` 读 Desktop 写出的 `ready.json`（端口、配对码）和互通 fixture，再发给本机的 Desktop；CodeQL 的 `js/file-access-to-http` 把它当作“文件数据进入出站请求”。这是测试代码，不进产品；只有高危告警会让检查失败，这 6 条不会。可以在 Security 页按“used in tests”关闭，或在 CodeQL 配置里把 `e2e/` 排除在分析之外                                     | 保持现状：告警留在 Security 页，不影响合并检查                               |
 
 英文术语待定：
@@ -30,7 +31,7 @@
 
 本机验证不了、或还需要人看一眼的项目。
 
-- **Netlify 上 Next 16 的 `proxy.ts`**：本地 Node 24 下类型检查、lint、构建都通过，构建输出把它识别为 Proxy (Middleware)；`@netlify/plugin-nextjs` 在 Netlify 上能否运行要部署后才知道。
+- **Netlify 部署后的路由**：第一次生产构建失败的原因和修法（`base = "website"`，改用 v5 运行时）见 [website/README.md](../website/README.md) 的「部署」。本机用 Netlify CLI 加 v5.16.0 构建通过，`proxy.ts` 被打包成中间件边缘函数，matcher 与 `proxy.ts` 一致。但本机的 `netlify serve` 在子目录 base 下所有路由都返回 500（它重打包的函数副本里没有 `.next`，部署用的 zip 里有），验证不了路由。下一次生产部署后确认：日志显示 `Using Next.js Runtime - v5`；`/` 跳到 `/zh-CN`，`/en` 返回 200，`/privacy-policy` 与 `/terms-of-service` 返回静态页。
 - **系统自带控件的语言**：应用解析出的语言随用户语言列表变化，已由真实进程的两端连测验证；菜单、对话框按钮、日期选择器是否真的跟着变，要在简体中文和繁体中文的系统上目测一次。
 - **人工走查**（[路线图 §5](./v2/roadmap.md)）：亮暗外观、VoiceOver、复习提醒的通知授权、点击菜单栏图标、在 Desktop 里评分后回传扩展、用鼠标完整做一轮复习。
 - **Desktop 发布流程**：`release-desktop.yml` 的签名与公证从未实际运行。

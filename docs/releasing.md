@@ -1,7 +1,7 @@
 # 发布与供应链
 
 > 适用于仓库的 CI、安全扫描与发布流程。产品范围与交付状态以 [docs/v2/roadmap.md](v2/roadmap.md) 为准，本文不重复。
-> 更新：2026-10-04。
+> 更新：2026-10-05。
 
 ## 1. 每次合并前自动验证什么
 
@@ -9,19 +9,20 @@
 
 | 工作流                  | 任务                                                | 验证内容                                                                                                                                  |
 | ----------------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `ci.yml`                | `extension`                                         | 格式、ESLint、类型、vitest、文档链接、Swift 夹具与 TypeScript 源一致、构建、MV3 清单、Playwright E2E                                      |
+| `ci.yml`                | `extension`                                         | 格式、ESLint、类型、vitest、文档链接、锁文件注册表、联动一致性、Swift 夹具与 TypeScript 源一致、构建、MV3 清单、Playwright E2E            |
 | `ci.yml`                | `website`                                           | 官网类型与构建                                                                                                                            |
 | `ci.yml`                | `swift-format`                                      | 固定 Swift 6.0.3 容器里的 `swift format lint --strict`，不随 Xcode 升级漂移                                                               |
 | `ci.yml`                | `macos`                                             | `swift test`；用固定版本并校验摘要的 XcodeGen 生成工程，`xcodebuild` 无签名构建 Desktop；检查产物里的 `LSUIElement`、Bundle ID 和隐私清单 |
+| `ci.yml`                | `desktop-e2e`                                       | macOS 上构建扩展与 Desktop，Chromium 里的扩展经真实回环套接字把数据交给 Desktop 进程（`e2e/desktop-two-end.spec.ts`）                     |
 | `codeql.yml`            | `Analyze (javascript-typescript / actions / swift)` | CodeQL 静态分析；Swift 在 macOS 上手动构建后抽取                                                                                          |
 | `dependency-review.yml` | `Dependency review`                                 | 拦截引入 high / critical 已知漏洞依赖的 PR                                                                                                |
-| `workflow-lint.yml`     | `actionlint`、`zizmor`                              | 工作流语法与安全（未固定的 action、模板注入、权限过宽、凭据残留）                                                                         |
+| `workflow-lint.yml`     | `actionlint`、`zizmor`                              | 工作流语法与安全（未固定的 action、模板注入、权限过宽、凭据残留）；每个 PR 都跑，不按路径过滤：被跳过的必需检查会一直 pending             |
 
 不在合并路径上的：
 
 - `scheduled-audit.yml`：每周对运行时依赖做 `npm audit`。新公告不应让无关 PR 变红，所以不放进门禁。
 - `scorecard.yml`：OpenSSF Scorecard，每周与分支保护变更时运行，结果进 Security 页。
-- Dependabot（`.github/dependabot.yml`）：npm 与 GitHub Actions 每周更新，新版本先冷却 7 天；安全更新不受冷却限制。
+- Dependabot（`.github/dependabot.yml`）：每个 Dependabot PR 都要跑完整门禁（含 macOS），所以要控制 PR 的数量。npm 与 GitHub Actions 每月更新；每个 npm 目录同时最多开 3 个版本更新 PR；必须一起升级的包（React 与其类型、Next.js 与其 ESLint 配置、TypeScript 与 ESLint 工具链）同组，一个 PR 一起改；新版本先冷却 7 天。安全更新不受计划、冷却和数量上限限制。主版本不忽略（`ignore` 会同时拦住只在新主版本里修复的安全更新），只有 `@types/node` 的主版本例外：它跟 `.node-version`，手工一起升。主版本 PR 是迁移的起点，按 [AGENTS.md「联动一致性」](../AGENTS.md#联动一致性强制)在它的分支上补齐。
 
 所有第三方 action 都固定到完整 commit SHA（注释里写版本），默认 `permissions: {}`，每个任务只声明自己需要的权限，checkout 不保留凭据。更新由 Dependabot 提交。
 
@@ -90,7 +91,7 @@ spctl --assess --type execute --verbose=4 AnnHubDesktop.app
 ## 4. 本地复现 CI
 
 ```bash
-npm run verify                 # 格式、ESLint、类型、vitest、文档链接、锁文件注册表
+npm run verify                 # 格式、ESLint、类型、vitest、文档链接、锁文件注册表、联动一致性
 npm run build && npx playwright test
 cd app && swift test           # 只能在 macOS 上
 swift format lint --configuration .swift-format --strict --recursive Sources Tests Desktop Package.swift

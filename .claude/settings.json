@@ -7,6 +7,7 @@
       "Bash(npm run lint)",
       "Bash(npm run format:check)",
       "Bash(npm run check:docs)",
+      "Bash(npm run check:consistency)",
       "Bash(npm run build)",
       "Bash(npm test)",
       "Bash(npm test -- *)",

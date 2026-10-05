@@ -2,10 +2,13 @@ name: Workflow Lint
 
 # actionlint checks syntax, expressions and shell; zizmor checks security (unpinned actions,
 # template injection, excessive permissions, credential persistence).
+#
+# Both are required checks (.github/rulesets/main.json). A required check from a workflow that a
+# path filter skips stays pending and blocks the pull request, so pull requests are linted whether
+# or not they touch .github; only the run after a merge to main is limited to workflow changes.
+# `npm run check:consistency` fails when a workflow that reports a required check filters pull_request.
 on:
   pull_request:
-    paths:
-      - '.github/**'
   push:
     branches: [main]
     paths:
