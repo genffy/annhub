@@ -18,7 +18,7 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit, tim
     })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new Error(`LLM request timed out after ${Math.round(timeoutMs / 1000)}s`)
+      throw new Error(`LLM request timed out after ${Math.round(timeoutMs / 1000)}s`, { cause: error })
     }
     throw error
   } finally {
