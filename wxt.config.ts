@@ -17,8 +17,15 @@ export default defineConfig({
     description: '__MSG_extDescription__',
     version: extensionVersion,
     default_locale: 'en',
-    permissions: ['storage', 'activeTab', 'tabs', 'commands', 'sidePanel', 'alarms'],
-    host_permissions: ['<all_urls>'],
+    // Desktop only serves the extension ids it was configured with (storage.md §8), by default the
+    // published one. A local build adopts that id when the store item's public key is passed in;
+    // release builds never set it.
+    ...(process.env.ANNHUB_EXTENSION_KEY ? { key: process.env.ANNHUB_EXTENSION_KEY } : {}),
+    // `tabs` and `activeTab` are omitted on purpose: the `<all_urls>` host permission already grants
+    // everything they would (tab URLs and titles, capturing the visible tab).
+    permissions: ['storage', 'commands', 'alarms', 'downloads', 'scripting'],
+    minimum_chrome_version: '114',
+    host_permissions: ['http://127.0.0.1:8765/*', '<all_urls>'],
     action: {
       default_title: '__MSG_extName__',
       default_popup: 'popup/index.html',
@@ -27,9 +34,6 @@ export default defineConfig({
       page: 'options/index.html',
       open_in_tab: true,
     },
-    side_panel: {
-      default_path: 'sidepanel/index.html',
-    },
 
     commands: {
       [ANN_SELECTION_KEY]: {
@@ -37,7 +41,7 @@ export default defineConfig({
           default: 'Ctrl+Shift+S',
           mac: 'Command+Shift+S',
         },
-        description: 'Capture selected text area for annotation',
+        description: '__MSG_commandScreenshot__',
         global: false,
       },
       'toggle-highlighter': {
@@ -45,19 +49,13 @@ export default defineConfig({
           default: 'Alt+H',
           mac: 'Command+Shift+H',
         },
-        description: 'Toggle highlighter / machine-gun capture mode',
+        description: '__MSG_commandHighlighter__',
         global: false,
       },
     },
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'self'; style-src 'self' 'unsafe-inline';",
     },
-    web_accessible_resources: [
-      {
-        matches: ['<all_urls>'],
-        resources: ['content-scripts/content.css'],
-      },
-    ],
   },
   webExt: {
     disabled: true,

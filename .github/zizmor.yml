@@ -1,0 +1,9 @@
+# zizmor configuration: https://docs.zizmor.sh/configuration/
+rules:
+  # zizmor 1.30 asks for `uses: $/…` instead of `uses: ./…` for the actions and workflows of this
+  # repository. actionlint, which the same merge gate runs, does not know that syntax yet: its
+  # latest release (1.7.12, the one pinned in workflow-lint.yml) rejects `$/…` as an invalid action
+  # reference. The two cannot both pass, so the workspace-relative form stays. Remove this entry
+  # together with a bump of actionlint once it understands the new syntax.
+  self-repository:
+    disable: true

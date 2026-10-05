@@ -11,9 +11,7 @@ on:
         description: 'Chrome Web Store package file name'
         value: ${{ jobs.build.outputs.zip-name }}
 
-permissions:
-  artifact-metadata: write
-  contents: read
+permissions: {}
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -21,19 +19,26 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      artifact-metadata: write
+      contents: read
     outputs:
       artifact-name: ${{ steps.package_meta.outputs.artifact-name }}
       zip-name: ${{ steps.package_meta.outputs.zip-name }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24
+          node-version-file: .node-version
+          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -55,14 +60,16 @@ jobs:
         run: npm run zip
 
       - name: Verify Chrome Web Store package
+        env:
+          ZIP_NAME: ${{ steps.package_meta.outputs.zip-name }}
         run: |
           set -euo pipefail
           test -d .output/chrome-mv3
           test -f .output/chrome-mv3/manifest.json
-          unzip -l ".output/${{ steps.package_meta.outputs.zip-name }}" manifest.json
+          unzip -l ".output/${ZIP_NAME}" manifest.json
 
       - name: Upload Chrome Web Store package
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ${{ steps.package_meta.outputs.artifact-name }}
           path: .output/${{ steps.package_meta.outputs.zip-name }}

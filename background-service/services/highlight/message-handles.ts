@@ -1,5 +1,5 @@
 import MessageUtils from '../../../utils/message'
-import {
+import type {
   GetHighlightsMessage,
   ResponseMessage,
   SaveHighlightMessage,
@@ -10,8 +10,7 @@ import {
   RequiredFields,
 } from '../../../types/messages'
 import { HighlightStorage } from './highlight-storage'
-import { HighlightRecord } from '../../../types/highlight'
-import { LogseqSyncService } from '../logseq/logseq-sync'
+import type { HighlightRecord } from '../../../types/highlight'
 
 export const messageHandlers = {
   GET_HIGHLIGHTS: async (message: GetHighlightsMessage): Promise<ResponseMessage> => {
@@ -28,11 +27,6 @@ export const messageHandlers = {
       const saveResult = await HighlightStorage.getInstance().saveHighlight(message.data)
       if (!saveResult.success) {
         return MessageUtils.createResponse(false, undefined, saveResult.error)
-      }
-
-      const logseqSync = LogseqSyncService.getInstance()
-      if (logseqSync.isAutoSyncEnabled() && saveResult.data) {
-        logseqSync.syncHighlight(saveResult.data).catch(() => {})
       }
 
       return MessageUtils.createResponse(true, saveResult.data)
@@ -90,9 +84,6 @@ export const messageHandlers = {
       return MessageUtils.createResponse<HighlightStatsResponse>(false, undefined, error instanceof Error ? error.message : 'Unknown error')
     }
   },
-
-  // Note: GET_STATUS / GET_VERSION / INITIALIZE are system-level handlers owned by
-  // ServiceManager.getSystemMessageHandlers() (cross-service status), not this service.
 
   LOCATE_HIGHLIGHT: async (message: LocateHighlightMessage): Promise<ResponseMessage> => {
     try {

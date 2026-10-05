@@ -16,13 +16,35 @@ const contentTypes: Record<string, string> = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.svg': 'image/svg+xml',
+  '.wav': 'audio/wav',
+}
+
+/** Maps a request path to a file under `root`; undefined when the path would leave it (`/../…`, encoded or not). */
+function resolveUnder(root: string, requestPath: string): string | undefined {
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(requestPath)
+  } catch {
+    return undefined
+  }
+  if (decoded.includes('\0')) return undefined
+  const resolved = path.resolve(root, '.' + path.posix.normalize('/' + decoded))
+  if (!resolved.startsWith(root + path.sep)) return undefined
+  return resolved
 }
 
 const server = http.createServer((req, res) => {
-  const url = req.url === '/' ? '/test.html' : req.url!
-  // Try e2e/ first (fixtures), fall back to project root (assets)
-  const fixturePath = path.join(fixtureDir, url)
-  const filePath = fs.existsSync(fixturePath) ? fixturePath : path.join(projectRoot, url)
+  const requestPath = new URL(req.url ?? '/', 'http://localhost').pathname
+  const url = requestPath === '/' ? '/test.html' : requestPath
+  // Try e2e/ first (fixtures), fall back to project root (assets); never anything outside them
+  const fixturePath = resolveUnder(fixtureDir, url)
+  const assetPath = resolveUnder(projectRoot, url)
+  const filePath = fixturePath && fs.existsSync(fixturePath) ? fixturePath : assetPath
+  if (!filePath) {
+    res.writeHead(403)
+    res.end('Forbidden')
+    return
+  }
   const ext = path.extname(filePath)
   fs.readFile(filePath, (err, data) => {
     if (err) {

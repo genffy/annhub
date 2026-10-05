@@ -1,5 +1,5 @@
 import { Logger } from '../../utils/logger'
-import { ANN_SELECTION_KEY } from '../../constants'
+import { ANN_SELECTION_KEY, SCREENSHOT_TRIGGER_GLOBAL } from '../../constants'
 
 export class CommandHandler {
   private commandListener?: (command: string) => void
@@ -48,17 +48,18 @@ export class CommandHandler {
         Logger.error('[CommandHandler] Failed to send message to content script:', error)
 
         try {
+          // Runs in the content script's own isolated world and calls what it registered there. A DOM event
+          // would do the same job, but the page could dispatch it too and start a capture by itself.
           await browser.scripting.executeScript({
             target: { tabId: tab.id },
-            func: () => {
-              window.dispatchEvent(
-                new CustomEvent('ann-screenshot-trigger', {
-                  detail: { command: 'capture-screenshot' },
-                }),
-              )
+            world: 'ISOLATED',
+            func: (name: string) => {
+              const enter = (globalThis as Record<string, unknown>)[name]
+              if (typeof enter === 'function') enter()
             },
+            args: [SCREENSHOT_TRIGGER_GLOBAL],
           })
-          Logger.info('[CommandHandler] Screenshot event dispatched via script injection')
+          Logger.info('[CommandHandler] Screenshot triggered via script injection')
         } catch (injectionError) {
           Logger.error('[CommandHandler] Failed to inject script:', injectionError)
         }

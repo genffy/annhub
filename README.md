@@ -1,302 +1,167 @@
 # AnnHub
 
-> Browser extension for annotation, comment, capture, and share anywhere
+> 让网页中稍纵即逝的信息，变成可检索、可复习、可应用的知识碎片。
 
-一个功能强大的浏览器扩展，让你可以在任何网页上进行标注、评论、截图和分享，并在英文页面自动标注生词释义。
+AnnHub 是一个本地优先的知识碎片系统。浏览器扩展负责从网页采集文本、高亮和截图，并保留来源与上下文；桌面客户端负责复习、整理与本地数据中枢。
 
-## 核心功能
+## 核心能力
 
-- **Mode A（精准模式）**：选中文本后弹出悬浮菜单，支持采集、备注、进入荧光笔
-- **Mode B（扫射模式）**：开启荧光笔后选中即自动采集，右上角胶囊显示计数
-- **高亮标注**：在任意网页上高亮文本并持久化到 IndexedDB
-- **跨页回显**：列表页（如 x.com/home）创建的高亮在对应详情页也能恢复
-- **站点感知**：自动提取推文等内容的详情永久链接
-- **用户备注**：高亮记录支持附加文字备注
-- **生词标注**：英文页面自动识别生词并以 ruby 注音/下划线标注，释义来自欧路词库或 LLM
-- **Logseq 同步**：高亮和采集记录可同步到 Logseq
-- **快捷键**：`Alt+H` / `Cmd+Shift+H` 切换荧光笔模式
+- **精准采集**：选中文本后打开操作菜单，保存碎片、备注或创建高亮
+- **连续高亮**：进入荧光笔模式后，连续选区即可快速保存
+- **语境保留**：碎片同时记录原文、所在上下文、页面标题、来源 URL 和定位信息
+- **原创灵感**：可不依赖网页选区记录短篇想法与触发背景，再进入同一学习链路
+- **主动加工**：采集时完成“理解、核验、应用”，避免系统退化成收藏夹
+- **截图采集**：支持区域或元素截图、选区内标注、身份信息匿名、马赛克、下载和本地截图集
+- **碎片库**：按类型、来源、标签与时间的统一检索，编辑需重新核验，高亮与剪藏可升级为碎片
+- **唯一的导出**：一键生成 Markdown + 已保存原图的 ZIP，供 Obsidian 等工具阅读；无需 Desktop
+- **间隔复习**：Desktop 按碎片类型出题、提示梯度与四档评分，会话中断可恢复（复习日志不可变）
+- **本机交付**：扩展把碎片与图片逐条幂等写入 Desktop 本地服务（127.0.0.1:8765）；断线保留待发送队列
+- **本地优先**：浏览器使用 IndexedDB，原生客户端使用 SQLite；关闭 LLM、断网、无 Desktop 均可降级运行
+
+## 产品边界
+
+AnnHub 只解决一条主链路：
+
+```text
+遇到有价值的信息
+  -> 连同语境采集
+  -> 当场完成一次主动加工
+  -> 在合适时间复习
+```
+
+浏览器扩展承担采集、查询和轻量编辑；Desktop 承担专注复习、碎片整理和跨端数据收敛。当前产品形态仅包含这两端。输出工坊与知识关系不在产品范围内，见 [docs/v2/product.md §2.3](./docs/v2/product.md)。
 
 ## 架构总览
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Extension UI entrypoints                │
-│  ┌────────┐  ┌───────────┐  ┌─────────────┐  ┌───────────┐ │
-│  │ popup  │  │ sidepanel │  │   options    │  │  words    │ │
-│  │        │  │           │  │ (Vocab/LLM/ │  │ (storage  │ │
-│  │        │  │           │  │  Logseq UI) │  │  reader)  │ │
-│  └────┬───┘  └─────┬─────┘  └──────┬──────┘  └─────┬─────┘ │
-│       └──────────┬──┘───────────────┘               │       │
-│                  ▼                                   │       │
-│          utils/message ──────────────────────────────┘       │
-└──────────────────┬───────────────────────────────────────────┘
-                   │ chrome.runtime.sendMessage
-┌──────────────────▼───────────────────────────────────────────┐
-│               Background (Service Worker)                    │
-│  ┌──────────────────────────────────────────────────────┐    │
-│  │            BackgroundServiceManager                   │    │
-│  │  ┌─────────┐ ┌───────────┐ ┌──────┐ ┌──────────────┐│    │
-│  │  │ Config  │ │ Highlight │ │ Clip │ │    Logseq    ││    │
-│  │  │ Service │ │  Service  │ │ Svc  │ │   Service    ││    │
-│  │  └─────────┘ └───────────┘ └──────┘ └──────────────┘│    │
-│  │  ┌───────────────────────────────────────────────────┐│    │
-│  │  │            VocabularyService                      ││    │
-│  │  │  sync(eudic) · resolveGloss · chrome.alarms      ││    │
-│  │  └───────────────────┬───────────────────────────────┘│    │
-│  │                      │                                │    │
-│  │  ┌───────────────────▼───────────────────────────────┐│    │
-│  │  │  LLM services (ILlmClient → OpenAICompatible)    ││    │
-│  │  └───────────────────────────────────────────────────┘│    │
-│  └──────────────────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────────────────┘
-                   │ chrome.runtime.sendMessage
-┌──────────────────▼───────────────────────────────────────────┐
-│                    Content Script                             │
-│  ┌──────────────────────────┐  ┌────────────────────────────┐│
-│  │  Shadow UI (index.tsx)   │  │  vocab-label/* (宿主 DOM)  ││
-│  │  HoverMenu · Capsule     │  │  detect-page · annotate    ││
-│  │  highlight/* · clip      │  │  styles · MutationObserver ││
-│  └──────────────────────────┘  └────────────────────────────┘│
-└──────────────────────────────────────────────────────────────┘
+```text
+┌─────────────────────────────────────────────────────┐
+│ Browser Extension                                   │
+│ HoverMenu / Capture Modal / Highlighter / Screenshot│
+└───────────────────────┬─────────────────────────────┘
+                        │ chrome.runtime.sendMessage
+┌───────────────────────▼─────────────────────────────┐
+│ Background Service Worker                           │
+│ Config / Highlight / Clip / Fragment / Screenshot   │
+│ per-item delivery / optional LLM                    │
+└───────────────────────┬─────────────────────────────┘
+                        │ domain API
+┌───────────────────────▼─────────────────────────────┐
+│ learning-core                                       │
+│ normalize / validate / query / review / wire        │
+│ IndexedDB store (v4) / Markdown ZIP export          │
+└───────────────────────┬─────────────────────────────┘
+                        │ shared data contract
+┌───────────────────────▼─────────────────────────────┐
+│ AnnHub Desktop                                      │
+│ macOS SwiftUI + AnnHubCore + SQLite                 │
+│ 今日 / 碎片库 / 系统 / 复习会话 / PUT v1 交付接口   │
+└─────────────────────────────────────────────────────┘
 ```
 
 ## 项目结构
 
-```
+以下只是当前代码位置，最终将演进为 monorepo；目标包结构尚未在产品文档中确定。
+
+```text
 annhub/
 ├── entrypoints/
-│   ├── content/            # Content Script（Mode A/B + 生词标注）
-│   │   ├── highlight/      # 高亮 DOM 操作与业务逻辑
-│   │   └── vocab-label/    # 生词标注（宿主 DOM）
-│   ├── background/         # Service Worker 入口
-│   ├── options/            # 设置页（Highlights / Words / Settings）
-│   ├── words/              # 词表浏览页（读 storage 快照）
-│   ├── popup/              # 弹出窗口
-│   └── sidepanel/          # 侧边栏
-├── background-service/     # 后台服务
-│   ├── services/config/    # ConfigService
-│   ├── services/highlight/ # HighlightService + IndexedDB
-│   ├── services/clip.ts    # ClipService
-│   ├── services/logseq/    # LogseqService
-│   ├── services/vocabulary/ # VocabularyService（欧路同步 + 释义）
-│   └── services/llm/       # LLM 抽象（ILlmClient + OpenAI Compatible）
-├── types/                  # TypeScript 类型
-│   ├── vocabulary.ts       # VocabConfig, LlmConfig, VocabSnapshot
-│   ├── highlight.ts        # HighlightRecord
-│   ├── messages.ts         # 消息协议
-│   └── ...
-├── utils/
-│   ├── eudic-openapi.ts    # 欧路 API 封装
-│   └── ...
-├── e2e/                    # Playwright E2E 测试及 fixture
-├── docs/                   # 架构与模块说明文档
-├── website/                # 落地页 (Next.js)
-├── wxt.config.ts           # WXT 构建配置
-├── vitest.config.ts        # 单元测试配置
-└── playwright.config.ts    # E2E 测试配置
+│   ├── content/                 # 页面内采集、高亮与截图
+│   │   ├── annotation-core/     # 站点规则、DOM policy、Range 与 marker 工具
+│   │   ├── highlight/           # 高亮创建、恢复与删除
+│   │   ├── capture/             # 碎片采集流程
+│   │   └── screenshot/          # 区域/元素截图与匿名处理
+│   ├── options/                 # 设置页
+│   ├── library/                 # 碎片库与截图集
+│   └── popup/
+├── background-service/
+│   └── services/
+│       ├── fragment/            # 碎片服务
+│       ├── highlight/           # 高亮存储
+│       ├── screenshot/          # 截图后台与截图集
+│       └── llm/                 # 可选的模型能力
+├── learning-core/               # 共享领域核心，纯 TypeScript
+├── app/                         # macOS Desktop 与 AnnHubCore
+├── types/                       # 消息与数据类型
+├── fixtures/interop/            # TS↔Swift 跨语言契约 fixtures（单条 PUT/图片字节/拒绝案例）
+├── e2e/                         # Playwright 测试
+├── docs/                        # 工程文档与 v2 产品文档
+└── website/                     # 独立落地页
 ```
 
-本项目采用扁平化结构，扩展代码位于根目录，架构与模块说明位于 [docs](./docs/)，落地页位于 `website/` 目录。更详细的项目上下文参见 [AGENTS.md](./AGENTS.md)。
+工程约定从 [AGENTS.md](./AGENTS.md) 进入，目录细则在各级 `AGENTS.md`；产品定位、数据契约和路线图见 [docs/v2/README.md](./docs/v2/README.md)。
 
 ## 快速开始
 
-### 环境要求
+### 环境
 
-- **Node.js**: 24.x LTS (Krypton) 或更高版本
-- **包管理器**: npm (内置于 Node.js)
-- **推荐**: 使用 [fnm](https://github.com/Schniz/fnm) 管理 Node.js 版本
+- Node.js 24.x 或更高版本
+- npm
+- Chrome 或 Chromium
+- 开发 Desktop 时需要 Xcode 与 XcodeGen
 
-### 安装 fnm (可选但推荐)
-
-**macOS / Linux:**
-
-```bash
-# 使用 Homebrew
-brew install fnm
-
-# 或使用安装脚本
-curl -fsSL https://fnm.vercel.app/install | bash
-```
-
-**Windows:**
+### 安装
 
 ```bash
-# 使用 Scoop
-scoop install fnm
-
-# 或使用 Chocolatey
-choco install fnm
+npm install
 ```
-
-安装后，将以下内容添加到你的 shell 配置文件 (`~/.zshrc`, `~/.bashrc` 等):
-
-```bash
-# fnm
-eval "$(fnm env --use-on-cd)"
-```
-
-### 初始化项目
-
-1. **克隆仓库**
-
-   ```bash
-   git clone <repository-url>
-   cd annhub
-   ```
-
-2. **使用 fnm 安装 Node.js 24** (如果使用 fnm)
-
-   ```bash
-   fnm use
-   # fnm 会自动读取 .node-version 文件并安装/切换到 Node 24
-   ```
-
-   或手动安装 Node.js 24 并确保版本正确:
-
-   ```bash
-   node --version  # 应显示 v24.x.x
-   ```
-
-3. **安装扩展依赖**
-
-   ```bash
-   npm install
-   ```
-
-4. **安装 website 依赖** (如需运行文档网站)
-   ```bash
-   cd website
-   npm install
-   cd ..
-   ```
-
-## 开发
 
 ### 扩展开发
 
 ```bash
-# 开发模式 (Chrome)
 npm run dev
-
-# 开发模式 (Firefox)
-npm run dev:firefox
-
-# 构建生产版本
 npm run build
-
-# 构建 Firefox 版本
-npm run build:firefox
-
-# 打包为 zip (用于发布)
-npm run zip
-npm run zip:firefox
-
-# TypeScript 类型检查
 npm run compile
 ```
 
-开发模式启动后:
+开发构建位于 `.output/chrome-mv3/`。在 `chrome://extensions/` 开启开发者模式后加载该目录。
 
-- Chrome: 访问 `chrome://extensions/`，启用"开发者模式"，加载 `.output/chrome-mv3` 目录
-- Firefox: 访问 `about:debugging#/runtime/this-firefox`，加载临时扩展
-
-### 测试
+### 测试与提交前检查
 
 ```bash
-# 单元测试（Vitest + jsdom）
-npm test
-npm run test:watch
+npm run verify                    # 格式、ESLint、类型、vitest、文档链接、锁文件注册表
+npm run build && npx playwright test
+```
 
-# E2E 测试（Playwright，需先构建扩展）
+`npm run format` 一次修复格式。CI 跑同样的命令，外加 CodeQL、依赖审查、Swift 格式与 macOS 构建；细节与仓库设置见 [发布与供应链](./docs/releasing.md)。
+
+原生核心与 Desktop：
+
+```bash
+cd app
+swift test                        # Core：领域规则、SQLite、本地服务（含真实 socket）
+xcodegen generate                 # AnnHub.xcodeproj 由 project.yml 生成，不入库
+xcodebuild -project AnnHub.xcodeproj -scheme AnnHubDesktop \
+  -destination 'platform=macOS' build CODE_SIGNING_ALLOWED=NO
+xcodebuild -project AnnHub.xcodeproj -scheme AnnHubDesktop \
+  -destination 'platform=macOS' test CODE_SIGNING_ALLOWED=NO   # Desktop：模型、命令面板、窗口、视图渲染
+```
+
+扩展与真实运行的 Desktop 进程之间的两端连测（仅 macOS；先构建扩展和 Desktop，找不到 Desktop 构建时自动跳过，`ANNHUB_DESKTOP_APP` 可指定 `.app`）：
+
+```bash
 npm run build
-npx playwright test
+npx playwright test e2e/desktop-two-end.spec.ts
 ```
 
-当前单测覆盖以下核心能力：
+## 数据原则
 
-- 高亮 DOM 操作与 selector 生成
-- LLM endpoint 拼接与请求格式
-- Vocabulary 配置 merge 策略
-- 标注引擎逆序 DOM 操作
-- ServiceManager restart 行为
-- Logseq 同步格式化与客户端
+1. 原始内容、来源、用户加工与复习记录默认保存在本地。
+2. LLM 是可选增强；关闭后采集、复习和扩展内容导出仍可运行。
+3. 高亮、剪藏、截图和学习碎片是不同实体，不互相吞并。
+4. R1 目标只提供一种用户导出：扩展内容的 Markdown 与已保存图片 ZIP，供其他工具阅读；Desktop 通过本地服务逐项接收，不依赖该 ZIP 交付。
+5. 自动推断和模型建议只是建议，用户确认后才生效。
 
-> TODO（隐私策略）：针对 LLM 释义补全，细化“哪些页面/内容可以发送到模型”的外发策略，避免默认全量候选上下文外发。
+## 文档
 
-测试输出目录（`test-results/`、`playwright-report/`、`coverage/`）已加入 `.gitignore`。
+- [产品文档入口](./docs/v2/README.md)
+- [产品定位](./docs/v2/product.md)
+- [Fragment 数据契约](./docs/v2/fragments.md)
+- [产品路线图](./docs/v2/roadmap.md)
+- [验证计划与决策登记](./docs/v2/validation.md)
+- [截图采集设计](./docs/v2/screenshot.md)
+- [UX/UI 设计稿](./docs/design/v2/README.md)
+- [发布与供应链](./docs/releasing.md)、[扩展权限说明](./docs/extension-permissions.md)、[安全策略](./SECURITY.md)
 
-### 文档网站开发
+## License
 
-```bash
-# 开发模式
-npm run website:dev
-
-# 构建生产版本
-npm run website:build
-
-# 运行生产构建
-npm run website:start
-```
-
-文档网站将在 `http://localhost:3001` 运行（或其他可用端口）。
-
-## 构建产物
-
-### 扩展
-
-- 开发构建: `.output/chrome-mv3/` 或 `.output/firefox-mv3/`
-- 生产 zip: `.output/*.zip`
-
-### 文档网站
-
-- 构建输出: `website/.next/`
-
-## GitHub Actions 与存储费用
-
-- `Build Extension` workflow 只上传 `.output/{package-name}-{version}-chrome.zip`，artifact 保留 1 天，用于 workflow 间传递。
-- `Release Extensions` workflow 在 `v*` tag 上复用构建 workflow，下载 zip 后直接作为 GitHub Release asset 发布；长期下载入口是 Release，不是 Actions artifact。
-- 构建 workflow 不启用 npm Actions cache，避免 tag/ref 维度缓存长期占用 Actions cache storage。
-- 如需清理历史占用，在 GitHub Actions 手动运行 `Cleanup Actions Storage` workflow，可删除超过指定天数的 artifacts，并可删除 Actions dependency caches。
-
-## 技术栈
-
-### 扩展
-
-- **框架**: [WXT](https://wxt.dev/) - 下一代 Web 扩展框架
-- **UI**: React 19 + TypeScript
-- **样式**: TailwindCSS 3
-- **状态管理**: Zustand
-- **路由**: React Router DOM 7
-- **存储**: IndexedDB (idb) + chrome.storage.local
-- **LLM**: OpenAI Compatible API（支持 GLM、DeepSeek 等）
-- **词库**: 欧路词典 Open API + chrome.alarms 定时同步
-- **测试**: Vitest (单元) + Playwright (E2E)
-- **工具库**: nanoid、crypto-js、idb、@mozilla/readability、lucide-react 等
-
-### 文档网站
-
-- **框架**: Next.js 13 (App Router + Pages Router)
-- **UI**: React 18 + TypeScript
-- **样式**: TailwindCSS 3 + Emotion
-- **动画**: Framer Motion
-- **国际化**: next-intl
-
-## 代码格式化
-
-```bash
-npm run format
-```
-
-使用 Prettier 格式化所有代码文件。
-
-## 贡献
-
-欢迎贡献！请随时提交 Pull Request。
-
-## 许可证
-
-请查看 [LICENSE](./LICENSE) 文件了解详情。
-
----
-
-**注意**: 项目已从 Yarn workspace monorepo 结构重构为扁平化结构，使用 npm 作为包管理器，Node.js 升级到 24 LTS。
+MIT

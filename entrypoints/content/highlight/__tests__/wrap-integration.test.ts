@@ -94,17 +94,6 @@ describe('HighlightDOMManager — wrapRange / manual-highlight policy integratio
     expect(document.querySelectorAll('[data-highlight-id]')).toHaveLength(1)
   })
 
-  it('manual-highlight policy skips text already inside a vocab marker', () => {
-    document.body.innerHTML = '<p>Alpha <ruby data-ann-vocab="1">ubiquitous<rt>常见</rt></ruby> beta.</p>'
-    const vocab = document.querySelector('[data-ann-vocab]')!
-    const text = vocab.firstChild as Text
-    const range = rangeOver(text, 0, 'ubiquitous'.length)
-
-    const elements = manager.createHighlight(range, '#ffeb3b', 'h-test-5')
-
-    expect(elements).toHaveLength(0)
-  })
-
   it('createHighlight then removeHighlight is idempotent (no orphan tooltip, no orphan node)', () => {
     document.body.innerHTML = '<p>Alpha ubiquitous beta.</p>'
     const text = document.querySelector('p')!.firstChild as Text

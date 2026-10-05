@@ -1,17 +1,8 @@
 import { isAnnotatableTextNode } from './dom-policy'
-import type { AnnotationIntent } from './types'
 
 export interface TextContext {
   before?: string
   after?: string
-}
-
-export interface CollectTextNodesOptions {
-  intent?: AnnotationIntent
-}
-
-export interface FindTextRangeOptions {
-  intent?: AnnotationIntent
 }
 
 interface TextMatch {
@@ -66,14 +57,10 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-export function collectTextNodes(element: Element, options: CollectTextNodesOptions = {}): Text[] {
-  // Default to the conservative-but-not-over-restrictive 'manual-highlight' intent: callers
-  // that omit intent still skip unsafe nodes (script/style/hidden/existing markers) instead of
-  // matching text inside them. 'auto-vocab' layers the stricter vocab skips (links, short UI
-  // labels, non-natural-language tokens) on top.
-  const intent: AnnotationIntent = options.intent ?? 'manual-highlight'
+/** Text a highlight may wrap: never script/style/hidden nodes, the extension's own UI, existing markers or controls. */
+export function collectTextNodes(element: Element): Text[] {
   const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, {
-    acceptNode: node => (isAnnotatableTextNode(node, intent) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+    acceptNode: node => (isAnnotatableTextNode(node) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
   })
 
   const textNodes: Text[] = []
@@ -164,8 +151,8 @@ export function createRangeFromTextIndex(textNodes: Text[], startIndex: number, 
   return range
 }
 
-export function findTextRangeInElement(element: Element, targetText: string, context: TextContext = {}, options: FindTextRangeOptions = {}): Range | null {
-  const textNodes = collectTextNodes(element, { intent: options.intent })
+export function findTextRangeInElement(element: Element, targetText: string, context: TextContext = {}): Range | null {
+  const textNodes = collectTextNodes(element)
   const fullText = textNodes.map(node => node.textContent || '').join('')
   const match = findBestTextMatchRange(fullText, targetText, context)
   if (!match) return null

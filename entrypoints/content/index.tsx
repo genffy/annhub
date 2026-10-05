@@ -5,15 +5,24 @@ import HighlighterCapsule from './HighlighterCapsule'
 import modeManager from './mode-manager'
 import { ClipService } from './clip-service'
 import { HighlightService } from './highlight/service'
+import { HighlightDOMManager } from './highlight/highlight-dom'
+import CaptureModal from './capture/CaptureModal'
+import { buildCaptureDraft, type CaptureDraft } from './capture/capture-context'
+import MediaCaptureModal from './media/MediaCaptureModal'
+import { detectMediaTargets, type MediaTarget } from './media/detect'
+import ClipToast from './ClipToast'
+import { enterScreenshotMode } from './screenshot'
+import { SCREENSHOT_TRIGGER_GLOBAL } from '../../constants'
 import MessageUtils from '../../utils/message'
 import { Logger } from '../../utils/logger'
-import { HighlightRecord } from '../../types/highlight'
+import type { HighlightRecord } from '../../types/highlight'
 import type { HoverMenuAction } from '../../types/action'
+import { uiText } from '../../utils/ui-text'
 import './content.css'
 
 // ── Constants ─────────────────────────────────────────────
 const MIN_SELECTION_LENGTH = 2
-const MODE_B_MARK_COLOR = '#FFF8B4'
+const CONTINUOUS_MARK_COLOR = '#FFF8B4'
 
 // ── Inject host-page styles (outside shadow DOM) ──────────
 function injectHostStyles() {
@@ -28,9 +37,14 @@ function injectHostStyles() {
     .ann-clip-flash {
       animation: ann-clip-flash 0.3s ease forwards;
     }
-    .ann-mode-b-mark {
-      background-color: ${MODE_B_MARK_COLOR} !important;
+    .ann-continuous-mark {
+      background-color: ${CONTINUOUS_MARK_COLOR} !important;
       border-radius: 2px;
+    }
+    /* Marks the selection while the capture window is collapsed to the bottom bar (回到原文). */
+    ::highlight(ann-capture-selection) {
+      background-color: ${CONTINUOUS_MARK_COLOR};
+      color: inherit;
     }
   `
   document.head.appendChild(style)
@@ -38,35 +52,60 @@ function injectHostStyles() {
 
 // ── Default hover menu actions (extensible) ───────────────
 function getDefaultActions(): HoverMenuAction[] {
+  // extension PRD §2.1: four actions, icon + short text, in this order; the
+  // media clip is appended only on pages with a capturable <video>/<audio>.
   return [
-    {
-      id: 'direct-collect',
-      label: 'Collect',
-      icon: '🎯',
-      desc: 'Collect selected text',
-      order: 1,
-      enabled: true,
-      type: 'instant',
-    },
-    {
-      id: 'add-note',
-      label: 'Note',
-      icon: '💬',
-      desc: 'Add a note before saving',
-      order: 2,
-      enabled: true,
-      type: 'expandable',
-    },
-    {
-      id: 'enter-highlighter',
-      label: 'Highlighter',
-      icon: '🖍️',
-      desc: 'Enter highlighter mode (Alt+H)',
-      order: 3,
-      enabled: true,
-      type: 'toggle',
-    },
+    { id: 'save-fragment', label: uiText('menu.fragment'), icon: 'brain', hint: uiText('menu.fragment.hint'), order: 1, enabled: true, type: 'dialog' },
+    { id: 'highlight', label: uiText('menu.highlight'), icon: 'highlighter', hint: uiText('menu.highlight.hint'), order: 2, enabled: true, type: 'expandable' },
+    { id: 'clip', label: uiText('menu.clip'), icon: 'bookmark', hint: uiText('menu.clip.hint'), order: 3, enabled: true, type: 'dialog' },
+    { id: 'screenshot', label: uiText('menu.screenshot'), icon: 'scan', hint: uiText('menu.screenshot.hint'), order: 4, enabled: true, type: 'dialog' },
+    { id: 'save-media-clip', label: uiText('menu.mediaClip'), icon: 'film', hint: uiText('menu.mediaClip.hint'), order: 5, enabled: false, type: 'dialog' },
   ]
+}
+
+// ── Build the L1 capture draft (context fields) from a selection Range ──
+function draftFromRange(range: Range): CaptureDraft {
+  const container = range.commonAncestorContainer
+  const fullText = container.textContent || ''
+  const selected = range.toString()
+
+  let start = 0
+  let end = fullText.length
+  if (container.nodeType === Node.TEXT_NODE) {
+    start = range.startOffset
+    end = range.endOffset
+  } else {
+    const idx = fullText.indexOf(selected)
+    if (idx !== -1) {
+      start = idx
+      end = idx + selected.length
+    }
+  }
+
+  let sourceUrl = window.location.href
+  try {
+    sourceUrl = HighlightDOMManager.findSourceUrl(range) || window.location.href
+  } catch (err) {
+    Logger.warn('[Selection] Failed to extract source URL:', err)
+  }
+
+  const draft = buildCaptureDraft({
+    content: selected,
+    containerText: fullText,
+    selectionStart: start,
+    selectionEnd: end,
+    sourceUrl,
+    sourceTitle: document.title,
+  })
+  // 网页载体默认带 DOM 定位符（capture.md §4/§6）：复用高亮链路的稳定
+  // selector 规则；生成失败回落 none，不阻塞保存。
+  try {
+    const selector = HighlightDOMManager.generateSelector(range)
+    if (selector && selector.length <= 2000) draft.locator = { type: 'dom', selector }
+  } catch (err) {
+    Logger.warn('[Selection] DOM locator generation failed, falling back to none:', err)
+  }
+  return draft
 }
 
 // ── Flash green feedback on the selected text ─────────────
@@ -106,7 +145,7 @@ function waitForPageReady(): Promise<void> {
 }
 
 // ══════════════════════════════════════════════════════════
-// Main Selection component — orchestrates Mode A & Mode B
+// Main Selection component — orchestrates the hover menu and the continuous highlight mode
 // ══════════════════════════════════════════════════════════
 function Selection() {
   // ── Shared state ──
@@ -114,14 +153,23 @@ function Selection() {
   const [clipService] = useState(() => ClipService.getInstance())
   const [isHighlighterMode, setIsHighlighterMode] = useState(false)
 
-  // ── Mode A state ──
+  // ── Hover menu state ──
   const [menuVisible, setMenuVisible] = useState(false)
-  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 })
+  const [menuPosition, setMenuPosition] = useState<{ x: number; y: number; placement: 'above' | 'below' }>({ x: 0, y: 0, placement: 'above' })
   const [selectionRange, setSelectionRange] = useState<Range | null>(null)
-  const [actions] = useState<HoverMenuAction[]>(getDefaultActions)
+  const [actions, setActions] = useState<HoverMenuAction[]>(getDefaultActions)
 
-  // ── Mode B state ──
+  // ── Continuous highlight mode state ──
   const [captureCount, setCaptureCount] = useState(0)
+
+  // ── Chunk capture (L2 modal) state ──
+  const [capture, setCapture] = useState<{ draft: CaptureDraft; range: Range | null; deepMode: boolean } | null>(null)
+
+  // ── Media capture (R4.2) state ──
+  const [mediaTargets, setMediaTargets] = useState<MediaTarget[] | null>(null)
+
+  // ── Clip feedback toast: shows 已剪藏 with a ~3s undo window (extension.md §3.3) ──
+  const [clipToast, setClipToast] = useState<{ id: string; failed: boolean } | null>(null)
 
   // ── Initialize services ──
   useEffect(() => {
@@ -143,7 +191,7 @@ function Selection() {
     const unsub = modeManager.onModeChange(mode => {
       setIsHighlighterMode(mode)
       if (mode) {
-        // Entering Mode B: reset capture count, hide hover menu
+        // Entering continuous highlight mode: reset the count, hide the hover menu
         setCaptureCount(0)
         setMenuVisible(false)
         setSelectionRange(null)
@@ -155,14 +203,14 @@ function Selection() {
   // ── Keyboard shortcuts ──
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Alt+H or Cmd+Shift+H → toggle Mode B
+      // Alt+H or Cmd+Shift+H → toggle the continuous highlight mode (extension.md §10)
       const isMac = (navigator as any).userAgentData?.platform?.toUpperCase()?.includes('MAC') ?? /mac/i.test(navigator.platform ?? '')
       if ((isMac && e.metaKey && e.shiftKey && e.key.toLowerCase() === 'h') || (!isMac && e.altKey && e.key.toLowerCase() === 'h')) {
         e.preventDefault()
         modeManager.toggle()
         return
       }
-      // Esc → exit Mode B (if active)
+      // Esc → leave the continuous highlight mode (if active)
       if (e.key === 'Escape' && modeManager.getMode()) {
         modeManager.setMode(false)
         return
@@ -187,28 +235,42 @@ function Selection() {
             /* silently fail */
           })
       }
+      if (message.type === 'TRIGGER_SCREENSHOT') {
+        enterScreenshotMode()
+      }
     }
     chrome.runtime.onMessage.addListener(handler)
     return () => chrome.runtime.onMessage.removeListener(handler)
   }, [])
 
+  // ── Screenshot fallback trigger: when tabs.sendMessage has no receiver, the background runs a function in
+  // this isolated world that calls this (command-handler.ts). A window CustomEvent would let the page start
+  // a capture itself: the page's scripts can dispatch it too, an isolated-world global they cannot reach.
+  useEffect(() => {
+    const world = globalThis as Record<string, unknown>
+    world[SCREENSHOT_TRIGGER_GLOBAL] = enterScreenshotMode
+    return () => {
+      delete world[SCREENSHOT_TRIGGER_GLOBAL]
+    }
+  }, [])
+
   // ── Calculate menu position near selection end ──
-  const computeMenuPosition = useCallback((rect: DOMRect): { x: number; y: number } => {
+  // `y` is the menu's bottom edge when placed above the selection and its top edge when below, so the
+  // consequence hint (which adds a line on the far side) never covers the selected text.
+  const computeMenuPosition = useCallback((rect: DOMRect): { x: number; y: number; placement: 'above' | 'below' } => {
     const viewW = window.innerWidth
-    const menuEstW = 220
-    const menuEstH = 40
+    const menuEstW = 360 // four icon+label actions (five on media pages)
+    const menuRowH = 40
 
     let x = rect.right
-    let y = rect.top - menuEstH - 8 // prefer above
 
     // Clamp horizontal
     if (x + menuEstW > viewW - 10) x = viewW - menuEstW - 10
     if (x < 10) x = 10
 
-    // Flip below if no room above
-    if (y < 10) y = rect.bottom + 8
-
-    return { x, y }
+    // Prefer above; flip below if the row does not fit
+    const above = rect.top - 8 - menuRowH >= 10
+    return above ? { x, y: rect.top - 8, placement: 'above' } : { x, y: rect.bottom + 8, placement: 'below' }
   }, [])
 
   // ── Selection event handlers ──
@@ -237,12 +299,15 @@ function Selection() {
         if (range.collapsed) return
 
         if (isHighlighterMode) {
-          // ── Mode B: silent capture ──
-          handleModeBCapture(range)
+          // ── Continuous highlight mode: every selection becomes a highlight ──
+          handleContinuousHighlight(range)
         } else {
-          // ── Mode A: show hover menu ──
+          // ── Default: show the hover menu ──
           const rect = range.getBoundingClientRect()
           const pos = computeMenuPosition(rect)
+          const media = detectMediaTargets()
+          setMediaTargets(media)
+          setActions(prev => prev.map(a => (a.id === 'save-media-clip' ? { ...a, enabled: media.length > 0 } : a)))
           setMenuPosition(pos)
           setSelectionRange(selection.getRangeAt(0))
           setMenuVisible(true)
@@ -265,7 +330,7 @@ function Selection() {
 
         const selection = window.getSelection()
         if (!selection || selection.isCollapsed) {
-          // Don't auto-hide in Mode B
+          // The continuous highlight mode has no menu to dismiss
           if (!isHighlighterMode) {
             if (!selection || selection.toString().trim().length <= MIN_SELECTION_LENGTH) {
               dismissMenu()
@@ -285,57 +350,73 @@ function Selection() {
     }
   }, [isHighlighterMode, computeMenuPosition])
 
-  // ── Mode B capture handler ──
-  const handleModeBCapture = useCallback(
+  // ── Continuous highlight mode: a highlight per selection, nothing else (extension.md §10) ──
+  const handleContinuousHighlight = useCallback(
     async (range: Range) => {
       try {
-        const rangeCopy = range.cloneRange()
-        const clip = await clipService.captureSelection(range, 'Mode B')
-        if (clip) {
-          // Persist highlight to IndexedDB + apply DOM <mark>
-          await highlightService.createHighlight(rangeCopy, MODE_B_MARK_COLOR)
+        const result = await highlightService.createHighlight(range.cloneRange(), CONTINUOUS_MARK_COLOR)
+        if (result.success) {
           setCaptureCount(prev => prev + 1)
-          // Clear browser selection to prepare for next
+          // Clear the browser selection to prepare for the next one
           window.getSelection()?.removeAllRanges()
         }
       } catch (error) {
-        Logger.error('[Selection] Mode B capture failed:', error)
+        Logger.error('[Selection] Continuous highlight failed:', error)
       }
     },
-    [clipService, highlightService],
+    [highlightService],
   )
 
-  // ── Mode A action dispatcher ──
+  // ── Hover menu action dispatcher ──
   const handleAction = useCallback(
     async (actionId: string, extra?: { note?: string }) => {
       if (!selectionRange) return
 
       switch (actionId) {
-        case 'direct-collect': {
-          const rangeCopy = selectionRange.cloneRange()
-          const clip = await clipService.captureSelection(selectionRange, 'Mode A')
-          if (clip) {
-            // Persist highlight to IndexedDB + apply DOM <mark>
-            await highlightService.createHighlight(rangeCopy)
-            flashSelection(rangeCopy)
-          }
+        case 'save-fragment': {
+          const rangeClone = selectionRange.cloneRange()
+          const draft = draftFromRange(selectionRange)
+          dismissMenu()
           window.getSelection()?.removeAllRanges()
+          let deepMode = false
+          try {
+            const response = await MessageUtils.sendMessage({ type: 'GET_CAPTURE_CONFIG' })
+            deepMode = !!(response.success && (response.data as { deepMode?: boolean })?.deepMode)
+          } catch (err) {
+            Logger.warn('[Selection] Failed to read capture config, defaulting to standard mode:', err)
+          }
+          setCapture({ draft, range: rangeClone, deepMode })
           break
         }
-        case 'add-note': {
+        case 'highlight': {
+          // Highlight only: visual mark + optional note; never a ReviewState (PRD §3.2).
           const rangeCopy = selectionRange.cloneRange()
-          const clip = await clipService.captureSelection(selectionRange, 'Mode A', extra?.note)
-          if (clip) {
-            // Persist highlight to IndexedDB + apply DOM <mark>
-            await highlightService.createHighlight(rangeCopy, '#ffeb3b', extra?.note)
-            flashSelection(rangeCopy)
-          }
+          await highlightService.createHighlight(rangeCopy, '#ffeb3b', extra?.note)
+          flashSelection(rangeCopy)
           window.getSelection()?.removeAllRanges()
+          dismissMenu()
           break
         }
-        case 'enter-highlighter': {
-          modeManager.setMode(true)
+        case 'clip': {
+          // Clip only: fast save, no processing, no highlight (PRD §3.3).
+          const clip = await clipService.captureSelection(selectionRange)
+          if (clip) flashSelection(selectionRange.cloneRange())
+          setClipToast({ id: clip?.id ?? '', failed: !clip })
           window.getSelection()?.removeAllRanges()
+          dismissMenu()
+          break
+        }
+        case 'screenshot': {
+          dismissMenu()
+          window.getSelection()?.removeAllRanges()
+          enterScreenshotMode()
+          break
+        }
+        case 'save-media-clip': {
+          const media = mediaTargets ?? detectMediaTargets()
+          dismissMenu()
+          window.getSelection()?.removeAllRanges()
+          if (media.length > 0) setMediaTargets(media)
           break
         }
         default: {
@@ -351,6 +432,17 @@ function Selection() {
     setMenuVisible(false)
     setSelectionRange(null)
   }, [])
+
+  // Esc closes the bare hover menu (PRD §10); the capture modal and the
+  // note input stop propagation first, so this never fights them.
+  useEffect(() => {
+    if (!menuVisible) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !modeManager.getMode()) dismissMenu()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [menuVisible, dismissMenu])
 
   // ── Handle blank click dismiss ──
   useEffect(() => {
@@ -371,17 +463,51 @@ function Selection() {
 
   return (
     <>
-      {/* Mode A: Hover Menu */}
+      {/* Hover menu */}
       {menuVisible && selectionRange && !isHighlighterMode && (
         <div data-ann-ui="hover-menu" style={{ pointerEvents: 'auto' }}>
           <HoverMenu position={menuPosition} selectedRange={selectionRange} actions={actions} onAction={handleAction} onDismiss={dismissMenu} />
         </div>
       )}
 
-      {/* Mode B: Highlighter Capsule */}
+      {/* Continuous highlight mode: status capsule */}
       {isHighlighterMode && (
         <div data-ann-ui="capsule" style={{ pointerEvents: 'auto' }}>
           <HighlighterCapsule captureCount={captureCount} onExit={() => modeManager.setMode(false)} />
+        </div>
+      )}
+
+      {/* Clip toast: 已剪藏 · 不进入复习, undo within ~3s */}
+      {clipToast && (
+        <div data-ann-ui="clip-toast-wrapper" style={{ pointerEvents: 'auto' }}>
+          <ClipToast key={clipToast.id} clipId={clipToast.id} failed={clipToast.failed} onUndo={id => clipService.deleteClip(id)} onDone={() => setClipToast(null)} />
+        </div>
+      )}
+
+      {/* R4.2 media-clip capture modal */}
+      {mediaTargets && mediaTargets.length > 0 && (
+        <div data-ann-ui="media-capture-wrapper" style={{ pointerEvents: 'auto' }}>
+          <MediaCaptureModal targets={mediaTargets} sourceUrl={window.location.href} sourceTitle={document.title} onClose={() => setMediaTargets(null)} />
+        </div>
+      )}
+
+      {/* L2 capture modal */}
+      {capture && (
+        <div data-ann-ui="capture-modal-wrapper" style={{ pointerEvents: 'auto' }}>
+          <CaptureModal
+            draft={capture.draft}
+            deepMode={capture.deepMode}
+            selectedRange={capture.range}
+            createHighlight={async range => {
+              const result = await highlightService.createHighlight(range)
+              return result.success && result.data ? result.data.id : null
+            }}
+            fallbacks={{
+              highlight: async (range, note) => (await highlightService.createHighlight(range, '#ffeb3b', note || undefined)).success,
+              clip: async (range, note) => (await clipService.captureSelection(range, note || undefined)) !== null,
+            }}
+            onClose={() => setCapture(null)}
+          />
         </div>
       )}
     </>
@@ -463,12 +589,5 @@ export default defineContentScript({
       },
     })
     ui.mount()
-
-    // Vocab label operates on host DOM, init after mount
-    import('./vocab-label').then(({ initVocabLabel }) => {
-      initVocabLabel().catch(err => {
-        Logger.error('[Content] Vocab label init failed:', err)
-      })
-    })
   },
 })

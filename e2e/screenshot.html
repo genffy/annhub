@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Screenshot Capture Fixture</title>
+    <style>
+      body { font-family: Georgia, serif; max-width: 720px; margin: 40px auto; padding: 0 16px; color: #1f2937; }
+      .post { border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; }
+      .identity { display: inline-flex; align-items: center; gap: 8px; color: #6b7280; font-size: 14px; margin-bottom: 12px; }
+      .avatar { width: 32px; height: 32px; border-radius: 50%; background: #9ca3af; }
+      p { line-height: 1.7; }
+    </style>
+  </head>
+  <body>
+    <article class="post" data-testid="screenshot-post">
+      <div class="identity" data-ann-identity data-testid="fixture-identity">
+        <span class="avatar"></span>
+        <span>@somebody — 2h</span>
+      </div>
+      <h1>Quarterly Review</h1>
+      <p data-testid="capture-body">
+        The committee concluded that further tightening remains on the table, though the pace of
+        adjustment will depend on incoming data. Markets read the statement as hawkish and trimmed
+        expectations for early cuts.
+      </p>
+    </article>
+  </body>
+</html>

@@ -1,7 +1,7 @@
 import { HighlightStorage } from './highlight-storage'
-import { HighlightRecord, HighlightQuery } from '../../../types/highlight'
-import { IService } from '../../service-manager'
-import { ResponseMessage } from '../../../types/messages'
+import type { HighlightRecord, HighlightQuery } from '../../../types/highlight'
+import type { IService } from '../../service-manager'
+import type { ResponseMessage } from '../../../types/messages'
 import { messageHandlers } from './message-handles'
 import { Logger } from '../../../utils/logger'
 

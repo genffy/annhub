@@ -1,8 +1,7 @@
 export interface MarkerConfig {
-  tagName: 'mark' | 'span' | 'ruby'
+  tagName: 'mark' | 'span'
   className?: string
   attributes?: Record<string, string>
-  buildChildren?: (base: Element) => void
 }
 
 export function wrapRange(range: Range, markerConfig: MarkerConfig): HTMLElement | null {
@@ -28,23 +27,12 @@ export function wrapRange(range: Range, markerConfig: MarkerConfig): HTMLElement
     }
   }
 
-  markerConfig.buildChildren?.(marker)
   return marker
 }
 
 export function unwrapMarker(el: Element): void {
   const parent = el.parentNode
   if (!parent) return
-
-  if (el.tagName === 'RUBY') {
-    const baseText = Array.from(el.childNodes)
-      .filter(node => !(node instanceof HTMLElement && (node.tagName === 'RT' || node.tagName === 'RP')))
-      .map(node => node.textContent ?? '')
-      .join('')
-    parent.insertBefore(document.createTextNode(baseText), el)
-    parent.removeChild(el)
-    return
-  }
 
   while (el.firstChild) {
     parent.insertBefore(el.firstChild, el)

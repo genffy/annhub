@@ -1,5 +1,5 @@
-import { HighlightColor } from '../../../types/highlight'
-import { MixedSelectionContent } from '../../../types/dom'
+import type { HighlightColor } from '../../../types/highlight'
+import type { MixedSelectionContent } from '../../../types/dom'
 import { Logger } from '../../../utils/logger'
 import {
   extractTwitterPermalink,
@@ -196,7 +196,7 @@ export class HighlightDOMManager {
     if (!parent) return
 
     // Respect manual-highlight DOM policy: skip extension UI / nested annotation markers / contenteditable
-    if (parent instanceof Element && shouldSkipElement(parent, 'manual-highlight')) {
+    if (parent instanceof Element && shouldSkipElement(parent)) {
       Logger.debug('[HighlightDOMManager] Skipping wrap (manual-highlight policy)', parent.tagName)
       return
     }
@@ -520,7 +520,7 @@ export class HighlightDOMManager {
       const classes = element.className
         .split(' ')
         .map(c => c.trim())
-        .filter(c => c && !/[:\[\]()!@]/.test(c))
+        .filter(c => c && !/[:[\]()!@]/.test(c))
       if (classes.length > 0) {
         selector += `.${classes.join('.')}`
       }
@@ -634,7 +634,7 @@ export class HighlightDOMManager {
       const href = (link as HTMLAnchorElement).href
       if (!href) continue
 
-      if (href.startsWith('javascript:') || href === currentUrl || href === currentUrl + '#' || href.startsWith('#')) {
+      if (href === currentUrl || href === currentUrl + '#' || href.startsWith('#')) {
         continue
       }
 
@@ -643,6 +643,9 @@ export class HighlightDOMManager {
 
       try {
         const linkUrl = new URL(href)
+
+        // Only a web page can be a source: `javascript:`, `data:`, `mailto:` and the like are not permalinks.
+        if (linkUrl.protocol !== 'http:' && linkUrl.protocol !== 'https:') continue
 
         if (linkUrl.origin === origin && linkUrl.pathname !== currentPath) {
           const linkSegments = linkUrl.pathname.split('/').filter(Boolean).length

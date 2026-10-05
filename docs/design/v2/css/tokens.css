@@ -1,0 +1,112 @@
+/* 设计令牌：扩展与 Desktop 共用一套语义色。亮色为默认，<html data-theme="dark"> 切换暗色。
+   中性色沿用扩展现有 shadcn slate 令牌（styles/globals.css），品牌色取自 assets/icons/logo.svg。 */
+:root {
+  color-scheme: light;
+
+  --font-ui: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --font-serif: 'Source Serif 4', Georgia, 'Songti SC', 'Noto Serif CJK SC', serif;
+
+  /* 表面 */
+  --canvas: #e9ecf1;
+  --canvas-line: #d8dce4;
+  --surface: #ffffff;
+  --surface-2: hsl(210 40% 96%);
+  --surface-3: hsl(214 32% 91%);
+  --scrim: rgb(15 23 42 / 0.52);
+
+  /* 文本 */
+  --fg: hsl(222 47% 11%);
+  --fg-2: hsl(217 19% 27%);
+  --fg-3: hsl(215 16% 42%);
+  --fg-4: hsl(215 14% 60%);
+
+  /* 线 */
+  --line: hsl(214 32% 91%);
+  --line-2: hsl(214 20% 80%);
+
+  /* 品牌 */
+  --brand: #673ab8;
+  --brand-fg: #ffffff;
+  --brand-text: #5b32a8;
+  --ring: color-mix(in oklab, #673ab8 42%, transparent);
+
+  /* 语义 */
+  --ok: oklch(0.58 0.13 155);
+  --warn: oklch(0.72 0.15 75);
+  --danger: oklch(0.58 0.2 25);
+  --info: oklch(0.58 0.14 250);
+
+  /* 九种 kind（颜色不是唯一表达：每种都配图标和文字） */
+  --k-excerpt: oklch(0.55 0.03 260);
+  --k-concept: oklch(0.55 0.17 255);
+  --k-claim: oklch(0.57 0.19 350);
+  --k-procedure: oklch(0.55 0.13 155);
+  --k-decision: oklch(0.62 0.15 70);
+  --k-question: oklch(0.58 0.12 215);
+  --k-visual: oklch(0.6 0.17 40);
+  --k-inspiration: oklch(0.66 0.14 105);
+  --k-media-clip: oklch(0.55 0.18 300);
+
+  /* 阴影 */
+  --sh-1: 0 1px 2px rgb(15 23 42 / 0.06), 0 0 0 1px rgb(15 23 42 / 0.04);
+  --sh-2: 0 6px 16px -4px rgb(15 23 42 / 0.12), 0 0 0 1px rgb(15 23 42 / 0.05);
+  --sh-modal: 0 28px 70px -14px rgb(15 23 42 / 0.4), 0 0 0 1px rgb(15 23 42 / 0.08);
+  --sh-window: 0 30px 80px -20px rgb(15 23 42 / 0.45), 0 0 0 1px rgb(15 23 42 / 0.14);
+
+  /* 页面模拟（网页内容始终保持亮色，不随主题） */
+  --page-bg: #ffffff;
+  --page-fg: #1c1b1a;
+  --page-sel: #bcd8ff;
+
+  /* 标注钉 */
+  --pin: #ffb020;
+  --pin-fg: #231600;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --canvas: #0a0c10;
+  --canvas-line: #1d212b;
+  --surface: #14171f;
+  --surface-2: #1b1f29;
+  --surface-3: #272c39;
+  --scrim: rgb(2 4 10 / 0.62);
+
+  --fg: #e9ecf3;
+  --fg-2: #bcc3d2;
+  --fg-3: #8f98ab;
+  --fg-4: #6a7387;
+
+  --line: #272c39;
+  --line-2: #363c4c;
+
+  --brand: #7a55d1;
+  --brand-fg: #ffffff;
+  --brand-text: #b9a3f2;
+  --ring: color-mix(in oklab, #9a7be6 55%, transparent);
+
+  --ok: oklch(0.75 0.14 155);
+  --warn: oklch(0.8 0.14 80);
+  --danger: oklch(0.7 0.17 25);
+  --info: oklch(0.75 0.12 250);
+
+  --k-excerpt: oklch(0.75 0.03 260);
+  --k-concept: oklch(0.76 0.13 255);
+  --k-claim: oklch(0.76 0.14 350);
+  --k-procedure: oklch(0.76 0.13 155);
+  --k-decision: oklch(0.8 0.13 75);
+  --k-question: oklch(0.78 0.1 215);
+  --k-visual: oklch(0.78 0.13 45);
+  --k-inspiration: oklch(0.82 0.13 105);
+  --k-media-clip: oklch(0.76 0.14 300);
+
+  --sh-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.05);
+  --sh-2: 0 8px 20px -4px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.07);
+  --sh-modal: 0 30px 80px -14px rgb(0 0 0 / 0.75), 0 0 0 1px rgb(255 255 255 / 0.09);
+  --sh-window: 0 30px 80px -20px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.12);
+
+  --pin: #ffb020;
+  --pin-fg: #231600;
+}

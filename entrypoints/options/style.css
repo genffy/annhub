@@ -1,12 +1,12 @@
 @import '../../styles/globals.css';
+@import '../../styles/tokens.css';
 
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+  color: var(--ann-text);
+  background-color: var(--ann-page);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -22,7 +22,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  background-color: #f9fafb;
+  background-color: var(--ann-page);
 }
 
 #root {

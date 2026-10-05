@@ -1,7 +1,7 @@
 {
   "editor.formatOnSave": true,
-  "typescript.preferences.includePackageJsonAutoImports": "on",
-  "typescript.enablePromptUseWorkspaceTsdk": true,
-  "typescript.suggest.includeCompletionsForImportStatements": true,
-  "typescript.tsdk": "node_modules/typescript/lib"
+  "js/ts.preferences.includePackageJsonAutoImports": "on",
+  "js/ts.tsdk.promptToUseWorkspaceVersion": true,
+  "js/ts.suggest.includeCompletionsForImportStatements": true,
+  "js/ts.tsdk.path": "node_modules/typescript/lib"
 }

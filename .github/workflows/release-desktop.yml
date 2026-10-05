@@ -1,0 +1,144 @@
+name: Release Desktop
+
+# Builds, signs (Developer ID), notarizes and publishes AnnHub Desktop for a tag `desktop-v<version>`.
+# The job is skipped until the repository variable DESKTOP_RELEASE_ENABLED is "true" and the
+# `desktop-release` environment holds the secrets listed in docs/releasing.md. Verify a download:
+#   gh attestation verify AnnHub-<version>-macos.zip --repo genffy/annhub
+#   spctl --assess --type execute --verbose=4 AnnHub.app
+on:
+  push:
+    tags:
+      - 'desktop-v*' # e.g. desktop-v0.5.0
+
+permissions: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
+  release:
+    name: Sign, notarize, publish
+    needs: verify
+    if: vars.DESKTOP_RELEASE_ENABLED == 'true'
+    runs-on: macos-26
+    timeout-minutes: 60
+    # Secrets live in this environment, so they are only exposed to this job (add required
+    # reviewers to the environment for a manual approval before every release).
+    environment: desktop-release
+    permissions:
+      artifact-metadata: write
+      attestations: write
+      contents: write
+      id-token: write
+    env:
+      TAG_NAME: ${{ github.ref_name }}
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the tag against the project version
+        working-directory: app
+        run: |
+          set -euo pipefail
+          version="${TAG_NAME#desktop-v}"
+          declared="$(sed -n "s/^ *MARKETING_VERSION: *['\"]*\([0-9][0-9.]*\).*/\1/p" project.yml)"
+          if [ "$version" != "$declared" ]; then
+            echo "Tag ${TAG_NAME} does not match MARKETING_VERSION ${declared} in project.yml." >&2
+            exit 1
+          fi
+          echo "VERSION=${version}" >> "$GITHUB_ENV"
+
+      - name: Set up XcodeGen
+        uses: ./.github/actions/setup-xcodegen
+
+      - name: Import the signing certificate
+        env:
+          CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/release.keychain-db"
+          keychain_password="$(uuidgen)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          printf '%s' "$CERTIFICATE_P12_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          rm -f "$RUNNER_TEMP/certificate.p12"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$keychain_password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" login.keychain-db
+
+      - name: Archive and sign
+        working-directory: app
+        env:
+          TEAM_ID: ${{ secrets.MACOS_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          xcodebuild archive \
+            -project AnnHub.xcodeproj \
+            -scheme AnnHubDesktop \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -archivePath build/AnnHub.xcarchive \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGNING_ALLOWED=YES \
+            CODE_SIGN_IDENTITY="Developer ID Application" \
+            DEVELOPMENT_TEAM="$TEAM_ID" \
+            OTHER_CODE_SIGN_FLAGS="--timestamp"
+          app="build/AnnHub.xcarchive/Products/Applications/AnnHubDesktop.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign --display --entitlements - "$app"
+          details="$(codesign --display --verbose=2 "$app" 2>&1)"
+          grep -q 'runtime' <<<"$details" || { echo "Hardened runtime is not enabled." >&2; exit 1; }
+          echo "APP_PATH=$PWD/$app" >> "$GITHUB_ENV"
+
+      - name: Notarize and staple
+        env:
+          NOTARY_KEY_P8_BASE64: ${{ secrets.NOTARY_API_KEY_P8_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_API_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/AuthKey.p8"
+          printf '%s' "$NOTARY_KEY_P8_BASE64" | base64 --decode > "$key"
+          ditto -c -k --keepParent "$APP_PATH" "$RUNNER_TEMP/notarize.zip"
+          xcrun notarytool submit "$RUNNER_TEMP/notarize.zip" \
+            --key "$key" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID" \
+            --wait --timeout 30m --output-format json | tee "$RUNNER_TEMP/notary.json"
+          rm -f "$key"
+          test "$(node -p "JSON.parse(require('fs').readFileSync('$RUNNER_TEMP/notary.json','utf8')).status")" = "Accepted"
+          xcrun stapler staple "$APP_PATH"
+          xcrun stapler validate "$APP_PATH"
+          spctl --assess --type execute --verbose=4 "$APP_PATH"
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          ditto -c -k --keepParent "$APP_PATH" "dist/AnnHub-${VERSION}-macos.zip"
+          (cd dist && shasum -a 256 "AnnHub-${VERSION}-macos.zip" > "AnnHub-${VERSION}-macos.zip.sha256")
+
+      - name: Attest build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/AnnHub-*-macos.zip
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG_NAME" dist/* --title "AnnHub Desktop ${VERSION}" --generate-notes --verify-tag
+
+      - name: Remove the signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/release.keychain-db" || true

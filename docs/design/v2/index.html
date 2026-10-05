@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AnnHub v2 · UX/UI 设计稿</title>
+    <link rel="stylesheet" href="css/tokens.css" />
+    <link rel="stylesheet" href="css/canvas.css" />
+    <link rel="stylesheet" href="css/ui.css" />
+    <link rel="stylesheet" href="css/ext.css" />
+    <link rel="stylesheet" href="css/desk.css" />
+  </head>
+  <body class="pins-on">
+    <header class="cv-header">
+      <div class="cv-header-in">
+        <a class="cv-brand" href="#top">
+          <svg class="i" aria-hidden="true"><use href="#i-logo" /></svg>
+          <b>AnnHub</b>
+          <span>v2 UX/UI 设计稿</span>
+        </a>
+        <nav class="cv-nav" id="nav"></nav>
+        <div class="cv-tools">
+          <button type="button" class="cv-tool" id="tool-pins" aria-pressed="true" title="显示或隐藏画板上的编号标注">
+            <svg class="i" aria-hidden="true"><use href="#i-hash" /></svg><span>标注</span>
+          </button>
+          <button type="button" class="cv-tool" id="tool-theme" aria-pressed="false" title="切换亮色 / 暗色（网页模拟区保持亮色）">
+            <svg class="i" aria-hidden="true"><use href="#i-sun" /></svg><span>亮色</span>
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <main class="cv-main" id="top"><div id="app"></div></main>
+
+    <div class="cv-lightbox" id="lightbox" aria-modal="true" role="dialog" aria-label="放大查看">
+      <button type="button" class="cv-lightbox-close" aria-label="关闭"><svg class="i" aria-hidden="true"><use href="#i-x" /></svg></button>
+      <div class="cv-lightbox-body"></div>
+    </div>
+
+    <script src="js/icons.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/core.js"></script>
+    <script src="js/sec-overview.js"></script>
+    <script src="js/sec-system.js"></script>
+    <script src="js/ext-parts.js"></script>
+    <script src="js/ext-parts2.js"></script>
+    <script src="js/sec-ext-capture.js"></script>
+    <script src="js/sec-ext-inpage.js"></script>
+    <script src="js/sec-ext-shot-r5.js"></script>
+    <script src="js/sec-ext-lib.js"></script>
+    <script src="js/sec-ext-misc.js"></script>
+    <script src="js/proto-capture.js"></script>
+    <script src="js/sec-extension.js"></script>
+    <script src="js/desk-parts.js"></script>
+    <script src="js/sec-desk-core.js"></script>
+    <script src="js/sec-desk-review.js"></script>
+    <script src="js/sec-desk-sys.js"></script>
+    <script src="js/proto-review.js"></script>
+    <script src="js/sec-journey.js"></script>
+    <script src="js/sec-open.js"></script>
+    <script src="js/sec-desktop.js"></script>
+    <script src="js/main.js"></script>
+  </body>
+</html>

@@ -1,0 +1,73 @@
+# XcodeGen input. `AnnHub.xcodeproj` is generated from this file and is not committed:
+#   cd app && xcodegen generate
+name: AnnHub
+options:
+  bundleIdPrefix: com.annhub
+  deploymentTarget:
+    # 14.4: TableColumnBuilder conditionals (hideable library columns) need it.
+    macOS: '14.4'
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: '5.10'
+    CURRENT_PROJECT_VERSION: '1'
+    MARKETING_VERSION: '0.5.0'
+    # Development and CI builds are unsigned; the release workflow overrides these.
+    CODE_SIGNING_ALLOWED: 'NO'
+    CODE_SIGN_IDENTITY: ''
+    # Required for notarization.
+    ENABLE_HARDENED_RUNTIME: 'YES'
+    ENABLE_USER_SCRIPT_SANDBOXING: 'YES'
+packages:
+  AnnHubCore:
+    path: .
+targets:
+  AnnHubDesktop:
+    type: application
+    platform: macOS
+    sources:
+      - path: Desktop
+      - path: Support/PrivacyInfo.xcprivacy
+        buildPhase: resources
+    dependencies:
+      - package: AnnHubCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.annhub.desktop
+        GENERATE_INFOPLIST_FILE: 'YES'
+        CODE_SIGN_ENTITLEMENTS: Support/AnnHubDesktop.entitlements
+        # Info.plist keys generated from build settings carry the INFOPLIST_KEY_ prefix; a bare
+        # `LSUIElement` setting is ignored.
+        # What the INFOPLIST_KEY_ settings cannot express (the extension ids the hub serves) is in
+        # this file; Xcode merges it into the generated Info.plist.
+        INFOPLIST_FILE: Support/Info.plist
+        INFOPLIST_KEY_LSUIElement: 'YES'
+        INFOPLIST_KEY_CFBundleDisplayName: AnnHub
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.productivity
+        INFOPLIST_KEY_NSHumanReadableCopyright: 'Copyright © AnnHub'
+  # Unit tests for the Desktop's own code (model, palette, windows, rendering). The sources are
+  # compiled into the bundle, minus the @main entry file, so the tests run without launching
+  # the app: no menu-bar item, no hub on a real port, nothing of the user's data.
+  AnnHubDesktopTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: DesktopTests
+      - path: Desktop
+        excludes:
+          - AnnHubDesktopApp.swift
+    dependencies:
+      - package: AnnHubCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.annhub.desktop.tests
+        GENERATE_INFOPLIST_FILE: 'YES'
+        ENABLE_HARDENED_RUNTIME: 'NO'
+schemes:
+  AnnHubDesktop:
+    build:
+      targets:
+        AnnHubDesktop: all
+    test:
+      targets:
+        - AnnHubDesktopTests

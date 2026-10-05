@@ -2,7 +2,7 @@
  * Content-side ClipService — builds ClipRecord from a selection Range
  * and sends it to the background for persistence.
  */
-import { ClipRecord } from '../../types/clip'
+import type { ClipRecord } from '../../types/clip'
 import { generateId } from '../../utils/helpers'
 import MessageUtils from '../../utils/message'
 import { Logger } from '../../utils/logger'
@@ -26,7 +26,7 @@ export class ClipService {
    * Capture the current selection and persist it.
    * Returns the saved ClipRecord on success, or null on failure.
    */
-  async captureSelection(range: Range, mode: 'Mode A' | 'Mode B', userNote?: string): Promise<ClipRecord | null> {
+  async captureSelection(range: Range, userNote?: string): Promise<ClipRecord | null> {
     const content = range.toString().trim()
     if (!content || content.length <= 2) return null
 
@@ -43,7 +43,6 @@ export class ClipService {
       source_url: window.location.href,
       source_title: document.title,
       capture_time: new Date().toISOString(),
-      mode_used: mode,
       content,
       context_before: before,
       context_after: after,
@@ -65,6 +64,17 @@ export class ClipService {
     } catch (error) {
       Logger.error('[ClipService] Error saving clip:', error)
       return null
+    }
+  }
+
+  /** Removes a clip saved moments ago (the toast's 撤销). Returns whether the background confirmed. */
+  async deleteClip(id: string): Promise<boolean> {
+    try {
+      const response = await MessageUtils.sendMessage({ type: 'DELETE_CLIP', id })
+      return response.success
+    } catch (error) {
+      Logger.error('[ClipService] Error deleting clip:', error)
+      return false
     }
   }
 

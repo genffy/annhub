@@ -10,15 +10,21 @@ const __dirname = path.dirname(__filename)
  * Provides: context (with extension), extensionId, page (new tab).
  */
 export const test = base.extend<{
+  /** Browser UI language; the product wording is localized (D-11). Specs run in Chinese unless they opt into `en-US`. */
+  uiLocale: string
   context: BrowserContext
   extensionId: string
   page: Page
 }>({
-  // eslint-disable-next-line no-empty-pattern
-  context: async ({}, use) => {
+  uiLocale: ['zh-CN', { option: true }],
+
+  context: async ({ uiLocale }, use) => {
     const pathToExtension = path.join(__dirname, '..', '.output', 'chrome-mv3')
+    // CHROMIUM_EXECUTABLE_PATH: use a preinstalled Chromium instead of the one Playwright pins.
+    const executablePath = process.env.CHROMIUM_EXECUTABLE_PATH
     const context = await chromium.launchPersistentContext('', {
-      channel: 'chromium',
+      ...(executablePath ? { executablePath } : { channel: 'chromium' as const }),
+      locale: uiLocale,
       args: [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`, '--no-first-run', '--disable-default-apps'],
     })
     await use(context)
