@@ -2,6 +2,6 @@
 # The interface itself is localized in `utils/ui-text/` (D-11, D-14), not here;
 # `utils/__tests__/locale-keys.test.ts` keeps this file exactly as large as the manifest needs.
 extName: 'AnnHub - Knowledge Fragments'
-extDescription: 'Save web text and your own ideas as knowledge fragments with their source, then review them on your Mac. Local-first, AI optional.'
+extDescription: 'Save web text, images and your own ideas as knowledge fragments with their source and context. Local-first, AI optional.'
 commandScreenshot: 'Take a screenshot of the page'
 commandHighlighter: 'Toggle continuous highlight mode'

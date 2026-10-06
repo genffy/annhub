@@ -29,8 +29,6 @@ const extPage = (inner, o = {}) =>
 const libTop = (o = {}) => `<div class="hs g10" style="position:relative">${o.pins ? pin(o.pins[0], 'pin-in') : ''}
   <div class="search ${o.focus ? 'is-focus' : ''}">${I('search')}<span>${o.q ? esc(o.q) : '搜索碎片…'}</span>${o.q ? '' : '<span class="grow"></span><kbd>/</kbd>'}</div>
   ${btn('新建灵感', { icon: 'lightbulb' })}
-  <span style="position:relative">${o.pins ? pin(o.pins[1], 'pin-b') : ''}${conn(o.conn || 'ok', { extra: o.connExtra === undefined ? '2 分钟前交付' : o.connExtra, n: o.n, label: o.connLabel })}</span>
-  ${btn('打开 Desktop', { v: 'primary', iconR: 'arrow-up-right' })}
   ${btn('', { icon: 'ellipsis', iconOnly: true, v: 'ghost' })}
 </div>`
 
@@ -39,34 +37,24 @@ const libFilters = (o = {}) => `<div class="fbar" style="position:relative">${o.
   <span class="fchip">${I('globe')}来源${I('chevron-down')}</span>
   <span class="fchip">${I('tag')}标签${I('chevron-down')}</span>
   <span class="fchip">${I('calendar')}时间${I('chevron-down')}</span>
-  ${o.r3 ? `<span class="fchip">${I('repeat')}复习状态${I('chevron-down')}<span class="cv-tag" style="margin-left:2px">R3</span></span>` : ''}
   <span class="grow"></span>
   <span class="t-sm muted">${o.count || '共 128 条'}</span>
   ${o.on ? `<span class="link t-sm">清除筛选</span>` : ''}
 </div>`
 
-// 复习状态：Desktop 数据回传后才出现（R3）
-const stateChips = f => {
-  const out = []
-  if (f.due === '到期') out.push(chip('到期', { icon: 'clock', v: 'warn' }))
-  else out.push(`<span class="chip">${I('repeat')}${f.due}</span>`)
-  return out.join('')
-}
-
 const libCard = (f, o = {}) => `<div class="fcard ${o.sel ? 'sel' : ''}">
   ${o.pin ? pin(o.pin, 'pin-in') : ''}
   <div class="vs g6" style="min-width:0">
-    <div class="hs g8">${kchip(f.kind)}${o.pending ? chip('待发送', { icon: 'clock', v: 'warn' }) : ''}</div>
+    <div class="hs g8">${kchip(f.kind)}</div>
     <div class="ttl clamp-2">${esc(f.title)}</div>
     <div class="ex clamp-1">${esc(f.excerpt)}</div>
     <div class="meta">${I('globe')}<span>${f.host}</span><span>·</span><span>${f.when}</span>${f.tags.length ? '<span>·</span>' : ''}${f.tags.map(t => `<span class="tag">#${t}</span>`).join('')}</div>
   </div>
   <div class="vs g6" style="align-items:flex-end;justify-content:space-between">
     ${f.img ? thumb() : '<span></span>'}
-    ${o.r3 ? `<div class="hs g4 wrap end">${stateChips(f)}</div>` : ''}
   </div>
 </div>`
 
-const libList = (ids, o = {}) => ids.map((id, i) => libCard(FRAGS.find(f => f.id === id), { r3: o.r3, sel: o.sel === id, pending: (o.pending || []).includes(id), pin: o.pinCard === id ? o.pinN : 0 })).join('')
+const libList = (ids, o = {}) => ids.map(id => libCard(FRAGS.find(f => f.id === id), { sel: o.sel === id, pin: o.pinCard === id ? o.pinN : 0 })).join('')
 
 const fragById = id => FRAGS.find(f => f.id === id)

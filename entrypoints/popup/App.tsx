@@ -1,38 +1,25 @@
 /**
- * Toolbar popup (extension.md §2.3): connection status, three entries and the
- * Desktop review hint. It is also the fallback entry on pages where the
- * in-page menu cannot run (chrome://). No review, editing or settings here.
+ * Toolbar popup (extension.md §2.3): three entries and a shortcut hint. It is
+ * also the fallback entry on pages where the in-page menu cannot run
+ * (chrome://). No editing or settings here.
  */
 import { useEffect, useState } from 'react'
 import { Images, Library, Lightbulb, type LucideIcon } from 'lucide-react'
 import MessageUtils from '../../utils/message'
 import { openExtensionPage, type ExtensionPage, type ExtensionPageParams } from '../../utils/extension-pages'
-import type { Connection } from '../../utils/connection-status'
 import type { FragmentStatsResponse, ScreenshotLibraryItem } from '../../types/messages'
 import { uiText } from '../../utils/ui-text'
 import { popupViewModel, type PopupData } from './view-model'
 
-interface DirectConnectResponse {
-  status: { online: boolean; paired: boolean; detail: string }
-  pending: { pendingFragments: number; pendingAssets: number }
-  state: { lastError?: string; lastSyncAt?: number; lastPullAt?: number }
-}
-
-const EMPTY: PopupData = { connection: null, fragmentCount: null, dueCount: null, screenshotCount: null }
+const EMPTY: PopupData = { fragmentCount: null, screenshotCount: null }
 
 async function loadPopupData(): Promise<PopupData> {
-  const [direct, stats, shots] = await Promise.all([
-    MessageUtils.sendMessage<DirectConnectResponse>({ type: 'GET_DESKTOP_DIRECT_CONNECT' }),
+  const [stats, shots] = await Promise.all([
     MessageUtils.sendMessage<FragmentStatsResponse>({ type: 'GET_FRAGMENT_STATS' }),
     MessageUtils.sendMessage<ScreenshotLibraryItem[]>({ type: 'GET_SCREENSHOTS' }),
   ])
-  const connection: Connection | null =
-    direct.success && direct.data ? { ...direct.data.status, ...direct.data.pending, lastError: direct.data.state.lastError, lastSyncAt: direct.data.state.lastSyncAt } : null
   return {
-    connection,
-    lastPullAt: direct.success ? direct.data?.state.lastPullAt : undefined,
     fragmentCount: stats.success && stats.data ? stats.data.total : null,
-    dueCount: stats.success && stats.data ? stats.data.due : null,
     screenshotCount: shots.success && Array.isArray(shots.data) ? shots.data.length : null,
   }
 }
@@ -70,12 +57,6 @@ export default function App() {
     <main className="ann-popup" data-testid="popup" data-loaded={loaded}>
       <header className="ann-popup__header">
         <h1>AnnHub</h1>
-        {view.status && (
-          <p className="ann-popup__status" data-state={view.status.state} data-testid="popup-status">
-            <span className="ann-popup__dot" aria-hidden="true" />
-            {view.status.state === 'unpaired' ? uiText('popup.unpaired', { label: view.status.label }) : view.status.label}
-          </p>
-        )}
       </header>
 
       <nav className="ann-popup__menu" aria-label="AnnHub">
@@ -89,20 +70,6 @@ export default function App() {
           </button>
         ))}
       </nav>
-
-      {view.desktopReview && (
-        <section className="ann-popup__desktop" data-testid="popup-desktop-review">
-          <div>
-            <strong>{view.desktopReview.text}</strong>
-            <p>
-              {view.desktopReview.estimate} / {view.desktopReview.source}
-            </p>
-          </div>
-          <button type="button" className="ann-popup__action" onClick={() => open('library', { desktop: '1' })}>
-            {uiText('popup.openDesktop')}
-          </button>
-        </section>
-      )}
 
       <footer className="ann-popup__hint">{uiText('popup.hint', { shortcut: `${isMac ? 'Cmd' : 'Ctrl'}+Shift+S` })}</footer>
     </main>

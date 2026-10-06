@@ -13,7 +13,7 @@ export interface HoverMenuAction {
   /** Localized short label shown next to the icon */
   label: string
   icon: HoverMenuIcon
-  /** Localized consequence hint: time · output · enters review? (shown after ~300ms hover/focus) */
+  /** Localized consequence hint: what the action does and how long it takes (shown after ~300ms hover/focus) */
   hint: string
   /** Sort order in the menu (lower = more left) */
   order: number

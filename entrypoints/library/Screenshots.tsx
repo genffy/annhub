@@ -1,10 +1,9 @@
 /**
- * Fragment library “Screenshots” view — the screenshot library (docs/v2/screenshot.md, storage.md §3.5).
+ * Fragment library “Screenshots” view — the screenshot library (docs/v2/screenshot.md, storage.md §3).
  * Records come from GET_SCREENSHOTS; image BYTES are read directly from the
  * shared fragment-store asset store (same extension origin — no Blob over
  * messaging). Converting to a Fragment opens the visual form: user writes the key-detail
- * description (content), context and use, confirms verification, and the same
- * transaction enqueues the asset delivery task.
+ * description (content), context and use, and confirms verification.
  */
 import { useCallback, useEffect, useState } from 'react'
 import MessageUtils from '../../utils/message'
@@ -115,7 +114,7 @@ export default function ScreenshotsView({ onSaved }: { onSaved: () => void }) {
   )
 }
 
-/** visual Fragment conversion form (extension PRD §7). */
+/** visual Fragment conversion form (extension PRD §6). */
 function VisualFormModal({ screenshot, onClose, onSaved }: { screenshot: ScreenshotRecord; onClose: () => void; onSaved: () => void }) {
   const [content, setContent] = useState('')
   const [contextText, setContextText] = useState(

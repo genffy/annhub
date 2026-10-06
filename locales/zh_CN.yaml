@@ -1,5 +1,5 @@
 # Manifest strings for the Chinese Chrome UI; the file mirrors `en.yaml` key for key.
 extName: 'AnnHub - 知识碎片'
-extDescription: '把网页文字和你自己的灵感连同来源保存为知识碎片，再到 Mac 上复习。本地优先，AI 可选。'
+extDescription: '把网页文字、图片和你自己的灵感连同来源与语境保存为知识碎片。本地优先，AI 可选。'
 commandScreenshot: '截取网页截图'
 commandHighlighter: '开关连续高亮模式'

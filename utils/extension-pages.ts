@@ -9,9 +9,9 @@ export type ExtensionPage = 'library' | 'screenshots' | 'highlights' | 'clips' |
 
 /**
  * Params understood by the library page: `new=inspiration` opens the new-inspiration form,
- * `export=1` starts the content export, `desktop=1` opens the Desktop launch/pairing panel.
+ * and `export=1` starts the content export.
  */
-export type ExtensionPageParams = { new?: 'inspiration'; export?: '1'; desktop?: '1' }
+export type ExtensionPageParams = { new?: 'inspiration'; export?: '1' }
 
 export const EXTENSION_PAGES: readonly ExtensionPage[] = ['library', 'screenshots', 'highlights', 'clips', 'settings']
 

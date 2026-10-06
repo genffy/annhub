@@ -1,48 +1,21 @@
 /**
  * FragmentService — extension-side ownership of the learning core store.
- * Contract: docs/v2/storage.md; the Extension implements L1+L2 only
- * (capture + query + per-item delivery), never review scheduling.
+ * Contract: docs/v2/storage.md; the extension captures and queries fragments
+ * locally.
  */
 import type { IService } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
 import { Logger } from '../../../utils/logger'
-import { uiText } from '../../../utils/ui-text'
 import { FragmentStore, type FragmentPatch, type FragmentSaveOutcome } from '../../../learning-core/fragment-store'
 import type { CreateFragmentInput } from '../../../learning-core/factory'
-import type { FragmentRecord, FragmentLocator, OutboxRejectionCode, VerifiedResult } from '../../../learning-core/types'
+import type { FragmentRecord, FragmentLocator, VerifiedResult } from '../../../learning-core/types'
 import { runFragmentQuery, type FragmentQuery, type FragmentQueryResult } from '../../../learning-core/query'
 import { normalizeHost } from '../../../learning-core/normalize'
 import { quotaAvailable } from '../../../utils/storage-quota'
 import type { SaveFragmentInput } from '../../../types/messages'
-import {
-  DEFAULT_DIRECT_CONNECT,
-  DIRECT_CONNECT_STORAGE_KEY,
-  flushPendingDeliveries,
-  isLoopbackEndpoint,
-  normalizeEndpoint,
-  pingHub,
-  pullDesktopChanges,
-  toPublicConfig,
-  type DirectConnectConfig,
-  type DirectConnectStatus,
-  type DeliveryResult,
-  type PublicDirectConnectConfig,
-  type PullResult,
-} from './direct-connect'
 import { fragmentMessageHandlers } from './message-handles'
 
-export interface RejectedDelivery {
-  eventId: string
-  kind: 'fragment' | 'asset'
-  targetId: string
-  code: OutboxRejectionCode
-  status: number
-  at: number
-}
-
-const DEVICE_ID_KEY = 'fragmentDeviceId'
 const CAPTURE_CONFIG_KEY = 'fragmentCaptureConfigV2'
-const DELIVERY_STATE_KEY = 'fragmentDeliveryState'
 
 export interface CaptureConfig {
   /** Deep mode adds the 理解 (guess) step to every capture modal (extension PRD §4.2). */
@@ -50,15 +23,6 @@ export interface CaptureConfig {
 }
 
 export const DEFAULT_CAPTURE_CONFIG: CaptureConfig = { deepMode: false }
-
-export interface DeliveryState {
-  lastSyncAt?: number
-  lastError?: string
-  lastResult?: DeliveryResult
-  /** R3 pull state (storage.md §9). */
-  lastPullAt?: number
-  lastPull?: Pick<PullResult, 'appliedChanges' | 'reports' | 'errors' | 'authFailed' | 'unreachable'>
-}
 
 /** Capture funnel counters (R1.4) — events only, never content. */
 export interface CaptureMetrics {
@@ -92,7 +56,6 @@ export class FragmentService implements IService {
   private static instance: FragmentService | null = null
   private store: FragmentStore
   private initialized = false
-  private flushInFlight: Promise<DeliveryResult> | null = null
 
   private constructor() {
     this.store = new FragmentStore('fragment-store')
@@ -108,19 +71,8 @@ export class FragmentService implements IService {
   async initialize(): Promise<void> {
     if (this.initialized) return
     await this.store.initialize()
-    await this.ensureDeviceId()
     this.initialized = true
     Logger.info('[FragmentService] Initialized (fragment-store)')
-  }
-
-  private async ensureDeviceId(): Promise<void> {
-    const result = await chrome.storage.local.get(DEVICE_ID_KEY)
-    let deviceId = result[DEVICE_ID_KEY] as string | undefined
-    if (!deviceId) {
-      deviceId = crypto.randomUUID()
-      await chrome.storage.local.set({ [DEVICE_ID_KEY]: deviceId })
-    }
-    this.store.deviceId = deviceId
   }
 
   getMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
@@ -203,10 +155,6 @@ export class FragmentService implements IService {
     return this.store.getStats()
   }
 
-  getDeliveryStats() {
-    return this.store.getDeliveryStats()
-  }
-
   findOrphanAssets() {
     return this.store.findOrphanAssets()
   }
@@ -228,125 +176,6 @@ export class FragmentService implements IService {
     const next = { ...current, ...config }
     await chrome.storage.local.set({ [CAPTURE_CONFIG_KEY]: next })
     return next
-  }
-
-  // ── Desktop per-item delivery (storage.md §8) ────────────────────────
-
-  /** Includes the pairing code: for the service worker only. Pages get `getPublicDirectConnectConfig`. */
-  async getDirectConnectConfig(): Promise<DirectConnectConfig> {
-    const result = await chrome.storage.local.get(DIRECT_CONNECT_STORAGE_KEY)
-    const stored = (result[DIRECT_CONNECT_STORAGE_KEY] as Partial<DirectConnectConfig> | undefined) ?? {}
-    const merged = { ...DEFAULT_DIRECT_CONNECT, ...stored }
-    // Whatever is in storage, the pairing code is only ever sent to a loopback hub.
-    return { ...merged, endpoint: isLoopbackEndpoint(merged.endpoint) ? normalizeEndpoint(merged.endpoint) : DEFAULT_DIRECT_CONNECT.endpoint }
-  }
-
-  async getPublicDirectConnectConfig(): Promise<PublicDirectConnectConfig> {
-    return toPublicConfig(await this.getDirectConnectConfig())
-  }
-
-  /** `token` undefined keeps the stored code; an empty string unpairs. */
-  async setDirectConnectConfig(config: Partial<DirectConnectConfig>): Promise<PublicDirectConnectConfig> {
-    const current = await this.getDirectConnectConfig()
-    const next: DirectConnectConfig = {
-      endpoint: config.endpoint === undefined ? current.endpoint : normalizeEndpoint(config.endpoint),
-      token: config.token === undefined ? current.token : config.token.trim(),
-      autoSync: config.autoSync ?? current.autoSync,
-    }
-    await chrome.storage.local.set({ [DIRECT_CONNECT_STORAGE_KEY]: next })
-    return toPublicConfig(next)
-  }
-
-  async pingDirectConnect(): Promise<DirectConnectStatus> {
-    return pingHub(await this.getDirectConnectConfig())
-  }
-
-  async getDeliveryState(): Promise<DeliveryState> {
-    const result = await chrome.storage.local.get(DELIVERY_STATE_KEY)
-    return (result[DELIVERY_STATE_KEY] as DeliveryState | undefined) ?? {}
-  }
-
-  private async setDeliveryState(state: DeliveryState): Promise<void> {
-    await chrome.storage.local.set({ [DELIVERY_STATE_KEY]: state })
-  }
-
-  /** Delivers pending fragments + assets; safe to call concurrently (single flight). */
-  async flushDeliveries(): Promise<DeliveryResult> {
-    if (this.flushInFlight) return this.flushInFlight
-    this.flushInFlight = this.doFlush().finally(() => {
-      this.flushInFlight = null
-    })
-    return this.flushInFlight
-  }
-
-  private async doFlush(): Promise<DeliveryResult> {
-    const config = await this.getDirectConnectConfig()
-    const result = await flushPendingDeliveries(config, {
-      deviceId: this.store.deviceId,
-      getEvents: () => this.store.getOutboxEvents(),
-      getFragment: id => this.store.getFragment(id),
-      getAsset: id => this.store.getAsset(id),
-      prune: ids => this.store.pruneEvents(ids),
-      markAttempt: id => this.store.markEventAttempt(id),
-      markFailure: id => this.store.markEventFailure(id),
-      reject: (id, rejection) => this.store.rejectEvent(id, rejection),
-    })
-    const deliveryState: DeliveryState = { lastSyncAt: Date.now(), lastResult: result, lastError: result.errors[0] }
-    // A refusal outlives this run's error list: while any item waits on the user, say so.
-    const parked = (await this.store.getDeliveryStats()).rejected
-    if (!deliveryState.lastError && parked > 0) deliveryState.lastError = uiText('desktop.needsAttention', { count: parked })
-
-    // R3: after delivery, drain Desktop-originated review changes. Auth
-    // failure stops both directions.
-    if (config.token && !result.authFailed) {
-      const pull = await pullDesktopChanges(config, {
-        getCursor: () => this.store.getSyncCursor(),
-        setCursor: cursor => this.store.setSyncCursor(cursor),
-        apply: changes => this.store.applyDesktopChanges(changes),
-      })
-      deliveryState.lastPullAt = Date.now()
-      deliveryState.lastPull = {
-        appliedChanges: pull.appliedChanges,
-        reports: pull.reports,
-        errors: pull.errors,
-        authFailed: pull.authFailed,
-        unreachable: pull.unreachable,
-      }
-      if (!result.errors.length && pull.errors.length) deliveryState.lastError = pull.errors[0]
-    }
-    await this.setDeliveryState(deliveryState)
-    return result
-  }
-
-  /** Items Desktop refused for good, for the settings page: what, why and when. */
-  async getRejectedDeliveries(limit = 20): Promise<RejectedDelivery[]> {
-    const events = await this.store.getRejectedEvents()
-    return events.slice(0, limit).map(event => ({
-      eventId: event.eventId,
-      kind: event.type === 'asset.created' ? ('asset' as const) : ('fragment' as const),
-      targetId: (event.payload as { fragmentId?: string; assetId?: string } | null)?.fragmentId ?? (event.payload as { assetId?: string } | null)?.assetId ?? '',
-      code: event.rejection!.code,
-      status: event.rejection!.status,
-      at: event.rejection!.at,
-    }))
-  }
-
-  /** `retry` puts every refused item back in the queue and delivers; `dismiss` drops them for good. */
-  async resolveRejectedDeliveries(action: 'retry' | 'dismiss'): Promise<{ count: number; result?: DeliveryResult }> {
-    if (action === 'dismiss') {
-      const ids = (await this.store.getRejectedEvents()).map(event => event.eventId)
-      await this.store.pruneEvents(ids)
-      // The "N items could not be delivered" notice belongs to the items just dismissed.
-      await this.setDeliveryState({ ...(await this.getDeliveryState()), lastError: undefined })
-      return { count: ids.length }
-    }
-    const count = await this.store.reopenRejectedEvents()
-    return { count, result: await this.flushDeliveries() }
-  }
-
-  async getSyncReports(limit = 20): Promise<Array<{ id: string; type: string; reason: string; detail?: string; at: number }>> {
-    const reports = await this.store.getSyncReports(limit)
-    return reports.map(r => ({ id: r.id, type: r.type, reason: r.reason, detail: r.detail, at: r.at }))
   }
 
   // ── capture metrics (R1.4): event counters only ─────────────────────
@@ -379,19 +208,6 @@ export class FragmentService implements IService {
     }
     await chrome.storage.local.set({ [METRICS_KEY]: metrics })
     return metrics
-  }
-
-  /**
-   * Fire-and-forget delivery nudge after local commits: never blocks the
-   * capture path; failures stay queued for the next flush (alarm or manual).
-   */
-  nudgeDelivery(): void {
-    void this.getDirectConnectConfig()
-      .then(config => {
-        if (!config.token || !config.autoSync) return
-        return this.flushDeliveries()
-      })
-      .catch(error => Logger.warn('[FragmentService] delivery nudge failed:', error instanceof Error ? error.message : error))
   }
 }
 

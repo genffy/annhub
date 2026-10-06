@@ -1,11 +1,10 @@
 /**
- * Learning-core type contract — single source of truth for the learning core
- * entities shared by the Extension and the macOS Desktop client.
+ * Learning-core type contract — single source of truth for the entities the
+ * extension captures and stores locally.
  *
  * Contract owners (docs/v2):
  *   - FragmentRecord shape / kinds / validation: docs/v2/fragments.md
- *   - ReviewLog / OutboxEvent / ImageAsset / ScreenshotRecord: docs/v2/storage.md
- *   - Review scheduling: docs/v2/review.md
+ *   - ImageAsset / ScreenshotRecord: docs/v2/storage.md
  *
  * This module must stay environment-neutral: no chrome.*, no DOM, no React.
  */
@@ -111,24 +110,12 @@ export interface FragmentContext {
   capturedAt: number
 }
 
-// ── Review scheduling (L3, review.md) ───────────────────────────────────
-
-export interface ReviewState {
-  state: 'new' | 'learning' | 'review' | 'relearning'
-  repetitions: number
-  lapses: number
-  intervalDays: number
-  easeFactor: number
-  lastReviewedAt?: number
-  nextReviewAt: number
-}
-
 // ── Fragment record (fragments.md §3) ───────────────────────────────────
 
 export interface FragmentRecord<K extends FragmentKind = FragmentKind> {
   schemaVersion: 4
   id: string
-  /** 1 on extension creation; bumped on every capture-field edit. Desktop review never touches it. */
+  /** 1 on creation; bumped on every capture-field edit. */
   captureRevision: number
   kind: K
 
@@ -144,26 +131,11 @@ export interface FragmentRecord<K extends FragmentKind = FragmentKind> {
 
   detail: DetailOf<K>
   tags: string[]
-  review: ReviewState
   createdAt: number
   updatedAt: number
 }
 
-// ── Review targets & logs (storage.md §3.1) ─────────────────────────────
-
-/** Review targets are fragments only — no polymorphic entity refs in v4. */
-export interface ReviewLog {
-  id: string
-  target: { type: 'fragment'; fragmentId: string }
-  rating: 'again' | 'hard' | 'good' | 'easy'
-  reviewedAt: number
-  previousIntervalDays: number
-  nextIntervalDays: number
-  usedHint: boolean
-  schedulerVersion: string
-}
-
-// ── Image assets & screenshot library (storage.md §3.5) ─────────────────
+// ── Image assets & screenshot library (storage.md §3) ─────────────────
 
 export type ImageMimeType = 'image/png' | 'image/jpeg' | 'image/webp'
 
@@ -183,51 +155,4 @@ export interface ScreenshotRecord {
   sourceUrl: string
   sourceTitle?: string
   capturedAt: number
-}
-
-// ── Outbox / sync events (storage.md §3.4) ──────────────────────────────
-
-export type SyncEventType = 'fragment.created' | 'fragment.updated' | 'asset.created' | 'review.rated'
-
-/**
- * Why Desktop will not take a pending item. A rejected event is kept (the user's
- * record stays queued and visible) but is no longer retried automatically; only
- * a persisted confirmation removes a pending task (storage.md §8).
- */
-export type OutboxRejectionCode =
-  | 'DESKTOP_DELETED' // 410: Desktop deleted this ID locally; it must not come back
-  | 'CONFLICT' // 409: same revision, different content (or a different image under the same id)
-  | 'TOO_LARGE' // 413: image above the shared MAX_IMAGE_BYTES
-  | 'INVALID' // 422: Desktop's validation refused it
-  | 'REJECTED' // any other 4xx
-  | 'DESKTOP_ERROR' // repeated 5xx for this one item
-  | 'LOCAL_INVALID' // the stored record cannot be turned into a request; nothing was sent
-
-export interface OutboxRejection {
-  code: OutboxRejectionCode
-  status: number
-  at: number
-}
-
-export interface OutboxEvent {
-  eventId: string
-  deviceId: string
-  type: SyncEventType
-  payload: unknown
-  createdAt: number
-  attempts: number
-  lastAttemptAt?: number
-  /** Responses from Desktop that were server errors (5xx) for this item. */
-  failures?: number
-  /** Set when Desktop refused the item for good; cleared by an explicit retry. */
-  rejection?: OutboxRejection
-}
-
-// ── Validation errors (fragments.md §7) ─────────────────────────────────
-
-// ── Local deletion markers (storage.md §5/§10) ──────────────────────────
-
-export interface LocalDeletion {
-  fragmentId: string
-  deletedAt: number
 }

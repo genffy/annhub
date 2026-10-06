@@ -17,15 +17,14 @@ export default defineConfig({
     description: '__MSG_extDescription__',
     version: extensionVersion,
     default_locale: 'en',
-    // Desktop only serves the extension ids it was configured with (storage.md §8), by default the
-    // published one. A local build adopts that id when the store item's public key is passed in;
-    // release builds never set it.
+    // A local build adopts the published store id when the store item's public key is passed in
+    // (a stable id for testing updates); release builds never set it.
     ...(process.env.ANNHUB_EXTENSION_KEY ? { key: process.env.ANNHUB_EXTENSION_KEY } : {}),
     // `tabs` and `activeTab` are omitted on purpose: the `<all_urls>` host permission already grants
     // everything they would (tab URLs and titles, capturing the visible tab).
-    permissions: ['storage', 'commands', 'alarms', 'downloads', 'scripting'],
+    permissions: ['storage', 'commands', 'downloads', 'scripting'],
     minimum_chrome_version: '114',
-    host_permissions: ['http://127.0.0.1:8765/*', '<all_urls>'],
+    host_permissions: ['<all_urls>'],
     action: {
       default_title: '__MSG_extName__',
       default_popup: 'popup/index.html',

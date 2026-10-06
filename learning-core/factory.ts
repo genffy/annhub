@@ -1,29 +1,15 @@
 /**
- * Domain factory & scheduler version — docs/v2/fragments.md.
- * New fragments always get their review defaults from here; pages never
- * assemble their own default values. captureRevision starts at 1 and only
- * the extension bumps it on capture-field edits (fragments.md §7).
+ * Domain factory — docs/v2/fragments.md.
+ * New fragments are always assembled here; pages never build their own default
+ * values. captureRevision starts at 1 and is bumped on capture-field edits
+ * (fragments.md §7).
  */
 import { nanoid } from 'nanoid'
 import type { DetailOf, FragmentContext, FragmentKind, FragmentRecord, VerifiedResult } from './types'
-import type { ReviewState } from './types'
 import { normalizeContent, dedupeTags } from './normalize'
 import { assertValid } from './validate'
 
-export const SCHEDULER_VERSION = 'four-tier-v1'
-
 export const newId = (): string => nanoid(12)
-
-export function createReviewState(now: number): ReviewState {
-  return {
-    state: 'new',
-    repetitions: 0,
-    lapses: 0,
-    intervalDays: 0,
-    easeFactor: 2.5,
-    nextReviewAt: now, // new fragments are reviewable immediately
-  }
-}
 
 export interface CreateFragmentInput<K extends FragmentKind> {
   kind: K
@@ -48,7 +34,6 @@ export function createFragment<K extends FragmentKind>(input: CreateFragmentInpu
     normalizedContent: normalizeContent(input.content),
     context: { ...restContext, capturedAt: capturedAt ?? now },
     processing: input.processing,
-    review: createReviewState(now),
     tags: dedupeTags(input.tags ?? []),
     detail: input.detail,
     createdAt: now,

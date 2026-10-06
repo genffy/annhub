@@ -22,7 +22,7 @@ const kindExtra = (kind, o = {}) => {
         `<div class="vs g6">${seg(['open', 'testing', 'answered'], 0)}${ta('Highlight / Fragment 分流可以降低放弃率', 40)}<span class="help">open / testing 需要假设或下一步；answered 需要答案</span></div>`,
       )
     case 'inspiration':
-      return small('触发背景', ta('设计今日页时，发现任务计数无法表达理解的演化。', 44), '（必填）')
+      return small('触发背景', ta('设计碎片库首页时，发现任务计数无法表达理解的演化。', 44), '（必填）')
     case 'visual':
       return small('关键细节描述', ta('重试开始后 5 分钟，下游 p99 延迟从 120ms 升到 2s', 44), '（必填）')
     case 'media-clip':
@@ -56,14 +56,14 @@ function extFlowGroup() {
           anchor: '.the-sel',
           pins: { menu: 1, sep: 2, tip: 3 },
           hover: 0,
-          tip: tipBubble('碎片', '理解并应用 · 约 30–90 秒 · 进入复习', 'bottom:calc(100% + 10px);left:0', pin(3, 'pin-r')),
+          tip: tipBubble('碎片', '理解并应用 · 约 30–90 秒', 'bottom:calc(100% + 10px);left:0', pin(3, 'pin-r')),
         }),
       { h: 620 },
     ),
     notes: [
       '<b>入口即分流</b>：选区菜单只有“碎片、高亮、剪藏、截图”四项，图标 + 短文本，不依赖位置测试。出现在选区上方，空间不足时翻到下方。',
-      '<b>学习与保留用分隔线区开</b>：“碎片”排第一，图标染品牌紫；右侧三项都是“不进入复习”的保留动作。',
-      '<b>悬停 / 聚焦约 300ms 出现一句话后果</b>：说明耗时、产物、是否进入复习，让三条路径的差别在入口就看得见（US-CAP-01）。',
+      '<b>加工与保留用分隔线区开</b>：“碎片”排第一，图标染品牌紫；右侧三项都是不要求加工的保留动作。',
+      '<b>悬停 / 聚焦约 300ms 出现一句话后果</b>：说明耗时和产物，让三条路径的差别在入口就看得见（US-CAP-01）。',
       '键盘：选区存在时 Tab 进入菜单，← → 切换，Enter 触发，Esc 关闭；菜单不抢占页面焦点，不影响继续选择。',
     ],
   })
@@ -82,17 +82,17 @@ function extFlowGroup() {
       <div class="lb">用户意图</div><div>保留页面位置和备注</div><div>保存一段内容供查阅</div><div><b>准备理解并应用</b></div>
       <div class="lb">要做的事</div><div>一次点击，可加备注</div><div>一次点击</div><div>核验 + 应用，约 30–90 秒；深度模式再加“理解”</div>
       <div class="lb">产物</div><div>Highlight：页面标记</div><div>Clip：原文 + 语境</div><div>Fragment：内容 + 语境 + 你的加工</div>
-      <div class="lb">进入复习</div><div class="muted">否</div><div class="muted">否</div><div class="c-ok b">是（创建即到期）</div>
-      <div class="lb">之后</div><div>详情里“升级为碎片”</div><div>碎片库里“转为碎片”</div><div>在 Desktop 复习</div>
+      <div class="lb">要求加工</div><div class="muted">否</div><div class="muted">否</div><div class="c-ok b">是（应用不能为空）</div>
+      <div class="lb">之后</div><div>详情里“升级为碎片”</div><div>碎片库里“转为碎片”</div><div>在碎片库检索、回到来源、导出</div>
       <div class="lb">边界</div><div>不会自动升级</div><div>不会自动升级</div><div>说不出为什么留？不要建，存剪藏</div>
     </div>
-    <div class="banner brand" style="margin-top:16px">${I('shield-check')}<div><b>安全出口</b>：放弃采集窗口时，可以改存为高亮或剪藏——不创建复习，也不丢已写的内容。选择会记入 M-16。</div></div></div>`,
+    <div class="banner brand" style="margin-top:16px">${I('shield-check')}<div><b>安全出口</b>：放弃采集窗口时，可以改存为高亮或剪藏——不丢已写的内容。选择会记入 M-16。</div></div></div>`,
     notes: ['三者的差别同时出现在：选区菜单的悬停提示、首次使用引导卡的三句话、放弃采集窗口时的确认对话框。', '不存在“稍后加工”的半成品 Fragment；说不出保留原因就是剪藏（kinds §2）。'],
   })
 
   const variants = board({
     title: '选区菜单 · 变体',
-    ref: 'extension §2.1 · §10.1',
+    ref: 'extension §2.1 · §9.1',
     tag: 'R1 · R4',
     w: 760,
     body: `<div style="padding:22px 24px 18px;background:var(--surface-2)">
@@ -105,9 +105,9 @@ function extFlowGroup() {
         .join('')}
       <div class="t-sm muted" style="margin:4px 0 8px">悬停提示文案（一句话后果）</div>
       <table class="sp-table" style="font-size:12.5px"><tbody>
-        <tr><td style="width:130px">碎片</td><td>理解并应用 · 约 30–90 秒 · 进入复习</td></tr>
-        <tr><td>高亮</td><td>只在页面留痕，可加备注 · 不进入复习</td></tr>
-        <tr><td>剪藏</td><td>保存原文和语境，之后查阅 · 不进入复习</td></tr>
+        <tr><td style="width:130px">碎片</td><td>理解并应用 · 约 30–90 秒</td></tr>
+        <tr><td>高亮</td><td>只在页面留痕，可加备注</td></tr>
+        <tr><td>剪藏</td><td>保存原文和语境，之后查阅</td></tr>
         <tr><td>截图</td><td>框选区域或单击元素 · 先进入截图集</td></tr>
         <tr><td>媒体片段</td><td>标记起止时间，手工转写 · 保存为 media-clip</td></tr>
       </tbody></table></div>`,
@@ -341,7 +341,7 @@ function extStatesGroup() {
   // 保存结果三态
   const result = board({
     title: '保存：成功 · 失败（保留输入）',
-    ref: 'extension §4.7 · §9',
+    ref: 'extension §4.7 · §8',
     tag: 'R1',
     w: 1040,
     body: `<div style="padding:24px;display:grid;grid-template-columns:1fr 1fr;gap:24px;background:var(--surface-2)">
@@ -365,19 +365,19 @@ function extStatesGroup() {
         <div class="help">保存失败停留在当前步骤；“复制我的输入”是最后的保底出口。保存前先做配额校验，不会显示成功后才失败。</div>
       </div>
     </div>`,
-    notes: ['成功状态不阻塞：700ms 后自动回到阅读；失败状态绝不自动关闭，错误文字说明原因和下一步。', '失败时除“重试”外提供三个保底出口：复制我的输入、改存为剪藏、导出内容（extension §9），不改变存储契约。'],
+    notes: ['成功状态不阻塞：700ms 后自动回到阅读；失败状态绝不自动关闭，错误文字说明原因和下一步。', '失败时除“重试”外提供三个保底出口：复制我的输入、改存为剪藏、导出内容（extension §8），不改变存储契约。'],
   })
 
   const closing = board({
     title: '关闭确认 · 草稿恢复 · 重复提示',
-    ref: 'extension §4.1 · §9 · capture §7',
+    ref: 'extension §4.1 · §8 · capture §7',
     tag: 'R1',
     w: 1040,
     body: `<div style="padding:24px;display:grid;grid-template-columns:1.05fr 1fr;gap:24px;background:var(--surface-2)">
       <div class="vs g10"><b>放弃已填写的内容？</b>
         <div class="dialog" style="position:relative">${pin(1)}
           <div class="t-lg b">放弃已填写的内容？</div>
-          <div class="help" style="margin:6px 0 16px;font-size:12.5px">你在“应用”里写了 18 个字。改存为高亮或剪藏不会创建复习，也不会自动升级为碎片。</div>
+          <div class="help" style="margin:6px 0 16px;font-size:12.5px">你在“应用”里写了 18 个字。也可以改存为高亮或剪藏，已填写的文字会作为备注保留，不会自动升级为碎片。</div>
           <div class="hs g8 wrap">${btn('继续编辑', { v: 'primary' })}${btn('改存为高亮', { icon: 'highlighter' })}${btn('改存为剪藏', { icon: 'bookmark' })}<span class="grow"></span>${btn('放弃', { v: 'danger' })}</div>
         </div>
       </div>
@@ -398,7 +398,7 @@ function extStatesGroup() {
   })
 
   return group(
-    { id: 'ext-states', title: '状态、失败与恢复', small: 'extension §4.5–§4.7 · §9', desc: '采集窗口的底线是“失败不丢思考”：模型失败、保存失败、误关窗口、页面导航，都有明确的出口。' },
+    { id: 'ext-states', title: '状态、失败与恢复', small: 'extension §4.5–§4.7 · §8', desc: '采集窗口的底线是“失败不丢思考”：模型失败、保存失败、误关窗口、页面导航，都有明确的出口。' },
     row(llmFail, llmOk),
     row(result),
     row(closing),

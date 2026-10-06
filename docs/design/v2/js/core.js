@@ -15,19 +15,19 @@ const docRef = s =>
 
 let boardSeq = 0
 
-// o: { title, w, h?, body, notes?, ref?, tag?, proposal?, live?, bare?, cls? }
-// h 省略时按内容高度自适应；bare 表示不画外框（macOS 窗口自带阴影）
+// o: { title, w, h?, body, notes?, ref?, tag?, proposal?, live?, cls? }
+// h 省略时按内容高度自适应
 const board = o => {
   const id = o.id || `b${++boardSeq}`
   const tagHtml = [o.tag && `<span class="cv-tag">${o.tag}</span>`, o.proposal && `<span class="cv-tag is-proposal">提案 · 文档未定义</span>`, o.live && `<span class="cv-tag is-live">可交互</span>`]
     .filter(Boolean)
     .join('')
   const notes = o.notes && o.notes.length ? `<ol class="cv-notes">${o.notes.map(n => `<li>${n}</li>`).join('')}</ol>` : ''
-  return `<figure class="cv-board ${o.bare ? 'is-bare' : ''} ${o.live ? 'is-live' : ''}" id="${id}" data-w="${o.w}" style="margin:0">
+  return `<figure class="cv-board ${o.live ? 'is-live' : ''}" id="${id}" data-w="${o.w}" style="margin:0">
     <div class="cv-board-head"><h4>${o.title}</h4>${tagHtml}${o.ref ? `<span class="cv-refs">${docRef(o.ref)}</span>` : ''}</div>
     <div class="cv-frame">
       <div class="cv-scale"><div class="cv-canvas ${o.cls || 'ui'}" style="width:${o.w}px;${o.h ? `height:${o.h}px;` : ''}${o.style || ''}">${o.body}</div></div>
-      ${o.live || o.bare ? '' : `<button type="button" class="cv-expand" aria-label="放大查看" data-expand>${I('maximize-2')}</button>`}
+      ${o.live ? '' : `<button type="button" class="cv-expand" aria-label="放大查看" data-expand>${I('maximize-2')}</button>`}
     </div>
     ${notes}
   </figure>`

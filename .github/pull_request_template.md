@@ -8,8 +8,7 @@
 
 - [ ] `npm run verify`
 - [ ] `npm run build` and the relevant `npx playwright test <spec>` (browser-visible changes)
-- [ ] `cd app && swift test` (Core, SQLite or wire changes) and a Desktop build on macOS (UI changes)
-- [ ] Shared contracts changed: TypeScript, Swift, fixtures and `docs/v2/` are updated together
+- [ ] Shared contracts changed: TypeScript and `docs/v2/` are updated together
 - [ ] Environment, dependency, build, deploy or CI settings changed: every related place was searched for and updated in this PR (AGENTS.md「联动一致性」); list the `git grep` commands and the files they hit
 
 ## Checklist

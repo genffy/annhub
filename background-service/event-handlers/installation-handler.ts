@@ -77,6 +77,7 @@ export class InstallationHandler {
     Logger.info(`[InstallationHandler] Updating from version ${previousVersion} to current version`)
 
     try {
+      await this.removeDesktopLeftovers()
       if (previousVersion.startsWith('1.')) {
         Logger.info('[InstallationHandler] Performing migration from version 1.x to 2.x')
         await this.migrateFromV1ToV2()
@@ -87,6 +88,11 @@ export class InstallationHandler {
       Logger.error('[InstallationHandler] Version update migration failed:', error)
       throw error
     }
+  }
+
+  /** The Desktop connection is gone; builds that had it left its settings behind, including the pairing code. */
+  private async removeDesktopLeftovers(): Promise<void> {
+    await chrome.storage.local.remove(['desktopDirectConnect', 'fragmentDeliveryState', 'annhubDeliveryFailures', 'fragmentDeviceId', 'annhubConnectHintDismissed'])
   }
 
   private async migrateFromV1ToV2(): Promise<void> {

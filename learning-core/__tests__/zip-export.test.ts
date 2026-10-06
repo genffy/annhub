@@ -93,7 +93,7 @@ describe('yamlFrontmatter', () => {
   })
 })
 
-describe('buildExportZip (storage.md §7)', () => {
+describe('buildExportZip (storage.md §6)', () => {
   it('produces a spec-shaped zip with the documented file set', async () => {
     const { blob, manifest } = await buildExportZip(exportInput())
     const bytes = await blobBytes(blob)
@@ -137,34 +137,12 @@ describe('buildExportZip (storage.md §7)', () => {
     expect(missingText).toContain('图片缺失')
   })
 
-  it('adds a review summary only after Desktop returned a rating (R3.2)', async () => {
-    const fresh = makeFragment({ id: 'frag_new' })
-    const reviewed = makeFragment({
-      id: 'frag_rev',
-      content: 'other note',
-      normalizedContent: 'other note',
-      review: { ...fresh.review, state: 'review', repetitions: 2, lapses: 1, intervalDays: 6, lastReviewedAt: NOW, nextReviewAt: NOW + 6 * 86_400_000 },
-    })
-    const { blob } = await buildExportZip(exportInput({ fragments: [fresh, reviewed] }))
-    const bytes = await blobBytes(blob)
-    expect(readEntryText(bytes, 'fragments/frag_new.md')).not.toContain('## 复习摘要')
-    const text = readEntryText(bytes, 'fragments/frag_rev.md')
-    expect(text).toContain('## 复习摘要')
-    expect(text).toContain('状态：复习中（复习 2 次，遗忘 1 次）')
-    expect(text).toContain('间隔 6 天')
-  })
-
   it('words the headings and the README in the language the export was started in', async () => {
-    const reviewed = makeFragment({
-      id: 'frag_rev',
-      review: { ...makeFragment().review, state: 'review', repetitions: 2, lapses: 1, intervalDays: 6, lastReviewedAt: NOW, nextReviewAt: NOW + 6 * 86_400_000 },
-    })
-    const { blob } = await buildExportZip(exportInput({ lang: 'en', fragments: [reviewed], getAsset: async () => undefined }))
+    const { blob } = await buildExportZip(exportInput({ lang: 'en', fragments: [makeFragment({ id: 'frag_rev' })], getAsset: async () => undefined }))
     const bytes = await blobBytes(blob)
     const text = readEntryText(bytes, 'fragments/frag_rev.md')
     expect(text).toContain('## Page context')
     expect(text).toContain('## Verification')
-    expect(text).toContain('State: Review (2 reviews, 1 lapses)')
     expect(readEntryText(bytes, 'highlights/hl_1.md')).toContain('# Highlight')
     expect(readEntryText(bytes, 'screenshots/shot_1.md')).toContain('Image missing')
     const readme = readEntryText(bytes, 'README.md')

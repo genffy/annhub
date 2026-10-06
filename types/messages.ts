@@ -115,7 +115,7 @@ export interface TriggerScreenshotMessage extends BaseMessage {
 export interface SaveScreenshotMessage extends BaseMessage {
   type: 'SAVE_SCREENSHOT'
   data: {
-    /** Preferred transport: processed PNG bytes (storage.md §3.5). */
+    /** Preferred transport: processed PNG bytes (storage.md §3). */
     bytes?: Blob
     /** Legacy transport, still used by the download-only path. */
     dataUrl?: string
@@ -217,29 +217,6 @@ export interface GetFragmentStatsMessage extends BaseMessage {
 export interface FragmentStatsResponse {
   total: number
   newThisWeek: number
-  /** Fragments whose `review.nextReviewAt` has passed (Desktop-returned state once R3 data arrived). */
-  due: number
-}
-
-/** Desktop direct connection (storage §6): read/write config, ping, one-shot sync. */
-export interface GetDirectConnectConfigMessage extends BaseMessage {
-  type: 'GET_DESKTOP_DIRECT_CONNECT'
-}
-
-/** `token` omitted keeps the stored pairing code, `''` unpairs; `endpoint` must be a loopback origin. */
-export interface SetDirectConnectConfigMessage extends BaseMessage {
-  type: 'SET_DESKTOP_DIRECT_CONNECT'
-  config: { endpoint?: string; token?: string; autoSync?: boolean }
-}
-
-export interface FlushDesktopDirectConnectMessage extends BaseMessage {
-  type: 'FLUSH_DESKTOP_DIRECT_CONNECT'
-}
-
-/** Items Desktop refused stay queued but parked: `retry` re-queues and delivers them, `dismiss` drops them. */
-export interface ResolveRejectedDeliveriesMessage extends BaseMessage {
-  type: 'RESOLVE_REJECTED_DELIVERIES'
-  action: 'retry' | 'dismiss'
 }
 
 /** The single user export runs page-side (entrypoints/export-content.ts): Blobs cannot cross runtime messaging. */
@@ -249,17 +226,12 @@ export interface CaptureConfig {
   deepMode: boolean
 }
 
-/** Visible sync conflict/skip reports (storage.md §9). */
-export interface GetSyncReportsMessage extends BaseMessage {
-  type: 'GET_SYNC_REPORTS'
-}
-
-/** Content → background: the sender's tab id (draft keys need tab identity, PRD §9). */
+/** Content → background: the sender's tab id (draft keys need tab identity, PRD §8). */
 export interface GetTabIdMessage extends BaseMessage {
   type: 'GET_TAB_ID'
 }
 
-/** Orphan asset report + cleanup (storage.md §10). */
+/** Orphan asset report + cleanup (storage.md §7). */
 export interface GetOrphanAssetsMessage extends BaseMessage {
   type: 'GET_ORPHAN_ASSETS'
 }
@@ -318,14 +290,9 @@ export type UIToBackgroundMessage =
   | UpdateFragmentMessage
   | DeleteFragmentMessage
   | GetFragmentStatsMessage
-  | GetDirectConnectConfigMessage
-  | SetDirectConnectConfigMessage
-  | FlushDesktopDirectConnectMessage
-  | ResolveRejectedDeliveriesMessage
   | GetTabIdMessage
   | GetOrphanAssetsMessage
   | CleanupOrphanAssetsMessage
-  | GetSyncReportsMessage
   | GetCaptureMetricsMessage
   | RecordCaptureMetricMessage
   | GetCaptureConfigMessage

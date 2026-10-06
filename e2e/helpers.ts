@@ -320,7 +320,7 @@ export async function clearFragmentStoreViaServiceWorker(context: any): Promise<
       request.onsuccess = () => {
         const db = request.result
         // An unversioned open of a store the extension has not created yet yields an empty DB: nothing to clear.
-        const stores = ['fragments', 'reviewLogs', 'outboxEvents', 'assets', 'screenshots', 'localDeletions'].filter(s => db.objectStoreNames.contains(s))
+        const stores = ['fragments', 'assets', 'screenshots'].filter(s => db.objectStoreNames.contains(s))
         if (stores.length === 0) {
           db.close()
           return resolve()
@@ -361,31 +361,6 @@ export async function captureFragmentViaUi(page: Page, opts: { kind?: string; us
   await getAnnShadowRoot(page).locator('[data-ann-ui="capture-modal"]').waitFor({ state: 'detached', timeout: 5000 })
 }
 
-/** Read the delivery outbox (fragment + asset pending tasks) via the service worker. */
-export async function getOutboxFromServiceWorker(context: any): Promise<any[]> {
-  const sw = await ensureServiceWorker(context)
-  return sw.evaluate(() => {
-    return new Promise<any[]>(resolve => {
-      const request = indexedDB.open('fragment-store')
-      request.onerror = () => resolve([])
-      request.onsuccess = () => {
-        const db = request.result
-        if (!db.objectStoreNames.contains('outboxEvents')) {
-          db.close()
-          return resolve([])
-        }
-        const tx = db.transaction('outboxEvents', 'readonly')
-        const getAll = tx.objectStore('outboxEvents').getAll()
-        getAll.onsuccess = () => {
-          db.close()
-          resolve(getAll.result || [])
-        }
-        getAll.onerror = () => resolve([])
-      }
-    })
-  })
-}
-
 /** Read screenshot-library records + asset metadata (bytes stay as Blobs). */
 export async function getScreenshotsFromServiceWorker(context: any): Promise<any[]> {
   const sw = await ensureServiceWorker(context)
@@ -414,7 +389,7 @@ export async function getScreenshotsFromServiceWorker(context: any): Promise<any
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// Screenshot capture helpers (shared by the screenshot and Desktop specs)
+// Screenshot capture helpers
 // ────────────────────────────────────────────────────────────────────────────
 
 /**

@@ -56,7 +56,7 @@ function pcModal() {
   const kinds = KIND_ORDER.map(k => `<span class="cm-kind ${k === kind ? `on k-${k}` : ''}" data-act="kind" data-v="${k}" style="cursor:pointer">${k === kind ? I(KINDS[k].icon) : ''}${KINDS[k].zh}</span>`).join('')
   const over = PC.closing
     ? `<div style="position:absolute;inset:0;background:rgb(15 23 42 / 0.35);border-radius:16px;display:grid;place-items:center;z-index:5"><div class="dialog" style="width:400px;padding:18px 20px">
-        <div class="t-lg b">放弃已填写的内容？</div><div class="help" style="margin:6px 0 14px;font-size:12.5px">改存为高亮或剪藏不会创建复习，也不会自动升级为碎片。</div>
+        <div class="t-lg b">放弃已填写的内容？</div><div class="help" style="margin:6px 0 14px;font-size:12.5px">也可以改存为高亮或剪藏，已填写的文字会作为备注保留，不会自动升级为碎片。</div>
         <div class="hs g6 wrap">${btn('继续编辑', { v: 'primary', sm: true, attrs: 'data-act="keep"' })}${btn('改存为高亮', { sm: true, attrs: 'data-act="as-hl"' })}${btn('改存为剪藏', { sm: true, attrs: 'data-act="as-clip"' })}<span class="grow"></span>${btn('放弃', { v: 'danger', sm: true, attrs: 'data-act="discard"' })}</div></div></div>`
     : ''
   if (PC.success)
@@ -158,12 +158,12 @@ function pcInit(root) {
       PC.log.hl++
       hideMenu()
       window.getSelection().removeAllRanges()
-      toast(toastHtml('已高亮 · 只在页面留痕，不进入复习', 'highlighter'))
+      toast(toastHtml('已高亮 · 只在页面留痕', 'highlighter'))
     } else if (m === 'clip') {
       PC.log.clip++
       hideMenu()
       window.getSelection().removeAllRanges()
-      toast(toastHtml('已剪藏 · 不进入复习 <span class="act" style="margin-left:6px">撤销</span>', 'bookmark'))
+      toast(toastHtml('已剪藏 <span class="act" style="margin-left:6px">撤销</span>', 'bookmark'))
     } else {
       hideMenu()
       toast(toastHtml('截图模式：见上方“截图”画板（此原型不演示）', 'scan'))
@@ -253,7 +253,7 @@ function pcInit(root) {
       reset()
       window.getSelection().removeAllRanges()
       pcRender(root)
-      toast(toastHtml(a === 'as-hl' ? '已改存为高亮 · 没有创建复习' : '已改存为剪藏 · 没有创建复习', a === 'as-hl' ? 'highlighter' : 'bookmark'))
+      toast(toastHtml(a === 'as-hl' ? '已改存为高亮' : '已改存为剪藏', a === 'as-hl' ? 'highlighter' : 'bookmark'))
     } else if (a === 'discard') {
       reset()
       window.getSelection().removeAllRanges()

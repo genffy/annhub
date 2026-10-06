@@ -43,14 +43,6 @@ coverage/
 .claude/docs/**/*.gif
 .claude/docs/**/*.webp
 .claude/docs/**/*.svg
-# App build output
-app/dist/
-
-# Apple build artifacts
-app/.build/
-app/DerivedData/
-*.xcuserstate
-app/AnnHub.xcodeproj/xcuserdata/
 demo-screenshots/
 
 # ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====

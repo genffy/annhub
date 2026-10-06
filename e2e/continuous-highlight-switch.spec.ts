@@ -22,7 +22,7 @@ test.describe('Continuous highlight mode switching', () => {
     await tripleClickSelect(page, '[data-testid="english-hello"]')
     await waitForHoverMenu(page)
 
-    // The menu has no toggle for it — the shortcut is the entry point (extension.md §10).
+    // The menu has no toggle for it — the shortcut is the entry point (extension.md §9).
     await pressToggleHighlighter(page)
     await page.waitForTimeout(500)
 

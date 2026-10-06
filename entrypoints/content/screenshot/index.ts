@@ -613,7 +613,7 @@ class ScreenshotSession {
       const capturedAt = Date.now()
       // runtime messaging cannot carry Blobs, so the processed PNG travels as
       // a dataUrl; the service worker converts it to a Blob before the
-      // asset store persists bytes (storage.md §3.5 — dataUrl is transport
+      // asset store persists bytes (storage.md §3 — dataUrl is transport
       // only, never the persisted format).
       const dataUrl = canvas.toDataURL('image/png')
       const response = await MessageUtils.sendMessage<{ downloadId?: number; screenshot?: { id: string } }>({

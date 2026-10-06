@@ -1,5 +1,5 @@
 /**
- * HighlighterCapsule — fixed status pill for the continuous highlight mode (extension.md §10).
+ * HighlighterCapsule — fixed status pill for the continuous highlight mode (extension.md §9).
  *
  * Shows a compact semi-transparent capsule at the top-right corner.
  * Displays a pulsing green dot and a +1 float animation on each capture.

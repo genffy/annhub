@@ -1,5 +1,5 @@
 /**
- * ClipToast — feedback after a clip (extension.md §3.3): "已剪藏 · 不进入复习"
+ * ClipToast — feedback after a clip (extension.md §3.3): "已剪藏"
  * with a ~3s window to 撤销, which deletes the clip that was just saved.
  */
 import { useEffect, useRef, useState } from 'react'

@@ -30,7 +30,6 @@
           { "context": "ci-pass" },
           { "context": "Analyze (javascript-typescript)" },
           { "context": "Analyze (actions)" },
-          { "context": "Analyze (swift)" },
           { "context": "Dependency review" },
           { "context": "actionlint" },
           { "context": "zizmor" }

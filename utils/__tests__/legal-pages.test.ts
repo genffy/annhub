@@ -43,7 +43,6 @@ describe('privacy policy', () => {
 
   it('states the data flows of the current product', () => {
     expect(privacy).toMatch(/knowledge fragment/i)
-    expect(privacy).toContain('127.0.0.1')
     expect(privacy).toMatch(/off by default/i)
     expect(privacy).toContain('Limited Use')
   })
@@ -55,7 +54,7 @@ describe('legal pages', () => {
     ['terms of service', terms],
   ])('%s has no removed feature and ships both languages', (_name, page) => {
     // None of these is in docs/v2; a policy that mentions one describes a product that no longer exists.
-    expect(page).not.toMatch(/logseq|eudic|欧路|vocabulary|词汇|词表|side panel|sidepanel|侧边栏|Mode [AB]\b/i)
+    expect(page).not.toMatch(/logseq|eudic|欧路|vocabulary|词汇|词表|side panel|sidepanel|侧边栏|Mode [AB]\b|macOS|Mac app|Mac 应用|Desktop|127\.0\.0\.1|pairing code|配对码/i)
     expect(page).toContain('lang="en" id="en"')
     expect(page).toContain('lang="zh-CN" id="zh"')
   })

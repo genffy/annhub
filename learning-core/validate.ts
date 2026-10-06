@@ -55,7 +55,6 @@ export type FragmentErrorCode =
   | 'QUESTION_HYPOTHESIS_REQUIRED'
   | 'VISUAL_ATTACHMENT_REQUIRED'
   | 'INSPIRATION_FORM_INVALID'
-  | 'REVIEW_STATE_INVALID'
 
 export interface ValidationResult {
   ok: boolean
@@ -74,8 +73,8 @@ const CONTROLS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/
 
 /**
  * Free-text fields must not carry C0 control characters (tab/newline/CR
- * excluded) or lone surrogates: both ends hash capture fields byte-wise
- * (storage.md §8) and these would break canonical JSON equivalence.
+ * excluded) or lone surrogates: they cannot round-trip through UTF-8 and
+ * would break byte-stable JSON (export, hashing).
  */
 export function textIsCanonicalSafe(text: string): boolean {
   if (CONTROLS.test(text)) return false
@@ -396,23 +395,6 @@ function validateBaseFields(f: FragmentRecord): ValidationResult {
   return ok()
 }
 
-function validateReviewState(f: FragmentRecord): ValidationResult {
-  const r = f.review
-  if (!r || typeof r !== 'object') return fail('REVIEW_STATE_INVALID')
-  if (r.state !== 'new' && r.state !== 'learning' && r.state !== 'review' && r.state !== 'relearning') {
-    return fail('REVIEW_STATE_INVALID')
-  }
-  if (!isNonNegativeInt(r.repetitions) || !isNonNegativeInt(r.lapses) || !isNonNegativeInt(r.intervalDays)) {
-    return fail('REVIEW_STATE_INVALID')
-  }
-  if (typeof r.easeFactor !== 'number' || !Number.isFinite(r.easeFactor) || r.easeFactor < 1.3) {
-    return fail('REVIEW_STATE_INVALID')
-  }
-  if (!isFiniteEpoch(r.nextReviewAt)) return fail('REVIEW_STATE_INVALID')
-  if (r.lastReviewedAt !== undefined && !isFiniteEpoch(r.lastReviewedAt)) return fail('REVIEW_STATE_INVALID')
-  return ok()
-}
-
 /** Full validation in the mandated order (fragments.md §7). */
 export function validateFragment(f: FragmentRecord): ValidationResult {
   if (!(REGISTERED_FRAGMENT_KINDS as readonly string[]).includes(f.kind)) {
@@ -444,9 +426,6 @@ export function validateFragment(f: FragmentRecord): ValidationResult {
   if (!textIsCanonicalSafe(use)) return fail('TEXT_CONTROL_CHARS', { field: 'processing.use' })
   if (use.trim() === f.content.trim()) return fail('USE_COPIES_CONTENT')
   if (use.trim() === excerpt.trim()) return fail('USE_COPIES_EXCERPT')
-
-  const review = validateReviewState(f)
-  if (!review.ok) return review
 
   return detailValidator(f.detail)
 }

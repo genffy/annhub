@@ -1,8 +1,8 @@
 # AnnHub Docs
 
-更新时间：2026-10-05
+更新时间：2026-10-07
 
-本文档目录只维护 AnnHub 当前产品方向：知识碎片的采集、加工与间隔复习。
+本文档目录只维护 AnnHub 当前产品方向：浏览器扩展里知识碎片的采集、加工、检索与导出（[D-17](./v2/validation.md)）。
 
 ## 文档索引
 
@@ -12,15 +12,16 @@
 | [产品定位](./v2/product.md)                           | 目标用户、产品边界与差异化                         |
 | [Fragment 契约](./v2/fragments.md)                    | 类型、字段、来源与校验                             |
 | [产品路线图](./v2/roadmap.md)                         | 阶段顺序与发布门禁                                 |
-| [Fragment 类型目录](./v2/kinds.md)                    | 每种类型的采集提问、复习题面与示例                 |
+| [Fragment 类型目录](./v2/kinds.md)                    | 每种类型的采集提问与示例                           |
 | [市场与参照产品证据](./v2/market.md)                  | 可核对的竞品事实、行业信号与定位                   |
 | [验证计划与决策登记](./v2/validation.md)              | 假设、实验、待确认决策与风险                       |
 | [截图采集链路](./v2/screenshot.md)                    | 区域/元素截图、匿名、马赛克、入库与测试设计        |
-| [界面视觉基线](./v2/visual.md)                        | 扩展与 Desktop 共用的品牌色与亮暗外观              |
-| [UX/UI 设计稿](./design/v2/README.md)                 | 两端全部界面的画板与可交互原型，文案以 v2 文档为准 |
+| [界面视觉基线](./v2/visual.md)                        | 扩展的品牌色与亮暗外观                             |
+| [UX/UI 设计稿](./design/v2/README.md)                 | 扩展全部界面的画板与可交互原型，文案以 v2 文档为准 |
 | [页面标注架构](./annotation-architecture-refactor.md) | 高亮、页面内容识别、Range 定位和 marker 生命周期   |
 | [Monorepo 重组方案](./monorepo-restructure.md)        | 包划分、pnpm workspace、分阶段实施与验收门禁       |
-| [发布与供应链](./releasing.md)                        | CI 门禁、安全扫描、仓库设置、签名公证与发布校验    |
+| [Agent 真实使用测试方案](./qa-agent-testing.md)       | agent 真实使用扩展并复核缺陷，与模型解耦           |
+| [发布与供应链](./releasing.md)                        | CI 门禁、安全扫描、仓库设置与发布校验              |
 | [扩展权限说明](./extension-permissions.md)            | 每项权限的用途、刻意不申请的权限与商店说明素材     |
 | [待跟进事项](./follow-ups.md)                         | 需要确认的决定、尚未验证的项目与已知小问题         |
 

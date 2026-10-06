@@ -9,7 +9,7 @@
  * only an image no larger than the library accepts. What fails these is left to the element capture's
  * own fallback: the image keeps its address and renders if the page itself can load it.
  */
-import { MAX_IMAGE_BYTES } from '../../../learning-core/wire'
+import { MAX_IMAGE_BYTES } from '../../../learning-core/assets'
 
 export const RESOURCE_MAX_BYTES = MAX_IMAGE_BYTES
 export const RESOURCE_TIMEOUT_MS = 15_000

@@ -1,6 +1,6 @@
 /**
  * What the capture window can hand back to the user when saving fails or the
- * window is abandoned (extension.md §4.1 / §9): the typed understanding,
+ * window is abandoned (extension.md §4.1 / §8): the typed understanding,
  * verification and application text must never be lost. Pure helpers, so the
  * wording is testable in both languages.
  */

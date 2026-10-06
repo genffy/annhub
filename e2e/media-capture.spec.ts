@@ -56,7 +56,6 @@ test.describe('媒体片段采集 (media-clip)', () => {
     expect(clip.content).toBe('主持人讲了利率传导的滞后')
     expect(clip.context.excerpt).toContain('这轮周期的传导滞后更长')
     expect(clip.processing.verified.source).toBe('source-material')
-    expect(clip.review.state).toBe('new')
   })
 
   test('save stays locked until a range + summary + verification exist', async ({ page }) => {

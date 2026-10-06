@@ -1,6 +1,5 @@
-/* UI 基础件：扩展（.ui）与 Desktop（.mac）共用。.mac 只覆盖 macOS 原生质感的差异。 */
-.ui,
-.mac {
+/* UI 基础件：扩展界面（.ui）。 */
+.ui {
   font-family: var(--font-ui);
   font-size: 13px;
   line-height: 1.5;
@@ -9,8 +8,7 @@
   text-align: left;
 }
 
-.ui *,
-.mac * {
+.ui * {
   box-sizing: border-box;
 }
 
@@ -449,20 +447,6 @@ hr.sep {
   transform: translateX(14px);
 }
 
-.mac .switch {
-  width: 38px;
-  height: 22px;
-}
-
-.mac .switch::after {
-  width: 18px;
-  height: 18px;
-}
-
-.mac .switch.on::after {
-  transform: translateX(16px);
-}
-
 .seg {
   display: inline-flex;
   padding: 2px;
@@ -487,14 +471,6 @@ hr.sep {
   background: var(--surface);
   color: var(--fg);
   box-shadow: var(--sh-1);
-}
-
-.mac .seg {
-  border-radius: 999px;
-}
-
-.mac .seg > * {
-  border-radius: 999px;
 }
 
 /* 芯片、徽标 */
@@ -877,70 +853,4 @@ kbd {
   border-left: 3px solid var(--brand);
   padding: 2px 0 2px 12px;
   color: var(--fg);
-}
-
-/* macOS 质感差异：胶囊按钮与分段控件，其余沿用同一套令牌 */
-.mac {
-  font-size: 13px;
-  letter-spacing: 0;
-}
-
-.mac .btn {
-  height: 28px;
-  border-radius: 999px;
-  padding: 0 14px;
-  border-color: var(--line-2);
-  background: var(--surface);
-  box-shadow: 0 0.5px 1px rgb(0 0 0 / 0.08);
-}
-
-.mac .btn-primary {
-  background: var(--brand);
-  border-color: transparent;
-  color: var(--brand-fg);
-  box-shadow: none;
-}
-
-.mac .btn-primary:hover {
-  background: color-mix(in oklab, var(--brand) 86%, #000);
-}
-
-.mac .btn-ghost {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.mac .btn-danger-solid {
-  background: var(--danger);
-  border-color: transparent;
-  color: #fff;
-  box-shadow: none;
-}
-
-.mac .btn-lg {
-  height: 34px;
-  padding: 0 20px;
-  font-size: 13.5px;
-}
-
-.mac .btn-sm {
-  height: 24px;
-  padding: 0 10px;
-}
-
-.mac .btn-icon {
-  width: 28px;
-  padding: 0;
-}
-
-.mac .input,
-.mac .select {
-  border-radius: 8px;
-  min-height: 28px;
-  padding: 4px 9px;
-}
-
-.mac .textarea {
-  border-radius: 8px;
 }

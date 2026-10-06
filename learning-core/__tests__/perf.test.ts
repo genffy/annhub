@@ -1,8 +1,7 @@
 /**
  * Query performance benchmark (roadmap R1.4): 10k synthetic fragments through
- * the shared in-memory query path. The 200ms target in docs/v2/search.md is
- * for Desktop's first screen; this guards the extension's worst case — a
- * full in-memory scan — with a generous CI-safe bound and logs the timing.
+ * the shared in-memory query path. This guards the extension library's worst
+ * case — a full in-memory scan — with a generous CI-safe bound and logs the timing.
  */
 import { describe, expect, it } from 'vitest'
 import { runFragmentQuery } from '../query'

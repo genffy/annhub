@@ -1,4 +1,4 @@
-/* 设计画布本身的外壳：页眉、章节、画板、标注、规格表。UI 本体样式在 ui.css / ext.css / desk.css。 */
+/* 设计画布本身的外壳：页眉、章节、画板、标注、规格表。UI 本体样式在 ui.css / ext.css。 */
 * {
   box-sizing: border-box;
 }
@@ -308,13 +308,6 @@ a {
   border-radius: 14px;
   box-shadow: var(--sh-2);
   background: var(--surface);
-}
-
-.cv-board.is-bare .cv-canvas {
-  overflow: visible;
-  box-shadow: none;
-  background: transparent;
-  border-radius: 0;
 }
 
 .cv-expand {
@@ -657,12 +650,6 @@ a {
   color: color-mix(in oklab, var(--info) 70%, var(--fg));
 }
 
-.lp-bar.desk {
-  background: color-mix(in oklab, var(--brand) 11%, var(--surface));
-  border: 1px solid color-mix(in oklab, var(--brand) 32%, var(--surface));
-  color: var(--brand-text);
-}
-
 .lp-bar small {
   font-weight: 450;
   opacity: 0.85;
@@ -789,7 +776,7 @@ a {
   display: inline-block;
 }
 
-/* 跨端旅程：泳道时间线 */
+/* 三周走查：时间线 */
 .jny {
   margin-top: 22px;
   background: var(--surface);
@@ -801,7 +788,7 @@ a {
 
 .jny-grid {
   display: grid;
-  grid-template-columns: 84px repeat(4, minmax(0, 1fr));
+  grid-template-columns: 84px repeat(3, minmax(0, 1fr));
   gap: 12px 14px;
 }
 
@@ -845,10 +832,6 @@ a {
 
 .jc.ext {
   border-left: 3px solid color-mix(in oklab, var(--info) 60%, var(--surface));
-}
-
-.jc.desk {
-  border-left: 3px solid color-mix(in oklab, var(--brand) 60%, var(--surface));
 }
 
 .jc.empty {

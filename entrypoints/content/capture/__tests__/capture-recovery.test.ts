@@ -17,7 +17,7 @@ const base: RecoverableInput = {
   details: [],
 }
 
-describe('capture recovery text (extension.md §4.1 / §9)', () => {
+describe('capture recovery text (extension.md §4.1 / §8)', () => {
   it('keeps every typed processing field in the note attached to a save-as exit', () => {
     const note = fallbackNote({ ...base, guess: '下游把压力传回上游', use: '检查事件管道为何耗尽内存', tags: 'streams', details: [['定义', '需求信号']] }, 'zh')
     expect(note).toBe(['理解：下游把压力传回上游', '应用：检查事件管道为何耗尽内存', '定义：需求信号', '标签：streams'].join('\n'))

@@ -48,37 +48,33 @@ code { background: #f1f5f9; padding: 0.05rem 0.3rem; border-radius: 4px; font-si
 <section lang="en" id="en">
 <p class="lang"><a href="#zh">中文版 ↓</a></p>
 <h1>Privacy Policy</h1>
-<p class="updated">Last updated: October 4, 2026</p>
-<p>AnnHub is a Chrome extension plus a macOS app ("AnnHub for Mac"). You select text on a web page, or write your own idea, and AnnHub saves it as a knowledge fragment together with its source and context; the Mac app helps you review fragments later. There is no AnnHub account and no AnnHub server: <strong>we operate nothing that receives your data.</strong></p>
+<p class="updated">Last updated: October 7, 2026</p>
+<p>AnnHub is a Chrome extension. You select text on a web page, or write your own idea, and AnnHub saves it as a knowledge fragment together with its source and context. There is no AnnHub account and no AnnHub server: <strong>we operate nothing that receives your data.</strong></p>
 
 <h2>1. What AnnHub stores, and where</h2>
 <ul>
 <li><strong>Fragments</strong> — the text you save, the surrounding excerpt, the page URL, host and title, where the text sits on the page, your own explanation and intended use, tags, kind and capture time.</li>
 <li><strong>Screenshots and images</strong> you capture or save, including any mosaic or blur you apply.</li>
 <li><strong>Highlights and clips</strong> — selected text, page URL and title, up to 20 characters of context, and your notes.</li>
-<li><strong>Review history</strong> on your Mac — schedule, ratings and when you reviewed.</li>
-<li><strong>Settings</strong> — capture preferences, the Desktop pairing code, optional API keys or tokens, and unsent drafts so a failed save never loses what you typed.</li>
+<li><strong>Settings</strong> — capture preferences, optional API keys or tokens, and unsent drafts so a failed save never loses what you typed.</li>
 <li><strong>Local counters</strong> — aggregate counts and timings (for example how many fragments were saved this week) shown on the Settings page. They contain no page text, no URL and no title, and they are never sent anywhere.</li>
 </ul>
 <div class="highlight">
-<strong>All of this stays on your devices:</strong> in your browser (IndexedDB and <code>chrome.storage.local</code>) and, once you use the Mac app, in its database inside the app's sandbox on your Mac.
+<strong>All of this stays on your device:</strong> in your browser (IndexedDB and <code>chrome.storage.local</code>).
 </div>
 
-<h2>2. Delivery to AnnHub for Mac</h2>
-<p>If you pair the extension with the Mac app, the extension sends each fragment and its images to the app over <code>127.0.0.1</code>, an address that only exists on your own computer. The app asks for the pairing code it shows you, so other software on the machine cannot read or write your fragments without it. This step never leaves your computer, and the app itself makes no outbound network connections.</p>
-
-<h2>3. The optional service that receives data</h2>
+<h2>2. The optional service that receives data</h2>
 <p>It is <strong>off by default</strong>. Data is sent only after you configure it yourself, and it goes directly from your browser to the service you chose; AnnHub does not relay it.</p>
 <ul>
 <li><strong>A language-model provider you choose</strong> (an OpenAI-compatible endpoint with your own API key). When you ask for a suggestion, AnnHub sends the fragment's content, the context it needs and your question. It does not send the full page, your browsing history or your other fragments, and it does not send the page URL, the page title or image files by default. A suggestion only becomes part of a fragment after you confirm it.</li>
 </ul>
-<p>Each provider's own terms and privacy policy apply to what it receives. You can remove the configuration in Settings at any time; capture, saving, review and export keep working without them.</p>
+<p>Each provider's own terms and privacy policy apply to what it receives. You can remove the configuration in Settings at any time; capture, saving and export keep working without them.</p>
 <p>Separately, when you save an image from a page, the extension downloads that image from the page's own site, the same request your browser makes to display it.</p>
 
-<h2>4. Chrome Web Store Limited Use</h2>
-<p>AnnHub's use of information received from Chrome extension APIs adheres to the <a href="https://developer.chrome.com/docs/webstore/program-policies/limited-use" target="_blank" rel="noopener">Chrome Web Store User Data Policy</a>, including its Limited Use requirements. The extension reads a page only when you select text, capture a screenshot or press a shortcut, and uses that information only to provide the saving and review features you asked for. We do not transfer it to others except as described in sections 2 and 3, do not use it for advertising, and do not allow people to read it.</p>
+<h2>3. Chrome Web Store Limited Use</h2>
+<p>AnnHub's use of information received from Chrome extension APIs adheres to the <a href="https://developer.chrome.com/docs/webstore/program-policies/limited-use" target="_blank" rel="noopener">Chrome Web Store User Data Policy</a>, including its Limited Use requirements. The extension reads a page only when you select text, capture a screenshot or press a shortcut, and uses that information only to provide the saving features you asked for. We do not transfer it to others except as described in section 2, do not use it for advertising, and do not allow people to read it.</p>
 
-<h2>5. What we do not do</h2>
+<h2>4. What we do not do</h2>
 <ul>
 <li>We do not record the pages you visit or collect your browsing history.</li>
 <li>We do not collect your name, email address or any other personal information.</li>
@@ -87,28 +83,26 @@ code { background: #f1f5f9; padding: 0.05rem 0.3rem; border-radius: 4px; font-si
 <li>We do not load or run remote code.</li>
 </ul>
 
-<h2>6. Permissions explained</h2>
+<h2>5. Permissions explained</h2>
 <table>
 <tr><th>Permission</th><th>Why</th></tr>
-<tr><td><code>storage</code></td><td>Keep settings, drafts, highlights, clips and delivery bookkeeping on your device.</td></tr>
+<tr><td><code>storage</code></td><td>Keep settings, drafts, highlights and clips on your device.</td></tr>
 <tr><td><code>commands</code></td><td>Keyboard shortcuts for screenshots and highlight mode.</td></tr>
-<tr><td><code>alarms</code></td><td>Retry delivery to the Mac app after a pause, even when the browser has put the extension to sleep.</td></tr>
 <tr><td><code>downloads</code></td><td>Save screenshots and exported Markdown ZIP files to disk.</td></tr>
 <tr><td><code>scripting</code></td><td>Inject a shortcut event on pages where the content script has not loaded yet.</td></tr>
 <tr><td>Access to all sites (<code>&lt;all_urls&gt;</code>)</td><td>Let you save text and take screenshots on whichever page you are reading, and fetch an image from its own site so the original can be saved.</td></tr>
-<tr><td><code>127.0.0.1:8765</code></td><td>Deliver fragments to the Mac app on this computer.</td></tr>
 </table>
 
-<h2>7. Security</h2>
-<p>API keys and the pairing code live in <code>chrome.storage.local</code> and are readable only by the extension's own pages and service worker, never by web pages; they are not written to logs, exports or delivery events. The Mac app runs in the macOS App Sandbox and listens only on your own computer. Requests to a language-model provider use HTTPS when you configure an <code>https://</code> endpoint.</p>
+<h2>6. Security</h2>
+<p>API keys live in <code>chrome.storage.local</code> and are readable only by the extension's own pages and service worker, never by web pages; they are not written to logs or exports. Requests to a language-model provider use HTTPS when you configure an <code>https://</code> endpoint.</p>
 
-<h2>8. Retention and deletion</h2>
-<p>Data is kept until you delete it. Delete a fragment in the library, delete it in the Mac app, or uninstall the extension to remove the browser's copy. Deleting in the extension does not delete the copy the Mac app already received, and the reverse also holds; remove each side separately. The Markdown ZIP you export is an ordinary file that you own and manage.</p>
+<h2>7. Retention and deletion</h2>
+<p>Data is kept until you delete it. Delete a fragment in the library, or uninstall the extension, to remove the browser's copy. The Markdown ZIP you export is an ordinary file that you own and manage.</p>
 
-<h2>9. Children</h2>
+<h2>8. Children</h2>
 <p>AnnHub is not directed at children under 13, and we do not knowingly collect information from them.</p>
 
-<h2>10. Changes to this policy</h2>
+<h2>9. Changes to this policy</h2>
 <p>If we change what AnnHub collects or sends, we will update this page and its date before the change ships.</p>
 
 <h2>11. Contact</h2>
@@ -118,37 +112,33 @@ code { background: #f1f5f9; padding: 0.05rem 0.3rem; border-radius: 4px; font-si
 <section lang="zh-CN" id="zh">
 <p class="lang"><a href="#en">English ↑</a></p>
 <h1>隐私政策</h1>
-<p class="updated">最后更新：2026 年 10 月 4 日</p>
-<p>AnnHub 由一个 Chrome 扩展和一个 macOS 应用（“AnnHub for Mac”）组成。你在网页上选中文字，或写下自己的灵感，AnnHub 把它连同来源和语境保存为知识碎片；Mac 应用帮你之后复习。AnnHub 没有账号，也没有服务器：<strong>我们不运营任何接收你数据的服务。</strong></p>
+<p class="updated">最后更新：2026 年 10 月 7 日</p>
+<p>AnnHub 是一个 Chrome 扩展。你在网页上选中文字，或写下自己的灵感，AnnHub 把它连同来源和语境保存为知识碎片。AnnHub 没有账号，也没有服务器：<strong>我们不运营任何接收你数据的服务。</strong></p>
 
 <h2>1. 保存哪些数据，保存在哪里</h2>
 <ul>
 <li><strong>知识碎片</strong>——你保存的文字、所在段落摘录、网页 URL、域名和标题、文字在页面中的位置、你自己的理解与应用、标签、类型和采集时间。</li>
 <li><strong>截图与图片</strong>——你截取或保存的图像，包括你添加的马赛克或模糊。</li>
 <li><strong>高亮与剪藏</strong>——选中的文字、网页 URL 和标题、最多 20 个字符的上下文，以及你的备注。</li>
-<li><strong>复习记录</strong>（在 Mac 上）——复习计划、评分和复习时间。</li>
-<li><strong>设置</strong>——采集偏好、Desktop 配对码、可选的 API 密钥或令牌，以及尚未提交的草稿（保存失败时不丢失你输入的内容）。</li>
+<li><strong>设置</strong>——采集偏好、可选的 API 密钥或令牌，以及尚未提交的草稿（保存失败时不丢失你输入的内容）。</li>
 <li><strong>本地计数</strong>——聚合的次数和耗时（例如本周保存了多少条碎片），显示在设置页。其中不含网页文字、URL 或标题，也不会发送到任何地方。</li>
 </ul>
 <div class="highlight">
-<strong>这些数据都留在你自己的设备上：</strong>在浏览器里（IndexedDB 和 <code>chrome.storage.local</code>），使用 Mac 应用后，也在 Mac 应用沙盒内的数据库里。
+<strong>这些数据都留在你自己的设备上：</strong>在浏览器里（IndexedDB 和 <code>chrome.storage.local</code>）。
 </div>
 
-<h2>2. 交付到 AnnHub for Mac</h2>
-<p>把扩展与 Mac 应用配对后，扩展通过 <code>127.0.0.1</code>（只存在于你自己电脑上的地址）把每条碎片及其图片发给应用。应用会要求你输入它显示的配对码，所以电脑上的其他软件没有配对码就无法读写你的碎片。这一步不会离开你的电脑，应用自身也不发起任何对外网络连接。</p>
-
-<h2>3. 会接收数据的可选服务</h2>
+<h2>2. 会接收数据的可选服务</h2>
 <p>它<strong>默认关闭</strong>。只有你自己配置了它，数据才会发送，并且由浏览器直接发给你选择的服务；AnnHub 不做转发。</p>
 <ul>
 <li><strong>你选择的语言模型服务</strong>（带你自己 API 密钥的 OpenAI 兼容接口）。当你请求建议时，AnnHub 发送该碎片的内容、必要的上下文和你的问题；不发送完整页面、浏览历史或你的其他碎片，默认也不发送网页 URL、页面标题和图片文件。建议只有经你确认后才会成为碎片的一部分。</li>
 </ul>
-<p>各服务商对收到的数据适用其自己的条款和隐私政策。你可以随时在设置页清除配置；没有它们，采集、保存、复习和导出照常可用。</p>
+<p>各服务商对收到的数据适用其自己的条款和隐私政策。你可以随时在设置页清除配置；没有它们，采集、保存和导出照常可用。</p>
 <p>另外，当你保存网页上的图片时，扩展会从该网页自己的站点下载这张图片，与浏览器显示它时发出的请求相同。</p>
 
-<h2>4. Chrome 应用商店“有限使用”</h2>
-<p>AnnHub 对 Chrome 扩展 API 所得信息的使用，符合 <a href="https://developer.chrome.com/docs/webstore/program-policies/limited-use" target="_blank" rel="noopener">Chrome 应用商店用户数据政策</a>，包括其“有限使用”要求。扩展只在你选中文字、截图或按下快捷键时读取页面，且只用这些信息提供你要求的保存和复习功能。除第 2、3 节所述外，我们不向他人转移这些信息，不用于广告，也不允许任何人阅读。</p>
+<h2>3. Chrome 应用商店“有限使用”</h2>
+<p>AnnHub 对 Chrome 扩展 API 所得信息的使用，符合 <a href="https://developer.chrome.com/docs/webstore/program-policies/limited-use" target="_blank" rel="noopener">Chrome 应用商店用户数据政策</a>，包括其“有限使用”要求。扩展只在你选中文字、截图或按下快捷键时读取页面，且只用这些信息提供你要求的保存功能。除第 2 节所述外，我们不向他人转移这些信息，不用于广告，也不允许任何人阅读。</p>
 
-<h2>5. 我们不做什么</h2>
+<h2>4. 我们不做什么</h2>
 <ul>
 <li>不记录你访问的页面，不收集浏览历史。</li>
 <li>不收集姓名、邮箱等任何个人信息。</li>
@@ -157,31 +147,29 @@ code { background: #f1f5f9; padding: 0.05rem 0.3rem; border-radius: 4px; font-si
 <li>不加载、不运行远程代码。</li>
 </ul>
 
-<h2>6. 权限说明</h2>
+<h2>5. 权限说明</h2>
 <table>
 <tr><th>权限</th><th>用途</th></tr>
-<tr><td><code>storage</code></td><td>在你的设备上保存设置、草稿、高亮、剪藏和交付记录。</td></tr>
+<tr><td><code>storage</code></td><td>在你的设备上保存设置、草稿、高亮和剪藏。</td></tr>
 <tr><td><code>commands</code></td><td>截图和高亮模式的键盘快捷键。</td></tr>
-<tr><td><code>alarms</code></td><td>浏览器让扩展休眠后，仍能在稍后重试向 Mac 应用的交付。</td></tr>
 <tr><td><code>downloads</code></td><td>把截图和导出的 Markdown ZIP 保存为文件。</td></tr>
 <tr><td><code>scripting</code></td><td>在内容脚本尚未加载的页面上注入一个快捷键事件。</td></tr>
 <tr><td>访问所有网站（<code>&lt;all_urls&gt;</code>）</td><td>让你在正在阅读的任意网页上保存文字、截图，并从图片所在站点抓取原图以保存。</td></tr>
-<tr><td><code>127.0.0.1:8765</code></td><td>把碎片交付给本机上的 Mac 应用。</td></tr>
 </table>
 
-<h2>7. 安全</h2>
-<p>API 密钥和配对码保存在 <code>chrome.storage.local</code>，只有扩展自己的页面和 service worker 可以读取，网页读不到；它们不会写入日志、导出文件或交付事件。Mac 应用运行在 macOS 应用沙盒中，只监听你自己的电脑。当你配置 <code>https://</code> 地址时，对语言模型服务的请求使用 HTTPS。</p>
+<h2>6. 安全</h2>
+<p>API 密钥保存在 <code>chrome.storage.local</code>，只有扩展自己的页面和 service worker 可以读取，网页读不到；它们不会写入日志或导出文件。当你配置 <code>https://</code> 地址时，对语言模型服务的请求使用 HTTPS。</p>
 
-<h2>8. 保留与删除</h2>
-<p>数据保留到你删除为止。在碎片库删除碎片、在 Mac 应用里删除，或卸载扩展即可移除浏览器中的副本。在扩展里删除不会删除 Mac 应用已收到的副本，反过来也一样，需要分别删除。你导出的 Markdown ZIP 是一个普通文件，由你自己保管。</p>
+<h2>7. 保留与删除</h2>
+<p>数据保留到你删除为止。在碎片库删除碎片，或卸载扩展，即可移除浏览器中的副本。你导出的 Markdown ZIP 是一个普通文件，由你自己保管。</p>
 
-<h2>9. 儿童</h2>
+<h2>8. 儿童</h2>
 <p>AnnHub 不面向 13 岁以下儿童，我们也不会有意收集他们的信息。</p>
 
-<h2>10. 政策变更</h2>
+<h2>9. 政策变更</h2>
 <p>如果 AnnHub 收集或发送的内容发生变化，我们会在变更发布前更新本页和日期。</p>
 
-<h2>11. 联系方式</h2>
+<h2>10. 联系方式</h2>
 <p>对本政策有疑问，请在我们的 <a href="https://github.com/genffy/annhub" target="_blank" rel="noopener">GitHub 仓库</a>提交 issue。</p>
 </section>
 

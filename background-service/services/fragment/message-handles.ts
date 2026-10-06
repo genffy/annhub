@@ -1,5 +1,5 @@
 /**
- * Fragment message handlers — capture + query + per-item delivery + ZIP export.
+ * Fragment message handlers — capture + query + capture config and metrics.
  * Write-class config/edit/delete/export messages require an extension-page
  * sender; SAVE_FRAGMENT legitimately arrives from content scripts (captures).
  */
@@ -20,7 +20,6 @@ export const fragmentMessageHandlers: Record<string, (message: any, sender: chro
       if (!outcome.success) {
         return MessageUtils.createResponse(false, undefined, outcome.error ?? 'SAVE_FAILED')
       }
-      FragmentService.getInstance().nudgeDelivery()
       return MessageUtils.createResponse(true, { fragment: outcome.fragment })
     } catch (error) {
       return fail(error)
@@ -40,7 +39,6 @@ export const fragmentMessageHandlers: Record<string, (message: any, sender: chro
     if (!isExtensionPageSender(sender)) return forbiddenResponse()
     try {
       const outcome = await FragmentService.getInstance().editFragment(message.id, message.patch)
-      if (outcome.success) FragmentService.getInstance().nudgeDelivery()
       return MessageUtils.createResponse(outcome.success, outcome.fragment ?? outcome.duplicateOf, outcome.error)
     } catch (error) {
       return fail(error)
@@ -66,56 +64,6 @@ export const fragmentMessageHandlers: Record<string, (message: any, sender: chro
     }
   },
 
-  // The pairing code authorizes writes to the Desktop library, so it is never returned: pages see
-  // `hasToken`, and only extension pages may ask at all.
-  GET_DESKTOP_DIRECT_CONNECT: async (_message, sender): Promise<ResponseMessage> => {
-    if (!isExtensionPageSender(sender)) return forbiddenResponse()
-    try {
-      const [config, status, pending, state, rejected] = await Promise.all([
-        FragmentService.getInstance().getPublicDirectConnectConfig(),
-        FragmentService.getInstance().pingDirectConnect(),
-        FragmentService.getInstance().getDeliveryStats(),
-        FragmentService.getInstance().getDeliveryState(),
-        FragmentService.getInstance().getRejectedDeliveries(),
-      ])
-      return MessageUtils.createResponse(true, { config, status, pending, state, rejected })
-    } catch (error) {
-      return fail(error)
-    }
-  },
-
-  SET_DESKTOP_DIRECT_CONNECT: async (message, sender): Promise<ResponseMessage> => {
-    if (!isExtensionPageSender(sender)) return forbiddenResponse()
-    try {
-      const config = await FragmentService.getInstance().setDirectConnectConfig(message.config)
-      return MessageUtils.createResponse(true, config)
-    } catch (error) {
-      return fail(error)
-    }
-  },
-
-  FLUSH_DESKTOP_DIRECT_CONNECT: async (_message, sender): Promise<ResponseMessage> => {
-    if (!isExtensionPageSender(sender)) return forbiddenResponse()
-    try {
-      const result = await FragmentService.getInstance().flushDeliveries()
-      return MessageUtils.createResponse(true, result)
-    } catch (error) {
-      return fail(error)
-    }
-  },
-
-  RESOLVE_REJECTED_DELIVERIES: async (message, sender): Promise<ResponseMessage> => {
-    if (!isExtensionPageSender(sender)) return forbiddenResponse()
-    if (message.action !== 'retry' && message.action !== 'dismiss') {
-      return MessageUtils.createResponse(false, undefined, 'Unknown action')
-    }
-    try {
-      return MessageUtils.createResponse(true, await FragmentService.getInstance().resolveRejectedDeliveries(message.action))
-    } catch (error) {
-      return fail(error)
-    }
-  },
-
   GET_TAB_ID: async (_message, sender): Promise<ResponseMessage> => {
     return MessageUtils.createResponse(true, { tabId: sender.tab?.id ?? 0 })
   },
@@ -134,15 +82,6 @@ export const fragmentMessageHandlers: Record<string, (message: any, sender: chro
     try {
       const removed = await FragmentService.getInstance().cleanupOrphanAssets()
       return MessageUtils.createResponse(true, { removed })
-    } catch (error) {
-      return fail(error)
-    }
-  },
-
-  GET_SYNC_REPORTS: async (): Promise<ResponseMessage> => {
-    try {
-      const reports = await FragmentService.getInstance().getSyncReports()
-      return MessageUtils.createResponse(true, reports)
     } catch (error) {
       return fail(error)
     }

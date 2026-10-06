@@ -10,7 +10,6 @@
  */
 import { capture } from './capture'
 import { common } from './common'
-import { desktop } from './desktop'
 import { detail } from './detail'
 import { library } from './library'
 import { media } from './media'
@@ -22,7 +21,7 @@ import type { Catalog, UiLanguage } from './define'
 
 export type { UiLanguage } from './define'
 
-const CATALOGS = { common, menu, capture, detail, media, desktop, library, screenshot, popup, settings } as const
+const CATALOGS = { common, menu, capture, detail, media, library, screenshot, popup, settings } as const
 
 /** Every message, flattened. Keys are unique across catalogs (a test enforces it). */
 const MESSAGES = Object.assign({}, ...Object.values(CATALOGS)) as typeof common &
@@ -30,7 +29,6 @@ const MESSAGES = Object.assign({}, ...Object.values(CATALOGS)) as typeof common 
   typeof capture &
   typeof detail &
   typeof media &
-  typeof desktop &
   typeof library &
   typeof screenshot &
   typeof popup &

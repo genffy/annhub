@@ -18,7 +18,7 @@ describe('assertFetchableUrl', () => {
     ['an address with credentials', 'https://user:pass@example.com/a.png'],
     ['localhost', 'http://localhost:3000/a.png'],
     ['a name under .localhost', 'http://app.localhost/a.png'],
-    ['a loopback address', 'http://127.0.0.1:8765/health'],
+    ['a loopback address', 'http://127.0.0.1:8080/health'],
     ['the loopback range', 'http://127.1.2.3/'],
     ['a decimal spelling of loopback', 'http://2130706433/'],
     ['a hex spelling of loopback', 'http://0x7f.1/'],

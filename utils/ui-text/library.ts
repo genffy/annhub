@@ -6,8 +6,8 @@ export const library = defineMessages({
   'library.searchPlaceholder': { zh: '搜索碎片…', en: 'Search Fragments…' },
   'library.onboarding.title': { zh: '高亮 ≠ 碎片', en: 'Highlight ≠ Fragment' },
   'library.onboarding.body': {
-    zh: '高亮只标记页面位置；剪藏保存原文备查；只有完成「核验 + 应用」的碎片才进入复习。不想内化的内容，用高亮或剪藏就够了。',
-    en: 'A highlight only marks the page; a clip saves the text for reference; only a Fragment that completes “verify + apply” enters review. For anything you do not want to internalize, a highlight or clip is enough.',
+    zh: '高亮只标记页面位置；剪藏保存原文备查；碎片要完成「核验 + 应用」，连同来源和语境一起保存。只想留个记号，用高亮或剪藏就够了。',
+    en: 'A highlight only marks the page; a clip saves the text for reference; a Fragment completes “verify + apply” and is saved with its source and context. If you only want a marker, a highlight or clip is enough.',
   },
   'library.empty.title': { zh: '选中网页中的一段内容，保存你的第一个知识碎片。', en: 'Select some text on a web page and save your first Fragment.' },
   'library.empty.hint': { zh: '在页面上选中文本后选择「碎片」，或', en: 'Select text on a page and choose “Fragment”, or' },
@@ -22,13 +22,7 @@ export const library = defineMessages({
   'library.nav.settings': { zh: '设置', en: 'Settings' },
   'library.stats.one': { zh: '{count} 条碎片 · 本周新增 {added}', en: '{count} Fragment · {added} new this week' },
   'library.stats.other': { zh: '{count} 条碎片 · 本周新增 {added}', en: '{count} Fragments · {added} new this week' },
-  'library.desktopStatus': { zh: 'Desktop：{label}', en: 'Desktop: {label}' },
-  'library.pair': { zh: '去配对', en: 'Pair now' },
-  'library.viewDetails': { zh: '查看详情', en: 'View details' },
-  'library.export': { zh: '导出内容', en: 'Export content' },
-  'library.retryNow': { zh: '立即重试', en: 'Retry now' },
   'library.newInspiration': { zh: '+ 新建灵感', en: '+ New inspiration' },
-  'library.openDesktop': { zh: '打开 Desktop', en: 'Open Desktop' },
   'library.more': { zh: '更多 ▾', en: 'More ▾' },
   'library.exporting': { zh: '导出中…', en: 'Exporting…' },
   'library.exportZip': { zh: '导出内容（Markdown ZIP）', en: 'Export content (Markdown ZIP)' },
@@ -41,22 +35,7 @@ export const library = defineMessages({
   'library.clipCount.other': { zh: '{count} 条剪藏', en: '{count} clips' },
   'library.gotIt': { zh: '知道了', en: 'Got it' },
 
-  // Desktop panel and connect hint
-  'library.desktopPanel.title': { zh: 'Desktop 说明', en: 'About Desktop' },
-  'library.desktopPanel.before': {
-    zh: '扩展不依赖 Desktop 也能采集、检索与导出。要在 Desktop 复习：启动 Mac 上的 AnnHub Desktop 应用，在其「系统」页复制配对码，然后到',
-    en: 'The extension captures, searches and exports without Desktop. To review on Desktop: launch the AnnHub Desktop app on your Mac, copy the pairing code from its “System” page, then go to ',
-  },
-  'library.desktopPanel.link': { zh: '设置 → Desktop 连接', en: 'Settings → Desktop connection' },
-  'library.desktopPanel.after': { zh: '粘贴并保存。', en: ' to paste it and save.' },
-  'library.desktopPanel.connected': { zh: '当前已连接：{detail}。', en: 'Connected now: {detail}.' },
   'library.openSample': { zh: '打开示例页面', en: 'Open the sample page' },
-  'library.connectHint.title': { zh: '连接 Desktop 开始复习', en: 'Connect Desktop to start reviewing' },
-  'library.connectHint.step1': { zh: '下载并启动 Desktop', en: 'Download and launch Desktop' },
-  'library.connectHint.step2': { zh: '在 Desktop 的「系统」页复制配对码', en: 'Copy the pairing code from Desktop’s “System” page' },
-  'library.connectHint.step3': { zh: '在扩展的设置中输入配对码，状态变为「已连接」', en: 'Enter the code in the extension’s settings — the status changes to “Connected”' },
-  'library.connectHint.goSettings': { zh: '去设置', en: 'Go to settings' },
-  'library.connectHint.skip': { zh: '跳过', en: 'Skip' },
 
   // Filters (search.md)
   'library.filter.kind': { zh: '类型', en: 'Kind' },
@@ -74,7 +53,6 @@ export const library = defineMessages({
   'library.loadMore': { zh: '加载更多（{shown}/{total}）', en: 'Load more ({shown}/{total})' },
 
   // Fragment card (extension PRD §5.3)
-  'library.card.lastReviewed': { zh: ' · 最近复习 {time}', en: ' · last reviewed {time}' },
   'library.card.backToSource': { zh: '回到原文', en: 'Back to source' },
   'library.card.source': { zh: '原文', en: 'Source' },
   'library.card.guess': { zh: '理解', en: 'Understanding' },
@@ -83,8 +61,8 @@ export const library = defineMessages({
   'library.card.use': { zh: '应用', en: 'Apply' },
   'library.card.edit': { zh: '编辑', en: 'Edit' },
   'library.confirmDelete': {
-    zh: '删除这条碎片？仅作用于本扩展，不影响 Desktop 已接收的副本。',
-    en: 'Delete this Fragment? This only affects the extension, not the copy Desktop already received.',
+    zh: '删除这条碎片？此操作不可撤销。',
+    en: 'Delete this Fragment? This cannot be undone.',
   },
   'library.exportPartial': {
     zh: '部分导出：{count} 个图片资产缺失，详见 ZIP 内 README.md。',
@@ -117,7 +95,7 @@ export const library = defineMessages({
   'library.clips.empty': { zh: '还没有剪藏。在网页选中文本后选择「剪藏」。', en: 'No clips yet. Select text on a page and choose “Clip”.' },
   'library.note': { zh: '备注：{note}', en: 'Note: {note}' },
 
-  // Screenshot library and the visual Fragment form (docs/v2/screenshot.md; extension PRD §7)
+  // Screenshot library and the visual Fragment form (docs/v2/screenshot.md; extension PRD §6)
   'shots.confirmDelete': { zh: '删除该截图？若已有碎片引用该图片，图片仍会保留。', en: 'Delete this screenshot? If a Fragment already uses the image, the image is kept.' },
   'shots.empty.title': { zh: '还没有截图采集。', en: 'No screenshots yet.' },
   'shots.empty.before': { zh: '在任意网页按 ', en: 'On any web page press ' },

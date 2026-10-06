@@ -70,11 +70,16 @@ describe('ui text localization (D-11, D-14)', () => {
     expect(uiText('menu.fragment', {}, 'en')).toBe('Fragment')
   })
 
-  it('keeps the menu hints in the documented “time · output · review” shape', () => {
-    for (const key of ['menu.fragment.hint', 'menu.highlight.hint', 'menu.clip.hint', 'menu.screenshot.hint', 'menu.mediaClip.hint'] as const) {
-      for (const lang of LANGUAGES) expect(uiText(key, {}, lang).split(' · ').length).toBeGreaterThanOrEqual(2)
-    }
-    expect(uiText('menu.fragment.hint', {}, 'zh')).toBe('理解并应用 · 约 30–90 秒 · 进入复习')
+  it('shows the documented consequence hint on every menu action (extension.md §2.1)', () => {
+    const documented = [
+      ['menu.fragment.hint', '理解并应用 · 约 30–90 秒'],
+      ['menu.highlight.hint', '只在页面留痕，可加备注'],
+      ['menu.clip.hint', '保存原文和语境，之后查阅'],
+      ['menu.screenshot.hint', '框选区域或单击元素 · 先进入截图集'],
+      ['menu.mediaClip.hint', '标记起止时间，手工转写 · 保存为 media-clip'],
+    ] as const
+    for (const [key, zh] of documented) expect(uiText(key, {}, 'zh'), key).toBe(zh)
+    expect(uiText('menu.fragment.hint', {}, 'en')).toBe('Understand and apply · about 30–90 s')
   })
 
   it('fills parameters and leaves an unknown placeholder visible rather than guessing', () => {

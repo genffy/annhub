@@ -5,10 +5,11 @@ function secOpen() {
   const out = `<div class="sp-card ui" style="margin-top:22px"><h5>明确没有设计的内容</h5><p>按“不为未进入当前版本的能力提前增加 UI 入口”（roadmap §1）。R5 截图增强是应产品负责人要求补画的例外，只表达目标体验，不代表进入开发：R5.3 在阶段 V 之后排期，R5.1、R5.2 以 H-14 为门槛。</p><table class="sp-table" style="font-size:12.5px"><tbody>
       <tr><td style="width:180px">设备端模型 Provider</td><td>阶段 V 之后；设置里没有“系统内置 / 浏览器内置模型”选项，也不标“推荐”。</td></tr>
       <tr><td>PDF 采集</td><td>不在路线图（D-09）。</td></tr>
-      <tr><td>输出工坊、关系确认</td><td>D-10 已移出产品范围：设计稿里没有这两个页面、入口、数据与指标，Desktop 导航只有今日、碎片库、系统。</td></tr>
+      <tr><td>桌面客户端、间隔复习</td><td>D-17 已移出产品范围：设计稿里没有 Desktop 的任何页面，也没有复习、配对与交付的入口。</td></tr>
+      <tr><td>输出工坊、关系确认</td><td>D-10 已移出产品范围：设计稿里没有这两个页面、入口、数据与指标。</td></tr>
       <tr><td>手机端、团队协作、全库知识图谱、通用笔记</td><td>product §2.3 明确不做。</td></tr>
       <tr><td>平台发布与分享</td><td>R5 明确不做：真实发布动作、平台 API 与社媒账号授权；截图编辑器里没有任何上传入口。</td></tr>
-      <tr><td>官网</td><td>docs/v2/website.md 的对外页面不属于扩展与 Desktop，不在本稿内。</td></tr></tbody></table></div>`
+      <tr><td>官网</td><td>docs/v2/website.md 的对外页面不属于扩展，不在本稿内。</td></tr></tbody></table></div>`
 
   return section(
     {

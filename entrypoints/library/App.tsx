@@ -15,7 +15,7 @@ import type { HighlightRecord } from '../../types/highlight'
 import type { ClipRecord } from '../../types/clip'
 import CaptureModal from '../content/capture/CaptureModal'
 import { exportContentZip, downloadZip } from '../../utils/export-content'
-import { connectionView, relativeTime, type Connection } from '../../utils/connection-status'
+import { relativeTime } from '../../utils/relative-time'
 import { extensionPageUrl, samplePageUrl } from '../../utils/extension-pages'
 import { ALL_KINDS, kindLabel } from '../../utils/kind-labels'
 import { uiCount, uiText } from '../../utils/ui-text'
@@ -66,11 +66,8 @@ export default function App() {
   const [inspirationDraft, setInspirationDraft] = useState<CaptureDraft | null>(() => (initialParams.get('new') === 'inspiration' ? buildInspirationDraft() : null))
   const [upgradeDraft, setUpgradeDraft] = useState<CaptureDraft | null>(null)
   const [exporting, setExporting] = useState(false)
-  const [connection, setConnection] = useState<Connection | null>(null)
-  const [desktopPanelOpen, setDesktopPanelOpen] = useState(initialParams.get('desktop') === '1')
   const [moreMenuOpen, setMoreMenuOpen] = useState(false)
   const [onboardingDismissed, setOnboardingDismissed] = useState<boolean | null>(null)
-  const [connectHintDismissed, setConnectHintDismissed] = useState<boolean | null>(null)
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const exportRequested = useRef(initialParams.get('export') === '1')
 
@@ -138,34 +135,14 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    chrome.storage.local.get(['annhubOnboardingDismissed', 'annhubConnectHintDismissed'], stored => {
+    chrome.storage.local.get('annhubOnboardingDismissed', stored => {
       setOnboardingDismissed(!!stored['annhubOnboardingDismissed'])
-      setConnectHintDismissed(!!stored['annhubConnectHintDismissed'])
     })
   }, [])
 
   const dismissOnboarding = () => {
     chrome.storage.local.set({ annhubOnboardingDismissed: true }, () => setOnboardingDismissed(true))
   }
-
-  const dismissConnectHint = () => {
-    chrome.storage.local.set({ annhubConnectHintDismissed: true }, () => setConnectHintDismissed(true))
-  }
-
-  const refreshConnection = useCallback(async () => {
-    const response = await MessageUtils.sendMessage<{
-      status: { online: boolean; paired: boolean; detail: string }
-      pending: { pendingFragments: number; pendingAssets: number }
-      state: { lastError?: string; lastSyncAt?: number }
-    }>({ type: 'GET_DESKTOP_DIRECT_CONNECT' })
-    if (response.success && response.data) {
-      setConnection({ ...response.data.status, ...response.data.pending, lastError: response.data.state.lastError, lastSyncAt: response.data.state.lastSyncAt })
-    }
-  }, [])
-
-  useEffect(() => {
-    void refreshConnection()
-  }, [refreshConnection])
 
   const loadHighlights = useCallback(async () => {
     const response = await MessageUtils.sendMessage<HighlightRecord[]>({ type: 'GET_HIGHLIGHTS' })
@@ -215,11 +192,6 @@ export default function App() {
     void exportZip()
   }, [exportZip])
 
-  const retryDelivery = async () => {
-    await MessageUtils.sendMessage({ type: 'FLUSH_DESKTOP_DIRECT_CONNECT' })
-    await refreshConnection()
-  }
-
   const toggleIn = (list: string[], value: string, setter: (next: string[]) => void) => {
     setter(list.includes(value) ? list.filter(v => v !== value) : [...list, value])
   }
@@ -233,7 +205,6 @@ export default function App() {
   }
 
   const hasFilters = kinds.length + hosts.length + tags.length > 0 || timePreset !== 'all' || !!search.trim()
-  const conn = connection ? connectionView(connection) : null
   const settingsUrl = extensionPageUrl('settings')
   const inLibrary = view === 'fragments' || view === 'highlights' || view === 'clips'
 
@@ -261,41 +232,9 @@ export default function App() {
         {inLibrary && (
           <div className="library-sub" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
             {stats && view === 'fragments' && <span className="library-stats">{uiCount('library.stats', stats.total, { added: stats.newThisWeek })}</span>}
-            {conn && connection && (
-              <span className="connection-chip" data-state={conn.state} title={connection.detail} data-testid="desktop-connection">
-                <span className="status-dot" aria-hidden="true" />
-                {uiText('library.desktopStatus', { label: conn.label })}
-              </span>
-            )}
-            {conn?.state === 'unpaired' && (
-              <a className="badge" href={settingsUrl} data-testid="pair-link">
-                {uiText('library.pair')}
-              </a>
-            )}
-            {conn?.state === 'error' && (
-              <>
-                <button className="badge" onClick={retryDelivery} data-testid="retry-delivery">
-                  {uiText('common.retry')}
-                </button>
-                <a className="badge" href={settingsUrl}>
-                  {uiText('library.viewDetails')}
-                </a>
-                <button className="badge" onClick={() => void exportZip()} disabled={exporting} data-testid="export-on-error">
-                  {uiText('library.export')}
-                </button>
-              </>
-            )}
-            {conn?.state === 'pending' && (
-              <button className="badge" onClick={retryDelivery}>
-                {uiText('library.retryNow')}
-              </button>
-            )}
             <span style={{ flex: 1 }} />
             <button className="primary" onClick={() => setInspirationDraft(buildInspirationDraft())} data-testid="new-inspiration">
               {uiText('library.newInspiration')}
-            </button>
-            <button className="primary-outline" onClick={() => setDesktopPanelOpen(!desktopPanelOpen)} data-testid="open-desktop">
-              {uiText('library.openDesktop')}
             </button>
             <span style={{ position: 'relative' }}>
               <button className="badge" onClick={() => setMoreMenuOpen(!moreMenuOpen)} aria-haspopup="menu" aria-expanded={moreMenuOpen} data-testid="more-menu">
@@ -337,21 +276,6 @@ export default function App() {
                 </span>
               )}
             </span>
-            {desktopPanelOpen && (
-              <span className="desktop-panel" data-testid="desktop-panel">
-                <strong>{uiText('library.desktopPanel.title')}</strong>
-                <br />
-                {uiText('library.desktopPanel.before')}
-                <a href={settingsUrl} target="_blank" rel="noreferrer">
-                  {uiText('library.desktopPanel.link')}
-                </a>
-                {uiText('library.desktopPanel.after')}
-                {connection?.online && <span style={{ color: '#226a3c' }}> {uiText('library.desktopPanel.connected', { detail: connection.detail })}</span>}
-                <button className="badge" style={{ marginTop: 6 }} onClick={() => setDesktopPanelOpen(false)}>
-                  {uiText('library.gotIt')}
-                </button>
-              </span>
-            )}
           </div>
         )}
       </header>
@@ -380,22 +304,6 @@ export default function App() {
                 </button>
                 <button onClick={dismissOnboarding} data-testid="onboarding-dismiss">
                   {uiText('library.gotIt')}
-                </button>
-              </div>
-            </div>
-          )}
-          {connectHintDismissed === false && connection && !connection.paired && (stats?.total ?? 0) > 0 && (
-            <div className="guide-card" data-testid="connect-hint">
-              <strong>{uiText('library.connectHint.title')}</strong>
-              <ol>
-                <li>{uiText('library.connectHint.step1')}</li>
-                <li>{uiText('library.connectHint.step2')}</li>
-                <li>{uiText('library.connectHint.step3')}</li>
-              </ol>
-              <div className="guide-actions">
-                <a href={settingsUrl}>{uiText('library.connectHint.goSettings')}</a>
-                <button onClick={dismissConnectHint} data-testid="connect-hint-dismiss">
-                  {uiText('library.connectHint.skip')}
                 </button>
               </div>
             </div>
@@ -556,7 +464,6 @@ function FragmentCard({ fragment, onEdit, onDelete }: { fragment: FragmentRecord
       <div className="fragment-badges">
         <span className="fragment-date">
           {fragment.context.sourceHost} · {relativeTime(fragment.context.capturedAt)}
-          {fragment.review.lastReviewedAt ? uiText('library.card.lastReviewed', { time: relativeTime(fragment.review.lastReviewedAt) }) : ''}
         </span>
         <span className="fragment-tags">
           {fragment.tags.slice(0, 6).map(tag => (
