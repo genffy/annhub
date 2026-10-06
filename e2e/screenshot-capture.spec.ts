@@ -26,6 +26,11 @@ async function recordDownloads(context: import('@playwright/test').BrowserContex
   return sw
 }
 
+/** The options recorded so far. The download is requested through the background, so poll it instead of reading it once. */
+function recordedDownloads(sw: Awaited<ReturnType<typeof recordDownloads>>) {
+  return sw.evaluate(() => (self as unknown as { __annShotOpts: { filename?: string }[] }).__annShotOpts)
+}
+
 test.describe('Screenshot capture', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('http://localhost:8173/screenshot.html')
@@ -112,8 +117,7 @@ test.describe('Screenshot capture', () => {
     await toolbar.locator('[data-ann-ui="screenshot-download"]').click()
     await expect(preview).toBeVisible()
 
-    const state = await sw.evaluate(() => (self as unknown as { __annShotOpts: { filename?: string }[] }).__annShotOpts)
-    expect(state).toEqual([{ filename: expect.stringMatching(/^AnnHub\/screenshot-.+\.png$/) }])
+    await expect.poll(() => recordedDownloads(sw)).toEqual([{ filename: expect.stringMatching(/^AnnHub\/screenshot-.+\.png$/) }])
     await toolbar.locator('[data-ann-ui="screenshot-save"]').click()
     await expect(preview).toHaveCount(0, { timeout: 10_000 })
   })
@@ -170,8 +174,7 @@ test.describe('Screenshot capture', () => {
     await page.locator('[data-ann-ui="screenshot-download"]').click()
     await page.locator('[data-ann-ui="screenshot-save"]').click()
     await expect(preview).toHaveCount(0, { timeout: 10_000 })
-    const state = await sw.evaluate(() => (self as unknown as { __annShotOpts: { filename?: string }[] }).__annShotOpts)
-    expect(state).toEqual([{ filename: expect.stringMatching(/^AnnHub\/screenshot-.+\.png$/) }])
+    await expect.poll(() => recordedDownloads(sw)).toEqual([{ filename: expect.stringMatching(/^AnnHub\/screenshot-.+\.png$/) }])
   })
 
   test('screenshot library: persisted save shows on the Words page and deletes', async ({ page, extensionId }) => {
