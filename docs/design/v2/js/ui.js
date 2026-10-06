@@ -28,15 +28,6 @@ const srcBadge = (s, o = {}) => {
   return ''
 }
 
-// 连接状态（extension.md §6）：状态点 + 文字 + 图标，不靠颜色单独表达
-const conn = (state, o = {}) => {
-  if (state === 'none') return `<span class="chip"><i class="dot hollow"></i>未配置</span>`
-  if (state === 'ok') return `<span class="chip chip-ok"><i class="dot ok"></i>已连接${o.extra ? ` · ${o.extra}` : ''}</span>`
-  if (state === 'pending') return `<span class="chip chip-warn">${I('clock')}有待发送 ${o.n || ''}</span>`
-  if (state === 'error') return `<span class="chip chip-danger">${I('triangle-alert')}${o.label || '交付错误'}</span>`
-  return ''
-}
-
 const cbx = (on, label = '', o = {}) => `<span class="hs g8 ${o.cls || ''}"><i class="cb ${on ? 'on' : ''}">${on ? I('check') : ''}</i>${label ? `<span>${label}</span>` : ''}</span>`
 const rdo = (on, label = '', o = {}) => `<span class="hs g8 ${o.cls || ''}"><i class="rb ${on ? 'on' : ''}"></i>${label ? `<span>${label}</span>` : ''}</span>`
 const sw = on => `<i class="switch ${on ? 'on' : ''}"></i>`

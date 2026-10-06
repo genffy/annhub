@@ -1,5 +1,5 @@
 /**
- * Session-draft restore E2E (extension PRD §9): an unsaved capture survives
+ * Session-draft restore E2E (extension PRD §8): an unsaved capture survives
  * navigation (SW/session storage keyed by tab + source URL) and is offered
  * back when the same source is captured again; explicit abandon clears it.
  */
@@ -15,7 +15,7 @@ import {
   setCaptureConfigViaServiceWorker,
 } from './helpers'
 
-test.describe('采集草稿恢复 (PRD §9)', () => {
+test.describe('采集草稿恢复 (PRD §8)', () => {
   test.beforeEach(async ({ page, context }) => {
     await clearFragmentStoreViaServiceWorker(context)
     await setCaptureConfigViaServiceWorker(context, { deepMode: false })

@@ -12,9 +12,7 @@ import {
   FileText,
   GitBranch,
   Highlighter,
-  Laptop,
   LockKeyhole,
-  MonitorUp,
   PanelLeft,
   Search,
   ShieldCheck,
@@ -127,131 +125,30 @@ function CaptureScene({ locale, compact = false }: { locale: string; compact?: b
   )
 }
 
-function DesktopTodayScene({ locale }: { locale: string }) {
+function LibraryScene({ locale }: { locale: string }) {
   const zh = locale === 'zh-CN'
-  const recent: Array<[string, string, string]> = [
-    ['Backpressure', zh ? '概念' : 'Concept', zh ? '今天' : 'Today'],
-    ['Idempotency', zh ? '概念' : 'Concept', zh ? '周四' : 'Thu'],
-    ['Retry storm', zh ? '论点' : 'Claim', zh ? '周三' : 'Wed'],
+  const items: Array<[string, string]> = [
+    ['Backpressure', zh ? '概念' : 'Concept'],
+    ['Retry storm', zh ? '论点' : 'Claim'],
+    [zh ? '队列该有多深？' : 'How deep should the queue be?', zh ? '问题' : 'Question'],
+    [zh ? '重试预算示意图' : 'Retry budget diagram', zh ? '截图' : 'Screenshot'],
   ]
   return (
     <div className="overflow-hidden rounded-lg border border-[#1b2921]/16 bg-white shadow-[0_30px_80px_rgba(14,30,21,0.18)]">
-      <WindowChrome label={zh ? 'AnnHub Desktop · 今日' : 'AnnHub Desktop · Today'} />
-      <div className="grid min-h-[350px] grid-cols-[112px_1fr] sm:grid-cols-[150px_1fr]">
-        <aside className="border-r border-[#1b2921]/10 bg-[#18211b] p-3 text-white">
-          <div className="mb-5 flex items-center gap-2 text-sm font-bold">
-            <AnnMark className="h-6 w-auto text-[#f3dc7d]" />
-            <span>AnnHub</span>
-          </div>
-          <div className="space-y-1.5">
-            {[
-              { Icon: Target, label: zh ? '今日' : 'Today', active: true },
-              { Icon: FileText, label: zh ? '碎片库' : 'Library' },
-              { Icon: MonitorUp, label: zh ? '系统' : 'System' },
-            ].map(({ Icon, label, active }) => (
-              <div key={label} className={`flex items-center gap-2 px-2 py-2 text-[10px] font-semibold ${active ? 'bg-white/12 text-white' : 'text-white/54'}`}>
-                <Icon size={13} />
-                <span>{label}</span>
-              </div>
-            ))}
-          </div>
-        </aside>
-        <main className="bg-[#f7f6f1] p-4 sm:p-6">
-          <h3 className="text-[24px] font-bold text-[#18211b]">{zh ? '今天需要完成什么' : 'What needs your attention today'}</h3>
-          <div className="mt-5 border-l-4 border-[#6f5ce7] bg-white p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#6f5ce7]">{zh ? '到期复习' : 'Due review'}</div>
-                <div className="mt-2 text-[22px] font-bold text-[#18211b]">{zh ? '5 条 · 预计 4 分钟' : '5 items · about 4 min'}</div>
-                <div className="mt-1 text-[10px] text-[#18211b]/54">
-                  {zh ? '逾期主题：重试风暴 / 退避加抖动 / 幂等' : 'Overdue: retry storm / backoff with jitter / idempotency'}
-                </div>
-              </div>
-              <div className="flex-none bg-[#6f5ce7] px-3 py-2 text-center text-[10px] font-bold text-white">{zh ? '开始复习' : 'Start review'}</div>
-            </div>
-          </div>
-          <div className="mt-3 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-[#1f5d42]">{zh ? '最近由扩展写入' : 'Recently written by the extension'}</span>
-              <Search size={13} className="text-[#18211b]/38" />
-            </div>
-            {recent.map(([item, kind, when]) => (
-              <div key={item} className="mt-2 flex items-center justify-between border-t border-[#1b2921]/8 pt-2 text-[10px]">
-                <span className="font-semibold text-[#18211b]">{item}</span>
-                <span className="text-[#18211b]/42">
-                  {kind} · engineering.example.com · {when}
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-3 text-[10px] text-[#18211b]/48">{zh ? '本周成功提取 4 个碎片' : '4 fragments retrieved this week'}</div>
-        </main>
-      </div>
-    </div>
-  )
-}
-
-function ReviewScene({ locale }: { locale: string }) {
-  const zh = locale === 'zh-CN'
-  return (
-    <div className="overflow-hidden rounded-lg border border-[#1b2921]/15 bg-white shadow-[0_24px_60px_rgba(18,35,25,0.14)]">
-      <WindowChrome label={zh ? 'AnnHub Desktop · 复习 3/5' : 'AnnHub Desktop · Review 3/5'} />
-      <div className="grid min-h-[310px] bg-[#f7f6f1] p-5 sm:p-8">
-        <div className="mx-auto flex w-full max-w-xl flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between text-[10px] font-semibold text-[#18211b]/48">
-              <span>{zh ? '概念' : 'Concept'}</span>
-              <span>3 / 5</span>
-            </div>
-            <h3 className="mt-6 text-[24px] font-bold leading-tight text-[#18211b] sm:text-[30px]">
-              {zh ? '用自己的话解释它，并给出一个适用边界。' : 'Explain it in your own words and name one boundary.'}
-            </h3>
-            <p className="mt-2 text-[11px] text-[#18211b]/52">{zh ? '主题：Backpressure · 先自己作答，再点“揭示”' : 'Topic: Backpressure · answer first, then reveal'}</p>
-          </div>
-          <div className="mt-7 flex items-center justify-end gap-2">
-            <span className="border border-[#1b2921]/10 bg-[#eef0e8] px-3 py-2 text-[10px] font-semibold text-[#18211b]/60">{zh ? '提示 0/4' : 'Hint 0/4'}</span>
-            <span className="bg-[#6f5ce7] px-4 py-2 text-[10px] font-bold text-white">{zh ? '揭示' : 'Reveal'}</span>
-          </div>
+      <WindowChrome label={zh ? 'AnnHub · 碎片库' : 'AnnHub · Library'} />
+      <div className="min-h-[300px] bg-[#f7f6f1] p-4 sm:p-6">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-[22px] font-bold text-[#18211b]">{zh ? '我的碎片' : 'My fragments'}</h3>
+          <span className="flex-none bg-[#6f5ce7] px-3 py-2 text-[10px] font-bold text-white">{zh ? '导出 Markdown' : 'Export Markdown'}</span>
         </div>
-      </div>
-    </div>
-  )
-}
-
-/** The reveal face of a review card: your interpretation, verification and intended use, then the four ratings. */
-function RevealScene({ locale }: { locale: string }) {
-  const zh = locale === 'zh-CN'
-  const ratings: Array<[string, string, string]> = [
-    ['1', zh ? '再来一次' : 'Again', '#d7644d'],
-    ['2', zh ? '较难' : 'Hard', '#c98516'],
-    ['3', zh ? '良好' : 'Good', '#6f5ce7'],
-    ['4', zh ? '容易' : 'Easy', '#1f5d42'],
-  ]
-  const days = ['1', '1', '1', '4']
-  return (
-    <div className="overflow-hidden rounded-lg border border-[#1b2921]/15 bg-white shadow-[0_24px_60px_rgba(18,35,25,0.14)]">
-      <WindowChrome label={zh ? 'AnnHub Desktop · 揭示' : 'AnnHub Desktop · Reveal'} />
-      <div className="bg-[#f7f6f1] p-4 sm:p-6">
-        <div className="border-l-4 border-[#6f5ce7] bg-white p-4 text-[11px] leading-5 text-[#18211b]/76">
-          <p>
-            <span className="font-bold text-[#18211b]">{zh ? '你的理解：' : 'Your interpretation: '}</span>
-            {zh ? '下游通过需求信号、暂停、缓冲或丢弃，把压力传回上游' : 'Downstream passes pressure upstream through demand signals, pausing, buffering, or dropping'}
-          </p>
-          <p className="mt-2">
-            <span className="font-bold text-[#18211b]">{zh ? '核验：' : 'Verification: '}</span>
-            {zh ? '已确认，来源：原文' : 'Confirmed, source: original text'}
-          </p>
-          <p className="mt-2">
-            <span className="font-bold text-[#18211b]">{zh ? '你的应用：' : 'Your application: '}</span>
-            {zh ? '检查当前事件管道为什么在消费者变慢后耗尽内存' : 'Check why the event pipeline exhausts memory once consumers slow down'}
-          </p>
-          <p className="mt-3 text-[10px] font-semibold text-[#6f5ce7]">{zh ? '回到来源：engineering.example.com' : 'Back to source: engineering.example.com'}</p>
+        <div className="mt-4 flex items-center gap-2 border border-[#1b2921]/10 bg-white px-3 py-2 text-[10px] text-[#18211b]/48">
+          <Search size={13} /> {zh ? '搜索碎片…' : 'Search fragments…'}
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          {ratings.map(([key, label, color], index) => (
-            <div key={key} className="border px-2 py-2 text-center text-[10px] font-bold" style={{ borderColor: color, color }}>
-              {key} {label}
-              <div className="mt-0.5 text-[9px] font-medium opacity-70">{zh ? `${days[index]} 天` : `${days[index]} d`}</div>
+        <div className="mt-3 bg-white p-4 shadow-sm">
+          {items.map(([title, kind], index) => (
+            <div key={title} className={`flex items-center justify-between gap-3 text-[10px] ${index > 0 ? 'mt-2 border-t border-[#1b2921]/8 pt-2' : ''}`}>
+              <span className="font-semibold text-[#18211b]">{title}</span>
+              <span className="flex-none text-[#18211b]/42">{kind} · engineering.example.com</span>
             </div>
           ))}
         </div>
@@ -262,7 +159,7 @@ function RevealScene({ locale }: { locale: string }) {
 
 function WorkflowVisual({ id, locale }: { id: string; locale: string }) {
   if (id === 'capture' || id === 'process') return <CaptureScene locale={locale} compact />
-  return <ReviewScene locale={locale} />
+  return <LibraryScene locale={locale} />
 }
 
 function SectionHeading({ eyebrow, title, description, light = false }: { eyebrow: string; title: string; description?: string; light?: boolean }) {
@@ -362,10 +259,7 @@ export default function LandingPage({ copy }: { copy: LandingCopy }) {
               <CaptureScene locale={copy.locale} />
             </div>
             <div className="absolute right-0 top-0 z-10 w-[47%] rotate-[0.8deg]">
-              <DesktopTodayScene locale={copy.locale} />
-            </div>
-            <div className="absolute bottom-[-18px] right-[6%] z-30 w-[34%] rotate-[-1deg]">
-              <ReviewScene locale={copy.locale} />
+              <LibraryScene locale={copy.locale} />
             </div>
             <div className="absolute bottom-4 left-[48%] z-40 rounded-md bg-[#f3c86b] px-4 py-2 text-[9px] font-bold uppercase tracking-[0.16em] text-[#40331a] shadow-lg">
               {copy.hero.preview}
@@ -449,13 +343,6 @@ export default function LandingPage({ copy }: { copy: LandingCopy }) {
               </article>
             ))}
           </div>
-          <div className="mt-20 grid gap-6 lg:grid-cols-[0.28fr_0.72fr] lg:items-end">
-            <div className="pb-4">
-              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#6f5ce7]">{copy.scenes.reveal.label}</p>
-              <p className="mt-3 text-[14px] leading-7 text-[#403d49]/64">{copy.scenes.reveal.body}</p>
-            </div>
-            <RevealScene locale={copy.locale} />
-          </div>
         </div>
       </section>
 
@@ -484,12 +371,12 @@ export default function LandingPage({ copy }: { copy: LandingCopy }) {
             <div className="grid items-center gap-8 lg:grid-cols-[1.2fr_0.8fr]">
               <div className="lg:order-2">
                 <div className="flex h-10 w-10 items-center justify-center bg-[#e8eee9] text-[#1f5d42]">
-                  <Laptop size={20} />
+                  <FileText size={20} />
                 </div>
-                <h3 className="mt-5 text-[28px] font-bold">{copy.product.desktop.title}</h3>
-                <p className="mt-4 text-[15px] leading-7 text-[#24332a]/66">{copy.product.desktop.body}</p>
+                <h3 className="mt-5 text-[28px] font-bold">{copy.product.library.title}</h3>
+                <p className="mt-4 text-[15px] leading-7 text-[#24332a]/66">{copy.product.library.body}</p>
                 <ul className="mt-6 space-y-3">
-                  {copy.product.desktop.bullets.map(item => (
+                  {copy.product.library.bullets.map(item => (
                     <li key={item} className="flex gap-3 text-[13px] text-[#18211b]/72">
                       <Check size={15} className="mt-0.5 flex-none text-[#1f5d42]" />
                       {item}
@@ -498,7 +385,7 @@ export default function LandingPage({ copy }: { copy: LandingCopy }) {
                 </ul>
               </div>
               <div className="lg:order-1">
-                <DesktopTodayScene locale={copy.locale} />
+                <LibraryScene locale={copy.locale} />
               </div>
             </div>
           </div>

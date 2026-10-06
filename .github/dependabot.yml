@@ -1,6 +1,6 @@
 version: 2
 
-# Every Dependabot pull request runs the whole merge gate, a macOS build among it, so the number of
+# Every Dependabot pull request runs the whole merge gate, so the number of
 # pull requests is what costs. Four things keep it small:
 #   - Monthly, not weekly. Security updates are not on this schedule: they arrive when an advisory
 #     is published.
@@ -73,7 +73,6 @@ updates:
   - package-ecosystem: github-actions
     directories:
       - /
-      - /.github/actions/setup-xcodegen
     schedule:
       interval: monthly
     cooldown:

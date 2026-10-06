@@ -11,12 +11,6 @@ node_modules
 # Lockfiles are owned by npm
 package-lock.json
 
-# Byte-exact cross-language fixtures (the Swift side compares them verbatim)
-fixtures
-app/Tests/AnnHubCoreTests/Fixtures
-app/AnnHub.xcodeproj
-app/.build
-
 # Generated or vendored data
 scripts/data
 

@@ -203,7 +203,7 @@ function Selection() {
   // ── Keyboard shortcuts ──
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Alt+H or Cmd+Shift+H → toggle the continuous highlight mode (extension.md §10)
+      // Alt+H or Cmd+Shift+H → toggle the continuous highlight mode (extension.md §9)
       const isMac = (navigator as any).userAgentData?.platform?.toUpperCase()?.includes('MAC') ?? /mac/i.test(navigator.platform ?? '')
       if ((isMac && e.metaKey && e.shiftKey && e.key.toLowerCase() === 'h') || (!isMac && e.altKey && e.key.toLowerCase() === 'h')) {
         e.preventDefault()
@@ -350,7 +350,7 @@ function Selection() {
     }
   }, [isHighlighterMode, computeMenuPosition])
 
-  // ── Continuous highlight mode: a highlight per selection, nothing else (extension.md §10) ──
+  // ── Continuous highlight mode: a highlight per selection, nothing else (extension.md §9) ──
   const handleContinuousHighlight = useCallback(
     async (range: Range) => {
       try {
@@ -389,7 +389,7 @@ function Selection() {
           break
         }
         case 'highlight': {
-          // Highlight only: visual mark + optional note; never a ReviewState (PRD §3.2).
+          // Highlight only: visual mark + optional note; never a Fragment (PRD §3.2).
           const rangeCopy = selectionRange.cloneRange()
           await highlightService.createHighlight(rangeCopy, '#ffeb3b', extra?.note)
           flashSelection(rangeCopy)
@@ -433,7 +433,7 @@ function Selection() {
     setSelectionRange(null)
   }, [])
 
-  // Esc closes the bare hover menu (PRD §10); the capture modal and the
+  // Esc closes the bare hover menu (PRD §9); the capture modal and the
   // note input stop propagation first, so this never fights them.
   useEffect(() => {
     if (!menuVisible) return
@@ -477,7 +477,7 @@ function Selection() {
         </div>
       )}
 
-      {/* Clip toast: 已剪藏 · 不进入复习, undo within ~3s */}
+      {/* Clip toast: 已剪藏, undo within ~3s */}
       {clipToast && (
         <div data-ann-ui="clip-toast-wrapper" style={{ pointerEvents: 'auto' }}>
           <ClipToast key={clipToast.id} clipId={clipToast.id} failed={clipToast.failed} onUndo={id => clipService.deleteClip(id)} onDone={() => setClipToast(null)} />

@@ -36,7 +36,6 @@ test.describe('English interface (D-15)', () => {
     const popup = await context.newPage()
     await popup.goto(`chrome-extension://${extensionId}/popup.html`)
     await expect(popup.getByTestId('popup')).toHaveAttribute('data-loaded', 'true')
-    await expect(popup.getByTestId('popup-status')).toContainText('Not set up')
     await expect(popup.getByTestId('popup-new-inspiration')).toContainText('New inspiration')
     await expect(popup.getByTestId('popup-open-library')).toContainText('Open Fragment library')
     await expect(popup.getByTestId('popup-open-screenshots')).toContainText('Open screenshots')
@@ -53,8 +52,6 @@ test.describe('English interface (D-15)', () => {
     await expect(page.getByTestId('export-content')).toHaveText('Export content (Markdown ZIP)')
     await expect(page.getByTestId('view-highlights')).toHaveText('Highlights')
     await expect(page.getByTestId('view-clips')).toHaveText('Clips')
-    await page.getByTestId('open-desktop').click()
-    await expect(page.getByTestId('desktop-panel')).toContainText('About Desktop')
     await expectEnglishOnly(page)
 
     await page.getByTestId('view-clips').click()
@@ -67,8 +64,7 @@ test.describe('English interface (D-15)', () => {
 
     await page.goto(`chrome-extension://${extensionId}/options.html#/settings`)
     await expect(page.getByTestId('nav-library')).toContainText('Fragment library')
-    await expect(page.getByRole('heading', { name: 'Desktop connection' })).toBeVisible()
-    await expect(page.getByTestId('desktop-status')).toContainText('Pending: 0 Fragments · 0 images')
+    await expect(page.getByRole('heading', { name: 'Capture preferences' })).toBeVisible()
     await expectEnglishOnly(page)
   })
 

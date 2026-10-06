@@ -15,8 +15,6 @@
       "Bash(npx playwright test *)",
       "Bash(npx prettier --check *)",
       "Bash(npx eslint *)",
-      "Bash(swift build *)",
-      "Bash(swift test *)",
       "Bash(git status *)",
       "Bash(git diff *)",
       "Bash(git log *)",

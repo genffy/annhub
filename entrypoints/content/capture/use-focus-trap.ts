@@ -1,5 +1,5 @@
 /**
- * Focus management for the capture window (extension.md §10.1): focus enters
+ * Focus management for the capture window (extension.md §9.1): focus enters
  * the window when it opens, Tab stays inside it, and focus returns to where it
  * was when the window closes.
  */

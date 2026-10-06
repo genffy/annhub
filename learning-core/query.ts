@@ -1,8 +1,7 @@
 /**
  * Unified fragment search / filter / sort / pagination (docs/v2/search.md).
  *
- * Shared by the Extension library page and mirrored by the Swift Query —
- * pages never copy these matching rules. Candidates are filtered in memory
+ * Used by the extension library page; pages never copy these matching rules. Candidates are filtered in memory
  * after the store narrows by index; results must pass through this rule set
  * regardless of any cached search index.
  */

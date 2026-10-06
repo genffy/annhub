@@ -322,10 +322,10 @@ describe('check-consistency', () => {
     strategy:
       matrix:
         include:
-          - language: swift
+          - language: actions
 `,
         '.github/rulesets/main.json': json({
-          rules: [{ type: 'required_status_checks', parameters: { required_status_checks: [{ context: 'ci-pass' }, { context: 'Analyze (swift)' }] } }],
+          rules: [{ type: 'required_status_checks', parameters: { required_status_checks: [{ context: 'ci-pass' }, { context: 'Analyze (actions)' }] } }],
         }),
       })
       expect(status, output).toBe(0)

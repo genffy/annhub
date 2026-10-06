@@ -1,6 +1,6 @@
 /**
- * 导出内容 E2E — the single user export (storage.md §7): Markdown + saved
- * image ZIP, generated with no Desktop involved. Verifies the download lands
+ * 导出内容 E2E — the single user export (storage.md §6): Markdown + saved
+ * image ZIP, generated entirely in the extension. Verifies the download lands
  * with the documented name and non-trivial size; the ZIP's internal structure
  * is covered byte-level by learning-core unit tests.
  */
@@ -8,7 +8,7 @@ import { test, expect } from './fixtures'
 import { navigateToFragmentPage, clearFragmentStoreViaServiceWorker, setCaptureConfigViaServiceWorker, captureFragmentViaUi } from './helpers'
 
 test.describe('导出内容 (Markdown ZIP)', () => {
-  test('generates a downloadable ZIP without Desktop', async ({ page, context, extensionId }) => {
+  test('generates a downloadable ZIP', async ({ page, context, extensionId }) => {
     await clearFragmentStoreViaServiceWorker(context)
     await setCaptureConfigViaServiceWorker(context, { deepMode: false })
     await navigateToFragmentPage(page)

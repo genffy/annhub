@@ -1,4 +1,4 @@
-// 扩展页 · 截图集、设置与连接、工具栏弹窗。
+// 扩展页 · 截图集、设置、工具栏弹窗。
 
 const diagramSvg = () => `<svg viewBox="0 0 168 112" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="168" height="112" fill="#fff"/><g fill="#eef2ff" stroke="#6b7bd6" stroke-width="1.6"><rect x="14" y="40" width="40" height="30" rx="6"/><rect x="64" y="14" width="40" height="30" rx="6"/><rect x="64" y="66" width="40" height="30" rx="6"/><rect x="114" y="40" width="40" height="30" rx="6"/></g><g stroke="#9aa1b2" stroke-width="1.6" fill="none"><path d="M54 52 L64 34"/><path d="M54 58 L64 78"/><path d="M104 32 L114 48"/><path d="M104 80 L114 62"/></g><g font-size="7" fill="#4b5563" font-family="sans-serif"><text x="20" y="58">closed</text><text x="70" y="32">open</text><text x="68" y="84">half-open</text><text x="120" y="58">probe</text></g></svg>`
 const tableSvg = () => `<svg viewBox="0 0 168 112" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="168" height="112" fill="#fff"/><g fill="#f3f4f8"><rect x="10" y="12" width="148" height="16"/></g><g stroke="#e6e8ee" stroke-width="1"><path d="M10 44H158M10 60H158M10 76H158M10 92H158"/></g><g font-size="7" fill="#4b5563" font-family="sans-serif"><text x="16" y="23">service</text><text x="66" y="23">budget</text><text x="116" y="23">used</text><text x="16" y="55">gateway</text><text x="66" y="55">10%</text><text x="116" y="55">7%</text><text x="16" y="71">ledger</text><text x="66" y="71">5%</text><text x="116" y="71">9%</text><text x="16" y="87">notify</text><text x="66" y="87">20%</text><text x="116" y="87">3%</text></g></svg>`
@@ -24,14 +24,14 @@ const setRow = (label, desc, control) => `<div class="hs between g16" style="pad
 function extShotsPageGroup() {
   const page = board({
     title: '截图集',
-    ref: 'extension §7 · screenshot §4',
+    ref: 'extension §6 · screenshot §4',
     tag: 'R1',
     w: 1280,
     body: extPage(
       `<div class="xp-main" style="width:1100px">
-        <div class="hs between" style="margin-bottom:16px"><div><div class="t-2xl b" style="letter-spacing:-0.015em">截图集 <span class="muted t-md" style="font-weight:500">24 张</span></div><div class="help" style="margin-top:2px;font-size:13px">截图默认只留在这里，<b>不进入复习</b>。写下关键细节并确认核验后，才会转为视觉碎片。</div></div>${btn('导出内容', { icon: 'download' })}</div>
+        <div class="hs between" style="margin-bottom:16px"><div><div class="t-2xl b" style="letter-spacing:-0.015em">截图集 <span class="muted t-md" style="font-weight:500">24 张</span></div><div class="help" style="margin-top:2px;font-size:13px">截图默认只留在这里，<b>不要求加工</b>。写下关键细节并确认核验后，才会转为视觉碎片。</div></div>${btn('导出内容', { icon: 'download' })}</div>
         <div class="sgrid">
-          ${shotCard({ title: '重试开始后 p99 延迟曲线', host: 'sre.example.org', when: '周二', chips: chip('已转为视觉碎片', { icon: 'brain', v: 'brand' }) + chip('待发送 1 张图片', { icon: 'clock', v: 'warn' }), pin: 1, act: true })}
+          ${shotCard({ title: '重试开始后 p99 延迟曲线', host: 'sre.example.org', when: '周二', chips: chip('已转为视觉碎片', { icon: 'brain', v: 'brand' }), pin: 1, act: true })}
           ${shotCard({ title: '熔断器状态机示意图', host: 'engineering.example.com', when: '周五', chips: chip('仅在截图集', {}) + chip('已匿名 0 处', {}), svg: diagramSvg })}
           ${shotCard({ title: '容量规划表（二季度）', host: 'arch.example.net', when: '上周', chips: chip('仅在截图集', {}) + chip('已匿名 2 处', { icon: 'eye-off' }), svg: tableSvg })}
           ${shotCard({ title: '值班手册 · 升级路径', host: 'sre.example.org', when: '上周', chips: chip('已转为视觉碎片', { icon: 'brain', v: 'brand' }), svg: tableSvg })}
@@ -41,7 +41,7 @@ function extShotsPageGroup() {
       </div>`,
       { tab: 'shots', h: 700 },
     ),
-    notes: ['截图集是<b>独立的第二个一级页面</b>：查看、重新下载、删除；悬停卡片出现下载 / 删除，点开进入详情与“转为碎片”。', '状态都写成文字芯片：仅在截图集 / 已转为视觉碎片（同一个 assetId，不复制图片）/ 待发送图片（Desktop 未收到）/ 已匿名 N 处。', '删除截图集条目只删引用；仍被 Fragment 引用的图片继续保留，确认文案要说清这一点。'],
+    notes: ['截图集是<b>独立的第二个一级页面</b>：查看、重新下载、删除；悬停卡片出现下载 / 删除，点开进入详情与“转为碎片”。', '状态都写成文字芯片：仅在截图集 / 已转为视觉碎片（同一个 assetId，不复制图片）/ 已匿名 N 处。', '删除截图集条目只删引用；仍被 Fragment 引用的图片继续保留，确认文案要说清这一点。'],
   })
 
   const convert = board({
@@ -67,17 +67,13 @@ function extShotsPageGroup() {
   })
 
   return group(
-    { id: 'ext-shots-page', title: '截图集', small: 'extension §7 · screenshot §4', desc: '截图的归宿。它刻意和碎片库分开：图片很多、价值不一，只有写下细节并确认核验的才会进入学习。' },
+    { id: 'ext-shots-page', title: '截图集', small: 'extension §6 · screenshot §4', desc: '截图的归宿。它刻意和碎片库分开：图片很多、价值不一，只有写下细节并确认核验的才会成为碎片。' },
     row(page),
     row(convert),
   )
 }
 
 function extSettingsGroup() {
-  const connectBody = `<div class="hs g16 top">
-      <div class="grow vs g6"><div class="hs g8">${conn('ok', { extra: '最近交付 2 分钟前' })}<span class="chip">${I('lock')}仅本机 127.0.0.1</span></div>
-        <div class="help">待发送：记录 0 · 图片 0。Desktop 的复习结果在连接后回传，扩展只显示状态，不评分。</div></div>
-      <div class="hs g6 none">${btn('立即重试', { sm: true })}${btn('重新配对', { sm: true })}${btn('断开', { sm: true, v: 'ghost' })}</div></div>`
   const prefs =
     setRow('深度模式', '先写“理解”，再核验、应用。全局偏好，也可在单次采集窗口里临时切换。', sw(false)) +
     setRow('同时高亮原文', '保存碎片时默认勾选；每次采集时可取消。', sw(true)) +
@@ -90,21 +86,20 @@ function extSettingsGroup() {
     <div class="help" style="margin-top:8px">浏览器级快捷键可在 <span class="mono">chrome://extensions/shortcuts</span> 修改。</div>`
 
   const a = board({
-    title: '设置 · 连接与采集偏好',
-    ref: 'extension §6 · §10',
+    title: '设置 · 采集偏好与快捷键',
+    ref: 'extension §9',
     tag: 'R1',
     w: 1280,
     body: extPage(
       `<div class="xp-main" style="width:1060px"><div class="hs top g24">
-        <div class="vs g2 none" style="width:170px;padding-top:6px;position:sticky;top:0">${['连接 Desktop', '采集偏好', '快捷键', '模型能力', '本地指标', '数据与导出', '关于与隐私'].map((t, i) => `<div class="xp-tab ${i === 0 ? 'on' : ''}" style="font-size:13px">${t}</div>`).join('')}</div>
+        <div class="vs g2 none" style="width:170px;padding-top:6px;position:sticky;top:0">${['采集偏好', '快捷键', '模型能力', '本地指标', '数据与导出', '关于与隐私'].map((t, i) => `<div class="xp-tab ${i === 0 ? 'on' : ''}" style="font-size:13px">${t}</div>`).join('')}</div>
         <div class="grow vs g16">
-          ${settingCard('连接 Desktop', '可随时跳过，不影响本地使用。已连接时也可以断开，本地数据与待发送任务都会保留。', connectBody, { pin: 1, right: `<span class="t-xs muted">首次连接见下一块画板</span>` })}
-          ${settingCard('采集偏好', '', `<div style="margin-top:-12px">${prefs}</div>`, { pin: 2 })}
-          ${settingCard('快捷键', '', keys, { pin: 3 })}
+          ${settingCard('采集偏好', '', `<div style="margin-top:-12px">${prefs}</div>`, { pin: 1 })}
+          ${settingCard('快捷键', '', keys, { pin: 2 })}
         </div></div></div>`,
-      { tab: 'set', h: 860 },
+      { tab: 'set', h: 600 },
     ),
-    notes: ['<b>连接区放在最上面</b>：状态、最近交付、待发送数一眼可见；按钮只有“立即重试 / 重新配对 / 断开”。', '偏好只有三项：深度模式、同时高亮默认值、引导卡；每一项都用一句话说明后果。', '快捷键只列出文档定义的四组；真正的浏览器级冲突在 chrome://extensions/shortcuts 处理。'],
+    notes: ['偏好只有三项：深度模式、同时高亮默认值、引导卡；每一项都用一句话说明后果。', '快捷键只列出文档定义的四组；真正的浏览器级冲突在 chrome://extensions/shortcuts 处理。'],
   })
 
   const aiBody = `<div class="vs g12">
@@ -119,16 +114,16 @@ function extSettingsGroup() {
       <div class="help">其中截图 89 MB。接近浏览器配额时，会在<b>保存前</b>提示，而不是写入失败后才告诉你。</div></div>
     <div class="none">${btn('导出内容', { icon: 'download', v: 'primary' })}</div></div>
     <div class="hs g16 top t-sm" style="margin-top:14px"><div class="grow"><div class="b" style="margin-bottom:4px">包含</div><div class="muted" style="line-height:1.6">已提交的碎片、高亮、剪藏、截图集说明，以及已保存的处理后图片原字节。</div></div>
-    <div class="grow"><div class="b" style="margin-bottom:4px">不包含</div><div class="muted" style="line-height:1.6">未提交的表单、Desktop 的复习记录、待发送队列、配对码、模型密钥与界面偏好。不可用于恢复学习状态。</div></div></div>`
+    <div class="grow"><div class="b" style="margin-bottom:4px">不包含</div><div class="muted" style="line-height:1.6">未提交的表单、模型密钥与界面偏好。不可用于恢复 AnnHub 的数据库。</div></div></div>`
 
   const b = board({
     title: '设置 · 模型能力与数据',
-    ref: 'ai §1–§6 · storage §5 · §7',
+    ref: 'ai §1–§6 · storage §5 · §6',
     tag: 'R1',
     w: 1280,
     body: extPage(
       `<div class="xp-main" style="width:1060px"><div class="hs top g24">
-        <div class="vs g2 none" style="width:170px;padding-top:6px">${['连接 Desktop', '采集偏好', '快捷键', '模型能力', '本地指标', '数据与导出', '关于与隐私'].map((t, i) => `<div class="xp-tab ${i === 3 || i === 5 ? 'on' : ''}" style="font-size:13px">${t}</div>`).join('')}</div>
+        <div class="vs g2 none" style="width:170px;padding-top:6px">${['采集偏好', '快捷键', '模型能力', '本地指标', '数据与导出', '关于与隐私'].map((t, i) => `<div class="xp-tab ${i === 2 || i === 4 ? 'on' : ''}" style="font-size:13px">${t}</div>`).join('')}</div>
         <div class="grow vs g16">
           ${settingCard('模型能力（可选）', 'LLM 是核验的可选加速器，不是主链路的必需品；关闭后采集、保存、导出照常可用。', aiBody, { pin: 1 })}
           ${settingCard('数据与导出', '', dataBody, { pin: 2 })}
@@ -138,26 +133,6 @@ function extSettingsGroup() {
     notes: ['<b>默认关闭 + 逐项开启</b>：每个能力单独一行，开关旁用一句话说清它会发送什么、不发送什么。不在界面上把任何 Provider 标为“推荐”。', '设置页展示 Provider、模型与最近错误，不隐藏成本来源；API Key 保存后只显示末四位，更换要重新输入。', '导出前说清<b>包含与不包含</b>；存储配额以“已用 / 可用”呈现，接近上限在保存前提示。'],
   })
 
-  const pair = board({
-    title: '首次连接 · 配对',
-    ref: 'extension §6 · storage §8 · H-08',
-    tag: 'R1',
-    w: 760,
-    body: `<div style="padding:24px 28px 26px">
-      <div class="vs g16">
-        <div class="hs g12 top" style="position:relative">${pin(1)}<span class="cv-tag" style="margin-top:2px">1</span><div class="grow"><div class="b">下载并启动 Desktop</div><div class="help">仅监听本机，不联网。<span class="link">下载 Desktop</span></div></div>${chip('已启动', { icon: 'circle-check', v: 'ok' })}</div>
-        <div class="hs g12 top"><span class="cv-tag" style="margin-top:2px">2</span><div class="grow"><div class="b">在 Desktop 的“系统”页复制配对码</div><div class="help">配对码只在本机使用；重新生成后旧连接会失效。</div></div></div>
-        <div class="hs g12 top" style="position:relative">${pin(2)}<span class="cv-tag" style="margin-top:2px">3</span><div class="grow vs g8"><div class="b">粘贴到这里</div><div class="hs g8">${input('K7QX-39FD-M2LA', { focus: true, style: 'font-family:var(--font-mono);letter-spacing:0.06em;max-width:260px' })}${btn('连接', { v: 'primary' })}</div></div></div>
-      </div>
-      <div class="vs g8" style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line)"><b class="t-sm">可能出现的结果</b>
-        ${banner('ok', '<b>已连接</b>。5 条待发送项目开始逐条写入 Desktop。')}
-        ${banner('danger', '<b>配对码不对</b>：请回到 Desktop 的“系统”页重新复制。本地数据不受影响。')}
-        ${banner('warn', '<b>找不到 Desktop</b>：确认它已启动。保存仍然正常，连接恢复后会自动补发。')}
-        ${banner('danger', '<b>配对已失效（401）</b>：Desktop 重新生成过配对码，需要重新配对。已停止自动重试，本地数据与待发送任务都在。', { action: btn('重新配对', { sm: true, v: 'primary' }) })}
-      </div></div>`,
-    notes: ['三步说明与碎片库里的连接提示一致；复制配对码是漏斗最容易断的一步（H-08），所以输入框自动聚焦并接受粘贴，格式宽松（忽略空格和连字符）。', '四种结果都用一句话说原因，并明确<b>本地数据与待发送任务不受影响</b>。', '若 H-08 未通过，按 D-05 升级为“自动发现本机 Desktop，只核对确认码”，届时第 2、3 步合并。'],
-  })
-
   const metrics = board({
     title: '本地指标面板 · 阶段 V',
     ref: 'metrics §5 · §11 · roadmap V.1',
@@ -165,22 +140,20 @@ function extSettingsGroup() {
     w: 760,
     body: `<div style="padding:22px 26px 24px"><div class="banner info" style="margin-bottom:14px">${I('lock')}<div>指标<b>只在本机计算</b>，只显示聚合数字，<b>不显示任何正文、URL 或标题</b>。内测回访时可共享屏幕给产品负责人看，没有导出或上传入口。</div></div>
       <table class="sp-table"><tbody>
-        ${metricRow('M-18', 'Weekly Retrieved Fragments', '— ', '北极星 · 需要 Desktop 数据（R3）')}
         ${metricRow('M-02', '采集窗口完成率', '71%', '打开 34 → 保存 24')}
         ${metricRow('M-03', '中位完成时间', '标准 48 秒 · 深度 95 秒', '目标 &lt; 60 秒 / &lt; 120 秒')}
-        ${metricRow('M-07', '到期完成率', '— ', '需要 Desktop 数据（R3）')}
         ${metricRow('M-14', 'kind 修正率', '12%', '高于 20% 时不得隐藏选择器')}
         ${metricRow('M-16', '安全出口使用率', '31%', '放弃时改存高亮 / 剪藏')}
       </tbody></table>
       <div class="hs g6 wrap t-xs muted" style="margin-top:12px"><span>退出阶段漏斗：</span>${chip('理解 2', {})}${chip('核验 5', {})}${chip('应用 3', {})}${chip('改存高亮 2', {})}${chip('改存剪藏 1', {})}</div></div>`,
-    notes: ['内测期间（阶段 V）才需要这块面板，覆盖 A 级假设所需的 M-02、M-03、M-07、M-16、M-18，并尽量覆盖 M-12、M-14。', '数字旁都给出口径与护栏（例如修正率 &gt; 20% 不得隐藏 kind 选择器），避免把指标当成成就展示。'],
+    notes: ['内测期间（阶段 V）才需要这块面板，覆盖 A 级假设所需的 M-02、M-03、M-16，并尽量覆盖 M-14。', '数字旁都给出口径与护栏（例如修正率 &gt; 20% 不得隐藏 kind 选择器），避免把指标当成成就展示。'],
   })
 
   return group(
-    { id: 'ext-settings', title: '设置与连接', small: 'extension §6 · ai · metrics §11', desc: '设置页只放三类东西：怎么连接 Desktop、哪些能力要外发、本机有什么数据。所有“外发”默认关闭，所有“数据”都说清范围。' },
+    { id: 'ext-settings', title: '设置', small: 'extension §2.2 · ai · metrics §11', desc: '设置页只放三类东西：怎么采集、哪些能力要外发、本机有什么数据。所有“外发”默认关闭，所有“数据”都说清范围。' },
     row(a),
     row(b),
-    row(pair, metrics),
+    row(metrics),
   )
 }
 
@@ -188,29 +161,26 @@ function extSettingsGroup() {
 function extPopupGroup() {
   const popup = board({
     title: '工具栏弹窗',
-    ref: 'extension §2.3 · product §8',
-    tag: 'R1 · 到期数 R3',
+    ref: 'extension §2.3',
+    tag: 'R1',
     w: 520,
     body: browser(
       `<div class="pg" style="height:100%"><div class="pg-nav"><b>engineering.example.com</b></div>
       <div class="pop" style="right:14px;top:8px;width:340px;padding:0;overflow:hidden">${pin(1, 'pin-in')}
-        <div class="hs between" style="padding:12px 14px;border-bottom:1px solid var(--line)"><span class="hs g8 b"><svg class="i" style="width:20px;height:20px;color:var(--brand)"><use href="#i-logo"/></svg>AnnHub</span>${conn('ok', { extra: '2 分钟前交付' })}</div>
+        <div class="hs between" style="padding:12px 14px;border-bottom:1px solid var(--line)"><span class="hs g8 b"><svg class="i" style="width:20px;height:20px;color:var(--brand)"><use href="#i-logo"/></svg>AnnHub</span></div>
         <div class="vs g2" style="padding:8px">
           <div class="menu-i">${I('lightbulb')}新建灵感<span class="sc">无需选区</span></div>
           <div class="menu-i">${I('library')}打开碎片库<span class="sc">128 条</span></div>
           <div class="menu-i">${I('images')}打开截图集<span class="sc">24 张</span></div>
         </div>
-        <div style="padding:10px 14px;background:var(--surface-2);border-top:1px solid var(--line);position:relative">${pin(2, 'pin-in-r')}
-          <div class="hs between"><div><div class="b t-md">Desktop 上有 5 条到期复习</div><div class="t-xs muted">预计 4 分钟 · 数据来自最近一次回传</div></div>${btn('打开 Desktop', { sm: true, v: 'primary' })}</div>
-        </div>
         <div class="t-xs muted" style="padding:9px 14px;border-top:1px solid var(--line)">选中网页文字即可保存 · ${keys_('⌘', '⇧', 'S')} 截图</div>
       </div></div>`,
       { h: 420 },
     ),
-    notes: ['弹窗只有<b>最小职责</b>：显示连接状态、给出新建灵感 / 碎片库 / 截图集三个入口，并回答“Desktop 上有没有到期复习”，把深度动作引向 Desktop（product §8）。它也是 chrome:// 等页面内入口失效时的兜底。', '到期数据只在已连接且 Desktop 数据已回传（R3）时显示；未连接时这一块整体不出现，不用空数字占位，也不出现红色徽标。'],
+    notes: ['弹窗只有<b>最小职责</b>：给出新建灵感 / 碎片库 / 截图集三个入口；不提供编辑或设置。它也是 chrome:// 等页面内入口失效时的兜底。'],
   })
   return group(
-    { id: 'ext-popup', title: '工具栏弹窗', small: 'extension §2.3', desc: '点击浏览器工具栏图标时的落点。它是页面内入口失效时（例如 chrome:// 页面）的兜底，也是让用户知道“Desktop 上还有事”的轻量提示。' },
+    { id: 'ext-popup', title: '工具栏弹窗', small: 'extension §2.3', desc: '点击浏览器工具栏图标时的落点。它是页面内入口失效时（例如 chrome:// 页面）的兜底。' },
     row(popup),
   )
 }

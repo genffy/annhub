@@ -40,7 +40,7 @@
 ## 写作规范
 
 - 使用相对链接；移动文件后检查引用。日期写实际修改日期，图片资源放对应模块的 `assets/`。
-- 每个 kind 的提问、题面、提示梯度和示例只在 [kinds.md](kinds.md) 写一次；新增 kind 按它的 §5 清单。
+- 每个 kind 的采集提问和示例只在 [kinds.md](kinds.md) 写一次；新增 kind 按它的 §5 清单。
 - 示例使用中性来源（如 `engineering.example.com`），不使用真实用户数据；涉及人物时用角色或代号。
 - 外部事实（价格、功能、政策、研究结论）只写在 [market.md](market.md) 或 [learning-model.md §6](learning-model.md)，带来源链接和核对日期，超过 90 天重新核对。对外页面引用这些事实时同样带日期。
 - 新增功能规格前，用 [validation.md §8](validation.md) 的模板自检。

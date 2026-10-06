@@ -166,7 +166,7 @@ function extShotR5Group() {
     notes: [
       '<b>品牌预设</b>把衬底、比例、圆角与水印样式整体存为命名预设，一键套用，可保存多个；“保存为预设…”保存当前参数。',
       '<b>文字水印</b>：自定义文案（账号名或一句话），字号与不透明度可调；水印画在最终合成层，<b>不参与匿名与马赛克</b>。',
-      '<b>LOGO 图章</b>：素材在设置页上传（PNG，不超过 512 KB），只存在扩展本地，不进入学习记录、不跨端同步、不外发。',
+      '<b>LOGO 图章</b>：素材在设置页上传（PNG，不超过 512 KB），只存在扩展本地，不进入 Fragment 记录、不外发。',
       '<b>位置</b>用九宫格选四角或边中，另可调边距与不透明度。',
     ],
   })
@@ -184,7 +184,7 @@ function extShotR5Group() {
     body: extPage(
       `<div class="xp-main" style="width:auto;margin:0 28px"><div class="hs g8 t-sm" style="margin-bottom:12px"><span class="link hs g4">${I('arrow-left', 'i-sm')}设置</span><span class="muted">/</span><b>截图品牌</b></div>
         <div class="vs g14">
-          ${settingCard('LOGO 图章', '在截图编辑器的“品牌”面板里作为图章使用。素材只存在这台电脑的扩展里，不进入学习记录、不跨端同步、不外发。', logoBody, { pin: 1 })}
+          ${settingCard('LOGO 图章', '在截图编辑器的“品牌”面板里作为图章使用。素材只存在这台电脑的扩展里，不进入 Fragment 记录、不外发。', logoBody, { pin: 1 })}
           ${settingCard('品牌预设', '把衬底、比例、圆角与水印样式整体存为命名预设；在编辑器的“品牌”面板里套用或保存。', presetBody, { pin: 2, right: '<span class="t-xs muted">已保存 3 个</span>' })}
         </div></div>`,
       { tab: 'set', h: 700 },

@@ -8,10 +8,10 @@
  * a hard gate: non-empty and not a copy of content/excerpt — no fixed
  * language token thresholds.
  *
- * Failure rules (processing.md §6, extension.md §9): save failure keeps every
+ * Failure rules (processing.md §6, extension.md §8): save failure keeps every
  * input and offers retry / copy my input / save as clip / export; closing with
  * input asks keep editing / save as highlight / save as clip / discard; going back a step preserves all
- * content. Short-lived form state persists to chrome.storage.session (PRD §9)
+ * content. Short-lived form state persists to chrome.storage.session (PRD §8)
  * keyed by tab + source url.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -82,7 +82,7 @@ interface FormState {
 }
 
 /**
- * Draft key = tab id + source URL (PRD §9: 键包含 tab ID、来源 URL 和一次选区的
+ * Draft key = tab id + source URL (PRD §8: 键包含 tab ID、来源 URL 和一次选区的
  * draft ID)。draftId rides inside the payload: keying WITHOUT it is what makes
  * a later capture on the same tab+url able to find and restore the draft.
  */
@@ -192,7 +192,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
     if (step === 'apply') recordMetric('reached-apply')
   }, [step])
 
-  // Resolve the tab id once — draft keys need tab identity (PRD §9).
+  // Resolve the tab id once — draft keys need tab identity (PRD §8).
   useEffect(() => {
     let cancelled = false
     void (async () => {
@@ -390,7 +390,7 @@ export default function CaptureModal({ draft, deepMode, selectedRange, createHig
         else requestClose()
         return
       }
-      // Cmd/Ctrl+Enter advances or saves once the current step passes validation (PRD §10).
+      // Cmd/Ctrl+Enter advances or saves once the current step passes validation (PRD §9).
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !closeDialogOpen && !collapsed) {
         e.preventDefault()
         if (step === 'apply') void doSave(false)

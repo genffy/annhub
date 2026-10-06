@@ -95,7 +95,7 @@ const COPY: Record<Language, Copy> = {
     },
     tagline: {
       title: '把网页中的知识，变成工作中用得上的能力',
-      subtitle: '连同语境采集 · 主动加工 · 在 Mac 上按类型复习 · 本地优先，AI 可选',
+      subtitle: '连同语境采集 · 主动加工 · 随时找回与导出 · 本地优先，AI 可选',
     },
   },
   en: {
@@ -154,7 +154,7 @@ const COPY: Record<Language, Copy> = {
     },
     tagline: {
       title: 'Turn what you read online into skills you can use at work',
-      subtitle: 'Capture with context · Process actively · Review by kind on your Mac · Local-first, AI optional',
+      subtitle: 'Capture with context · Process actively · Find and export anytime · Local-first, AI optional',
     },
   },
 }
@@ -171,7 +171,7 @@ async function seedFragments(page: Page, extensionId: string, samples: Sample[])
     async ({ items, source }) => {
       const errors: string[] = []
       // Screenshots show the working library, not the first-run cards that push the list below the fold.
-      await chrome.storage.local.set({ annhubOnboardingDismissed: true, annhubConnectHintDismissed: true })
+      await chrome.storage.local.set({ annhubOnboardingDismissed: true })
       for (const item of items) {
         const response = await chrome.runtime.sendMessage({
           type: 'SAVE_FRAGMENT',

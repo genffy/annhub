@@ -42,16 +42,16 @@ function extHlGroup() {
     w: 500,
     body: `<div class="mv" style="height:380px">${article({ sel: 'note' })}
       <div class="pop" data-anchor=".the-sel" data-place="below" style="width:310px">${pin(1)}
-        <div class="hs between"><span class="hs g6 b">${I('highlighter')}高亮</span><span class="t-xs muted">只在页面留痕 · 不进入复习</span></div>
+        <div class="hs between"><span class="hs g6 b">${I('highlighter')}高亮</span><span class="t-xs muted">只在页面留痕</span></div>
         ${textarea('可以解释“消费者变慢时内存为什么一直涨”', { h: 56, focus: true, caret: true, style: 'margin-top:10px;font-size:12.5px' })}
         <div class="hs g8" style="margin-top:10px">${btn('升级为碎片', { sm: true, icon: 'brain' })}<span class="grow"></span>${btn('删除', { sm: true, v: 'ghost', icon: 'trash-2' })}</div>
       </div></div>`,
-    notes: ['高亮只创建视觉标记与可选备注：<b>不创建复习状态，不进入今日队列</b>。备注气泡贴着高亮出现，失焦自动保存，Esc 关闭。', '气泡里的“升级为碎片”会带着高亮原文打开采集窗口；高亮本身不会被自动升级。'],
+    notes: ['高亮只创建视觉标记与可选备注：<b>不要求加工</b>。备注气泡贴着高亮出现，失焦自动保存，Esc 关闭。', '气泡里的“升级为碎片”会带着高亮原文打开采集窗口；高亮本身不会被自动升级。'],
   })
 
   const cont = board({
     title: '连续高亮模式 · Alt+H / ⌘⇧H',
-    ref: 'extension §10',
+    ref: 'extension §9',
     tag: 'R1',
     w: 500,
     body: `<div class="mv" style="height:380px">${article({ sel: 'hl' })}
@@ -66,12 +66,12 @@ function extHlGroup() {
     w: 500,
     body: `<div class="mv" style="height:380px">${article({ sel: 'sel' })}
       ${hoverMenu({ anchor: '.the-sel', hover: 2, below: false })}
-      <div class="toast-pos">${pin(1, 'pin-r')}${toast('已剪藏 · 不进入复习 <span class="act" style="margin-left:6px">撤销</span>', { icon: 'bookmark' })}</div></div>`,
+      <div class="toast-pos">${pin(1, 'pin-r')}${toast('已剪藏 <span class="act" style="margin-left:6px">撤销</span>', { icon: 'bookmark' })}</div></div>`,
     notes: ['剪藏优先速度：点一下就保存原文与语境，不要求任何加工；提示约 3 秒后消失，期间可“撤销”，撤销会删除刚保存的这条剪藏（extension §3.3）。', '之后在碎片库“剪藏”视图里可“转为碎片”，但从不自动升级。'],
   })
 
   return group(
-    { id: 'ext-hl', title: '高亮与剪藏', small: 'extension §3', desc: '两条“保留”路径：留痕要轻、剪藏要快。它们都不进入复习，也都留着升级为碎片的出口。' },
+    { id: 'ext-hl', title: '高亮与剪藏', small: 'extension §3', desc: '两条“保留”路径：留痕要轻、剪藏要快。它们都不要求加工，也都留着升级为碎片的出口。' },
     row(note, cont, clip),
   )
 }
@@ -129,7 +129,7 @@ function extShotGroup() {
     w: 760,
     body: `<div style="padding:18px;background:var(--surface-2);display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
       <div class="vs g8"><b class="t-sm">保存到截图集</b>
-        <div class="shot" style="height:230px;border-radius:12px"><div class="dim" style="background:rgb(10 14 25 / 0.0)"></div><div style="position:absolute;inset:0;display:grid;place-items:end center;padding-bottom:18px;z-index:9">${toast('已保存到截图集 · 不进入复习<br><span class="act">查看截图集</span>', { icon: 'images' })}</div></div>
+        <div class="shot" style="height:230px;border-radius:12px"><div class="dim" style="background:rgb(10 14 25 / 0.0)"></div><div style="position:absolute;inset:0;display:grid;place-items:end center;padding-bottom:18px;z-index:9">${toast('已保存到截图集<br><span class="act">查看截图集</span>', { icon: 'images' })}</div></div>
         <div class="help">入库成功才显示；下载成功不等于入库成功。</div></div>
       <div class="vs g8"><b class="t-sm">页面不允许截图</b>
         <div class="shot" style="height:230px;border-radius:12px"><div class="dim"></div><div style="position:absolute;inset:0;display:grid;place-items:center;z-index:9;padding:16px"><div class="dialog" style="padding:16px;text-align:center">${I('ban', 'i-lg c-danger')}<div class="b" style="margin:6px 0 4px">这个页面不允许截图</div><div class="help">浏览器不允许扩展截取商店等受限页面。没有写入任何记录。</div><div style="margin-top:10px">${btn('关闭', { sm: true })}</div></div></div></div>
@@ -143,7 +143,7 @@ function extShotGroup() {
   })
 
   return group(
-    { id: 'ext-shot', title: '截图', small: 'screenshot', desc: '区域或元素截图，直接在原页面上标注、匿名，再入库到截图集。截图默认不进入复习；只有用户写下关键细节并确认核验，才转为 visual Fragment。' },
+    { id: 'ext-shot', title: '截图', small: 'screenshot', desc: '区域或元素截图，直接在原页面上标注、匿名，再入库到截图集。截图默认只留在截图集；只有用户写下关键细节并确认核验，才转为 visual Fragment。' },
     row(region, edit),
     row(element, states),
   )

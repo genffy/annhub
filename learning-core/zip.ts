@@ -1,6 +1,6 @@
 /**
  * Minimal store-only (uncompressed) ZIP writer — the Markdown export format
- * (docs/v2/storage.md §7) needs no compression and no dependency. Produces
+ * (docs/v2/storage.md §6) needs no compression and no dependency. Produces
  * spec-conformant local headers + central directory + EOCD so Obsidian & co
  * can read the archive. Environment-neutral: consumes/produces bytes only.
  */

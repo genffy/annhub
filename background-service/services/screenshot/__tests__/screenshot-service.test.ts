@@ -101,8 +101,8 @@ describe('FETCH_RESOURCE', () => {
   })
 
   it.each([
-    'http://localhost:8765/health',
-    'http://127.0.0.1:8765/health',
+    'http://localhost:8080/health',
+    'http://127.0.0.1:8080/health',
     'http://192.168.1.1/logo.png',
     'http://169.254.169.254/latest/meta-data/',
     'file:///etc/passwd',

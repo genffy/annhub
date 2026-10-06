@@ -4,7 +4,7 @@
  * Covers: standard mode 核验→应用 with explicit confirmation, the generic
  * application gate (no language token thresholds), deep mode 理解 step,
  * per-kind detail (concept), duplicate prompt, and persistence via the
- * background fragment-store (schema v4 + delivery outbox).
+ * background fragment-store (schema v4).
  */
 import { test, expect } from './fixtures'
 import {
@@ -15,7 +15,6 @@ import {
   clickShadowButton,
   getAnnShadowRoot,
   getFragmentsFromServiceWorker,
-  getOutboxFromServiceWorker,
   clearFragmentStoreViaServiceWorker,
   setCaptureConfigViaServiceWorker,
 } from './helpers'
@@ -73,14 +72,6 @@ test.describe('Fragment capture — explicit verification lock', () => {
     expect(fragment.processing.use).toBe('在下周的宏观复盘文章里解释这轮债券抛售。')
     expect(fragment.processing.verified.source).toBe('source-material')
     expect(fragment.processing.verified.confirmedAt).toBeGreaterThan(0)
-    expect(fragment.review.state).toBe('new')
-    expect(fragment.review.easeFactor).toBe(2.5)
-
-    // Local write + delivery event share the transaction (storage.md §4).
-    const outbox = await getOutboxFromServiceWorker(context)
-    expect(outbox).toHaveLength(1)
-    expect(outbox[0].type).toBe('fragment.created')
-    expect(outbox[0].payload).toEqual({ fragmentId: fragment.id, revision: 1 })
   })
 
   test('deep mode adds the 理解 step (1/3) before verification', async ({ page, context }) => {

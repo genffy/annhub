@@ -1,5 +1,5 @@
 /**
- * Page-side Markdown ZIP export (storage.md §7). Runs inside extension pages
+ * Page-side Markdown ZIP export (storage.md §6). Runs inside extension pages
  * (words / settings): the page shares the fragment-store origin, so image
  * bytes are read directly from IndexedDB — chrome.runtime messaging cannot
  * carry Blobs, and highlights/clips come back as plain JSON.
@@ -43,7 +43,7 @@ export async function exportContentZip(): Promise<{ blob: Blob; manifest: Export
     sourceTitle: c.source_title,
     createdAt: Date.parse(c.capture_time) || Date.now(),
   }))
-  // storage.md §7: the export pins its snapshot at the start; after the slow asset reads the
+  // storage.md §6: the export pins its snapshot at the start; after the slow asset reads the
   // records that changed are re-read so an old version never lands in the ZIP. Records that
   // appeared meanwhile are not added to the pinned range.
   const fresh = await pageStore.getAllFragments()

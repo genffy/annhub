@@ -6,19 +6,7 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: [
-      '.output/**',
-      '.wxt/**',
-      'node_modules/**',
-      'coverage/**',
-      'playwright-report/**',
-      'test-results/**',
-      'website/**',
-      'docs/**',
-      'app/**',
-      'fixtures/**',
-      'scripts/data/**',
-    ],
+    ignores: ['.output/**', '.wxt/**', 'node_modules/**', 'coverage/**', 'playwright-report/**', 'test-results/**', 'website/**', 'docs/**', 'scripts/data/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

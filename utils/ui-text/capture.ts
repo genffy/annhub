@@ -1,6 +1,6 @@
 import { defineMessages } from './define'
 
-/** Capture window and its close dialog (extension.md §4, §9). Per-kind forms live in `./detail.ts`. */
+/** Capture window and its close dialog (extension.md §4, §8). Per-kind forms live in `./detail.ts`. */
 export const capture = defineMessages({
   // Steps (processing.md §2)
   'capture.step.interpret': { zh: '理解', en: 'Understand' },
@@ -81,7 +81,7 @@ export const capture = defineMessages({
   'capture.use.repeatsContent': { zh: '应用不能只复述原文', en: '“Apply” cannot just repeat the original text' },
   'capture.use.repeatsContext': { zh: '应用不能照抄上下文', en: '“Apply” cannot copy the context' },
 
-  // Save and failure (processing.md §6, extension.md §9)
+  // Save and failure (processing.md §6, extension.md §8)
   'capture.duplicate': {
     zh: '已保存过相同内容（同语境，{date}）。仍要保存为新记录吗？',
     en: 'The same content with the same context was already saved ({date}). Save it as a new record anyway?',
@@ -111,8 +111,8 @@ export const capture = defineMessages({
   'capture.retryHighlight': { zh: '重试高亮', en: 'Retry highlight' },
   'capture.viewInLibrary': { zh: '在碎片库查看', en: 'View in the Fragment library' },
   'capture.keepReading': { zh: '继续阅读', en: 'Keep reading' },
-  'capture.exit.highlightDone': { zh: '已改存为高亮 · 不进入复习，输入已作为备注保留', en: 'Saved as a highlight · not reviewed, your input was kept as the note' },
-  'capture.exit.clipDone': { zh: '已改存为剪藏 · 不进入复习，输入已作为备注保留', en: 'Saved as a clip · not reviewed, your input was kept as the note' },
+  'capture.exit.highlightDone': { zh: '已改存为高亮，输入已作为备注保留', en: 'Saved as a highlight; your input was kept as the note' },
+  'capture.exit.clipDone': { zh: '已改存为剪藏，输入已作为备注保留', en: 'Saved as a clip; your input was kept as the note' },
   'capture.exit.highlightFailed': { zh: '改存为高亮失败，输入仍然保留，可继续编辑或重试。', en: 'Saving as a highlight failed. Your input is kept; keep editing or try again.' },
   'capture.exit.clipFailed': { zh: '改存为剪藏失败，输入仍然保留，可继续编辑或重试。', en: 'Saving as a clip failed. Your input is kept; keep editing or try again.' },
   'capture.collapsed.aria': { zh: '采集窗口已收起', en: 'Capture window collapsed' },

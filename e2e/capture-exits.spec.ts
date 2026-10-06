@@ -1,5 +1,5 @@
 /**
- * Capture-window safe exits and feedback (extension.md §3.3, §4.1, §9):
+ * Capture-window safe exits and feedback (extension.md §3.3, §4.1, §8):
  * selection-menu consequence hints, the clip undo toast, 回到原文 collapsing to a
  * bottom bar, the four-way close confirmation, and the save-failure exits.
  */
@@ -40,15 +40,15 @@ async function openCapture(page: import('@playwright/test').Page) {
 }
 
 test.describe('selection menu hints', () => {
-  test('hovering an action shows its “time · output · review” consequence after ~300ms', async ({ page }) => {
+  test('hovering an action shows its consequence hint after ~300ms', async ({ page }) => {
     await selectText(page, TARGET)
     const hoverMenu = await waitForHoverMenu(page)
     const hint = hoverMenu.getByTestId('hover-hint')
 
     await hoverMenu.getByTestId('hover-action-clip').hover()
-    await expect(hint).toHaveText('保存原文和语境，之后查阅 · 不进入复习')
+    await expect(hint).toHaveText('保存原文和语境，之后查阅')
     await hoverMenu.getByTestId('hover-action-save-fragment').hover()
-    await expect(hint).toHaveText('理解并应用 · 约 30–90 秒 · 进入复习')
+    await expect(hint).toHaveText('理解并应用 · 约 30–90 秒')
   })
 
   test('keyboard focus shows the hint too', async ({ page }) => {
@@ -66,7 +66,7 @@ test.describe('clip toast', () => {
     await clickShadowButton(hoverMenu.getByTestId('hover-action-clip'))
 
     const toast = getAnnShadowRoot(page).getByTestId('clip-toast')
-    await expect(toast).toContainText('已剪藏 · 不进入复习')
+    await expect(toast).toContainText('已剪藏')
     await expect.poll(async () => (await getClipsFromServiceWorker(context)).length).toBe(1)
 
     await toast.getByTestId('clip-undo').click()

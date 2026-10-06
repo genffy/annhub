@@ -2,7 +2,7 @@
  * HoverMenu — the selection menu (extension.md §2.1).
  *
  * Each action is icon + short text. Hovering or keyboard-focusing an action
- * for ~300ms shows its consequence hint ("time · output · enters review?"),
+ * for ~300ms shows its consequence hint (what it does and how long it takes),
  * so the three save paths differ at the entrance.
  *
  * Action types:
@@ -259,7 +259,7 @@ export default function HoverMenu({ position, selectedRange: _selectedRange, act
           })}
         </div>
 
-        {/* Consequence hint: time · output · enters review? */}
+        {/* Consequence hint: what the action does and how long it takes */}
         {hintAction && (
           <div
             id="ann-hover-hint"

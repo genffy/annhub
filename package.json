@@ -1,7 +1,7 @@
 {
   "name": "annhub",
   "version": "1.0.3",
-  "description": "Browser extension that captures knowledge fragments with their context, for review in AnnHub Desktop",
+  "description": "Browser extension that captures knowledge fragments (text, images, questions) with their context",
   "private": true,
   "type": "module",
   "scripts": {

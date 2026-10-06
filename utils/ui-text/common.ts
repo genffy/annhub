@@ -1,6 +1,6 @@
 import { defineMessages } from './define'
 
-/** Wording shared across surfaces: kind names (kinds.md §4), relative time, connection state (extension.md §6). */
+/** Wording shared across surfaces: kind names (kinds.md §4) and relative time. */
 export const common = defineMessages({
   'kind.concept': { zh: '概念', en: 'Concept' },
   'kind.claim': { zh: '论点', en: 'Claim' },
@@ -17,13 +17,6 @@ export const common = defineMessages({
   'time.hoursAgo': { zh: '{count} 小时前', en: '{count} h ago' },
   'time.daysAgo.one': { zh: '{count} 天前', en: '{count} day ago' },
   'time.daysAgo.other': { zh: '{count} 天前', en: '{count} days ago' },
-
-  'connection.unpaired': { zh: '未配置', en: 'Not set up' },
-  'connection.error': { zh: '交付错误', en: 'Delivery error' },
-  'connection.pending': { zh: '待发送 {fragments} 条碎片 · {assets} 张图片', en: 'Pending · Fragments {fragments} · images {assets}' },
-  'connection.connected': { zh: '已连接', en: 'Connected' },
-  'connection.connectedAt': { zh: '已连接 / {time}交付', en: 'Connected / delivered {time}' },
-  'connection.offline': { zh: '未连接', en: 'Not connected' },
 
   'common.save': { zh: '保存', en: 'Save' },
   'common.cancel': { zh: '取消', en: 'Cancel' },

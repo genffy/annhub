@@ -5,7 +5,7 @@
 
 ## 项目与真源
 
-当前仓库包含 Chrome MV3 扩展、TypeScript 领域核心和 macOS Desktop。目标会演进为 monorepo；现有目录只是当前代码位置，不代表最终 package 划分。
+当前仓库包含 Chrome MV3 扩展、TypeScript 领域核心和官网。目标会演进为 monorepo；现有目录只是当前代码位置，不代表最终 package 划分。
 
 - 产品边界、目标契约与阶段验收以 [docs/v2/README.md](docs/v2/README.md) 为入口；当前代码行为以源码和测试为准。目标文档不代表功能已经实现。
 - 不在 v2 文档里的能力不进入仓库；发现这样的代码、文案或配置时删除，而不是兼容或隔离。
@@ -20,7 +20,6 @@
 | `entrypoints/content/` | [选区、高亮、采集与截图](entrypoints/content/AGENTS.md)    |
 | `background-service/`  | [消息门面与浏览器服务](background-service/AGENTS.md)       |
 | `learning-core/`       | [TypeScript 领域规则与 IndexedDB](learning-core/AGENTS.md) |
-| `app/`                 | [Swift 核心与 Desktop](app/AGENTS.md)                      |
 | `e2e/`                 | [Playwright 与浏览器实测](e2e/AGENTS.md)                   |
 | `docs/v2/`             | [已确认产品文档维护](docs/v2/AGENTS.md)                    |
 
@@ -30,7 +29,7 @@
 
 1. 优先复用现有服务、领域函数和 UI 模式；不要在入口层复制归一化、校验或调度规则。
 2. 当前扩展消息联合类型在 `types/messages.ts`；协议修改时同步定义、handler、调用方和相关测试。写操作沿用 sender 权限校验；敏感配置 GET 不回传密钥。
-3. 共享契约改变时，以 `docs/v2/` 的最新结论为准，同步受影响的 TypeScript、Swift、IndexedDB / SQLite、跨端 fixture 和文档；迁移策略按实际用户数据决定。
+3. 共享契约改变时，以 `docs/v2/` 的最新结论为准，同步受影响的 TypeScript、IndexedDB 和文档；迁移策略按实际用户数据决定。
 4. LLM 是可选能力；失败时保留手工或本地路径。日志和同步事件不包含密钥、完整页面或附件二进制。
 5. 保存失败、返回或关闭流程不得丢失用户已输入的内容。不回退与当前任务无关的工作区改动。
 6. 模块、消息、快捷键或数据契约变化时，更新受影响的 `README.md` 与 `docs/`；只在全局规则或目录导航变化时修改本文件。
@@ -39,7 +38,7 @@
 
 环境、依赖、构建和部署的值同时写在多个文件里。只改其中一处、漏掉其余，是反复出现的错误（Node 版本、Next.js 版本、Netlify 配置都出现过），类型检查和单测发现不了。
 
-1. **先找全，再动手。** 改任何版本号、包名、目录名、命令或 CI / 部署配置之前，先 `git grep` 这个值，列出全部出现处，范围至少含 `.github/`、`netlify.toml`、各 `package.json`、`README.md`、`docs/`、`app/project.yml`。改完再搜一遍，确认没有残留。
+1. **先找全，再动手。** 改任何版本号、包名、目录名、命令或 CI / 部署配置之前，先 `git grep` 这个值，列出全部出现处，范围至少含 `.github/`、`netlify.toml`、各 `package.json`、`README.md` 和 `docs/`。改完再搜一遍，确认没有残留。
 2. **一个值一个真源。** 其余位置引用它或与它一致；不新增第二份真源，文档和本文件不抄版本号（抄了就会过期）。
 3. **按下表联动。** 改左列，右列在同一个提交里一起改。表里没有的联动，按第 1 条自己找，并补进表和 `scripts/check-consistency.mjs`。
 4. **断言兜底，不许绕。** `npm run check:consistency`（在 `verify` 和 CI 里）把能机器核对的联动写成断言。它失败说明漏改了某处：去改那一处，不要删断言、放宽匹配或加豁免来求绿。新增联动点时同步加断言和测试。
@@ -60,14 +59,13 @@
 
 - 提交前跑 `npm run verify`（format:check → lint → compile → vitest → check:docs → check:lockfiles → check:consistency）。格式由 Prettier 负责，`npm run format` 一次修复；ESLint 只管正确性。
 - 扩展构建：`npm run build`。浏览器 E2E：先构建，再 `npx playwright test <spec>`；现有 `.output` 不会因源码变化自动重建。手工 Chrome 实测见 [e2e/README.md](e2e/README.md)。
-- 原生端：`cd app && swift test`；Desktop 构建命令见 [app/AGENTS.md](app/AGENTS.md)。Swift 与 Desktop 只能在 macOS 上构建。
-- 按改动范围运行相关测试；跨端契约、消息协议和截图链路的最低验证见对应目录约定。
-- CI（`.github/workflows/`）运行同样的命令，并加上 CodeQL、依赖审查和 macOS 构建；合并以 CI 为准。CI 失败先在本地用上面的命令复现，不要跳过、禁用或隔离测试来求绿。
+- 按改动范围运行相关测试；消息协议和截图链路的最低验证见对应目录约定。
+- CI（`.github/workflows/`）运行同样的命令，并加上 CodeQL 和依赖审查；合并以 CI 为准。CI 失败先在本地用上面的命令复现，不要跳过、禁用或隔离测试来求绿。
 - CI 的任务不按路径过滤：有测试会读其他目录的文件（法律页测试读 `website/public/`），一份“不影响该任务的路径”清单就是又一处隐藏联动。要少跑，靠 Dependabot 分组和取消过期运行，不要加 `paths`。必需检查所在的工作流更不能加：被跳过的必需检查会一直 pending，阻塞合并（`check:consistency` 会拦）。
 
 ## 生成物与提交
 
-- 不手改生成物或单一来源文件：`package-lock.json`（用 npm 11 的 `npm install`）、`fixtures/interop/` 与 `app/Tests/AnnHubCoreTests/Fixtures/`（见 [learning-core/AGENTS.md](learning-core/AGENTS.md)）、`app/AnnHub.xcodeproj`（改 `app/project.yml`）。`.claude/hooks/protect-generated-files.mjs` 会拦截对它们的编辑。
+- 不手改生成物或单一来源文件：`package-lock.json`（用 npm 11 的 `npm install`）。`.claude/hooks/protect-generated-files.mjs` 会拦截对它的编辑。
 - 锁文件里的 `resolved` 只指向 `registry.npmjs.org`。本机把 npm 指向镜像加速时，`npm install` 会把镜像地址写进锁文件；提交前跑 `npm run check:lockfiles -- --fix`，它只换主机名，`integrity` 和依赖树不变。`npm run verify` 与 CI 都会检查。
 - 提交信息用 Conventional Commits（`feat` / `fix` / `docs` / `test` / `chore` / `style` / `refactor`），正文写原因而不是复述 diff。一个提交对应一个完整的改动。
 - 新增依赖前确认确实需要，并跑 `npm audit --omit=dev`；运行时依赖保持零已知漏洞。

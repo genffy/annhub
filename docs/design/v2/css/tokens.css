@@ -1,4 +1,4 @@
-/* 设计令牌：扩展与 Desktop 共用一套语义色。亮色为默认，<html data-theme="dark"> 切换暗色。
+/* 设计令牌：语义色。亮色为默认，<html data-theme="dark"> 切换暗色。
    中性色沿用扩展现有 shadcn slate 令牌（styles/globals.css），品牌色取自 assets/icons/logo.svg。 */
 :root {
   color-scheme: light;

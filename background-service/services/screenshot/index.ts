@@ -1,6 +1,6 @@
 /**
  * Background service for the screenshot capture chain (docs/v2/screenshot.md,
- * storage.md §3.5): viewport capture via chrome.tabs.captureVisibleTab, PNG
+ * storage.md §3): viewport capture via chrome.tabs.captureVisibleTab, PNG
  * download into AnnHub/, and library persistence.
  *
  * Persistence now writes processed image BYTES as a Blob plus screenshot
@@ -16,7 +16,7 @@ import MessageUtils from '../../../utils/message'
 import { uiText } from '../../../utils/ui-text'
 import { quotaAvailable } from '../../../utils/storage-quota'
 import { FragmentStore } from '../../../learning-core/fragment-store'
-import { sha256Hex, MAX_IMAGE_BYTES } from '../../../learning-core/wire'
+import { sha256Hex, MAX_IMAGE_BYTES } from '../../../learning-core/assets'
 import type { ImageAsset, ScreenshotRecord } from '../../../learning-core/types'
 
 export class ScreenshotService implements IService {

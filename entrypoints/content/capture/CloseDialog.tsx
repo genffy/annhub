@@ -2,7 +2,7 @@
  * The confirmation shown when the capture window is closed with unsaved input
  * (extension.md §4.1): keep editing / save as highlight / save as clip /
  * discard. The two “save as” exits only exist for in-page captures — they never
- * create a ReviewState and never upgrade into a Fragment later by themselves.
+ * create a Fragment and never upgrade into one later by themselves.
  */
 import { useRef } from 'react'
 import { uiText } from '../../../utils/ui-text'

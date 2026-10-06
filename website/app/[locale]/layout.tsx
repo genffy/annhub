@@ -17,8 +17,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     metadataBase: new URL('https://annhub.org'),
     title: zh ? 'AnnHub - 把网页中的知识变成工作中用得上的能力' : 'AnnHub - Turn web knowledge into something you can use',
     description: zh
-      ? '在浏览器中连同语境采集概念、论点和方法，在 Mac 上按类型复习。本地优先，AI 可选。'
-      : 'Capture concepts, claims, and procedures with context in the browser. Review them by type on Mac. Local-first, AI optional.',
+      ? '在浏览器中连同语境采集好的文字、图片和问题，保存在本地，需要时再找回。本地优先，AI 可选。'
+      : 'Capture good text, images, and questions with context in the browser, saved locally and easy to find again. Local-first, AI optional.',
     icons: {
       icon: '/icon.png',
       shortcut: '/icon.png',

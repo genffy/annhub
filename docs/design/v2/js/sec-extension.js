@@ -19,9 +19,9 @@ function secExtension() {
     {
       id: 'ext',
       nav: '浏览器插件',
-      eyebrow: 'Part 1 · Chrome 扩展',
+      eyebrow: 'Chrome 扩展',
       title: '在网页现场，把“值得留”变成“能用上”',
-      lead: '扩展只做四件事：在原始网页中指认内容、保留来源与定位、完成一次最小主动加工、本地保存后交付给 Desktop。它不做完整复习和通用笔记编辑器。',
+      lead: '扩展做四件事：在原始网页中指认内容、保留来源与定位、完成一次最小主动加工、本地保存后可检索与导出。它不做复习，也不是通用笔记编辑器。',
       sub: [
         ['ext-flow', '保存分流'],
         ['ext-modal', '采集窗口'],
@@ -33,7 +33,7 @@ function secExtension() {
         ['ext-lib', '碎片库'],
         ['ext-detail', '详情与编辑'],
         ['ext-shots-page', '截图集'],
-        ['ext-settings', '设置与连接'],
+        ['ext-settings', '设置'],
         ['ext-popup', '工具栏弹窗'],
         ['ext-proto', '可交互原型'],
       ].filter(([id]) => groups.some(g => g.includes(`id="${id}"`))),

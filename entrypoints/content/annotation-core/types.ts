@@ -3,7 +3,7 @@ export interface ContentSource {
   container: Element | null
 }
 
-/** A site whose feed items have their own permalink (extension.md §11: permalinks on feeds). */
+/** A site whose feed items have their own permalink (extension.md §10: permalinks on feeds). */
 export interface AnnotationPlatformRule {
   name: string
   match(url: URL): boolean

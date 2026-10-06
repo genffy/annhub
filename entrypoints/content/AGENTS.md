@@ -5,7 +5,7 @@
 
 ## 职责与入口
 
-- `index.tsx` 编排选区菜单（HoverMenu）、连续高亮模式和截图会话；`mode-manager.ts` 管连续高亮模式的开关。HoverMenu 提供四个动作：碎片 / Fragment（打开采集 Modal）、高亮（备注可选）、剪藏（出现约 3 秒的“已剪藏”撤销条）、截图，悬停或聚焦约 300ms 显示“耗时 · 产物 · 是否进入复习”提示（extension PRD §2.1、§3.3）。连续高亮模式由 `Alt+H` / `Cmd+Shift+H` 进入，每次选中只创建一条高亮，`Esc` 退出（extension PRD §10）。
+- `index.tsx` 编排选区菜单（HoverMenu）、连续高亮模式和截图会话；`mode-manager.ts` 管连续高亮模式的开关。HoverMenu 提供四个动作：碎片 / Fragment（打开采集 Modal）、高亮（备注可选）、剪藏（出现约 3 秒的“已剪藏”撤销条）、截图，悬停或聚焦约 300ms 显示“耗时 · 产物”提示（extension PRD §2.1、§3.3）。连续高亮模式由 `Alt+H` / `Cmd+Shift+H` 进入，每次选中只创建一条高亮，`Esc` 退出（extension PRD §9）。
 - `annotation-core/` 只处理站点规则、DOM policy、Range 和 marker；`highlight/` 负责高亮业务与恢复；`capture/` 负责 Fragment 草稿和 Modal；`screenshot/` 负责本地截取与编辑。
 
 ## 页面内容与高亮

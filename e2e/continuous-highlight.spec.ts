@@ -1,5 +1,5 @@
 /**
- * Continuous highlight mode E2E tests (extension.md §10: Alt+H / Cmd+Shift+H)
+ * Continuous highlight mode E2E tests (extension.md §9: Alt+H / Cmd+Shift+H)
  *
  * Uses `selectText` (programmatic JS selection + single mouseup) instead of
  * triple-click, because triple-click fires 3 mouseup events that each

@@ -1,7 +1,7 @@
 /**
  * 碎片库 page E2E — extension PRD §5: search/filter, 新建灵感 (annhub://
  * manual source), capture-field edits with re-verification, local delete,
- * highlight upgrade into a Fragment, and the Desktop connection chip.
+ * and highlight upgrade into a Fragment.
  */
 import { test, expect } from './fixtures'
 import {
@@ -80,7 +80,7 @@ test.describe('碎片库 — fragments view', () => {
     expect(fragments[0].captureRevision).toBe(2)
   })
 
-  test('delete removes the local record and its pending delivery task', async ({ page, context, extensionId }) => {
+  test('delete removes the local record', async ({ page, context, extensionId }) => {
     await openLibrary(page, extensionId)
     page.on('dialog', dialog => dialog.accept())
     await page.getByTestId('fragment-card').first().locator('.fragment-headline').click()

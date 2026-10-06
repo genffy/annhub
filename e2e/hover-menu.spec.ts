@@ -90,7 +90,7 @@ test.describe('Hover menu', () => {
     expect(count).toBe(1)
   })
 
-  test('Esc closes the hover menu (PRD §10)', async ({ page }) => {
+  test('Esc closes the hover menu (PRD §9)', async ({ page }) => {
     await tripleClickSelect(page, '[data-testid="english-hello"]')
     await waitForHoverMenu(page)
     await page.keyboard.press('Escape')

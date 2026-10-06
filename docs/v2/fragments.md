@@ -2,9 +2,9 @@
 
 > 层级：vision
 > 状态：目标契约
-> 更新：2026-10-04
+> 更新：2026-10-07
 
-本文定义知识碎片的共享字段、类型扩展方式、归一化与校验规则。持久化和本机交付见 [存储契约](storage.md)。
+本文定义知识碎片的共享字段、类型扩展方式、归一化与校验规则。持久化见 [存储契约](storage.md)。
 
 ## 1. 定义
 
@@ -47,7 +47,7 @@ type FragmentKind =
 | `media-clip`  | 视频或音频区间     | 摘要、要点和时间定位           |
 | `inspiration` | 灵感、短篇随感     | 触发背景、观察与推测、延展方向 |
 
-每种 kind 的采集提问、复习题面和示例见 [kinds.md](kinds.md)；本文只定义字段与校验。
+每种 kind 的采集提问和示例见 [kinds.md](kinds.md)；本文只定义字段与校验。
 
 ## 3. 共享记录
 
@@ -70,7 +70,6 @@ interface FragmentRecord<K extends FragmentKind = FragmentKind> {
 
   detail: DetailOf<K>
   tags: string[]
-  review: ReviewState
   createdAt: number
   updatedAt: number
 }
@@ -94,16 +93,6 @@ interface VerifiedResult {
   promptVersion?: string
   basedOnModel?: { modelId: string; promptVersion: string }
 }
-
-interface ReviewState {
-  state: 'new' | 'learning' | 'review' | 'relearning'
-  repetitions: number
-  lapses: number
-  easeFactor: number
-  intervalDays: number
-  lastReviewedAt?: number
-  nextReviewAt: number
-}
 ```
 
 新契约继续使用 `guess / verified / use` 字段名，产品语义统一解释为：
@@ -116,7 +105,7 @@ interface ReviewState {
 
 ## 4. 类型特化
 
-`detail` 只存类型特有字段。来源、上下文、标签和复习状态不得复制到 detail 中。
+`detail` 只存类型特有字段。来源、上下文和标签不得复制到 detail 中。
 
 ```typescript
 interface FragmentDetailMap {
@@ -178,7 +167,7 @@ type FragmentLocator =
   | { type: 'none' }
 ```
 
-`image.rect` 与 `page.rect` 均为对应图片或页面上的归一化 `[x, y, width, height]`，每项在 0 到 1 之间且矩形不越界；省略表示整张图片或页面。`pageNumber` 从 1 开始，媒体 `time` 满足 `0 <= startMs < endMs`，DOM selector 非空。`image.assetId` 必须在本地资产库中存在，向 Desktop 交付时可暂时缺失图片字节并显示待重试。定位符用于回到原始位置，但不是真源。页面变化或文件移动后，即使定位失败，`content` 与 `context.excerpt` 仍必须足以理解碎片。
+`image.rect` 与 `page.rect` 均为对应图片或页面上的归一化 `[x, y, width, height]`，每项在 0 到 1 之间且矩形不越界；省略表示整张图片或页面。`pageNumber` 从 1 开始，媒体 `time` 满足 `0 <= startMs < endMs`，DOM selector 非空。`image.assetId` 必须在本地资产库中存在。定位符用于回到原始位置，但不是真源。页面变化或文件移动后，即使定位失败，`content` 与 `context.excerpt` 仍必须足以理解碎片。
 
 ## 6. 归一化
 
@@ -221,7 +210,7 @@ kind 已注册
 通用规则：
 
 - `content`：trim 后非空，最多 500 字符。
-- `captureRevision`：扩展创建时为 1；每次修改采集字段时递增。扩展删除仅作用于本地，不产生 Desktop 修订。Desktop 的复习评分不得改变它。
+- `captureRevision`：创建时为 1；每次修改采集字段时递增。
 - `excerpt`：非空，最多 2000 字符，并包含归一化后的 content。
 - `sourceUrl`：网页来源使用绝对 `http(s)` URL；本地创建使用 `annhub://manual/<id>`。本地来源不可伪装成网页 URL，`sourceHost` 为 `manual`。
 - `tags`：去重，最多 20 项，每项 1 到 32 字符。
@@ -240,7 +229,7 @@ kind 已注册
 - `question.status !== 'answered'` 时必须有 `hypothesis` 或 `nextStep`。
 - `inspiration.detail.form` 只能是 `idea` 或 `reflection`；其 `content` 是一条短篇原创想法，最多 500 字符，不承载整篇文章。
 
-R1 的 `visual` 来源限于扩展采集的网页截图：`content` 是用户写下的关键细节描述；`excerpt` 以这段描述开头，再补充用户可编辑的页面语境，因而满足包含 `content` 的通用校验。页面原文与用户描述在 UI 中分别标识，不能宣称描述来自网页。`sourceUrl` 指向采集页面，`locator` 使用 `image` 和保存后的 `assetId`。图片字节经 Desktop 本地服务单独写入，不嵌入 Fragment JSON。其他无网页来源的视觉材料留到后续定义。
+R1 的 `visual` 来源限于扩展采集的网页截图：`content` 是用户写下的关键细节描述；`excerpt` 以这段描述开头，再补充用户可编辑的页面语境，因而满足包含 `content` 的通用校验。页面原文与用户描述在 UI 中分别标识，不能宣称描述来自网页。`sourceUrl` 指向采集页面，`locator` 使用 `image` 和保存后的 `assetId`。图片字节单独保存在本地资产库，不嵌入 Fragment JSON。其他无网页来源的视觉材料留到后续定义。
 
 手工创建 `inspiration` 时，`content` 写用户自己的念头或短随感，`excerpt` 从该内容开始并补充非空的触发背景；使用 `annhub://manual/<id>`、`sourceHost='manual'` 和 `locator=none`，不虚构网页出处。从网页选区得到灵感时，`content` 仍是用户原创文字，`excerpt` 接上被选材料和页面语境，保留真实网页来源。`processing.use` 可写准备在哪篇文章、哪个问题或下次思考中继续发展，不要求立即执行；超过单一知识单位的长篇随笔不属于 AnnHub。
 
@@ -252,29 +241,17 @@ R1 的 `visual` 来源限于扩展采集的网页截图：`content` 是用户写
 
 ## 8. 与其他记录的关系
 
-| 数据       | 用途               | 进入复习              | 进入扩展 Markdown ZIP         |
-| ---------- | ------------------ | --------------------- | ----------------------------- |
-| Fragment   | 要内化的知识       | 是                    | 可阅读 Markdown               |
-| Highlight  | 页面视觉标记与备注 | 否                    | 原文、备注和来源的 Markdown   |
-| Clip       | 剪藏               | 否                    | 内容和语境的 Markdown         |
-| Screenshot | 本地图片资产       | 否，除非关联 Fragment | Markdown 说明和处理后原图文件 |
+| 数据       | 用途               | 进入扩展 Markdown ZIP         |
+| ---------- | ------------------ | ----------------------------- |
+| Fragment   | 要内化的知识       | 可阅读 Markdown               |
+| Highlight  | 页面视觉标记与备注 | 原文、备注和来源的 Markdown   |
+| Clip       | 剪藏               | 内容和语境的 Markdown         |
+| Screenshot | 本地图片资产       | Markdown 说明和处理后原图文件 |
 
 Fragment 可以引用高亮或附件 ID，但删除引用不得默认删除独立资产。级联规则由存储层定义。
 
-## 9. UI 派生状态
+## 9. 扩展纪律
 
-以下状态不重复写入 Fragment，由核心实体实时派生：
-
-| 状态   | 派生条件                               |
-| ------ | -------------------------------------- |
-| 新建   | `review.state === 'new'`               |
-| 到期   | `review.nextReviewAt <= now`           |
-| 待加强 | 最近评分为 again/hard，或 `lapses > 0` |
-
-UI 不得维护第二份布尔字段，否则导入、同步和日志重放后会产生漂移。
-
-## 10. 扩展纪律
-
-新增 kind 的完整清单（采集提问、复习题面、故事与 fixture）见 [kinds.md §5](kinds.md)。属于本文的两项是：登记 `detail` 类型与校验器（第 4、7 节），以及登记但尚未实现的 kind 必须返回 `KIND_NOT_IMPLEMENTED`。
+新增 kind 的完整清单（采集提问、故事与 fixture）见 [kinds.md §5](kinds.md)。属于本文的两项是：登记 `detail` 类型与校验器（第 4、7 节），以及登记但尚未实现的 kind 必须返回 `KIND_NOT_IMPLEMENTED`。
 
 仅把字符串加入 `FragmentKind` 不算完成。
