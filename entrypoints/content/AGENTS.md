@@ -15,6 +15,9 @@
 ## 页面内容与高亮
 
 - 新站点的内容容器和永久链接规则集中加到 `annotation-core/platform-rules.ts`，不要在业务模块散写 hostname 分支。
+- 区块剪藏（[D-20](../../docs/v2/validation.md)）的容器识别只在指针停留之后运行，只检查指针下的祖先链，不整页扫描；滚动、拖选和输入时不运行。入口与描边是扩展自己的浮层，不改宿主页面的 DOM。
+- 页内的输入框（剪藏后的快速编辑气泡、截图的文字标注）要把键盘事件留在扩展自己的界面里：页面常在 `document` 上监听单键快捷键（X、YouTube、GitHub、Gmail），在气泡里打字不能触发它们。这是读码得到的线索，没有运行复现过；实现时补一条带单键快捷键的 fixture 用例。
+- 引导里的“打开示例页面”如果是扩展自己的 `chrome-extension://` 页面，内容脚本的匹配范围 `<all_urls>` 通常不会注入它，首次使用的第一条剪藏就采不了；示例页要么是普通网页地址，要么显式注入。同样是读码线索，未运行复现。
 - selector 优先稳定 `data-*`、非动态 ID、过滤后的 class、结构路径；动态 ID 由共享规则过滤。
 - 当前跨页恢复合并页面 URL 命中与同域 `metadata.sourceUrl` 命中，按 ID 去重；SPA 恢复在立即、1 秒、2 秒、3 秒重试，selector 失败时回退到正文文本搜索。
 - Annotation Core 不做颜色、备注、存储等业务决策。页面规则、Range 或 marker 变化时跑 annotation-core 与 highlight 单测及相关 E2E。

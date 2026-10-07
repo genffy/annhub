@@ -54,6 +54,8 @@ npm run start
 
 部署后看日志：应有 `Using Next.js Runtime - v5.x`。没有这一行，说明运行时没被加载：查 `netlify.toml` 的 `[[plugins]]` 和 `website/package.json`。是 v4.x，说明 Netlify 没有从 `website/node_modules` 里找到插件：先查后台 Build settings 里的 Base directory 与 Package directory。
 
+再核对路由：`/` 跳到 `/zh-CN`，`/en` 返回 200，`/privacy-policy` 与 `/terms-of-service` 返回静态页。本机的 `netlify serve` 在子目录 base 下所有路由都返回 500（它重打包的函数副本里没有 `.next`，部署用的 zip 里有），验证不了路由，要在真实的生产部署上看；`ignore` 取消过的部署不算（部署页写 “Canceled build due to no content change”）。
+
 ## 设计约束
 
 - Hero 使用真实产品场景或真实界面，不使用抽象渐变插画替代产品。

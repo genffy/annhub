@@ -15,5 +15,5 @@ Do not open a public issue for a security problem. You can expect an acknowledge
 
 - Captured material stays on the device by default. Logs never contain provider keys, full pages or
   attachment bytes.
-- Release artifacts carry a build-provenance attestation; see [docs/releasing.md](docs/releasing.md) for how to
-  verify them.
+- Release artifacts carry a build-provenance attestation; verify a downloaded zip with
+  `gh attestation verify <zip> --repo genffy/annhub`.

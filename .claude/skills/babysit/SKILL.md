@@ -6,7 +6,7 @@ description: How to drive a pull request in this repository to green CI. Read be
 # Driving a PR to green
 
 CI lives in `.github/workflows/`. The merge gate is the `ci-pass` status plus the CodeQL, dependency-review,
-actionlint and zizmor checks. See `docs/releasing.md` for the full map.
+actionlint and zizmor checks; the required checks are listed in `.github/rulesets/main.json`.
 
 ## Reproduce a failure locally first
 
