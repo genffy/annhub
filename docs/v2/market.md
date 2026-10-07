@@ -3,7 +3,7 @@
 > 层级：vision
 > 状态：外部事实证据；不是产品决策
 > 核对日期：2026-10-03；第 2 节 Obsidian + Web Clipper 一行与第 4.2 节核对于 2026-10-07（均不晚于 2027-01-01 复核）
-> 更新：2026-10-07
+> 更新：2026-10-08
 
 本文只记录**可核对的外部事实**及其对 AnnHub 的含义。产品决策写在 [product.md](product.md)、[roadmap.md](roadmap.md) 和 [validation.md](validation.md)，本文不替它们做决定。
 
@@ -11,9 +11,9 @@
 
 ## 1. 先看结论
 
-1. **把网页内容存下来的现有路线有两条**：存进本地笔记库（Obsidian + Web Clipper：模板、属性、高亮器），或存进云端的阅读与高亮服务（Readwise）。AnnHub 的位置是第三种：在浏览器里一个不依赖笔记软件的本地库中放下剪藏、高亮、截图，用类型化属性分类，导出对 Obsidian 友好。这个位置站不站得住，由 [H-16、H-17](validation.md) 与 [RK-11](validation.md) 验证。
+1. **把网页内容存下来的现有路线有两条**：存进本地笔记库（Obsidian + Web Clipper：模板、属性、高亮器），或存进云端的阅读与高亮服务（Readwise）。AnnHub 的位置是第三种：在浏览器里一个不依赖笔记软件的本地库中放下剪藏与截图，并能在库里读剪藏、划高亮，用类型化属性分类，导出对 Obsidian 友好。这个位置站不站得住，由 [H-16、H-17](validation.md) 与 [RK-11](validation.md) 验证。
 2. **托管服务会突然消失**：Omnivore（2024）、Pocket（2025）和独立的 ChatGPT Atlas 浏览器（2026）都在短期内关停，导出窗口从两周到三个月不等。本地优先加一种开放导出，是对这类风险的直接回答。
-3. **最强的对手是免费且开源的 Obsidian Web Clipper**：它已经有模板、属性和高亮器。AnnHub 不靠功能数量胜过它，靠的是不需要 Obsidian 也有完整的库，并且截图与高亮在同一处。
+3. **最强的对手是免费且开源的 Obsidian Web Clipper**：它已经有模板、属性和高亮器。AnnHub 不靠功能数量胜过它，靠的是不需要 Obsidian 也有完整的库，并且截图、剪藏与库内高亮在同一处。
 4. **AnnHub 明显弱于对手的地方**：没有手机端、没有 PDF 与电子书来源、没有导入、没有协作、没有整页剪藏与模板触发器。这些大多是刻意取舍，但每一项都要有退出条件（第 5 节）。
 
 ## 2. 能力对照
@@ -25,7 +25,7 @@
 | Readwise               | ✓ 多来源高亮同步                                               | ◐ 标签与笔记                                                          | ◐ 云服务；可导出到 Notion、Obsidian 等  | —                                                             |
 | Obsidian + Web Clipper | ✓ 页面与元数据存为本地文件，模板化；Highlighter 高亮后回访可见 | ✓ 模板定义属性（6 种类型），名称全局绑定类型，落盘为 YAML frontmatter | ✓ 本地文件，核心免费                    | ✓ Interpreter：用户选择模型服务商，用自然语言提示填充模板变量 |
 | Capacities             | ◐ 从聊天应用、邮件保存                                         | ✓ 类型化对象                                                          | ✓ 完整导入导出，核心免费                | ✓ 付费                                                        |
-| **AnnHub（设计目标）** | ✓ 剪藏、高亮、截图，带语境与定位                               | ✓ 类型化属性，三种类型预设，同名同类型                                | ✓ 本地优先；Markdown + frontmatter 导出 | —                                                             |
+| **AnnHub（设计目标）** | ✓ 剪藏（选区、区块）、截图；库内阅读与高亮，带来源             | ✓ 类型化属性，两种类型预设，同名同类型                                | ✓ 本地优先；Markdown + frontmatter 导出 | —                                                             |
 
 ## 3. 定价与形态
 
@@ -55,15 +55,15 @@
 
 核对于 2026-10-07，取自官方帮助文档（`obsidian.md/help`）与扩展源码。
 
-| 事实                                                                                                                                                                                                              | 对 AnnHub 的含义                                                        | 来源                                                                                                                                     |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| Obsidian 的属性类型有文本、列表、数字、复选框、日期、日期时间和标签；属性名一旦指定了类型，库里所有同名属性都用同一类型；不支持嵌套属性，也不支持属性里的 Markdown，属性是小而原子的信息；落盘为 YAML frontmatter | 条目的属性采用同样的类型、全局绑定与扁平约束（[entry.md §5](entry.md)） | [Properties](https://obsidian.md/help/properties)                                                                                        |
-| Web Clipper 的模板决定页面被存成什么：笔记名、位置、正文格式与一组属性（名称、值、类型）；变量、过滤器与逻辑填充值；可按 URL（前缀或正则）或 schema.org 数据自动选用模板                                          | 类型预设是它最小的对应物；变量语言与触发器不做（[Q-10](validation.md)） | [Templates](https://obsidian.md/help/web-clipper/templates)、[Variables](https://obsidian.md/help/web-clipper/variables)                 |
-| 默认模板的属性是 title、source、author、published、created、description、tags；设置里有一张属性类型表（名称、类型、默认值、使用数），`tags` 固定为多值文本，没有被引用的属性类型才能删除                          | 内置属性、注册表、使用数与“删除未使用”照此设计                          | 源码 [obsidianmd/obsidian-clipper](https://github.com/obsidianmd/obsidian-clipper) 的 `template-manager.ts`、`property-types-manager.ts` |
-| Highlighter 可在页面上高亮文字与元素，高亮被保存，回访页面时可见；有专门的页面查看与搜索，可导出为 JSON                                                                                                           | 高亮条目回访恢复，并与剪藏同库                                          | [Highlighter](https://obsidian.md/help/web-clipper/highlight)                                                                            |
-| 默认不下载图片，笔记里链接到网页上的图片地址，离线或链接失效后看不到                                                                                                                                              | AnnHub 的截图保存处理后的图片字节，导出时一并带走                       | [Clip web pages](https://obsidian.md/help/web-clipper/capture)                                                                           |
-| Interpreter 用用户选择的模型服务商运行自然语言提示，官方提示有成本与隐私考虑                                                                                                                                      | AnnHub 不做 AI 功能（[D-18](validation.md)）                            | [Variables](https://obsidian.md/help/web-clipper/variables)                                                                              |
-| 官方称内容保存在本地库、不收集使用数据，代码开源                                                                                                                                                                  | 本地优先不是差异化，是门槛                                              | [Web Clipper](https://obsidian.md/help/web-clipper)                                                                                      |
+| 事实                                                                                                                                                                                                              | 对 AnnHub 的含义                                                                   | 来源                                                                                                                                     |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Obsidian 的属性类型有文本、列表、数字、复选框、日期、日期时间和标签；属性名一旦指定了类型，库里所有同名属性都用同一类型；不支持嵌套属性，也不支持属性里的 Markdown，属性是小而原子的信息；落盘为 YAML frontmatter | 条目的属性采用同样的类型、全局绑定与扁平约束（[entry.md §5](entry.md)）            | [Properties](https://obsidian.md/help/properties)                                                                                        |
+| Web Clipper 的模板决定页面被存成什么：笔记名、位置、正文格式与一组属性（名称、值、类型）；变量、过滤器与逻辑填充值；可按 URL（前缀或正则）或 schema.org 数据自动选用模板                                          | 类型预设是它最小的对应物；变量语言与触发器不做（[Q-10](validation.md)）            | [Templates](https://obsidian.md/help/web-clipper/templates)、[Variables](https://obsidian.md/help/web-clipper/variables)                 |
+| 默认模板的属性是 title、source、author、published、created、description、tags；设置里有一张属性类型表（名称、类型、默认值、使用数），`tags` 固定为多值文本，没有被引用的属性类型才能删除                          | 内置属性、注册表、使用数与“删除未使用”照此设计                                     | 源码 [obsidianmd/obsidian-clipper](https://github.com/obsidianmd/obsidian-clipper) 的 `template-manager.ts`、`property-types-manager.ts` |
+| Highlighter 可在页面上高亮文字与元素，高亮被保存，回访页面时可见；有专门的页面查看与搜索，可导出为 JSON                                                                                                           | AnnHub 不在网页上高亮（[D-19](validation.md)）：高亮在库里读剪藏时完成，与剪藏同库 | [Highlighter](https://obsidian.md/help/web-clipper/highlight)                                                                            |
+| 默认不下载图片，笔记里链接到网页上的图片地址，离线或链接失效后看不到                                                                                                                                              | AnnHub 的截图保存处理后的图片字节，导出时一并带走                                  | [Clip web pages](https://obsidian.md/help/web-clipper/capture)                                                                           |
+| Interpreter 用用户选择的模型服务商运行自然语言提示，官方提示有成本与隐私考虑                                                                                                                                      | AnnHub 不做 AI 功能（[D-18](validation.md)）                                       | [Variables](https://obsidian.md/help/web-clipper/variables)                                                                              |
+| 官方称内容保存在本地库、不收集使用数据，代码开源                                                                                                                                                                  | 本地优先不是差异化，是门槛                                                         | [Web Clipper](https://obsidian.md/help/web-clipper)                                                                                      |
 
 ## 5. AnnHub 的位置与短板
 
@@ -77,14 +77,15 @@
 
 ### 5.2 短板与退出条件
 
-| 短板                     | 对手现状                                    | AnnHub 的态度                             | 何时重新评估                        |
-| ------------------------ | ------------------------------------------- | ----------------------------------------- | ----------------------------------- |
-| 没有手机端               | 多数对手有移动端                            | 刻意不做（[product.md §2.2](product.md)） | 阶段 V 的访谈中频繁出现             |
-| 没有 PDF 与电子书来源    | Readwise 多来源                             | 暂不做（[D-09](validation.md)）           | [H-15](validation.md) 未通过        |
-| 没有导入                 | 对手多支持从其他工具导入                    | 暂不排期（[Q-05](validation.md)）         | 冷启动问题在阶段 V 的访谈中频繁出现 |
-| 没有协作                 | Capacities 等支持共享                       | 刻意不做                                  | 用户明确提出共享需求                |
-| 没有整页剪藏与模板触发器 | Obsidian Web Clipper 提供                   | 暂不做（[Q-10、Q-11](validation.md)）     | 阶段 V 的访谈中频繁出现             |
-| 没有 AI 功能             | Web Clipper 的 Interpreter、Capacities 提供 | 刻意不做（[product.md §2.3](product.md)） | 无                                  |
+| 短板                     | 对手现状                                    | AnnHub 的态度                                     | 何时重新评估                                             |
+| ------------------------ | ------------------------------------------- | ------------------------------------------------- | -------------------------------------------------------- |
+| 没有手机端               | 多数对手有移动端                            | 刻意不做（[product.md §2.2](product.md)）         | 阶段 V 的访谈中频繁出现                                  |
+| 没有 PDF 与电子书来源    | Readwise 多来源                             | 暂不做（[D-09](validation.md)）                   | [H-15](validation.md) 未通过                             |
+| 没有导入                 | 对手多支持从其他工具导入                    | 暂不排期（[Q-05](validation.md)）                 | 冷启动问题在阶段 V 的访谈中频繁出现                      |
+| 没有协作                 | Capacities 等支持共享                       | 刻意不做                                          | 用户明确提出共享需求                                     |
+| 没有整页剪藏与模板触发器 | Obsidian Web Clipper 提供                   | 暂不做（[Q-10、Q-11](validation.md)）             | 阶段 V 的访谈中频繁出现                                  |
+| 没有网页上的高亮标记     | Obsidian Web Clipper 的 Highlighter 提供    | 刻意不做：高亮在库里完成（[D-19](validation.md)） | [H-19](validation.md) 未通过，或伙伴频繁要求在页面上标记 |
+| 没有 AI 功能             | Web Clipper 的 Interpreter、Capacities 提供 | 刻意不做（[product.md §2.3](product.md)）         | 无                                                       |
 
 ## 6. 来源与复核
 

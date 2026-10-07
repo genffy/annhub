@@ -616,7 +616,7 @@ hr.sep {
   --k: var(--t-screenshot);
 }
 
-/* 高亮调色板：色块（用于 color 属性的取值与页面标记） */
+/* 高亮调色板：色块（资料库里高亮的五种颜色） */
 .hl-dot {
   display: inline-block;
   vertical-align: middle;

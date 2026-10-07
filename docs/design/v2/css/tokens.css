@@ -43,7 +43,7 @@
   --t-highlight: oklch(0.66 0.15 78);
   --t-screenshot: oklch(0.56 0.12 178);
 
-  /* 高亮调色板：页面标记与 color 属性的取值 */
+  /* 高亮调色板：资料库里高亮的五种颜色；颜色只是用户的选择，不承担含义 */
   --hl-yellow: #ffd84d;
   --hl-green: #86e0a0;
   --hl-blue: #8cc7ff;

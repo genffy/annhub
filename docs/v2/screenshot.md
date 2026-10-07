@@ -59,7 +59,7 @@ DOM 匿名默认开启。区域截图在真实页面的身份元素上临时覆�
 
 “确认入库”与“下载”是两个独立动作；资料库的“截图”视图可查看、重新下载和删除。确认入库时，在扩展 IndexedDB 的 `assets` 与 `entries` object store 中同事务保存处理后的 `Blob`、图片元数据和 `screenshot` 条目。保存失败不能显示成功，也不能仅因下载成功就声称已入库；单独下载失败不回滚已经成功的本地入库。入库统一使用 PNG 保持文字与图表细节；下载文件名使用 `AnnHub/screenshot-<时间>.png`。
 
-`screenshot` 条目：`content` 为空串，`assetId` 指向刚保存的图片，`sourceUrl` 是采集页面，`locator` 为 `none`；`title` 默认取页面标题，用户可以补标题、标签、备注与属性（字段见 [entry.md §3](entry.md)）。
+`screenshot` 条目：`content` 为空串，`assetId` 指向刚保存的图片，`sourceUrl` 是采集页面；`title` 默认取页面标题，用户可以补标题、标签、备注与属性（字段见 [entry.md §3](entry.md)）。
 
 扩展的唯一用户导出是 Markdown + 已保存原图 ZIP（[storage.md §6](storage.md)）。`screenshot` 条目有自己的 Markdown，图片以相对链接指向同一份文件。只下载到系统目录、没有入库的文件不由扩展 ZIP 扫描或重新抓取。
 

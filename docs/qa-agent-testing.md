@@ -68,6 +68,8 @@
 | L8   | shadow root 没开 `isolateEvents`，在采集窗口或备注框里打字可能触发页面单键快捷键（X、YouTube、GitHub、Gmail）                                                                                                                                                                       |
 | 其余 | L5 超长内容到最终保存才报 raw code；L6 高亮 tooltip 文本混进后续 clip 和 fragment 的 content；L9 高亮锚点弱，只有 commonAncestor 选择器加文本，没有 SPA 路由处理；L10 `fragment-store` 升级没有 `oldVersion` 分支，下次升版会抛 ConstraintError（潜在缺陷，不是现有用户问题）       |
 
+D-19 之后页面不再有高亮标记：L1、L6、L9 针对的是页面高亮的旧实现，随 R1 删除代码而作废。它们仍留在这里，因为下文的校准与示例用 L1 作原型；真正的缺陷池以 R1 之后仍存在的线索为准。
+
 **产品真源。** [extension.md](./v2/extension.md) §8（11 条验收，含 p95 保存 <300ms、选区到菜单 <150ms、英文界面无汉字）、[examples.md](./v2/examples.md)（场景 A/B/C）、[user-stories.md](./v2/user-stories.md)（US-CAP、US-DATA）、[roadmap.md](./v2/roadmap.md)（发布门禁与人工走查）。
 
 ## 一、设计原则
@@ -448,7 +450,7 @@ playwright.config.ts、package.json               [改]
 | ------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
 | CAP-02  | 用可信拖选剪藏两字中文词（幂等、熔断）和长句，核对菜单、保存与库中结果                                              | US-CAP-11；L2                             |
 | CAP-07  | sourceUrl 正确性：文章、信息流（x.com 映射）、SPA、带 query 或 hash 的页面。先定义 oracle：canonical 或条目永久链接 | §8-1；L4                                  |
-| HL-02   | 高亮后右键改色，刷新页面后颜色与高亮是否保持                                                                        | US-CAP-12；L1                             |
+| HL-02   | 库内高亮：在阅读视图里选中文字高亮、改色、写备注，刷新后范围与颜色是否保持；与已有高亮重叠的选区是否合并            | US-LIB-03；L1（旧实现，D-19 后作废）      |
 | SEL-01  | 选区方式矩阵（拖拽、双击、三击、Shift+方向键、跨块）对菜单出现与位置的影响                                          | L2；§7.2（键盘无菜单属规格缺口，登记 Q-） |
 | LIB-03  | 只读过 README 的新手：首装、引导卡、示例页、保存第一条、再次打开资料库                                              | 首次使用路径；L3                          |
 | LIFE-01 | 杀 SW 后的首个用户动作：是否丢失，选区到菜单的延迟                                                                  | §8-2；L7                                  |
@@ -457,7 +459,7 @@ playwright.config.ts、package.json               [改]
 | I18N-01 | 中英文界面逐屏：英文无汉字，中文无 Entry（契约名除外），含错误、toast、`aria-label`、`title`                        | §8-10                                     |
 | SEC-01  | 提示注入金丝雀：页面文本、隐藏文本、alt、title、注释里的越权指令，agent 不得越权（harness 自检）                    | —                                         |
 
-**其余按族补齐，先标 `draft`：** capture（CAP，校验边界、三种类型、保存失败、撤销）、highlight（HL，往返恢复、SPA、tooltip 污染）、clip（撤销、重试不重复）、screenshot（SHOT，区域、元素、跨域图代取、页面无法驱动截图）、library（LIB，ZIP 导出、搜索与属性筛选、属性页）、lifecycle（LIFE，配额、多标签、扩展重载后的孤儿脚本、非幂等重试）、host（HOST，零伤害审计、严格 CSP、top-layer `dialog`、受限页）、quality（A11Y、PERF、PRIV、SEC-02）。依赖尚未建的语料页的 charter，在清单里标 `ready: false`，可移植性守卫允许这种状态，页面建好后改为 `true`。
+**其余按族补齐，先标 `draft`：** capture（CAP，校验边界、两种类型、保存失败、撤销）、clip（撤销、重试不重复、区块入口的出现与回避）、highlight（HL，库内高亮：创建、合并、改色、备注、删除、刷新后仍在，页面无残留标记；迁移前的页面高亮往返恢复与 tooltip 污染用例随 D-19 作废）、screenshot（SHOT，区域、元素、跨域图代取、页面无法驱动截图）、library（LIB，ZIP 导出、搜索与属性筛选、属性页）、lifecycle（LIFE，配额、多标签、扩展重载后的孤儿脚本、非幂等重试）、host（HOST，零伤害审计、严格 CSP、top-layer `dialog`、受限页）、quality（A11Y、PERF、PRIV、SEC-02）。依赖尚未建的语料页的 charter，在清单里标 `ready: false`，可移植性守卫允许这种状态，页面建好后改为 `true`。
 
 **页面语料 15 个**（全部手写、公开只读，用 `context.route` 映射主机名；第一轮建前 7 个）。
 

@@ -200,30 +200,6 @@
   color: inherit;
 }
 
-/* 页面上的高亮标记：颜色取自调色板（color 属性） */
-.pg .hl {
-  background: color-mix(in oklab, var(--c, var(--hl-yellow)) 70%, #fff);
-  border-radius: 2px;
-  box-shadow: 0 0 0 1px color-mix(in oklab, var(--c, var(--hl-yellow)) 60%, #fff);
-  color: inherit;
-}
-
-.pg .hl.note::after {
-  content: '';
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #f59e0b;
-  vertical-align: super;
-  margin-left: 2px;
-}
-
-.pg mark.hl {
-  background: color-mix(in oklab, var(--c, var(--hl-yellow)) 70%, #fff);
-  color: inherit;
-}
-
 .pg-ph {
   height: 10px;
   border-radius: 5px;
@@ -1671,7 +1647,7 @@
 .ptab-h,
 .ptab-r {
   display: grid;
-  grid-template-columns: minmax(170px, 1.3fr) 112px minmax(110px, 1fr) 64px 56px 56px 56px 40px;
+  grid-template-columns: minmax(170px, 1.3fr) 112px minmax(110px, 1fr) 64px 56px 56px 40px;
   align-items: center;
   gap: 10px;
   padding: 0 16px;
@@ -2113,4 +2089,733 @@
   width: auto;
   max-width: 100%;
   height: 100%;
+}
+
+
+/* ── 区块剪藏（提案，D-20）：悬停在整体内容上，区块旁出现“剪藏” ─────────────────────
+   入口只是扩展自己的浮层：描边 + 一枚深色胶囊，不改网页，也不在页面上留记号 */
+.pg-feed {
+  min-height: 100%;
+}
+
+.feed-h {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  height: 50px;
+  padding: 0 24px;
+  border-bottom: 1px solid #ececec;
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: #6b6965;
+}
+
+.feed-h b {
+  color: #1c1b1a;
+  font-size: 17px;
+}
+
+.feed-h .on {
+  color: #1c1b1a;
+  font-weight: 650;
+  box-shadow: inset 0 -3px 0 #3b6fe0;
+  padding: 14px 2px;
+}
+
+.feed {
+  width: 580px;
+  margin: 0 auto;
+  border-left: 1px solid #ececec;
+  border-right: 1px solid #ececec;
+}
+
+.tw {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid #ececec;
+  font-family: var(--font-ui);
+  color: #1c1b1a;
+}
+
+.tw .av {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f0a3a3, #b56c8f);
+}
+
+.tw .av.a2 {
+  background: linear-gradient(135deg, #8cc7ff, #5f7be6);
+}
+
+.tw .av.a3 {
+  background: linear-gradient(135deg, #86e0a0, #3aa17a);
+}
+
+.tw-b {
+  min-width: 0;
+  flex: 1;
+}
+
+.tw-h {
+  display: flex;
+  gap: 6px;
+  font-size: 14px;
+}
+
+.tw-h span {
+  color: #6b6965;
+}
+
+.tw-t {
+  margin-top: 3px;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #26241f;
+}
+
+.tw-l {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border: 1px solid #e3e3e3;
+  border-radius: 10px;
+  font-size: 13px;
+  color: #3b6fe0;
+}
+
+.tw-m {
+  display: flex;
+  gap: 38px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: #77736d;
+}
+
+.tw-m span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sx {
+  position: relative;
+}
+
+/* 区块的描边与入口。外层 position:relative 的元素就是区块本身 */
+.blk {
+  position: absolute;
+  inset: -6px -10px;
+  z-index: 18;
+  border: 2px solid var(--brand);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--brand) 6%, transparent);
+  pointer-events: none;
+}
+
+.blk.is-faint {
+  border-style: dashed;
+  border-color: color-mix(in oklab, var(--brand) 45%, transparent);
+  background: transparent;
+}
+
+.blk.is-saved {
+  border-color: var(--ok);
+  background: color-mix(in oklab, var(--ok) 10%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--ok) 18%, transparent);
+}
+
+.blk.is-skip {
+  border: 1.5px dashed #b8b5ae;
+  background: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.025) 0 6px, transparent 6px 12px);
+}
+
+.blk em {
+  position: absolute;
+  left: 8px;
+  top: -10px;
+  padding: 0 7px;
+  height: 18px;
+  border-radius: 6px;
+  background: var(--brand);
+  color: #fff;
+  font: 600 11px/18px var(--font-ui);
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.blk.is-skip em {
+  background: #77736d;
+}
+
+.blk.is-faint em {
+  background: color-mix(in oklab, var(--brand) 70%, #fff);
+}
+
+.blk-pill {
+  position: absolute;
+  z-index: 24;
+  top: -18px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  height: 30px;
+  padding: 0 3px;
+  gap: 1px;
+  border-radius: 999px;
+  background: #1b1f2a;
+  color: #eceff6;
+  font: 600 12.5px var(--font-ui);
+  white-space: nowrap;
+  box-shadow:
+    0 8px 22px -6px rgb(0 0 0 / 0.5),
+    0 0 0 1px rgb(255 255 255 / 0.08);
+}
+
+.blk-pill .bp-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px 0 9px;
+  border-radius: 999px;
+}
+
+.blk-pill .bp-seg .i {
+  width: 15px;
+  height: 15px;
+  color: #b9a3f2;
+}
+
+.blk-pill.is-press .bp-seg {
+  background: rgb(255 255 255 / 0.16);
+}
+
+.blk-pill .sub {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: #c9cfdd;
+}
+
+.blk-pill .sub:hover {
+  background: rgb(255 255 255 / 0.12);
+}
+
+/* ── Markdown 渲染：阅读视图、详情抽屉与列表摘要共用 ──────────────────────────── */
+.md {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--fg);
+  overflow-wrap: anywhere;
+}
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md > :last-child {
+  margin-bottom: 0;
+}
+
+.md h2,
+.md h3,
+.md h4 {
+  margin: 1.1em 0 0.45em;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.md h2 {
+  font-size: 1.3em;
+}
+
+.md h3 {
+  font-size: 1.12em;
+}
+
+.md p {
+  margin: 0.65em 0;
+}
+
+.md ol,
+.md ul {
+  margin: 0.65em 0;
+  padding-left: 1.5em;
+}
+
+.md li {
+  margin: 0.25em 0;
+}
+
+.md code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+}
+
+.md a {
+  color: var(--brand-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.md blockquote {
+  margin: 0.8em 0;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--line-2);
+  color: var(--fg-2);
+}
+
+.md-sm {
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.md-rd {
+  font-size: 16px;
+  line-height: 1.85;
+}
+
+.md-img {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border: 1px dashed var(--line-2);
+  border-radius: 7px;
+  color: var(--fg-3);
+  font-size: 0.85em;
+}
+
+.md-img small {
+  color: var(--fg-4);
+  font-size: 0.9em;
+}
+
+.md .sel {
+  background: color-mix(in oklab, #3b82f6 30%, transparent);
+  border-radius: 2px;
+}
+
+/* 正文里的高亮：底色 + 下划线，有备注的带一个小点；颜色只是用户的选择，不承担含义 */
+.hlm {
+  position: relative;
+  border-radius: 3px;
+  padding: 1px 0;
+  background: color-mix(in oklab, var(--c, var(--hl-yellow)) 42%, transparent);
+  border-bottom: 2px solid color-mix(in oklab, var(--c, var(--hl-yellow)) 78%, #000);
+  color: inherit;
+  cursor: pointer;
+}
+
+.hlm.is-on {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}
+
+.hln {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin: 0 2px 0 3px;
+  border-radius: 50%;
+  background: var(--brand);
+  vertical-align: super;
+}
+
+.ctxbox {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--surface-2);
+  color: var(--fg-3);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.ctxbox b {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--fg-2);
+  font-size: 11.5px;
+}
+
+.hlc {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--t-highlight, #d4a017) 14%, var(--surface));
+  color: color-mix(in oklab, var(--t-highlight, #d4a017) 78%, var(--fg));
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── 阅读视图：正文居中，右栏是“高亮 / 属性” ─────────────────────────────────── */
+.rd {
+  position: relative;
+  display: grid;
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.rd-main {
+  min-width: 0;
+  overflow: auto;
+  padding: 18px 32px 56px;
+}
+
+.rd-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.rd-col {
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.rd-head h1 {
+  margin: 0;
+  font-size: 26px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+}
+
+.rd-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 10px 0 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg-3);
+  font-size: 12.5px;
+}
+
+.rd-rail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.rd-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+}
+
+.rd-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px 10px;
+  border-bottom: 2px solid transparent;
+  color: var(--fg-3);
+  font-weight: 600;
+}
+
+.rd-tab b {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--surface-3);
+  color: var(--fg-2);
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+.rd-tab.on {
+  border-bottom-color: var(--brand);
+  color: var(--brand-text);
+}
+
+.rd-pane {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.rd-props {
+  padding: 10px 10px 16px;
+}
+
+.rd-props .prow {
+  grid-template-columns: 92px minmax(0, 1fr) 20px;
+}
+
+.rd-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 48px 24px;
+  color: var(--fg-3);
+  text-align: center;
+  font-size: 12.5px;
+}
+
+.rd-empty b {
+  color: var(--fg-2);
+  font-size: 13.5px;
+}
+
+.hli {
+  position: relative;
+  display: grid;
+  grid-template-columns: 4px minmax(0, 1fr);
+  gap: 11px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.hli.on {
+  background: var(--surface);
+}
+
+.hli .bar {
+  border-radius: 2px;
+  background: var(--c, var(--hl-yellow));
+}
+
+.hli .q {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.hli .n {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--fg-2);
+  font-size: 12.5px;
+}
+
+.hli .n .i {
+  flex: none;
+  margin-top: 2px;
+  color: var(--fg-3);
+}
+
+/* 选中文字后的工具条与点已有高亮后的浮层：用应用自己的浅色表面，叠在正文上 */
+.hbar {
+  position: absolute;
+  z-index: 22;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border: 1px solid var(--line-2);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--fg-2);
+  box-shadow: var(--sh-2);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.hbar .dots {
+  display: inline-flex;
+  gap: 4px;
+  padding: 0 4px;
+}
+
+.dotb {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.dotb .hl-dot {
+  width: 16px;
+  height: 16px;
+}
+
+.dotb:hover,
+.dotb.is-hover {
+  background: var(--surface-3);
+}
+
+.hbar .sepd {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--line);
+}
+
+.hbar .act {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 7px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.hbar .act:hover {
+  background: var(--surface-3);
+}
+
+.hpop {
+  position: absolute;
+  z-index: 23;
+  width: 296px;
+  padding: 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: var(--sh-modal);
+  font-size: 13px;
+}
+
+/* 区块剪藏的识别范围示意：线框，绿框是会出现入口的区块，灰色斜纹是不出现的 */
+.sch {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 18px;
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  background: #fff;
+  color: #3b3a38;
+  font: 12px var(--font-ui);
+}
+
+.sch-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px;
+  gap: 10px;
+}
+
+.sch-main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.sch-box {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+  min-height: 34px;
+  padding: 18px 12px 12px;
+  border: 2px solid #b8b5ae;
+  border-radius: 10px;
+  background: repeating-linear-gradient(135deg, rgb(0 0 0 / 0.03) 0 6px, transparent 6px 12px);
+  color: #55524e;
+}
+
+.sch-box.cand {
+  border-color: var(--brand);
+  background: color-mix(in oklab, var(--brand) 5%, #fff);
+}
+
+.sch-box.inner {
+  margin-top: 4px;
+  min-height: 56px;
+}
+
+.sch-box.skip {
+  border-style: dashed;
+}
+
+.sch-box.short {
+  min-height: 30px;
+  padding-top: 14px;
+}
+
+.sch-box > em {
+  position: absolute;
+  left: 8px;
+  top: -10px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: var(--brand);
+  color: #fff;
+  font: 600 11px/18px var(--font-ui);
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.sch-box.skip > em {
+  background: #77736d;
+}
+
+.sch-box .ln {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: #e3e1dc;
+}
+
+/* 原型：区块入口的浮层层、页面底部的帖子 */
+.pc-blk {
+  position: absolute;
+  inset: 0;
+  z-index: 19;
+  pointer-events: none;
+}
+
+.pc-blk .blk-pill {
+  pointer-events: auto;
+}
+
+.pc-blk .blk {
+  transition: all 0.12s ease;
+}
+
+.pc-post {
+  margin: 8px 0 0;
+  border: 1px solid #ececec;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.pc-post .tw {
+  border-bottom: 0;
+}
+
+.pg-art[data-blk] section {
+  position: relative;
+}
+
+/* 资料库原型：叠在应用上的浮层层（选中文字的工具条、高亮浮层、撤销提示）。不拦截指针，只有里面的控件接收 */
+.pa-over {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  pointer-events: none;
+}
+
+.pa-over > * {
+  pointer-events: auto;
 }

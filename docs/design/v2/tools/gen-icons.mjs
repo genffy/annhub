@@ -95,6 +95,11 @@ const ICONS = [
   'layers',
   'minimize-2',
   'unplug',
+  // 阅读视图与区块剪藏（extension.md §2.1、§4.2）
+  'book-open',
+  'mouse-pointer-click',
+  'text-select',
+  'panel-right',
   // 截图工具栏与精确选区（screenshot.md §1.1、§1.2）
   'square',
   'circle',
