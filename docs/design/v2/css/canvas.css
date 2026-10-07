@@ -388,6 +388,11 @@ a {
   color: var(--fg-2);
 }
 
+.cv-lead code,
+.cv-desc code {
+  white-space: nowrap;
+}
+
 .cv-notes li a {
   color: var(--brand-text);
 }
@@ -447,6 +452,13 @@ a {
   top: 6px;
   left: auto;
   right: 6px;
+}
+
+/* 行内标注：跟在文字后面，不盖住任何东西 */
+.pin.pin-s {
+  position: static;
+  flex: none;
+  margin-left: 2px;
 }
 
 /* 灯箱 */
@@ -788,7 +800,7 @@ a {
 
 .jny-grid {
   display: grid;
-  grid-template-columns: 84px repeat(3, minmax(0, 1fr));
+  grid-template-columns: 84px repeat(4, minmax(0, 1fr));
   gap: 12px 14px;
 }
 

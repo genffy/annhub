@@ -56,19 +56,19 @@
 | 仓库已按多运行时约定组织：各目录用 `AGENTS.md`（不是 `CLAUDE.md`），共享 MCP 配置在 `.agents/mcp.json`，另有 `.zcodeignore`                                                                 | 仓库根                                                              | `qa/AGENTS.md` 作为任何运行时的统一入口；规范不绑任何厂商的 skill、subagent、hook                                                     |
 | 本机默认的 Node 不一定是 `.node-version` 要求的版本                                                                                                                                         | `.node-version`                                                     | preflight 强制                                                                                                                        |
 
-**源码层线索。** 来自读码，**尚未运行复现**；复现成功才算已知缺陷，才进校准池。待验证状态记在 [待跟进事项](./follow-ups.md) 的「尚未验证」。
+**源码层线索。** 来自读码，**尚未运行复现**；复现成功才算已知缺陷，才进校准池。待验证状态记在 [待跟进事项](./follow-ups.md) 的「尚未验证」。D-18 之后，下列线索里涉及碎片与采集窗口的部分描述的是迁移前的旧实现，R1 之后重新核对。
 
 | #    | 线索                                                                                                                                                                                                                                                                                |
 | ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | L1   | `UPDATE_HIGHLIGHT` 处理器（`background-service/services/highlight/message-handles.ts`）读 `message.id`，而调用方（`entrypoints/content/highlight/service.ts` 的 `updateHighlightColor`）把 id 放在 `data.id`，处理器还忽略 `updateHighlight` 的返回值、恒回成功。右键改色后刷新丢失 |
-| L2   | `entrypoints/content/index.tsx` 的 `MIN_SELECTION_LENGTH` 让长度 ≤2 的选区不弹菜单，而 [examples.md](./v2/examples.md) 的三周走查要保存两字概念「幂等」「熔断」                                                                                                                     |
+| L2   | `entrypoints/content/index.tsx` 的 `MIN_SELECTION_LENGTH` 让长度 ≤2 的选区不弹菜单，而 [extension.md](./v2/extension.md) 写的是“选中文本后显示选区菜单”，没有长度限制，两字中文词（幂等、熔断）很常见                                                                               |
 | L3   | 引导里的「打开示例页面」是 `chrome-extension://<id>/sample.html`（`utils/extension-pages.ts`），内容脚本 `matches:['<all_urls>']` 通常不注入扩展页，首次使用的第一条 Fragment 可能产生不了。E2E 只断言了页面文字                                                                    |
 | L4   | Fragment 的 sourceUrl 取选区所在最近 article/section/li 里「第一个合适链接」，可能是作者页或外链；采集窗口只显示 host，不可编辑                                                                                                                                                     |
-| L7   | 业务 `onMessage` 要等 5 个服务初始化完才注册（只有 `PING` 同步注册），SW 冷启动后首条消息可能被 1s 退避，威胁 [extension.md](./v2/extension.md) §10 第 9 条的 150ms                                                                                                                 |
+| L7   | 业务 `onMessage` 要等 5 个服务初始化完才注册（只有 `PING` 同步注册），SW 冷启动后首条消息可能被 1s 退避，威胁 [extension.md](./v2/extension.md) §8 第 2 条的 150ms                                                                                                                  |
 | L8   | shadow root 没开 `isolateEvents`，在采集窗口或备注框里打字可能触发页面单键快捷键（X、YouTube、GitHub、Gmail）                                                                                                                                                                       |
 | 其余 | L5 超长内容到最终保存才报 raw code；L6 高亮 tooltip 文本混进后续 clip 和 fragment 的 content；L9 高亮锚点弱，只有 commonAncestor 选择器加文本，没有 SPA 路由处理；L10 `fragment-store` 升级没有 `oldVersion` 分支，下次升版会抛 ConstraintError（潜在缺陷，不是现有用户问题）       |
 
-**产品真源。** [extension.md](./v2/extension.md) §10（12 条验收，含 p95 保存 <300ms、选区到 Modal <150ms、英文界面无汉字）、[examples.md](./v2/examples.md)（场景 A/B/C）、[user-stories.md](./v2/user-stories.md)（US-CAP、US-DATA）、[roadmap.md](./v2/roadmap.md)（发布门禁与人工走查）。
+**产品真源。** [extension.md](./v2/extension.md) §8（11 条验收，含 p95 保存 <300ms、选区到菜单 <150ms、英文界面无汉字）、[examples.md](./v2/examples.md)（场景 A/B/C）、[user-stories.md](./v2/user-stories.md)（US-CAP、US-DATA）、[roadmap.md](./v2/roadmap.md)（发布门禁与人工走查）。
 
 ## 一、设计原则
 
@@ -77,7 +77,7 @@
 3. **Oracle 优先。** S0–S2 必须有机器可检的 oracle 和 docs 引文；纯启发式的发现封顶 S3，交人看。
 4. **黑盒加机制隔离。** Explorer 不读源码，只读 `docs/v2/` 和 README；隔离由 `qa` 入口强制，不靠提示词，也不靠某个厂商的权限系统。
 5. **可复现。** 步骤日志由 `qa` 入口写，不由模型写；可以不经 LLM 回放。
-6. **不替代真人。** agent 降缺陷噪声。产品价值假设（H-05、H-10）、真实键鼠、VoiceOver、亮暗外观仍要人。
+6. **不替代真人。** agent 降缺陷噪声。产品价值假设（H-04、H-16、H-17）、真实键鼠、VoiceOver、亮暗外观仍要人。
 7. **规范与运行时分离（可换模型）。** 规范层只用中性文字；工具层是普通 Node 命令，负责隔离与记录；只有适配层可以出现厂商名。模型能力用校准记分卡衡量，换模型就是改一个配置文件并重跑校准。
 
 ## 二、整体架构
@@ -141,7 +141,7 @@ charter ─► Explorer ─► finding[new] ─► Triager ─► Verifier（独
 
 - **可信输入。** CDP 鼠标键盘事件的 `isTrusted` 为 true。新增 `selectTextByMouse(page, phrase, mode)`（`drag`、`dblclick`、`triple`、`shift-arrow`、`shift-click`），取 Range 矩形再用 `page.mouse` 拖选。`selectText` 只用来准备状态，并注明是合成事件。
 - **真实页面形态。** 手写病态页面，按主机名 `context.route` 映射（`x.com` 命中平台规则，`blog.example.com` 走文章）。P3 再加约 10 页录制的 HAR（脚本生成、不入库、不含登录态，agent 不联网）。
-- **人物与游览。** P1 工程师、P2 PM、P3 研究员、只读过 README 的新手（人物见 [user-stories.md](./v2/user-stories.md)）。游览只留 money、back-alley、saboteur、all-nighter 四种，其余并入 charter 族。
+- **人物与游览。** P1 工程师、P2 PM、P3 研究员、只读过 README 的新手（人物见 [product.md §2.1](./v2/product.md)）。游览只留 money、back-alley、saboteur、all-nighter 四种，其余并入 charter 族。
 - **环境。** fresh、aged（预置 N 条数据）、upgraded（v1.0.3 在同一 `key` 下升级）三种 profile；CDP 真杀 SW；离线；配额；LLM stub。
 - **自动化的盲区**，写进 `qa/README.md` 的 L6 人工清单：Playwright 的 Chromium 没有 H.264/AAC、没有工具栏与 popup、没有更新权限流程、CJK 字体不同；调试器附着可能让 SW 不闲置终止，所以冷启动 bug 在自动化里可能测不到（S3 验证）。
 
@@ -150,12 +150,12 @@ charter ─► Explorer ─► finding[new] ─► Triager ─► Verifier（独
 | 硬 oracle（代码判定，结果是事实）                                                                                                                                       | 软 oracle（LLM 判断，封顶 S3，要 Verifier 和人）        |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
 | 页面、SW、内容脚本的 console error 与 pageerror（allowlist 逐条写理由，如已知噪声 `Unknown command: toggle-highlighter`）；`Extension context invalidated`；`PING` 健康 | HICCUPPS 启发：与规格、历史、同类产品、用户预期是否一致 |
-| 存储不变量：无重复、带图片的 Fragment 引用的资产都存在、`ann-clips` 一致                                                                                                | 视觉与文案：对齐、溢出、对比度、术语                    |
-| 宿主页完整性：关闭菜单与 Modal 后无 DOM 残留、无样式泄漏、页面单键快捷键仍可用                                                                                          | 新手 persona 的困惑点                                   |
-| i18n：英文界面无汉字；中文界面无 `Fragment`（实体名与 `media-clip` 除外）                                                                                               |                                                         |
+| 存储不变量：无重复、每条 screenshot 条目引用的图片都存在、没有孤儿资产、属性同名同类型                                                                                  | 视觉与文案：对齐、溢出、对比度、术语                    |
+| 宿主页完整性：关闭菜单、提示与气泡后无 DOM 残留、无样式泄漏、页面单键快捷键仍可用                                                                                       | 新手 persona 的困惑点                                   |
+| i18n：英文界面无汉字；中文界面无 `Entry`（数据实体名除外）                                                                                                              |                                                         |
 | 外联：CDP Network 记录扩展上下文的全部请求，只允许回环、语料主机、LLM stub                                                                                              |                                                         |
 | 密钥不出现在日志、存储转储、导出里                                                                                                                                      |                                                         |
-| 性能：页内观察器量「选区到 Modal」；扩展页里 `sendMessage(SAVE_FRAGMENT)` 往返量保存耗时；不改产品代码                                                                  |                                                         |
+| 性能：页内观察器量「选区到菜单」；扩展页里 `sendMessage(SAVE_FRAGMENT)` 往返量保存耗时；不改产品代码                                                                    |                                                         |
 
 ### 2.6 模型与运行时可替换
 
@@ -234,7 +234,7 @@ tour: money # money / back-alley / saboteur / all-nighter
 mission: 在文章页用鼠标选一段话并高亮，改成另一种颜色，刷新页面，核对高亮与颜色是否还在
 preconditions: { profile: fresh, locale: zh-CN, viewport: 1280x800, llm: off }
 pages: [article-basic]
-refs: { stories: [US-CAP-01], accept: ['extension.md §10-1'], lead: [L1] } # lead 只用于校准，不给 Explorer
+refs: { stories: [US-CAP-01], accept: ['extension.md §8-1'], lead: [L1] } # lead 只用于校准，不给 Explorer
 oracles: [console, storage-inv, host-integrity]
 requires: [] # 可选：vision、long-context
 budget: { minutes: 15, max_actions: 60, max_findings: 5 }
@@ -328,12 +328,12 @@ deterministic_pair: e2e/compat/highlight-persist.spec.ts # 对应的确定性用
 - 文案：中英术语对照 D-11；英文一律标「预览」，母语审校是 GA 项。
 - 交互：焦点顺序、Esc 语义、撤销、空状态与错误状态、`Fragment validation failed: CODE` 这类 raw code 的措辞。
 - 性能与稳健：宿主页零伤害、长页延迟。
-- 新手 persona：只给 README 和商店描述，量「到第一条 Fragment 的时间」和困惑点。它只能发现明显的摩擦，不能替代真人；主观改动（文案、视觉）要维护者批准，按主题合并成 PR。
+- 新手 persona：只给 README 和商店描述，量「到第一条条目的时间」和困惑点。它只能发现明显的摩擦，不能替代真人；主观改动（文案、视觉）要维护者批准，按主题合并成 PR。
 
 ### 3.5 校准与模型资格认定
 
 - **已知缺陷池**：L1–L10 先写成确定性的红复现，复现成功才入池；召回只按「已复现」的算。Explorer 的 charter 盲化，只写用户目标，不写根因。
-- **留出的注入故障**：6–8 个，存为 `qa/canaries/*.patch`，只在临时 worktree 应用（SAVE_CLIP 撤销、高亮恢复、`isTrusted` 校验、i18n key、保存 Fragment 时漏检图片资产、`aria-label`、校验器 off-by-one 等）。Explorer 读不到这个目录。
+- **留出的注入故障**：6–8 个，存为 `qa/canaries/*.patch`，只在临时 worktree 应用（SAVE_CLIP 撤销、高亮恢复、`isTrusted` 校验、i18n key、保存 screenshot 条目时漏检图片资产、`aria-label`、校验器 off-by-one 等）。Explorer 读不到这个目录。
 - **诱饵**：混入若干「按设计、不是缺陷」的行为，测误报拒绝能力。
 - **按角色的阈值**：Explorer 对已复现线索召回至少 60%，无 S0 漏报；Verifier 诱饵拒绝至少 80%，且没有误确认；Fixer 在 pinned 缺陷上不削弱测试，全部通过守卫；Reviewer 能挑出注入的坏 diff（加 skip、放宽超时、范围蔓延）。第一轮只校准 Explorer 和 Verifier，Fixer 用 L1 演练，Reviewer 留到 P3。
 - **指标**：召回、精确率、confirmed 占 reported 的比例、每条 confirmed 的成本（步数、时间、token）、发现曲线。
@@ -345,10 +345,10 @@ deterministic_pair: e2e/compat/highlight-persist.spec.ts # 对应的确定性用
 **Gate-V（私测，本轮目标）：**
 
 1. `npm run verify` 绿；全量 Playwright `--repeat-each=5 --retries=0` 在 macOS 和 CI（Ubuntu）各连续绿 1 轮；CI 启用 `--fail-on-flaky-tests`。
-2. [extension.md](./v2/extension.md) §10 的 12 条逐条有确定性用例并通过，或明确标为人工项；场景 A、B、C 自动化通过。
+2. [extension.md](./v2/extension.md) §8 的 11 条逐条有确定性用例并通过，或明确标为人工项；场景 A、B、C 自动化通过。
 3. P0 charter 全覆盖，满足 3.5 的停止规则；校准达标。
 4. 0 个未关闭的 S0/S1；S2 不超过 3 个，有绕过且维护者签字；所有 confirmed 都有 `e2e/regressions` 用例，或写明人工专属理由；所有 spec-gap 与 spec-conflict 已在 validation.md 登记并有结论。
-5. 性能：p95 保存 <300ms（不含 LLM）、选区到 Modal <150ms，在冷与热 SW、CPU 4 倍节流下测，达标；不达标要维护者签字改预算。
+5. 性能：p95 保存 <300ms（不含 LLM）、选区到菜单 <150ms，在冷与热 SW、CPU 4 倍节流下测，达标；不达标要维护者签字改预算。
 6. 隐私与权限：一次完整会话的外联审计只出现回环、语料、stub；密钥不进日志、存储转储、导出；构建后的 manifest 与 [extension-permissions.md](./extension-permissions.md) 一致。
 7. 生命周期：杀 SW 后的首个动作不丢数据；升级路径（v1.0.3 到当前，固定 `key`）已验证，或维护者确认不存在 v1.0.3 用户；打包 zip 在 Chrome for Testing 和品牌 Chrome（Load unpacked）冒烟通过。
 8. 人工项（[roadmap.md](./v2/roadmap.md) §4、§5）：VoiceOver、亮暗外观、首次使用的真机走查、真实快捷键与工具栏图标。v1.0.3 到 v2 的更新路径要人工核对：新增的 `downloads` 权限可能让 Chrome 先禁用扩展，unpacked 测不出这一点。
@@ -446,18 +446,18 @@ playwright.config.ts、package.json               [改]
 
 | id      | 目标                                                                                                                | 关联                                      |
 | ------- | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
-| CAP-02  | 用可信拖选保存两字中文概念（幂等、熔断）和长句概念，核对菜单、Modal、保存与库中结果                                 | US-CAP-03；L2                             |
-| CAP-07  | sourceUrl 正确性：文章、信息流（x.com 映射）、SPA、带 query 或 hash 的页面。先定义 oracle：canonical 或条目永久链接 | §10-1；L4                                 |
-| HL-02   | 高亮后右键改色，刷新页面后颜色与高亮是否保持                                                                        | US-CAP-01；L1                             |
-| SEL-01  | 选区方式矩阵（拖拽、双击、三击、Shift+方向键、跨块）对菜单出现与位置的影响                                          | L2；§9.1（键盘无菜单属规格缺口，登记 Q-） |
-| LIB-03  | 只读过 README 的新手：首装、引导卡、示例页、保存第一条、再次打开碎片库                                              | 首次使用路径；L3                          |
-| LIFE-01 | 杀 SW 后的首个用户动作：是否丢失，选区到 Modal 的延迟                                                               | §10-9；L7                                 |
+| CAP-02  | 用可信拖选剪藏两字中文词（幂等、熔断）和长句，核对菜单、保存与库中结果                                              | US-CAP-11；L2                             |
+| CAP-07  | sourceUrl 正确性：文章、信息流（x.com 映射）、SPA、带 query 或 hash 的页面。先定义 oracle：canonical 或条目永久链接 | §8-1；L4                                  |
+| HL-02   | 高亮后右键改色，刷新页面后颜色与高亮是否保持                                                                        | US-CAP-12；L1                             |
+| SEL-01  | 选区方式矩阵（拖拽、双击、三击、Shift+方向键、跨块）对菜单出现与位置的影响                                          | L2；§7.2（键盘无菜单属规格缺口，登记 Q-） |
+| LIB-03  | 只读过 README 的新手：首装、引导卡、示例页、保存第一条、再次打开资料库                                              | 首次使用路径；L3                          |
+| LIFE-01 | 杀 SW 后的首个用户动作：是否丢失，选区到菜单的延迟                                                                  | §8-2；L7                                  |
 | UPG-01  | v1.0.3 到当前（同一 `key`）：旧高亮与剪藏保留、权限差异、DB 升版（含模拟下一次升版）、已开标签                      | L10                                       |
-| HOST-01 | 在 Modal 或备注框打字时，页面单键快捷键是否被触发                                                                   | L8                                        |
-| I18N-01 | 中英文界面逐屏：英文无汉字，中文无 Fragment（契约名除外），含错误、toast、`aria-label`、`title`                     | §10-12                                    |
+| HOST-01 | 在备注框或属性输入框打字时，页面单键快捷键是否被触发                                                                | L8                                        |
+| I18N-01 | 中英文界面逐屏：英文无汉字，中文无 Entry（契约名除外），含错误、toast、`aria-label`、`title`                        | §8-10                                     |
 | SEC-01  | 提示注入金丝雀：页面文本、隐藏文本、alt、title、注释里的越权指令，agent 不得越权（harness 自检）                    | —                                         |
 
-**其余按族补齐，先标 `draft`：** capture（CAP，校验边界、七种 kind、关闭出口、保存失败、草稿恢复）、highlight（HL，往返恢复、SPA、tooltip 污染）、clip（撤销、重试不重复）、screenshot（SHOT，区域、元素、跨域图代取、转 visual、页面无法驱动截图）、library（LIB，ZIP 导出、搜索筛选）、lifecycle（LIFE，配额、多标签、扩展重载后的孤儿脚本、非幂等重试）、host（HOST，零伤害审计、严格 CSP、top-layer `dialog`、受限页）、quality（A11Y、PERF、PRIV、SEC-02）。依赖尚未建的语料页的 charter，在清单里标 `ready: false`，可移植性守卫允许这种状态，页面建好后改为 `true`。
+**其余按族补齐，先标 `draft`：** capture（CAP，校验边界、三种类型、保存失败、撤销）、highlight（HL，往返恢复、SPA、tooltip 污染）、clip（撤销、重试不重复）、screenshot（SHOT，区域、元素、跨域图代取、页面无法驱动截图）、library（LIB，ZIP 导出、搜索与属性筛选、属性页）、lifecycle（LIFE，配额、多标签、扩展重载后的孤儿脚本、非幂等重试）、host（HOST，零伤害审计、严格 CSP、top-layer `dialog`、受限页）、quality（A11Y、PERF、PRIV、SEC-02）。依赖尚未建的语料页的 charter，在清单里标 `ready: false`，可移植性守卫允许这种状态，页面建好后改为 `true`。
 
 **页面语料 15 个**（全部手写、公开只读，用 `context.route` 映射主机名；第一轮建前 7 个）。
 
