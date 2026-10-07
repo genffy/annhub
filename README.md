@@ -114,7 +114,12 @@ npm run verify                    # 格式、ESLint、类型、vitest、文档�
 npm run build && npx playwright test
 ```
 
-`npm run format` 一次修复格式。CI 跑同样的命令，外加 CodeQL 与依赖审查；细节与仓库设置见 [发布与供应链](./docs/releasing.md)。
+`npm run format` 一次修复格式。CI（`.github/workflows/`）跑同样的命令，外加 CodeQL、依赖审查和工作流检查；合并门禁是 `ci-pass` 加上 `.github/rulesets/main.json` 里列出的检查。
+
+### 发布与仓库设置
+
+- 发布：给提交打标签 `v<package.json 的 version>`。`release.yml` 先跑完整门禁，再构建、核对清单版本与标签一致、生成构建来源证明并创建 GitHub Release；上传到商店是手工步骤，素材与披露要求见 [权限与数据边界](./docs/v2/permissions.md)。
+- 仓库管理员的一次性设置，工作流文件替代不了：导入 `.github/rulesets/main.json`（Settings → Rules → Rulesets → Import；导入前先让必需检查在一个 PR 上各跑一次，否则 GitHub 找不到检查名）；Actions 里把默认令牌设为只读、要求 action 固定到完整 commit SHA、fork PR 的工作流需要批准；Code security 里开启 secret scanning 与 push protection、Dependabot alerts 与 security updates、private vulnerability reporting。
 
 ## 数据原则
 
@@ -132,7 +137,7 @@ npm run build && npx playwright test
 - [验证计划与决策登记](./docs/v2/validation.md)
 - [截图采集设计](./docs/v2/screenshot.md)
 - [UX/UI 设计稿](./docs/design/v2/README.md)
-- [发布与供应链](./docs/releasing.md)、[扩展权限说明](./docs/extension-permissions.md)、[安全策略](./SECURITY.md)
+- [权限与数据边界](./docs/v2/permissions.md)、[安全策略](./SECURITY.md)
 
 ## License
 

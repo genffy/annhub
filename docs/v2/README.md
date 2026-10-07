@@ -31,12 +31,12 @@ AnnHub 是一个本地优先的浏览器扩展：把网页中值得留下的内�
 
 ## 2. 阅读路径
 
-| 你是                      | 按顺序读                                                                                                                         |
-| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 第一次了解产品（15 分钟） | 本页 → [product](product.md) → [examples §2](examples.md) → [roadmap §2](roadmap.md)                                             |
-| 做界面与文案              | [entry](entry.md) → [extension](extension.md) → [visual](visual.md) → [examples](examples.md) → [设计稿](../design/v2/README.md) |
-| 做实现                    | [entry](entry.md) → [storage](storage.md) → [capture](capture.md) / [screenshot](screenshot.md) → [search](search.md)            |
-| 做验收与增长              | [user-stories](user-stories.md) → [metrics](metrics.md) → [validation](validation.md) → [website](website.md)                    |
+| 你是                      | 按顺序读                                                                                                                                              |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 第一次了解产品（15 分钟） | 本页 → [product](product.md) → [examples §2](examples.md) → [roadmap §2](roadmap.md)                                                                  |
+| 做界面与文案              | [entry](entry.md) → [extension](extension.md) → [visual](visual.md) → [examples](examples.md) → [设计稿](../design/v2/README.md)                      |
+| 做实现                    | [entry](entry.md) → [storage](storage.md) → [capture](capture.md) / [screenshot](screenshot.md) → [search](search.md) → [permissions](permissions.md) |
+| 做验收与增长              | [user-stories](user-stories.md) → [metrics](metrics.md) → [validation](validation.md) → [website](website.md)                                         |
 
 ## 3. 文档地图与唯一真源
 
@@ -53,15 +53,16 @@ AnnHub 是一个本地优先的浏览器扩展：把网页中值得留下的内�
 
 ### 第二层：定规格
 
-| 需要回答的问题                                    | 唯一真源                       |
-| ------------------------------------------------- | ------------------------------ |
-| 条目字段、类型、属性与校验                        | [entry.md](entry.md)           |
-| 剪藏、截图怎样采集；来源与语境；内容转换          | [capture.md](capture.md)       |
-| 区域/元素截图、匿名与入库                         | [screenshot.md](screenshot.md) |
-| IndexedDB、图片资产、删除清理和 Markdown ZIP 导出 | [storage.md](storage.md)       |
-| 搜索、筛选、排序与分页                            | [search.md](search.md)         |
-| 扩展的页面体验与布局                              | [extension.md](extension.md)   |
-| 品牌色、外观与版式原则                            | [visual.md](visual.md)         |
+| 需要回答的问题                                    | 唯一真源                         |
+| ------------------------------------------------- | -------------------------------- |
+| 条目字段、类型、属性与校验                        | [entry.md](entry.md)             |
+| 剪藏、截图怎样采集；来源与语境；内容转换          | [capture.md](capture.md)         |
+| 区域/元素截图、匿名与入库                         | [screenshot.md](screenshot.md)   |
+| IndexedDB、图片资产、删除清理和 Markdown ZIP 导出 | [storage.md](storage.md)         |
+| 申请哪些权限、用户的数据会不会离开浏览器          | [permissions.md](permissions.md) |
+| 搜索、筛选、排序与分页                            | [search.md](search.md)           |
+| 扩展的页面体验与布局                              | [extension.md](extension.md)     |
+| 品牌色、外观与版式原则                            | [visual.md](visual.md)           |
 
 ### 第三层：验证与对外
 

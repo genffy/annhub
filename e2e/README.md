@@ -7,7 +7,7 @@ npm run build
 npx playwright test e2e/screenshot-capture.spec.ts
 ```
 
-`e2e/store-assets.spec.ts` 默认跳过，只在 `npm run store:assets` 时截取商店素材（见 [发布与供应链](../docs/releasing.md)）。
+`e2e/store-assets.spec.ts` 默认跳过，只在 `npm run store:assets` 时按界面语言各截一套商店素材，写入不入库的 `store-assets/zh/` 与 `store-assets/en/`（尺寸见该文件头部注释；规则见 [权限与数据边界 §6](../docs/v2/permissions.md)）。
 
 `e2e/global-setup.ts` 在 `.output/chrome-mv3` 已存在时不会自动重建。源码有变化时，必须先手动构建。fixture 服务器由 Playwright 配置启动，不需要为自动化测试另开服务。
 

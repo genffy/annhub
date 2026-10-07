@@ -10,3 +10,4 @@
 - 截图用例用 `helpers.ts` 的 `triggerScreenshot`：它经 service worker 给标签页发 `TRIGGER_SCREENSHOT`，和快捷键同一条路。不要在页面里派发 `CustomEvent` 来触发；页面脚本能做的事不能被扩展当成用户的操作，`screenshot-capture.spec.ts` 的 “a page cannot start a capture…” 守着这条边界。
 - 用 fixture 验证浏览器可观察行为和持久化结果。高亮、采集、截图或消息协议变化时选择相应调用链测试；断线、重启、失败和取消属于相关流程的必要边界。
 - 需要用 chrome-devtools-mcp 手工安装或重载扩展时，先读 [README.md](README.md) 的环境限制与安装步骤。不要用自动化命令误杀日常 Chrome。
+- 已知问题：`test-server.ts`（Playwright 的 `webServer` 和手工跑 E2E 都会启动它）监听所有网卡，而且在 `e2e/` 里找不到文件时回落到仓库根目录。路径穿越已经挡住，没挡住的是绑定范围和静态根：跑 E2E 期间，同一局域网里的机器能读到仓库根目录下的任何文件，包括 `.env.local` 和 `.git/config`。修法很小：绑 `127.0.0.1`，只服务 `e2e/` 与明确列出的资源目录，并补 403/404 用例；动手前先 `git grep` 确认 e2e 页面不依赖仓库根资源。
