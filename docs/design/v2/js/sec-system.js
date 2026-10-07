@@ -34,16 +34,19 @@ function secSystem() {
     ),
   )
 
-  const typeRows = TYPE_ORDER.map(t => `<tr><td>${tchip(t, { en: false })}</td><td>${ttile(t)}</td><td class="mono t-xs muted">--t-${t}</td><td>${TYPES[t].tip}</td><td class="mono t-xs muted">${TYPES[t].icon}</td></tr>`).join('')
+  const typeRows =
+    TYPE_ORDER.map(t => `<tr><td>${tchip(t, { en: false })}</td><td>${ttile(t)}</td><td class="mono t-xs muted">--t-${t}</td><td>${TYPES[t].tip}</td><td class="mono t-xs muted">${TYPES[t].icon}</td></tr>`).join('') +
+    `<tr><td><span class="tchip t-highlight">${I(HLV.icon)}${HLV.zh}</span></td><td><span class="ttile t-highlight">${I(HLV.icon)}</span></td><td class="mono t-xs muted">--t-highlight</td><td>${HLV.tip}（不是条目类型）</td><td class="mono t-xs muted">${HLV.icon}</td></tr>`
   const types = group(
-    { id: 'ds-type-code', title: '条目类型编码', small: 'visual §3', desc: '三种类型是产品里出现频率最高的标识。每种都用<b>图标 + 文字 + 颜色</b>三重编码，颜色只是辅助；芯片底色与文字色由同一个 --t 混合得出，亮暗两套自动适配。' },
+    { id: 'ds-type-code', title: '条目类型与高亮的编码', small: 'visual §3', desc: '两种条目类型（剪藏、截图）和库里的高亮是产品里出现频率最高的标识。每种都用<b>图标 + 文字 + 颜色</b>三重编码，颜色只是辅助；芯片底色与文字色由同一个 --t 混合得出，亮暗两套自动适配。高亮不是条目类型，它只在导航、入口和阅读视图里出现。' },
     row(
       specGroup('芯片 · 图块', 'tchip（22px）用于列表和详情，ttile（32px）用于列表行左侧与导航。', `<table class="sp-table"><thead><tr><th>类型</th><th>图块</th><th>令牌</th><th>一句话</th><th>图标</th></tr></thead><tbody>${typeRows}</tbody></table>`),
       specGroup('出现的位置', '导航、列表行、详情、弹窗、页面里的选区菜单，类型出现的任何地方都同时有图标和文字。', `<div class="vs g16">
-        <div><div class="t-xs muted" style="margin-bottom:6px">列表芯片 · 小号 / 标准</div><div class="hs g8 wrap">${TYPE_ORDER.map(t => tchip(t, { sm: true })).join('')}${TYPE_ORDER.map(t => tchip(t)).join('')}</div></div>
+        <div><div class="t-xs muted" style="margin-bottom:6px">列表芯片 · 小号 / 标准</div><div class="hs g8 wrap">${TYPE_ORDER.map(t => tchip(t, { sm: true })).join('')}${TYPE_ORDER.map(t => tchip(t)).join('')}<span class="tchip t-highlight">${I(HLV.icon)}${HLV.zh}</span></div></div>
         <div><div class="t-xs muted" style="margin-bottom:6px">导航项里的类型图标</div><div class="app" style="height:auto;display:block;background:transparent;width:200px"><div class="nav" style="border:1px solid var(--line);border-radius:10px;padding:8px">${NAV.slice(1).map(it => navItem(it, 'highlight', 'zh')).join('')}</div></div></div>
-        <div><div class="t-xs muted" style="margin-bottom:6px">高亮调色板（color 属性）</div><div class="hs g10">${HL_COLORS.map((c, i) => `<span class="hs g6">${hlDot(c, i === 0)}<span class="t-xs muted">${c}</span></span>`).join('')}</div></div>
-        <div class="banner info">${I('eye')}<div>色盲友好：去掉颜色后仍可凭图标与文字区分三种类型；色相不单独承担含义，也不大面积铺底。</div></div></div>`),
+        <div><div class="t-xs muted" style="margin-bottom:6px">高亮调色板（五色，每个色点都有文字名称）</div><div class="hs g10 wrap">${HL_COLORS.map((c, i) => `<span class="hs g6">${hlDot(c, i === 0)}<span class="t-xs muted">${HL_NAMES[c]}</span></span>`).join('')}</div></div>
+        <div><div class="t-xs muted" style="margin-bottom:6px">正文里的高亮：底色 + 下划线，有备注的带小点</div><div class="md md-sm" style="max-width:360px">${mdRender('黄色、绿色、蓝色、粉色、紫色。', [0, 1, 2, 3, 4].map(i => { const w = ['黄色', '绿色', '蓝色', '粉色', '紫色'][i]; const s = '黄色、绿色、蓝色、粉色、紫色。'.indexOf(w); return { id: 'x' + i, s, e: s + 2, c: HL_COLORS[i], note: i === 0 ? 'n' : '' } }))}</div></div>
+        <div class="banner info">${I('eye')}<div>色盲友好：去掉颜色后仍可凭图标与文字区分类型；高亮在底色之外还有下划线；色相不单独承担含义，也不大面积铺底。</div></div></div>`),
     ),
   )
 
@@ -75,6 +78,7 @@ function secSystem() {
       <tr><td>导航宽度</td><td class="mono">232 / 60</td><td>展开 232px，图标栏 60px；折叠后图标有文字提示，当前视图仍有底色与竖条</td></tr>
       <tr><td>内容区</td><td>自适应 · 列表最大行宽 960</td><td>页头左右 32（窄窗口 20）、上 22；列表类视图限制最大行宽，画廊与属性表占满</td></tr>
       <tr><td>详情抽屉</td><td class="mono">440</td><td>覆盖在内容之上，Esc 或点击遮罩关闭；窄窗口里占满内容区</td></tr>
+      <tr><td>阅读视图</td><td class="mono">正文最大 700 · 右栏 320</td><td>正文居中，右栏是“高亮 / 属性”两个标签，与抽屉共用属性面板；窄窗口里右栏收到正文下方（extension §4.2），本稿没有单独画这一态</td></tr>
       <tr><td>断点</td><td class="mono">1100 · 720</td><td>≥ 1100 展开；720–1099 默认展开、可手动折叠；&lt; 720 默认折叠为图标栏。任何宽度都不换成顶部导航</td></tr>
       <tr><td>控件高度</td><td class="mono">导航项 34 · 属性行 34 · 按钮 32 · 搜索 36</td><td>可点击区域不低于 28px；主要按钮 32–36px</td></tr>
       <tr><td>弹窗</td><td class="mono">520 × 340 · 图标栏 52</td><td>同一套壳的紧凑版，右侧只列最近 5 条</td></tr>
@@ -121,11 +125,11 @@ function secSystem() {
         <div class="hs g8"><div class="search" style="height:32px">${I('search')}<span>搜索条目…</span><span class="grow"></span><kbd>/</kbd></div></div>
         <div class="hs g6 wrap">${keys('/')}<span class="t-xs muted">聚焦搜索</span>${keys('Esc')}<span class="t-xs muted">关闭抽屉</span></div></div>
       <div class="vs g12"><div class="mh">条目与属性</div>
-        <div class="hs g6 wrap">${TYPE_ORDER.map(t => tchip(t)).join('')}</div>
+        <div class="hs g6 wrap">${TYPE_ORDER.map(t => tchip(t)).join('')}<span class="hlc">${I('highlighter', 'i-sm')}3 高亮</span></div>
         <div class="hs g6 wrap">${tags(['retry', 'reliability'])}<span class="ppill">${I('text')}<span>project</span><b>支付重试</b></span><span class="ppill">${I('square-check')}<span>reviewed</span></span></div>
         <div class="vs g2">${propRow('project', 'text', '支付重试')}${propRow('tags', 'list', vtag('retry') + vtag('streams'), { hov: true })}${propRow('source', 'text', '<span class="c-brand">engineering.example.com</span>', { ro: true })}</div></div>
       <div class="vs g10"><div class="mh">反馈</div>
-        ${banner('info', '<b>信息</b>：属性名称与类型全局绑定。')}${banner('ok', '<b>已保存</b>：128 条条目。')}${banner('warn', '<b>部分导出</b>：2 张图片缺失。')}${banner('danger', '<b>失败</b>：没有保存成功，输入都还在。', { action: btn('重试', { sm: true }) })}
+        ${banner('info', '<b>信息</b>：属性名称与类型全局绑定。')}${banner('ok', '<b>已保存</b>：95 条条目。')}${banner('warn', '<b>部分导出</b>：2 张图片缺失。')}${banner('danger', '<b>失败</b>：没有保存成功，输入都还在。', { action: btn('重试', { sm: true }) })}
         <div class="hs g10 top">${clipToast({ p: 44 })}</div>
         <div class="hs g10" style="margin-top:6px">${tipBubble('剪藏', '保存原文和语境，之后查阅', 'position:static;flex:none')}<div class="menu" style="min-width:130px;flex:none">${menuItem('arrow-up-right', '回到来源', { on: true })}${menuItem('trash', '删除', { danger: true })}</div></div></div>
     </div>`,
@@ -140,11 +144,12 @@ function secSystem() {
     body: `<div style="padding:26px 28px 28px;display:grid;grid-template-columns:repeat(3,1fr);gap:26px">
       <div class="vs g12"><b class="t-lg">1 · 来源始终可见</b><div class="help" style="margin-top:-6px">任何一条内容都能回答“这是从哪来的、怎么回去”。</div>
         <div class="list">${entryRow(ENTRIES0[0])}</div>
-        ${banner('info', '原页面已变化，没能定位到原位置；<b>原文和语境仍在这里</b>，可以继续阅读和整理。', { icon: 'unplug' })}</div>
+        ${banner('info', '原页面可能已经变化；<b>原文和语境都存在这里</b>，可以继续阅读、高亮和整理。', { icon: 'unplug' })}</div>
       <div class="vs g12"><b class="t-lg">2 · 状态不只靠颜色</b><div class="help" style="margin-top:-6px">每个状态至少有两种线索：图标 / 文字 / 形状之一加颜色。</div>
         <table class="sp-table" style="font-size:12.5px"><tbody>
-          <tr><td>当前视图</td><td><span class="nav-i on" style="width:150px;height:30px">${I('library')}<span>全部</span><span class="n">128</span></span></td></tr>
-          <tr><td>类型</td><td>${tchip('highlight')}</td></tr>
+          <tr><td>当前视图</td><td><span class="nav-i on" style="width:150px;height:30px">${I('library')}<span>全部</span><span class="n">95</span></span></td></tr>
+          <tr><td>类型</td><td>${tchip('clip')}</td></tr>
+          <tr><td>高亮</td><td><span class="md md-sm">${mdRender('底色加下划线。', [{ id: 'g', s: 0, e: 6, c: 'yellow', note: '' }])}</span></td></tr>
           <tr><td>使用中，不可删</td><td><span class="hs g8 muted">${I('trash')}${I('lock', 'i-sm')} project · 使用 6 条</span></td></tr>
           <tr><td>保存失败</td><td>${chip('没有保存成功', { icon: 'circle-x', v: 'danger' })}</td></tr>
           <tr><td>部分导出</td><td>${chip('部分导出 · 缺 2 张图', { icon: 'triangle-alert', v: 'warn' })}</td></tr></tbody></table></div>
@@ -158,6 +163,7 @@ function secSystem() {
 
   const iconRows = [
     ...TYPE_ORDER.map(t => [TYPES[t].zh, TYPES[t].icon, '条目类型（选区菜单）']),
+    [HLV.zh, HLV.icon, '入口与导航（不是条目类型）'], ['阅读', 'book-open', '操作'],
     ['资料库', 'library', '导航'], ['属性', 'tags', '导航'], ['设置', 'settings', '导航'], ['折叠导航', 'panel-left-close', '导航'],
     ...PTYPE_ORDER.map(t => [PTYPES[t].zh, PTYPES[t].icon, '属性类型']),
     ['导出', 'download', '操作'], ['删除', 'trash', '操作'], ['回到来源', 'arrow-up-right', '操作'], ['搜索', 'search', '操作'], ['备注', 'message-square-text', '内容'], ['原文', 'quote', '内容'],
@@ -168,7 +174,7 @@ function secSystem() {
     ref: 'extension §2.1',
     w: 1536,
     body: `<div style="padding:24px 28px 28px"><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px 28px">${iconRows.map(([n, l, u]) => `<div class="hs g10" style="padding:8px 0;border-bottom:1px solid var(--line)"><span class="ttl-i" style="width:30px;height:30px;border-radius:8px;display:grid;place-items:center;background:var(--surface-2);color:var(--fg-2);flex:none">${I(l)}</span><div class="grow" style="min-width:0"><div class="b t-md">${n}</div><div class="mono t-xs muted truncate">${l}</div></div><span class="t-xs muted-2 none">${u}</span></div>`).join('')}</div></div>`,
-    notes: ['扩展使用 lucide（仓库已有依赖），docs/extension.md 明确指定了选区菜单的 bookmark / highlighter / scan；属性类型图标参照 Obsidian Properties 的习惯（文本 / 列表 / 数字 / 复选框 / 日期 / 日期时间）。'],
+    notes: ['扩展使用 lucide（仓库已有依赖），docs/extension.md 指定了选区菜单的 bookmark / scan，高亮的入口与导航用 highlighter；属性类型图标参照 Obsidian Properties 的习惯（文本 / 列表 / 数字 / 复选框 / 日期 / 日期时间）。'],
   })
 
   const a11y = board({
@@ -178,14 +184,14 @@ function secSystem() {
     body: `<div style="padding:24px 28px 28px;display:grid;grid-template-columns:repeat(4,1fr);gap:24px" class="ui">
       <div class="vs g8"><b>动效</b><table class="sp-table" style="font-size:12.5px"><tbody>
         <tr><td>剪藏提示</td><td>约 3 秒，细条表示剩余时间</td></tr><tr><td>悬停提示</td><td>延迟约 300ms，淡入 120ms</td></tr><tr><td>详情抽屉</td><td>从右滑入 160ms；Esc 关闭</td></tr><tr><td>减少动态</td><td>全部降级为瞬时切换</td></tr></tbody></table></div>
-      <div class="vs g8"><b>焦点与键盘</b><ul class="t-sm" style="margin:0;padding-left:18px;line-height:1.75;color:var(--fg-2)"><li>选区菜单可用 Tab / ← → / Enter，不抢页面焦点</li><li>资料库按 / 聚焦搜索；导航可用 ↑ ↓ 切换</li><li>抽屉打开时焦点进入并被限制在其中，关闭后回到触发位置</li><li>Esc 依次关闭气泡、抽屉、菜单</li></ul></div>
-      <div class="vs g8"><b>读屏与语义</b><ul class="t-sm" style="margin:0;padding-left:18px;line-height:1.75;color:var(--fg-2)"><li>导航是 <code>nav</code> 地标，当前视图 <code>aria-current</code>；折叠为图标栏后仍有可读名称</li><li>每一行读出：类型、标题、来源、时间</li><li>图标按钮一律有 aria-label；颜色色块有文字名称</li></ul></div>
+      <div class="vs g8"><b>焦点与键盘</b><ul class="t-sm" style="margin:0;padding-left:18px;line-height:1.75;color:var(--fg-2)"><li>选区菜单可用 Tab / ← → / Enter，不抢页面焦点</li><li>资料库按 / 聚焦搜索；导航可用 ↑ ↓ 切换；阅读视图里选中文字按 H 高亮</li><li>抽屉打开时焦点进入并被限制在其中，关闭后回到触发位置</li><li>Esc 依次关闭气泡、抽屉、菜单</li></ul></div>
+      <div class="vs g8"><b>读屏与语义</b><ul class="t-sm" style="margin:0;padding-left:18px;line-height:1.75;color:var(--fg-2)"><li>导航是 <code>nav</code> 地标，当前视图 <code>aria-current</code>；折叠为图标栏后仍有可读名称</li><li>每一行读出：类型、标题、来源、时间</li><li>图标按钮一律有 aria-label；颜色色块有文字名称；正文里的高亮读作“高亮，颜色名”</li></ul></div>
       <div class="vs g8"><b>对比度与尺寸</b><ul class="t-sm" style="margin:0;padding-left:18px;line-height:1.75;color:var(--fg-2)"><li>正文与控件文字对背景 ≥ 4.5:1（亮 / 暗两套都校验，见下方实测表）</li><li>状态传达至少两种线索，不只靠颜色</li><li>可点击区域 ≥ 28px 高；主要按钮 32–36px</li><li>文字可随系统字号放大，布局不依赖固定字数</li></ul></div>
     </div>`,
     notes: ['这些数值是本稿的建议起点，落地后在首次使用走查（E-03）里验证；与 extension §7 的验收条款一致。'],
   })
 
-  const contrast = `<div class="sp-card ui" style="margin-top:22px"><h5>实测对比度（本页实时计算）</h5><p>按当前主题，对三种类型芯片和当前导航项计算 WCAG 对比度；低于 4.5:1 的会标红。切换页眉的亮 / 暗主题后会重新计算。</p><div id="contrast-table"></div></div>`
+  const contrast = `<div class="sp-card ui" style="margin-top:22px"><h5>实测对比度（本页实时计算）</h5><p>按当前主题，对两种类型芯片、高亮芯片、五色高亮里的正文和当前导航项计算 WCAG 对比度；低于 4.5:1 的会标红。切换页眉的亮 / 暗主题后会重新计算。</p><div id="contrast-table"></div></div>`
 
   return section(
     {
@@ -255,6 +261,11 @@ function fillSystemRuntime() {
     wrap.remove()
     return `<tr><td>${label}</td><td class="mono t-xs">${hex(fg)} on ${hex(mix)}</td><td class="tnum b ${r < 4.5 ? 'c-danger' : 'c-ok'}">${r.toFixed(2)} : 1</td><td>${r < 4.5 ? '低于 4.5:1，需要调整' : '达标'}</td></tr>`
   }
-  const rows = [...TYPE_ORDER.map(t => probeRow(tchip(t), `tchip t-${t}`, surf)), probeRow('<span class="nav-i on" style="width:auto">当前导航项</span>', 'nav-i on', side)]
+  const rows = [
+    ...TYPE_ORDER.map(t => probeRow(tchip(t), `tchip t-${t}`, surf)),
+    probeRow(`<span class="tchip t-highlight">${I(HLV.icon)}${HLV.zh}</span>`, 'tchip t-highlight', surf),
+    ...HL_COLORS.map(c => probeRow(`<span class="md md-sm"><mark class="hlm c-${c}">正文里的高亮 · ${HL_NAMES[c]}</mark></span>`, `hlm c-${c}`, surf)),
+    probeRow('<span class="nav-i on" style="width:auto">当前导航项</span>', 'nav-i on', side),
+  ]
   host.innerHTML = `<table class="sp-table" style="font-size:12.5px"><thead><tr><th>元素</th><th>文字色 / 底色</th><th>对比度</th><th>结论</th></tr></thead><tbody>${rows.join('')}</tbody></table>`
 }

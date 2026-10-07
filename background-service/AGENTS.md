@@ -1,9 +1,9 @@
 # Background Service 约定
 
 > 适用于当前 `background-service/` 实现；不是未来 monorepo 的目标划分。全局规则见根目录 `AGENTS.md`。
-> 更新：2026-10-07。
+> 更新：2026-10-08。
 
-> D-18（2026-10-07）起，Fragment 与 LLM 不再属于产品范围，高亮、剪藏、截图并入统一的条目，目标契约见 [条目数据契约](../docs/v2/entry.md) 与 [存储契约](../docs/v2/storage.md)。下文 `services/fragment/` 与 `services/llm/` 是迁移前的旧实现，按路线图 R1 移除；移除前只为修缺陷改动，不在它们上面加新功能。
+> D-18（2026-10-07）起，Fragment 与 LLM 不再属于产品范围，剪藏与截图并入统一的条目，D-19（2026-10-08）又让高亮成为剪藏里的标注（不再是条目类型），目标契约见 [条目数据契约](../docs/v2/entry.md) 与 [存储契约](../docs/v2/storage.md)。下文 `services/fragment/` 与 `services/llm/` 是迁移前的旧实现，按路线图 R1 移除；移除前只为修缺陷改动，不在它们上面加新功能。
 
 ## 服务边界
 

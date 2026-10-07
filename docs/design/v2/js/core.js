@@ -1,7 +1,7 @@
 // 设计画布的骨架：章节 / 分组 / 画板的生成，自适应缩放，主题与标注开关，灯箱。
 const DOC_BASE = '../../v2/'
 
-// 'extension §4.1 · kinds §4' → 指向 docs/v2 对应文件的链接
+// 'extension §4.1 · entry §4' → 指向 docs/v2 对应文件的链接
 const docRef = s =>
   s
     .split(' · ')
@@ -19,7 +19,7 @@ let boardSeq = 0
 // h 省略时按内容高度自适应
 const board = o => {
   const id = o.id || `b${++boardSeq}`
-  const tagHtml = [o.tag && `<span class="cv-tag">${o.tag}</span>`, o.proposal && `<span class="cv-tag is-proposal">提案 · 文档未定义</span>`, o.live && `<span class="cv-tag is-live">可交互</span>`]
+  const tagHtml = [o.tag && `<span class="cv-tag">${o.tag}</span>`, o.proposal && `<span class="cv-tag is-proposal">提案 · ${o.proposal === true ? '文档未定义' : `${o.proposal}（待确认）`}</span>`, o.live && `<span class="cv-tag is-live">可交互</span>`]
     .filter(Boolean)
     .join('')
   const notes = o.notes && o.notes.length ? `<ol class="cv-notes">${o.notes.map(n => `<li>${n}</li>`).join('')}</ol>` : ''

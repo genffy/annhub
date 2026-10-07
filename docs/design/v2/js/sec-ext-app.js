@@ -3,7 +3,7 @@
 
 const listHead = (title, sub, o = {}) => pageHead({ title, sub, right: searchBox({ q: o.q, focus: o.focus, pin: o.pinSearch }), pin: 0 })
 
-// ── 资料库：全部 / 高亮 / 截图 ──────────────────────────────────────────────
+// ── 资料库：全部 / 剪藏 / 高亮 / 截图 ──────────────────────────────────────────────
 function extAppGroup() {
   const all = board({
     title: '全部 · 统一列表与筛选',
@@ -14,9 +14,9 @@ function extAppGroup() {
       shell({
         active: 'all',
         pins: { nav: 1, foot: 5 },
-        main: `${pageHead({ title: '全部', sub: '128 条 · 71 剪藏 · 33 高亮 · 24 截图', right: searchBox({ pin: 2 }) })}
+        main: `${pageHead({ title: '全部', sub: '95 条 · 71 剪藏 · 24 截图', right: searchBox({ pin: 2 }) })}
           <div class="pbody cap">
-            ${fbar({ pin: 3 })}
+            ${fbar({ pin: 3, count: '共 95 条' })}
             ${entryList(['e1', 'e2', 'e3', 'e4', 'e5', 'e6'], { hov: 'e2', pinId: 'e1', pinN: 4 })}
           </div>`,
       }),
@@ -24,9 +24,9 @@ function extAppGroup() {
     ),
     notes: [
       '<b>所有扩展页面都是“左侧导航 + 右侧内容”</b>：资料库的各个视图、属性页、设置页和弹窗共用同一套壳，导航的位置与顺序在所有页面里一致。当前视图用<b>底色、加粗和左侧竖条</b>标出，不只靠颜色（<code>aria-current="page"</code>）。',
-      '搜索在页头右侧，按 <kbd>/</kbd> 聚焦；覆盖原文、语境、备注、来源和文本 / 列表属性（search §1），空查询只执行筛选。',
-      '筛选条：类型（<b>只在“全部”里有</b>）、来源、标签、时间、属性。同维度 OR、跨维度 AND；条件写入 URL，刷新后恢复。',
-      '每一行都带<b>类型图标 + 文字</b>、原文摘要、页面标题、来源主机、相对时间、标签，以及自定义属性的小标签（如 <code>project</code>）。列表类视图限制最大行宽以保证可读。“剪藏”视图与它同构，只是按 <code>type</code> 过滤，筛选条里没有“类型”。',
+      '搜索在页头右侧，按 <kbd>/</kbd> 聚焦；覆盖正文、语境、备注、高亮的引文与备注、来源和文本 / 列表属性（search §1），空查询只执行筛选。',
+      '筛选条：类型（剪藏 / 截图，<b>只在“全部”里有</b>）、来源、标签、时间、属性。同维度 OR、跨维度 AND；条件写入 URL，刷新后恢复。',
+      '每一行都带<b>类型图标 + 文字</b>、正文摘要（Markdown 去掉语法后的文字）、页面标题、来源主机、相对时间、标签，以及自定义属性的小标签（如 <code>project</code>）；<b>有高亮的剪藏多一枚“N 高亮”</b>。“剪藏”视图与它同构，只是按 <code>type</code> 过滤，筛选条里没有“类型”。',
       '导航底部放<b>导出内容</b>（唯一的导出入口）、存储用量和截图快捷键提示；设置只通过导航进入，不在别处重复。',
     ],
   })
@@ -39,10 +39,10 @@ function extAppGroup() {
     body: appInTab(
       shell({
         active: 'all',
-        main: `${pageHead({ title: '全部', sub: '筛选后 2 条', right: searchBox({ q: '幂等键' }) })}
+        main: `${pageHead({ title: '全部', sub: '筛选后 2 条', right: searchBox({ q: '重试' }) })}
           <div class="pbody cap">
             <div style="position:relative">
-              ${fbar({ active: [{ icon: 'layout-grid', label: '类型：高亮' }, { icon: 'sliders-horizontal', label: 'project 等于 支付重试' }], count: '2 条' })}
+              ${fbar({ active: [{ icon: 'layout-grid', label: '类型：剪藏' }, { icon: 'sliders-horizontal', label: 'project 等于 支付重试' }], count: '2 条' })}
               <div class="pcombo" style="position:absolute;left:340px;top:36px;width:340px;z-index:6">${pin(1, 'pin-in')}
                 <div class="hs g8" style="padding:4px 4px 8px"><span class="ptype on" style="flex:1">${pticon('text')}project</span><span class="chip">${PTYPES.text.zh}</span></div>
                 <div class="hs g8" style="padding:0 4px 6px"><span class="select" style="min-height:30px;width:112px;font-size:12.5px">等于${I('chevron-down', 'i-sm muted')}</span><div class="input is-focus" style="min-height:30px;flex:1;font-size:12.5px">支付重试<i class="caret"></i></div></div>
@@ -50,7 +50,7 @@ function extAppGroup() {
               </div>
             </div>
             <div style="height:128px"></div>
-            ${entryList(['e2', 'e13'], { pinId: 'e2', pinN: 3 })}
+            ${entryList(['e2', 'e4'], { pinId: 'e2', pinN: 3 })}
           </div>`,
       }),
       { active: 'all', h: 640 },
@@ -58,31 +58,31 @@ function extAppGroup() {
     notes: [
       '“属性”筛选先从注册表里选一个属性，<b>运算符由它的类型决定</b>；多个属性条件之间取 AND，已生效的条件显示为高亮芯片，可逐个移除。',
       '运算符按类型给出：文本包含 / 等于；列表含有某一项；数字等于 / 大于 / 小于 / 区间；复选框是 / 否；日期与日期时间区间（search §3）。',
-      '搜索词与筛选条件取 AND：这里先搜“幂等键”再按类型与 <code>project</code> 缩小，结果 2 条；筛选写入地址栏，刷新后仍在（examples §2.3）。',
+      '搜索词与筛选条件取 AND：这里先搜“重试”再按类型与 <code>project</code> 缩小，结果 2 条；筛选写入地址栏，刷新后仍在（examples §2.3）。',
     ],
   })
 
   const hl = board({
-    title: '高亮 · 按页面分组',
-    ref: 'extension §2.3 · capture §6',
+    title: '高亮 · 按剪藏分组',
+    ref: 'extension §2.3 · search §5',
     tag: 'R2',
     w: 1280,
     body: appInTab(
       shell({
         active: 'highlight',
-        main: `${pageHead({ title: '高亮', sub: '33 条 · 来自 12 个页面', right: searchBox({}) })}
+        main: `${pageHead({ title: '高亮', sub: '33 条 · 来自 14 条剪藏', right: searchBox({}) })}
           <div class="pbody cap">
-            ${fbar({ noType: true, count: '共 33 条' })}
-            ${hlGroup('Retries and backpressure', 'engineering.example.com', ['e2', 'e13'], { pin: 1 })}
-            ${hlGroup('Backpressure in Streams', 'engineering.example.com', ['e8', 'e14'], { fav: 1 })}
-            ${hlGroup('Production incident triage', 'sre.example.org', ['e11'], { fav: 2 })}
+            ${fbar({ noType: true, color: true, count: '共 33 条' })}
+            ${hlGroup('e2', { pin: 1 })}
+            ${hlGroup('e8', { fav: 1 })}
+            ${hlGroup('e11', { fav: 2 })}
           </div>`,
       }),
       { active: 'highlight', h: 800 },
     ),
     notes: [
-      '高亮按<b>来源页面</b>分组：组头是页面标题、主机和条数，“回到来源”打开原页面并尽力定位；回访该页面时，这些标记会恢复。',
-      '每行左侧的色条是它的 <code>color</code> 属性（调色板五色），原文下方是备注。颜色只是用户的选择，不承担含义。',
+      '“高亮”视图<b>以高亮为单位，按所属剪藏分组</b>：组头是剪藏标题、主机和条数，“回到来源”只打开原页面（页面上没有任何标记）；点一行在阅读视图里定位到这条高亮。',
+      '每行左侧的色条是高亮的颜色（调色板五色），引文下方是备注。颜色只是用户的选择，不承担含义。筛选条多一个“颜色”；来源、标签、属性按<b>所属剪藏</b>计算（search §5）。',
     ],
   })
 
@@ -104,12 +104,12 @@ function extAppGroup() {
     ),
     notes: [
       '截图是画廊：缩略图、标题、来源主机和属性小标签；悬停出现<b>下载</b>与<b>删除</b>，点开进入右侧详情抽屉。',
-      '截图与剪藏、高亮是<b>同一种条目</b>：同样可以加标签和属性、同样被搜索与筛选覆盖。删除一张截图会同时删除它的图片。',
+      '截图与剪藏是<b>同一种条目</b>：同样可以加标签和属性、同样被搜索与筛选覆盖。删除一张截图会同时删除它的图片。',
     ],
   })
 
   return group(
-    { id: 'ext-app', title: '资料库：左导航 + 右内容', small: 'extension §2.2 · §2.3', desc: '一个应用页，左边是导航，右边是内容。“全部 / 剪藏 / 高亮 / 截图”是同一份数据的四个视图，共用搜索与筛选；切换视图时导航不动。' },
+    { id: 'ext-app', title: '资料库：左导航 + 右内容', small: 'extension §2.2 · §2.3', desc: '一个应用页，左边是导航，右边是内容。“全部 / 剪藏 / 截图”是同一份条目的三个视图，“高亮”是跨剪藏的聚合浏览；共用搜索与筛选，切换视图时导航不动。' },
     row(all),
     row(byProp),
     row(hl),
@@ -131,18 +131,18 @@ function extDetailGroup() {
     body: appInTab(
       shell({
         active: 'all',
-        main: `${pageHead({ title: '全部', sub: '128 条', right: searchBox({}) })}
-          <div class="pbody cap">${fbar({})}${entryList(['e1', 'e2', 'e3', 'e4', 'e5'], { sel: 'e1' })}</div>`,
-        drawer: drawer(e1, { pin: 1, hovTags: true }),
+        main: `${pageHead({ title: '全部', sub: '95 条', right: searchBox({}) })}
+          <div class="pbody cap">${fbar({ count: '共 95 条' })}${entryList(['e1', 'e2', 'e3', 'e4', 'e5'], { sel: 'e2' })}</div>`,
+        drawer: drawer(e2, { pin: 1, hovTags: true }),
       }),
       { active: 'all', h: 1010 },
     ),
     notes: [
       '点一条条目，在右侧<b>抽屉</b>里打开详情；Esc 或点击遮罩关闭，窄窗口里抽屉占满内容区。标题可以直接改。',
-      '<b>原文</b>与<b>备注</b>分开：原文来自页面，备注是用户自己的话；语境（所在句或段）作为原文的补充显示。',
+      '<b>原文</b>与<b>备注</b>分开：原文是剪藏下来的 Markdown（标题、列表、链接都在），<b>带着高亮</b>；备注是用户自己的话；选区剪藏的语境（所在句或段）作为补充显示。',
       '<b>属性面板</b>与 Obsidian 的 Properties 同构：左边是类型图标与名称，右边是值编辑器。内置属性在前（title、tags、author、published…），自定义属性在后（project、reviewed…）。',
       '最下面是<b>系统字段，只读</b>（source、created、updated、type），带锁形图标；它们是系统字段而不是属性，导出时映射为 frontmatter 键。',
-      '可编辑范围：标题、备注、全部属性；<code>clip</code> 的原文与语境可改；<code>highlight</code> 的原文与来源只读，因为页面标记靠它们恢复（extension §4）。',
+      '可编辑范围：标题、备注、全部属性；<code>clip</code> 的原文与语境可改，但<b>有高亮时原文只读</b>，因为高亮的范围依赖它（entry §4）；“阅读”打开阅读视图，抽屉里的原文同样可以高亮。',
     ],
   })
 
@@ -167,20 +167,20 @@ function extDetailGroup() {
   })
 
   const variants = board({
-    title: '详情 · 高亮与截图',
+    title: '详情 · 选区剪藏与截图',
     ref: 'extension §4 · entry §3',
     tag: 'R2',
     w: 940,
     body: `<div class="app" style="height:auto;display:block;background:var(--surface-2);padding:22px 22px 26px"><div style="display:grid;grid-template-columns:repeat(2,440px);gap:22px">
-      ${panel(drawer(e2, { pin: 1 }), 960)}${panel(drawer(e3, { pin: 2 }), 960)}</div></div>`,
+      ${panel(drawer(e1, { pin: 1 }), 960)}${panel(drawer(e3, { pin: 2 }), 960)}</div></div>`,
     notes: [
-      '<b>高亮</b>：原文旁的色条取自 <code>color</code> 属性，原文与来源只读，备注可写；颜色在属性面板里换，页面上的标记同步变色。',
-      '<b>截图</b>：显示可放大的图片和下载，没有“原文”；标题、备注、属性与另外两种类型完全一样——这就是“同一种条目”。',
+      '<b>选区剪藏</b>：原文（这里只有一小段）、语境和备注；没有高亮时原文可改，选中文字即可开始高亮。选区剪藏带语境，区块剪藏不带（capture §4）。',
+      '<b>截图</b>：显示可放大的图片和下载，没有“原文”，也没有高亮；标题、备注、属性与剪藏完全一样——这就是“同一种条目”。',
     ],
   })
 
   return group(
-    { id: 'ext-detail', title: '条目详情与属性', small: 'extension §4 · entry §5', desc: '三种类型共用同一个详情结构和同一个属性面板；差别只在上方的“原文 / 图片”那一块。' },
+    { id: 'ext-detail', title: '条目详情与属性', small: 'extension §4 · entry §5', desc: '两种类型共用同一个详情结构和同一个属性面板；差别只在上方的“原文 / 图片”那一块。' },
     row(detail),
     row(addProp),
     row(variants),
@@ -197,7 +197,7 @@ function extPropsGroup() {
     body: appInTab(
       shell({
         active: 'properties',
-        main: `${pageHead({ title: '属性', sub: '10 个属性 · 内置 6 · 自定义 4', right: `<span class="hs g8" style="position:relative">${pin(1, 'pin-l')}${btn('删除未使用（1）', { icon: 'trash' })}${btn('新建属性', { v: 'primary', icon: 'plus' })}</span>` })}
+        main: `${pageHead({ title: '属性', sub: '9 个属性 · 内置 5 · 自定义 4', right: `<span class="hs g8" style="position:relative">${pin(1, 'pin-l')}${btn('删除未使用（1）', { icon: 'trash' })}${btn('新建属性', { v: 'primary', icon: 'plus' })}</span>` })}
           <div class="pbody">
             ${banner('info', '<b>名称与类型全局绑定</b>：同一个名称在所有条目里是同一种类型。使用数为 0 才能删除；已被使用的属性不能改类型，也不提供重命名。', { cls: '' })}
             ${ptab({ pin: 2, sel: 'project' })}
@@ -206,8 +206,8 @@ function extPropsGroup() {
       { active: 'properties', h: 800 },
     ),
     notes: [
-      '属性页是<b>属性注册表</b>的管理界面（借鉴 Obsidian Web Clipper 的属性类型表）：类型图标 + 名称、类型、默认值、<b>使用数</b>、剪藏 / 高亮 / 截图三列<b>类型预设</b>。',
-      '<b>类型预设</b>：勾选后，采集该类型的条目时自动附加这个属性并带上默认值。<code>title</code> 与 <code>tags</code> 对三种类型固定附加（带锁，不可取消）；<code>tags</code> 永远存在。',
+      '属性页是<b>属性注册表</b>的管理界面（借鉴 Obsidian Web Clipper 的属性类型表）：类型图标 + 名称、类型、默认值、<b>使用数</b>、剪藏 / 截图两列<b>类型预设</b>。',
+      '<b>类型预设</b>：勾选后，采集该类型的条目时自动附加这个属性并带上默认值。<code>title</code> 与 <code>tags</code> 对两种类型固定附加（带锁，不可取消）；<code>tags</code> 永远存在。高亮没有自己的属性，颜色与备注是高亮自己的字段。',
       '删除按钮只在“使用数为 0 且非内置”时可用，其余灰掉并说明原因（使用中 / 内置）；顶部的“删除未使用”一次清理使用数为 0 的自定义属性，先列出将被删除的名称。',
     ],
   })
@@ -236,14 +236,15 @@ function extPropsGroup() {
 // ── 设置 ───────────────────────────────────────────────────────────────────
 function extSettingsGroup() {
   const prefs =
-    settingsRow('默认高亮颜色', '新建高亮时使用；每条高亮之后都可以改。', `<span class="hs g8">${HL_COLORS.map((c, i) => hlDot(c, i === 0)).join('')}</span>`) +
-    settingsRow('截图默认匿名', '身份元素自动打上马赛克候选；每次截图时可以在预览里增删。', sw(true))
-  const sc = `${settingsRow('连续高亮模式', '进入后每次选中创建一条高亮，Esc 退出。', `${keys('Alt', 'H')}<span class="muted">或</span>${keys('⌘', '⇧', 'H')}`)}${settingsRow('截图模式', '拖拽区域或单击元素。', `${keys('Ctrl', '⇧', 'S')}<span class="muted">/</span>${keys('⌘', '⇧', 'S')}`)}${settingsRow('关闭菜单 · 取消截图 · 关闭抽屉', '', keys('Esc'))}${settingsRow('在浏览器里修改快捷键', '浏览器级快捷键冲突在这里处理。', btn('打开', { sm: true, iconR: 'external-link' }))}`
+    settingsRow('默认高亮颜色', '阅读视图里新建高亮的初始颜色；每条高亮之后都可以改。', `<span class="hs g8">${HL_COLORS.map((c, i) => hlDot(c, i === 0)).join('')}</span>`) +
+    settingsRow('截图默认匿名', '身份元素自动打上马赛克候选；每次截图时可以在预览里增删。', sw(true)) +
+    settingsRow(`区块剪藏入口 ${chip('提案 · D-20', { v: 'warn' })}`, '指针停在整体内容上时，区块旁出现“剪藏”；也可以在入口菜单里按网站停用。', sw(true))
+  const sc = `${settingsRow('阅读视图 · 高亮', '选中文字后以默认颜色创建高亮。', keys('H'))}${settingsRow('截图模式', '拖拽区域或单击元素。', `${keys('Ctrl', '⇧', 'S')}<span class="muted">/</span>${keys('⌘', '⇧', 'S')}`)}${settingsRow('关闭菜单 · 取消截图 · 关闭抽屉', '', keys('Esc'))}${settingsRow('在浏览器里修改快捷键', '浏览器级快捷键冲突在这里处理。', btn('打开', { sm: true, iconR: 'external-link' }))}`
   const data =
     `<div class="set-r"><div class="l grow" style="min-width:0"><b>本地存储</b><small>其中截图 89 MB。接近浏览器配额时，会在<b>保存前</b>提示，而不是写入失败后才告诉你。</small><div class="progress" style="margin-top:8px"><i style="width:3%"></i></div></div><div class="none tnum b">126 MB / 约 4.2 GB 可用</div></div>` +
     settingsRow('导出内容', '包含全部条目的 Markdown（属性即 frontmatter）和处理后的图片；不包含界面偏好，也不能用来恢复数据库。', btn('导出内容', { icon: 'download', v: 'primary' })) +
     settingsRow('异常残留', '没有任何条目引用的图片，以及指向缺失图片的条目。正常路径下为 0。', `<span class="muted">0 项</span>${btn('清理', { sm: true, off: true })}`)
-  const metrics = `<div class="set-r" style="border-top:0">${banner('info', '指标<b>只在本机计算</b>，只显示聚合数字，<b>不显示原文、URL、标题或属性</b>。内测回访时共享屏幕给产品负责人看，没有导出或上传入口。', { cls: 'grow' })}</div>${metricRow('M-03', '采集用时（95 分位）', '剪藏 118 ms', '高亮 124 ms · 截图 —；护栏：剪藏、高亮 < 300 ms')}${metricRow('M-11', '激活', '24 小时内已再次打开', '安装后 24 小时内保存 1 条并再次打开')}${metricRow('M-19', '本周找回', '17 条', '被再次打开、搜索筛选后打开或导出的条目（去重）')}${metricRow('M-20', '属性使用率', '近 14 天已使用', '至少给一条条目加过标签或自定义属性')}`
+  const metrics = `<div class="set-r" style="border-top:0">${banner('info', '指标<b>只在本机计算</b>，只显示聚合数字，<b>不显示原文、URL、标题或属性</b>。内测回访时共享屏幕给产品负责人看，没有导出或上传入口。', { cls: 'grow' })}</div>${metricRow('M-03', '采集用时（95 分位）', '剪藏 118 ms', '选区 118 ms · 区块 131 ms · 截图 —；护栏：剪藏 < 300 ms')}${metricRow('M-11', '激活', '24 小时内已再次打开', '安装后 24 小时内保存 1 条并再次打开')}${metricRow('M-19', '本周找回', '17 条', '被再次打开、搜索筛选后打开或导出的条目（去重）')}${metricRow('M-20', '属性使用率', '近 14 天已使用', '至少给一条条目加过标签或自定义属性')}${metricRow('M-21', '高亮率', '近 14 天已高亮', '剪藏过的活跃用户里，至少高亮过一条的占比')}`
 
   const page = board({
     title: '设置',
@@ -256,7 +257,7 @@ function extSettingsGroup() {
         pins: { nav: 1 },
         main: `${pageHead({ title: '设置', sub: '偏好只保存在本机' })}
           <div class="pbody" style="overflow:hidden"><div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;max-width:1040px;align-items:start">
-            <div class="vs g16">${settingsCard('采集', '只有两项偏好，每一项都用一句话说清后果。', prefs, { pin: 2 })}${settingsCard('快捷键', '只显示当前绑定。', sc, { pin: 3 })}</div>
+            <div class="vs g16">${settingsCard('偏好', '每一项都用一句话说清后果。', prefs, { pin: 2 })}${settingsCard('快捷键', '只显示当前绑定。', sc, { pin: 3 })}</div>
             <div class="vs g16">${settingsCard('数据', '', data, { pin: 4 })}${settingsCard('本地指标 · 阶段 V', '', metrics, { pin: 5 })}</div>
           </div></div>`,
       }),
@@ -264,15 +265,15 @@ function extSettingsGroup() {
     ),
     notes: [
       '设置页和资料库<b>是同一套壳</b>（左导航 + 右内容），浏览器的“扩展选项”入口打开的就是这个页面（<code>#/settings</code>）。',
-      '<b>采集</b>只有两项：默认高亮颜色、截图默认匿名；没有“模式”之类的开关——采集一步完成，不需要偏好来解释它。',
+      '<b>偏好</b>：默认高亮颜色（阅读视图里新建高亮的初始颜色）、截图默认匿名，以及区块剪藏入口的开关（提案，D-20）；没有“模式”之类的开关——采集一步完成，不需要偏好来解释它。',
       '<b>快捷键</b>只展示文档定义的几组，浏览器级冲突去浏览器的快捷键设置页处理。',
       '<b>数据</b>：存储用量以“已用 / 可用”呈现；导出前说清包含与不包含；异常残留只有在出现异常时才会有数字。',
-      '<b>本地指标</b>只在阶段 V 内测期间需要，只显示聚合数字，覆盖 M-03、M-11、M-19、M-20（metrics §5）。',
+      '<b>本地指标</b>只在阶段 V 内测期间需要，只显示聚合数字，覆盖 M-03、M-11、M-19、M-20、M-21（metrics §5）。',
     ],
   })
 
   return group(
-    { id: 'ext-settings', title: '设置', small: 'extension §2.5', desc: '设置页只放三类东西：怎么采集、本机有什么数据、阶段 V 的本地指标。' },
+    { id: 'ext-settings', title: '设置', small: 'extension §2.5', desc: '设置页只放三类东西：偏好、本机有什么数据、阶段 V 的本地指标。' },
     row(page),
   )
 }
@@ -287,17 +288,17 @@ function extStatesGroup() {
     body: appInTab(
       shell({
         active: 'all',
-        counts: { all: null, clip: null, highlight: null, screenshot: null, properties: 6 },
+        counts: { all: null, clip: null, highlight: null, screenshot: null, properties: 5 },
         used: '0 MB',
         main: `${pageHead({ title: '全部', sub: '0 条', right: searchBox({}) })}
           <div class="pbody cap">
             ${onboarding({ pin: 1 })}
-            ${emptyState('library', '还没有条目', '选中网页中的一段文字，点“剪藏”或“高亮”；按 ⌘⇧S 框选一张截图。', hoverMenu({ static: true, below: false, style: 'position:relative;display:inline-flex' }).replace('class="hm ', 'class="hm static '))}
+            ${emptyState('library', '还没有条目', '选中网页中的一段文字，点“剪藏”；按 ⌘⇧S 框选一张截图。', hoverMenu({ static: true, below: false, style: 'position:relative;display:inline-flex' }).replace('class="hm ', 'class="hm static '))}
           </div>`,
       }),
       { active: 'all', h: 640 },
     ),
-    notes: ['安装后的第一屏：引导卡用三句话说明剪藏、高亮、截图各是什么，并给出“打开示例页面”；可关闭。示例页只用于试用，<b>不会混入用户的库</b>。', '空库不放营销信息，只告诉用户下一步做什么：选中文字，点菜单。'],
+    notes: ['安装后的第一屏：引导卡用三句话说明剪藏、截图、高亮各是什么（高亮是“在资料库里读剪藏时划重点”），并给出“打开示例页面”；可关闭。示例页只用于试用，<b>不会混入用户的库</b>。', '空库不放营销信息，只告诉用户下一步做什么：选中文字，点菜单。'],
   })
 
   const none = board({
@@ -327,7 +328,7 @@ function extStatesGroup() {
     body: appInTab(
       shell({
         active: 'screenshot',
-        counts: { all: 104, screenshot: 0 },
+        counts: { all: 71, screenshot: 0 },
         main: `${pageHead({ title: '截图', sub: '0 张', right: searchBox({}) })}
           <div class="pbody">${emptyState('scan', '还没有截图', `按 ${keys('⌘', '⇧', 'S')}（Windows / Linux 为 ${keys('Ctrl', '⇧', 'S')}）进入截图：拖拽框选区域，或单击一个元素。`, btn('了解截图', { icon: 'arrow-up-right' }))}</div>`,
       }),
@@ -346,12 +347,12 @@ function extStatesGroup() {
         active: 'all',
         rail: true,
         pins: { nav: 1 },
-        main: `${pageHead({ title: '全部', sub: '128 条', right: searchBox({ w: 200 }) })}<div class="pbody">${fbar({ count: '128 条' })}${entryList(['e1', 'e2', 'e3', 'e4'], { hov: 'e2' })}</div>`,
+        main: `${pageHead({ title: '全部', sub: '95 条', right: searchBox({ w: 200 }) })}<div class="pbody">${fbar({ count: '95 条' })}${entryList(['e1', 'e2', 'e3', 'e4'], { hov: 'e2' })}</div>`,
       })}</div>
       <div style="height:600px;position:relative;border-radius:12px;overflow:hidden;box-shadow:var(--sh-2)">${shell({
         active: 'all',
         rail: true,
-        main: `${pageHead({ title: '全部', sub: '128 条' })}<div class="pbody">${entryList(['e1', 'e2', 'e3'], { sel: 'e1' })}</div>`,
+        main: `${pageHead({ title: '全部', sub: '95 条' })}<div class="pbody">${entryList(['e1', 'e2', 'e3'], { sel: 'e1' })}</div>`,
         drawer: drawer(ENTRIES0[0], { pin: 2 }),
       })}</div>
     </div></div>`,
@@ -394,17 +395,17 @@ function extPopupGroup() {
       { h: 460 },
     ),
     notes: [
-      '弹窗是<b>同一套壳的紧凑版</b>：左边是图标栏（全部、剪藏、高亮、截图，带数量角标；设置在底部），右边是当前类型<b>最近 5 条</b>，点一条在资料库里打开它，“在资料库中打开”进入完整页面。',
+      '弹窗是<b>同一套壳的紧凑版</b>：左边是图标栏（全部、剪藏、高亮、截图，带数量角标；设置在底部），右边是当前视图<b>最近 5 条</b>，点一条在资料库里打开它，“在资料库中打开”进入完整页面。',
       '它也是 <code>chrome://</code> 等页面内入口失效时的兜底。弹窗不提供编辑。',
     ],
   })
   const variants = board({
-    title: '弹窗 · 切换到剪藏 / 截图',
+    title: '弹窗 · 切换到剪藏 / 高亮 / 截图',
     ref: 'extension §2.6',
     tag: 'R2',
-    w: 1100,
-    body: `<div class="app" style="height:auto;display:block;background:var(--surface-2);padding:22px"><div style="display:flex;gap:22px">${popup({ active: 'clip', items: ['e1', 'e4', 'e6', 'e9'].map(id => ENTRIES0.find(e => e.id === id)) })}${popup({ active: 'screenshot', items: ['e3', 'e7', 'e10', 'e12'].map(id => ENTRIES0.find(e => e.id === id)) })}</div></div>`,
-    notes: ['左侧图标栏就是视图切换；每个视图只列最近 5 条，截图显示标题。想看更多或整理属性，进入资料库。'],
+    w: 1640,
+    body: `<div class="app" style="height:auto;display:block;background:var(--surface-2);padding:22px"><div style="display:flex;gap:22px">${popup({ active: 'clip', items: ['e1', 'e4', 'e6', 'e9'].map(id => ENTRIES0.find(e => e.id === id)) })}${popup({ active: 'highlight', items: [['e2', 1], ['e2', 0], ['e8', 0], ['e1', 0], ['e5', 0]].map(([id, i]) => { const e = ENTRIES0.find(x => x.id === id); return { hl: e.hls[i], title: e.title, when: e.when } }) })}${popup({ active: 'screenshot', items: ['e3', 'e7', 'e10', 'e12'].map(id => ENTRIES0.find(e => e.id === id)) })}</div></div>`,
+    notes: ['左侧图标栏就是视图切换；每个视图只列最近 5 条：剪藏显示正文摘要，高亮显示引文与所属剪藏，截图显示标题。想看更多、读正文或整理属性，进入资料库。'],
   })
   return group(
     { id: 'ext-popup', title: '工具栏弹窗', small: 'extension §2.6', desc: '点击浏览器工具栏图标时的落点：同一套“左导航 + 右内容”，只是更小。' },
