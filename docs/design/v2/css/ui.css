@@ -257,6 +257,10 @@ hr.sep {
   width: 28px;
 }
 
+.btn-block {
+  width: 100%;
+}
+
 .btn.is-disabled,
 .btn[disabled] {
   opacity: 0.45;
@@ -524,14 +528,6 @@ hr.sep {
   color: color-mix(in oklab, var(--c) 72%, var(--fg));
 }
 
-/* 建议 ≠ 事实：所有“建议”类内容统一用虚线描边 + sparkles 图标 */
-.chip-suggest {
-  background: transparent;
-  border-style: dashed;
-  border-color: color-mix(in oklab, var(--brand) 55%, var(--surface));
-  color: var(--brand-text);
-}
-
 .tag {
   display: inline-flex;
   align-items: center;
@@ -565,8 +561,8 @@ hr.sep {
   border: 1.5px solid var(--fg-4);
 }
 
-/* kind 芯片：图标 + 文字 + 颜色（三重编码） */
-.kchip {
+/* 条目类型：图标 + 文字 + 颜色（三重编码），色相只做辅助 */
+.tchip {
   --k: var(--fg-3);
   display: inline-flex;
   align-items: center;
@@ -582,18 +578,18 @@ hr.sep {
   white-space: nowrap;
 }
 
-.kchip .i {
+.tchip .i {
   width: 13px;
   height: 13px;
 }
 
-.kchip.sm {
+.tchip.sm {
   height: 18px;
   padding: 0 6px 0 5px;
   font-size: 11px;
 }
 
-.ktile {
+.ttile {
   --k: var(--fg-3);
   width: 32px;
   height: 32px;
@@ -605,37 +601,53 @@ hr.sep {
   color: color-mix(in oklab, var(--k) 78%, var(--fg));
 }
 
-.ktile .i {
+.ttile .i {
   width: 17px;
   height: 17px;
 }
 
-.k-excerpt {
-  --k: var(--k-excerpt);
+.t-clip {
+  --k: var(--t-clip);
 }
-.k-concept {
-  --k: var(--k-concept);
+.t-highlight {
+  --k: var(--t-highlight);
 }
-.k-claim {
-  --k: var(--k-claim);
+.t-screenshot {
+  --k: var(--t-screenshot);
 }
-.k-procedure {
-  --k: var(--k-procedure);
+
+/* 高亮调色板：色块（用于 color 属性的取值与页面标记） */
+.hl-dot {
+  display: inline-block;
+  vertical-align: middle;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--c, var(--hl-yellow));
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.14);
 }
-.k-decision {
-  --k: var(--k-decision);
+
+.hl-dot.is-on {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3.5px var(--brand);
 }
-.k-question {
-  --k: var(--k-question);
+
+.c-yellow {
+  --c: var(--hl-yellow);
 }
-.k-visual {
-  --k: var(--k-visual);
+.c-green {
+  --c: var(--hl-green);
 }
-.k-inspiration {
-  --k: var(--k-inspiration);
+.c-blue {
+  --c: var(--hl-blue);
 }
-.k-media-clip {
-  --k: var(--k-media-clip);
+.c-pink {
+  --c: var(--hl-pink);
+}
+.c-purple {
+  --c: var(--hl-purple);
 }
 
 kbd {
@@ -712,6 +724,7 @@ kbd {
   display: inline-flex;
   align-items: center;
   gap: 10px;
+  white-space: nowrap;
   padding: 9px 12px 9px 14px;
   border-radius: 12px;
   background: #1b1f2a;
@@ -835,6 +848,7 @@ kbd {
 }
 
 .favicon {
+  display: inline-block;
   width: 14px;
   height: 14px;
   border-radius: 4px;

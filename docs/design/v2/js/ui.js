@@ -1,4 +1,4 @@
-// 生成 UI 片段的小工具：返回 HTML 字符串，供各画板拼装。样式见 css/ui.css。
+// 生成 UI 片段的小工具：返回 HTML 字符串，供各画板拼装。样式见 css/ui.css、css/ext.css。
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
 const I = (name, cls = '') => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`
@@ -14,19 +14,19 @@ const btn = (label, o = {}) => {
 
 const chip = (label, o = {}) => `<span class="chip ${o.v ? `chip-${o.v}` : ''} ${o.cls || ''}">${o.icon ? I(o.icon) : ''}${label}</span>`
 
-const kchip = (k, o = {}) => `<span class="kchip k-${k} ${o.sm ? 'sm' : ''}">${I(KINDS[k].icon)}${o.full ? KINDS[k].full : KINDS[k].zh}</span>`
+// 条目类型：图标 + 文字 + 颜色（visual.md §3）
+const tchip = (t, o = {}) => `<span class="tchip t-${t} ${o.sm ? 'sm' : ''}">${I(TYPES[t].icon)}${o.en ? TYPES[t].en : TYPES[t].zh}</span>`
 
-const ktile = k => `<span class="ktile k-${k}">${I(KINDS[k].icon)}</span>`
+const ttile = t => `<span class="ttile t-${t}">${I(TYPES[t].icon)}</span>`
+
+// 属性类型：图标 + 文字
+const pticon = t => I(PTYPES[t].icon)
+
+const hlDot = (c, on) => `<i class="hl-dot c-${c} ${on ? 'is-on' : ''}"></i>`
 
 const tags = list => list.map(t => `<span class="tag">#${esc(t)}</span>`).join('')
 
-// 核验来源徽标（ai.md §4）：原文 / 手工 / 模型建议；建议统一用虚线，被用户确认后才变实线
-const srcBadge = (s, o = {}) => {
-  if (s === 'source-material') return chip('原文', { icon: 'file-text' })
-  if (s === 'manual') return chip('手工', { icon: 'pencil' })
-  if (s === 'llm') return o.pending ? chip('模型建议 · 未确认', { icon: 'sparkles', cls: 'chip-suggest' }) : chip('模型建议 · 已确认', { icon: 'sparkles', v: 'brand' })
-  return ''
-}
+const vtag = (t, x = true) => `<span class="vtag">${esc(t)}${x ? I('x') : ''}</span>`
 
 const cbx = (on, label = '', o = {}) => `<span class="hs g8 ${o.cls || ''}"><i class="cb ${on ? 'on' : ''}">${on ? I('check') : ''}</i>${label ? `<span>${label}</span>` : ''}</span>`
 const rdo = (on, label = '', o = {}) => `<span class="hs g8 ${o.cls || ''}"><i class="rb ${on ? 'on' : ''}"></i>${label ? `<span>${label}</span>` : ''}</span>`
@@ -35,7 +35,7 @@ const sw = on => `<i class="switch ${on ? 'on' : ''}"></i>`
 const keys = (...ks) => ks.map(k => `<kbd>${k}</kbd>`).join('')
 
 const banner = (v, html, o = {}) => {
-  const icon = o.icon || { ok: 'circle-check', warn: 'triangle-alert', danger: 'circle-alert', info: 'info', brand: 'sparkles', '': 'info' }[v || '']
+  const icon = o.icon || { ok: 'circle-check', warn: 'triangle-alert', danger: 'circle-alert', info: 'info', brand: 'info', '': 'info' }[v || '']
   return `<div class="banner ${v || ''} ${o.cls || ''}">${I(icon)}<div class="grow">${html}</div>${o.action ? `<div class="none hs g6">${o.action}</div>` : ''}</div>`
 }
 

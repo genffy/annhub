@@ -1,8 +1,10 @@
 # 页面标注与内容定位架构
 
-更新时间：2026-09-23
+更新时间：2026-10-07
 
 本文记录 AnnHub 页面高亮、内容来源识别、文本 Range 定位和 DOM marker 生命周期的共享架构。
+
+> D-18 起，高亮与剪藏并入统一的条目（[条目契约](./v2/entry.md)）。下文的 `HighlightRecord` 是迁移前的存储形态，恢复链路与 marker 约束不变。
 
 ## 1. 目标
 
@@ -99,20 +101,19 @@ current URL
 
 SPA 页面按立即、1 秒、2 秒、3 秒重试未恢复记录。每轮只重试失败项。
 
-## 4. 碎片采集链路
+## 4. 剪藏链路
 
-采集复用平台规则和 Range 上下文：
+剪藏复用平台规则和 Range 上下文：
 
 ```text
 Selection Range
   -> source URL
   -> containing sentence / paragraph
   -> locator
-  -> CaptureDraft
-  -> active processing
+  -> 条目（clip）
 ```
 
-采集不直接复用 HighlightRecord，因为 Fragment 和 Highlight 生命周期不同。用户选择“同时高亮原文”时，两个实体分别保存，并通过可选 ID 关联。
+剪藏与高亮是同一种条目的两个类型，共用来源、语境与定位的提取，不共用 marker：高亮需要页面标记与恢复，剪藏没有。
 
 ## 5. Selector 规则
 
@@ -157,5 +158,5 @@ Selection Range
 1. 页面规则变更必须同步单元测试和相关 E2E。
 2. data attribute 和消息字段变更同步所有调用方与测试，不保留旧名。
 3. 共享能力进入 annotation-core，业务条件留在业务模块。
-4. 不因重构改变 HighlightRecord 或 FragmentRecord 的存储语义。
+4. 不因重构改变高亮条目的存储语义。
 5. 修改本文涉及的接口时同步更新 `AGENTS.md`。
