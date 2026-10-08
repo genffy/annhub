@@ -50,7 +50,8 @@ export class BlockEntries {
       if (this.modeActive) return
       this.lastPoint = { x: event.clientX, y: event.clientY }
       if (this.insideOwnUi(event)) {
-        this.scheduleLeave()
+        // the pointer is on the capsule itself: keep it alive so the click lands
+        this.clearLeave()
         return
       }
       const selection = this.doc.getSelection()
@@ -69,10 +70,14 @@ export class BlockEntries {
     const onLeaveWindow = (): void => this.scheduleLeave()
     const onScroll = (): void => this.hideNow()
     const onDragSelect = (event: PointerEvent): void => {
-      if (isUserInput(event) && event.buttons === 1) this.hideNow()
+      // pressing our own capsule is operating the entry, not starting a drag
+      if (!isUserInput(event) || this.insideOwnUi(event)) return
+      if (event.buttons === 1) this.hideNow()
     }
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (isUserInput(event) && !this.modeActive && event.key !== 'Escape') this.hideNow()
+      if (!isUserInput(event) || this.modeActive) return
+      if (this.insideOwnUi(event)) return
+      if (event.key !== 'Escape') this.hideNow()
     }
 
     this.doc.addEventListener('pointermove', onPointerMove, true)
@@ -96,7 +101,7 @@ export class BlockEntries {
     this.exitBlockMode()
   }
 
-  private insideOwnUi(event: PointerEvent): boolean {
+  private insideOwnUi(event: Event): boolean {
     const target = event.target
     return target instanceof Element && Boolean(target.closest?.(`[${ROOT_ATTR}]`))
   }
@@ -121,6 +126,10 @@ export class BlockEntries {
       window.clearTimeout(this.leaveTimer)
       this.leaveTimer = null
     }
+  }
+
+  hide(): void {
+    this.hideNow()
   }
 
   private hideNow(): void {
@@ -173,12 +182,10 @@ export class BlockEntries {
     this.outlineEl = outline
 
     this.capsuleEl?.remove()
-    this.capsule = this.buildCapsule(candidate, false)
-    this.doc.documentElement.appendChild(this.capsule)
-    this.positionCapsule(this.capsule, rect)
+    this.capsuleEl = this.buildCapsule(candidate, false)
+    this.doc.documentElement.appendChild(this.capsuleEl)
+    this.positionCapsule(this.capsuleEl, rect)
   }
-
-  private capsule!: HTMLElement
 
   private buildCapsule(candidate: BlockCandidate, keyboard: boolean): HTMLElement {
     const host = this.doc.createElement('div')
@@ -267,7 +274,8 @@ export class BlockEntries {
    * Capsule placement (capture.md §6.2): straddles the block's edge at the
    * right-top corner; a block taller than the window clamps to the visible
    * top; occupied corners yield to left-top, right-bottom, left-bottom, and
-   * finally the pointer side.
+   * finally the pointer side. Occupation is probed across the whole capsule
+   * box, not one point — a small button inside the area still counts.
    */
   private positionCapsule(capsule: HTMLElement, rect: DOMRect): void {
     const view = this.doc.defaultView!
@@ -281,9 +289,7 @@ export class BlockEntries {
     ]
     let [x, y] = corners[0]!
     for (const [cx, cy] of corners) {
-      const probe = this.doc.elementFromPoint(Math.max(1, Math.min(view.innerWidth - 1, cx + box.width / 2 - 4)), Math.max(1, Math.min(view.innerHeight - 1, cy + box.height / 2)))
-      const occupied = probe instanceof Element && probe !== capsule && !capsule.contains(probe) && !this.outlineEl?.contains(probe) && this.isPageControl(probe)
-      if (!occupied) {
+      if (!this.capsuleAreaOccupied(cx, cy, box, capsule)) {
         x = cx
         y = cy
         break
@@ -291,6 +297,20 @@ export class BlockEntries {
     }
     capsule.style.left = `${Math.max(0, Math.min(view.innerWidth - box.width, x))}px`
     capsule.style.top = `${Math.max(0, Math.min(view.innerHeight - box.height, y))}px`
+  }
+
+  /** Sample points across the would-be capsule box for page controls under it. */
+  private capsuleAreaOccupied(cx: number, cy: number, box: { width: number; height: number }, capsule: HTMLElement): boolean {
+    const view = this.doc.defaultView!
+    const clampX = (x: number) => Math.max(1, Math.min(view.innerWidth - 1, x))
+    const clampY = (y: number) => Math.max(1, Math.min(view.innerHeight - 1, y))
+    for (let ix = 0; ix <= 4; ix++) {
+      for (let iy = 0; iy <= 2; iy++) {
+        const probe = this.doc.elementFromPoint(clampX(cx + (box.width * ix) / 4), clampY(cy + (box.height * iy) / 2))
+        if (probe instanceof Element && probe !== capsule && !capsule.contains(probe) && this.isPageControl(probe)) return true
+      }
+    }
+    return false
   }
 
   private isPageControl(el: Element): boolean {
@@ -384,7 +404,10 @@ export class BlockEntries {
   private refreshModeTarget(reposition = false): void {
     if (!this.modeActive) return
     void reposition
+    // hit-test through the mode overlay: it sits on top of the page by design
+    if (this.modeOverlay) this.modeOverlay.style.pointerEvents = 'none'
     const chain = candidatesAtPoint(this.lastPoint.x, this.lastPoint.y, this.doc)
+    if (this.modeOverlay) this.modeOverlay.style.pointerEvents = ''
     this.modeCandidates = chain
     this.modeDepth = Math.min(this.modeDepth, Math.max(0, chain.length - 1))
     const candidate = chain[this.modeDepth]

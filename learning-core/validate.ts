@@ -5,6 +5,7 @@
  * properties. Every throw carries an EntryErrorCode; the UI never shows raw
  * exception objects.
  */
+import { markdownToPlainText } from './markdown'
 import { normalizedContains, normalizeHost } from './normalize'
 import { PROPERTIES_PER_ENTRY_MAX, TAGS_MAX, TAG_LENGTH_MAX, propertyStorageKey, validatePropertyName, validatePropertyValue } from './properties'
 import { isHttpUrl } from './url'
@@ -123,7 +124,9 @@ export function validateEntry(entry: EntryRecord, registry: PropertyDefinition[]
   if (entry.context !== undefined) {
     if (entry.type !== 'clip') throw new EntryValidationError('ENTRY_CONTENT_INVALID', 'context is only allowed on a clip')
     if (entry.context.length > CONTEXT_MAX_CHARS) throw new EntryValidationError('ENTRY_CONTENT_INVALID', 'context over limit')
-    if (!normalizedContains(entry.context, content)) {
+    // containment compares against the content's plain text: context is plain
+    // text and markdown syntax marks must not break the comparison (entry.md §6)
+    if (!normalizedContains(entry.context, markdownToPlainText(content))) {
       throw new EntryValidationError('ENTRY_CONTENT_INVALID', 'context does not contain the clip content')
     }
   }

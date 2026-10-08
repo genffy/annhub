@@ -1,191 +1,19 @@
-import type { BrowserContext, Page, Locator, Worker } from '@playwright/test'
+import type { BrowserContext, Locator, Page, Worker } from '@playwright/test'
 
-/**
- * URL for the local test fixture page served by the E2E test server.
- */
-export function getTestPageUrl(): string {
-  return 'http://localhost:8173/test.html'
+/** The local capture fixture served by the E2E test server. */
+export function getCapturePageUrl(): string {
+  return 'http://localhost:8173/capture.html'
 }
 
-/**
- * Programmatically select text contents of an element, then dispatch a single
- * mouseup event so the content script detects the selection exactly once.
- *
- * Using triple-click is NOT suitable for continuous highlight tests because it fires 3
- * mouseup events (one per click), each triggering a capture.
- */
-export async function selectText(page: Page, selector: string): Promise<void> {
-  await page.evaluate(sel => {
-    const element = document.querySelector(sel)
-    if (!element) throw new Error(`Element not found: ${sel}`)
-    const range = document.createRange()
-    range.selectNodeContents(element)
-    const selection = window.getSelection()
-    selection?.removeAllRanges()
-    selection?.addRange(range)
-    // Dispatch a single mouseup to trigger the content script handler
-    element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
-  }, selector)
-}
-
-/**
- * Select text via triple-click — fires 3 mouseup events.
- * Good for hover menu tests, where redundant events don't matter
- * since the menu only appears once per valid selection.
- */
-export async function tripleClickSelect(page: Page, selector: string): Promise<void> {
-  const target = page.locator(selector).first()
-  await target.click({ clickCount: 3 })
-}
-
-/**
- * Click a button inside the WXT shadow DOM.
- * Uses force: true to bypass actionability checks.
- */
-export async function clickShadowButton(locator: Locator): Promise<void> {
-  await locator.click({ force: true })
-}
-
-/**
- * Get the locator for the extension's shadow host (<ann-selection>).
- */
-export function getAnnShadowRoot(page: Page): Locator {
-  return page.locator('ann-selection')
-}
-
-/**
- * Wait for the hover menu to appear inside the shadow DOM.
- * Uses 'attached' because the WXT shadow host may have zero dimensions.
- */
-export async function waitForHoverMenu(page: Page, timeout = 5000): Promise<Locator> {
-  const shadowHost = getAnnShadowRoot(page)
-  const hoverMenu = shadowHost.locator('[data-ann-ui="hover-menu"]')
-  await hoverMenu.waitFor({ state: 'attached', timeout })
-  return hoverMenu
-}
-
-/**
- * Wait for the continuous highlight capsule to appear inside the shadow DOM.
- */
-export async function waitForCapsule(page: Page, timeout = 5000): Promise<Locator> {
-  const shadowHost = getAnnShadowRoot(page)
-  const capsule = shadowHost.locator('[data-ann-ui="capsule"]')
-  await capsule.waitFor({ state: 'attached', timeout })
-  return capsule
-}
-
-/**
- * Wait for the hover menu to disappear (detach from DOM).
- */
-export async function waitForHoverMenuHidden(page: Page, timeout = 5000): Promise<void> {
-  const shadowHost = getAnnShadowRoot(page)
-  const hoverMenu = shadowHost.locator('[data-ann-ui="hover-menu"]')
-  await hoverMenu.waitFor({ state: 'detached', timeout })
-}
-
-/**
- * Wait for the capsule to disappear (detach from DOM).
- */
-export async function waitForCapsuleHidden(page: Page, timeout = 5000): Promise<void> {
-  const shadowHost = getAnnShadowRoot(page)
-  const capsule = shadowHost.locator('[data-ann-ui="capsule"]')
-  await capsule.waitFor({ state: 'detached', timeout })
-}
-
-/**
- * Navigate to test.html and wait for the extension content script to load.
- */
-export async function navigateToTestPage(page: Page): Promise<void> {
-  await page.goto(getTestPageUrl())
-  await page.waitForSelector('ann-selection', { state: 'attached', timeout: 5000 })
-  await page.waitForTimeout(500)
-}
-
-/**
- * Press the toggle-highlighter shortcut.
- */
-export async function pressToggleHighlighter(page: Page): Promise<void> {
-  const isMac = process.platform === 'darwin'
-  if (isMac) {
-    await page.keyboard.press('Meta+Shift+KeyH')
-  } else {
-    await page.keyboard.press('Alt+KeyH')
-  }
-}
-
-/**
- * Read clips from chrome.storage.local via the service worker.
- */
-export async function getClipsFromServiceWorker(context: any): Promise<any[]> {
-  const sw = await ensureServiceWorker(context)
-  return sw.evaluate(() => {
-    return new Promise((resolve: any) => {
-      chrome.storage.local.get('ann-clips', (result: any) => {
-        resolve(result['ann-clips'] || [])
-      })
-    })
-  })
-}
-
-/**
- * Read highlight records from the extension's IndexedDB via its service worker.
- *
- * The background service worker owns the 'ann-highlights-db' database.
- * We must wait for the SW to be ready before evaluating.
- */
-export async function getHighlightsFromServiceWorker(context: any): Promise<any[]> {
-  const sw = await ensureServiceWorker(context)
-  return sw.evaluate(() => {
-    return new Promise<any[]>(resolve => {
-      const request = indexedDB.open('ann-highlights-db', 1)
-      request.onerror = () => resolve([])
-      request.onsuccess = () => {
-        const db = request.result
-        if (!db.objectStoreNames.contains('highlights')) {
-          db.close()
-          return resolve([])
-        }
-        const tx = db.transaction('highlights', 'readonly')
-        const store = tx.objectStore('highlights')
-        const getAll = store.getAll()
-        getAll.onsuccess = () => resolve(getAll.result || [])
-        getAll.onerror = () => resolve([])
-      }
-    })
-  })
-}
-
-/**
- * Clear highlight records from the extension's IndexedDB via its service worker.
- */
-export async function clearHighlightsFromServiceWorker(context: any): Promise<void> {
-  const sw = await ensureServiceWorker(context)
-  await sw.evaluate(() => {
-    return new Promise<void>(resolve => {
-      const request = indexedDB.open('ann-highlights-db', 1)
-      request.onerror = () => resolve()
-      request.onsuccess = () => {
-        const db = request.result
-        if (!db.objectStoreNames.contains('highlights')) {
-          db.close()
-          return resolve()
-        }
-        const tx = db.transaction('highlights', 'readwrite')
-        const store = tx.objectStore('highlights')
-        store.clear()
-        tx.oncomplete = () => resolve()
-        tx.onerror = () => resolve()
-      }
-    })
-  })
+export function getScreenshotPageUrl(): string {
+  return 'http://localhost:8173/screenshot.html'
 }
 
 /**
  * The extension's service worker, once its extension APIs are bound.
  *
- * Playwright reports a worker as soon as its execution context exists, which can be
- * before `chrome.storage` is injected; evaluating then throws
- * "Cannot read properties of undefined (reading 'local')". Wait for the API instead.
+ * Playwright reports a worker as soon as its execution context exists, which
+ * can be before `chrome.storage` is injected; evaluating then throws.
  */
 export async function ensureServiceWorker(context: BrowserContext): Promise<Worker> {
   let [sw] = context.serviceWorkers()
@@ -196,110 +24,45 @@ export async function ensureServiceWorker(context: BrowserContext): Promise<Work
     if (ready) return sw
     if (Date.now() > deadline) throw new Error('The extension service worker never exposed chrome.storage')
     await new Promise(resolve => setTimeout(resolve, 50))
-    // A restarted worker replaces the old one.
     sw = context.serviceWorkers()[0] ?? sw
   }
 }
 
-/**
- * Clear clips storage via the service worker.
- */
-export async function clearClipsFromServiceWorker(context: any): Promise<void> {
-  const sw = await ensureServiceWorker(context)
-  await sw.evaluate(() => {
-    return new Promise<void>(resolve => {
-      chrome.storage.local.remove('ann-clips', () => resolve())
-    })
-  })
-}
+// ── entries (the annhub IndexedDB) ───────────────────────────────────────
 
-// ────────────────────────────────────────────────────────────────────────────
-// chrome.storage.local access through the service worker
-// ────────────────────────────────────────────────────────────────────────────
-
-/**
- * Read arbitrary keys from the extension's chrome.storage.local via the service worker.
- */
-export async function getStorageViaServiceWorker(context: any, keys: string[]): Promise<Record<string, any>> {
-  const sw = await ensureServiceWorker(context)
-  return sw.evaluate((k: string[]) => {
-    return new Promise<Record<string, any>>(resolve => {
-      chrome.storage.local.get(k, (result: any) => resolve(result || {}))
-    })
-  }, keys)
+export interface TestEntry {
+  id: string
+  type: 'clip' | 'screenshot'
+  content: string
+  context?: string
+  assetId?: string
+  note?: string
+  highlights?: unknown[]
+  sourceUrl: string
+  sourceHost: string
+  properties: Record<string, unknown>
+  createdAt: number
+  updatedAt: number
 }
 
 /**
- * Write arbitrary keys into the extension's chrome.storage.local via the service worker, to seed
- * state (clips, settings) deterministically before a navigation.
+ * Reads the entries store. Opens WITHOUT an explicit version on purpose: a
+ * versioned open from the test would create an empty DB at the target
+ * version if none exists yet, suppressing the store's own upgrade callback.
  */
-export async function setStorageViaServiceWorker(context: any, entries: Record<string, unknown>): Promise<void> {
-  const sw = await ensureServiceWorker(context)
-  await sw.evaluate((e: Record<string, unknown>) => {
-    return new Promise<void>(resolve => {
-      chrome.storage.local.set(e, () => resolve())
-    })
-  }, entries)
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Fragment capture (L1/L2) helpers
-// ────────────────────────────────────────────────────────────────────────────
-
-/**
- * URL for the fragment capture fixture page served by the E2E test server.
- */
-export function getFragmentPageUrl(): string {
-  return 'http://localhost:8173/fragment.html'
-}
-
-export async function navigateToFragmentPage(page: Page): Promise<void> {
-  await page.goto(getFragmentPageUrl())
-  await page.waitForSelector('ann-selection', { state: 'attached', timeout: 5000 })
-  await page.waitForTimeout(500)
-}
-
-/**
- * Wait for the capture modal inside the shadow DOM and return its card locator.
- */
-export async function waitForCaptureModal(page: Page, timeout = 5000): Promise<Locator> {
-  const modal = getAnnShadowRoot(page).locator('[data-ann-ui="capture-modal"]')
-  await modal.waitFor({ state: 'attached', timeout })
-  return modal
-}
-
-/**
- * Write the capture config (deepMode) directly — must run BEFORE the modal opens.
- */
-export async function setCaptureConfigViaServiceWorker(context: any, config: { deepMode: boolean }): Promise<void> {
-  const sw = await ensureServiceWorker(context)
-  await sw.evaluate((cfg: { deepMode: boolean }) => {
-    return new Promise<void>(resolve => {
-      chrome.storage.local.set({ fragmentCaptureConfigV2: cfg }, () => resolve())
-    })
-  }, config)
-}
-
-/**
- * Read fragments from the extension's fragment-store (IndexedDB v3) via its service worker.
- * Opens WITHOUT an explicit version on purpose: a versioned open from the test would create
- * an empty DB at the target version if none exists yet, which suppresses the store's own
- * upgrade callback (stores never get created). Unversioned opens never interfere with it.
- */
-export async function getFragmentsFromServiceWorker(context: any): Promise<any[]> {
+export async function getEntries(context: BrowserContext): Promise<TestEntry[]> {
   const sw = await ensureServiceWorker(context)
   return sw.evaluate(() => {
     return new Promise<any[]>(resolve => {
-      const request = indexedDB.open('fragment-store')
+      const request = indexedDB.open('annhub')
       request.onerror = () => resolve([])
       request.onsuccess = () => {
         const db = request.result
-        if (!db.objectStoreNames.contains('fragments')) {
+        if (!db.objectStoreNames.contains('entries')) {
           db.close()
           return resolve([])
         }
-        const tx = db.transaction('fragments', 'readonly')
-        const getAll = tx.objectStore('fragments').getAll()
+        const getAll = db.transaction('entries', 'readonly').objectStore('entries').getAll()
         getAll.onsuccess = () => {
           db.close()
           resolve(getAll.result || [])
@@ -310,136 +73,46 @@ export async function getFragmentsFromServiceWorker(context: any): Promise<any[]
   })
 }
 
-/** Clear the whole learning core (every learning-core store) via the service worker. See the version note above. */
-export async function clearFragmentStoreViaServiceWorker(context: any): Promise<void> {
+/**
+ * Clears saved entries, assets and preferences. The property registry keeps
+ * its built-ins: wiping them would make every later save fail validation
+ * until the service worker restarts.
+ */
+export async function clearLibrary(context: BrowserContext): Promise<void> {
   const sw = await ensureServiceWorker(context)
   await sw.evaluate(() => {
     return new Promise<void>(resolve => {
-      const request = indexedDB.open('fragment-store')
+      const request = indexedDB.open('annhub')
       request.onerror = () => resolve()
       request.onsuccess = () => {
         const db = request.result
-        // An unversioned open of a store the extension has not created yet yields an empty DB: nothing to clear.
-        const stores = ['fragments', 'assets', 'screenshots'].filter(s => db.objectStoreNames.contains(s))
+        const stores = ['entries', 'assets'].filter(name => db.objectStoreNames.contains(name))
+        const finish = () => chrome.storage.local.clear(() => resolve())
         if (stores.length === 0) {
           db.close()
-          return resolve()
+          return finish()
         }
         const tx = db.transaction(stores, 'readwrite')
         for (const store of stores) tx.objectStore(store).clear()
         tx.oncomplete = () => {
           db.close()
-          resolve()
+          finish()
         }
-        tx.onerror = () => resolve()
+        tx.onerror = () => {
+          db.close()
+          finish()
+        }
       }
     })
   })
 }
 
-/**
- * Drive the full UI capture flow (standard mode) and return once the modal
- * closes. Verification is an explicit confirmation — no LLM involved.
- */
-export async function captureFragmentViaUi(page: Page, opts: { kind?: string; use?: string } = {}): Promise<void> {
-  await selectText(page, '[data-testid="fragment-target"]')
-  const hoverMenu = await waitForHoverMenu(page)
-  await clickShadowButton(hoverMenu.locator('button', { hasText: '碎片' }))
-  const modal = await waitForCaptureModal(page)
-
-  // Kind selection happens BEFORE confirming — editing the kind afterwards
-  // would clear the confirmation (fragments.md §7).
-  if (opts.kind) await modal.getByTestId(`kind-${opts.kind}`).click()
-
-  // 核验 step: confirm against the source material
-  await modal.getByRole('checkbox', { name: '确认已核对' }).check()
-  await modal.getByTestId('modal-next').click()
-
-  // 应用 step
-  await modal.locator('textarea[placeholder="写下准备如何使用、验证或迁移（必填）"]').fill(opts.use ?? '用在下周的宏观复盘文章里。')
-  await modal.getByRole('button', { name: '保存到碎片库' }).click()
-  await getAnnShadowRoot(page).locator('[data-ann-ui="capture-modal"]').waitFor({ state: 'detached', timeout: 5000 })
-}
-
-/** Read screenshot-library records + asset metadata (bytes stay as Blobs). */
-export async function getScreenshotsFromServiceWorker(context: any): Promise<any[]> {
+/** Image asset metadata held by the extension (bytes stay Blobs). */
+export async function getAssetMetadata(context: BrowserContext): Promise<Array<{ id: string; mimeType: string; byteLength: number; width: number; height: number }>> {
   const sw = await ensureServiceWorker(context)
   return sw.evaluate(() => {
     return new Promise<any[]>(resolve => {
-      const request = indexedDB.open('fragment-store')
-      request.onerror = () => resolve([])
-      request.onsuccess = () => {
-        const db = request.result
-        if (!db.objectStoreNames.contains('screenshots')) {
-          db.close()
-          return resolve([])
-        }
-        const tx = db.transaction(['screenshots', 'assets'], 'readonly')
-        const getAll = tx.objectStore('screenshots').getAll()
-        const assets = tx.objectStore('assets').getAll()
-        tx.oncomplete = () => {
-          const metaById = new Map((assets.result || []).map((a: any) => [a.metadata.id, a.metadata]))
-          db.close()
-          resolve((getAll.result || []).map((s: any) => ({ ...s, asset: metaById.get(s.assetId) })))
-        }
-        tx.onerror = () => resolve([])
-      }
-    })
-  })
-}
-
-// ────────────────────────────────────────────────────────────────────────────
-// Screenshot capture helpers
-// ────────────────────────────────────────────────────────────────────────────
-
-/**
- * What the keyboard shortcut does: the background messages the content script of the tab showing
- * `page`. Not a DOM event on the page — the page's own scripts can dispatch those, and the extension
- * must not take them for the user (see the capture spec's "a page cannot start a capture").
- * The content script registers its listener a moment after its shadow host appears, so a message
- * that finds nobody is sent again.
- */
-export async function triggerScreenshot(page: Page): Promise<void> {
-  const worker = await ensureServiceWorker(page.context())
-  const url = page.url()
-  const deadline = Date.now() + 10_000
-  for (;;) {
-    const error = await worker.evaluate(async pageUrl => {
-      const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === pageUrl)
-      if (tab?.id === undefined) return `no tab shows ${pageUrl}`
-      try {
-        await chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_SCREENSHOT', command: 'capture-screenshot' })
-        return ''
-      } catch (failure) {
-        return failure instanceof Error ? failure.message : String(failure)
-      }
-    }, url)
-    if (!error) return
-    if (Date.now() > deadline) throw new Error(`The screenshot trigger never reached the page: ${error}`)
-    await new Promise(resolve => setTimeout(resolve, 100))
-  }
-}
-
-/** Drags a region over the fixture post; returns the selection rectangle in page coordinates. */
-export async function dragRegion(page: Page): Promise<{ x: number; y: number; width: number; height: number }> {
-  const post = page.getByTestId('screenshot-post')
-  const box = await post.boundingBox()
-  if (!box) throw new Error('screenshot-post has no bounding box')
-  const x = box.x + 5
-  const y = box.y + 5
-  await page.mouse.move(x, y)
-  await page.mouse.down()
-  await page.mouse.move(box.x + 480, box.y + 160, { steps: 6 })
-  await page.mouse.up()
-  return { x, y, width: 480 - 5, height: 160 - 5 }
-}
-
-/** Image assets (metadata only) held by the extension's fragment store. */
-export async function getAssetsFromServiceWorker(context: BrowserContext): Promise<Array<{ id: string; mimeType: string; byteLength: number; sha256: string }>> {
-  const sw = await ensureServiceWorker(context)
-  return sw.evaluate(() => {
-    return new Promise<Array<{ id: string; mimeType: string; byteLength: number; sha256: string }>>(resolve => {
-      const request = indexedDB.open('fragment-store')
+      const request = indexedDB.open('annhub')
       request.onerror = () => resolve([])
       request.onsuccess = () => {
         const db = request.result
@@ -450,10 +123,129 @@ export async function getAssetsFromServiceWorker(context: BrowserContext): Promi
         const getAll = db.transaction('assets', 'readonly').objectStore('assets').getAll()
         getAll.onsuccess = () => {
           db.close()
-          resolve((getAll.result || []).map((a: { metadata: { id: string; mimeType: string; byteLength: number; sha256: string } }) => a.metadata))
+          resolve((getAll.result || []).map((a: any) => a.metadata))
         }
         getAll.onerror = () => resolve([])
       }
     })
   })
+}
+
+export async function getSettings(context: BrowserContext): Promise<Record<string, unknown>> {
+  const sw = await ensureServiceWorker(context)
+  return sw.evaluate(
+    () =>
+      new Promise<Record<string, unknown>>(resolve =>
+        chrome.storage.local.get('annhub.settings', result => {
+          const raw = (result as Record<string, unknown>)['annhub.settings']
+          resolve(raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {})
+        }),
+      ),
+  )
+}
+
+export async function setSettings(context: BrowserContext, patch: Record<string, unknown>): Promise<void> {
+  const sw = await ensureServiceWorker(context)
+  await sw.evaluate(
+    next =>
+      new Promise<void>(resolve =>
+        chrome.storage.local.get('annhub.settings', current => chrome.storage.local.set({ 'annhub.settings': { ...current, ...next } }, () => resolve())),
+      ),
+    patch,
+  )
+}
+
+// ── page driving ─────────────────────────────────────────────────────────
+
+/** Selects an element's text content and settles the selection (the menu reads it live). */
+export async function selectText(page: Page, selector: string): Promise<void> {
+  await page.evaluate(sel => {
+    const element = document.querySelector(sel)
+    if (!element) throw new Error(`Element not found: ${sel}`)
+    const range = document.createRange()
+    range.selectNodeContents(element)
+    const selection = window.getSelection()
+    selection?.removeAllRanges()
+    selection?.addRange(range)
+    element.dispatchEvent(new MouseEvent('pointerup', { bubbles: true }))
+  }, selector)
+}
+
+/**
+ * Selects until the selection menu shows. The content script loads at
+ * document_idle; a selection made before it is ready only needs a re-settle.
+ */
+export async function selectUntilMenu(page: Page, selector: string, timeout = 8000): Promise<Locator> {
+  const menu = page.locator('[data-ann-ui="selection-menu"]')
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    await selectText(page, selector)
+    try {
+      await menu.waitFor({ state: 'visible', timeout: 1200 })
+      return menu
+    } catch {
+      /* not ready yet — settle the selection again */
+    }
+  }
+  throw new Error('The selection menu never appeared')
+}
+
+/**
+ * What the keyboard shortcut does: the background messages the content
+ * script of the tab showing `page` — never a DOM event the page's own
+ * scripts could dispatch.
+ */
+async function sendTabMessage(page: Page, message: Record<string, unknown>): Promise<void> {
+  const worker = await ensureServiceWorker(page.context())
+  const url = page.url()
+  const deadline = Date.now() + 10_000
+  for (;;) {
+    const error = await worker.evaluate(
+      async payload => {
+        const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === payload.url)
+        if (tab?.id === undefined) return `no tab shows ${payload.url}`
+        try {
+          await chrome.tabs.sendMessage(tab.id, { type: payload.type })
+          return ''
+        } catch (failure) {
+          return failure instanceof Error ? failure.message : String(failure)
+        }
+      },
+      { ...message, url } as { type: string; url: string },
+    )
+    if (!error) return
+    if (Date.now() > deadline) throw new Error(`The trigger never reached the page: ${error}`)
+    await new Promise(resolve => setTimeout(resolve, 100))
+  }
+}
+
+export function triggerScreenshot(page: Page): Promise<void> {
+  return sendTabMessage(page, { type: 'TRIGGER_SCREENSHOT' })
+}
+
+export function triggerBlockMode(page: Page): Promise<void> {
+  return sendTabMessage(page, { type: 'TRIGGER_BLOCK_MODE' })
+}
+
+/** Waits for the clip toast (已剪藏 · 撤销 · 编辑); tolerant of a cold service worker. */
+export async function waitForClipToast(page: Page, timeout = 12_000): Promise<Locator> {
+  const toast = page.locator('[data-ann-ui="clip-toast"]')
+  await toast.waitFor({ state: 'attached', timeout })
+  return toast
+}
+
+/** Rests the pointer over an element long enough for the block capsule (400ms dwell). */
+export async function hoverForCapsule(page: Page, selector: string, timeout = 6000): Promise<Locator> {
+  const capsule = page.locator('[data-ann-ui="block-capsule"]')
+  const deadline = Date.now() + timeout
+  while (Date.now() < deadline) {
+    await page.locator(selector).hover()
+    try {
+      await capsule.waitFor({ state: 'visible', timeout: 1200 })
+      return capsule
+    } catch {
+      /* dwell again */
+    }
+  }
+  throw new Error(`The block capsule never appeared over ${selector}`)
 }
