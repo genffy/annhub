@@ -48,7 +48,7 @@ export async function saveBlockClip(element: HTMLElement, kind: BlockKind, origi
   if (!markdown.trim()) return undefined
   return saveClip({
     content: markdown,
-    permalink: resolvePermalink(element, location.href),
+    permalink: resolvePermalink(element, location.href, kind),
     origin: { ...origin, blockKind: kind, truncated },
   })
 }

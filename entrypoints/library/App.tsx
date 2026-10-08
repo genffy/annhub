@@ -8,8 +8,8 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import MessageUtils from '../../utils/message'
-import type { EntryQuery, EntryQueryResult } from '../../learning-core/query'
-import type { EntryRecord } from '../../learning-core/types'
+import type { EntryQuery, EntryQueryResult, PropertyCondition } from '../../learning-core/query'
+import type { EntryRecord, PropertyDefinition, PropertyType } from '../../learning-core/types'
 import { markdownToPlainText } from '../../learning-core/markdown'
 import { bucketCount } from '../../learning-core/metrics'
 import { MarkdownView } from './markdown-view'
@@ -23,7 +23,15 @@ interface HashState {
   search: string
   host: string
   tag: string
+  prop: string
+  op: string
+  val: string
+  val2: string
+  from: string
+  to: string
 }
+
+const EMPTY_HASH: Omit<HashState, 'view'> = { search: '', host: '', tag: '', prop: '', op: '', val: '', val2: '', from: '', to: '' }
 
 function readHash(): HashState {
   const hash = new URLSearchParams(location.hash.replace(/^#\/(all|clips|screenshots)\?*/, '') || '')
@@ -33,6 +41,12 @@ function readHash(): HashState {
     search: hash.get('q') ?? '',
     host: hash.get('host') ?? '',
     tag: hash.get('tag') ?? '',
+    prop: hash.get('prop') ?? '',
+    op: hash.get('op') ?? '',
+    val: hash.get('val') ?? '',
+    val2: hash.get('val2') ?? '',
+    from: hash.get('from') ?? '',
+    to: hash.get('to') ?? '',
   }
 }
 
@@ -41,9 +55,60 @@ function writeHash(state: HashState): void {
   if (state.search) params.set('q', state.search)
   if (state.host) params.set('host', state.host)
   if (state.tag) params.set('tag', state.tag)
+  if (state.prop) params.set('prop', state.prop)
+  if (state.op) params.set('op', state.op)
+  if (state.val) params.set('val', state.val)
+  if (state.val2) params.set('val2', state.val2)
+  if (state.from) params.set('from', state.from)
+  if (state.to) params.set('to', state.to)
   const query = params.toString()
   const next = `#/${state.view}${query ? `?${query}` : ''}`
   if (location.hash !== next) history.replaceState(null, '', next)
+}
+
+/** Operators per property type (search.md §3). */
+const OPERATORS: Record<PropertyType, { op: PropertyCondition['op']; key: string }[]> = {
+  text: [
+    { op: 'contains', key: 'library.op.contains' },
+    { op: 'equals', key: 'library.op.equals' },
+  ],
+  list: [{ op: 'has', key: 'library.op.has' }],
+  number: [
+    { op: 'eq', key: 'library.op.eq' },
+    { op: 'gt', key: 'library.op.gt' },
+    { op: 'lt', key: 'library.op.lt' },
+    { op: 'between', key: 'library.op.between' },
+  ],
+  checkbox: [{ op: 'is', key: 'library.op.is' }],
+  date: [{ op: 'between', key: 'library.op.between' }],
+  datetime: [{ op: 'between', key: 'library.op.between' }],
+}
+
+/** Calendar dates become [start, end) epoch bounds in the user's local timezone (search.md §3). */
+function localDayRange(from: string, to: string): { createdFrom?: number; createdTo?: number } {
+  const bounds: { createdFrom?: number; createdTo?: number } = {}
+  if (/^\d{4}-\d{2}-\d{2}$/.test(from)) bounds.createdFrom = new Date(`${from}T00:00:00`).getTime()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(to)) bounds.createdTo = new Date(`${to}T00:00:00`).getTime() + 24 * 60 * 60 * 1000
+  return bounds
+}
+
+/** Builds the typed condition from the filter bar's raw strings (search.md §3). */
+function buildCondition(def: PropertyDefinition, op: string, val: string, val2: string): PropertyCondition | undefined {
+  const typedOp = op as PropertyCondition['op']
+  if (def.type === 'number') {
+    const value = Number(val)
+    if (!Number.isFinite(value)) return undefined
+    if (op === 'between') {
+      const upper = val2 === '' ? value : Number(val2)
+      return Number.isFinite(upper) ? { name: def.name, op: typedOp, value, value2: upper } : undefined
+    }
+    return { name: def.name, op: typedOp, value }
+  }
+  if (def.type === 'checkbox') {
+    return { name: def.name, op: 'is', value: val === 'yes' }
+  }
+  if (!val) return undefined
+  return op === 'between' ? { name: def.name, op: typedOp, value: val, value2: val2 || val } : { name: def.name, op: typedOp, value: val }
 }
 
 export default function App() {
@@ -52,6 +117,7 @@ export default function App() {
   const [counts, setCounts] = useState({ all: 0, clips: 0, screenshots: 0 })
   const [hosts, setHosts] = useState<string[]>([])
   const [tags, setTags] = useState<string[]>([])
+  const [registry, setRegistry] = useState<PropertyDefinition[]>([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<EntryRecord | null>(null)
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null)
@@ -66,11 +132,15 @@ export default function App() {
 
   useEffect(() => {
     writeHash(state)
+    const propDef = registry.find(def => def.name === state.prop)
+    const condition = propDef && state.op ? buildCondition(propDef, state.op, state.val, state.val2) : undefined
     const query: EntryQuery = {
       search: state.search || undefined,
       types: state.view === 'all' ? undefined : [state.view === 'clips' ? 'clip' : 'screenshot'],
       hosts: state.host ? [state.host] : undefined,
       tags: state.tag ? [state.tag] : undefined,
+      ...(condition ? { conditions: [condition] } : {}),
+      ...localDayRange(state.from, state.to),
     }
     let cancelled = false
     setLoading(true)
@@ -89,7 +159,7 @@ export default function App() {
     return () => {
       cancelled = true
     }
-  }, [state])
+  }, [state, registry])
 
   const refreshCounts = useCallback(async () => {
     const [all, clips, screenshots] = await Promise.all([
@@ -114,6 +184,9 @@ export default function App() {
 
   useEffect(() => {
     void refreshCounts()
+    void MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'LIST_PROPERTIES' }).then(response => {
+      if (response.success) setRegistry(response.data!.definitions)
+    })
     void MessageUtils.sendMessage<{ usage: number; quota: number }>({ type: 'USAGE_ESTIMATE' }).then(response => {
       if (response.success) setUsage(response.data!)
     })
@@ -209,6 +282,86 @@ export default function App() {
               ))}
             </select>
           )}
+          {registry.length > 0 && (
+            <>
+              <select
+                className="filter"
+                value={state.prop}
+                aria-label={uiText('library.filter.property')}
+                onChange={event => {
+                  const prop = event.target.value
+                  const def = registry.find(item => item.name === prop)
+                  const op = def ? OPERATORS[def.type][0]!.op : ''
+                  setState(prev => ({ ...prev, prop, op, val: '', val2: '' }))
+                }}
+              >
+                <option value="">{uiText('library.filter.property')}: —</option>
+                {registry.map(def => (
+                  <option key={def.name} value={def.name}>
+                    {def.name}
+                  </option>
+                ))}
+              </select>
+              {state.prop &&
+                (() => {
+                  const def = registry.find(item => item.name === state.prop)
+                  if (!def) return null
+                  const operators = OPERATORS[def.type]
+                  const valueInput = (key: 'val' | 'val2', labelKey?: 'library.filter.value2') => {
+                    if (def!.type === 'checkbox') {
+                      return (
+                        <select
+                          className="filter filter-value"
+                          value={state[key]}
+                          aria-label={labelKey ? uiText(labelKey) : uiText('library.filter.value')}
+                          onChange={event => setState(prev => ({ ...prev, [key]: event.target.value }))}
+                        >
+                          <option value="">{uiText('library.filter.value')}: —</option>
+                          <option value="yes">{uiText('library.value.yes')}</option>
+                          <option value="no">{uiText('library.value.no')}</option>
+                        </select>
+                      )
+                    }
+                    const inputType = def!.type === 'number' ? 'number' : def!.type === 'date' ? 'date' : def!.type === 'datetime' ? 'datetime-local' : 'text'
+                    return (
+                      <input
+                        className="filter filter-value"
+                        type={inputType}
+                        value={state[key]}
+                        aria-label={labelKey ? uiText(labelKey) : uiText('library.filter.value')}
+                        onChange={event => setState(prev => ({ ...prev, [key]: event.target.value }))}
+                      />
+                    )
+                  }
+                  return (
+                    <>
+                      {operators.length > 1 && (
+                        <select
+                          className="filter"
+                          value={state.op}
+                          aria-label={uiText('library.filter.operator')}
+                          onChange={event => setState(prev => ({ ...prev, op: event.target.value, val: '', val2: '' }))}
+                        >
+                          {operators.map(({ op, key: opKey }) => (
+                            <option key={op} value={op}>
+                              {uiText(opKey as 'library.op.contains')}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {valueInput('val')}
+                      {state.op === 'between' && valueInput('val2', 'library.filter.value2')}
+                    </>
+                  )
+                })()}
+            </>
+          )}
+          <label className="filter filter-time" aria-label={uiText('library.filter.time')}>
+            <span className="filter-time-label">{uiText('library.filter.time')}</span>
+            <input type="date" value={state.from} aria-label={uiText('library.filter.timeFrom')} onChange={event => setState(prev => ({ ...prev, from: event.target.value }))} />
+            <span>–</span>
+            <input type="date" value={state.to} aria-label={uiText('library.filter.timeTo')} onChange={event => setState(prev => ({ ...prev, to: event.target.value }))} />
+          </label>
           <span className="count">{loading ? uiText('common.loading') : uiText('library.count', { count: result.total })}</span>
         </header>
 
@@ -216,7 +369,7 @@ export default function App() {
           <div className="empty">
             {counts.all === 0 ? uiText('library.empty') : uiText('library.noResults')}
             {counts.all > 0 && (
-              <button type="button" className="link" onClick={() => setState({ view: 'all', search: '', host: '', tag: '' })}>
+              <button type="button" className="link" onClick={() => setState({ view: 'all', ...EMPTY_HASH })}>
                 {uiText('library.clearFilters')}
               </button>
             )}
