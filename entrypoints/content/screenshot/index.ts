@@ -33,6 +33,18 @@ import { createElement } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { ScreenshotToolbar } from './toolbar'
 import { renderScreenshot, type Annotation, type Point, type ScreenshotTool } from './editor'
+import {
+  BEAUTIFY_BACKGROUNDS,
+  composeGeometry,
+  constrainToRatio,
+  downloadExtension,
+  downloadMime,
+  ratioOf,
+  watermarkBox,
+  type BeautifySettings,
+  type DownloadFormat,
+} from './output'
+import type { ExtensionSettings } from '../../../background-service/settings-schema'
 
 const ROOT_ATTR = 'data-ann-ui'
 const ROOT_VALUE = 'screenshot-session'
@@ -90,6 +102,13 @@ class ScreenshotSession {
   private capturedDpr = 1
   private anonymizeOn = true
   private via: CaptureVia
+  private settings: ExtensionSettings | null = null
+  private ratio = 'free'
+  private ratioBarEl: HTMLDivElement | null = null
+  private watermarkOn = true
+  private beautify: BeautifySettings = { enabled: false, background: 'solid-white', padding: 'medium', radius: 12, shadow: true }
+  private beautifyPanelEl: HTMLDivElement | null = null
+  private displayCanvas: HTMLCanvasElement | null = null
   private readonly onKeydown = (e: KeyboardEvent) => {
     if (!isUserInput(e)) return
     if (e.key === 'Escape') {
@@ -117,6 +136,12 @@ class ScreenshotSession {
       e.preventDefault()
       this.anonymizeOn = !this.anonymizeOn
       this.syncHint()
+    }
+    if (this.state === 'preview' && (e.key === 'w' || e.key === 'W') && this.settings?.watermark.enabled) {
+      e.preventDefault()
+      this.watermarkOn = !this.watermarkOn
+      this.syncStatus()
+      this.refreshDisplay()
     }
   }
 
@@ -184,10 +209,15 @@ class ScreenshotSession {
   }
 
   private async loadAnonymizeDefault(): Promise<void> {
-    const response = await MessageUtils.sendMessage<{ anonymizeDefault?: boolean }>({ type: 'GET_SETTINGS' })
-    if (response.success && typeof response.data?.anonymizeDefault === 'boolean' && this.state === 'selecting') {
+    const response = await MessageUtils.sendMessage<ExtensionSettings>({ type: 'GET_SETTINGS' })
+    if (!response.success || !response.data) return
+    this.settings = response.data
+    if (this.state === 'selecting') {
       this.anonymizeOn = response.data.anonymizeDefault
+      this.watermarkOn = response.data.watermark.enabled
+      this.beautify = { ...response.data.beautify }
       this.syncHint()
+      this.showRatioBar()
     }
   }
 
@@ -198,7 +228,38 @@ class ScreenshotSession {
       this.textNode(uiText('shot.hint')),
       this.boldNode('A'),
       this.textNode(uiText('shot.anonymize', { state: uiText(this.anonymizeOn ? 'shot.on' : 'shot.off') })),
+      ...(this.settings?.watermark.enabled ? [this.boldNode('W'), this.textNode(uiText('shot.watermark', { state: uiText(this.watermarkOn ? 'shot.on' : 'shot.off') }))] : []),
     )
+  }
+
+  private syncStatus(): void {
+    this.syncHint()
+  }
+
+  /** The selection bar's ratio chips: 自由 plus the presets enabled in settings (screenshot.md §1.3). */
+  private showRatioBar(): void {
+    if (!this.settings || this.settings.ratioPresets.length === 0) return
+    this.ratioBarEl?.remove()
+    const bar = this.doc.createElement('div')
+    bar.className = 'ann-shot-ratio-bar'
+    bar.setAttribute('data-ann-ui', 'screenshot-ratio-bar')
+    const chip = (id: string, label: string) => {
+      const button = this.doc.createElement('button')
+      button.type = 'button'
+      button.textContent = label
+      button.className = this.ratio === id ? 'ann-shot-ratio-active' : ''
+      button.setAttribute('aria-pressed', String(this.ratio === id))
+      button.addEventListener('click', event => {
+        if (!isUserInput(event)) return
+        this.ratio = id
+        this.showRatioBar()
+      })
+      return button
+    }
+    bar.append(chip('free', uiText('shot.ratio.free')))
+    for (const id of this.settings.ratioPresets) bar.append(chip(id, id))
+    this.host.appendChild(bar)
+    this.ratioBarEl = bar
   }
   private textNode(t: string): Text {
     return this.doc.createTextNode(t)
@@ -223,6 +284,9 @@ class ScreenshotSession {
     this.selectionEl = null
     this.previewEl = null
     this.toolbarEl = null
+    this.ratioBarEl = null
+    this.beautifyPanelEl = null
+    this.displayCanvas = null
     this.croppedCanvas = null
     this.sourceCanvas = null
     this.state = 'done'
@@ -249,10 +313,12 @@ class ScreenshotSession {
 
     const move = (ev: PointerEvent) => {
       if (!isUserInput(ev)) return
-      const x0 = Math.max(0, Math.min(origin.x, ev.clientX))
-      const y0 = Math.max(0, Math.min(origin.y, ev.clientY))
-      const x1 = Math.min(this.doc.defaultView!.innerWidth, Math.max(origin.x, ev.clientX))
-      const y1 = Math.min(this.doc.defaultView!.innerHeight, Math.max(origin.y, ev.clientY))
+      const view = this.doc.defaultView!
+      const raw = constrainToRatio(origin, { x: ev.clientX, y: ev.clientY }, this.ratio, { width: view.innerWidth, height: view.innerHeight })
+      const x0 = Math.max(0, raw.x)
+      const y0 = Math.max(0, raw.y)
+      const x1 = Math.min(view.innerWidth, raw.x + raw.width)
+      const y1 = Math.min(view.innerHeight, raw.y + raw.height)
       this.selection = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }
       if (this.selection.width > 0 && this.selection.height > 0 && !this.selectionEl) {
         this.host.appendChild(rect)
@@ -263,7 +329,8 @@ class ScreenshotSession {
       rect.style.top = `${y0}px`
       rect.style.width = `${this.selection.width}px`
       rect.style.height = `${this.selection.height}px`
-      size.textContent = `${Math.round(this.selection.width)} x ${Math.round(this.selection.height)}`
+      const preset = ratioOf(this.ratio)
+      size.textContent = `${Math.round(this.selection.width)} x ${Math.round(this.selection.height)}${preset ? ` · ${preset.id} 🔒` : ''}`
       size.style.bottom = y0 < 28 ? 'auto' : ''
       size.style.top = y0 < 28 ? 'calc(100% + 6px)' : ''
     }
@@ -462,12 +529,17 @@ class ScreenshotSession {
   private showPreview(): void {
     this.selectionEl?.remove()
     this.selectionEl = null
+    this.ratioBarEl?.remove()
+    this.ratioBarEl = null
     this.overlayEl?.style.setProperty('background', 'transparent')
     if (this.hintEl) this.hintEl.style.display = 'none'
     this.previewEl?.remove()
     this.toolbarRoot?.unmount()
     this.toolbarEl?.remove()
+    this.beautifyPanelEl?.remove()
+    this.beautifyPanelEl = null
 
+    this.refreshDisplay()
     const rect = this.previewRect()
     const panel = this.doc.createElement('div')
     panel.className = 'ann-shot-preview'
@@ -480,7 +552,7 @@ class ScreenshotSession {
       size.style.bottom = 'auto'
       size.style.top = 'calc(100% + 6px)'
     }
-    panel.append(size, this.croppedCanvas!)
+    panel.append(size, this.displayCanvas!)
     this.croppedCanvas!.addEventListener('pointerdown', this.onCanvasPointerDown)
     this.host.appendChild(panel)
     this.previewEl = panel
@@ -532,6 +604,7 @@ class ScreenshotSession {
           this.updateToolbar()
         },
         onUndo: () => this.undo(),
+        onBeautify: () => this.toggleBeautifyPanel(),
         onCopy: () => void this.copyCurrent(),
         onDownload: () => void this.downloadOnly(),
         onCancel: () => exitScreenshotMode(),
@@ -550,6 +623,95 @@ class ScreenshotSession {
   private renderEditor(draft?: Annotation): void {
     if (!this.croppedCanvas || !this.sourceCanvas) return
     renderScreenshot(this.croppedCanvas, this.sourceCanvas, this.maskBoxes, draft ? [...this.annotations, draft] : this.annotations, this.capturedDpr)
+    this.refreshDisplay(true)
+  }
+
+  /**
+   * The composed output preview: beautify canvas (background, padding,
+   * radius, shadow) with the watermark on top — exactly what copy and
+   * download will produce. The library entry keeps the un-composed content
+   * (screenshot.md §4.2-4.4).
+   */
+  private refreshDisplay(inPlace = false): void {
+    const content = this.croppedCanvas
+    if (!content) return
+    let out: HTMLCanvasElement = content
+    if (this.beautify.enabled) {
+      const geo = composeGeometry({ width: content.width, height: content.height }, this.beautify)
+      const canvas = this.doc.createElement('canvas')
+      canvas.width = geo.canvas.width
+      canvas.height = geo.canvas.height
+      const ctx = canvas.getContext('2d')!
+      const background = BEAUTIFY_BACKGROUNDS[this.beautify.background]
+      if (background.fill) {
+        ctx.fillStyle = background.fill as string
+        ctx.fillRect(0, 0, canvas.width, canvas.height)
+      }
+      if (this.beautify.shadow) {
+        ctx.save()
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.28)'
+        ctx.shadowBlur = Math.round(canvas.width * 0.03)
+        ctx.shadowOffsetY = Math.round(canvas.width * 0.008)
+        this.roundedRect(ctx, geo.content.x, geo.content.y, geo.content.width, geo.content.height, this.beautify.radius)
+        ctx.fillStyle = 'rgba(255,255,255,0.001)'
+        ctx.fill()
+        ctx.restore()
+      }
+      if (this.beautify.radius > 0) {
+        this.roundedRect(ctx, geo.content.x, geo.content.y, geo.content.width, geo.content.height, this.beautify.radius)
+        ctx.save()
+        ctx.clip()
+        ctx.drawImage(content, geo.content.x, geo.content.y)
+        ctx.restore()
+      } else {
+        ctx.drawImage(content, geo.content.x, geo.content.y)
+      }
+      out = canvas
+    }
+    if (this.settings?.watermark.enabled && this.watermarkOn) {
+      const canvas = this.doc.createElement('canvas')
+      canvas.width = out.width
+      canvas.height = out.height
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(out, 0, 0)
+      const wm = this.settings.watermark
+      const box = watermarkBox({ width: canvas.width, height: canvas.height }, wm)
+      ctx.globalAlpha = wm.opacity
+      ctx.fillStyle = '#20252b'
+      ctx.font = `${box.fontSize}px -apple-system, system-ui, sans-serif`
+      ctx.textAlign = wm.position.endsWith('right') ? 'right' : 'left'
+      ctx.textBaseline = wm.position.startsWith('top') ? 'top' : 'bottom'
+      if (wm.text) ctx.fillText(wm.text, box.x, box.y)
+      ctx.globalAlpha = 1
+      out = canvas
+    }
+    if (inPlace && this.displayCanvas && this.previewEl?.contains(this.displayCanvas)) {
+      // keep the element identity when only pixels changed
+      const ctx = this.displayCanvas.getContext('2d')!
+      this.displayCanvas.width = out.width
+      this.displayCanvas.height = out.height
+      ctx.drawImage(out, 0, 0)
+      return
+    }
+    this.displayCanvas = out
+    if (this.previewEl) {
+      const old = this.previewEl.querySelector('canvas')
+      old?.remove()
+      const size = this.previewEl.querySelector('.ann-shot-size')
+      size?.after(out)
+      out.addEventListener('pointerdown', this.onCanvasPointerDown)
+    }
+  }
+
+  private roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number): void {
+    const r = Math.min(radius, width / 2, height / 2)
+    ctx.beginPath()
+    ctx.moveTo(x + r, y)
+    ctx.arcTo(x + width, y, x + width, y + height, r)
+    ctx.arcTo(x + width, y + height, x, y + height, r)
+    ctx.arcTo(x, y + height, x, y, r)
+    ctx.arcTo(x, y, x + width, y, r)
+    ctx.closePath()
   }
 
   private canvasPoint(e: PointerEvent): Point {
@@ -673,7 +835,7 @@ class ScreenshotSession {
 
   /** Copy keeps the editing session (screenshot.md §4.2); `http:` pages get the download hint. */
   private async copyCurrent(): Promise<void> {
-    const canvas = this.croppedCanvas
+    const canvas = this.displayCanvas ?? this.croppedCanvas
     if (!canvas || this.busy) return
     this.busy = true
     this.updateToolbar()
@@ -697,12 +859,27 @@ class ScreenshotSession {
 
   /** Download keeps the editing session; R1 always downloads PNG (formats are R2). */
   private async downloadOnly(): Promise<void> {
-    const canvas = this.croppedCanvas
+    const canvas = this.displayCanvas ?? this.croppedCanvas
     if (!canvas || this.busy) return
     this.busy = true
     this.updateToolbar()
     try {
-      const response = await MessageUtils.sendMessage<{ downloadId: number }>({ type: 'DOWNLOAD_IMAGE', dataUrl: canvas.toDataURL('image/png') })
+      // JPEG has no alpha: the transparent beautify background matts to white (screenshot.md §4.2)
+      let dataUrl: string
+      const format: DownloadFormat = (this.settings?.downloadFormat as DownloadFormat) ?? 'png'
+      if (format === 'jpeg' && this.beautify.background === 'none') {
+        const matted = this.doc.createElement('canvas')
+        matted.width = canvas.width
+        matted.height = canvas.height
+        const ctx = matted.getContext('2d')!
+        ctx.fillStyle = '#ffffff'
+        ctx.fillRect(0, 0, matted.width, matted.height)
+        ctx.drawImage(canvas, 0, 0)
+        dataUrl = matted.toDataURL(downloadMime(format), this.settings?.downloadQuality ?? 0.9)
+      } else {
+        dataUrl = canvas.toDataURL(downloadMime(format), this.settings?.downloadQuality ?? 0.9)
+      }
+      const response = await MessageUtils.sendMessage<{ downloadId: number }>({ type: 'DOWNLOAD_IMAGE', dataUrl, extension: downloadExtension(format) })
       if (!response.success) throw new Error(response.error || uiText('shot.error.downloadFailed'))
       this.showNotice(uiText('shot.downloaded'))
     } catch (error) {
@@ -711,6 +888,124 @@ class ScreenshotSession {
       this.busy = false
       this.updateToolbar()
     }
+  }
+
+  /** The beautify panel (screenshot.md §4.4): immediate preview, 复原, never in the undo stack, copy/download only. */
+  private toggleBeautifyPanel(): void {
+    if (this.beautifyPanelEl) {
+      this.beautifyPanelEl.remove()
+      this.beautifyPanelEl = null
+      return
+    }
+    const panel = this.doc.createElement('div')
+    panel.className = 'ann-shot-beautify'
+    panel.setAttribute('data-ann-ui', 'screenshot-beautify')
+    const row = (
+      labelKey: 'shot.beautify.background' | 'shot.beautify.padding' | 'shot.beautify.radius' | 'shot.beautify.shadow' | 'shot.beautify.ratio',
+      control: HTMLElement,
+    ) => {
+      const rowEl = this.doc.createElement('label')
+      rowEl.className = 'ann-shot-beautify-row'
+      const label = this.doc.createElement('span')
+      label.textContent = uiText(labelKey)
+      rowEl.append(label, control)
+      panel.appendChild(rowEl)
+    }
+    const select = (options: Array<{ value: string; label: string }>, value: string, onChange: (value: string) => void) => {
+      const selectEl = this.doc.createElement('select')
+      for (const option of options) {
+        const optionEl = this.doc.createElement('option')
+        optionEl.value = option.value
+        optionEl.textContent = option.label
+        if (option.value === value) optionEl.selected = true
+        selectEl.appendChild(optionEl)
+      }
+      selectEl.addEventListener('change', event => {
+        onChange((event.target as HTMLSelectElement).value)
+        this.refreshDisplay(true)
+      })
+      return selectEl
+    }
+    row(
+      'shot.beautify.background',
+      select(
+        [
+          { value: 'none', label: uiText('settings.background.none') },
+          { value: 'solid-white', label: 'A' },
+          { value: 'solid-ivory', label: 'B' },
+          { value: 'grad-purple', label: '1' },
+          { value: 'grad-blue', label: '2' },
+          { value: 'grad-green', label: '3' },
+          { value: 'grad-sunset', label: '4' },
+          { value: 'grad-slate', label: '5' },
+        ],
+        this.beautify.background,
+        value => {
+          this.beautify.enabled = value !== 'none' || this.beautify.enabled
+          this.beautify.background = value as BeautifySettings['background']
+          if (value !== 'none') this.beautify.enabled = true
+        },
+      ),
+    )
+    row(
+      'shot.beautify.padding',
+      select(
+        [
+          { value: 'small', label: '24' },
+          { value: 'medium', label: '40' },
+          { value: 'large', label: '64' },
+        ],
+        this.beautify.padding,
+        value => {
+          this.beautify.padding = value as BeautifySettings['padding']
+        },
+      ),
+    )
+    row(
+      'shot.beautify.radius',
+      select(
+        [
+          { value: '0', label: '0' },
+          { value: '12', label: '12' },
+          { value: '24', label: '24' },
+        ],
+        String(this.beautify.radius),
+        value => {
+          this.beautify.radius = Number(value)
+        },
+      ),
+    )
+    const shadowCheck = this.doc.createElement('input')
+    shadowCheck.type = 'checkbox'
+    shadowCheck.checked = this.beautify.shadow
+    shadowCheck.addEventListener('change', event => {
+      this.beautify.shadow = (event.target as HTMLInputElement).checked
+      this.refreshDisplay(true)
+    })
+    row('shot.beautify.shadow', shadowCheck)
+    const enabledCheck = this.doc.createElement('input')
+    enabledCheck.type = 'checkbox'
+    enabledCheck.checked = this.beautify.enabled
+    enabledCheck.setAttribute('aria-label', uiText('settings.beautify'))
+    enabledCheck.addEventListener('change', event => {
+      this.beautify.enabled = (event.target as HTMLInputElement).checked
+      this.refreshDisplay(true)
+    })
+    row('shot.beautify.shadow', enabledCheck)
+    const reset = this.doc.createElement('button')
+    reset.type = 'button'
+    reset.textContent = uiText('shot.beautify.reset')
+    reset.addEventListener('click', event => {
+      if (!isUserInput(event)) return
+      this.beautify = { ...(this.settings?.beautify ?? { enabled: false, background: 'solid-white', padding: 'medium', radius: 12, shadow: true }) }
+      this.refreshDisplay(true)
+      panel.remove()
+      this.beautifyPanelEl = null
+    })
+    panel.appendChild(reset)
+    this.host.appendChild(panel)
+    this.beautifyPanelEl = panel
+    void row
   }
 
   private showNotice(message: string, error = false): void {

@@ -59,8 +59,9 @@ export class ScreenshotService implements IService {
         if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
         try {
           const iso = new Date().toISOString().replace(/[:.]/g, '-')
-          const downloadId = await this.downloadDataUrl(message.dataUrl, `AnnHub/screenshot-${iso}.png`)
-          await recordEvent('screenshot.downloaded', { format: 'png', watermark: false, beautify: false })
+          const extension = message.extension ?? 'png'
+          const downloadId = await this.downloadDataUrl(message.dataUrl, `AnnHub/screenshot-${iso}.${extension}`)
+          await recordEvent('screenshot.downloaded', { format: extension === 'jpg' ? 'jpeg' : extension, watermark: false, beautify: false })
           return MessageUtils.createResponse(true, { downloadId })
         } catch (error) {
           return this.failure('downloadImage', error)

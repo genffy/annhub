@@ -143,6 +143,8 @@ export interface FetchImageMessage extends BaseMessage {
 export interface DownloadImageMessage extends BaseMessage {
   type: 'DOWNLOAD_IMAGE'
   dataUrl: string
+  /** File extension for the chosen format (png/jpg/webp); defaults to png. */
+  extension?: string
 }
 
 // ── Settings, metrics, housekeeping ─────────────────────────────────────
