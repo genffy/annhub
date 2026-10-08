@@ -13,13 +13,15 @@ import type { EntryRecord, PropertyDefinition, PropertyType } from '../../learni
 import { markdownToPlainText } from '../../learning-core/markdown'
 import { bucketCount } from '../../learning-core/metrics'
 import { HighlightSurface } from './highlight-surface'
+import { PropertyPanel } from './property-panel'
+import { PropertiesView } from './properties-view'
 import { ReadingView } from './reading-view'
 import type { HighlightQueryResult } from '../../learning-core/query'
 import type { HighlightColor } from '../../learning-core/types'
 import { relativeTime } from '../../utils/relative-time'
 import { currentUiLanguage, uiText } from '../../utils/ui-text'
 
-type View = 'all' | 'clips' | 'highlights' | 'screenshots'
+type View = 'all' | 'clips' | 'highlights' | 'screenshots' | 'properties'
 
 interface HashState {
   view: View
@@ -38,7 +40,7 @@ const EMPTY_HASH: Omit<HashState, 'view'> = { search: '', host: '', tag: '', pro
 
 function readHash(): HashState {
   const hash = new URLSearchParams(location.hash.replace(/^#\/(all|clips|screenshots)\?*/, '') || '')
-  const viewMatch = /^#\/(all|clips|highlights|screenshots)/.exec(location.hash)
+  const viewMatch = /^#\/(all|clips|highlights|screenshots|properties)/.exec(location.hash)
   return {
     view: (viewMatch?.[1] as View) ?? 'all',
     search: hash.get('q') ?? '',
@@ -226,7 +228,7 @@ export default function App() {
     setExportState(result === 'full' ? 'done' : 'partial')
   }, [])
 
-  const viewTab = (view: View, key: 'library.all' | 'library.clips' | 'library.highlights' | 'library.screenshots', count: number) => (
+  const viewTab = (view: View, key: 'library.all' | 'library.clips' | 'library.highlights' | 'library.screenshots' | 'library.properties', count: number) => (
     <a
       key={view}
       href={`#/${view}`}
@@ -246,6 +248,7 @@ export default function App() {
         {viewTab('clips', 'library.clips', counts.clips)}
         {viewTab('highlights', 'library.highlights', highlightResult.total)}
         {viewTab('screenshots', 'library.screenshots', counts.screenshots)}
+        {viewTab('properties', 'library.properties', registry.length)}
         <div className="nav-spacer" />
         <a className="nav-item" href={chrome.runtime.getURL('options.html')}>
           {uiText('library.settings')}
@@ -380,7 +383,15 @@ export default function App() {
           <span className="count">{loading ? uiText('common.loading') : uiText('library.count', { count: result.total })}</span>
         </header>
 
-        {state.view === 'highlights' ? (
+        {state.view === 'properties' ? (
+          <PropertiesView
+            onRegistryChanged={() => {
+              void MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'LIST_PROPERTIES' }).then(response => {
+                if (response.success) setRegistry(response.data!.definitions)
+              })
+            }}
+          />
+        ) : state.view === 'highlights' ? (
           highlightResult.total === 0 ? (
             <div className="empty">{counts.all === 0 ? uiText('library.empty') : uiText('reading.empty')}</div>
           ) : (
@@ -435,6 +446,7 @@ export default function App() {
         <DetailDrawer
           entryId={selected.id}
           defaultColor={defaultColor}
+          registry={registry}
           onClose={() => {
             setSelected(null)
             void refreshCounts()
@@ -450,6 +462,7 @@ export default function App() {
         <ReadingView
           entryId={readingId}
           defaultColor={defaultColor}
+          registry={registry}
           onClose={() => {
             history.back()
           }}
@@ -492,13 +505,23 @@ function EntryRow({ entry, onOpen }: { entry: EntryRecord; onOpen: () => void })
   )
 }
 
-function DetailDrawer({ entryId, defaultColor, onClose, onOpenReading }: { entryId: string; defaultColor: HighlightColor; onClose: () => void; onOpenReading(id: string): void }) {
+function DetailDrawer({
+  entryId,
+  defaultColor,
+  registry,
+  onClose,
+  onOpenReading,
+}: {
+  entryId: string
+  defaultColor: HighlightColor
+  registry: PropertyDefinition[]
+  onClose: () => void
+  onOpenReading(id: string): void
+}) {
   const [entry, setEntry] = useState<EntryRecord | null>(null)
   const [assetUrl, setAssetUrl] = useState<string | null>(null)
   const [assetMissing, setAssetMissing] = useState(false)
-  const [title, setTitle] = useState('')
   const [note, setNote] = useState('')
-  const [tags, setTags] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [error, setError] = useState('')
 
@@ -510,9 +533,7 @@ function DetailDrawer({ entryId, defaultColor, onClose, onOpenReading }: { entry
     }
     const loaded = response.data.entry
     setEntry(loaded)
-    setTitle(String(loaded.properties['title'] ?? ''))
     setNote(loaded.note ?? '')
-    setTags(((loaded.properties['tags'] as string[] | undefined) ?? []).join(', '))
     setAssetMissing(false)
     setAssetUrl(null)
     if (loaded.type === 'screenshot' && loaded.assetId) {
@@ -536,21 +557,14 @@ function DetailDrawer({ entryId, defaultColor, onClose, onOpenReading }: { entry
 
   const persist = useCallback(async () => {
     if (!entry) return
-    const tagList = tags
-      .split(/[,，]/)
-      .map(tag => tag.trim())
-      .filter(Boolean)
-    const properties: Record<string, string | string[]> = { ...entry.properties, title: title.trim() || String(entry.properties['title'] ?? '') }
-    if (tagList.length > 0) properties.tags = tagList
-    else delete properties.tags
     const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({
       type: 'UPDATE_ENTRY',
       id: entry.id,
-      patch: { properties, ...(note.trim() ? { note: note.trim() } : { note: undefined }) },
+      patch: note.trim() ? { note: note.trim() } : { note: undefined },
     })
     if (!response.success) setError(response.error ?? 'update failed')
     else setEntry(response.data!.entry)
-  }, [entry, note, tags, title])
+  }, [entry, note])
 
   if (!entry) {
     return (
@@ -564,7 +578,7 @@ function DetailDrawer({ entryId, defaultColor, onClose, onOpenReading }: { entry
     <aside className="drawer" role="dialog" aria-modal="true" data-entry-id={entry.id}>
       <header className="drawer-header">
         <span className={`type-chip type-${entry.type}`}>{uiText(entry.type === 'clip' ? 'library.clips' : 'library.screenshots')}</span>
-        <span className="drawer-title">{title}</span>
+        <span className="drawer-title">{String(entry.properties['title'] ?? '')}</span>
         <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer" className="link">
           {uiText('library.backToSource')}
         </a>
@@ -587,7 +601,7 @@ function DetailDrawer({ entryId, defaultColor, onClose, onOpenReading }: { entry
           ) : assetMissing ? (
             <p className="warn">{uiText('library.imageMissing')}</p>
           ) : assetUrl ? (
-            <img className="drawer-image" src={assetUrl} alt={title} />
+            <img className="drawer-image" src={assetUrl} alt={String(entry.properties['title'] ?? '')} />
           ) : (
             <p className="hint">{uiText('common.loading')}</p>
           )}
@@ -604,20 +618,7 @@ function DetailDrawer({ entryId, defaultColor, onClose, onOpenReading }: { entry
         </section>
         <section className="drawer-section">
           <h3>{uiText('library.properties')}</h3>
-          <label className="field">
-            <span>{uiText('edit.title')}</span>
-            <input value={title} onChange={event => setTitle(event.target.value)} onBlur={() => void persist()} />
-          </label>
-          <label className="field">
-            <span>{uiText('edit.tags')}</span>
-            <input value={tags} onChange={event => setTags(event.target.value)} onBlur={() => void persist()} />
-          </label>
-          <p className="drawer-system">
-            <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer">
-              {entry.sourceHost}
-            </a>{' '}
-            · {new Date(entry.createdAt).toLocaleString()}
-          </p>
+          <PropertyPanel entry={entry} registry={registry} onEntryChanged={setEntry} />
         </section>
         {error && <p className="warn">{error}</p>}
       </div>
