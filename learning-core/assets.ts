@@ -1,14 +1,17 @@
 /**
- * Image asset helpers shared by the screenshot service and the fragment store
- * (docs/v2/storage.md §3).
+ * ID and digest helpers for entries, highlights and image assets
+ * (docs/v2/entry.md §3, storage.md §4).
  */
 import { nanoid } from 'nanoid'
 
-/** Per-image byte ceiling for a saved screenshot. */
+/** Per-image byte ceiling for a saved screenshot (initial value; Q-03 calibrates it). */
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024
 
-export const newAssetId = (): string => `asset_${Date.now().toString(36)}_${nanoid(8)}`
-export const newScreenshotId = (): string => `shot_${Date.now().toString(36)}_${nanoid(8)}`
+const time36 = (): string => Date.now().toString(36)
+
+export const newEntryId = (): string => `ent_${time36()}_${nanoid(8)}`
+export const newHighlightId = (): string => `hl_${time36()}_${nanoid(6)}`
+export const newAssetId = (): string => `asset_${time36()}_${nanoid(8)}`
 
 export async function sha256Hex(input: Uint8Array | string): Promise<string> {
   const bytes = typeof input === 'string' ? new TextEncoder().encode(input) : input

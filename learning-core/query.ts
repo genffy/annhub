@@ -1,148 +1,315 @@
 /**
- * Unified fragment search / filter / sort / pagination (docs/v2/search.md).
+ * Entry search / filter / sort / pagination — docs/v2/search.md.
  *
- * Used by the extension library page; pages never copy these matching rules. Candidates are filtered in memory
- * after the store narrows by index; results must pass through this rule set
- * regardless of any cached search index.
+ * Pure functions over the loaded entries; the store may narrow candidates
+ * by index first, but results must always pass through these rules. Pages
+ * never copy the matching rules.
  */
-import type { FragmentKind, FragmentRecord } from './types'
-import { normalizeContent } from './normalize'
+import { markdownToPlainText } from './markdown'
+import { normalizeText } from './normalize'
+import { propertyStorageKey } from './properties'
+import type { EntryRecord, Highlight, HighlightColor, PropertyType } from './types'
 
-export interface FragmentQueryFilters {
-  search?: string
-  kinds?: FragmentKind[]
-  hosts?: string[]
-  tags?: string[]
-  /** [start, end) UTC epoch ms (search.md §2). */
-  capturedFrom?: number
-  capturedTo?: number
+// ── Query shape ─────────────────────────────────────────────────────────
+
+export type TextOp = 'contains' | 'equals'
+export type NumberOp = 'eq' | 'gt' | 'lt' | 'between'
+export type ListOp = 'has'
+export type BoolOp = 'is'
+export type RangeOp = 'between'
+
+export interface PropertyCondition {
+  name: string
+  op: TextOp | NumberOp | ListOp | BoolOp | RangeOp
+  value: unknown
+  /** `between` needs a second bound. */
+  value2?: unknown
 }
 
-export interface FragmentQuery extends FragmentQueryFilters {
+export interface EntryQueryFilters {
+  /** Only meaningful in the All view (search.md §3). */
+  types?: ('clip' | 'screenshot')[]
+  hosts?: string[]
+  tags?: string[]
+  /** [start, end) UTC epoch ms. */
+  createdFrom?: number
+  createdTo?: number
+  conditions?: PropertyCondition[]
+}
+
+export interface EntryQuery extends EntryQueryFilters {
+  search?: string
   limit?: number
   /** Opaque stable-sort cursor from a previous page. */
   cursor?: string
 }
 
-export interface FragmentQueryResult {
-  items: FragmentRecord[]
+export interface EntryQueryResult {
+  items: EntryRecord[]
   nextCursor?: string
-  /** Count after filters + search, before pagination. */
+  /** After filters + search, before pagination. */
   total: number
 }
 
-const PAGE_DEFAULT = 50
-const PAGE_MAX = 200
+export const PAGE_DEFAULT = 50
 
-// Field weights per search.md §3: content=5, 理解/核验/应用=4, tags=3,
-// sourceTitle=2, excerpt/sourceHost/sourceUrl=1.
-type WeightedField = { weight: number; text: string }
+// ── Field extraction with weights (search.md §1, §4) ────────────────────
 
-function haystack(fragment: FragmentRecord): WeightedField[] {
-  const fields: WeightedField[] = [
-    { weight: 5, text: fragment.content },
-    { weight: 4, text: fragment.processing.guess ?? '' },
-    { weight: 4, text: fragment.processing.verified.summary ?? '' },
-    { weight: 4, text: fragment.processing.use },
-    { weight: 3, text: fragment.tags.join(' ') },
-    { weight: 2, text: fragment.context.sourceTitle ?? '' },
-    { weight: 1, text: fragment.context.excerpt },
-    { weight: 1, text: fragment.context.sourceHost },
-    { weight: 1, text: fragment.context.sourceUrl },
-  ]
-  return fields.map(f => ({ weight: f.weight, text: normalizeContent(f.text) }))
+interface WeightedField {
+  weight: number
+  text: string
 }
 
-/** Unicode-whitespace word split; each word must substring-hit some field (search.md §2). */
-function splitWords(query: string): string[] {
-  return normalizeContent(query).split(/\s+/).filter(Boolean)
+function searchableFields(entry: EntryRecord, registry: Map<string, { name: string; type: PropertyType }>): WeightedField[] {
+  const fields: WeightedField[] = []
+  fields.push({ weight: 5, text: markdownToPlainText(entry.content) })
+  fields.push({ weight: 4, text: String(entry.properties['title'] ?? '') })
+  fields.push({ weight: 4, text: entry.note ?? '' })
+  for (const highlight of entry.highlights ?? []) {
+    fields.push({ weight: 4, text: highlight.quote })
+    fields.push({ weight: 3, text: highlight.note ?? '' })
+  }
+  fields.push({ weight: 3, text: (entry.properties['tags'] as string[] | undefined)?.join(' ') ?? '' })
+  for (const [name, value] of Object.entries(entry.properties)) {
+    if (name === 'title' || name === 'tags') continue
+    const def = registry.get(propertyStorageKey(name))
+    if (!def) continue
+    if (def.type === 'text') fields.push({ weight: 2, text: String(value) })
+    else if (def.type === 'list') fields.push({ weight: 2, text: (value as string[]).join(' ') })
+  }
+  fields.push({ weight: 2, text: entry.context ?? '' })
+  fields.push({ weight: 1, text: entry.sourceHost })
+  fields.push({ weight: 1, text: entry.sourceUrl })
+  return fields
 }
 
-function searchScore(fields: WeightedField[], words: string[]): number | null {
-  let score = 0
-  for (const word of words) {
-    let best = 0
-    for (const field of fields) {
-      if (field.text.includes(word) && field.weight > best) best = field.weight
+function splitTerms(search: string): string[] {
+  return search
+    .split(/\s+/u)
+    .map(term => term.trim())
+    .filter(Boolean)
+}
+
+function matchScore(entry: EntryRecord, terms: string[], registry: Map<string, { name: string; type: PropertyType }>): number {
+  if (terms.length === 0) return 0
+  const fields = searchableFields(entry, registry).map(field => ({ weight: field.weight, normalized: normalizeText(field.text) }))
+  let total = 0
+  for (const term of terms) {
+    const normalized = normalizeText(term)
+    const best = fields.reduce((max, field) => (field.normalized.includes(normalized) ? Math.max(max, field.weight) : max), 0)
+    if (best === 0) return -1 // every term must hit somewhere
+    total += best
+  }
+  return total
+}
+
+// ── Property filters (search.md §3) ─────────────────────────────────────
+
+function asComparableNumber(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function asComparableDate(value: unknown): number | null {
+  if (typeof value !== 'string') return null
+  // entry.md §5.2 formats; compare as UTC-agnostic strings → epoch ms
+  const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (date) return Date.UTC(Number(date[1]), Number(date[2]) - 1, Number(date[3]))
+  const datetime = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/.exec(value)
+  if (datetime) return Date.UTC(+datetime[1], +datetime[2] - 1, +datetime[3], +datetime[4], +datetime[5], +datetime[6])
+  return null
+}
+
+function matchesCondition(entry: EntryRecord, condition: PropertyCondition, registry: Map<string, { name: string; type: PropertyType }>): boolean {
+  const def = registry.get(propertyStorageKey(condition.name))
+  if (!def) return false
+  const value = entry.properties[def.name]
+  if (value === undefined) return false
+  switch (def.type) {
+    case 'text': {
+      if (typeof value !== 'string') return false
+      if (condition.op === 'equals') return normalizeText(value) === normalizeText(String(condition.value))
+      return normalizeText(value).includes(normalizeText(String(condition.value)))
     }
-    if (best === 0) return null // a word hit nothing — record excluded
-    score += best
-  }
-  return score
-}
-
-/** Returns the search score, or null when the fragment is excluded. */
-export function passesFilters(fragment: FragmentRecord, filters: FragmentQueryFilters, words: string[]): number | null {
-  if (filters.kinds?.length && !filters.kinds.includes(fragment.kind)) return null
-  if (filters.hosts?.length && !filters.hosts.includes(fragment.context.sourceHost)) return null
-  if (filters.tags?.length && !filters.tags.some(tag => fragment.tags.includes(tag))) return null
-  const capturedAt = fragment.context.capturedAt
-  if (filters.capturedFrom !== undefined && capturedAt < filters.capturedFrom) return null
-  if (filters.capturedTo !== undefined && capturedAt >= filters.capturedTo) return null
-  if (words.length === 0) return 0
-  return searchScore(haystack(fragment), words)
-}
-
-type SortKey = { score: number; createdAt: number; id: string }
-
-const compareKeys = (a: SortKey, b: SortKey): number => b.score - a.score || b.createdAt - a.createdAt || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
-
-const encodeCursor = (key: SortKey): string => JSON.stringify([key.score, key.createdAt, key.id])
-
-export function runFragmentQuery(fragments: FragmentRecord[], query: FragmentQuery = {}): FragmentQueryResult {
-  const words = splitWords(query.search ?? '')
-  const limit = Math.min(Math.max(1, query.limit ?? PAGE_DEFAULT), PAGE_MAX)
-
-  const keyed: Array<{ fragment: FragmentRecord; key: SortKey }> = []
-  for (const fragment of fragments) {
-    const score = passesFilters(fragment, query, words)
-    if (score === null) continue
-    keyed.push({ fragment, key: { score, createdAt: fragment.createdAt, id: fragment.id } })
-  }
-  keyed.sort((a, b) => compareKeys(a.key, b.key))
-
-  let cursorKey: SortKey | null = null
-  if (query.cursor) {
-    try {
-      const [score, createdAt, id] = JSON.parse(query.cursor) as [number, number, string]
-      cursorKey = { score, createdAt, id }
-    } catch {
-      cursorKey = null
+    case 'list': {
+      if (!Array.isArray(value)) return false
+      const needle = normalizeText(String(condition.value))
+      return value.some(item => normalizeText(item) === needle)
+    }
+    case 'number': {
+      const left = asComparableNumber(value)
+      if (left === null) return false
+      if (condition.op === 'between') {
+        const lo = asComparableNumber(condition.value)
+        const hi = asComparableNumber(condition.value2)
+        return lo !== null && hi !== null && left >= lo && left <= hi
+      }
+      const right = asComparableNumber(condition.value)
+      if (right === null) return false
+      if (condition.op === 'eq') return left === right
+      if (condition.op === 'gt') return left > right
+      return left < right
+    }
+    case 'checkbox':
+      return condition.op === 'is' && value === (condition.value === true || condition.value === 'true')
+    case 'date':
+    case 'datetime': {
+      const left = asComparableDate(value)
+      if (left === null) return false
+      const lo = asComparableDate(String(condition.value))
+      const hi = asComparableDate(String(condition.value2 ?? condition.value))
+      return lo !== null && hi !== null && left >= lo && left <= hi
     }
   }
+}
 
-  const startIndex = cursorKey ? keyed.findIndex(entry => compareKeys(entry.key, cursorKey!) > 0) : 0
-  const page = keyed.slice(startIndex === -1 ? keyed.length : startIndex)
-  const items = page.slice(0, limit).map(entry => entry.fragment)
-  const result: FragmentQueryResult = { items, total: keyed.length }
-  if (items.length > 0 && page.length > items.length) {
-    result.nextCursor = encodeCursor(keyed[(startIndex === -1 ? keyed.length : startIndex) + items.length - 1]!.key)
+function matchesFilters(entry: EntryRecord, filters: EntryQueryFilters, registry: Map<string, { name: string; type: PropertyType }>): boolean {
+  if (filters.types?.length && !filters.types.includes(entry.type)) return false
+  if (filters.hosts?.length) {
+    const wanted = filters.hosts.map(host => normalizeText(host))
+    if (!wanted.includes(normalizeText(entry.sourceHost))) return false
   }
-  return result
+  if (filters.tags?.length) {
+    const own = ((entry.properties['tags'] as string[] | undefined) ?? []).map(tag => normalizeText(tag))
+    if (!filters.tags.some(tag => own.includes(normalizeText(tag)))) return false
+  }
+  if (filters.createdFrom !== undefined && entry.createdAt < filters.createdFrom) return false
+  if (filters.createdTo !== undefined && entry.createdAt >= filters.createdTo) return false
+  for (const condition of filters.conditions ?? []) {
+    if (!matchesCondition(entry, condition, registry)) return false
+  }
+  return true
 }
 
-/** Distinct filter-chip sources, frequency desc then alpha. */
-export function collectHosts(fragments: FragmentRecord[]): string[] {
-  return collectCounts(fragments.map(f => f.context.sourceHost))
+// ── Entry queries ───────────────────────────────────────────────────────
+
+function keyOf(entry: EntryRecord, score: number): [number, number, string] {
+  return [score, entry.createdAt, entry.id]
 }
 
-export function collectTags(fragments: FragmentRecord[]): string[] {
-  return collectCounts(fragments.flatMap(f => f.tags))
+function encodeCursor(key: [number, number, string]): string {
+  return `${key[0].toString(36)}:${key[1].toString(36)}:${key[2]}`
 }
 
-export function collectKinds(fragments: FragmentRecord[]): FragmentKind[] {
-  const seen = new Set<FragmentKind>()
-  for (const f of fragments) seen.add(f.kind)
-  return [...seen]
+function parseCursor(cursor: string): [number, number, string] | null {
+  const [score, created, id] = cursor.split(':')
+  if (score === undefined || created === undefined || id === undefined) return null
+  return [parseInt(score, 36), parseInt(created, 36), id]
 }
 
-function collectCounts(values: string[]): string[] {
-  const counts = new Map<string, number>()
-  for (const value of values) counts.set(value, (counts.get(value) ?? 0) + 1)
-  return [...counts.entries()].sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1)).map(([value]) => value)
+/** Strictly after the cursor in (score desc, createdAt desc, id asc). */
+function keyAfterCursor(cursor: [number, number, string], key: [number, number, string]): boolean {
+  if (key[0] !== cursor[0]) return key[0] < cursor[0]
+  if (key[1] !== cursor[1]) return key[1] < cursor[1]
+  return key[2] > cursor[2]
 }
 
-export function countNewThisWeek(fragments: FragmentRecord[], now: number): number {
-  const weekAgo = now - 7 * 24 * 60 * 60 * 1000
-  return fragments.filter(f => f.createdAt >= weekAgo).length
+export function queryEntries(entries: EntryRecord[], registry: { name: string; type: PropertyType }[], query: EntryQuery = {}): EntryQueryResult {
+  const registryByKey = new Map(registry.map(def => [propertyStorageKey(def.name), def] as const))
+  const terms = splitTerms(query.search ?? '')
+  const limit = Math.max(1, query.limit ?? PAGE_DEFAULT)
+
+  const scored: { entry: EntryRecord; score: number }[] = []
+  for (const entry of entries) {
+    if (!matchesFilters(entry, query, registryByKey)) continue
+    const score = matchScore(entry, terms, registryByKey)
+    if (terms.length > 0 && score < 0) continue
+    scored.push({ entry, score })
+  }
+  scored.sort((a, b) => b.score - a.score || b.entry.createdAt - a.entry.createdAt || (a.entry.id < b.entry.id ? -1 : 1))
+
+  const cursor = query.cursor ? parseCursor(query.cursor) : null
+  let startIndex = 0
+  if (cursor) {
+    // keyset paging: first item strictly after the cursor key, so a deleted
+    // previous-page item or shared timestamps never duplicate or skip rows
+    while (startIndex < scored.length && !keyAfterCursor(cursor, keyOf(scored[startIndex]!.entry, scored[startIndex]!.score))) startIndex++
+  }
+  const page = scored.slice(startIndex, startIndex + limit)
+  const last = page[page.length - 1]
+  return {
+    items: page.map(item => item.entry),
+    nextCursor: last && startIndex + limit < scored.length ? encodeCursor(keyOf(last.entry, last.score)) : undefined,
+    total: scored.length,
+  }
+}
+
+// ── Highlight view (search.md §5) ───────────────────────────────────────
+
+export interface HighlightRow {
+  clipId: string
+  clipTitle: string
+  clipHost: string
+  highlight: Highlight
+}
+
+export interface HighlightQueryFilters extends EntryQueryFilters {
+  colors?: HighlightColor[]
+}
+
+export interface HighlightQueryResult {
+  groups: { clip: EntryRecord; rows: HighlightRow[] }[]
+  total: number
+}
+
+export function queryHighlights(
+  entries: EntryRecord[],
+  registry: { name: string; type: PropertyType }[],
+  query: HighlightQuery = {},
+): HighlightQueryResult {
+  const registryByKey = new Map(registry.map(def => [propertyStorageKey(def.name), def] as const))
+  const terms = splitTerms(query.search ?? '')
+
+  const groups: HighlightQueryResult['groups'] = []
+  for (const clip of entries) {
+    if (clip.type !== 'clip') continue
+    // host / tag / property / time-of-clip filters follow the owning clip
+    const clipFilters: EntryQueryFilters = {
+      types: undefined,
+      hosts: query.hosts,
+      tags: query.tags,
+      createdFrom: query.createdFrom,
+      createdTo: query.createdTo,
+      conditions: query.conditions,
+    }
+    if (!matchesFilters(clip, clipFilters, registryByKey)) continue
+
+    const title = String(clip.properties['title'] ?? '')
+    const hay = [title, (clip.properties['tags'] as string[] | undefined)?.join(' ') ?? '', clip.sourceHost]
+
+    const rows: HighlightRow[] = []
+    for (const highlight of clip.highlights ?? []) {
+      if (query.colors?.length && !query.colors.includes(highlight.color)) continue
+      if (terms.length > 0) {
+        const needleFields = [highlight.quote, highlight.note ?? '', ...hay]
+        const hit = terms.every(term => needleFields.some(text => normalizeText(text).includes(normalizeText(term))))
+        if (!hit) continue
+      }
+      rows.push({ clipId: clip.id, clipTitle: title, clipHost: clip.sourceHost, highlight })
+    }
+    if (rows.length === 0) continue
+    rows.sort((a, b) => a.highlight.start - b.highlight.start)
+    groups.push({ clip, rows })
+  }
+
+  // groups by their newest highlight, ties by clip id (search.md §5)
+  groups.sort((a, b) => {
+    const latest = (group: typeof a) => Math.max(...group.rows.map(row => row.highlight.createdAt))
+    return latest(b) - latest(a) || (a.clip.id < b.clip.id ? -1 : 1)
+  })
+  return { groups, total: groups.reduce((sum, group) => sum + group.rows.length, 0) }
+}
+
+export interface HighlightQuery {
+  search?: string
+  colors?: HighlightColor[]
+  hosts?: string[]
+  tags?: string[]
+  createdFrom?: number
+  createdTo?: number
+  conditions?: PropertyCondition[]
 }
