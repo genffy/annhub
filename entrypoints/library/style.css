@@ -147,6 +147,32 @@ body {
   max-width: 180px;
 }
 
+.filter-value {
+  max-width: 150px;
+  width: 150px;
+}
+
+.filter-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--ann-border);
+  border-radius: 6px;
+  padding: 3px 6px;
+  background: var(--ann-surface);
+  color: var(--ann-muted);
+  font-size: 11.5px;
+}
+
+.filter-time input {
+  border: 0;
+  background: transparent;
+  color: var(--ann-text);
+  font-size: 12px;
+  font-family: inherit;
+  width: 118px;
+}
+
 .count {
   margin-left: auto;
   color: var(--ann-muted);

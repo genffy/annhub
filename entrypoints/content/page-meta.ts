@@ -84,14 +84,15 @@ function isValidDate(date: string): boolean {
 
 /**
  * The source URL a clip records: the block's own permalink when there is
- * one, otherwise the page address. Section blocks add the heading anchor
- * when the heading or its wrapper has an id.
+ * one, otherwise the page address. Platform rules (X posts, Medium
+ * articles) live here and nowhere else — new sites are added by appending
+ * a rule, not by scattering hostname checks (capture.md §5).
  */
-export function resolvePermalink(node: Node | null, pageUrl: string): string {
+export function resolvePermalink(node: Node | null, pageUrl: string, kind?: 'post' | 'code' | 'table' | 'figure' | 'quote' | 'section' | 'article'): string {
   const doc = node?.ownerDocument
   if (!doc) return pageUrl
 
-  // X post: the permalink is the post's own status link (platform rule)
+  // X post: the permalink is the post's own status link
   const post = (node instanceof Element ? node : node?.parentElement)?.closest?.('article[data-testid="tweet"]')
   if (post) {
     const status = Array.from(post.querySelectorAll('a[href*="/status/"]')).find(link => link.querySelector('time'))
@@ -101,18 +102,43 @@ export function resolvePermalink(node: Node | null, pageUrl: string): string {
     }
   }
 
-  // Section: page URL plus the heading's anchor
-  const heading = headingOf(node)
-  if (heading) {
-    const anchor = heading.id || heading.parentElement?.id
-    if (anchor && !heading.id.startsWith('user-content-')) {
-      const withAnchor = new URL(pageUrl)
-      withAnchor.hash = `#${anchor}`
-      return withAnchor.href
+  // Medium article: the canonical address, not the reading-interface URL
+  if (kind === 'article') {
+    const canonical = mediumCanonical(doc)
+    if (canonical) return canonical
+  }
+
+  // Section: page URL plus the heading's anchor (selections take the page URL)
+  if (kind === 'section') {
+    const heading = headingOf(node)
+    if (heading) {
+      const anchor = heading.id || heading.parentElement?.id
+      if (anchor && !heading.id.startsWith('user-content-')) {
+        const withAnchor = new URL(pageUrl)
+        withAnchor.hash = `#${anchor}`
+        return withAnchor.href
+      }
     }
   }
 
   return pageUrl
+}
+
+/** Medium's own address for the article, when this page is a Medium article. */
+function mediumCanonical(doc: Document): string | undefined {
+  let host: string
+  try {
+    host = new URL(doc.baseURI).hostname
+  } catch {
+    return undefined
+  }
+  const canonical = doc.querySelector('link[rel="canonical"]')?.getAttribute('href')
+  if (!canonical) return undefined
+  const absolute = absoluteUrl(canonical, doc.baseURI)
+  if (!absolute) return undefined
+  const canonicalHost = new URL(absolute).hostname
+  if (host !== 'medium.com' && canonicalHost !== 'medium.com') return undefined
+  return absolute
 }
 
 function headingOf(node: Node | null): HTMLElement | null {
