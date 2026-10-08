@@ -12,11 +12,14 @@ import type { EntryQuery, EntryQueryResult, PropertyCondition } from '../../lear
 import type { EntryRecord, PropertyDefinition, PropertyType } from '../../learning-core/types'
 import { markdownToPlainText } from '../../learning-core/markdown'
 import { bucketCount } from '../../learning-core/metrics'
-import { MarkdownView } from './markdown-view'
+import { HighlightSurface } from './highlight-surface'
+import { ReadingView } from './reading-view'
+import type { HighlightQueryResult } from '../../learning-core/query'
+import type { HighlightColor } from '../../learning-core/types'
 import { relativeTime } from '../../utils/relative-time'
 import { currentUiLanguage, uiText } from '../../utils/ui-text'
 
-type View = 'all' | 'clips' | 'screenshots'
+type View = 'all' | 'clips' | 'highlights' | 'screenshots'
 
 interface HashState {
   view: View
@@ -35,7 +38,7 @@ const EMPTY_HASH: Omit<HashState, 'view'> = { search: '', host: '', tag: '', pro
 
 function readHash(): HashState {
   const hash = new URLSearchParams(location.hash.replace(/^#\/(all|clips|screenshots)\?*/, '') || '')
-  const viewMatch = /^#\/(all|clips|screenshots)/.exec(location.hash)
+  const viewMatch = /^#\/(all|clips|highlights|screenshots)/.exec(location.hash)
   return {
     view: (viewMatch?.[1] as View) ?? 'all',
     search: hash.get('q') ?? '',
@@ -123,9 +126,15 @@ export default function App() {
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null)
   const [exportState, setExportState] = useState<'idle' | 'busy' | 'done' | 'partial' | 'failed'>('idle')
   const [exportSummary, setExportSummary] = useState('')
+  const [readingId, setReadingId] = useState<string | null>(/^#\/read\/(.+)/.exec(location.hash)?.[1] ?? null)
+  const [highlightResult, setHighlightResult] = useState<HighlightQueryResult>({ groups: [], total: 0 })
+  const [defaultColor, setDefaultColor] = useState<HighlightColor>('yellow')
 
   useEffect(() => {
-    const onHashChange = () => setState(readHash())
+    const onHashChange = () => {
+      setReadingId(/^#\/read\/(.+)/.exec(location.hash)?.[1] ?? null)
+      setState(readHash())
+    }
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
@@ -162,10 +171,11 @@ export default function App() {
   }, [state, registry])
 
   const refreshCounts = useCallback(async () => {
-    const [all, clips, screenshots] = await Promise.all([
+    const [all, clips, screenshots, highlights] = await Promise.all([
       MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: {} }),
       MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: { types: ['clip'] } }),
       MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: { types: ['screenshot'] } }),
+      MessageUtils.sendMessage<{ result: HighlightQueryResult }>({ type: 'QUERY_HIGHLIGHTS', query: {} }),
     ])
     const hostSet = new Set<string>()
     const tagSet = new Set<string>()
@@ -180,12 +190,16 @@ export default function App() {
       clips: clips.data?.result.total ?? 0,
       screenshots: screenshots.data?.result.total ?? 0,
     })
+    setHighlightResult(highlights.data?.result ?? { groups: [], total: 0 })
   }, [])
 
   useEffect(() => {
     void refreshCounts()
     void MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'LIST_PROPERTIES' }).then(response => {
       if (response.success) setRegistry(response.data!.definitions)
+    })
+    void MessageUtils.sendMessage<{ defaultHighlightColor?: HighlightColor }>({ type: 'GET_SETTINGS' }).then(response => {
+      if (response.success && response.data?.defaultHighlightColor) setDefaultColor(response.data.defaultHighlightColor)
     })
     void MessageUtils.sendMessage<{ usage: number; quota: number }>({ type: 'USAGE_ESTIMATE' }).then(response => {
       if (response.success) setUsage(response.data!)
@@ -212,7 +226,7 @@ export default function App() {
     setExportState(result === 'full' ? 'done' : 'partial')
   }, [])
 
-  const viewTab = (view: View, key: 'library.all' | 'library.clips' | 'library.screenshots', count: number) => (
+  const viewTab = (view: View, key: 'library.all' | 'library.clips' | 'library.highlights' | 'library.screenshots', count: number) => (
     <a
       key={view}
       href={`#/${view}`}
@@ -230,6 +244,7 @@ export default function App() {
         <div className="brand">AnnHub</div>
         {viewTab('all', 'library.all', counts.all)}
         {viewTab('clips', 'library.clips', counts.clips)}
+        {viewTab('highlights', 'library.highlights', highlightResult.total)}
         {viewTab('screenshots', 'library.screenshots', counts.screenshots)}
         <div className="nav-spacer" />
         <a className="nav-item" href={chrome.runtime.getURL('options.html')}>
@@ -365,7 +380,40 @@ export default function App() {
           <span className="count">{loading ? uiText('common.loading') : uiText('library.count', { count: result.total })}</span>
         </header>
 
-        {result.items.length === 0 ? (
+        {state.view === 'highlights' ? (
+          highlightResult.total === 0 ? (
+            <div className="empty">{counts.all === 0 ? uiText('library.empty') : uiText('reading.empty')}</div>
+          ) : (
+            <ul className="list hl-groups" data-testid="hl-groups">
+              {highlightResult.groups.map(group => (
+                <li key={group.clip.id} className="hl-group">
+                  <div className="hl-group-head">
+                    <span className="row-title">{String(group.clip.properties['title'] ?? '')}</span>
+                    <span className="row-meta">
+                      {group.clip.sourceHost} · {uiText('library.highlightsCount', { count: group.rows.length })}
+                    </span>
+                    <a className="link" href={group.clip.sourceUrl} target="_blank" rel="noopener noreferrer">
+                      {uiText('library.backToSource')}
+                    </a>
+                  </div>
+                  {group.rows.map(row => (
+                    <button
+                      key={row.highlight.id}
+                      type="button"
+                      className={`hl-row hl-row-${row.highlight.color}`}
+                      onClick={() => {
+                        location.hash = `#/read/${group.clip.id}`
+                      }}
+                    >
+                      <p className="hl-quote">{row.highlight.quote}</p>
+                      {row.highlight.note && <p className="hl-note-text">{row.highlight.note}</p>}
+                    </button>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          )
+        ) : result.items.length === 0 ? (
           <div className="empty">
             {counts.all === 0 ? uiText('library.empty') : uiText('library.noResults')}
             {counts.all > 0 && (
@@ -386,10 +434,26 @@ export default function App() {
       {selected && (
         <DetailDrawer
           entryId={selected.id}
+          defaultColor={defaultColor}
           onClose={() => {
             setSelected(null)
             void refreshCounts()
           }}
+          onOpenReading={id => {
+            setSelected(null)
+            location.hash = `#/read/${id}`
+          }}
+        />
+      )}
+
+      {readingId && (
+        <ReadingView
+          entryId={readingId}
+          defaultColor={defaultColor}
+          onClose={() => {
+            history.back()
+          }}
+          onEntryChanged={() => void refreshCounts()}
         />
       )}
     </div>
@@ -428,7 +492,7 @@ function EntryRow({ entry, onOpen }: { entry: EntryRecord; onOpen: () => void })
   )
 }
 
-function DetailDrawer({ entryId, onClose }: { entryId: string; onClose: () => void }) {
+function DetailDrawer({ entryId, defaultColor, onClose, onOpenReading }: { entryId: string; defaultColor: HighlightColor; onClose: () => void; onOpenReading(id: string): void }) {
   const [entry, setEntry] = useState<EntryRecord | null>(null)
   const [assetUrl, setAssetUrl] = useState<string | null>(null)
   const [assetMissing, setAssetMissing] = useState(false)
@@ -504,6 +568,11 @@ function DetailDrawer({ entryId, onClose }: { entryId: string; onClose: () => vo
         <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer" className="link">
           {uiText('library.backToSource')}
         </a>
+        {entry.type === 'clip' && (
+          <button type="button" className="ghost" data-testid="drawer-read" onClick={() => onOpenReading(entry.id)}>
+            {uiText('library.read')}
+          </button>
+        )}
         <button type="button" className="danger" onClick={() => setConfirmDelete(true)}>
           {uiText('library.delete')}
         </button>
@@ -514,7 +583,7 @@ function DetailDrawer({ entryId, onClose }: { entryId: string; onClose: () => vo
       <div className="drawer-body">
         <section className="drawer-section" aria-label={uiText('library.originalText')}>
           {entry.type === 'clip' ? (
-            <MarkdownView markdown={entry.content} />
+            <HighlightSurface entry={entry} defaultColor={defaultColor} onEntryChanged={setEntry} />
           ) : assetMissing ? (
             <p className="warn">{uiText('library.imageMissing')}</p>
           ) : assetUrl ? (
