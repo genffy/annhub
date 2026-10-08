@@ -1,55 +1,62 @@
 /**
- * Safe Markdown rendering for the library (capture.md §3.1: rendering never
- * parses raw HTML; links are http(s) only and open in a new tab with
- * rel=noopener noreferrer; images show their alt text and an "open
- * original" link, never loading the network).
+ * Safe Markdown rendering with source offsets — the one shared module that
+ * maps a rendered selection back to offsets in the clip's `content`
+ * (entry.md §4.1, risk RK-13: the conversion lives here and nowhere else).
+ *
+ * Rendering never parses raw HTML; links are http(s) only and open in a new
+ * tab with rel=noopener noreferrer; images show their alt text and an open
+ * link, never loading the network (capture.md §3.1). Every emitted text run
+ * carries its source start (`data-s`), so a DOM selection converts to a
+ * [start, end) range in the source, and stored highlights render back into
+ * marks at exactly those offsets.
  */
 import type { ReactNode } from 'react'
+import type { Highlight } from '../../learning-core/types'
 
-interface Props {
-  markdown: string
+export interface SourceRange {
+  start: number
+  end: number
 }
 
-function inline(text: string, keyPrefix: string): ReactNode[] {
-  const nodes: ReactNode[] = []
-  const pattern = /(\*\*[^*]+\*\*|\*[^*]+\*|`[^`]+`|\[[^\]]+\]\([^)\s]+\)|!\[[^\]]*\]\([^)\s]+\)|==[^=]+==)/g
-  let lastIndex = 0
+// ── Inline tokenizer: source text → (text, source span) runs ────────────
+
+interface Run {
+  text: string
+  srcStart: number
+  /** Extra rendering semantics for the run. */
+  kind?: 'em' | 'strong' | 'code' | 'link' | 'image' | 'mark'
+  href?: string
+  alt?: string
+}
+
+const INLINE = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`|==[^=\n]+==|\[[^\]\n]+\]\([^)\s]+\)|!\[[^\]\n]*\]\([^)\s]+\))/g
+
+/** Tokenizes one inline span of source into runs carrying source offsets. */
+export function inlineRuns(source: string, srcStart: number): Run[] {
+  const runs: Run[] = []
+  let cursor = 0
   let match: RegExpExecArray | null
-  let index = 0
-  while ((match = pattern.exec(text)) !== null) {
-    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index))
+  INLINE.lastIndex = 0
+  while ((match = INLINE.exec(source)) !== null) {
+    if (match.index > cursor) runs.push({ text: source.slice(cursor, match.index), srcStart: srcStart + cursor })
     const token = match[0]
-    const key = `${keyPrefix}-${index++}`
-    if (token.startsWith('**')) nodes.push(<strong key={key}>{token.slice(2, -2)}</strong>)
-    else if (token.startsWith('==')) nodes.push(<mark key={key}>{token.slice(2, -2)}</mark>)
-    else if (token.startsWith('`')) nodes.push(<code key={key}>{token.slice(1, -1)}</code>)
+    const at = srcStart + match.index
+    if (token.startsWith('**')) runs.push({ text: token.slice(2, -2), srcStart: at + 2, kind: 'strong' })
+    else if (token.startsWith('==')) runs.push({ text: token.slice(2, -2), srcStart: at + 2, kind: 'mark' })
+    else if (token.startsWith('`')) runs.push({ text: token.slice(1, -1), srcStart: at + 1, kind: 'code' })
     else if (token.startsWith('![')) {
       const alt = /!\[([^\]]*)\]/.exec(token)?.[1] ?? ''
-      nodes.push(
-        <span key={key} className="md-image-placeholder">
-          [{alt}]{' '}
-          <a href={safeHref(/!\[[^\]]*\]\(([^)\s]+)\)/.exec(token)?.[1])} target="_blank" rel="noopener noreferrer">
-            ⧉
-          </a>
-        </span>,
-      )
+      const href = /!\[[^\]]*\]\(([^)\s]+)\)/.exec(token)?.[1]
+      runs.push({ text: alt, srcStart: at + 2, kind: 'image', href, alt })
     } else if (token.startsWith('[')) {
       const label = /\[([^\]]+)\]/.exec(token)?.[1] ?? ''
-      const href = safeHref(/\]\(([^)\s]+)\)/.exec(token)?.[1])
-      nodes.push(
-        href ? (
-          <a key={key} href={href} target="_blank" rel="noopener noreferrer">
-            {label}
-          </a>
-        ) : (
-          <span key={key}>{label}</span>
-        ),
-      )
-    } else if (token.startsWith('*')) nodes.push(<em key={key}>{token.slice(1, -1)}</em>)
-    lastIndex = pattern.lastIndex
+      const href = /\]\(([^)\s]+)\)/.exec(token)?.[1]
+      runs.push({ text: label, srcStart: at + 1, kind: 'link', href })
+    } else if (token.startsWith('*')) runs.push({ text: token.slice(1, -1), srcStart: at + 1, kind: 'em' })
+    cursor = match.index + token.length
   }
-  if (lastIndex < text.length) nodes.push(text.slice(lastIndex))
-  return nodes
+  if (cursor < source.length) runs.push({ text: source.slice(cursor), srcStart: srcStart + cursor })
+  return runs.filter(run => run.text.length > 0)
 }
 
 function safeHref(href: string | undefined): string | undefined {
@@ -62,103 +69,306 @@ function safeHref(href: string | undefined): string | undefined {
   }
 }
 
-export function MarkdownView({ markdown }: Props) {
-  const lines = markdown.split('\n')
-  const blocks: ReactNode[] = []
-  let paragraph: string[] = []
-  let list: { ordered: boolean; items: string[] } | null = null
-  let quote: string[] = []
-  let code: { language: string; lines: string[] } | null = null
-  let index = 0
+// ── Blocks: line-wise, each with its source span ─────────────────────────
 
-  const flushParagraph = () => {
-    if (paragraph.length > 0) {
-      blocks.push(<p key={`p-${index++}`}>{inline(paragraph.join(' '), `p${index}`)}</p>)
-      paragraph = []
-    }
+interface Block {
+  key: string
+  kind: 'p' | 'h' | 'code' | 'quote' | 'ul' | 'ol' | 'table' | 'hr'
+  level?: number
+  language?: string
+  lines: Array<{ source: string; srcStart: number; indent: number }>
+  srcStart: number
+  srcEnd: number
+}
+
+const HEAD = /^(#{1,6})\s+(.*)$/
+
+/** Parses source into offset-carrying blocks (pure; fixtures test this). */
+export function parseBlocks(markdown: string): Block[] {
+  const blocks: Block[] = []
+  const lines = markdown.split('\n')
+  let offset = 0
+  let index = 0
+  let paragraph: Block | null = null
+  let list: Block | null = null
+
+  const push = (block: Block | null) => {
+    if (block) blocks.push(block)
   }
-  const flushList = () => {
-    if (list && list.items.length > 0) {
-      const items = list.items.map((item, i) => <li key={`li-${index}-${i}`}>{inline(item, `li${index}${i}`)}</li>)
-      blocks.push(list.ordered ? <ol key={`ol-${index++}`}>{items}</ol> : <ul key={`ul-${index++}`}>{items}</ul>)
-    }
+  const flush = () => {
+    push(paragraph)
+    push(list)
+    paragraph = null
     list = null
   }
-  const flushQuote = () => {
-    if (quote.length > 0) {
-      blocks.push(<blockquote key={`q-${index++}`}>{inline(quote.join(' '), `q${index}`)}</blockquote>)
-      quote = []
-    }
-  }
-  const flushCode = () => {
-    if (code && code.lines.length > 0) {
-      blocks.push(
-        <pre key={`pre-${index++}`} data-language={code.language}>
-          <code>{code.lines.join('\n')}</code>
-        </pre>,
-      )
-    }
-    code = null
-  }
-  const flushAll = () => {
-    flushParagraph()
-    flushList()
-    flushQuote()
-    flushCode()
-  }
 
-  for (const raw of lines) {
-    if (code) {
-      if (/^\s*(```|~~~)/.test(raw)) flushCode()
-      else code.lines.push(raw)
+  while (index < lines.length) {
+    const raw = lines[index]!
+    const lineStart = offset
+    const lineEnd = lineStart + raw.length
+    offset = lineEnd + 1
+    index += 1
+    const trimmed = raw.trim()
+
+    if (trimmed === '') {
+      flush()
       continue
     }
     if (/^\s*(```|~~~)/.test(raw)) {
-      flushAll()
-      code = { language: /^(```|~~~)(\w*)/.exec(raw.trim())?.[2] ?? '', lines: [] }
-      continue
-    }
-    const heading = /^(#{1,6})\s+(.*)$/.exec(raw)
-    if (heading) {
-      flushAll()
-      const level = heading[1]!.length
-      const Tag = `h${Math.min(level + 1, 6)}` as 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6'
-      blocks.push(<Tag key={`h-${index++}`}>{inline(heading[2]!, `h${index}`)}</Tag>)
-      continue
-    }
-    if (/^\s*>\s?/.test(raw)) {
-      flushParagraph()
-      flushList()
-      quote.push(raw.replace(/^\s*>\s?/, ''))
-      continue
-    }
-    const bullet = /^\s*[-*+]\s+(.*)$/.exec(raw)
-    const ordered = /^\s*\d+[.)]\s+(.*)$/.exec(raw)
-    if (bullet || ordered) {
-      flushParagraph()
-      flushQuote()
-      const item = (bullet ?? ordered)![1]!
-      if (!list || list.ordered !== Boolean(ordered)) {
-        flushList()
-        list = { ordered: Boolean(ordered), items: [] }
+      flush()
+      const language = /^(```|~~~)(\w*)/.exec(trimmed)?.[2] ?? ''
+      const codeLines: Block['lines'] = []
+      while (index < lines.length && !/^\s*(```|~~~)/.test(lines[index]!)) {
+        const inner = lines[index]!
+        codeLines.push({ source: inner, srcStart: offset, indent: 0 })
+        offset += inner.length + 1
+        index += 1
       }
-      list.items.push(item)
+      if (index < lines.length) {
+        offset += lines[index]!.length + 1
+        index += 1
+      }
+      push({ key: `b${blocks.length}`, kind: 'code', language, lines: codeLines, srcStart: lineStart, srcEnd: offset })
+      continue
+    }
+    const heading = HEAD.exec(trimmed)
+    if (heading) {
+      flush()
+      const content = heading[2]!
+      push({
+        key: `b${blocks.length}`,
+        kind: 'h',
+        level: heading[1]!.length,
+        lines: [{ source: content, srcStart: lineStart + raw.indexOf(content), indent: 0 }],
+        srcStart: lineStart,
+        srcEnd: lineEnd,
+      })
+      continue
+    }
+    if (/^\s*(-{3,}|\*{3,})\s*$/.test(raw)) {
+      flush()
+      push({ key: `b${blocks.length}`, kind: 'hr', lines: [], srcStart: lineStart, srcEnd: lineEnd })
+      continue
+    }
+    const bullet = /^(\s*)[-*+]\s+(.*)$/.exec(raw)
+    const ordered = /^(\s*)\d+[.)]\s+(.*)$/.exec(raw)
+    if (bullet || ordered) {
+      push(paragraph)
+      paragraph = null
+      const content = (bullet ?? ordered)![2]!
+      if (!list) list = { key: `b${blocks.length}`, kind: ordered ? 'ol' : 'ul', lines: [], srcStart: lineStart, srcEnd: lineEnd }
+      list.lines.push({ source: content, srcStart: lineStart + raw.indexOf(content), indent: 0 })
+      list.srcEnd = lineEnd
+      continue
+    }
+    if (/^\s*>/.test(raw)) {
+      flush()
+      const content = raw.replace(/^\s*>\s?/, '')
+      const quote: Block =
+        blocks[blocks.length - 1]?.kind === 'quote' ? (blocks.pop() as Block) : { key: `b${blocks.length}`, kind: 'quote', lines: [], srcStart: lineStart, srcEnd: lineEnd }
+      quote.lines.push({ source: content, srcStart: lineStart + (raw.length - content.length), indent: 0 })
+      quote.srcEnd = lineEnd
+      push(quote)
       continue
     }
     if (/^\s*\|.*\|\s*$/.test(raw)) {
-      // GFM table rows render as a simple monospace block in R1
-      flushAll()
-      paragraph.push(raw)
+      flush()
+      const table: Block =
+        blocks[blocks.length - 1]?.kind === 'table' ? (blocks.pop() as Block) : { key: `b${blocks.length}`, kind: 'table', lines: [], srcStart: lineStart, srcEnd: lineEnd }
+      table.lines.push({ source: raw, srcStart: lineStart, indent: 0 })
+      table.srcEnd = lineEnd
+      push(table)
       continue
     }
-    if (raw.trim() === '') {
-      flushAll()
-      continue
-    }
-    flushList()
-    flushQuote()
-    paragraph.push(raw.trim())
+    push(list)
+    list = null
+    if (!paragraph) paragraph = { key: `b${blocks.length}`, kind: 'p', lines: [], srcStart: lineStart, srcEnd: lineEnd }
+    paragraph.lines.push({ source: trimmed, srcStart: lineStart + (raw.length - raw.trimStart().length), indent: 0 })
+    paragraph.srcEnd = lineEnd
   }
-  flushAll()
-  return <div className="md-view">{blocks}</div>
+  flush()
+  return blocks
+}
+
+// ── Highlight overlay: split runs against stored ranges ──────────────────
+
+interface Piece extends Run {
+  highlight?: Highlight
+}
+
+function applyHighlights(runs: Run[], highlights: Highlight[]): Piece[] {
+  if (highlights.length === 0) return runs
+  const sorted = [...highlights].sort((a, b) => a.start - b.start)
+  const pieces: Piece[] = []
+  for (const run of runs) {
+    const runStart = run.srcStart
+    const runEnd = runStart + run.text.length
+    let cursor = runStart
+    for (const highlight of sorted) {
+      if (highlight.end <= cursor || highlight.start >= runEnd) continue
+      const from = Math.max(cursor, highlight.start)
+      const to = Math.min(runEnd, highlight.end)
+      if (from > cursor) pieces.push({ ...run, text: run.text.slice(cursor - runStart, from - runStart) })
+      pieces.push({ ...run, text: run.text.slice(from - runStart, to - runStart), srcStart: from, highlight })
+      cursor = to
+    }
+    if (cursor < runEnd) pieces.push({ ...run, text: run.text.slice(cursor - runStart), srcStart: cursor })
+  }
+  return pieces
+}
+
+// ── React rendering ──────────────────────────────────────────────────────
+
+function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highlight: Highlight) => void): ReactNode {
+  const { highlight } = piece
+  if (piece.kind === 'image') {
+    return (
+      <span key={keyPrefix} className="md-image-placeholder" data-s={piece.srcStart}>
+        [{piece.alt}]
+        {piece.href && (
+          <a href={safeHref(piece.href)} target="_blank" rel="noopener noreferrer">
+            ⧉
+          </a>
+        )}
+      </span>
+    )
+  }
+  const inner = (
+    <span key={keyPrefix} data-s={piece.srcStart} className={highlight ? `md-hl md-hl-${highlight.color}` : undefined}>
+      {piece.text}
+      {highlight?.note && <sup className="md-hl-note">✎</sup>}
+    </span>
+  )
+  if (highlight && onHighlightClick) {
+    return (
+      <span
+        key={keyPrefix}
+        role="button"
+        tabIndex={0}
+        className="md-hl-hit"
+        onClick={() => onHighlightClick(highlight)}
+        onKeyDown={event => {
+          if (event.key === 'Enter') onHighlightClick(highlight)
+        }}
+      >
+        {inner}
+      </span>
+    )
+  }
+  if (piece.kind === 'link') {
+    const href = safeHref(piece.href)
+    return href ? (
+      <a key={keyPrefix} href={href} target="_blank" rel="noopener noreferrer" data-s={piece.srcStart}>
+        {piece.text}
+      </a>
+    ) : (
+      <span key={keyPrefix} data-s={piece.srcStart}>
+        {piece.text}
+      </span>
+    )
+  }
+  if (piece.kind === 'code') {
+    return (
+      <code key={keyPrefix} data-s={piece.srcStart}>
+        {piece.text}
+      </code>
+    )
+  }
+  if (piece.kind === 'strong' || piece.kind === 'em' || piece.kind === 'mark') {
+    const Tag = piece.kind === 'strong' ? 'strong' : piece.kind === 'em' ? 'em' : 'mark'
+    return <Tag key={keyPrefix}>{inner}</Tag>
+  }
+  return inner
+}
+
+export interface MarkdownViewProps {
+  markdown: string
+  highlights?: Highlight[]
+  onHighlightClick?: (highlight: Highlight) => void
+  /** DOM class of the reading surface, used by selection conversion. */
+  surfaceClass?: string
+}
+
+export function MarkdownView({ markdown, highlights = [], onHighlightClick, surfaceClass = 'md-view' }: MarkdownViewProps) {
+  const nodes: ReactNode[] = []
+  for (const block of parseBlocks(markdown)) {
+    const runLines = (lines: Block['lines'], keyPrefix: string): ReactNode[] =>
+      lines.map((line, i) => applyHighlights(inlineRuns(line.source, line.srcStart), highlights).map((piece, j) => renderRun(piece, `${keyPrefix}-${i}-${j}`, onHighlightClick)))
+    switch (block.kind) {
+      case 'h': {
+        const Tag = `h${Math.min((block.level ?? 1) + 1, 6)}` as 'h1'
+        nodes.push(<Tag key={block.key}>{runLines(block.lines, block.key)}</Tag>)
+        break
+      }
+      case 'code':
+        nodes.push(
+          <pre key={block.key} data-language={block.language}>
+            <code data-s={block.lines[0]?.srcStart ?? block.srcStart}>{block.lines.map(line => line.source).join('\n')}</code>
+          </pre>,
+        )
+        break
+      case 'quote':
+        nodes.push(<blockquote key={block.key}>{runLines(block.lines, block.key)}</blockquote>)
+        break
+      case 'ul':
+      case 'ol': {
+        const items = block.lines.map((line, i) => <li key={`${block.key}-${i}`}>{runLines([line], `${block.key}-${i}`)}</li>)
+        nodes.push(block.kind === 'ol' ? <ol key={block.key}>{items}</ol> : <ul key={block.key}>{items}</ul>)
+        break
+      }
+      case 'table': {
+        const rows = block.lines.filter(line => !/^\s*\|[\s:|-]+\|\s*$/.test(line.source))
+        nodes.push(
+          <pre key={block.key} className="md-table">
+            <code data-s={rows[0]?.srcStart ?? block.srcStart}>{rows.map(row => row.source).join('\n')}</code>
+          </pre>,
+        )
+        break
+      }
+      case 'hr':
+        nodes.push(<hr key={block.key} />)
+        break
+      default:
+        nodes.push(<p key={block.key}>{runLines(block.lines, block.key)}</p>)
+    }
+  }
+  return <div className={surfaceClass}>{nodes}</div>
+}
+
+// ── Selection ↔ source conversion (the shared module, RK-13) ─────────────
+
+/** The [start, end) source range of a DOM selection inside the rendered view. */
+export function sourceRangeFromSelection(root: HTMLElement, selection: Selection): SourceRange | null {
+  if (selection.rangeCount === 0 || selection.isCollapsed) return null
+  const range = selection.getRangeAt(0)
+  if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return null
+
+  const start = offsetInSource(range.startContainer, range.startOffset, root)
+  const end = offsetInSource(range.endContainer, range.endOffset, root)
+  if (start === null || end === null || end <= start) return null
+  return { start, end }
+}
+
+function offsetInSource(node: Node, offset: number, root: HTMLElement): number | null {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const span = (node as Text).parentElement
+    const base = span?.dataset.s
+    if (base !== undefined && root.contains(span)) return Number(base) + offset
+    return null
+  }
+  // element container: resolve to the first text run inside it at this offset
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  let textNode: Text | null = walker.nextNode() as Text | null
+  let passed = 0
+  while (textNode) {
+    const length = textNode.textContent?.length ?? 0
+    if (passed + length >= offset) {
+      const base = textNode.parentElement?.dataset.s
+      if (base !== undefined) return Number(base) + Math.max(0, offset - passed)
+      return null
+    }
+    passed += length
+    textNode = walker.nextNode() as Text | null
+  }
+  return null
 }
