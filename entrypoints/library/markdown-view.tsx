@@ -219,7 +219,7 @@ function applyHighlights(runs: Run[], highlights: Highlight[]): Piece[] {
 
 // ── React rendering ──────────────────────────────────────────────────────
 
-function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highlight: Highlight) => void): ReactNode {
+function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highlight: Highlight, event: React.MouseEvent) => void): ReactNode {
   const { highlight } = piece
   if (piece.kind === 'image') {
     return (
@@ -234,7 +234,13 @@ function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highligh
     )
   }
   const inner = (
-    <span key={keyPrefix} data-s={piece.srcStart} className={highlight ? `md-hl md-hl-${highlight.color}` : undefined}>
+    <span
+      key={keyPrefix}
+      data-s={piece.srcStart}
+      data-hl-src={highlight ? highlight.start : undefined}
+      data-hl-id={highlight ? highlight.id : undefined}
+      className={highlight ? `md-hl md-hl-${highlight.color}` : undefined}
+    >
       {piece.text}
       {highlight?.note && <sup className="md-hl-note">✎</sup>}
     </span>
@@ -246,9 +252,9 @@ function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highligh
         role="button"
         tabIndex={0}
         className="md-hl-hit"
-        onClick={() => onHighlightClick(highlight)}
+        onClick={event => onHighlightClick(highlight, event)}
         onKeyDown={event => {
-          if (event.key === 'Enter') onHighlightClick(highlight)
+          if (event.key === 'Enter') onHighlightClick(highlight, event as unknown as React.MouseEvent)
         }}
       >
         {inner}
@@ -284,7 +290,7 @@ function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highligh
 export interface MarkdownViewProps {
   markdown: string
   highlights?: Highlight[]
-  onHighlightClick?: (highlight: Highlight) => void
+  onHighlightClick?: (highlight: Highlight, event: React.MouseEvent) => void
   /** DOM class of the reading surface, used by selection conversion. */
   surfaceClass?: string
 }
@@ -347,6 +353,11 @@ export function sourceRangeFromSelection(root: HTMLElement, selection: Selection
   const end = offsetInSource(range.endContainer, range.endOffset, root)
   if (start === null || end === null || end <= start) return null
   return { start, end }
+}
+
+/** The rendered text of a source range, as the highlight's quote (entry.md §4.2). */
+export function quoteForRange(markdown: string, range: SourceRange): string {
+  return markdown.slice(range.start, range.end).replace(/\n+/g, ' ').trim()
 }
 
 function offsetInSource(node: Node, offset: number, root: HTMLElement): number | null {
