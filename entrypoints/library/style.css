@@ -771,3 +771,153 @@ body {
   gap: 10px;
   margin-bottom: 8px;
 }
+
+/* ── Property panel and properties page (extension.md §2.4, §4.1) ── */
+
+.prop-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.prop-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.prop-name {
+  color: var(--ann-muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prop-row input[type='text'],
+.prop-row input[type='number'],
+.prop-row input[type='date'],
+.prop-row input[type='datetime-local'] {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--ann-border);
+  border-radius: 5px;
+  background: var(--ann-page);
+  color: var(--ann-text);
+  font-size: 12.5px;
+}
+
+.prop-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+.prop-list .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.tag-remove {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--ann-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.prop-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prop-add input,
+.prop-add select {
+  padding: 6px 8px;
+  border: 1px solid var(--ann-border);
+  border-radius: 5px;
+  background: var(--ann-page);
+  color: var(--ann-text);
+  font-size: 12.5px;
+}
+
+.prop-add-button {
+  align-self: flex-start;
+}
+
+.props-page {
+  padding: 16px 20px 40px;
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.props-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.props-spacer {
+  flex: 1;
+}
+
+.props-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.props-table th {
+  text-align: left;
+  padding: 6px 8px;
+  color: var(--ann-muted);
+  font-size: 12px;
+  border-bottom: 1px solid var(--ann-border);
+}
+
+.props-table td {
+  padding: 8px;
+  border-bottom: 1px solid var(--ann-border);
+  vertical-align: middle;
+}
+
+.prop-preset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 10px;
+  font-size: 12px;
+  color: var(--ann-muted);
+}
+
+/* reading side tabs */
+.reading-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.reading-tab {
+  padding: 5px 10px;
+  border: 1px solid var(--ann-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ann-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.reading-tab-current {
+  background: var(--ann-accent-soft);
+  border-color: var(--ann-accent);
+  color: var(--ann-accent);
+  font-weight: 600;
+}
