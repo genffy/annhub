@@ -20,9 +20,10 @@ export default defineConfig({
     // A local build adopts the published store id when the store item's public key is passed in
     // (a stable id for testing updates); release builds never set it.
     ...(process.env.ANNHUB_EXTENSION_KEY ? { key: process.env.ANNHUB_EXTENSION_KEY } : {}),
-    // `tabs` and `activeTab` are omitted on purpose: the `<all_urls>` host permission already grants
-    // everything they would (tab URLs and titles, capturing the visible tab).
-    permissions: ['storage', 'commands', 'downloads', 'scripting'],
+    // `tabs`, `activeTab` and `scripting` are omitted on purpose: `<all_urls>` already grants what the
+    // first two would (tab URLs and titles, capturing the visible tab), and page scripts are registered
+    // statically in the manifest so a shortcut fallback injection has no real receiver (docs/v2/permissions.md).
+    permissions: ['storage', 'commands', 'downloads'],
     minimum_chrome_version: '114',
     host_permissions: ['<all_urls>'],
     action: {
