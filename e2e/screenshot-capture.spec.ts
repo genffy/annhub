@@ -18,6 +18,9 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
     await page.mouse.down()
     await page.mouse.move(box.x + 400, box.y + 150, { steps: 6 })
     await page.mouse.up()
+    // a released drag waits for confirmation (screenshot.md §1.2)
+    await expect(page.locator('[data-ann-ui="shot-confirm-bar"]')).toBeVisible()
+    await page.keyboard.press('Enter')
 
     await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible()
     await page.locator('[data-ann-ui="screenshot-save"]').click()
@@ -64,6 +67,8 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
     await page.mouse.down()
     await page.mouse.move(box.x + 380, box.y + 130, { steps: 5 })
     await page.mouse.up()
+    await expect(page.locator('[data-ann-ui="shot-confirm-bar"]')).toBeVisible()
+    await page.keyboard.press('Enter')
     await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible()
 
     await page.locator('[data-ann-ui="screenshot-copy"]').click()

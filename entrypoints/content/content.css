@@ -373,3 +373,163 @@
   font-size: 12px;
   cursor: pointer;
 }
+
+/* ── R3: snap guides, handles, confirm bar, margin bar, hover outline ── */
+
+[data-ann-ui='screenshot-session'] .ann-shot-snap-line {
+  position: absolute;
+  background: #673ab8;
+  opacity: 0.8;
+  pointer-events: none;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-snap-x {
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-snap-y {
+  left: 0;
+  right: 0;
+  height: 1px;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-handle {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border: 1px solid #4c91ff;
+  border-radius: 2px;
+  background: #fff;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-handle-nw {
+  left: -6px;
+  top: -6px;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-handle-n {
+  left: calc(50% - 5px);
+  top: -6px;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-handle-ne {
+  right: -6px;
+  top: -6px;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-handle-e {
+  right: -6px;
+  top: calc(50% - 5px);
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-handle-se {
+  right: -6px;
+  bottom: -6px;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-handle-s {
+  left: calc(50% - 5px);
+  bottom: -6px;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-handle-sw {
+  left: -6px;
+  bottom: -6px;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-handle-w {
+  left: -6px;
+  top: calc(50% - 5px);
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-confirm-bar {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 7px;
+  border: 1px solid #d7dce1;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  pointer-events: auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-confirm-bar button {
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 4px;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-confirm-bar button:first-child {
+  background: #673ab8;
+  color: #fff;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-confirm-bar button:last-of-type {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  color: #20252b;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-frame-label {
+  color: #5c6670;
+  font-size: 11.5px;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-margin-bar {
+  position: absolute;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  border: 1px solid #d7dce1;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.18);
+  pointer-events: auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-margin-label {
+  padding: 0 4px;
+  color: #5c6670;
+  font-size: 11.5px;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-margin-bar button {
+  padding: 3px 8px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: #20252b;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-margin-bar button.ann-shot-ratio-active {
+  background: #673ab8;
+  color: #fff;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-margin-bar input {
+  width: 44px;
+  padding: 3px 5px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-hover-outline {
+  position: absolute;
+  border: 1.5px dashed #673ab8;
+  border-radius: 2px;
+  pointer-events: none;
+}

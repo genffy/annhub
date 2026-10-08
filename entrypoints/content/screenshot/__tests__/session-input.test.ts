@@ -60,19 +60,25 @@ describe('the screenshot session and input made up by the page', () => {
     document.body.dispatchEvent(pointer('pointerup', 600, 400))
     await new Promise(resolve => setTimeout(resolve, 50))
     expect(captures()).toHaveLength(0)
+    expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).toBeNull() // the script's up did not confirm
     expect((session()!.querySelector('.ann-shot-rect') as HTMLElement).style.width).toBe('290px') // the script's move did not stretch it
 
+    // the user's up enters R3's pending confirmation; Enter captures
     aPerson = true
     document.body.dispatchEvent(pointer('pointerup', 300, 200))
+    await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     await vi.waitFor(() => expect(captures()).toHaveLength(1))
   })
 
-  it('takes the capture from a real drag', async () => {
+  it('takes the capture from a real drag after confirming the selection', async () => {
     enterScreenshotMode()
     aPerson = true
     document.body.dispatchEvent(pointer('pointerdown', 10, 10))
     document.body.dispatchEvent(pointer('pointermove', 300, 200))
     document.body.dispatchEvent(pointer('pointerup', 300, 200))
+    await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
     await vi.waitFor(() => expect(captures()).toHaveLength(1))
   })
 

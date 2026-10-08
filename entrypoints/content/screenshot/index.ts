@@ -25,7 +25,7 @@ import { uiText } from '../../../utils/ui-text'
 import { isUserInput } from '../user-input'
 import type { CaptureVia } from '../../../types/messages'
 import type { ViewportRect } from './crop'
-import { computeCropSource, CropError } from './crop'
+import { computeCropSource, CropError, intersectRects } from './crop'
 import { detectIdentityRects } from './detect'
 import { applyViewportAnonymization } from './anonymize'
 import { captureElement } from './element-capture'
@@ -37,6 +37,7 @@ import {
   BEAUTIFY_BACKGROUNDS,
   composeGeometry,
   constrainToRatio,
+  constrainToRatioValue,
   downloadExtension,
   downloadMime,
   ratioOf,
@@ -44,6 +45,26 @@ import {
   type BeautifySettings,
   type DownloadFormat,
 } from './output'
+import {
+  HANDLES,
+  adjustHierarchy,
+  boxWithinTolerance,
+  buildSelector,
+  clearFrame,
+  collectEdges,
+  elementChain,
+  expandByMargin,
+  fitsInViewport,
+  handleAnchor,
+  nudgeBox,
+  pageStable,
+  readFrame,
+  rememberFrame,
+  resizeFromHandle,
+  snapPoint,
+  type FrameRecord,
+  type HandleId,
+} from './selection'
 import type { ExtensionSettings } from '../../../background-service/settings-schema'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -78,7 +99,7 @@ class ScreenshotSession {
   private readonly doc: Document
   private readonly host: HTMLDivElement
   private hintEl: HTMLDivElement | null = null
-  private state: 'selecting' | 'capturing' | 'preview' | 'error' | 'done' = 'selecting'
+  private state: 'selecting' | 'confirming' | 'capturing' | 'preview' | 'error' | 'done' = 'selecting'
   private selection: ViewportRect | null = null
   private selectionEl: HTMLDivElement | null = null
   private previewEl: HTMLElement | null = null
@@ -109,6 +130,21 @@ class ScreenshotSession {
   private beautify: BeautifySettings = { enabled: false, background: 'solid-white', padding: 'medium', radius: 12, shadow: true }
   private beautifyPanelEl: HTMLDivElement | null = null
   private displayCanvas: HTMLCanvasElement | null = null
+  // R3 precise selection (screenshot.md §1.2, §1.4)
+  private hoverEl: HTMLElement | null = null
+  private hoverChain: Element[] = []
+  private hoverIndex = 0
+  private hoverOutlineEl: HTMLDivElement | null = null
+  private margin = 0
+  private marginBarEl: HTMLDivElement | null = null
+  private confirmBarEl: HTMLDivElement | null = null
+  private handleEls: HTMLDivElement[] = []
+  private frameLabelEl: HTMLDivElement | null = null
+  private frameLabel = ''
+  private snapXEl: HTMLDivElement | null = null
+  private snapYEl: HTMLDivElement | null = null
+  private shiftRatio: number | null = null
+  private pendingFrameRecord: FrameRecord | null = null
   private readonly onKeydown = (e: KeyboardEvent) => {
     if (!isUserInput(e)) return
     if (e.key === 'Escape') {
@@ -136,6 +172,28 @@ class ScreenshotSession {
       e.preventDefault()
       this.anonymizeOn = !this.anonymizeOn
       this.syncHint()
+    }
+    if (this.state === 'confirming' && this.selection && !this.hoverOutlineEl) {
+      const view = this.doc.defaultView!
+      if (e.key.startsWith('Arrow')) {
+        e.preventDefault()
+        this.selection = nudgeBox(this.selection, e.key as 'ArrowLeft', e.shiftKey, { width: view.innerWidth, height: view.innerHeight })
+        this.paintSelection()
+        return
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        void this.confirmSelection()
+        return
+      }
+    }
+    if (e.key === 'Shift' && this.state === 'selecting' && this.selection) {
+      this.shiftRatio = this.selection.height > 0 ? this.selection.width / this.selection.height : null
+    }
+    if ((this.state === 'selecting' || this.state === 'confirming') && this.hoverOutlineEl && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+      e.preventDefault()
+      this.hoverIndex = adjustHierarchy(this.hoverChain, this.hoverIndex, e.key === 'ArrowUp' ? 1 : -1)
+      this.paintHover()
     }
     if (this.state === 'preview' && (e.key === 'w' || e.key === 'W') && this.settings?.watermark.enabled) {
       e.preventDefault()
@@ -200,10 +258,13 @@ class ScreenshotSession {
     this.host.appendChild(overlay)
 
     this.doc.documentElement.appendChild(this.host)
+    // the remembered frame lives for this tab and this page only (screenshot.md §1.4)
+    this.doc.defaultView!.addEventListener('pagehide', clearFrame)
     this.doc.addEventListener('keydown', this.onKeydown, true)
     // The host is pointer-events:none so pointer events keep hitting real page
     // elements — that is how the click-to-capture-element mode knows its target.
     this.doc.addEventListener('pointerdown', this.onPointerDown, true)
+    this.doc.addEventListener('pointermove', this.onHoverMove, true)
     this.syncHint()
     void this.loadAnonymizeDefault()
   }
@@ -218,6 +279,7 @@ class ScreenshotSession {
       this.beautify = { ...response.data.beautify }
       this.syncHint()
       this.showRatioBar()
+      this.restoreRememberedFrame()
     }
   }
 
@@ -280,6 +342,10 @@ class ScreenshotSession {
     this.toolbarRoot = null
     this.doc.removeEventListener('keydown', this.onKeydown, true)
     this.doc.removeEventListener('pointerdown', this.onPointerDown, true)
+    this.doc.removeEventListener('pointermove', this.onHoverMove, true)
+    this.doc.defaultView!.removeEventListener('pagehide', clearFrame)
+    this.clearConfirmUi()
+    this.clearHoverUi()
     this.host.remove()
     this.selectionEl = null
     this.previewEl = null
@@ -295,16 +361,23 @@ class ScreenshotSession {
 
   // ── region selection / element pick (document-level) ─────────────
 
+  private onHoverMove = (e: PointerEvent): void => {
+    if (!isUserInput(e)) return
+    this.trackHover(e.clientX, e.clientY)
+  }
+
   private onPointerDown = (e: PointerEvent) => {
-    if (this.state !== 'selecting') return
+    if (this.state !== 'selecting' && this.state !== 'confirming') return
     if (!isUserInput(e)) return
     if (e.target instanceof Node && this.host.contains(e.target)) return
     if (e.button !== 0) return
     e.preventDefault()
     e.stopPropagation()
 
+    // any drag replaces a pending selection (and the remembered frame)
+    this.clearConfirmUi()
+    this.state = 'selecting'
     const origin = { x: e.clientX, y: e.clientY }
-    const target = e.target as HTMLElement | null
     const rect = this.doc.createElement('div')
     rect.className = 'ann-shot-rect'
     const size = this.doc.createElement('span')
@@ -314,7 +387,18 @@ class ScreenshotSession {
     const move = (ev: PointerEvent) => {
       if (!isUserInput(ev)) return
       const view = this.doc.defaultView!
-      const raw = constrainToRatio(origin, { x: ev.clientX, y: ev.clientY }, this.ratio, { width: view.innerWidth, height: view.innerHeight })
+      // snapping: the moving point sticks to element edges near it (screenshot.md §1.2)
+      const edges = collectEdges(this.edgeRectsUnder(ev.clientX, ev.clientY), { width: view.innerWidth, height: view.innerHeight })
+      const snapped = snapPoint({ x: ev.clientX, y: ev.clientY }, edges)
+      this.paintSnapGuides(snapped)
+      let raw: ViewportRect
+      if (this.ratio !== 'free') {
+        raw = constrainToRatio(origin, snapped, this.ratio, { width: view.innerWidth, height: view.innerHeight })
+      } else if (this.shiftRatio !== null) {
+        raw = constrainToRatioValue(origin, snapped, this.shiftRatio, { width: view.innerWidth, height: view.innerHeight })
+      } else {
+        raw = constrainToRatio(origin, snapped, 'free', { width: view.innerWidth, height: view.innerHeight })
+      }
       const x0 = Math.max(0, raw.x)
       const y0 = Math.max(0, raw.y)
       const x1 = Math.min(view.innerWidth, raw.x + raw.width)
@@ -330,22 +414,24 @@ class ScreenshotSession {
       rect.style.width = `${this.selection.width}px`
       rect.style.height = `${this.selection.height}px`
       const preset = ratioOf(this.ratio)
-      size.textContent = `${Math.round(this.selection.width)} x ${Math.round(this.selection.height)}${preset ? ` · ${preset.id} 🔒` : ''}`
+      size.textContent = `${Math.round(this.selection.width)} x ${Math.round(this.selection.height)}${preset ? ` · ${preset.id} 🔒` : this.shiftRatio !== null ? ' 🔒' : ''}`
       size.style.bottom = y0 < 28 ? 'auto' : ''
       size.style.top = y0 < 28 ? 'calc(100% + 6px)' : ''
     }
     const up = (ev: PointerEvent) => {
       if (!isUserInput(ev)) return
       detach()
+      this.clearSnapGuides()
+      this.shiftRatio = null
       const width = Math.abs(ev.clientX - origin.x)
       const height = Math.abs(ev.clientY - origin.y)
       if (width < 4 && height < 4) {
-        // A click, not a drag → element capture of the clicked element.
+        // A click, not a drag → element path with the hovered element and margin.
         rect.remove()
         this.selectionEl = null
         this.selection = null
         if (this.overlayEl) this.overlayEl.style.background = ''
-        if (target) void this.captureElementMode(target)
+        this.captureHoveredElement()
         return
       }
       if (!this.selection || this.selection.width < 4 || this.selection.height < 4) {
@@ -355,7 +441,8 @@ class ScreenshotSession {
         if (this.overlayEl) this.overlayEl.style.background = ''
         return
       }
-      void this.captureRegionMode()
+      // R3: the released selection stays adjustable before capture (screenshot.md §1.2)
+      this.enterConfirming()
     }
     const detach = () => {
       this.doc.removeEventListener('pointermove', move)
@@ -365,6 +452,327 @@ class ScreenshotSession {
     this.selectionCleanup = detach
     this.doc.addEventListener('pointermove', move)
     this.doc.addEventListener('pointerup', up)
+  }
+
+  /** Element boxes under a point, for drag snapping. */
+  private edgeRectsUnder(x: number, y: number): Array<{ left: number; top: number; right: number; bottom: number }> {
+    if (typeof this.doc.elementsFromPoint !== 'function') return []
+    const stack = this.doc.elementsFromPoint(x, y)
+    const rects: Array<{ left: number; top: number; right: number; bottom: number }> = []
+    for (const el of stack.slice(0, 6)) {
+      if (el.closest?.('[data-ann-ui]')) continue
+      const box = el.getBoundingClientRect()
+      if (box.width > 0 && box.height > 0) rects.push({ left: box.left, top: box.top, right: box.right, bottom: box.bottom })
+    }
+    return rects
+  }
+
+  private paintSnapGuides(snapped: { snappedX: number | null; snappedY: number | null }): void {
+    const view = this.doc.defaultView!
+    if (snapped.snappedX !== null && !this.snapXEl) {
+      const line = this.doc.createElement('div')
+      line.className = 'ann-shot-snap-line ann-shot-snap-x'
+      this.host.appendChild(line)
+      this.snapXEl = line
+    }
+    if (this.snapXEl) {
+      this.snapXEl.style.display = snapped.snappedX === null ? 'none' : ''
+      if (snapped.snappedX !== null) this.snapXEl.style.left = `${snapped.snappedX}px`
+    }
+    if (snapped.snappedY !== null && !this.snapYEl) {
+      const line = this.doc.createElement('div')
+      line.className = 'ann-shot-snap-line ann-shot-snap-y'
+      this.host.appendChild(line)
+      this.snapYEl = line
+    }
+    if (this.snapYEl) {
+      this.snapYEl.style.display = snapped.snappedY === null ? 'none' : ''
+      if (snapped.snappedY !== null) this.snapYEl.style.top = `${snapped.snappedY}px`
+    }
+    void view
+  }
+
+  private clearSnapGuides(): void {
+    this.snapXEl?.remove()
+    this.snapYEl?.remove()
+    this.snapXEl = null
+    this.snapYEl = null
+  }
+
+  // ── pending confirmation (screenshot.md §1.2) ─────────────────────
+
+  /** The released selection stays adjustable: handles, nudge, confirm bar. */
+  private enterConfirming(label = this.frameLabel): void {
+    this.state = 'confirming'
+    this.frameLabel = label
+    this.clearConfirmUi()
+    this.clearHoverUi()
+    if (!this.selectionEl || !this.selection) return
+
+    for (const handle of HANDLES) {
+      const anchor = handleAnchor(handle)
+      const el = this.doc.createElement('div')
+      el.className = `ann-shot-handle ann-shot-handle-${handle}`
+      el.setAttribute('data-ann-ui', `shot-handle-${handle}`)
+      el.style.cursor = anchor.cursor
+      el.addEventListener('pointerdown', event => {
+        if (!isUserInput(event) || !this.selection) return
+        event.preventDefault()
+        event.stopPropagation()
+        this.dragHandle(handle, event)
+      })
+      this.selectionEl.appendChild(el)
+      this.handleEls.push(el)
+      void anchor
+    }
+
+    const bar = this.doc.createElement('div')
+    bar.className = 'ann-shot-confirm-bar'
+    bar.setAttribute('data-ann-ui', 'shot-confirm-bar')
+    const confirm = this.doc.createElement('button')
+    confirm.type = 'button'
+    confirm.textContent = uiText('shot.confirmSelection')
+    confirm.setAttribute('data-ann-ui', 'shot-confirm-btn')
+    confirm.addEventListener('click', event => {
+      if (isUserInput(event)) void this.confirmSelection()
+    })
+    const cancel = this.doc.createElement('button')
+    cancel.type = 'button'
+    cancel.textContent = uiText('common.cancel')
+    cancel.setAttribute('data-ann-ui', 'shot-confirm-cancel')
+    cancel.addEventListener('click', event => {
+      if (isUserInput(event)) exitScreenshotMode()
+    })
+    bar.append(confirm, cancel)
+    if (this.frameLabel) {
+      const label = this.doc.createElement('span')
+      label.className = 'ann-shot-frame-label'
+      label.setAttribute('data-ann-ui', 'shot-frame-label')
+      label.textContent = this.frameLabel
+      bar.appendChild(label)
+    }
+    this.host.appendChild(bar)
+    this.confirmBarEl = bar
+    this.positionConfirmBar()
+    this.paintSelection()
+  }
+
+  private positionConfirmBar(): void {
+    const bar = this.confirmBarEl
+    const selection = this.selection
+    if (!bar || !selection) return
+    const view = this.doc.defaultView!
+    const width = bar.offsetWidth || 220
+    let x = selection.x + selection.width - width
+    x = Math.max(8, Math.min(view.innerWidth - width - 8, x))
+    const below = selection.y + selection.height + 8
+    const y = below + 40 <= view.innerHeight ? below : Math.max(8, selection.y - 48)
+    bar.style.left = `${x}px`
+    bar.style.top = `${y}px`
+  }
+
+  /** Re-renders the pending rect, handles, size label and bar position. */
+  private paintSelection(): void {
+    const rect = this.selectionEl
+    const selection = this.selection
+    if (!rect || !selection) return
+    rect.style.left = `${selection.x}px`
+    rect.style.top = `${selection.y}px`
+    rect.style.width = `${selection.width}px`
+    rect.style.height = `${selection.height}px`
+    const size = rect.querySelector('.ann-shot-size') as HTMLElement | null
+    if (size) size.textContent = `${Math.round(selection.width)} x ${Math.round(selection.height)}`
+    this.positionConfirmBar()
+  }
+
+  private dragHandle(handle: HandleId, start: PointerEvent): void {
+    const origin = { x: start.clientX, y: start.clientY }
+    const base = { ...this.selection! }
+    const view = this.doc.defaultView!
+    const move = (ev: PointerEvent): void => {
+      if (!isUserInput(ev)) return
+      this.selection = resizeFromHandle(base, handle, ev.clientX - origin.x, ev.clientY - origin.y, { width: view.innerWidth, height: view.innerHeight })
+      this.paintSelection()
+    }
+    const up = (ev: PointerEvent): void => {
+      if (isUserInput(ev)) void 0
+      this.doc.removeEventListener('pointermove', move)
+      this.doc.removeEventListener('pointerup', up)
+    }
+    this.doc.addEventListener('pointermove', move)
+    this.doc.addEventListener('pointerup', up)
+  }
+
+  /** Enter confirms the pending selection (or the remembered frame). */
+  private async confirmSelection(): Promise<void> {
+    if (!this.selection || this.state !== 'confirming') return
+    const view = this.doc.defaultView!
+    // a free-dragged frame is remembered by its page position (screenshot.md §1.4)
+    this.pendingFrameRecord = {
+      kind: 'box',
+      pageX: this.selection.x + view.scrollX,
+      pageY: this.selection.y + view.scrollY,
+      width: this.selection.width,
+      height: this.selection.height,
+      path: location.pathname + location.search,
+    }
+    this.clearConfirmUi()
+    await this.captureRegionMode()
+  }
+
+  private clearConfirmUi(): void {
+    this.confirmBarEl?.remove()
+    this.confirmBarEl = null
+    this.frameLabelEl?.remove()
+    this.frameLabelEl = null
+    for (const el of this.handleEls) el.remove()
+    this.handleEls = []
+  }
+
+  // ── element path: hover, hierarchy, margin (screenshot.md §1.2, §1.4) ──
+
+  /**
+   * Tracks the element a click would capture; paints outline + margin bar.
+   * Hovering also works while a remembered frame waits for confirmation —
+   * clicking elsewhere replaces that frame (screenshot.md §1.4).
+   */
+  private trackHover(x: number, y: number): void {
+    if (this.state !== 'selecting' && this.state !== 'confirming') return
+    if (this.state === 'selecting' && this.selectionEl) return
+    if (typeof this.doc.elementsFromPoint !== 'function') return
+    const stack = this.doc.elementsFromPoint(x, y)
+    // the pointer on our own chrome (margin chips, bars) keeps the hover alive
+    const top = stack[0]
+    if (top?.closest?.('[data-ann-ui]')) return
+    const target = stack.find(el => !el.closest?.('[data-ann-ui]')) as HTMLElement | undefined
+    if (!target || target === this.doc.body || target === this.doc.documentElement) {
+      this.clearHoverUi()
+      return
+    }
+    if (target !== this.hoverEl) {
+      this.hoverEl = target
+      this.hoverChain = elementChain(this.resolveCaptureTarget(target))
+      this.hoverIndex = 0
+      this.paintHover()
+      return
+    }
+    // same element: keep the painted UI instead of rebuilding it under a click
+    if (!this.hoverOutlineEl || !this.marginBarEl) this.paintHover()
+  }
+
+  private paintHover(): void {
+    const el = this.hoverChain[this.hoverIndex] as HTMLElement | undefined
+    if (!el) {
+      this.clearHoverUi()
+      return
+    }
+    this.hoverOutlineEl?.remove()
+    const outline = this.doc.createElement('div')
+    outline.className = 'ann-shot-hover-outline'
+    outline.setAttribute('data-ann-ui', 'shot-hover-outline')
+    const box = el.getBoundingClientRect()
+    Object.assign(outline.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` })
+    this.host.appendChild(outline)
+    this.hoverOutlineEl = outline
+    this.showMarginBar(box)
+  }
+
+  /** The margin bar rides the hovered element's frame (screenshot.md §1.4). */
+  private showMarginBar(box: DOMRect): void {
+    this.marginBarEl?.remove()
+    const bar = this.doc.createElement('div')
+    bar.className = 'ann-shot-margin-bar'
+    bar.setAttribute('data-ann-ui', 'shot-margin-bar')
+    const label = this.doc.createElement('span')
+    label.className = 'ann-shot-margin-label'
+    label.textContent = uiText('shot.margin')
+    bar.appendChild(label)
+    for (const margin of [0, 8, 16, 24, 32]) {
+      const chip = this.doc.createElement('button')
+      chip.type = 'button'
+      chip.textContent = String(margin)
+      chip.className = this.margin === margin ? 'ann-shot-ratio-active' : ''
+      chip.setAttribute('data-ann-ui', `shot-margin-${margin}`)
+      chip.addEventListener('click', event => {
+        if (!isUserInput(event)) return
+        this.margin = margin
+        this.paintHover()
+      })
+      bar.appendChild(chip)
+    }
+    const custom = this.doc.createElement('input')
+    custom.type = 'number'
+    custom.min = '0'
+    custom.max = '200'
+    custom.value = this.margin && ![0, 8, 16, 24, 32].includes(this.margin) ? String(this.margin) : ''
+    custom.placeholder = '···'
+    custom.setAttribute('aria-label', uiText('shot.margin'))
+    custom.addEventListener('change', event => {
+      const value = Number((event.target as HTMLInputElement).value)
+      if (Number.isFinite(value) && value >= 0) {
+        this.margin = Math.round(value)
+        this.paintHover()
+      }
+    })
+    bar.appendChild(custom)
+    this.host.appendChild(bar)
+    this.marginBarEl = bar
+    const view = this.doc.defaultView!
+    const width = bar.offsetWidth || 300
+    let x = box.left + box.width / 2 - width / 2
+    x = Math.max(8, Math.min(view.innerWidth - width - 8, x))
+    const below = box.bottom + 8
+    const y = below + 40 <= view.innerHeight ? below : Math.max(8, box.top - 48)
+    bar.style.left = `${x}px`
+    bar.style.top = `${y}px`
+  }
+
+  private clearHoverUi(): void {
+    this.hoverEl = null
+    this.hoverChain = []
+    this.hoverIndex = 0
+    this.hoverOutlineEl?.remove()
+    this.hoverOutlineEl = null
+    this.marginBarEl?.remove()
+    this.marginBarEl = null
+  }
+
+  /**
+   * A click on a hovered element: element + margin goes the region path when
+   * the frame fits the window (the ring shows the real page); a bigger
+   * element itself goes the clone path without margin (screenshot.md §1.4).
+   */
+  private captureHoveredElement(): void {
+    const el = this.hoverChain[this.hoverIndex] as HTMLElement | undefined
+    const hovered = el ?? this.hoverEl
+    this.clearHoverUi()
+    if (!hovered) return
+    const view = this.doc.defaultView!
+    const box = hovered.getBoundingClientRect()
+    const frame = expandByMargin({ x: box.left, y: box.top, width: box.width, height: box.height }, this.margin)
+    this.pendingFrameRecord = {
+      kind: 'element',
+      selector: buildSelector(hovered),
+      margin: this.margin,
+      width: box.width,
+      height: box.height,
+      pageX: box.left + view.scrollX,
+      pageY: box.top + view.scrollY,
+      path: location.pathname + location.search,
+    }
+    if (fitsInViewport(frame, { width: view.innerWidth, height: view.innerHeight })) {
+      this.selection = frame
+      void this.captureRegionMode()
+      return
+    }
+    if (this.margin === 0 || !fitsInViewport({ x: box.left, y: box.top, width: box.width, height: box.height }, { width: view.innerWidth, height: view.innerHeight })) {
+      void this.captureElementMode(hovered)
+      return
+    }
+    // the margin overflows the window: say so and keep the session (screenshot.md §1.4 放不下)
+    this.pendingFrameRecord = null
+    this.state = 'selecting'
+    this.showNotice(uiText('shot.frameTooBig'))
   }
 
   /** Climb from an inline target to its nearest block ancestor for a sensible shot. */
@@ -397,9 +805,22 @@ class ScreenshotSession {
     const restoreAnonymize = this.anonymizeOn ? applyViewportAnonymization(this.doc, this.doc.defaultView!.location.hostname) : null
 
     // captureVisibleTab photographs the screen — our session UI must be gone.
+    // The frame waits for a settled layout (max 500ms), and a transparent
+    // hover-catcher takes the cursor so page hover styles clear before the
+    // shot (screenshot.md §1.4).
     this.host.style.display = 'none'
+    const sweeper = this.doc.createElement('div')
+    sweeper.setAttribute(ROOT_ATTR, 'screenshot-hover-sweeper')
+    Object.assign(sweeper.style, { position: 'fixed', inset: '0', pointerEvents: 'auto', background: 'transparent', zIndex: '2147483646' })
+    this.doc.documentElement.appendChild(sweeper)
+    await pageStable(this.doc.defaultView!, 500)
     await doubleRaf()
+    const dropSweeper = (): void => {
+      sweeper.remove()
+      this.host.style.display = ''
+    }
     if (this.exited) {
+      dropSweeper()
       restoreAnonymize?.()
       return
     }
@@ -416,9 +837,10 @@ class ScreenshotSession {
       dataUrl = response.data.dataUrl
     } catch (error) {
       if (!this.exited) this.showError(error instanceof Error ? error.message : uiText('shot.error.capture'))
+      dropSweeper()
       return
     } finally {
-      this.host.style.display = ''
+      dropSweeper()
       restoreAnonymize?.()
     }
     if (this.exited) return
@@ -824,6 +1246,7 @@ class ScreenshotSession {
         },
       })
       if (!response.success) throw new Error(response.error || uiText('shot.error.saveFailed'))
+      this.rememberLastFrame()
       exitScreenshotMode()
     } catch (error) {
       this.showNotice(error instanceof Error ? error.message : uiText('shot.error.saveFailed'), true)
@@ -845,6 +1268,7 @@ class ScreenshotSession {
         throw new Error(uiText('shot.copyInstead'))
       }
       await this.doc.defaultView!.navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      this.rememberLastFrame()
       this.showNotice(uiText('shot.copied'))
       void MessageUtils.sendMessage({ type: 'RECORD_EVENT', name: 'screenshot.copied', props: { watermark: false, beautify: false } })
     } catch {
@@ -881,6 +1305,7 @@ class ScreenshotSession {
       }
       const response = await MessageUtils.sendMessage<{ downloadId: number }>({ type: 'DOWNLOAD_IMAGE', dataUrl, extension: downloadExtension(format) })
       if (!response.success) throw new Error(response.error || uiText('shot.error.downloadFailed'))
+      this.rememberLastFrame()
       this.showNotice(uiText('shot.downloaded'))
     } catch (error) {
       this.showNotice(error instanceof Error ? error.message : uiText('shot.error.downloadFailed'), true)
@@ -1006,6 +1431,116 @@ class ScreenshotSession {
     this.host.appendChild(panel)
     this.beautifyPanelEl = panel
     void row
+  }
+
+  /**
+   * 入库 / 复制 / 下载 succeeded: the frame that produced this capture is
+   * remembered for the next session on this page in this tab (screenshot.md
+   * §1.4). Element frames refresh their anchor and size; cancel never writes.
+   */
+  private rememberLastFrame(): void {
+    const record = this.pendingFrameRecord
+    if (!record) return
+    if (record.kind === 'element') {
+      const el = this.doc.querySelector(record.selector)
+      const view = this.doc.defaultView!
+      if (el) {
+        const box = el.getBoundingClientRect()
+        record.width = box.width
+        record.height = box.height
+        record.pageX = box.left + view.scrollX
+        record.pageY = box.top + view.scrollY
+      }
+    } else {
+      const view = this.doc.defaultView!
+      if (this.selection) {
+        record.pageX = this.selection.x + view.scrollX
+        record.pageY = this.selection.y + view.scrollY
+      }
+    }
+    rememberFrame(record)
+  }
+
+  /**
+   * The remembered frame opens the session as a pending selection
+   * (screenshot.md §1.4): anchored to its element when that is found within
+   * 10% drift, otherwise the recorded page position with a notice; the page
+   * scrolls so the frame lands fully in view.
+   */
+  private restoreRememberedFrame(): void {
+    const record = readFrame()
+    if (!record) return
+    const view = this.doc.defaultView!
+    let label = `${uiText('shot.lastFrame')} · ${Math.round(record.width + (record.kind === 'element' ? record.margin * 2 : 0))} × ${Math.round(record.height + (record.kind === 'element' ? record.margin * 2 : 0))}`
+    if (record.kind === 'element') {
+      const el = this.doc.querySelector(record.selector)
+      const box = el?.getBoundingClientRect()
+      if (el && box && boxWithinTolerance({ width: box.width, height: box.height }, record)) {
+        el.scrollIntoView?.({ block: 'center', inline: 'center', behavior: 'instant' as ScrollBehavior })
+        const fresh = el.getBoundingClientRect()
+        this.selection = expandByMargin({ x: fresh.left, y: fresh.top, width: fresh.width, height: fresh.height }, record.margin)
+        this.pendingFrameRecord = { ...record, width: fresh.width, height: fresh.height }
+      } else {
+        const fallback = this.frameAtRecordedPosition(record)
+        if (!fallback) return
+        this.selection = fallback
+        this.pendingFrameRecord = null
+        label += ` · ${uiText('shot.frameNotFound')}`
+      }
+    } else {
+      const fallback = this.frameAtRecordedPosition(record)
+      if (!fallback) return
+      this.selection = fallback
+      this.pendingFrameRecord = null
+    }
+    if (!fitsInViewport(this.selection, { width: view.innerWidth, height: view.innerHeight })) {
+      label += ` · ${uiText('shot.frameTooBig')}`
+    }
+    this.frameLabel = label
+    this.paintFrameSelection()
+    this.enterConfirming(label)
+  }
+
+  /**
+   * Fallback when the remembered frame's anchor is gone (or the record is a
+   * plain box): scroll the recorded page rect back into view — the recording
+   * happened somewhere on this page — then express it as a viewport selection
+   * clamped to what is visible (screenshot.md §1.4). Returns null when no
+   * part of the rect can be brought on screen.
+   */
+  private frameAtRecordedPosition(record: FrameRecord): ViewportRect | null {
+    const view = this.doc.defaultView!
+    const margin = record.kind === 'element' ? record.margin : 0
+    const expanded = expandByMargin({ x: record.pageX, y: record.pageY, width: record.width, height: record.height }, margin)
+    // Browsers clamp these assignments to the scrollable area; jsdom no-ops.
+    const scroller = this.doc.scrollingElement
+    if (scroller) {
+      scroller.scrollLeft = expanded.x
+      scroller.scrollTop = expanded.y
+    }
+    const rect = { x: expanded.x - view.scrollX, y: expanded.y - view.scrollY, width: expanded.width, height: expanded.height }
+    return intersectRects(rect, { x: 0, y: 0, width: view.innerWidth, height: view.innerHeight })
+  }
+
+  /** Paints a programmatic selection (restored frame) with its size label. */
+  private paintFrameSelection(): void {
+    const selection = this.selection
+    if (!selection) return
+    const rect = this.doc.createElement('div')
+    rect.className = 'ann-shot-rect'
+    const size = this.doc.createElement('span')
+    size.className = 'ann-shot-size'
+    size.textContent = `${Math.round(selection.width)} x ${Math.round(selection.height)}`
+    if (selection.y < 28) {
+      size.style.bottom = 'auto'
+      size.style.top = 'calc(100% + 6px)'
+    }
+    rect.appendChild(size)
+    Object.assign(rect.style, { left: `${selection.x}px`, top: `${selection.y}px`, width: `${selection.width}px`, height: `${selection.height}px` })
+    this.host.appendChild(rect)
+    this.selectionEl = rect
+    if (this.overlayEl) this.overlayEl.style.background = 'transparent'
+    if (this.hintEl) this.hintEl.style.display = 'none'
   }
 
   private showNotice(message: string, error = false): void {

@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Pricing — R3 frame fixture</title>
+    <style>
+      body {
+        font-family: -apple-system, system-ui, sans-serif;
+        margin: 0;
+        padding: 80px 24px 320px;
+        background: #f4f5f7;
+      }
+      .toggle {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-bottom: 40px;
+      }
+      .toggle button {
+        padding: 8px 18px;
+        border: 1px solid #c3c9d4;
+        border-radius: 8px;
+        background: #fff;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      .toggle button[aria-pressed='true'] {
+        background: #673ab8;
+        border-color: #673ab8;
+        color: #fff;
+      }
+      #plans {
+        display: flex;
+        gap: 20px;
+        justify-content: center;
+      }
+      .card {
+        width: 220px;
+        padding: 22px 18px;
+        border: 1px solid #d8dce4;
+        border-radius: 12px;
+        background: #fff;
+      }
+      .card h3 {
+        margin: 0 0 12px;
+        font-size: 15px;
+      }
+      .price {
+        font-size: 26px;
+        font-weight: 700;
+        margin-bottom: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+      .price small {
+        font-size: 12px;
+        font-weight: 400;
+        color: #6b7280;
+      }
+      .card ul {
+        margin: 0;
+        padding-left: 16px;
+        color: #4b5563;
+        font-size: 12.5px;
+        line-height: 1.7;
+      }
+      .spacer {
+        height: 900px;
+      }
+      #remove-anchor {
+        margin: 40px auto;
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="toggle" data-testid="billing-toggle">
+      <button type="button" data-period="monthly" aria-pressed="true">Monthly</button>
+      <button type="button" data-period="quarterly" aria-pressed="false">Quarterly</button>
+      <button type="button" data-period="yearly" aria-pressed="false">Yearly</button>
+    </div>
+    <div id="plans" data-testid="plans">
+      <div class="card"><h3>Starter</h3><div class="price" data-testid="price-starter">$8<small>/mo</small></div><ul><li>1 workspace</li><li>Core features</li></ul></div>
+      <div class="card"><h3>Pro</h3><div class="price" data-testid="price-pro">$24<small>/mo</small></div><ul><li>5 workspaces</li><li>Everything in Starter</li></ul></div>
+      <div class="card"><h3>Team</h3><div class="price" data-testid="price-team">$56<small>/mo</small></div><ul><li>Unlimited</li><li>Priority support</li></ul></div>
+    </div>
+    <div class="spacer"></div>
+    <button id="remove-anchor" type="button" data-testid="remove-anchor">Remove the anchor</button>
+    <script>
+      const prices = {
+        monthly: [8, 24, 56],
+        quarterly: [7, 21, 49],
+        yearly: [6, 18, 42],
+      }
+      const suffix = { monthly: '/mo', quarterly: '/mo · q', yearly: '/mo · y' }
+      for (const button of document.querySelectorAll('.toggle button')) {
+        button.addEventListener('click', () => {
+          for (const other of document.querySelectorAll('.toggle button')) other.setAttribute('aria-pressed', String(other === button))
+          const period = button.dataset.period
+          document.querySelector('[data-testid="price-starter"]').innerHTML = `$${prices[period][0]}<small>${suffix[period]}</small>`
+          document.querySelector('[data-testid="price-pro"]').innerHTML = `$${prices[period][1]}<small>${suffix[period]}</small>`
+          document.querySelector('[data-testid="price-team"]').innerHTML = `$${prices[period][2]}<small>${suffix[period]}</small>`
+        })
+      }
+      document.querySelector('#remove-anchor').addEventListener('click', () => {
+        document.querySelector('#plans').remove()
+      })
+    </script>
+  </body>
+</html>
