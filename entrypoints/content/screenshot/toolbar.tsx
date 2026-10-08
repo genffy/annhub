@@ -1,14 +1,14 @@
-import { ArrowUpRight, Check, Circle, Download, Grid2X2, Pencil, RectangleHorizontal, RotateCcw, Type, X } from 'lucide-react'
+import { ArrowUpRight, Check, Circle, ClipboardCopy, Download, Grid2X2, Pencil, RectangleHorizontal, RotateCcw, Type, X } from 'lucide-react'
 import { uiText } from '../../../utils/ui-text'
 import type { ScreenshotTool } from './editor'
 
 const tools = [
-  { id: 'rectangle', Icon: RectangleHorizontal },
-  { id: 'ellipse', Icon: Circle },
-  { id: 'arrow', Icon: ArrowUpRight },
-  { id: 'pen', Icon: Pencil },
-  { id: 'mosaic', Icon: Grid2X2 },
-  { id: 'text', Icon: Type },
+  { id: 'rectangle', labelKey: 'shot.tool.rect', Icon: RectangleHorizontal },
+  { id: 'ellipse', labelKey: 'shot.tool.ellipse', Icon: Circle },
+  { id: 'arrow', labelKey: 'shot.tool.arrow', Icon: ArrowUpRight },
+  { id: 'pen', labelKey: 'shot.tool.pen', Icon: Pencil },
+  { id: 'mosaic', labelKey: 'shot.tool.mosaic', Icon: Grid2X2 },
+  { id: 'text', labelKey: 'shot.tool.text', Icon: Type },
 ] as const
 
 const colors = [
@@ -30,6 +30,7 @@ interface Props {
   onColor: (color: string) => void
   onRemoveMask: (index: number) => void
   onUndo: () => void
+  onCopy: () => void
   onDownload: () => void
   onCancel: () => void
   onSave: () => void
@@ -40,8 +41,8 @@ export function ScreenshotToolbar(props: Props) {
     <>
       <div className="ann-shot-tools" role="toolbar" aria-label={uiText('shot.toolbar')}>
         <div className="ann-shot-tool-scroll">
-          {tools.map(({ id, Icon }) => {
-            const label = uiText(`shot.tool.${id}`)
+          {tools.map(({ id, labelKey, Icon }) => {
+            const label = uiText(labelKey)
             return (
               <button
                 key={id}
@@ -78,18 +79,21 @@ export function ScreenshotToolbar(props: Props) {
           <span className="ann-shot-divider" />
           <button
             type="button"
-            title={uiText('shot.undo')}
-            aria-label={uiText('shot.undo')}
+            title={uiText('shot.tool.undo')}
+            aria-label={uiText('shot.tool.undo')}
             data-ann-ui="screenshot-undo"
             disabled={!props.canUndo || props.busy}
             onClick={props.onUndo}
           >
             <RotateCcw size={19} />
           </button>
+          <button type="button" title={uiText('shot.tool.copy')} aria-label={uiText('shot.tool.copy')} data-ann-ui="screenshot-copy" disabled={props.busy} onClick={props.onCopy}>
+            <ClipboardCopy size={19} />
+          </button>
           <button
             type="button"
-            title={uiText('shot.download')}
-            aria-label={uiText('shot.download')}
+            title={uiText('shot.tool.download')}
+            aria-label={uiText('shot.tool.download')}
             data-ann-ui="screenshot-download"
             disabled={props.busy}
             onClick={props.onDownload}
@@ -98,13 +102,20 @@ export function ScreenshotToolbar(props: Props) {
           </button>
         </div>
         <div className="ann-shot-actions">
-          <button type="button" title={uiText('shot.cancel')} aria-label={uiText('shot.cancel')} data-ann-ui="screenshot-cancel" disabled={props.busy} onClick={props.onCancel}>
+          <button
+            type="button"
+            title={uiText('shot.tool.cancel')}
+            aria-label={uiText('shot.tool.cancel')}
+            data-ann-ui="screenshot-cancel"
+            disabled={props.busy}
+            onClick={props.onCancel}
+          >
             <X size={21} />
           </button>
           <button
             type="button"
-            title={uiText('shot.save')}
-            aria-label={uiText('shot.save')}
+            title={uiText('shot.tool.confirm')}
+            aria-label={uiText('shot.tool.confirm')}
             className="ann-shot-confirm"
             data-ann-ui="screenshot-save"
             disabled={props.busy}

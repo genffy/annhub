@@ -134,11 +134,7 @@ export function normalizeTags(tags: string[]): string[] {
 }
 
 /** Attach the type presets with their capture-time values (entry.md §5.4). */
-export function presetProperties(
-  type: EntryType,
-  registry: PropertyDefinition[],
-  extracted: Record<string, PropertyValue | undefined>,
-): Record<string, PropertyValue> {
+export function presetProperties(type: EntryType, registry: PropertyDefinition[], extracted: Record<string, PropertyValue | undefined>): Record<string, PropertyValue> {
   const result: Record<string, PropertyValue> = {}
   for (const def of registry) {
     if (!def.presets.includes(type)) continue

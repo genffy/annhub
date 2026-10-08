@@ -3,12 +3,12 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import type { IDBPDatabase } from 'idb'
 import { EntryStore, QuotaError } from '../store'
 import { EntryValidationError } from '../types'
-import { makeClip, pngBlob } from './helpers'
+import { pngBlob } from './helpers'
 
 let store: EntryStore
 
 beforeEach(async () => {
-  indexedDB = new IDBFactory()
+  Object.defineProperty(globalThis, 'indexedDB', { value: new IDBFactory(), writable: true, configurable: true })
   store = new EntryStore(`annhub-test-${Math.random().toString(36).slice(2)}`)
   await store.initialize()
 })
@@ -52,9 +52,7 @@ describe('saveEntry transactions (storage.md §5)', () => {
   })
 
   it('rejects invalid entries without writing anything', async () => {
-    await expect(
-      store.saveEntry({ type: 'clip', content: '', sourceUrl: 'https://example.com/a', properties: { title: 'T' } }),
-    ).rejects.toThrow(EntryValidationError)
+    await expect(store.saveEntry({ type: 'clip', content: '', sourceUrl: 'https://example.com/a', properties: { title: 'T' } })).rejects.toThrow(EntryValidationError)
     expect(await store.countEntries()).toBe(0)
   })
 
@@ -77,9 +75,7 @@ describe('updateEntry (entry.md §4.7, §6)', () => {
     await store.updateEntry(entry.id, {
       highlights: [{ id: 'hl_1', start: 0, end: 3, quote: 'abc', color: 'yellow', createdAt: Date.now() }],
     })
-    await expect(store.updateEntry(entry.id, { content: 'changed' })).rejects.toThrowError(
-      expect.objectContaining({ code: 'ENTRY_CONTENT_LOCKED' }),
-    )
+    await expect(store.updateEntry(entry.id, { content: 'changed' })).rejects.toThrowError(expect.objectContaining({ code: 'ENTRY_CONTENT_LOCKED' }))
     await store.updateEntry(entry.id, { highlights: [] })
     const updated = await store.updateEntry(entry.id, { content: 'changed' })
     expect(updated.content).toBe('changed')

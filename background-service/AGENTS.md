@@ -14,7 +14,7 @@
 ## 领域接线
 
 - `services/fragment/` 负责消息到 domain 的适配；创建和校验调用 `learning-core/`，不复制领域规则。Fragment 的存储边界以共享 store 与 [存储契约](../docs/v2/storage.md) 为准。输出工坊与知识关系、桌面客户端与跨端交付不在产品范围内，代码中没有对应服务、消息或存储。
-- `services/screenshot/` 只承担浏览器截图 API、跨域资源、下载和截图集入库。处理后的图像从 content 以 `dataUrl` 传输（runtime 消息不能携带 Blob），service worker 转 Blob 后与截图元数据同事务写入共享 `fragment-store` 的 `assets`/`screenshots` stores（[存储契约](../docs/v2/storage.md) §3）。`CAPTURE_VISIBLE_TAB` 只拍发送者所在窗口，且发送者必须是该窗口的活动标签页（截取前后各查一次），`captureVisibleTab` 不要再用 `WINDOW_ID_CURRENT`；`FETCH_RESOURCE` 持有 `<all_urls>` 的网络位置，所以只经 `fetch-policy.ts`：公网 http(s)、不带凭据、只返回不超过 `MAX_IMAGE_BYTES` 的图片，重定向后的地址同样检查。截图集的读、删消息只答扩展页面。
+- `services/screenshot/` 只承担浏览器截图 API、跨域资源、下载和截图集入库。处理后的图像从 content 以 `dataUrl` 传输（runtime 消息不能携带 Blob），service worker 转 Blob 后与截图元数据同事务写入共享 `fragment-store` 的 `assets`/`screenshots` stores（[存储契约](../docs/v2/storage.md) §3）。`CAPTURE_VISIBLE_TAB` 只拍发送者所在窗口，且发送者必须是该窗口的活动标签页（截取前后各查一次），`captureVisibleTab` 不要再用 `WINDOW_ID_CURRENT`；`FETCH_IMAGE` 持有 `<all_urls>` 的网络位置，所以只经 `fetch-policy.ts`：公网 http(s)、不带凭据、只返回不超过 `MAX_IMAGE_BYTES` 的图片，重定向后的地址同样检查。截图集的读、删消息只答扩展页面。
 - `services/llm/` 是不属于产品范围的旧实现（保存用户自己的接口与密钥，测试连接），没有功能消费者，R1 删除；删除之前密钥仍不回传页面。
 - ZIP 导出在扩展页面侧执行（`utils/export-content.ts`）：页面直连共享 IndexedDB 读图片字节，高亮/剪藏经 JSON 消息获取；不要把 Blob 放进 runtime 消息。
 

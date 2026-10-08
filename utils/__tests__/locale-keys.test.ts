@@ -58,9 +58,9 @@ describe('locales', () => {
 
   it('names the product after what it does now', () => {
     const text = `${english.get('extName')} ${english.get('extDescription')}`
-    expect(text).toMatch(/fragment/i)
+    expect(text).toMatch(/clip|screenshot|library/i)
     // The first release was a highlighter and vocabulary labeler; those words must not come back.
-    expect(text).not.toMatch(/highlight|vocabulary|logseq|word book/i)
+    expect(text).not.toMatch(/highlight mode|vocabulary|logseq|word book|fragment/i)
   })
 
   it('keeps the manifest strings within the Chrome Web Store limits', () => {

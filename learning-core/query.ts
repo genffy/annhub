@@ -256,11 +256,7 @@ export interface HighlightQueryResult {
   total: number
 }
 
-export function queryHighlights(
-  entries: EntryRecord[],
-  registry: { name: string; type: PropertyType }[],
-  query: HighlightQuery = {},
-): HighlightQueryResult {
+export function queryHighlights(entries: EntryRecord[], registry: { name: string; type: PropertyType }[], query: HighlightQuery = {}): HighlightQueryResult {
   const registryByKey = new Map(registry.map(def => [propertyStorageKey(def.name), def] as const))
   const terms = splitTerms(query.search ?? '')
 

@@ -23,23 +23,28 @@ export function markdownToPlainText(markdown: string): string {
     }
     out.push(stripInlineMarkers(line))
   }
-  return out.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  return out
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 function stripInlineMarkers(line: string): string {
-  return line
-    // images keep their alt text
-    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
-    // links keep their label
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-    // headings, emphasis, inline code fences
-    .replace(/^\s{0,3}#{1,6}\s+/g, '')
-    .replace(/(\*\*\*|___|\*\*|__|\*|_|`)/g, '')
-    // quote markers and list bullets stay as text separators
-    .replace(/^\s{0,3}>\s?/g, '')
-    .replace(/^\s*[-*+]\s+/g, '')
-    .replace(/^\s*\d+[.)]\s+/g, '')
-    .trimEnd()
+  return (
+    line
+      // images keep their alt text
+      .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+      // links keep their label
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+      // headings, emphasis, inline code fences
+      .replace(/^\s{0,3}#{1,6}\s+/g, '')
+      .replace(/(\*\*\*|___|\*\*|__|\*|_|`)/g, '')
+      // quote markers and list bullets stay as text separators
+      .replace(/^\s{0,3}>\s?/g, '')
+      .replace(/^\s*[-*+]\s+/g, '')
+      .replace(/^\s*\d+[.)]\s+/g, '')
+      .trimEnd()
+  )
 }
 
 // ── Block segmentation for highlight write-back (storage.md §6) ─────────

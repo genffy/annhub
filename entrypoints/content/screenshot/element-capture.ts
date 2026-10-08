@@ -2,7 +2,7 @@
  * Element capture — docs/v2/screenshot.md: clone the
  * element into an offscreen capture surface and rasterize it with
  * html-to-image. Unlike viewport capture this can exceed the visible area.
- * Cross-origin images are inlined first via the background FETCH_RESOURCE
+ * Cross-origin images are inlined first via the background FETCH_IMAGE
  * message (host permissions bypass page CORS — the fetch html-to-image does
  * from page context cannot). The background only fetches public http(s) images;
  * an image it declines keeps its address and renders if the page can load it.
@@ -34,8 +34,8 @@ async function inlineImages(surface: HTMLElement): Promise<void> {
       if (!src || src.startsWith('data:') || src.startsWith('blob:')) return
       try {
         const response = await MessageUtils.sendMessage<{ dataUrl: string }>({
-          type: 'FETCH_RESOURCE',
-          data: { url: src },
+          type: 'FETCH_IMAGE',
+          url: src,
         })
         if (response.success && response.data?.dataUrl) {
           img.src = response.data.dataUrl

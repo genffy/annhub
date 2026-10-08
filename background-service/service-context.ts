@@ -8,7 +8,7 @@ export enum ServiceStatus {
   RESTARTING = 'restarting',
 }
 
-export type SupportedServices = 'highlight' | 'clip' | 'llm' | 'fragment' | 'screenshot'
+export type SupportedServices = 'entries' | 'screenshot' | 'system'
 
 export interface IServiceContext {
   status: ServiceStatus
@@ -36,11 +36,9 @@ export class ServiceContext {
       version: '0.1.0',
       startupTime: Date.now(),
       services: {
-        highlight: false,
-        clip: false,
-        llm: false,
-        fragment: false,
+        entries: false,
         screenshot: false,
+        system: false,
       },
     }
   }

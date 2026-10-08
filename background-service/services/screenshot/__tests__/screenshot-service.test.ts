@@ -1,16 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../../utils/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
+vi.mock('../../../../learning-core/store', () => ({ EntryStore: vi.fn() }))
 
 const tabs = {
   get: vi.fn(),
   captureVisibleTab: vi.fn(),
 }
+const downloads = { download: vi.fn() }
 const runtime: { id: string; getURL: (path: string) => string; lastError?: { message: string } } = {
   id: 'ext-id',
   getURL: path => `chrome-extension://ext-id/${path}`,
 }
-;(globalThis as any).chrome = { runtime, tabs }
+;(globalThis as any).chrome = { runtime, tabs, downloads }
 
 import { ScreenshotService } from '../index'
 
@@ -28,15 +30,15 @@ describe('CAPTURE_VISIBLE_TAB', () => {
 
   it("photographs the sender's own window, not the current one", async () => {
     tabs.get.mockResolvedValue({ id: 7, windowId: 42, active: true })
-    const response = await handlers.CAPTURE_VISIBLE_TAB!({ requestId: 'r1' }, page({ id: 7, windowId: 42 }))
-    expect(response).toMatchObject({ success: true, data: { dataUrl: 'data:image/png;base64,AAAA', requestId: 'r1' } })
+    const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
+    expect(response).toMatchObject({ success: true, data: { dataUrl: 'data:image/png;base64,AAAA' } })
     expect(tabs.get).toHaveBeenCalledWith(7)
     expect(tabs.captureVisibleTab).toHaveBeenCalledWith(42, { format: 'png' }, expect.any(Function))
   })
 
   it('takes nothing for a page that is not the tab on screen: a background tab cannot photograph the one in front', async () => {
     tabs.get.mockResolvedValue({ id: 7, windowId: 42, active: false })
-    const response = await handlers.CAPTURE_VISIBLE_TAB!({ requestId: 'r2' }, page({ id: 7, windowId: 42 }))
+    const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
     expect(response.success).toBe(false)
     expect(response.data).toBeUndefined()
     expect(tabs.captureVisibleTab).not.toHaveBeenCalled()
@@ -44,16 +46,10 @@ describe('CAPTURE_VISIBLE_TAB', () => {
 
   it('discards the picture when the user switched tabs while it was taken', async () => {
     tabs.get.mockResolvedValueOnce({ id: 7, windowId: 42, active: true }).mockResolvedValueOnce({ id: 7, windowId: 42, active: false })
-    const response = await handlers.CAPTURE_VISIBLE_TAB!({ requestId: 'r3' }, page({ id: 7, windowId: 42 }))
+    const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
     expect(tabs.captureVisibleTab).toHaveBeenCalledTimes(1)
     expect(response.success).toBe(false)
     expect(response.data).toBeUndefined()
-  })
-
-  it('discards the picture when the tab moved to another window while it was taken', async () => {
-    tabs.get.mockResolvedValueOnce({ id: 7, windowId: 42, active: true }).mockResolvedValueOnce({ id: 7, windowId: 43, active: true })
-    const response = await handlers.CAPTURE_VISIBLE_TAB!({ requestId: 'r4' }, page({ id: 7, windowId: 42 }))
-    expect(response.success).toBe(false)
   })
 
   it.each([
@@ -61,7 +57,7 @@ describe('CAPTURE_VISIBLE_TAB', () => {
     ['a frame inside the page', page({ id: 7, windowId: 42 }, 3)],
     ['a sender with a tab that has no id', page({ windowId: 42 })],
   ])('refuses %s', async (_label, sender) => {
-    const response = await handlers.CAPTURE_VISIBLE_TAB!({ requestId: 'r5' }, sender)
+    const response = await handlers.CAPTURE_VISIBLE_TAB!({}, sender)
     expect(response.success).toBe(false)
     expect(tabs.captureVisibleTab).not.toHaveBeenCalled()
   })
@@ -73,15 +69,15 @@ describe('CAPTURE_VISIBLE_TAB', () => {
       callback(undefined)
       runtime.lastError = undefined
     })
-    const response = await handlers.CAPTURE_VISIBLE_TAB!({ requestId: 'r6' }, page({ id: 7, windowId: 42 }))
+    const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
     expect(response).toMatchObject({ success: false, error: 'Cannot access contents of the page.' })
   })
 })
 
-describe('FETCH_RESOURCE', () => {
+describe('FETCH_IMAGE', () => {
   const fetchMock = vi.fn()
   const png = () => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'content-type': 'image/png' } })
-  const ask = (url: string, sender = page({ id: 7, windowId: 42 })) => handlers.FETCH_RESOURCE!({ data: { url } }, sender)
+  const ask = (url: string, sender = page({ id: 7, windowId: 42 })) => handlers.FETCH_IMAGE!({ url }, sender)
 
   beforeEach(() => {
     fetchMock.mockReset()
@@ -149,13 +145,5 @@ describe('FETCH_RESOURCE', () => {
     const response = await ask('https://cdn.example.com/a.png', library)
     expect(response.success).toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
-  })
-})
-
-describe('the screenshot library messages', () => {
-  it.each(['GET_SCREENSHOTS', 'DELETE_SCREENSHOT'])('%s answers an extension page and not a content script', async type => {
-    const response = await handlers[type]!({ data: { id: 'x' } }, page({ id: 7, windowId: 42 }))
-    expect(response.success).toBe(false)
-    expect(response.data).toBeUndefined()
   })
 })

@@ -1,5 +1,5 @@
 import { defineConfig } from 'wxt'
-import { ANN_SELECTION_KEY } from './constants'
+import { ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from './constants'
 import packageJson from './package.json'
 
 const extensionVersion = packageJson.version
@@ -36,7 +36,7 @@ export default defineConfig({
     },
 
     commands: {
-      [ANN_SELECTION_KEY]: {
+      [ANN_SCREENSHOT_COMMAND]: {
         suggested_key: {
           default: 'Ctrl+Shift+S',
           mac: 'Command+Shift+S',
@@ -44,12 +44,12 @@ export default defineConfig({
         description: '__MSG_commandScreenshot__',
         global: false,
       },
-      'toggle-highlighter': {
+      [ANN_BLOCK_MODE_COMMAND]: {
         suggested_key: {
-          default: 'Alt+H',
-          mac: 'Command+Shift+H',
+          default: 'Ctrl+Shift+E',
+          mac: 'Command+Shift+E',
         },
-        description: '__MSG_commandHighlighter__',
+        description: '__MSG_commandBlockMode__',
         global: false,
       },
     },

@@ -91,10 +91,12 @@ export class LocalMetrics {
   private trim(shape: MetricsStoreShape, now: number): void {
     const cutoff = dayKey(now - RETAINED_DAYS * DAY_MS)
     for (const event of Object.keys(shape)) {
-      for (const day of Object.keys(shape[event]!)) {
-        if (day < cutoff) delete shape[event]![day]!
+      const days = shape[event]
+      if (!days) continue
+      for (const day of Object.keys(days)) {
+        if (day < cutoff) delete days[day]
       }
-      if (Object.keys(shape[event]!).length === 0) delete shape[event]
+      if (Object.keys(days).length === 0) delete shape[event]
     }
   }
 

@@ -1,24 +1,29 @@
 /**
  * Screenshot capture UI chain — docs/v2/screenshot.md.
- * Plain DOM (no React). One session element per trigger (idempotent enter()).
+ * Plain DOM (no React) for the session shell; the toolbar is a small React
+ * island. One session element per trigger (idempotent enter()).
  *
  * Region mode: drag on the page → hide session (capture must not include it)
  * → CAPTURE_VISIBLE_TAB → crop → in-place editor.
- * Element mode: a click without drag rasterizes the clicked element via
- * html-to-image (can exceed the viewport).
- * Anonymize ('A', default on): identity elements are covered with gray
- * placeholders before the shot (region: live overlays, element: clone swap).
- * Confirm saves to the screenshot library; download is a separate command.
+ * Element mode: a click without drag rasterizes the clicked element via an
+ * offscreen clone (can exceed the viewport); the block capsule's "截图"
+ * jumps straight here with the block as target.
+ * Anonymize ('A', default from settings): identity elements are covered
+ * with gray placeholders before the shot (region: live overlays, element:
+ * clone swap). Confirm saves a screenshot entry; copy and download are
+ * independent of it and keep the session open.
  *
- * The session lives in the page's DOM, so the page's scripts can dispatch events at it. Only the
- * user's own pointer and keyboard input (`isUserInput`) moves it along; a script cannot drag a
- * region or click an element for the user, which is what stands between a page and the
+ * The session lives in the page's DOM, so the page's scripts can dispatch
+ * events at it. Only the user's own pointer and keyboard input
+ * (`isUserInput`) moves it along; a script cannot drag a region or click an
+ * element for the user, which is what stands between a page and the
  * privileged capture and fetch calls behind them.
  */
 
 import MessageUtils from '../../../utils/message'
 import { uiText } from '../../../utils/ui-text'
 import { isUserInput } from '../user-input'
+import type { CaptureVia } from '../../../types/messages'
 import type { ViewportRect } from './crop'
 import { computeCropSource, CropError } from './crop'
 import { detectIdentityRects } from './detect'
@@ -34,11 +39,18 @@ const ROOT_VALUE = 'screenshot-session'
 
 let activeSession: ScreenshotSession | null = null
 
-export function enterScreenshotMode(): void {
+export interface EnterScreenshotOptions {
+  via?: CaptureVia
+  /** The block capsule's target: skip selection, straight to element capture. */
+  element?: HTMLElement
+}
+
+export function enterScreenshotMode(options: EnterScreenshotOptions = {}): void {
   // Idempotent: a second trigger replaces the pending session.
   activeSession?.exit()
-  activeSession = new ScreenshotSession(document)
+  activeSession = new ScreenshotSession(document, options.via ?? 'shortcut')
   activeSession.begin()
+  if (options.element) void activeSession.captureElementTarget(options.element)
 }
 
 export function exitScreenshotMode(): void {
@@ -77,6 +89,7 @@ class ScreenshotSession {
   private croppedCanvas: HTMLCanvasElement | null = null
   private capturedDpr = 1
   private anonymizeOn = true
+  private via: CaptureVia
   private readonly onKeydown = (e: KeyboardEvent) => {
     if (!isUserInput(e)) return
     if (e.key === 'Escape') {
@@ -95,6 +108,11 @@ class ScreenshotSession {
       this.undo()
       return
     }
+    if (this.state === 'preview' && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c' && !this.textInput) {
+      e.preventDefault()
+      void this.copyCurrent()
+      return
+    }
     if (this.state === 'selecting' && (e.key === 'a' || e.key === 'A')) {
       e.preventDefault()
       this.anonymizeOn = !this.anonymizeOn
@@ -102,8 +120,9 @@ class ScreenshotSession {
     }
   }
 
-  constructor(doc: Document) {
+  constructor(doc: Document, via: CaptureVia) {
     this.doc = doc
+    this.via = via
     this.host = doc.createElement('div')
     this.host.setAttribute(ROOT_ATTR, ROOT_VALUE)
   }
@@ -161,6 +180,15 @@ class ScreenshotSession {
     // elements — that is how the click-to-capture-element mode knows its target.
     this.doc.addEventListener('pointerdown', this.onPointerDown, true)
     this.syncHint()
+    void this.loadAnonymizeDefault()
+  }
+
+  private async loadAnonymizeDefault(): Promise<void> {
+    const response = await MessageUtils.sendMessage<{ anonymizeDefault?: boolean }>({ type: 'GET_SETTINGS' })
+    if (response.success && typeof response.data?.anonymizeDefault === 'boolean' && this.state === 'selecting') {
+      this.anonymizeOn = response.data.anonymizeDefault
+      this.syncHint()
+    }
   }
 
   private syncHint(): void {
@@ -354,6 +382,12 @@ class ScreenshotSession {
 
   // ── element mode (DOM clone rasterization) ────────────────────────
 
+  /** The block capsule's direct path: capture a known element without selection. */
+  async captureElementTarget(target: HTMLElement): Promise<void> {
+    if (this.exited) return
+    await this.captureElementMode(target)
+  }
+
   private async captureElementMode(target: HTMLElement): Promise<void> {
     this.state = 'capturing'
     const element = this.resolveCaptureTarget(target)
@@ -498,9 +532,10 @@ class ScreenshotSession {
           this.updateToolbar()
         },
         onUndo: () => this.undo(),
-        onDownload: () => void this.save(false),
+        onCopy: () => void this.copyCurrent(),
+        onDownload: () => void this.downloadOnly(),
         onCancel: () => exitScreenshotMode(),
-        onSave: () => void this.save(true),
+        onSave: () => void this.confirmSave(),
       }),
     )
   }
@@ -569,7 +604,7 @@ class ScreenshotSession {
   private openTextInput(point: Point, displayPoint: Point): void {
     this.textInput?.remove()
     const input = this.doc.createElement('textarea')
-    input.setAttribute('aria-label', uiText('shot.textInput.label'))
+    input.setAttribute('aria-label', uiText('shot.textInput.placeholder'))
     input.setAttribute(ROOT_ATTR, 'screenshot-text-input')
     input.placeholder = uiText('shot.textInput.placeholder')
     const panel = this.previewEl!.getBoundingClientRect()
@@ -602,38 +637,76 @@ class ScreenshotSession {
     input.focus()
   }
 
-  private async save(persist: boolean): Promise<void> {
+  // ── the three destinations (screenshot.md §4) ─────────────────────
+
+  /** Confirm: save the processed image as a screenshot entry, in one transaction with its asset. */
+  private async confirmSave(): Promise<void> {
     const canvas = this.croppedCanvas
     if (!canvas || this.busy) return
     this.busy = true
     this.updateToolbar()
-    const iso = new Date().toISOString().replace(/[:.]/g, '-')
-    const filename = `AnnHub/screenshot-${iso}.png`
     try {
-      const capturedAt = Date.now()
       // runtime messaging cannot carry Blobs, so the processed PNG travels as
-      // a dataUrl; the service worker converts it to a Blob before the
-      // asset store persists bytes (storage.md §3 — dataUrl is transport
-      // only, never the persisted format).
+      // a dataUrl; the store persists bytes (dataUrl is transport only).
       const dataUrl = canvas.toDataURL('image/png')
-      const response = await MessageUtils.sendMessage<{ downloadId?: number; screenshot?: { id: string } }>({
+      const response = await MessageUtils.sendMessage<{ entry: { id: string } }>({
         type: 'SAVE_SCREENSHOT',
         data: {
           dataUrl,
-          filename,
-          mimeType: 'image/png',
-          persist,
-          download: !persist,
+          width: canvas.width,
+          height: canvas.height,
           sourceUrl: this.doc.defaultView!.location.href,
-          sourceTitle: this.doc.title,
-          capturedAt,
+          title: this.doc.title || this.doc.defaultView!.location.hostname,
+          via: this.via,
+          frame: this.elementRect ? 'element' : 'drag',
         },
       })
-      if (!response.success) throw new Error(response.error || uiText(persist ? 'shot.error.saveFailed' : 'shot.error.downloadFailed'))
-      if (persist) exitScreenshotMode()
-      else this.showNotice(uiText('shot.downloaded'))
+      if (!response.success) throw new Error(response.error || uiText('shot.error.saveFailed'))
+      exitScreenshotMode()
     } catch (error) {
-      this.showNotice(error instanceof Error ? error.message : uiText('shot.error.action'), true)
+      this.showNotice(error instanceof Error ? error.message : uiText('shot.error.saveFailed'), true)
+    } finally {
+      this.busy = false
+      this.updateToolbar()
+    }
+  }
+
+  /** Copy keeps the editing session (screenshot.md §4.2); `http:` pages get the download hint. */
+  private async copyCurrent(): Promise<void> {
+    const canvas = this.croppedCanvas
+    if (!canvas || this.busy) return
+    this.busy = true
+    this.updateToolbar()
+    try {
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
+      if (!blob || !this.doc.defaultView!.navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
+        throw new Error(uiText('shot.copyInstead'))
+      }
+      await this.doc.defaultView!.navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      this.showNotice(uiText('shot.copied'))
+      void MessageUtils.sendMessage({ type: 'RECORD_EVENT', name: 'screenshot.copied', props: { watermark: false, beautify: false } })
+    } catch {
+      // The clipboard API is closed on http: pages and can be rejected without
+      // focus — the image and every annotation stay for download or retry.
+      this.showNotice(this.doc.defaultView!.location.protocol === 'http:' ? uiText('shot.copyInstead') : uiText('shot.error.copyFailed'), true)
+    } finally {
+      this.busy = false
+      this.updateToolbar()
+    }
+  }
+
+  /** Download keeps the editing session; R1 always downloads PNG (formats are R2). */
+  private async downloadOnly(): Promise<void> {
+    const canvas = this.croppedCanvas
+    if (!canvas || this.busy) return
+    this.busy = true
+    this.updateToolbar()
+    try {
+      const response = await MessageUtils.sendMessage<{ downloadId: number }>({ type: 'DOWNLOAD_IMAGE', dataUrl: canvas.toDataURL('image/png') })
+      if (!response.success) throw new Error(response.error || uiText('shot.error.downloadFailed'))
+      this.showNotice(uiText('shot.downloaded'))
+    } catch (error) {
+      this.showNotice(error instanceof Error ? error.message : uiText('shot.error.downloadFailed'), true)
     } finally {
       this.busy = false
       this.updateToolbar()
@@ -655,7 +728,7 @@ class ScreenshotSession {
     panel.style.pointerEvents = 'auto'
     const text = this.doc.createElement('div')
     text.className = 'ann-shot-error'
-    text.textContent = uiText('shot.failed', { message })
+    text.textContent = `${uiText('shot.failed')}: ${message}`
     const close = this.doc.createElement('button')
     close.textContent = uiText('common.close')
     close.onclick = () => exitScreenshotMode()
