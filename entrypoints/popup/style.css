@@ -17,26 +17,143 @@ body {
   margin: 0;
 }
 
-.popup {
-  width: 240px;
-  padding: 14px;
+/* the compact shell: left icon rail + right content (extension.md §2.6) */
+.popup-shell {
+  display: flex;
+  width: 340px;
+  height: 360px;
 }
 
-.primary {
-  width: 100%;
-  padding: 9px 12px;
+.popup-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 44px;
+  flex: none;
+  padding: 8px 4px;
+  border-right: 1px solid var(--ann-border);
+  background: var(--ann-surface-alt);
+}
+
+.popup-rail-spacer {
+  flex: 1;
+}
+
+.popup-rail-item {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 32px;
   border: 0;
   border-radius: 6px;
-  background: var(--ann-accent);
-  color: var(--ann-accent-contrast);
-  font-size: 13px;
-  font-weight: 600;
+  background: transparent;
+  color: var(--ann-text);
+  font-size: 15px;
   cursor: pointer;
 }
 
-.hint {
-  margin: 10px 0 0;
+.popup-rail-item:hover,
+.popup-rail-current {
+  background: var(--ann-accent-soft);
+  color: var(--ann-accent);
+}
+
+.popup-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--ann-accent);
+  color: var(--ann-accent-contrast);
+  font-size: 9.5px;
+  line-height: 14px;
+}
+
+.popup-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.popup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ann-border);
   color: var(--ann-muted);
   font-size: 11.5px;
-  line-height: 1.45;
+}
+
+.popup-list {
+  list-style: none;
+  margin: 0;
+  padding: 4px 6px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.popup-list li button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ann-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.popup-list li button:hover {
+  background: var(--ann-surface-alt);
+}
+
+.popup-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.popup-quote {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.popup-meta {
+  flex: none;
+  color: var(--ann-muted);
+  font-size: 10.5px;
+}
+
+.popup-empty {
+  padding: 18px 10px;
+  color: var(--ann-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+.popup-foot {
+  padding: 7px 10px;
+  border-top: 1px solid var(--ann-border);
+  color: var(--ann-muted);
+  font-size: 10.5px;
+}
+
+.type-chip {
+  flex: none;
+  margin-top: 0;
 }

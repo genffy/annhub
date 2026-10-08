@@ -44,13 +44,17 @@ test.describe('the library page and the single export (extension.md §2.2, stora
     const link = drawer.locator('.drawer-header a[href^="http"]').first()
     await expect(link).toHaveAttribute('rel', 'noopener noreferrer')
 
-    // editing from the drawer persists
-    await drawer.locator('.field input').nth(1).fill('reliability')
-    await drawer.locator('.field input').nth(1).blur()
+    // editing from the drawer persists: add a custom text property through the panel
+    await drawer.getByTestId('add-property').click()
+    await drawer.getByLabel('名称').fill('project')
+    await drawer.getByRole('button', { name: '保存' }).click()
+    await expect(drawer.locator('.prop-row', { hasText: 'project' })).toBeVisible()
+    await drawer.locator('.prop-row', { hasText: 'project' }).locator('input').fill('支付重试')
+    await drawer.locator('.prop-row', { hasText: 'project' }).locator('input').blur()
     await expect
       .poll(async () => {
         const entries = await getEntries(library.context())
-        return entries.some(entry => Array.isArray(entry.properties['tags']) && (entry.properties['tags'] as string[]).includes('reliability'))
+        return entries.some(entry => entry.properties['project'] === '支付重试')
       })
       .toBe(true)
 
