@@ -1,4 +1,4 @@
-import { ArrowUpRight, Check, Circle, ClipboardCopy, Download, Grid2X2, Pencil, RectangleHorizontal, RotateCcw, Type, X } from 'lucide-react'
+import { ArrowUpRight, Check, Circle, ClipboardCopy, Download, Grid2X2, Pencil, RectangleHorizontal, RotateCcw, Sparkles, Type, X } from 'lucide-react'
 import { uiText } from '../../../utils/ui-text'
 import type { ScreenshotTool } from './editor'
 
@@ -30,6 +30,7 @@ interface Props {
   onColor: (color: string) => void
   onRemoveMask: (index: number) => void
   onUndo: () => void
+  onBeautify: () => void
   onCopy: () => void
   onDownload: () => void
   onCancel: () => void
@@ -86,6 +87,16 @@ export function ScreenshotToolbar(props: Props) {
             onClick={props.onUndo}
           >
             <RotateCcw size={19} />
+          </button>
+          <button
+            type="button"
+            title={uiText('shot.beautify')}
+            aria-label={uiText('shot.beautify')}
+            data-ann-ui="screenshot-beautify"
+            disabled={props.busy}
+            onClick={props.onBeautify}
+          >
+            <Sparkles size={19} />
           </button>
           <button type="button" title={uiText('shot.tool.copy')} aria-label={uiText('shot.tool.copy')} data-ann-ui="screenshot-copy" disabled={props.busy} onClick={props.onCopy}>
             <ClipboardCopy size={19} />
