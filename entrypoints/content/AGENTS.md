@@ -23,10 +23,13 @@
 ## 截图
 
 - 区域截图从视口 CSS 坐标按 dpr 裁剪，调用 `captureVisibleTab` 前隐藏扩展 UI 等两帧；元素截图经离屏克隆栅格化，跨域图片由 background 代取内联（`FETCH_IMAGE`）。
+- 拖拽松开后选区进入待确认态（`Enter` 确认、`Esc` 取消），单击元素路径不变；吸附、八向手柄、方向键微调、`Shift` 临时锁比、层级 `↑↓` 与元素+边距的几何换算都是 `screenshot/selection.ts` 的纯函数，会话只做接线（screenshot.md §1.2、§1.4）。
+- 上次取景框按标签页 + 路径存 `sessionStorage`（`pagehide` 清除），元素锚点带 10% 容差；找不到元素时滚回记录位置沿用，取景框超窗只提示不强截。
+- 区域截取前用透明 sweeper 清扫悬停样式并等 `pageStable`（连续两帧布局不变，最长 500ms），元素 + 边距能放进视口时走区域截取，放不下提示而不是截不全。
 - 选区内本地标注与马赛克只把处理后的 PNG 交后台入库；确认/复制/下载三个去处互相独立，复制与下载保留会话；`http:` 页面复制提示下载（screenshot.md §4）。
 - 匿名默认值来自设置（`GET_SETTINGS`），会话内 `A` 切换；`Esc` 在文字输入期间先关输入框。
 
 ## 验证
 
 - 改转换、识别、菜单或胶囊：跑 `npx vitest run`（相关单测）并构建后跑对应 E2E（`e2e/selection-clip.spec.ts`、`e2e/block-clip.spec.ts`、`e2e/screenshot-capture.spec.ts`）。
-- 改截图链路先跑 `entrypoints/content/screenshot/__tests__`。
+- 改截图链路先跑 `entrypoints/content/screenshot/__tests__`；改选区确认、吸附、手柄、层级或取景框记忆后跑 `e2e/r3-frame.spec.ts`（改源码必须 `rm -rf .output/chrome-mv3 && npm run build` 再测，`.output` 不随源码变化重建）。

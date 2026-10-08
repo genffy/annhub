@@ -52,7 +52,11 @@ export function constrainToRatio(anchor: { x: number; y: number }, point: { x: n
       height: Math.abs(point.y - anchor.y),
     }
   }
-  const ratio = preset.w / preset.h
+  return constrainToRatioValue(anchor, point, preset.w / preset.h, viewport)
+}
+
+/** The Shift lock holds an arbitrary current ratio (screenshot.md §1.2). */
+export function constrainToRatioValue(anchor: { x: number; y: number }, point: { x: number; y: number }, ratio: number, viewport: { width: number; height: number }): Rect {
   const rawW = Math.abs(point.x - anchor.x)
   const rawH = Math.abs(point.y - anchor.y)
   // fit the larger dragged dimension to the ratio
