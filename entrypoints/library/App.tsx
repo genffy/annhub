@@ -15,13 +15,14 @@ import { bucketCount } from '../../learning-core/metrics'
 import { HighlightSurface } from './highlight-surface'
 import { PropertyPanel } from './property-panel'
 import { PropertiesView } from './properties-view'
+import { SettingsView } from './settings-view'
 import { ReadingView } from './reading-view'
 import type { HighlightQueryResult } from '../../learning-core/query'
 import type { HighlightColor } from '../../learning-core/types'
 import { relativeTime } from '../../utils/relative-time'
 import { currentUiLanguage, uiText } from '../../utils/ui-text'
 
-type View = 'all' | 'clips' | 'highlights' | 'screenshots' | 'properties'
+type View = 'all' | 'clips' | 'highlights' | 'screenshots' | 'properties' | 'settings'
 
 interface HashState {
   view: View
@@ -40,7 +41,7 @@ const EMPTY_HASH: Omit<HashState, 'view'> = { search: '', host: '', tag: '', pro
 
 function readHash(): HashState {
   const hash = new URLSearchParams(location.hash.replace(/^#\/(all|clips|screenshots)\?*/, '') || '')
-  const viewMatch = /^#\/(all|clips|highlights|screenshots|properties)/.exec(location.hash)
+  const viewMatch = /^#\/(all|clips|highlights|screenshots|properties|settings)/.exec(location.hash)
   return {
     view: (viewMatch?.[1] as View) ?? 'all',
     search: hash.get('q') ?? '',
@@ -129,6 +130,7 @@ export default function App() {
   const [exportState, setExportState] = useState<'idle' | 'busy' | 'done' | 'partial' | 'failed'>('idle')
   const [exportSummary, setExportSummary] = useState('')
   const [readingId, setReadingId] = useState<string | null>(/^#\/read\/(.+)/.exec(location.hash)?.[1] ?? null)
+  const [guideDismissed, setGuideDismissed] = useState(() => Boolean(localStorage.getItem('annhub.guideDismissed')))
   const [highlightResult, setHighlightResult] = useState<HighlightQueryResult>({ groups: [], total: 0 })
   const [defaultColor, setDefaultColor] = useState<HighlightColor>('yellow')
 
@@ -228,7 +230,7 @@ export default function App() {
     setExportState(result === 'full' ? 'done' : 'partial')
   }, [])
 
-  const viewTab = (view: View, key: 'library.all' | 'library.clips' | 'library.highlights' | 'library.screenshots' | 'library.properties', count: number) => (
+  const viewTab = (view: View, key: 'library.all' | 'library.clips' | 'library.highlights' | 'library.screenshots' | 'library.properties' | 'library.settings', count: number) => (
     <a
       key={view}
       href={`#/${view}`}
@@ -248,11 +250,9 @@ export default function App() {
         {viewTab('clips', 'library.clips', counts.clips)}
         {viewTab('highlights', 'library.highlights', highlightResult.total)}
         {viewTab('screenshots', 'library.screenshots', counts.screenshots)}
-        {viewTab('properties', 'library.properties', registry.length)}
         <div className="nav-spacer" />
-        <a className="nav-item" href={chrome.runtime.getURL('options.html')}>
-          {uiText('library.settings')}
-        </a>
+        {viewTab('properties', 'library.properties', registry.length)}
+        {viewTab('settings', 'library.settings', 0)}
         <button type="button" className="nav-export" disabled={exportState === 'busy'} onClick={() => void onExport()}>
           {exportState === 'busy' ? uiText('library.exporting') : uiText('library.export')}
         </button>
@@ -383,7 +383,26 @@ export default function App() {
           <span className="count">{loading ? uiText('common.loading') : uiText('library.count', { count: result.total })}</span>
         </header>
 
-        {state.view === 'properties' ? (
+        {counts.all === 0 && !guideDismissed && state.view !== 'settings' && state.view !== 'properties' && (
+          <div className="guide-card" data-testid="guide-card">
+            <p>{uiText('library.guide.clip')}</p>
+            <p>{uiText('library.guide.shot')}</p>
+            <p>{uiText('library.guide.hl')}</p>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                localStorage.setItem('annhub.guideDismissed', '1')
+                setGuideDismissed(true)
+              }}
+            >
+              {uiText('library.guide.dismiss')}
+            </button>
+          </div>
+        )}
+        {state.view === 'settings' ? (
+          <SettingsView />
+        ) : state.view === 'properties' ? (
           <PropertiesView
             onRegistryChanged={() => {
               void MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'LIST_PROPERTIES' }).then(response => {
@@ -393,7 +412,7 @@ export default function App() {
           />
         ) : state.view === 'highlights' ? (
           highlightResult.total === 0 ? (
-            <div className="empty">{counts.all === 0 ? uiText('library.empty') : uiText('reading.empty')}</div>
+            <div className="empty">{uiText('library.empty.highlights')}</div>
           ) : (
             <ul className="list hl-groups" data-testid="hl-groups">
               {highlightResult.groups.map(group => (
@@ -426,7 +445,9 @@ export default function App() {
           )
         ) : result.items.length === 0 ? (
           <div className="empty">
-            {counts.all === 0 ? uiText('library.empty') : uiText('library.noResults')}
+            {counts.all === 0
+              ? uiText(state.view === 'clips' ? 'library.empty.clips' : state.view === 'screenshots' ? 'library.empty.screenshots' : 'library.empty')
+              : uiText('library.noResults')}
             {counts.all > 0 && (
               <button type="button" className="link" onClick={() => setState({ view: 'all', ...EMPTY_HASH })}>
                 {uiText('library.clearFilters')}

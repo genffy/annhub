@@ -1,20 +1,23 @@
 /**
- * Settings page — the R1 slice of extension.md §2.5: block-clip entry
- * toggle and disabled-site list, the screenshot anonymize default, the
- * shortcut display, and the data block (storage usage, orphan-asset
- * report). The full settings page with screenshot output preferences is
- * part of R2.
+ * The settings view inside the application page (extension.md §2.5):
+ * preferences (block entry + disabled sites, screenshot anonymize
+ * default), shortcuts display, data (export entry lives in the nav, here
+ * storage usage and the orphan report), and the local-metrics readout —
+ * aggregate numbers only, nothing readable. The screenshot output section
+ * (formats, watermark, ratio presets, beautify) rides the same settings
+ * object; see screenshot.ts for its shape.
  */
 import { useCallback, useEffect, useState } from 'react'
 import MessageUtils from '../../utils/message'
-import { uiText } from '../../utils/ui-text'
 import type { ExtensionSettings } from '../../background-service/settings-schema'
 import type { OrphanReport } from '../../learning-core/store'
+import { uiText } from '../../utils/ui-text'
 
-function App() {
+export function SettingsView() {
   const [settings, setSettings] = useState<ExtensionSettings | null>(null)
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null)
   const [orphans, setOrphans] = useState<OrphanReport | null>(null)
+  const [metrics, setMetrics] = useState<Record<string, { total: number; byProps: Record<string, number> }> | null>(null)
 
   useEffect(() => {
     void MessageUtils.sendMessage<ExtensionSettings>({ type: 'GET_SETTINGS' }).then(response => {
@@ -35,12 +38,17 @@ function App() {
     if (response.success) setOrphans(response.data!)
   }, [])
 
+  const loadMetrics = useCallback(async () => {
+    const response = await MessageUtils.sendMessage<Record<string, { total: number; byProps: Record<string, number> }>>({ type: 'GET_METRICS' })
+    if (response.success) setMetrics(response.data!)
+  }, [])
+
   if (!settings) {
-    return <main className="settings">{uiText('common.loading')}</main>
+    return <div className="settings-view">{uiText('common.loading')}</div>
   }
 
   return (
-    <main className="settings">
+    <div className="settings-view" data-testid="settings-view">
       <h1>{uiText('settings.title')}</h1>
 
       <section>
@@ -98,17 +106,36 @@ function App() {
           </p>
         )}
         <button type="button" onClick={() => void loadOrphans()}>
-          {uiText('settings.metrics')}
+          {uiText('settings.orphanReport')}
         </button>
         {orphans && (
           <p className="hint" data-testid="orphan-report">
-            {orphans.unreferencedAssets.length} / {orphans.entriesWithMissingAssets.length}
+            {uiText('settings.orphanUnreferenced')}: {orphans.unreferencedAssets.length} · {uiText('settings.orphanMissing')}: {orphans.entriesWithMissingAssets.length}
           </p>
         )}
-        <a href={chrome.runtime.getURL('library.html')}>{uiText('library.openLibrary')}</a>
       </section>
-    </main>
+
+      <section>
+        <h2>{uiText('settings.metrics')}</h2>
+        <p className="hint">{uiText('settings.metricsHint')}</p>
+        <button type="button" onClick={() => void loadMetrics()}>
+          {uiText('settings.metricsRefresh')}
+        </button>
+        {metrics && (
+          <table className="props-table" data-testid="metrics-table">
+            <tbody>
+              {Object.entries(metrics)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([name, bucket]) => (
+                  <tr key={name}>
+                    <td>{name}</td>
+                    <td>{bucket.total}</td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </div>
   )
 }
-
-export default App
