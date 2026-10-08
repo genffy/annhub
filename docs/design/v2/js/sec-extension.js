@@ -1,10 +1,11 @@
-// 浏览器扩展章节：把页面内（选区菜单、剪藏、区块剪藏、截图）与扩展自己的页面（资料库、阅读与高亮、详情、属性、设置、弹窗）的分组拼起来。
+// 浏览器扩展章节：把页面内（选区菜单、剪藏、区块剪藏、截图与截图输出）与扩展自己的页面（资料库、阅读与高亮、详情、属性、设置、弹窗）的分组拼起来。
 function secExtension() {
   const groups = [
     typeof extFlowGroup === 'function' && extFlowGroup(),
     typeof extClipGroup === 'function' && extClipGroup(),
     typeof extBlockGroup === 'function' && extBlockGroup(),
     typeof extShotGroup === 'function' && extShotGroup(),
+    typeof extShotOutGroup === 'function' && extShotOutGroup(),
     typeof extShotR3Group === 'function' && extShotR3Group(),
     typeof extAppGroup === 'function' && extAppGroup(),
     typeof extReadGroup === 'function' && extReadGroup(),
@@ -27,6 +28,7 @@ function secExtension() {
         ['ext-clip', '选区剪藏'],
         ['ext-block', '区块剪藏'],
         ['ext-shot', '截图'],
+        ['ext-shot-out', '截图输出'],
         ['ext-shot-r3', '精确选区 R3'],
         ['ext-app', '资料库'],
         ['ext-read', '阅读与高亮'],

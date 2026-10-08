@@ -32,7 +32,7 @@ AnnHub 只解决一条主链路：
 
 ## 架构总览
 
-以下是迁移前的当前代码；R1 按 [条目契约](./docs/v2/entry.md) 把 Fragment、Highlight、Clip、Screenshot 并为统一的条目服务：高亮并入所属剪藏，页面高亮标记随 D-19 删除。
+以下是迁移前的当前代码；R1 按 [条目契约](./docs/v2/entry.md) 把 Fragment、Highlight、Clip、Screenshot 并为统一的条目服务：高亮并入所属剪藏，页面高亮标记删除。
 
 ```text
 ┌─────────────────────────────────────────────────────┐

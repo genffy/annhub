@@ -1,5 +1,5 @@
 // 设计稿里的极简 Markdown（只为画板与原型服务，不是产品实现）：
-// 标题、段落、有序 / 无序列表、引用、行内代码、粗体、链接、图片占位；不解析原始 HTML。
+// 标题、段落、有序 / 无序列表、引用、围栏代码块、行内代码、粗体、链接、图片占位；不解析原始 HTML。
 // 渲染出的每段文字都带 data-s（它在 content 里的起点），选区据此换算回 content 的字符偏移，
 // 与 entry.md §4 的约定一致：高亮的范围是 Markdown 源文本里的偏移，不是渲染后的偏移。
 
@@ -35,7 +35,19 @@ function mdInline(src, from, to) {
 function mdBlocks(src) {
   const blocks = []
   let cur = null
+  let fence = null
   for (const { t, at } of mdLines(src)) {
+    if (fence) {
+      if (/^```\s*$/.test(t)) fence = null
+      else fence.lines.push({ s: at, e: at + t.length })
+      continue
+    }
+    const fm = /^```(\S*)\s*$/.exec(t)
+    if (fm) {
+      blocks.push((fence = { k: 'code', lang: fm[1], lines: [] }))
+      cur = null
+      continue
+    }
     if (!t.trim()) {
       cur = null
       continue
@@ -94,7 +106,7 @@ function mdRender(src, hls = [], o = {}) {
         if (t.k === 'b') return `<b>${pieces(t.s, t.e)}</b>`
         if (t.k === 'code') return `<code>${pieces(t.s, t.e)}</code>`
         if (t.k === 'a') return `<a href="${esc(t.url)}" target="_blank" rel="noopener noreferrer">${pieces(t.s, t.e)}</a>`
-        return `<span class="md-img">${I('image', 'i-sm')}${esc(t.alt || '图片')}<small>图片未保存</small></span>`
+        return `<span class="md-img">${I('image', 'i-sm')}${esc(t.alt || '图片')}<small>图片未保存</small><a href="${esc(t.url)}" target="_blank" rel="noopener noreferrer">打开原图</a></span>`
       })
       .join('')
   return mdBlocks(src)
@@ -102,6 +114,7 @@ function mdRender(src, hls = [], o = {}) {
       if (b.k === 'h') return `<h${Math.max(2, b.lv)}>${inline(b.s, b.e)}</h${Math.max(2, b.lv)}>`
       if (b.k === 'ol') return `<ol>${b.items.map(i => `<li>${inline(i.s, i.e)}</li>`).join('')}</ol>`
       if (b.k === 'ul') return `<ul>${b.items.map(i => `<li>${inline(i.s, i.e)}</li>`).join('')}</ul>`
+      if (b.k === 'code') return `<pre class="md-pre"><code>${b.lines.map(l => pieces(l.s, l.e)).join('\n')}</code></pre>`
       if (b.k === 'q') return `<blockquote>${b.lines.map(l => inline(l.s, l.e)).join(' ')}</blockquote>`
       return `<p>${b.lines.map(l => inline(l.s, l.e)).join(' ')}</p>`
     })
@@ -117,6 +130,7 @@ const mdSel = (src, quote) => {
 // Markdown 去掉语法后的纯文本：列表行摘要、搜索用（search.md §1）
 const mdPlain = s =>
   String(s)
+    .replace(/^```\S*\s*$/gm, '')
     .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
     .replace(/^#{1,6}\s+/gm, '')

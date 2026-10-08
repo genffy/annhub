@@ -16,7 +16,7 @@
 | Markdown ZIP 导出 | `zip.ts`、`markdown-export.ts`            |
 | IndexedDB         | `fragment-store.ts`                       |
 
-当前代码仍是 Fragment schema v4 的旧实现，`types.ts` 和 `validate.ts` 是它的运行时真源；D-18、D-19 之后的目标契约见 [条目数据契约](../docs/v2/entry.md)（两种条目类型 `clip`、`screenshot`，高亮是剪藏里的标注），按路线图 R1 迁移到 `Entry` 与属性注册表。桌面客户端、复习调度与跨端交付（D-17）、输出工坊与知识关系（D-10）不在产品范围内，代码中不再有对应的实体、存储表或同步事件；`claim.stance` 在数据层可选，仅采集表单要求必选。
+当前代码仍是 Fragment schema v4 的旧实现，`types.ts` 和 `validate.ts` 是它的运行时真源；目标契约见 [条目数据契约](../docs/v2/entry.md)（两种条目类型 `clip`、`screenshot`，高亮是剪藏里的标注），按路线图 R1 迁移到 `Entry` 与属性注册表。桌面客户端、复习调度、跨端交付、输出工坊与知识关系不在产品范围内，代码中没有对应的实体、存储表或同步事件；`claim.stance` 在数据层可选，仅采集表单要求必选。
 
 ## 数据不变量
 

@@ -1,5 +1,5 @@
 // 浏览器扩展 · 阅读与高亮：在资料库里读剪藏、划重点。依据 extension §4.2，entry §4。
-// 高亮是剪藏里的标注，只存在于 AnnHub：网页上没有标记，也没有回访恢复（D-19）。
+// 高亮是剪藏里的标注，只存在于 AnnHub：网页上没有标记。
 
 function extReadGroup() {
   const e2 = ENTRIES0.find(e => e.id === 'e2')
@@ -109,14 +109,14 @@ function extReadGroup() {
           <div class="vs g4"><span class="t-xs muted">新选区（跨过两条）</span><div class="md md-sm">${mdRender(demo, before, { sel: selR })}</div></div>
           <div class="vs g4"><span class="t-xs muted">合并为一条，备注“A”与“B”并在一起</span><div class="md md-sm">${mdRender(demo, afterH)}</div></div>
         </div></div>
-      <div class="sp-card"><h5>初始上限</h5><p>阶段 V 校准（D-19）；超限时就地说明原因，不丢已选内容。</p>
+      <div class="sp-card"><h5>初始上限</h5><p>阶段 V 校准；超限时就地说明原因，不丢已选内容。</p>
         <table class="sp-table" style="font-size:12.5px"><tbody>
           <tr><td>每条剪藏的高亮数</td><td class="tnum b">200</td></tr>
           <tr><td>一次选中的文字</td><td class="tnum b">2,000 字符</td></tr>
           <tr><td>高亮备注</td><td class="tnum b">1,000 字符</td></tr>
-          <tr><td>剪藏正文</td><td class="tnum b">50,000 字符</td></tr></tbody></table>
+          <tr><td>剪藏正文</td><td class="tnum b">100,000 字符</td></tr></tbody></table>
         <div class="help is-error hs g6" style="margin-top:12px">${I('circle-alert', 'i-sm')}<span>一次最多高亮 2,000 个字符。缩短选区再试。</span></div></div>
-      <div class="sp-card">${chip('提案 · D-21', { v: 'warn' })}<h5 style="margin-top:8px">剪藏里的图片：只留占位</h5><p>采集时保留图片的替代文字与原地址，阅读视图显示占位，不联网加载；要留住画面用截图。</p>
+      <div class="sp-card"><h5>剪藏里的图片：只留占位</h5><p>采集时保留图片的替代文字与原地址，阅读视图显示占位和“打开原图”，不联网加载；要留住画面用截图，区块胶囊里就有“截图”。</p>
         <div class="md md-sm">${mdRender('下图是重试开始后的延迟曲线：\n\n![p99 延迟曲线](https://example.com/p99.png)\n\n拐点出现在第 3 分钟。', [])}</div></div>
       <div class="sp-card"><h5>渲染时的安全</h5><p>阅读视图与导出都不信任采集下来的内容。</p>
         <table class="sp-table" style="font-size:12.5px"><tbody>
@@ -124,7 +124,7 @@ function extReadGroup() {
           <tr><td>链接</td><td>只允许 http(s)；新标签页打开，带 <code>rel="noopener noreferrer"</code></td></tr>
           <tr><td>脚本与样式</td><td>永不执行、永不应用</td></tr></tbody></table></div>
     </div>`,
-    notes: ['左上是高亮的合并规则；右上是几个初始上限；左下是图片占位（D-21 的推荐做法 A）；右下是渲染的安全约定（capture §3.1）。'],
+    notes: ['左上是高亮的合并规则；右上是几个初始上限；左下是图片占位（capture §3.1）；右下是渲染的安全约定（capture §3.1）。'],
   })
 
   return group(

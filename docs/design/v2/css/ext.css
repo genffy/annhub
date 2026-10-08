@@ -2092,7 +2092,7 @@
 }
 
 
-/* ── 区块剪藏（提案，D-20）：悬停在整体内容上，区块旁出现“剪藏” ─────────────────────
+/* ── 区块剪藏：指针在区块上停下，旁边出现胶囊 ─────────────────────────────────────
    入口只是扩展自己的浮层：描边 + 一枚深色胶囊，不改网页，也不在页面上留记号 */
 .pg-feed {
   min-height: 100%;
@@ -2818,4 +2818,756 @@
 
 .pa-over > * {
   pointer-events: auto;
+}
+
+
+/* ── 区块胶囊：两个动作、位置避让页面自己的控件 ─────────────────────────────── */
+.blk-pill .bp-seg + .bp-seg {
+  margin-left: 1px;
+}
+
+.blk-pill .bp-seg.is-alt .i {
+  color: #9fd0ff;
+}
+
+.blk-pill.at-tl {
+  right: auto;
+  left: 6px;
+}
+
+.blk-pill.at-br {
+  top: auto;
+  bottom: -18px;
+}
+
+.blk-pill.at-bl {
+  top: auto;
+  right: auto;
+  bottom: -18px;
+  left: 6px;
+}
+
+/* 区块比窗口高：贴着窗口里可见部分的上沿 */
+.blk-pill.pin-top {
+  top: 12px;
+  right: 22px;
+}
+
+/* 页面自己的控件：X 帖子右上角的“更多”、文档代码块右上角的“复制” */
+.tw-more {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: #6b6965;
+}
+
+.tw-more .i {
+  width: 17px;
+  height: 17px;
+}
+
+.codeblk {
+  position: relative;
+  margin: 4px 0 16px;
+  border: 1px solid #e3e6ec;
+  border-radius: 10px;
+  background: #f6f7f9;
+}
+
+.codeblk pre {
+  margin: 0;
+  padding: 14px 16px;
+  overflow: hidden;
+  font: 12.5px/1.7 var(--font-mono);
+  color: #1f2430;
+  white-space: pre;
+}
+
+.codeblk pre .k {
+  color: #7c3aed;
+}
+
+.codeblk pre .s {
+  color: #0f766e;
+}
+
+.codeblk pre .c {
+  color: #8b93a5;
+}
+
+.codeblk-copy {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 9px;
+  border: 1px solid #d7dbe3;
+  border-radius: 7px;
+  background: #fff;
+  color: #4b5163;
+  font: 500 12px var(--font-ui);
+}
+
+.codeblk-copy .i {
+  width: 13px;
+  height: 13px;
+}
+
+.pg-docs .pg-art h2 {
+  font-family: var(--font-ui);
+  font-size: 19px;
+}
+
+.mv .pg-docs .pg-art h2 {
+  font-size: 17px;
+  margin: 8px 0 8px;
+}
+
+.mv .pg-docs .pg-art p {
+  font-size: 14.5px;
+}
+
+.cont {
+  position: absolute;
+  left: 50%;
+  z-index: 3;
+  transform: translateX(-50%);
+  padding: 2px 11px;
+  border: 1px solid #e3e3e3;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.92);
+  color: #77736d;
+  font: 500 11px var(--font-ui);
+  white-space: nowrap;
+}
+
+.sbar {
+  position: absolute;
+  top: 38%;
+  right: 4px;
+  z-index: 3;
+  width: 5px;
+  height: 22%;
+  border-radius: 3px;
+  background: rgb(0 0 0 / 0.22);
+}
+
+/* ── 截图输出：状态条、水印、比例预设、设置里的控件 ─────────────────────────── */
+.shot-hint .st {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shot-hint .st .i {
+  width: 13px;
+  height: 13px;
+}
+
+.shot-hint .st.off {
+  opacity: 0.55;
+}
+
+.tb-b.copied {
+  background: rgb(52 199 132 / 0.28);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgb(52 199 132 / 0.6);
+}
+
+.tb-b.off {
+  opacity: 0.4;
+}
+
+.wm {
+  position: absolute;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: #1b1f2a;
+  font: 600 12px var(--font-ui);
+  opacity: 0.7;
+}
+
+.wm .wm-logo {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: var(--brand);
+  color: #fff;
+}
+
+.wm .wm-logo .i {
+  width: 12px;
+  height: 12px;
+}
+
+.slider {
+  position: relative;
+  display: inline-block;
+  width: 150px;
+  height: 18px;
+}
+
+.slider::before {
+  position: absolute;
+  top: 7.5px;
+  right: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line-2);
+  content: '';
+}
+
+.slider > i {
+  position: absolute;
+  top: 7.5px;
+  left: 0;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--brand);
+}
+
+.slider > b {
+  position: absolute;
+  top: 2.5px;
+  width: 13px;
+  height: 13px;
+  margin-left: -6.5px;
+  border: 2px solid var(--brand);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--sh-1);
+}
+
+.slider.is-off {
+  opacity: 0.45;
+}
+
+.posbox {
+  position: relative;
+  flex: none;
+  width: 66px;
+  height: 46px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.posbox > i {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  background: var(--line-2);
+}
+
+.posbox > i.tl {
+  top: 5px;
+  left: 5px;
+}
+
+.posbox > i.tr {
+  top: 5px;
+  right: 5px;
+}
+
+.posbox > i.bl {
+  bottom: 5px;
+  left: 5px;
+}
+
+.posbox > i.br {
+  right: 5px;
+  bottom: 5px;
+}
+
+.posbox > i.on {
+  background: var(--brand);
+}
+
+.set-sub {
+  display: grid;
+  gap: 12px;
+  padding: 12px 16px 14px;
+  border-top: 1px dashed var(--line);
+  background: var(--surface-2);
+}
+
+.set-sub .fr {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.set-sub .fr > .lb {
+  flex: none;
+  width: 64px;
+  color: var(--fg-2);
+  font-size: 12.5px;
+}
+
+.rcheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--fg-2);
+  font-size: 12.5px;
+}
+
+.rcheck .rg {
+  display: inline-block;
+  border: 1.5px solid currentcolor;
+  border-radius: 2px;
+}
+
+.rcheck.on {
+  border-color: color-mix(in oklab, var(--brand) 55%, transparent);
+  background: color-mix(in oklab, var(--brand) 10%, var(--surface));
+  color: var(--fg);
+}
+
+.rcheck.on .i {
+  color: var(--brand-text);
+}
+
+.rcheck .i {
+  width: 13px;
+  height: 13px;
+}
+
+/* ── 美化面板：背景、留白、圆角、阴影、输出比例 ───────────────────────────── */
+.bz {
+  position: absolute;
+  z-index: 10;
+  width: 262px;
+  padding: 12px 14px 14px;
+  border-radius: 12px;
+  background: #1b1f2a;
+  color: #e6e9f2;
+  font: 12px var(--font-ui);
+  box-shadow:
+    0 14px 34px -8px rgb(0 0 0 / 0.55),
+    0 0 0 1px rgb(255 255 255 / 0.07);
+}
+
+.bz-hd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-weight: 650;
+  font-size: 12.5px;
+}
+
+.bz-hd .i {
+  width: 14px;
+  height: 14px;
+}
+
+.bz-sec {
+  position: relative;
+  padding: 8px 0;
+  border-top: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.bz-lb {
+  margin-bottom: 7px;
+  color: #aab1c3;
+  font-size: 11px;
+}
+
+.bz-sws {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bz-sw {
+  width: 23px;
+  height: 23px;
+  border-radius: 7px;
+  box-shadow: 0 0 0 1.5px rgb(255 255 255 / 0.3);
+}
+
+.bz-sw.on {
+  box-shadow:
+    0 0 0 2px #1b1f2a,
+    0 0 0 3.5px #fff;
+}
+
+.bz-sw.none {
+  display: grid;
+  place-items: center;
+  background: repeating-linear-gradient(135deg, #3a4052 0 4px, #2b3040 4px 8px);
+  color: #aab1c3;
+}
+
+.bz-sw.none .i {
+  width: 12px;
+  height: 12px;
+}
+
+.bz .bz-seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.1);
+}
+
+.bz .bz-seg > span {
+  padding: 3px 11px;
+  border-radius: 6px;
+  color: #cdd2e0;
+}
+
+.bz .bz-seg > .on {
+  background: rgb(185 163 242 / 0.35);
+  color: #fff;
+}
+
+.bz-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bz .switch {
+  background: rgb(255 255 255 / 0.22);
+}
+
+.bz .switch.on {
+  background: var(--brand);
+}
+
+.bz-canvas {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.bz-canvas > .bz-img {
+  overflow: hidden;
+  background: #fff;
+}
+
+.bz-out {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.bz-out > .bz-img {
+  overflow: hidden;
+  background: #fff;
+}
+
+/* ── 依据：页面抽样的覆盖条 ─────────────────────────────────────────────── */
+.cov {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.cov .trk {
+  height: 14px;
+  border-radius: 7px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+
+.cov .trk > i {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--brand) 75%, transparent);
+}
+
+.cov .n {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.mdsrc {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--fg);
+  font: 12.5px/1.65 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.md-pre {
+  margin: 0.8em 0;
+  padding: 10px 14px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-3);
+  font: 12.5px/1.65 var(--font-mono);
+  color: var(--fg);
+  white-space: pre;
+}
+
+.md-pre code {
+  padding: 0;
+  background: none;
+  font: inherit;
+}
+
+.md-img a {
+  margin-left: 4px;
+  color: var(--brand-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.set-sub .bz-sw {
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+
+.set-sub .bz-sw.on {
+  box-shadow:
+    0 0 0 2px var(--surface-2),
+    0 0 0 3.5px var(--brand);
+}
+
+.set-sub .bz-sw.none {
+  background: repeating-linear-gradient(135deg, var(--surface-3) 0 4px, var(--surface-2) 4px 8px);
+  color: var(--fg-3);
+}
+
+/* ── 套餐页（中性示例）与取景框 ─────────────────────────────────────────── */
+.pl-seg {
+  position: absolute;
+  display: flex;
+  padding: 3px;
+  border: 1px solid #e3e6ec;
+  border-radius: 999px;
+  background: #fafbfc;
+  font: 12.5px var(--font-ui);
+  color: #3b3a38;
+}
+
+.pl-seg > span {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pl-seg > span b {
+  margin-left: 4px;
+  color: #3b6fe0;
+  font-weight: 600;
+}
+
+.pl-seg > .on {
+  background: #e9ebf2;
+  font-weight: 650;
+}
+
+.pl-card {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 18px 16px;
+  border: 1px solid #e3e6ec;
+  border-radius: 12px;
+  background: #fff;
+  font-family: var(--font-ui);
+  color: #1c1b1a;
+}
+
+.pl-card .pl-t {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.pl-card .pl-t em {
+  padding: 1px 7px;
+  border-radius: 6px;
+  background: #fdeceb;
+  color: #d4453b;
+  font: 500 10.5px var(--font-ui);
+  font-style: normal;
+}
+
+.pl-card .sub {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b6965;
+}
+
+.pl-card .pr {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 16px;
+  font-size: 25px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.pl-card .pr small {
+  color: #6b6965;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.pl-card .pr s {
+  color: #9a9791;
+  font-size: 11.5px;
+  font-weight: 400;
+}
+
+.pl-card .bt {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  margin-top: 14px;
+  border-radius: 8px;
+  background: #111;
+  color: #fff;
+  font-size: 13px;
+}
+
+.pl-card.hot {
+  border-color: #b9ccf4;
+}
+
+.pl-card.hot .bt {
+  background: #3b6fe0;
+}
+
+.pl-card ul {
+  display: grid;
+  gap: 9px;
+  margin: 18px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: #4b4a46;
+}
+
+.pl-card li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pl-card li .i {
+  width: 13px;
+  height: 13px;
+  color: #6b6965;
+}
+
+.frame-el {
+  position: absolute;
+  border: 1.5px dashed #3b82f6;
+  border-radius: 4px;
+}
+
+.frame-el .tag-l {
+  position: absolute;
+  left: 6px;
+  top: -10px;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: #3b82f6;
+  color: #fff;
+  font: 600 11px/18px var(--font-mono);
+  white-space: nowrap;
+}
+
+.mgn {
+  position: absolute;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  color: #3b82f6;
+  font: 600 10.5px var(--font-mono);
+}
+
+.shot-sel.is-reuse {
+  border-style: dashed;
+}
+
+.cb-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid #e3e6ec;
+  font: 500 12px var(--font-ui);
+}
+
+.cb-tabs span {
+  padding: 3px 10px;
+  border-radius: 6px;
+  color: #5b6070;
+}
+
+.cb-tabs .on {
+  background: #e9ebf2;
+  color: #1f2430;
+}
+
+.cb-tabs .gap {
+  flex: 1;
+  padding: 0;
+}
+
+.cb-tabs .cb-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #d7dbe3;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.cb-tabs .cb-icon .i {
+  width: 13px;
+  height: 13px;
+}
+
+.codeblk.is-tabs pre {
+  padding-top: 12px;
 }

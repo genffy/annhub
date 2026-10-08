@@ -34,14 +34,15 @@ function secOverview() {
       <tbody>
         ${rowOf('选区菜单', '选中文本后选择剪藏或截图；悬停给出一句后果；中英文界面', 'extension §2.1 · capture §2', rel('R1'), 'ext-flow')}
         ${rowOf('选区剪藏', '一次点击保存；约 3 秒内撤销；编辑标题、标签、备注', 'extension §3 · capture §6', rel('R1'), 'ext-clip')}
-        ${rowOf('区块剪藏', '指针停在推文、文章等整体内容上，一次点击保存整块；触发方式、识别范围与默认值待确认', 'capture §6.2 · D-20', `${rel('R1')} <span class="cv-tag is-proposal">提案</span>`, 'ext-block')}
-        ${rowOf('截图', '区域 / 元素截图，原位标注、匿名与马赛克；保存为截图条目', 'screenshot §1–§5', rel('R1'), 'ext-shot')}
-        ${rowOf('精确选区', '拖拽吸附、八向手柄、方向键微调、比例锁定、确认选区', 'screenshot §1.2 · roadmap R3', rel('R3'), 'ext-shot-r3')}
+        ${rowOf('区块剪藏', '指针停在帖子、代码块、一节或整篇文章上，胶囊里一次点击保存整块；位置避开页面自己的控件；键盘有区块模式', 'capture §6.2 · market §4.3', rel('R1'), 'ext-block')}
+        ${rowOf('截图', '区域 / 元素截图，原位标注、匿名与马赛克；保存为截图条目，或复制到剪贴板', 'screenshot §1–§5', rel('R1'), 'ext-shot')}
+        ${rowOf('截图输出', '复制、下载格式、比例预设、品牌水印、极简美化；水印与美化只加在复制与下载的图片上', 'screenshot §1.3 · §4', rel('R2'), 'ext-shot-out')}
+        ${rowOf('精确选区与取景框', '拖拽吸附、八向手柄、方向键微调、Shift 锁定比例、确认选区；元素层级、固定边距与沿用上次取景框', 'screenshot §1.2 · §1.4 · roadmap R3', rel('R3'), 'ext-shot-r3')}
         ${rowOf('资料库', '全部 / 剪藏 / 高亮 / 截图四个视图；搜索与筛选（含按属性）', 'extension §2.2 · §2.3 · search', rel('R2'), 'ext-app')}
         ${rowOf('阅读与高亮', '在阅读视图或抽屉里选中原文划出高亮、改色、写备注、删除；“高亮”视图按剪藏分组', 'extension §4.2 · entry §4', rel('R2'), 'ext-read')}
         ${rowOf('条目详情与属性', '抽屉里编辑标题、备注与属性；添加、新建、校验', 'extension §4 · entry §5', rel('R2'), 'ext-detail')}
         ${rowOf('属性页', '注册表、使用数、类型预设、删除未使用', 'extension §2.4 · entry §5.3', rel('R2'), 'ext-props')}
-        ${rowOf('设置', '默认高亮颜色、截图默认匿名、区块剪藏入口（提案）、快捷键、数据、本地指标', 'extension §2.5', rel('R2'), 'ext-settings')}
+        ${rowOf('设置', '默认高亮颜色、区块剪藏入口、截图（匿名、下载格式、水印、比例预设、美化默认样式）、快捷键、数据、本地指标', 'extension §2.5', rel('R2'), 'ext-settings')}
         ${rowOf('空状态与导出', '首次使用、无结果、窄窗口、导出对话框', 'extension §5 · storage §6', `${rel('R1')} ${rel('R2')}`, 'ext-states')}
         ${rowOf('工具栏弹窗', '同一套壳的紧凑版：图标栏 + 最近 5 条', 'extension §2.6', rel('R2'), 'ext-popup')}
       </tbody>

@@ -1,5 +1,5 @@
 // 浏览器扩展 · 页面内：选区菜单与选区剪藏。依据 extension §2.1、§3，capture §6。
-// 采集是一步完成：没有采集窗口，也没有表单；页面里没有高亮，也不留任何标记（D-19）。
+// 采集是一步完成：没有表单；页面里没有高亮入口，也不留任何标记。
 
 const tipFor = (t, lang = 'zh') => tipBubble(lang === 'en' ? TYPES[t].en : TYPES[t].zh, lang === 'en' ? TYPES[t].tipEn : TYPES[t].tip, 'position:absolute;left:0;bottom:calc(100% + 10px);max-width:260px')
 
@@ -25,7 +25,7 @@ function extFlowGroup() {
     w: 760,
     body: miniView(`${article({ sel: 'sel' })}${hoverMenu({ anchor: '.the-sel', hover: 0, pin: 1, tip: `${tipFor('clip')}${pin(2, 'pin-b')}` })}`, 400),
     notes: [
-      '选区菜单只有<b>两项</b>：剪藏、截图，顺序固定；每项是图标 + 短文本，不依赖位置。图标带各自类型的色相，但<b>文字始终在</b>。<b>菜单里没有高亮</b>：划重点发生在资料库里读剪藏的时候（D-19）。',
+      '选区菜单只有<b>两项</b>：剪藏、截图，顺序固定；每项是图标 + 短文本，不依赖位置。图标带各自类型的色相，但<b>文字始终在</b>。<b>菜单里没有高亮</b>：划重点发生在资料库里读剪藏的时候。',
       '悬停或键盘聚焦约 300ms，动作旁出现一句后果，让两种保存方式的差别在入口就看得见（是否分得清由 H-18 的首次使用走查验证）。',
       '<b>没有表单，没有“稍后整理”</b>：剪藏一次点击完成；阅读、高亮、标签和属性都放到保存之后。',
     ],
@@ -40,7 +40,7 @@ function extFlowGroup() {
       <div class="vs g20">
         <div class="vs g10"><div class="mh b t-sm muted">中文界面</div><div style="position:relative;padding-top:58px">${hoverMenu({ static: true, hover: 0, tip: tipFor('clip') })}</div></div>
         <div class="vs g10"><div class="mh b t-sm muted">English UI</div><div style="position:relative;padding-top:58px">${hoverMenu({ static: true, lang: 'en', hover: 0, tip: tipFor('clip', 'en') })}</div></div>
-        <div class="help">界面语言随浏览器界面语言：中文系语言显示中文，其他语言显示英文，没有手动切换（D-15）。每条文案同时给出两种语言，保存到条目里的用户内容不翻译。</div>
+        <div class="help">界面语言随浏览器界面语言：中文系语言显示中文，其他语言显示英文，没有手动切换。每条文案同时给出两种语言，保存到条目里的用户内容不翻译。</div>
       </div></div>`,
     notes: ['英文界面的菜单项同样是名词：Clip / Screenshot。悬停提示也成对给出（“Save what you selected; read and highlight it in the library later”）。'],
   })
@@ -48,11 +48,11 @@ function extFlowGroup() {
   const cell = (h, ...c) => `<tr><td>${h}</td>${c.map(x => `<td>${x}</td>`).join('')}</tr>`
   const paths = `<div class="sp-card ui" style="margin-top:22px;max-width:1180px">
     <h5>两种页面采集，一种库内高亮</h5><p>页面里只做“留下”：剪藏（选区或整块）与截图，页面上不留任何记号。要读懂、划重点，等保存之后在资料库里做。</p>
-    <table class="sp-table"><thead><tr><th style="width:90px"></th><th>${tchip('clip')} 选区</th><th>${tchip('clip')} 区块 ${chip('提案 · D-20')}</th><th>${tchip('screenshot')}</th><th><span class="tchip t-highlight">${I('highlighter')}高亮</span> 在资料库里</th></tr></thead><tbody>
-      ${cell('入口', '选区菜单“剪藏”', '指针停在整体内容上，区块旁的“剪藏”', '选区菜单“截图”；<kbd>⌘</kbd><kbd>⇧</kbd><kbd>S</kbd>', '阅读视图或抽屉里选中原文，点一个颜色')}
+    <table class="sp-table"><thead><tr><th style="width:90px"></th><th>${tchip('clip')} 选区</th><th>${tchip('clip')} 区块</th><th>${tchip('screenshot')}</th><th><span class="tchip t-highlight">${I('highlighter')}高亮</span> 在资料库里</th></tr></thead><tbody>
+      ${cell('入口', '选区菜单“剪藏”', '指针停在区块上，胶囊里的“剪藏”', '选区菜单“截图”；<kbd>⌘</kbd><kbd>⇧</kbd><kbd>S</kbd>；区块胶囊里的“截图”', '阅读视图或抽屉里选中原文，点一个颜色')}
       ${cell('保存什么', '选中的内容（Markdown）和语境', '整个区块（Markdown），区块自己的永久链接', '处理后的图片', '剪藏里的一段标注：范围、颜色、备注')}
       ${cell('页面上的痕迹', '无', '无', '无', '无：只存在于 AnnHub')}
-      ${cell('保存之后', '约 3 秒可撤销 · 可编辑', '同选区剪藏', '可同时下载', '可改色、写备注、删除（可撤销）')}
+      ${cell('保存之后', '约 3 秒可撤销 · 可编辑', '同选区剪藏', '可复制、可下载', '可改色、写备注、删除（可撤销）')}
       ${cell('资料库里', '“剪藏”视图', '“剪藏”视图', '“截图”视图，画廊', '“高亮”视图，按剪藏分组')}</tbody></table></div>`
 
   return group(
