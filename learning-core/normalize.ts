@@ -1,13 +1,16 @@
 /**
- * Normalization rules — implemented exactly once and shared by every capture
- * entry point (target contract: docs/v2/fragments.md).
+ * Shared normalization — implemented exactly once and used by validation,
+ * search matching and context comparison (docs/v2/entry.md §6).
  *
- * Order matters and must not be changed:
- *   NFKC first, trailing punctuation trim last.
+ * Order matters and must not be changed: NFKC first, surrounding
+ * punctuation trim last.
  */
-import type { FragmentRecord } from './types'
 
-export function normalizeContent(raw: string): string {
+/**
+ * NFKC → lowercase → unified quotes and dashes → collapsed whitespace →
+ * surrounding whitespace/punctuation trimmed.
+ */
+export function normalizeText(raw: string): string {
   return raw
     .normalize('NFKC')
     .toLowerCase()
@@ -19,38 +22,24 @@ export function normalizeContent(raw: string): string {
     .trim()
 }
 
+/** True when the string holds nothing but whitespace (any Unicode). */
+export function isBlankText(raw: string): boolean {
+  return raw.trim().length === 0
+}
+
+/** Source host: lowercase, `www.` stripped — nothing else (mobile.twitter.com ≠ twitter.com). */
 export function normalizeHost(url: string): string {
   const host = new URL(url).hostname.toLowerCase()
-  // Only 'www.' is stripped — mobile.twitter.com vs twitter.com are
-  // intentionally different hosts (site rules may differ).
   return host.startsWith('www.') ? host.slice(4) : host
 }
 
 /**
- * Dedupe key for "same fragment captured again in the same context".
- * The separator must be \u0000 (never a space or '|' — both can occur inside
- * content/excerpt and would collide). Write the escape sequence, not a raw byte.
- *
- * File imports do NOT use this key — they dedupe by stable id instead.
+ * Normalized containment check used to guarantee `context` really contains
+ * the clip's plain text (entry.md §6).
  */
-export function dedupeKeyOf(content: string, sourceUrl: string, excerpt: string): string {
-  return [normalizeContent(content), sourceUrl, normalizeContent(excerpt)].join('\u0000')
-}
-
-export function dedupeKey(f: Pick<FragmentRecord, 'normalizedContent' | 'context'>): string {
-  return dedupeKeyOf(f.normalizedContent, f.context.sourceUrl, f.context.excerpt)
-}
-
-/** Lowercase, trim, drop empties and duplicates, cap at 20 entries. */
-export function dedupeTags(tags: string[]): string[] {
-  const seen = new Set<string>()
-  const result: string[] = []
-  for (const raw of tags) {
-    const tag = raw.trim().toLowerCase()
-    if (!tag || seen.has(tag)) continue
-    seen.add(tag)
-    result.push(tag)
-    if (result.length >= 20) break
-  }
-  return result
+export function normalizedContains(haystack: string, needle: string): boolean {
+  const h = normalizeText(haystack)
+  const n = normalizeText(needle)
+  if (!n) return true
+  return h.includes(n)
 }

@@ -1,147 +1,89 @@
 /**
- * Learning-core type contract — single source of truth for the entities the
+ * Entry data contract — single source of truth shapes for everything the
  * extension captures and stores locally.
  *
  * Contract owners (docs/v2):
- *   - FragmentRecord shape / kinds / validation: docs/v2/fragments.md
- *   - ImageAsset / ScreenshotRecord: docs/v2/storage.md
+ *   - EntryRecord / EntryType / Highlight / properties: docs/v2/entry.md
+ *   - ImageAsset and persistence: docs/v2/storage.md
  *
  * This module must stay environment-neutral: no chrome.*, no DOM, no React.
  */
 
-// ── Fragment kind registry (fragments.md §2) ────────────────────────────
+// ── Entry types (entry.md §2) ───────────────────────────────────────────
 
-/**
- * Enabled kinds: seven text kinds, basic `visual` (extension web
- * screenshots) and `media-clip` (R4: video/audio time ranges with a
- * user-written transcript — manual transcription, LLM optional).
- */
-export type FragmentKind = 'excerpt' | 'concept' | 'claim' | 'procedure' | 'decision' | 'question' | 'inspiration' | 'visual' | 'media-clip'
+/** Two kinds only; fixed at creation and never converted afterwards. */
+export type EntryType = 'clip' | 'screenshot'
 
-/** Every kind that appears in the union; validation checks against this. */
-export const REGISTERED_FRAGMENT_KINDS: readonly FragmentKind[] = ['excerpt', 'concept', 'claim', 'procedure', 'decision', 'question', 'inspiration', 'visual', 'media-clip']
+export const ENTRY_TYPES: readonly EntryType[] = ['clip', 'screenshot']
 
-/** Kinds whose detail validators are implemented (fragments.md §4). */
-export const ENABLED_FRAGMENT_KINDS: readonly FragmentKind[] = ['excerpt', 'concept', 'claim', 'procedure', 'decision', 'question', 'inspiration', 'visual', 'media-clip']
+// ── Highlights live inside a clip (entry.md §4) ─────────────────────────
 
-// ── Type-specialized detail blocks (fragments.md §4) ────────────────────
+export type HighlightColor = 'yellow' | 'green' | 'blue' | 'pink' | 'purple'
 
-export interface FragmentDetailMap {
-  'excerpt': { note?: string }
-  'concept': {
-    definition?: string
-    boundaries?: string[]
-    examples?: string[]
-    counterExamples?: string[]
-  }
-  'claim': {
-    stance?: 'support' | 'oppose' | 'uncertain'
-    evidence?: string[]
-    assumptions?: string[]
-  }
-  'procedure': {
-    steps: string[]
-    prerequisites?: string[]
-    failureModes?: string[]
-  }
-  'decision': {
-    rationale: string
-    alternatives?: string[]
-    consequences?: string[]
-  }
-  'question': {
-    status: 'open' | 'testing' | 'answered'
-    hypothesis?: string
-    evidence?: string[]
-    nextStep?: string
-    answer?: string
-  }
-  'visual': {
-    attachmentIds: string[]
-  }
-  'media-clip': {
-    startMs: number
-    endMs: number
-    attachmentIds?: string[]
-  }
-  'inspiration': {
-    form: 'idea' | 'reflection'
-  }
-}
+export const HIGHLIGHT_COLORS: readonly HighlightColor[] = ['yellow', 'green', 'blue', 'pink', 'purple']
 
-export type DetailOf<K extends FragmentKind> = K extends keyof FragmentDetailMap ? FragmentDetailMap[K] : never
-
-// ── Verification (fragments.md §3 / processing.md §2) ───────────────────
-
-export type VerifiedSource = 'source-material' | 'llm' | 'manual'
-
-/**
- * The user explicitly confirmed the verification step. `confirmedAt` and
- * `source` are mandatory; summary / notes / references are optional. An
- * `llm` result must carry modelId + promptVersion; an edited model
- * suggestion becomes `manual` and keeps the original model in basedOnModel.
- */
-export interface VerifiedResult {
-  confirmedAt: number
-  source: VerifiedSource
-  summary?: string
-  notes?: string
-  references?: string[]
-  modelId?: string
-  promptVersion?: string
-  basedOnModel?: { modelId: string; promptVersion: string }
-}
-
-// ── Context (L1 invariant) ──────────────────────────────────────────────
-
-export type FragmentLocator =
-  | { type: 'dom'; selector: string; textOffset?: number }
-  | { type: 'image'; assetId: string; rect?: [number, number, number, number] }
-  | { type: 'time'; startMs: number; endMs: number }
-  | { type: 'page'; pageNumber: number; rect?: [number, number, number, number] }
-  | { type: 'none' }
-
-export interface FragmentContext {
-  excerpt: string
-  sourceUrl: string
-  sourceHost: string
-  sourceTitle?: string
-  locator: FragmentLocator
-  capturedAt: number
-}
-
-// ── Fragment record (fragments.md §3) ───────────────────────────────────
-
-export interface FragmentRecord<K extends FragmentKind = FragmentKind> {
-  schemaVersion: 4
+export interface Highlight {
   id: string
-  /** 1 on creation; bumped on every capture-field edit. */
-  captureRevision: number
-  kind: K
+  /** Character offsets into the clip's `content` (UTF-16 code units). */
+  start: number
+  end: number
+  /** The selected rendered text, plain, non-empty after trim, ≤ 2,000 chars. */
+  quote: string
+  color: HighlightColor
+  note?: string
+  createdAt: number
+}
 
+// ── Typed properties (entry.md §5) ──────────────────────────────────────
+
+export type PropertyType = 'text' | 'list' | 'number' | 'checkbox' | 'date' | 'datetime'
+
+export const PROPERTY_TYPES: readonly PropertyType[] = ['text', 'list', 'number', 'checkbox', 'date', 'datetime']
+
+export type PropertyValue = string | string[] | number | boolean
+
+export interface PropertyDefinition {
+  name: string
+  type: PropertyType
+  defaultValue?: PropertyValue
+  /** Built-ins cannot be deleted and their type is fixed (entry.md §5.3). */
+  builtin: boolean
+  /** Entry types that auto-attach this property at capture time. */
+  presets: EntryType[]
+}
+
+// ── The shared record (entry.md §3) ─────────────────────────────────────
+
+export interface EntryRecord {
+  id: string
+  type: EntryType
+
+  /** Markdown source for a clip; always the empty string for a screenshot. */
   content: string
-  normalizedContent: string
-  context: FragmentContext
+  /** Sentence/paragraph containing a selection clip; never set on other captures. */
+  context?: string
+  /** Asset reference for a screenshot; forbidden on a clip. */
+  assetId?: string
+  /** The user's own words, shown apart from the captured content. */
+  note?: string
+  /** Marks drawn while reading the clip in the library. Clips only. */
+  highlights?: Highlight[]
 
-  processing: {
-    guess?: string
-    verified: VerifiedResult
-    use: string
-  }
+  sourceUrl: string
+  /** Source hostname, lowercased, `www.` stripped. */
+  sourceHost: string
 
-  detail: DetailOf<K>
-  tags: string[]
+  properties: Record<string, PropertyValue>
+
   createdAt: number
   updatedAt: number
 }
 
-// ── Image assets & screenshot library (storage.md §3) ─────────────────
-
-export type ImageMimeType = 'image/png' | 'image/jpeg' | 'image/webp'
+// ── Image assets (storage.md §4) ────────────────────────────────────────
 
 export interface ImageAsset {
   id: string
-  mimeType: ImageMimeType
+  mimeType: 'image/png'
   byteLength: number
   sha256: string
   width: number
@@ -149,10 +91,28 @@ export interface ImageAsset {
   createdAt: number
 }
 
-export interface ScreenshotRecord {
-  id: string
-  assetId: string
-  sourceUrl: string
-  sourceTitle?: string
-  capturedAt: number
+// ── Stable error codes (entry.md §6) ────────────────────────────────────
+
+export type EntryErrorCode =
+  | 'ENTRY_TYPE_UNKNOWN'
+  | 'ENTRY_CONTENT_INVALID'
+  | 'ENTRY_CONTENT_LOCKED'
+  | 'ENTRY_SOURCE_INVALID'
+  | 'ENTRY_ASSET_MISSING'
+  | 'HIGHLIGHT_INVALID'
+  | 'HIGHLIGHT_LIMIT_EXCEEDED'
+  | 'PROPERTY_NAME_INVALID'
+  | 'PROPERTY_TYPE_MISMATCH'
+  | 'PROPERTY_VALUE_INVALID'
+  | 'PROPERTY_LIMIT_EXCEEDED'
+  | 'PROPERTY_IN_USE'
+
+export class EntryValidationError extends Error {
+  constructor(
+    public readonly code: EntryErrorCode,
+    message?: string,
+  ) {
+    super(message ?? code)
+    this.name = 'EntryValidationError'
+  }
 }
