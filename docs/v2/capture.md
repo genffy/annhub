@@ -33,7 +33,9 @@
   -> 提示结果（可撤销，可编辑）
 ```
 
-自动能力失败时降级，而不是丢弃：缺语境、缺页面 meta 都照样保存。哪些页面类别要保证采集可用（iframe、shadow DOM、可编辑区、PDF 查看器与受限页面）见 [Q-16](validation.md)。
+自动能力失败时降级，而不是丢弃：缺语境、缺页面 meta 都照样保存。
+
+保证采集可用的页面范围：普通文章、信息流和 SPA 页面，以及同源 iframe 与 open shadow root 里的选区和区块（识别沿 `composedPath` 穿透 shadow 边界）。跨源 iframe、closed shadow root、可编辑区（输入框与 `contenteditable`）和严格内容安全策略的页面里不出现入口、不报错；`chrome://`、浏览器商店页这类受限页面同样没有入口，由工具栏弹窗兜底（[extension.md §2.6](extension.md)）；PDF 是否进入范围见 [H-15](validation.md)。
 
 ### 3.1 转换为 Markdown
 
@@ -63,7 +65,7 @@
 
 - **永久链接**：信息流页面应尽力解析内容项的永久链接作为 `sourceUrl`，而不是只保存列表页地址。区块剪藏取该区块自己的永久链接：帖子取帖子的地址（X 取自帖子里发布时间的链接）；一节取页面地址加该节标题的锚点（标题或包住它的元素有 `id` 时），“回到来源”因此直接落在这一节；其余区块取页面地址。平台规则集中维护，新增站点通过追加规则实现，不散落在业务模块里。解析失败时使用当前页面 URL。
 - **页面 meta**：作者、发布日期、描述取自页面 meta（含 Open Graph 与标准 meta），取不到就不设置；`title` 取页面标题。
-- **来源地址里的 query 与 hash**：是否在保存前处理（登录回调页、带令牌的分享链接）见 [Q-13](validation.md)。
+- **来源地址里的 query 与 hash**：保存前去掉带令牌特征的参数，其余保留，包括区块剪藏用的标题锚点。清理规则只在共享领域层实现一次：query 与 hash 里以 `?` / `&` 分隔的参数，名称不区分大小写并去掉首尾空白后属于令牌名清单的，整段删除；hash 里非查询参数形式的部分（路径与锚点）原样保留；清理后留下空的 `?` 或 `#` 时一并去掉；清理后的地址仍必须是绝对 http(s) 链接。令牌名清单：`token`、`access_token`、`refresh_token`、`id_token`、`code`、`session`、`session_id`、`sessionid`、`auth`、`auth_token`、`api_key`、`apikey`、`secret`、`sig`、`signature`、`jwt`。
 - **回到来源**：只打开 `sourceUrl`，不在原页面里定位，也不恢复任何标记。
 
 ## 6. 剪藏的细节
