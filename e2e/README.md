@@ -4,10 +4,10 @@
 
 ```bash
 npm run build
-npx playwright test e2e/screenshot-capture.spec.ts
+npx playwright test
 ```
 
-`e2e/store-assets.spec.ts` 默认跳过，只在 `npm run store:assets` 时按界面语言各截一套商店素材，写入不入库的 `store-assets/zh/` 与 `store-assets/en/`（尺寸见该文件头部注释；规则见 [权限与数据边界 §6](../docs/v2/permissions.md)）。
+当前规格覆盖 R1 主链路：`selection-clip`（菜单、一次点击、撤销、快速编辑、空白选区、URL 令牌清理）、`block-clip`（区块识别、层级、胶囊避让、X 永久链接、键盘模式、按站停用）、`screenshot-capture`（区域/元素入库、复制、取消、伪造事件）、`library-export`（搜索、抽屉、编辑、删除、唯一导出）。商店素材截图在公开上架准备时再随规格恢复。
 
 `e2e/global-setup.ts` 在 `.output/chrome-mv3` 已存在时不会自动重建。源码有变化时，必须先手动构建。fixture 服务器由 Playwright 配置启动，不需要为自动化测试另开服务。
 
@@ -28,4 +28,4 @@ cp -R .output/chrome-mv3 "$ANNHUB_TEST_DIR/chrome-mv3"
 printf '%s\n' "$ANNHUB_TEST_DIR/chrome-mv3"
 ```
 
-把最后输出的真实路径传给 `install_extension`。实测 content script 注入时，页面应有带 `shadowRoot` 的 `ann-selection`；选中文本后检查 shadowRoot 中的选区菜单按钮。只操作该 MCP 的独立 profile，终止进程时须精确匹配其 `--user-data-dir`，不要影响日常 Chrome。
+把最后输出的真实路径传给 `install_extension`。实测 content script 注入时，在页面上选中一段文字应出现「剪藏 / 截图」两钮菜单（`[data-ann-ui="selection-menu"]`）。只操作该 MCP 的独立 profile，终止进程时须精确匹配其 `--user-data-dir`，不要影响日常 Chrome。

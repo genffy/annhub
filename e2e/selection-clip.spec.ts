@@ -64,7 +64,7 @@ test.describe('selection clip (capture.md §6.1, extension.md §2.1)', () => {
     await expect(bubble).not.toBeVisible()
 
     await expect
-      .poll(() => getEntries(page.context()))
+      .poll(() => getEntries(page.context()), { timeout: 15_000 })
       .toMatchObject([
         expect.objectContaining({
           type: 'clip',

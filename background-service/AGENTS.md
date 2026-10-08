@@ -3,22 +3,21 @@
 > 适用于当前 `background-service/` 实现；不是未来 monorepo 的目标划分。全局规则见根目录 `AGENTS.md`。
 > 更新：2026-10-08。
 
-> Fragment 与 LLM 不属于产品范围；剪藏与截图是统一的条目，高亮是剪藏里的标注，目标契约见 [条目数据契约](../docs/v2/entry.md) 与 [存储契约](../docs/v2/storage.md)。下文 `services/fragment/` 与 `services/llm/` 是尚未移除的旧实现，按路线图 R1 移除；移除前只为修缺陷改动，不在它们上面加新功能。
-
 ## 服务边界
 
-- `index.ts` 注册服务；`service-manager.ts` 管生命周期和消息处理；`event-handlers/` 接入命令、runtime 与安装事件。
-- 新消息先在 `types/messages.ts` 登记，再同步 service handler、调用方和测试。读取用户数据、写类消息按 `sender.ts` 的 `isExtensionPageSender` 校验，不要再复制判断；敏感配置读取不得回传密钥。`__tests__/message-protocol.test.ts` 会检查 `UIToBackgroundMessage` 中每个类型都有 handler，后台发往内容脚本的消息放进 `BackgroundToUIMessage`。
-- Service Worker 可重启。持久状态放存储层，不能只放服务实例内存；错误响应要让调用方区分失败与成功。
+- `index.ts` 注册三个服务：`services/entries`（条目/属性/导出的消息门面）、`services/screenshot`（截取、跨域代取、下载、入库）、`services/system`（偏好、本地指标）。`service-manager.ts` 管生命周期与消息分发；`event-handlers/command-handler.ts` 接两条命令（区域截图、区块模式），没有注入式兜底（`scripting` 已移除）。
+- 共享 IndexedDB 连接走 `store-instance.ts` 的单例；服务不各自开库。
+- 新消息先在 `types/messages.ts` 登记，再同步 handler、调用方和测试。读用户数据、写类消息按 `sender.ts` 校验（扩展页面或页面顶层 frame），不要再复制判断。
 
 ## 领域接线
 
-- `services/fragment/` 负责消息到 domain 的适配；创建和校验调用 `learning-core/`，不复制领域规则。Fragment 的存储边界以共享 store 与 [存储契约](../docs/v2/storage.md) 为准。输出工坊与知识关系、桌面客户端与跨端交付不在产品范围内，代码中没有对应服务、消息或存储。
-- `services/screenshot/` 只承担浏览器截图 API、跨域资源、下载和截图集入库。处理后的图像从 content 以 `dataUrl` 传输（runtime 消息不能携带 Blob），service worker 转 Blob 后与截图元数据同事务写入共享 `fragment-store` 的 `assets`/`screenshots` stores（[存储契约](../docs/v2/storage.md) §3）。`CAPTURE_VISIBLE_TAB` 只拍发送者所在窗口，且发送者必须是该窗口的活动标签页（截取前后各查一次），`captureVisibleTab` 不要再用 `WINDOW_ID_CURRENT`；`FETCH_IMAGE` 持有 `<all_urls>` 的网络位置，所以只经 `fetch-policy.ts`：公网 http(s)、不带凭据、只返回不超过 `MAX_IMAGE_BYTES` 的图片，重定向后的地址同样检查。截图集的读、删消息只答扩展页面。
-- `services/llm/` 是不属于产品范围的旧实现（保存用户自己的接口与密钥，测试连接），没有功能消费者，R1 删除；删除之前密钥仍不回传页面。
-- ZIP 导出在扩展页面侧执行（`utils/export-content.ts`）：页面直连共享 IndexedDB 读图片字节，高亮/剪藏经 JSON 消息获取；不要把 Blob 放进 runtime 消息。
+- `services/entries` 只做消息到 `learning-core/store` 的适配：保存前 `cleanSourceUrl` 去令牌参数、按注册表附加类型预设，不复制领域规则。属性筛选、排序、分页全部经 `learning-core/query`。
+- ZIP 导出在 service worker 里执行：逐 Blob 读资产、`buildExport` 生成、`chrome.downloads.download` 交付。MV3 worker 没有 `URL.createObjectURL`，交付用 dataUrl；构建仍是 Blob 分批。
+- `services/screenshot`：`CAPTURE_VISIBLE_TAB` 只拍发送者所在窗口且前后各查一次活动状态，不要用 `WINDOW_ID_CURRENT`；`FETCH_IMAGE` 持有 `<all_urls>` 的网络位置，只经 `fetch-policy.ts`（公网 http(s)、不带凭据、只返回不超过 `MAX_IMAGE_BYTES` 的图片、重定向后再查一次）。R1 下载固定 PNG（格式设置属 R2）。
+- `services/system`：偏好即 `settings-schema.ts` 的 layer C（chrome.storage，条目绝不放这里）；指标经 `services/metrics/record.ts` 的字典与分桶，属性只能是枚举/布尔/分桶数字。
+- 指标事件在写入成功/失败的路径上就地记录（`capture.saved`、`capture.undone`、`capture.save_failed`、`screenshot.copied/downloaded`、`export.completed`）；读侧事件（`entry.reopened`、`library.queried`）由页面触发。
 
 ## 验证
 
-- 消息协议或服务注册变化：`npm run compile`、对应 service 单测、相关调用链 E2E。
-- Fragment 或截图持久化变化：跑对应 store / service 单测，并验证失败响应和重启后读取；截图需额外跑 `e2e/screenshot-capture.spec.ts`。
+- 消息协议或服务注册变化：`npm run compile`、对应 service 单测、相关 E2E。
+- 持久化变化：`npx vitest run learning-core` 加对应 service 单测；截图链路跑 `e2e/screenshot-capture.spec.ts`。

@@ -9,6 +9,7 @@ import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '.
 import { initializedEntryStore } from '../../store-instance'
 import { cleanSourceUrl } from '../../../learning-core/url'
 import { presetProperties } from '../../../learning-core/properties'
+import { bucketCount } from '../../../learning-core/metrics'
 import { queryEntries, queryHighlights } from '../../../learning-core/query'
 import { mergeHighlight } from '../../../learning-core/validate'
 import { buildExport, type ExportLanguage } from '../../../learning-core/export'
@@ -192,6 +193,8 @@ export class EntryService implements IService {
           const dataUrl = await blobToDataUrl(blob)
           const filename = `AnnHub-export-${new Date().toISOString().slice(0, 10)}.zip`
           const downloadId = await downloadUrl(dataUrl, filename)
+          const { recordEvent } = await import('../metrics/record')
+          await recordEvent('export.completed', { result: summary.result, missing_assets: bucketCount(summary.missingAssets.length) })
           return MessageUtils.createResponse(true, {
             result: summary.result,
             clips: summary.clips,
