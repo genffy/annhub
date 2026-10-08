@@ -72,7 +72,14 @@ export function ReadingView({ entryId, defaultColor, registry, onClose, onEntryC
       <div className="reading-layout">
         <div className="reading-body">
           {highlights.length > 0 && <p className="reading-lock">{uiText('reading.locked')}</p>}
-          <HighlightSurface entry={entry} defaultColor={defaultColor} onEntryChanged={onEntryChanged} />
+          <HighlightSurface
+            entry={entry}
+            defaultColor={defaultColor}
+            onEntryChanged={next => {
+              setEntry(next)
+              onEntryChanged(next)
+            }}
+          />
           {entry.context && (
             <section className="drawer-context">
               <h3>context</h3>
