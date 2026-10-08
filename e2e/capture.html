@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Backoff and retry — capture fixture</title>
+    <meta name="author" content="Jane Doe" />
+    <meta name="description" content="A fixture article about retry storms and jittered backoff." />
+    <style>
+      body {
+        font-family: Georgia, serif;
+        max-width: 720px;
+        margin: 40px auto;
+        padding: 0 16px;
+        color: #1f2937;
+      }
+      h1,
+      h2 {
+        font-family: -apple-system, system-ui, sans-serif;
+      }
+      .code-card {
+        position: relative;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .code-card .copy-btn {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        padding: 2px 8px;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        background: #fff;
+        font-size: 12px;
+      }
+      .share-bar {
+        display: flex;
+        gap: 8px;
+        margin: 12px 0;
+      }
+      .share-bar button {
+        padding: 4px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+        background: #f9fafb;
+      }
+      .post {
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 16px;
+        margin: 24px 0;
+      }
+      .post .identity {
+        color: #6b7280;
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+      figure {
+        margin: 24px 0;
+      }
+      figure img {
+        width: 320px;
+        height: 180px;
+        background: #dbeafe;
+      }
+    </style>
+  </head>
+  <body>
+    <article class="content">
+      <h1>Backoff and retry</h1>
+      <p id="intro-p">
+        Retries can amplify an outage when the dependency is already saturated. Instead of retrying
+        immediately, wait <strong>base × 2^n</strong> and add a
+        <a href="https://engineering.example.com/jitter">random factor between 0 and 1</a> so that
+        clients do not retry in lockstep.
+      </p>
+
+      <div class="share-bar">
+        <button type="button">Share</button>
+        <button type="button">Like</button>
+      </div>
+
+      <section id="exponential-backoff">
+        <h2>Exponential backoff</h2>
+        <p data-testid="section-body">
+          The three-step approach: compute the delay, add jitter, cap the total budget. Retry
+          budgets counted server side are more robust than client-side caps because they see every
+          caller at once.
+        </p>
+        <ul>
+          <li>Compute the delay from the attempt number</li>
+          <li>Add uniform jitter</li>
+          <li>Cap the total retry budget</li>
+        </ul>
+      </section>
+
+      <section id="the-code">
+        <h2>The code</h2>
+        <div class="code-card" data-testid="code-card">
+          <button type="button" class="copy-btn">Copy</button>
+          <pre><code class="language-ts">function backoff(attempt: number): number {
+  const base = 100 * 2 ** attempt
+  return Math.min(base + Math.random() * base, 5000)
+}</code></pre>
+        </div>
+        <table>
+          <thead>
+            <tr><th>Attempt</th><th>Base</th><th>Cap</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>200ms</td><td>1s</td></tr>
+            <tr><td>2</td><td>400ms</td><td>2s</td></tr>
+          </tbody>
+        </table>
+        <blockquote>
+          <p>Retry budgets counted server side are more robust than client-side caps.</p>
+        </blockquote>
+        <figure>
+          <img src="https://example.com/latency-curve.png" alt="p99 latency curve" />
+          <figcaption>p99 latency before and after the change</figcaption>
+        </figure>
+      </section>
+
+      <section id="timeline">
+        <h2>Timeline</h2>
+        <article class="post" data-testid="tweet">
+          <div class="identity">@sre_notes · 2h</div>
+          <p>We shipped jittered backoff this morning. p99 dropped 40 minutes later.</p>
+          <a href="/status/1748113923456" data-testid="post-permalink"><time datetime="2026-10-07T09:30:00Z">9:30</time></a>
+        </article>
+      </section>
+      <p id="blank-target">   </p>
+    </article>
+  </body>
+</html>

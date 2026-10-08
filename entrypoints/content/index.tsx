@@ -137,10 +137,12 @@ function wireBlockEntries(): void {
           const sites = new Set(response.data?.blockDisabledSites ?? [])
           sites.add(host)
           await MessageUtils.sendMessage({ type: 'SET_SETTINGS', patch: { blockDisabledSites: [...sites] } })
+          blockEntries?.hide()
         })()
       },
       onDisableEntry: () => {
         void MessageUtils.sendMessage({ type: 'SET_SETTINGS', patch: { blockEntryEnabled: false } })
+        blockEntries?.hide()
       },
       openSettings: () => {
         void MessageUtils.sendMessage({ type: 'OPEN_EXTENSION_PAGE', page: 'settings' })
@@ -153,7 +155,9 @@ function wireBlockEntries(): void {
 
 export default defineContentScript({
   matches: ['<all_urls>'],
-  cssInjectionMode: 'ui',
+  // Overlay CSS rides the manifest content style: the overlays append to the
+  // document (not a shadow root), and every selector is namespaced under
+  // [data-ann-ui] / .ann-* so the page's own styles are untouched.
   async main() {
     if (document.readyState === 'loading') {
       await new Promise<void>(resolve => document.addEventListener('DOMContentLoaded', () => resolve(), { once: true }))

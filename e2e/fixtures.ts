@@ -25,6 +25,7 @@ export const test = base.extend<{
     const context = await chromium.launchPersistentContext('', {
       ...(executablePath ? { executablePath } : { channel: 'chromium' as const }),
       locale: uiLocale,
+      acceptDownloads: true,
       args: [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`, '--no-first-run', '--disable-default-apps'],
     })
     await use(context)

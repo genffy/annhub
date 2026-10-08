@@ -119,6 +119,8 @@ describe('validateEntry (entry.md §6)', () => {
   it('checks context length and containment', () => {
     expect(() => validateEntry(makeClip({ context: 'x'.repeat(2001) }), TEST_REGISTRY)).toThrow()
     expect(() => validateEntry(makeClip({ context: 'nothing like the content' }), TEST_REGISTRY)).toThrowError(expect.objectContaining({ code: 'ENTRY_CONTENT_INVALID' }))
+    // containment compares plain text: markdown marks must not break it
+    expect(() => validateEntry(makeClip({ content: 'keep **bold** and [a link](https://x.example)', context: 'keep bold and a link' }), TEST_REGISTRY)).not.toThrow()
   })
   it('checks asset presence per type', () => {
     expect(() => validateEntry(makeScreenshot({ assetId: undefined }), TEST_REGISTRY)).toThrowError(expect.objectContaining({ code: 'ENTRY_ASSET_MISSING' }))

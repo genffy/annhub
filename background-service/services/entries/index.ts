@@ -186,10 +186,12 @@ export class EntryService implements IService {
               return { metadata: asset.metadata, bytes: new Uint8Array(await asset.bytes.arrayBuffer()) }
             },
           })
-          const url = URL.createObjectURL(summary.blob)
+          const blob = summary.blob
+          // MV3 service workers have no URL.createObjectURL: the ZIP travels to
+          // chrome.downloads as a data URL (build is still Blob-based, read per asset)
+          const dataUrl = await blobToDataUrl(blob)
           const filename = `AnnHub-export-${new Date().toISOString().slice(0, 10)}.zip`
-          const downloadId = await downloadUrl(url, filename)
-          URL.revokeObjectURL(url)
+          const downloadId = await downloadUrl(dataUrl, filename)
           return MessageUtils.createResponse(true, {
             result: summary.result,
             clips: summary.clips,
