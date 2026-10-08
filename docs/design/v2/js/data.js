@@ -8,7 +8,7 @@ const TYPES = {
 }
 const TYPE_ORDER = ['clip', 'screenshot']
 
-// 高亮不是条目类型（D-19）：它是剪藏里的标注。这里只给导航、入口和高亮视图提供名称与图标。
+// 高亮不是条目类型：它是剪藏里的标注。这里只给导航、入口和高亮视图提供名称与图标。
 const HLV = { zh: '高亮', en: 'Highlight', plural: 'Highlights', icon: 'highlighter', tip: '在资料库里读剪藏时划出重点', tipEn: 'Mark what matters while you read a clip in the library' }
 
 // 属性的六种类型（entry.md §5.2）

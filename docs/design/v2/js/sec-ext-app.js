@@ -237,18 +237,47 @@ function extPropsGroup() {
 function extSettingsGroup() {
   const prefs =
     settingsRow('默认高亮颜色', '阅读视图里新建高亮的初始颜色；每条高亮之后都可以改。', `<span class="hs g8">${HL_COLORS.map((c, i) => hlDot(c, i === 0)).join('')}</span>`) +
+    settingsRow('区块剪藏入口', '指针停在区块上时，旁边出现胶囊；也可以在胶囊的菜单里按网站停用。键盘上的区块模式不受影响。', sw(true)) +
+    settingsRow('已停用的网站', '在这些网站上不出现区块胶囊。', `<span class="chip">2 个</span>${btn('管理', { sm: true })}`)
+
+  const rcheck = (label, w, h, on) => `<span class="rcheck ${on ? 'on' : ''}">${on ? I('check') : ''}${w ? `<i class="rg" style="width:${Math.round((w * 13) / Math.max(w, h))}px;height:${Math.round((h * 13) / Math.max(w, h))}px"></i>` : ''}${label}</span>`
+  const shotPrefs =
     settingsRow('截图默认匿名', '身份元素自动打上马赛克候选；每次截图时可以在预览里增删。', sw(true)) +
-    settingsRow(`区块剪藏入口 ${chip('提案 · D-20', { v: 'warn' })}`, '指针停在整体内容上时，区块旁出现“剪藏”；也可以在入口菜单里按网站停用。', sw(true))
-  const sc = `${settingsRow('阅读视图 · 高亮', '选中文字后以默认颜色创建高亮。', keys('H'))}${settingsRow('截图模式', '拖拽区域或单击元素。', `${keys('Ctrl', '⇧', 'S')}<span class="muted">/</span>${keys('⌘', '⇧', 'S')}`)}${settingsRow('关闭菜单 · 取消截图 · 关闭抽屉', '', keys('Esc'))}${settingsRow('在浏览器里修改快捷键', '浏览器级快捷键冲突在这里处理。', btn('打开', { sm: true, iconR: 'external-link' }))}`
+    settingsRow('下载格式', '只作用于下载；入库的图片和复制到剪贴板的图片始终是 PNG。', `<span class="seg"><span class="on">PNG</span><span>JPEG</span><span>WebP</span></span>`) +
+    settingsRow('JPEG / WebP 质量', '选 JPEG 或 WebP 时可调，默认 0.9；PNG 无损，没有质量。', `<span class="slider is-off"><i style="width:80%"></i><b style="left:80%"></b></span><span class="tnum muted">0.9</span>`) +
+    `<div class="set-r" style="display:block"><div class="l"><b>比例预设</b><small>勾选哪些比例出现在截图的选区条上；每次截图从“自由”开始。预设只约束形状，不预设像素大小。</small></div><div class="hs g6 wrap" style="margin-top:10px">${rcheck('1:1', 1, 1, true)}${rcheck('4:5', 4, 5, true)}${rcheck('3:4', 3, 4, true)}${rcheck('4:3', 4, 3, false)}${rcheck('16:9', 16, 9, true)}${rcheck('9:16', 9, 16, false)}</div></div>`
+
+  const wmSub = `<div class="set-sub">
+      <div class="fr"><span class="lb">文字</span>${input('@annhub_demo', { style: 'min-height:30px;width:240px;font-size:12.5px' })}<span class="t-xs muted tnum">12 / 40</span></div>
+      <div class="fr"><span class="lb">图片</span><span class="wm-logo" style="display:grid;place-items:center;width:30px;height:30px;border-radius:8px;background:var(--brand);color:#fff">${I('logo')}</span><span class="t-sm">logo.png <span class="muted">· 18 KB</span></span>${btn('更换', { sm: true, icon: 'upload' })}${btn('移除', { sm: true })}</div>
+      <div class="fr"><span class="lb"></span><span class="t-xs muted">PNG，不超过 512 KB，只保存在这台电脑上，不进入条目，也不随导出。</span></div>
+      <div class="fr"><span class="lb">位置</span><span class="posbox"><i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br on"></i></span><span class="t-xs muted">四角任选，默认右下</span></div>
+      <div class="fr"><span class="lb">大小</span><span class="seg"><span>小</span><span class="on">中</span><span>大</span></span></div>
+      <div class="fr"><span class="lb">透明度</span><span class="slider"><i style="width:62.5%"></i><b style="left:62.5%"></b></span><span class="tnum">70%</span></div>
+      <div class="fr" style="align-items:flex-start"><span class="lb">预览</span><div style="position:relative;width:220px;height:92px;border:1px solid var(--line-2);border-radius:8px;background:#fff;overflow:hidden"><svg viewBox="0 0 220 92" width="220" height="92" aria-hidden="true"><path d="M10 70 L50 62 L90 66 L120 40 L150 22 L180 26 L212 20" fill="none" stroke="#3b6fe0" stroke-width="2.4"/></svg><div class="wm" style="right:4px;bottom:3px;font-size:10px;padding:1px 4px"><span class="wm-logo" style="width:14px;height:14px;border-radius:4px">${I('logo')}</span>@annhub_demo</div></div></div>
+    </div>`
+  const wmCard = settingsRow('启用品牌水印', '署名用，只加在复制与下载的图片上；入库的图片不带水印。编辑时按 W 可以关掉本次的水印。', sw(true)) + wmSub
+
+  const bzSw = (bg, on, none) => `<i class="bz-sw ${on ? 'on' : ''} ${none ? 'none' : ''}" style="${bg ? `background:${bg}` : ''}">${none ? I('ban') : ''}</i>`
+  const bzSub = `<div class="set-sub">
+      <div class="fr"><span class="lb">背景</span><span class="bz-sws">${bzSw('', false, true)}${bzSw('#ffffff', false)}${bzSw('#1f2430', false)}${bzSw('linear-gradient(135deg,#7c5cff,#e56bb6)', true)}${bzSw('linear-gradient(135deg,#22c4d6,#3b6fe0)', false)}${bzSw('linear-gradient(135deg,#ffb86b,#ff6b8b)', false)}${bzSw('linear-gradient(135deg,#7ee8a2,#2ea6a0)', false)}${bzSw('linear-gradient(135deg,#d8dce6,#f3f4f8)', false)}</span></div>
+      <div class="fr"><span class="lb">内边距</span><span class="seg"><span>小</span><span class="on">中</span><span>大</span></span></div>
+      <div class="fr"><span class="lb">圆角</span><span class="seg"><span>0</span><span class="on">12</span><span>24</span></span></div>
+      <div class="fr"><span class="lb">阴影</span>${sw(true)}</div>
+      <div class="fr" style="align-items:flex-start"><span class="lb">预览</span><div style="position:relative;display:grid;place-items:center;width:220px;height:110px;border-radius:10px;background:linear-gradient(135deg,#7c5cff,#e56bb6);overflow:hidden"><div style="width:150px;border-radius:8px;overflow:hidden;background:#fff;box-shadow:0 14px 26px -10px rgb(0 0 0 / 0.5)"><svg viewBox="0 0 150 60" width="150" height="60" aria-hidden="true"><path d="M8 46 L38 42 L66 44 L88 28 L110 14 L132 18 L144 12" fill="none" stroke="#3b6fe0" stroke-width="2.2"/></svg></div></div></div>
+    </div>`
+  const bzCard = settingsRow('默认开启美化', '开启后，每次截图一进编辑就带上下面的样式；工具栏的美化面板里随时可以改本次的样式，或关掉。', sw(false)) + bzSub
+
+  const sc = `${settingsRow('阅读视图 · 高亮', '选中文字后以默认颜色创建高亮。', keys('H'))}${settingsRow('截图模式', '拖拽区域或单击元素。', `${keys('Ctrl', '⇧', 'S')}<span class="muted">/</span>${keys('⌘', '⇧', 'S')}`)}${settingsRow('区块模式', '用键盘选一个区块，剪藏或截图。', `${keys('Ctrl', '⇧', 'E')}<span class="muted">/</span>${keys('⌘', '⇧', 'E')}`)}${settingsRow('截图里复制图片', '把当前结果复制到剪贴板。', `${keys('Ctrl', 'C')}<span class="muted">/</span>${keys('⌘', 'C')}`)}${settingsRow('关闭菜单 · 取消截图 · 关闭抽屉', '', keys('Esc'))}${settingsRow('在浏览器里修改快捷键', '浏览器级快捷键冲突在这里处理。', btn('打开', { sm: true, iconR: 'external-link' }))}`
   const data =
     `<div class="set-r"><div class="l grow" style="min-width:0"><b>本地存储</b><small>其中截图 89 MB。接近浏览器配额时，会在<b>保存前</b>提示，而不是写入失败后才告诉你。</small><div class="progress" style="margin-top:8px"><i style="width:3%"></i></div></div><div class="none tnum b">126 MB / 约 4.2 GB 可用</div></div>` +
     settingsRow('导出内容', '包含全部条目的 Markdown（属性即 frontmatter）和处理后的图片；不包含界面偏好，也不能用来恢复数据库。', btn('导出内容', { icon: 'download', v: 'primary' })) +
     settingsRow('异常残留', '没有任何条目引用的图片，以及指向缺失图片的条目。正常路径下为 0。', `<span class="muted">0 项</span>${btn('清理', { sm: true, off: true })}`)
-  const metrics = `<div class="set-r" style="border-top:0">${banner('info', '指标<b>只在本机计算</b>，只显示聚合数字，<b>不显示原文、URL、标题或属性</b>。内测回访时共享屏幕给产品负责人看，没有导出或上传入口。', { cls: 'grow' })}</div>${metricRow('M-03', '采集用时（95 分位）', '剪藏 118 ms', '选区 118 ms · 区块 131 ms · 截图 —；护栏：剪藏 < 300 ms')}${metricRow('M-11', '激活', '24 小时内已再次打开', '安装后 24 小时内保存 1 条并再次打开')}${metricRow('M-19', '本周找回', '17 条', '被再次打开、搜索筛选后打开或导出的条目（去重）')}${metricRow('M-20', '属性使用率', '近 14 天已使用', '至少给一条条目加过标签或自定义属性')}${metricRow('M-21', '高亮率', '近 14 天已高亮', '剪藏过的活跃用户里，至少高亮过一条的占比')}`
+  const metrics = `<div class="set-r" style="border-top:0">${banner('info', '指标<b>只在本机计算</b>，只显示聚合数字，<b>不显示原文、URL、标题或属性</b>。内测回访时共享屏幕给产品负责人看，没有导出或上传入口。', { cls: 'grow' })}</div>${metricRow('M-03', '采集用时（95 分位）', '剪藏 118 ms', '选区 118 ms · 区块 131 ms · 截图 —；护栏：剪藏 < 300 ms')}${metricRow('M-11', '激活', '24 小时内已再次打开', '安装后 24 小时内保存 1 条并再次打开')}${metricRow('M-19', '本周找回', '17 条', '被再次打开、搜索筛选后打开或导出的条目（去重）')}${metricRow('M-20', '属性使用率', '近 14 天已使用', '至少给一条条目加过标签或自定义属性')}${metricRow('M-21', '高亮率', '近 14 天已高亮', '剪藏过的活跃用户里，至少高亮过一条的占比')}${metricRow('M-22', '截图外用率', '近 14 天已复制或下载', '截过图的活跃用户里，复制或下载过截图的占比')}${metricRow('M-23', '区块一次命中率', '86%', '没有调整层级、也没有撤销的区块剪藏占比')}${metricRow('M-24', '美化使用率', '近 14 天已使用', '复制或下载过截图的用户里，带美化输出过的占比')}`
 
   const page = board({
     title: '设置',
-    ref: 'extension §2.5 · metrics §10 · storage §7',
+    ref: 'extension §2.5 · screenshot §4 · metrics §10 · storage §7',
     tag: 'R2',
     w: 1280,
     body: appInTab(
@@ -256,24 +285,27 @@ function extSettingsGroup() {
         active: 'settings',
         pins: { nav: 1 },
         main: `${pageHead({ title: '设置', sub: '偏好只保存在本机' })}
-          <div class="pbody" style="overflow:hidden"><div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;max-width:1040px;align-items:start">
-            <div class="vs g16">${settingsCard('偏好', '每一项都用一句话说清后果。', prefs, { pin: 2 })}${settingsCard('快捷键', '只显示当前绑定。', sc, { pin: 3 })}</div>
-            <div class="vs g16">${settingsCard('数据', '', data, { pin: 4 })}${settingsCard('本地指标 · 阶段 V', '', metrics, { pin: 5 })}</div>
+          <div class="pbody" style="overflow:hidden"><div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;max-width:1080px;align-items:start">
+            <div class="vs g16">${settingsCard('偏好', '每一项都用一句话说清后果。', prefs, { pin: 2 })}${settingsCard('截图', '输出的格式、比例和默认匿名。', shotPrefs, { pin: 3 })}${settingsCard('品牌水印', '署名用的水印。', wmCard, { pin: 4 })}${settingsCard('美化', '复制与下载的图片的背景、留白、圆角和阴影。', bzCard, { pin: 5 })}</div>
+            <div class="vs g16">${settingsCard('快捷键', '只显示当前绑定。', sc, { pin: 6 })}${settingsCard('数据', '', data, { pin: 7 })}${settingsCard('本地指标 · 阶段 V', '', metrics, { pin: 8 })}</div>
           </div></div>`,
       }),
-      { active: 'settings', h: 1080 },
+      { active: 'settings', h: 2120 },
     ),
     notes: [
       '设置页和资料库<b>是同一套壳</b>（左导航 + 右内容），浏览器的“扩展选项”入口打开的就是这个页面（<code>#/settings</code>）。',
-      '<b>偏好</b>：默认高亮颜色（阅读视图里新建高亮的初始颜色）、截图默认匿名，以及区块剪藏入口的开关（提案，D-20）；没有“模式”之类的开关——采集一步完成，不需要偏好来解释它。',
+      '<b>偏好</b>：默认高亮颜色、区块剪藏入口的开关与已停用的网站；没有“模式”之类的开关——采集一步完成，不需要偏好来解释它。',
+      '<b>截图</b>：默认匿名、<b>下载格式</b>（PNG / JPEG / WebP，JPEG 与 WebP 可调质量）和<b>比例预设</b>（勾选哪些比例出现在选区条上）。格式只作用于下载，入库和复制始终是 PNG。',
+      '<b>品牌水印</b>：文字、图片（PNG，不超过 512 KB，只存在本机）、位置、大小、透明度，带预览。水印只加在复制与下载的图片上，入库的图片不带。',
+      '<b>美化</b>：默认是否开启（默认关）与面板的初始样式——背景 8 款、内边距、圆角、阴影，带预览；面板里的改动只影响本次截图。美化只加在复制与下载的图片上，入库的图片保持原样。',
       '<b>快捷键</b>只展示文档定义的几组，浏览器级冲突去浏览器的快捷键设置页处理。',
       '<b>数据</b>：存储用量以“已用 / 可用”呈现；导出前说清包含与不包含；异常残留只有在出现异常时才会有数字。',
-      '<b>本地指标</b>只在阶段 V 内测期间需要，只显示聚合数字，覆盖 M-03、M-11、M-19、M-20、M-21（metrics §5）。',
+      '<b>本地指标</b>只在阶段 V 内测期间需要，只显示聚合数字，覆盖 M-03、M-11、M-19 至 M-24（metrics §5）。',
     ],
   })
 
   return group(
-    { id: 'ext-settings', title: '设置', small: 'extension §2.5', desc: '设置页只放三类东西：偏好、本机有什么数据、阶段 V 的本地指标。' },
+    { id: 'ext-settings', title: '设置', small: 'extension §2.5', desc: '设置页只放三类东西：偏好（含截图的下载格式、水印与比例预设）、本机有什么数据、阶段 V 的本地指标。' },
     row(page),
   )
 }

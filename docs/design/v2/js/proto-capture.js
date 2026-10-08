@@ -1,6 +1,6 @@
 // 可交互原型 1：页面里的两种剪藏与截图。保存的条目写入共享的 STORE，资料库原型里能看到。
 // 规则是真的：剪藏一次点击，约 3 秒内可撤销、可编辑；选区菜单只有“剪藏”和“截图”，页面上不留任何标记。
-// 区块剪藏（提案，D-20）：指针停在推文、一节文章这样的整体内容上约 400ms，区块旁出现“剪藏”；↑ 选上一级。
+// 区块剪藏：指针停在帖子、代码块、一节这样的区块上约 400ms，旁边出现胶囊「剪藏 | 截图 | 上一级 | 更多」；位置避开页面自己的控件（帖子右上角的“更多”、代码块右上角的“复制”）。
 const PC = { toast: null, edit: null, pos: null, log: { clip: 0, block: 0, screenshot: 0 }, mine: [], seq: 0, blk: null }
 
 // 类型预设（entry.md §5.4）：自定义属性勾选了该类型且有默认值，就自动附加
@@ -60,7 +60,7 @@ function pcSide() {
               e => `<div style="padding:9px 11px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;display:flex;flex-direction:column;gap:3px"><div class="hs g6">${tchip(e.type, { sm: true })}<span class="t-xs muted">${e._via === 'block' ? '区块 · ' : ''}${e.when}</span></div><div class="t-sm b clamp-2">${esc(e.type === 'screenshot' ? e.title : mdPlain(e.content))}</div>${Object.entries(e.props).map(([k, v]) => `<span class="ppill">${I('text')}<span>${esc(k)}</span><b>${esc(v)}</b></span>`).join('')}</div>`,
             )
             .join('')
-        : `<div class="help">选中左侧文章里的一段文字，选区上方出现菜单；或者把指针停在“Three common strategies”那一节、页面底部的帖子上，等区块旁出现“剪藏”。保存的内容会出现在下面的“资料库”原型里，在那里读和高亮。</div>`
+        : `<div class="help">选中左侧文章里的一段文字，选区上方出现菜单；或者把指针停在“Three common strategies”那一节、页面底部的帖子上，等旁边出现胶囊。代码块和帖子的右上角有页面自己的按钮，胶囊会让开。保存的内容会出现在下面的“资料库”原型里，在那里读和高亮。</div>`
     }
     <div class="help" style="margin-top:8px">页面上不会留下任何标记。${keys('Esc')} 关闭气泡</div></div>`
 }
@@ -112,7 +112,8 @@ function pcRender(root) {
 const PC_BLOCKS = {
   strategies: { label: '一节 · 带标题', md: '### Three common strategies\n\n1. Demand signaling: the consumer grants credits and the producer sends no more than it was granted.\n2. Bounded buffers: queues with a hard limit that block or reject at the edge.\n3. Load shedding: drop the least valuable work first, on purpose.' },
   article: { label: 'article', md: '## Backpressure in Streams\n\nWhen a producer emits events faster than a consumer can process them, something has to give. Queues grow, memory climbs, and eventually the slowest component takes the whole pipeline down with it.\n\n**Backpressure** is how a system pushes that pain back where it belongs. Instead of letting buffers absorb the mismatch indefinitely, the consumer signals demand upstream.\n\n### Three common strategies\n\n1. Demand signaling: the consumer grants credits and the producer sends no more than it was granted.\n2. Bounded buffers: queues with a hard limit that block or reject at the edge.\n3. Load shedding: drop the least valuable work first, on purpose.' },
-  post: { label: '帖子', md: 'Retries without a budget are just a slower way to take your dependency down. A short thread on what we changed ↓\n\n[example.com/retry-budgets](https://example.com/retry-budgets)' },
+  code: { label: '代码块 · pre', md: '```ts\n// 重试预算：用掉 20% 的额度就快速失败\nconst policy = retry({\n  budget: 0.2,\n  backoff: \'exponential\',\n  jitter: true,\n})\n```' },
+  post: { label: '帖子 · 平台规则', md: '**Display Name** @handle · 2026-10-08\n\nRetries without a budget are just a slower way to take your dependency down. A short thread on what we changed ↓\n\n[example.com/retry-budgets](https://example.com/retry-budgets)' },
 }
 
 function pcInit(root) {
@@ -174,7 +175,7 @@ function pcInit(root) {
   const placeBelow = (rect, w) => {
     const vr = view.getBoundingClientRect()
     const cx = (rect.left + rect.width / 2 - vr.left) / scale()
-    return { left: `${Math.max(8, Math.min(cx - w / 2, view.clientWidth - w - 8))}px`, top: `${Math.min((rect.bottom - vr.top) / scale() + 10, view.clientHeight - 250)}px` }
+    return { left: `${Math.max(8, Math.min(cx - w / 2, view.clientWidth - w - 8))}px`, top: `${Math.min((rect.bottom - vr.top) / scale() + view.scrollTop + 10, view.scrollTop + view.clientHeight - 250)}px` }
   }
 
   // ── 选区菜单：只有剪藏与截图 ──────────────────────────────────────────────
@@ -193,7 +194,7 @@ function pcInit(root) {
       menuHost.innerHTML = hoverMenu({ style: '' })
       const el = menuHost.firstElementChild
       el.style.left = `${Math.max(8, Math.min((r.left + r.width / 2 - vr.left) / scale() - el.offsetWidth / 2, view.clientWidth - el.offsetWidth - 8))}px`
-      el.style.top = `${Math.max(8, (r.top - vr.top) / scale() - el.offsetHeight - 10)}px`
+      el.style.top = `${Math.max(view.scrollTop + 8, (r.top - vr.top) / scale() + view.scrollTop - el.offsetHeight - 10)}px`
       el.style.setProperty('--caret', '50%')
       el.querySelectorAll('.hm-b').forEach((b, i) => (b.dataset.menu = ['clip', 'screenshot'][i]))
     }, 0)
@@ -229,12 +230,12 @@ function pcInit(root) {
     }
   })
 
-  // ── 区块剪藏（提案）：悬停约 400ms 出现入口，⌃ 选上一级 ──────────────────────
+  // ── 区块剪藏：悬停约 400ms 出现胶囊，⌃ 选上一级 ──────────────────────────────
   // 状态：PC.blk = { el, key, pinned }。选了上一级之后就“钉住”，指针还在这个块里时不再回到最内层；离开这个块才恢复
   const blkRect = el => {
     const vr = view.getBoundingClientRect()
     const r = el.getBoundingClientRect()
-    return { left: (r.left - vr.left) / scale(), top: (r.top - vr.top) / scale(), width: r.width / scale(), height: r.height / scale() }
+    return { left: (r.left - vr.left) / scale() + view.scrollLeft, top: (r.top - vr.top) / scale() + view.scrollTop, width: r.width / scale(), height: r.height / scale() }
   }
   const drawBlk = (el, pinned = false) => {
     const key = el.dataset.blk
@@ -243,8 +244,23 @@ function pcInit(root) {
     const r = blkRect(el)
     const up = el.parentElement && el.parentElement.closest('[data-blk]')
     blkHost.innerHTML = `<i class="blk ${key === 'article' ? 'is-faint' : ''}" style="inset:auto;left:${r.left - 8}px;top:${r.top - 6}px;width:${r.width + 16}px;height:${r.height + 12}px"><em>${PC_BLOCKS[key].label}</em></i>
-      <div class="blk-pill pc-pill" style="left:${Math.max(8, r.left + r.width - 150)}px;top:${Math.max(4, r.top - 20)}px;right:auto" role="group" aria-label="剪藏">
-        <span class="bp-seg pa-click" data-blk-act="clip" tabindex="0" role="button">${I('bookmark')}<span>剪藏</span></span>${up ? `<i class="sub pa-click" data-blk-act="up" tabindex="0" role="button" aria-label="选上一级">${I('chevron-up', 'i-sm')}</i>` : ''}<i class="sub pa-click" data-blk-act="off" tabindex="0" role="button" aria-label="更多">${I('ellipsis', 'i-sm')}</i></div>`
+      <div class="blk-pill pc-pill" style="right:auto;left:0;top:0" role="group" aria-label="剪藏">
+        <span class="bp-seg pa-click" data-blk-act="clip" tabindex="0" role="button">${I('bookmark')}<span>剪藏</span></span><span class="bp-seg is-alt pa-click" data-blk-act="shot" tabindex="0" role="button">${I('scan')}<span>截图</span></span>${up ? `<i class="sub pa-click" data-blk-act="up" tabindex="0" role="button" aria-label="上一级">${I('chevron-up', 'i-sm')}</i>` : ''}<i class="sub pa-click" data-blk-act="off" tabindex="0" role="button" aria-label="更多">${I('ellipsis', 'i-sm')}</i></div>`
+    // 位置：右上角、左上角、右下角、左下角，选第一个不盖住页面自己的控件（data-ctl）的；块比窗口高时贴着可见部分的上沿
+    const pill = blkHost.querySelector('.pc-pill')
+    const w = pill.offsetWidth
+    const h = pill.offsetHeight
+    const ctls = [...view.querySelectorAll('[data-ctl]')].map(blkRect)
+    const spots = [
+      { left: r.left + r.width - w - 6, top: r.top - 18 },
+      { left: r.left + 6, top: r.top - 18 },
+      { left: r.left + r.width - w - 6, top: r.top + r.height - h + 18 },
+      { left: r.left + 6, top: r.top + r.height - h + 18 },
+    ]
+    const clash = c => ctls.some(k => c.left < k.left + k.width && c.left + w > k.left && c.top < k.top + k.height && c.top + h > k.top)
+    const at = spots.find(c => !clash(c)) || { left: r.left + r.width / 2 - w / 2, top: r.top + r.height / 2 }
+    pill.style.left = `${Math.max(8, Math.min(at.left, view.clientWidth - w - 8))}px`
+    pill.style.top = `${Math.max(view.scrollTop + 8, Math.min(at.top, view.scrollTop + view.clientHeight - h - 8))}px`
   }
   const pick = target => (target.closest ? target.closest('[data-blk]') : null)
   const scheduleHide = () => {
@@ -291,6 +307,12 @@ function pcInit(root) {
     if (act === 'up') {
       const up = PC.blk.el.parentElement.closest('[data-blk]')
       if (up) drawBlk(up, true)
+    } else if (act === 'shot') {
+      const key = PC.blk.key
+      hideBlk()
+      pcNewEntry('screenshot', PC_BLOCKS[key].label)
+      PC.log.screenshot++
+      setText('scan', '已以这个区块为目标保存为截图条目 · 选区内编辑见上方“截图”画板', 2600)
     } else if (act === 'clip') {
       const el = PC.blk.el
       const r = el.getBoundingClientRect()
@@ -303,7 +325,7 @@ function pcInit(root) {
       setTimeout(hideBlk, 650)
     } else {
       hideBlk()
-      setText('ban', '原型里不会真的停用；真实实现里会在这个网站停用区块入口（D-20）', 2600)
+      setText('ban', '原型里不会真的停用；真实实现里会在这个网站停用区块胶囊', 2600)
     }
   })
 

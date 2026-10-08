@@ -2,7 +2,7 @@
 // 能点：切换视图、折叠导航、搜索与筛选、打开抽屉与阅读视图、在原文里选中文字创建高亮（选区会被换算成 content 里的偏移）、
 // 点已有高亮改色 / 写备注 / 删除（可撤销）、添加 / 新建 / 清除属性、属性页的预设与删除、导出。
 // 规则是真的：与已有高亮重叠的新选区合并；有高亮的剪藏原文只读；删除剪藏时提示高亮数；页面里剪藏的内容也会出现在这里。
-const PA = { view: 'all', read: null, tab: 'hl', rail: false, q: '', types: [], tag: '', project: '', color: '', sel: null, opened: null, on: null, adding: null, creating: null, dlg: null, progress: 0, confirm: null, bar: null, pop: null, undo: null, toast: null, focus: null, scrollTo: null, lastKeys: {}, hlColor: 'yellow', anon: true, blockOn: true }
+const PA = { view: 'all', read: null, tab: 'hl', rail: false, q: '', types: [], tag: '', project: '', color: '', sel: null, opened: null, on: null, adding: null, creating: null, dlg: null, progress: 0, confirm: null, bar: null, pop: null, undo: null, toast: null, focus: null, scrollTo: null, lastKeys: {}, hlColor: 'yellow', anon: true, blockOn: true, fmt: 'png', ratios: ['1:1', '4:5', '3:4', '16:9'], wm: false, bz: false }
 
 const paNorm = s => String(s).toLowerCase().normalize('NFKC').replace(/\s+/g, ' ').trim()
 const paEmpty = v => v == null || v === '' || (Array.isArray(v) && !v.length)
@@ -227,13 +227,22 @@ const paPropsPage = () => {
 }
 
 // ── 设置页 ──────────────────────────────────────────────────────────────
+const PA_RATIOS = [['1:1', 1, 1], ['4:5', 4, 5], ['3:4', 3, 4], ['4:3', 4, 3], ['16:9', 16, 9], ['9:16', 9, 16]]
 const paSettingsPage = () => {
   const prefs =
     settingsRow('默认高亮颜色', '阅读视图里新建高亮的初始颜色；每条高亮之后都可以改。', `<span class="hs g8">${HL_COLORS.map(c => `<span class="pa-click" data-act="hl-default" data-v="${c}" title="${HL_NAMES[c]}">${hlDot(c, PA.hlColor === c)}</span>`).join('')}</span>`) +
+    settingsRow('区块剪藏入口', '指针停在区块上时，旁边出现胶囊。关掉后，上面“页面里”的原型里不再出现区块胶囊；键盘上的区块模式不受影响。', `<span class="pa-click" data-act="block-on">${sw(PA.blockOn)}</span>`)
+  const fmtSeg = `<span class="seg">${[['png', 'PNG'], ['jpeg', 'JPEG'], ['webp', 'WebP']].map(([f, l]) => `<span class="pa-click ${PA.fmt === f ? 'on' : ''}" data-act="fmt" data-v="${f}" tabindex="0" role="button">${l}</span>`).join('')}</span>`
+  const ratioChecks = `<span class="hs g6 wrap" style="margin-top:10px">${PA_RATIOS.map(([l, w, h]) => `<span class="pa-click rcheck ${PA.ratios.includes(l) ? 'on' : ''}" data-act="ratio" data-v="${l}" tabindex="0" role="button" aria-pressed="${PA.ratios.includes(l)}">${PA.ratios.includes(l) ? I('check') : ''}<i class="rg" style="width:${Math.round((w * 13) / Math.max(w, h))}px;height:${Math.round((h * 13) / Math.max(w, h))}px"></i>${l}</span>`).join('')}</span>`
+  const shot =
     settingsRow('截图默认匿名', '身份元素自动打上马赛克候选；每次截图时可以在预览里增删。', `<span class="pa-click" data-act="anon">${sw(PA.anon)}</span>`) +
-    settingsRow(`区块剪藏入口 ${chip('提案 · D-20', { v: 'warn' })}`, '指针停在整体内容上时，区块旁出现“剪藏”。关掉后，上面“页面里”的原型里不再出现区块入口。', `<span class="pa-click" data-act="block-on">${sw(PA.blockOn)}</span>`)
+    settingsRow('下载格式', '只作用于下载；入库的图片和复制到剪贴板的图片始终是 PNG。', fmtSeg) +
+    settingsRow('JPEG / WebP 质量', '选 JPEG 或 WebP 时可调，默认 0.9；PNG 无损，没有质量。', `<span class="slider ${PA.fmt === 'png' ? 'is-off' : ''}"><i style="width:80%"></i><b style="left:80%"></b></span><span class="tnum muted">0.9</span>`) +
+    `<div class="set-r" style="display:block"><div class="l"><b>比例预设</b><small>勾选哪些比例出现在截图的选区条上；每次截图从“自由”开始。</small></div>${ratioChecks}</div>` +
+    settingsRow('品牌水印', '署名用，只加在复制与下载的图片上；入库的图片不带水印。文字、图片、位置、大小与透明度见上方“设置”画板。', `<span class="pa-click" data-act="wm">${sw(PA.wm)}</span>`) +
+    settingsRow('默认开启美化', '开启后，每次截图一进编辑就带上默认的背景、留白、圆角与阴影；工具栏的美化面板里随时可以改。样式与预览见上方“设置”画板。', `<span class="pa-click" data-act="bz">${sw(PA.bz)}</span>`)
   const data = `<div class="set-r"><div class="l grow" style="min-width:0"><b>本地存储</b><small>其中截图 89 MB。接近浏览器配额时，会在保存前提示。</small><div class="progress" style="margin-top:8px"><i style="width:3%"></i></div></div><div class="none tnum b">126 MB / 约 4.2 GB 可用</div></div>${settingsRow('导出内容', '包含全部条目的 Markdown（属性即 frontmatter，高亮写成 ==…==）和处理后的图片。', btn('导出内容', { icon: 'download', v: 'primary', attrs: 'data-act="export"' }))}`
-  return `<div class="phead"><div class="grow"><h1>设置</h1><div class="sub">偏好只保存在本机</div></div></div><div class="pbody" style="overflow:auto"><div class="vs g16" style="max-width:720px">${settingsCard('偏好', '每一项都用一句话说清后果。', prefs)}${settingsCard('数据', '', data)}</div></div>`
+  return `<div class="phead"><div class="grow"><h1>设置</h1><div class="sub">偏好只保存在本机</div></div></div><div class="pbody" style="overflow:auto"><div class="vs g16" style="max-width:720px">${settingsCard('偏好', '每一项都用一句话说清后果。', prefs)}${settingsCard('截图', '输出的格式、比例、水印和默认匿名。', shot)}${settingsCard('数据', '', data)}</div></div>`
 }
 
 const paDialog = () => {
@@ -584,7 +593,7 @@ function paInit(root) {
         PA.pop = PA.bar = PA.on = null
         paOverlay(root)
       } else if (act === 'tab') PA.tab = v
-      else if (act === 'src') showToast('真实实现里会在新标签页打开来源页；页面上没有任何标记（D-19）', 'arrow-up-right', 2800)
+      else if (act === 'src') showToast('真实实现里会在新标签页打开来源页；页面上没有任何标记', 'arrow-up-right', 2800)
       else if (act === 'del' && e) PA.confirm = { id: e.id }
       else if (act === 'confirm-cancel') PA.confirm = null
       else if (act === 'confirm-del' && PA.confirm) {
@@ -634,6 +643,10 @@ function paInit(root) {
       } else if (act === 'hl-default') PA.hlColor = v
       else if (act === 'anon') PA.anon = !PA.anon
       else if (act === 'block-on') PA.blockOn = !PA.blockOn
+      else if (act === 'fmt') PA.fmt = v
+      else if (act === 'ratio') PA.ratios = PA.ratios.includes(v) ? PA.ratios.filter(x => x !== v) : [...PA.ratios, v]
+      else if (act === 'wm') PA.wm = !PA.wm
+      else if (act === 'bz') PA.bz = !PA.bz
       else if (act === 'export') PA.dlg = 'ready'
       else if (act === 'dlg-bg') {
         if (ev.target === a) PA.dlg = PA.confirm = null
@@ -789,10 +802,10 @@ function extProtoGroup() {
     live: true,
     w: 1040,
     id: 'proto-capture',
-    body: browser(`${article({ sel: 'none', blocks: true })}<div class="pc-menu"></div><div class="pc-blk"></div><div class="pc-side-host"></div><div class="pc-layer"></div>`, { h: 940 }),
+    body: browser(`${article({ sel: 'none', blocks: true })}<div class="pc-menu"></div><div class="pc-blk"></div><div class="pc-side-host"></div><div class="pc-layer"></div>`, { h: 1120 }),
     notes: [
       '<b>试试看（选区）</b>：在文章里选中一段文字 → 选区菜单出现，只有“剪藏”和“截图” → 点“剪藏”：一次点击就保存，约 3 秒内可以<b>撤销</b>或<b>编辑</b>（改标题、加标签、写备注）。页面上不会留下任何标记。',
-      '<b>试试看（区块，提案 D-20）</b>：不选中任何文字，把指针停在“Three common strategies”那一节或页面底部的帖子上约 0.4 秒 → 区块旁出现描边和“剪藏”；点胶囊上的 ⌃ 选上一级（整篇文章）。在下面资料库的“设置”里关掉区块入口，这里就不再出现。',
+      '<b>试试看（区块）</b>：不选中任何文字，把指针停在“Three common strategies”那一节、其中的代码块或页面底部的帖子上约 0.4 秒 → 旁边出现描边和胶囊「剪藏 | 截图 | 上一级 | 更多」；代码块和帖子的右上角各有页面自己的按钮，胶囊会让开；点 ⌃ 选上一级（代码块 → 一节 → 整篇文章）。在下面资料库的“设置”里关掉区块入口，这里就不再出现。',
       '<b>新剪藏自动带着 <code>project: 支付重试</code></b>：那是属性页里给“剪藏”勾选的类型预设；保存的条目（Markdown）会出现在下面的资料库原型里，打开后可以读和高亮。',
     ],
   })

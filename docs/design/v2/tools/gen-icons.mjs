@@ -111,6 +111,13 @@ const ICONS = [
   'magnet',
   'ratio',
   'move',
+  // 截图输出：复制、水印、上传、美化（screenshot.md §4）
+  'clipboard-copy',
+  'clipboard-check',
+  'stamp',
+  'upload',
+  'file-image',
+  'sparkles',
 ]
 
 // lucide-react 1.x 的模块是 .mjs 并导出 __iconData.node；0.x 是 .js 并导出 __iconNode。两种都认。
