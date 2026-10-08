@@ -45,7 +45,7 @@ describe('the screenshot session and input made up by the page', () => {
 
     expect(down.defaultPrevented).toBe(false) // left for the page: the session did not take it
     expect(session()!.querySelector('.ann-shot-rect')).toBeNull()
-    expect(sendMessage).not.toHaveBeenCalled()
+    expect(captures()).toHaveLength(0)
   })
 
   it('does not finish a drag the user began with a pointerup a script dispatched', async () => {
@@ -59,13 +59,12 @@ describe('the screenshot session and input made up by the page', () => {
     document.body.dispatchEvent(pointer('pointermove', 600, 400))
     document.body.dispatchEvent(pointer('pointerup', 600, 400))
     await new Promise(resolve => setTimeout(resolve, 50))
-    expect(sendMessage).not.toHaveBeenCalled()
+    expect(captures()).toHaveLength(0)
     expect((session()!.querySelector('.ann-shot-rect') as HTMLElement).style.width).toBe('290px') // the script's move did not stretch it
 
     aPerson = true
     document.body.dispatchEvent(pointer('pointerup', 300, 200))
-    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1))
-    expect(sendMessage.mock.calls[0]![0]).toMatchObject({ type: 'CAPTURE_VISIBLE_TAB' })
+    await vi.waitFor(() => expect(captures()).toHaveLength(1))
   })
 
   it('takes the capture from a real drag', async () => {
@@ -74,24 +73,33 @@ describe('the screenshot session and input made up by the page', () => {
     document.body.dispatchEvent(pointer('pointerdown', 10, 10))
     document.body.dispatchEvent(pointer('pointermove', 300, 200))
     document.body.dispatchEvent(pointer('pointerup', 300, 200))
-    await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1))
-    expect(sendMessage.mock.calls[0]![0]).toMatchObject({ type: 'CAPTURE_VISIBLE_TAB' })
+    await vi.waitFor(() => expect(captures()).toHaveLength(1))
   })
 
   it('is not cancelled, or changed, by keys a script dispatched', () => {
     enterScreenshotMode()
     aPerson = false
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }))
-    expect(session()!.textContent).toContain('匿名：开')
+    expect(hintText()).toMatch(/匿名/) // untouched, default on
+    expect(hintText()).toMatch(/开/)
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     expect(isScreenshotSessionActive()).toBe(true)
     expect(session()).not.toBeNull()
 
     aPerson = true
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }))
-    expect(session()!.textContent).toContain('匿名：关')
+    expect(hintText()).toMatch(/关/)
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     expect(isScreenshotSessionActive()).toBe(false)
     expect(session()).toBeNull()
   })
 })
+
+/** Only the privileged calls: GET_SETTINGS noise from session bootstrap is fine. */
+function captures(): unknown[] {
+  return sendMessage.mock.calls.filter(call => (call[0] as { type?: string }).type === 'CAPTURE_VISIBLE_TAB')
+}
+
+function hintText(): string {
+  return (session()!.querySelector('.ann-shot-hint') as HTMLElement)?.textContent ?? ''
+}

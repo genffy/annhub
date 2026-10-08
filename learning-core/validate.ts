@@ -8,15 +8,7 @@
 import { normalizedContains, normalizeHost } from './normalize'
 import { PROPERTIES_PER_ENTRY_MAX, TAGS_MAX, TAG_LENGTH_MAX, propertyStorageKey, validatePropertyName, validatePropertyValue } from './properties'
 import { isHttpUrl } from './url'
-import {
-  ENTRY_TYPES,
-  EntryValidationError,
-  HIGHLIGHT_COLORS,
-  type EntryRecord,
-  type EntryType,
-  type Highlight,
-  type PropertyDefinition,
-} from './types'
+import { ENTRY_TYPES, EntryValidationError, HIGHLIGHT_COLORS, type EntryRecord, type EntryType, type Highlight, type PropertyDefinition } from './types'
 
 // ── Limits (entry.md §4, §6) ────────────────────────────────────────────
 

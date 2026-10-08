@@ -1,11 +1,11 @@
-import type { UIToBackgroundMessage, ResponseMessage, BaseMessage } from '../../types/messages'
+import type { ExtensionMessage, ResponseMessage, BaseMessage } from '../../types/messages'
 import { ServiceWorkerManager } from './service-worker-manager'
 import { Logger } from '../logger'
 
 export default class MessageUtils {
   private static serviceWorkerManager = ServiceWorkerManager.getInstance()
 
-  static async sendMessage<T = any>(message: UIToBackgroundMessage, retryCount: number = 3): Promise<ResponseMessage<T>> {
+  static async sendMessage<T = any>(message: ExtensionMessage, retryCount: number = 3): Promise<ResponseMessage<T>> {
     const messageWithMeta = {
       ...message,
       requestId: this.generateRequestId(),
@@ -43,7 +43,7 @@ export default class MessageUtils {
   }
 
   static async sendMessageWithServiceWorkerSupport<T = any>(
-    message: UIToBackgroundMessage,
+    message: ExtensionMessage,
     options: {
       maxRetries?: number
       retryDelay?: number

@@ -1,157 +1,92 @@
 /**
- * Background service for the screenshot capture chain (docs/v2/screenshot.md,
- * storage.md §3): viewport capture via chrome.tabs.captureVisibleTab, PNG
- * download into AnnHub/, and library persistence.
- *
- * Persistence now writes processed image BYTES as a Blob plus screenshot
- * metadata into the shared fragment-store (`assets` + `screenshots` object
- * stores, one transaction) — dataUrl is only a transport for downloads.
+ * Background service for the screenshot chain (docs/v2/screenshot.md §2, §4):
+ * viewport capture of the asking tab only, cross-origin image proxying under
+ * the fetch policy, PNG download, and library persistence as a screenshot
+ * entry whose asset commits in the same transaction.
  */
 import type { IService } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
 import { RESOURCE_TIMEOUT_MS, assertFetchableUrl, readImage } from './fetch-policy'
+import { initializedEntryStore } from '../../store-instance'
+import { presetProperties } from '../../../learning-core/properties'
+import { cleanSourceUrl } from '../../../learning-core/url'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
-import { uiText } from '../../../utils/ui-text'
-import { quotaAvailable } from '../../../utils/storage-quota'
-import { FragmentStore } from '../../../learning-core/fragment-store'
-import { sha256Hex, MAX_IMAGE_BYTES } from '../../../learning-core/assets'
-import type { ImageAsset, ScreenshotRecord } from '../../../learning-core/types'
+import { recordCaptureSaved, recordCaptureFailed, recordEvent } from '../metrics/record'
 
 export class ScreenshotService implements IService {
   readonly name = 'screenshot' as const
   private static instance: ScreenshotService | null = null
   private initialized = false
-  private store: FragmentStore
-
-  private constructor() {
-    this.store = new FragmentStore('fragment-store')
-  }
 
   static getInstance(): ScreenshotService {
-    if (!ScreenshotService.instance) {
-      ScreenshotService.instance = new ScreenshotService()
-    }
+    ScreenshotService.instance ??= new ScreenshotService()
     return ScreenshotService.instance
   }
 
   async initialize(): Promise<void> {
     if (this.initialized) return
-    await this.store.initialize()
+    await initializedEntryStore()
     this.initialized = true
-    Logger.info('[ScreenshotService] Initialized (shared fragment-store v4 assets)')
+    Logger.info('[ScreenshotService] Initialized')
   }
 
   getMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
     return {
-      CAPTURE_VISIBLE_TAB: async (message, sender) => {
-        const requestId = (message as { requestId?: string }).requestId ?? 'unknown'
+      CAPTURE_VISIBLE_TAB: async (_message, sender): Promise<ResponseMessage> => {
         try {
           const dataUrl = await this.captureSenderTab(sender)
-          Logger.info(`[ScreenshotService] Captured visible tab (request ${requestId})`)
-          return MessageUtils.createResponse(true, { dataUrl, requestId })
-        } catch (error) {
-          const detail = error instanceof Error ? error.message : String(error)
-          Logger.error(`[ScreenshotService] captureVisibleTab failed (request ${requestId}):`, detail)
-          return MessageUtils.createResponse(false, undefined, detail)
-        }
-      },
-
-      SAVE_SCREENSHOT: async message => {
-        try {
-          const {
-            bytes,
-            dataUrl,
-            filename,
-            mimeType = 'image/png',
-            persist,
-            download = false,
-            sourceUrl,
-            sourceTitle,
-            capturedAt,
-          } = (
-            message as {
-              data: {
-                bytes?: Blob
-                dataUrl?: string
-                filename: string
-                mimeType?: ImageAsset['mimeType']
-                persist?: boolean
-                download?: boolean
-                sourceUrl?: string
-                sourceTitle?: string
-                capturedAt?: number
-              }
-            }
-          ).data
-          if (!download && !persist) throw new Error(uiText('shot.error.noAction'))
-          if (persist && !bytes && !dataUrl) throw new Error(uiText('shot.error.noData'))
-
-          let library: { screenshot: ScreenshotRecord; asset: ImageAsset } | undefined
-          if (persist) {
-            const blob = bytes ?? dataUrlToBlob(dataUrl!)
-            if (blob.size > MAX_IMAGE_BYTES) {
-              throw new Error(uiText('shot.error.tooLarge', { limit: Math.round(MAX_IMAGE_BYTES / 1024 / 1024), size: Math.round(blob.size / 1024 / 1024) }))
-            }
-            // Quota guard (roadmap R1.4): report failure and keep the session
-            // retryable — never show a successful save that wasn't persisted.
-            if (!(await quotaAvailable(blob.size))) {
-              throw new Error(uiText('shot.error.quota'))
-            }
-            const digest = await sha256Hex(new Uint8Array(await blobBytes(blob)))
-            const dimensions = await imageDimensions(blob)
-            library = await this.store.saveScreenshotWithAsset({
-              bytes: blob,
-              mimeType: mimeType,
-              sha256: digest,
-              width: dimensions.width,
-              height: dimensions.height,
-              sourceUrl: sourceUrl ?? '',
-              sourceTitle,
-              capturedAt,
-            })
-          }
-          const downloadId = download ? await this.downloadDataUrl(dataUrl ?? (bytes ? await blobToDataUrl(bytes) : ''), filename) : undefined
-          Logger.info(`[ScreenshotService] Saved screenshot ${filename} (download ${downloadId}${library ? `, library ${library.screenshot.id}` : ''})`)
-          return MessageUtils.createResponse(true, { downloadId, filename, screenshot: library?.screenshot, asset: library?.asset })
-        } catch (error) {
-          const detail = error instanceof Error ? error.message : String(error)
-          Logger.error('[ScreenshotService] Failed to save screenshot:', detail)
-          return MessageUtils.createResponse(false, undefined, detail)
-        }
-      },
-
-      FETCH_RESOURCE: async (message, sender) => {
-        // Only a page's own content script asks for this, and only to inline an image into an element capture.
-        if (!isTopFrameTabSender(sender)) return MessageUtils.createResponse(false, undefined, 'Forbidden: a tab is required')
-        try {
-          const { url } = (message as { data: { url: string } }).data
-          const dataUrl = await this.fetchAsDataUrl(url)
           return MessageUtils.createResponse(true, { dataUrl })
         } catch (error) {
-          const detail = error instanceof Error ? error.message : String(error)
-          return MessageUtils.createResponse(false, undefined, detail)
+          return this.failure('captureVisibleTab', error)
         }
       },
 
-      GET_SCREENSHOTS: async (_message, sender) => {
-        if (!isExtensionPageSender(sender)) return forbiddenResponse()
+      FETCH_IMAGE: async (message, sender): Promise<ResponseMessage> => {
+        // Only a page's own content script asks for this, and only to inline
+        // an image into an element capture (screenshot.md §2).
+        if (!isTopFrameTabSender(sender)) return forbiddenResponse()
         try {
-          return MessageUtils.createResponse(true, await this.store.listScreenshots())
+          const dataUrl = await this.fetchAsDataUrl(message.url)
+          return MessageUtils.createResponse(true, { dataUrl })
         } catch (error) {
-          return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : String(error))
+          return this.failure('fetchImage', error)
         }
       },
 
-      DELETE_SCREENSHOT: async (message, sender) => {
-        if (!isExtensionPageSender(sender)) return forbiddenResponse()
+      DOWNLOAD_IMAGE: async (message, sender): Promise<ResponseMessage> => {
+        if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
         try {
-          const { id } = (message as { data: { id: string } }).data
-          await this.store.deleteScreenshot(id)
-          return MessageUtils.createResponse(true, { id })
+          const iso = new Date().toISOString().replace(/[:.]/g, '-')
+          const downloadId = await this.downloadDataUrl(message.dataUrl, `AnnHub/screenshot-${iso}.png`)
+          await recordEvent('screenshot.downloaded', { format: 'png', watermark: false, beautify: false })
+          return MessageUtils.createResponse(true, { downloadId })
         } catch (error) {
-          return MessageUtils.createResponse(false, undefined, error instanceof Error ? error.message : String(error))
+          return this.failure('downloadImage', error)
+        }
+      },
+
+      SAVE_SCREENSHOT: async (message, sender): Promise<ResponseMessage> => {
+        if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
+        try {
+          const store = await initializedEntryStore()
+          const { dataUrl, width, height, sourceUrl, title, via, frame, durationMs } = message.data
+          const blob = dataUrlToBlob(dataUrl)
+          const registry = await store.listPropertyDefinitions()
+          const started = performance.now()
+          const entry = await store.saveEntry({
+            type: 'screenshot',
+            content: '',
+            sourceUrl: cleanSourceUrl(sourceUrl),
+            properties: presetProperties('screenshot', registry, { title }),
+            asset: { bytes: blob, width, height },
+          })
+          await recordCaptureSaved({ type: 'screenshot', via, frame, durationMs: durationMs ?? performance.now() - started })
+          return MessageUtils.createResponse(true, { entry })
+        } catch (error) {
+          void recordCaptureFailed(error, 'screenshot')
+          return this.failure('saveScreenshot', error)
         }
       },
     }
@@ -161,24 +96,19 @@ export class ScreenshotService implements IService {
     return this.initialized
   }
 
-  async cleanup(): Promise<void> {
-    this.initialized = false
-    Logger.info('[ScreenshotService] Cleaned up')
-  }
-
-  getStore(): FragmentStore {
-    return this.store
+  private failure(where: string, error: unknown): ResponseMessage {
+    const detail = error instanceof Error ? error.message : String(error)
+    Logger.error(`[ScreenshotService] ${where} failed:`, detail)
+    return MessageUtils.createResponse(false, undefined, detail)
   }
 
   /**
-   * Photographs the tab that asked, and only while it is the one on screen. `captureVisibleTab`
-   * takes the active tab of a window whoever asks, so the current window's tab was whatever the user
-   * happened to be looking at: a page in a background tab or another window could have had a picture
-   * of it. The window is the sender's own, and the sender must be its active tab both before and after
-   * the capture (a tab switch in between would otherwise hand back another page).
+   * Photographs the tab that asked, and only while it is the one on screen
+   * (screenshot.md §2): checked before and after the capture, so a tab
+   * switched away mid-shot never hands back another page.
    */
   private async captureSenderTab(sender: chrome.runtime.MessageSender): Promise<string> {
-    const notVisible = () => new Error(uiText('shot.error.notVisible'))
+    const notVisible = () => new Error('only the visible tab can be captured')
     if (!isTopFrameTabSender(sender)) throw notVisible()
     const tabId = sender.tab!.id!
     const before = await chrome.tabs.get(tabId)
@@ -189,11 +119,7 @@ export class ScreenshotService implements IService {
     return dataUrl
   }
 
-  /**
-   * Cross-origin resource fetch for element capture image inlining. The extension's <all_urls> host
-   * permission lets the background bypass page CORS, which the page-context fetch html-to-image does
-   * cannot; `fetch-policy.ts` is what keeps that from being a proxy to the user's own network.
-   */
+  /** Cross-origin image fetch for element capture; fetch-policy keeps it from becoming a proxy. */
   private async fetchAsDataUrl(raw: string): Promise<string> {
     const url = assertFetchableUrl(raw)
     const response = await fetch(url, { credentials: 'omit', signal: AbortSignal.timeout(RESOURCE_TIMEOUT_MS) })
@@ -217,8 +143,7 @@ export class ScreenshotService implements IService {
   }
 }
 
-// PNG keeps text crisp; the viewport-only limitation is documented in docs/v2/screenshot.md:
-// region capture uses viewport pixels.
+// PNG keeps text crisp (screenshot.md §2); region capture uses viewport pixels.
 function captureWindow(windowId: number): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     chrome.tabs.captureVisibleTab(windowId, { format: 'png' }, dataUrl => {
@@ -229,18 +154,6 @@ function captureWindow(windowId: number): Promise<string> {
       }
       resolve(dataUrl)
     })
-  })
-}
-
-// ── blob helpers (SW-safe; FileReader fallback for jsdom) ───────────────
-
-async function blobBytes(blob: Blob): Promise<ArrayBuffer> {
-  if (typeof blob.arrayBuffer === 'function') return blob.arrayBuffer()
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result as ArrayBuffer)
-    reader.onerror = () => reject(reader.error ?? new Error('BLOB_READ_FAILED'))
-    reader.readAsArrayBuffer(blob)
   })
 }
 
@@ -255,22 +168,9 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 
 function dataUrlToBlob(dataUrl: string): Blob {
   const [meta, base64] = dataUrl.split(',')
-  const mime = /data:([^;]+)/.exec(meta)?.[1] ?? 'image/png'
-  const binary = atob(base64)
+  const mime = /data:([^;]+)/.exec(meta ?? '')?.[1] ?? 'image/png'
+  const binary = atob(base64 ?? '')
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
   return new Blob([bytes], { type: mime })
-}
-
-async function imageDimensions(blob: Blob): Promise<{ width: number; height: number }> {
-  try {
-    const bitmap = await createImageBitmap(blob)
-    const { width, height } = bitmap
-    bitmap.close()
-    return { width, height }
-  } catch {
-    // Decoding failed — record zeros rather than blocking the save; the ZIP
-    // export reads real bytes regardless.
-    return { width: 0, height: 0 }
-  }
 }

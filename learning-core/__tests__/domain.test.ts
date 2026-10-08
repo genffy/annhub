@@ -69,7 +69,12 @@ describe('property registry rules (entry.md §5)', () => {
   it('validates values per type with their limits', () => {
     expect(() => validatePropertyValue('text', 'x'.repeat(1001))).toThrow(EntryValidationError)
     expect(() => validatePropertyValue('list', ['a', 'a'])).toThrow(EntryValidationError) // dedup enforced
-    expect(() => validatePropertyValue('list', new Array(51).fill(0).map((_, i) => `t${i}`))).toThrow(EntryValidationError)
+    expect(() =>
+      validatePropertyValue(
+        'list',
+        new Array(51).fill(0).map((_, i) => `t${i}`),
+      ),
+    ).toThrow(EntryValidationError)
     expect(() => validatePropertyValue('number', Number.NaN)).toThrow(EntryValidationError)
     expect(() => validatePropertyValue('checkbox', 'yes')).toThrow(EntryValidationError)
     expect(() => validatePropertyValue('date', '2026-02-30')).toThrow(EntryValidationError) // must be a real date
@@ -113,9 +118,7 @@ describe('validateEntry (entry.md §6)', () => {
   })
   it('checks context length and containment', () => {
     expect(() => validateEntry(makeClip({ context: 'x'.repeat(2001) }), TEST_REGISTRY)).toThrow()
-    expect(() => validateEntry(makeClip({ context: 'nothing like the content' }), TEST_REGISTRY)).toThrowError(
-      expect.objectContaining({ code: 'ENTRY_CONTENT_INVALID' }),
-    )
+    expect(() => validateEntry(makeClip({ context: 'nothing like the content' }), TEST_REGISTRY)).toThrowError(expect.objectContaining({ code: 'ENTRY_CONTENT_INVALID' }))
   })
   it('checks asset presence per type', () => {
     expect(() => validateEntry(makeScreenshot({ assetId: undefined }), TEST_REGISTRY)).toThrowError(expect.objectContaining({ code: 'ENTRY_ASSET_MISSING' }))
@@ -126,9 +129,7 @@ describe('validateEntry (entry.md §6)', () => {
     expect(() => validateEntry(makeClip({ sourceHost: 'other.example.com' }), TEST_REGISTRY)).toThrowError(expect.objectContaining({ code: 'ENTRY_SOURCE_INVALID' }))
   })
   it('validates highlight ranges, overlap, count and screenshot highlights', () => {
-    expect(() => validateEntry(makeClip({ highlights: [makeHighlight({ start: 5, end: 3 })] }), TEST_REGISTRY)).toThrowError(
-      expect.objectContaining({ code: 'HIGHLIGHT_INVALID' }),
-    )
+    expect(() => validateEntry(makeClip({ highlights: [makeHighlight({ start: 5, end: 3 })] }), TEST_REGISTRY)).toThrowError(expect.objectContaining({ code: 'HIGHLIGHT_INVALID' }))
     expect(() =>
       validateEntry(
         makeClip({
@@ -137,12 +138,10 @@ describe('validateEntry (entry.md §6)', () => {
         TEST_REGISTRY,
       ),
     ).toThrowError(expect.objectContaining({ code: 'HIGHLIGHT_INVALID' }))
-    expect(() =>
-      validateEntry(makeClip({ highlights: Array.from({ length: 201 }, () => makeHighlight({ start: 0, end: 1 })) }), TEST_REGISTRY),
-    ).toThrowError(expect.objectContaining({ code: 'HIGHLIGHT_LIMIT_EXCEEDED' }))
-    expect(() => validateEntry(makeScreenshot({ highlights: [makeHighlight()] }) as never, TEST_REGISTRY)).toThrowError(
-      expect.objectContaining({ code: 'HIGHLIGHT_INVALID' }),
+    expect(() => validateEntry(makeClip({ highlights: Array.from({ length: 201 }, () => makeHighlight({ start: 0, end: 1 })) }), TEST_REGISTRY)).toThrowError(
+      expect.objectContaining({ code: 'HIGHLIGHT_LIMIT_EXCEEDED' }),
     )
+    expect(() => validateEntry(makeScreenshot({ highlights: [makeHighlight()] }) as never, TEST_REGISTRY)).toThrowError(expect.objectContaining({ code: 'HIGHLIGHT_INVALID' }))
   })
   it('validates properties against the registry', () => {
     expect(() => validateEntry(makeClip({ properties: { nosuch: 'x' } }), TEST_REGISTRY)).toThrowError(expect.objectContaining({ code: 'PROPERTY_NAME_INVALID' }))

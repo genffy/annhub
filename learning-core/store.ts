@@ -124,7 +124,6 @@ export class EntryStore {
 
   /** Usage count = number of entries carrying a value for the property (entry.md §5.3.4). */
   async propertyUsageCount(name: string): Promise<number> {
-    const key = propertyStorageKey(name)
     let count = 0
     for await (const cursor of this.requireDb().transaction('entries').store) {
       if (cursor.value.properties[name] !== undefined) count++
@@ -312,9 +311,7 @@ export class EntryStore {
     const referenced = new Set(entries.filter(entry => entry.assetId).map(entry => entry.assetId!))
     return {
       unreferencedAssets: [...assetIds].filter(id => !referenced.has(id)),
-      entriesWithMissingAssets: entries
-        .filter(entry => entry.assetId && !assetIds.has(entry.assetId))
-        .map(entry => ({ id: entry.id, assetId: entry.assetId! })),
+      entriesWithMissingAssets: entries.filter(entry => entry.assetId && !assetIds.has(entry.assetId)).map(entry => ({ id: entry.id, assetId: entry.assetId! })),
     }
   }
 }

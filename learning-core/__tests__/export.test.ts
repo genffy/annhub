@@ -20,7 +20,7 @@ describe('frontmatterFor (storage.md §6, entry.md §5.5)', () => {
     expect(fm).toContain('rating: 3.5')
     expect(fm).toContain('reviewed: false')
     expect(fm).toContain('  - reliability')
-    expect(fm).toContain("  - Jane Doe")
+    expect(fm).toContain('  - Jane Doe')
     expect(fm).toContain("project: '支付重试'")
   })
 
@@ -41,7 +41,10 @@ describe('buildExport (storage.md §6)', () => {
       lang: 'zh',
       entries: [clip, shot],
       registry: TEST_REGISTRY,
-      readAsset: async id => (id === shot.assetId ? ({ metadata: { id, mimeType: 'image/png', byteLength: 8, sha256: '0'.repeat(64), width: 4, height: 4, createdAt: 0 }, bytes: new Uint8Array(8) } as ExportAsset) : undefined),
+      readAsset: async id =>
+        id === shot.assetId
+          ? ({ metadata: { id, mimeType: 'image/png', byteLength: 8, sha256: '0'.repeat(64), width: 4, height: 4, createdAt: 0 }, bytes: new Uint8Array(8) } as ExportAsset)
+          : undefined,
     })
     expect(summary.result).toBe('full')
     expect(summary.clips).toBe(1)
