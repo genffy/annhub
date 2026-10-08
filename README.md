@@ -6,14 +6,14 @@ AnnHub 是一个本地优先的浏览器扩展：选中网页内容或指一下�
 
 ## 核心能力
 
-以下按 [docs/v2](./docs/v2/README.md) 的目标契约描述；**当前代码仍是迁移前的旧实现**（碎片、采集窗口、页面高亮标记、LLM 设置等），迁移范围与状态见 [路线图](./docs/v2/roadmap.md)。
+以下按 [docs/v2](./docs/v2/README.md) 的契约描述当前实现；交付到哪一步见 [路线图](./docs/v2/roadmap.md)。
 
-- **页面里的两种采集**：剪藏（选中一段，或指一下整篇文章、整条推文，一次点击存成 Markdown）和截图，`Ctrl/Cmd+Shift+S` 截图；页面上不留任何标记
-- **库里的高亮**：在资料库的阅读视图里选中原文划出重点、写备注，高亮是这条剪藏里的标注
-- **来源**：每条条目都记录来源 URL（信息流里取内容项的永久链接），选区剪藏还带所在语境；“回到来源”打开原页面
+- **页面里的两种采集**：剪藏（选中一段，或指一下整篇文章、整条推文，一次点击存成 Markdown）和截图，`Ctrl/Cmd+Shift+S` 截图、`Ctrl/Cmd+Shift+E` 区块模式；页面上不留任何标记
+- **库里的高亮**：在资料库的阅读视图里选中原文划出重点、写备注，高亮是这条剪藏里的标注（R2 界面）
+- **来源**：每条条目都记录来源 URL（信息流里取内容项的永久链接），选区剪藏还带所在语境；保存前去掉带令牌的查询参数；“回到来源”打开原页面
 - **统一条目与属性**：剪藏与截图共用一种存储格式；标题、标签、作者、发布日期等内置属性，也可以添加自己的带类型属性（文本、列表、数字、复选框、日期、日期时间），思路参考 Obsidian Web Clipper 的 Properties
-- **截图**：区域或元素截图、选区内标注、身份信息匿名、马赛克、下载
-- **资料库**：左导航、右内容的统一页面，按类型、来源、标签、时间和属性检索
+- **截图**：区域或元素截图、选区内标注、身份信息匿名、马赛克、复制到剪贴板与下载
+- **资料库**：搜索与筛选写入 URL hash，详情抽屉可编辑标题、标签、备注
 - **唯一的导出**：一键生成 Markdown + 已保存原图的 ZIP，属性写成 YAML frontmatter，供 Obsidian 等工具阅读
 - **本地优先**：数据保存在浏览器的 IndexedDB；断网可正常运行
 
@@ -32,24 +32,21 @@ AnnHub 只解决一条主链路：
 
 ## 架构总览
 
-以下是迁移前的当前代码；R1 按 [条目契约](./docs/v2/entry.md) 把 Fragment、Highlight、Clip、Screenshot 并为统一的条目服务：高亮并入所属剪藏，页面高亮标记删除。
-
 ```text
 ┌─────────────────────────────────────────────────────┐
 │ Browser Extension                                   │
-│ HoverMenu / Capture Modal / Highlighter / Screenshot│
+│ Selection Menu / Block Clip / Screenshot Session    │
 └───────────────────────┬─────────────────────────────┘
                         │ chrome.runtime.sendMessage
 ┌───────────────────────▼─────────────────────────────┐
 │ Background Service Worker                           │
-│ Highlight / Clip / Fragment / Screenshot            │
-│ optional LLM                                        │
+│ Entries / Screenshot / System (settings, metrics)   │
 └───────────────────────┬─────────────────────────────┘
                         │ domain API
 ┌───────────────────────▼─────────────────────────────┐
 │ learning-core                                       │
-│ normalize / validate / query                        │
-│ IndexedDB store (v5) / Markdown ZIP export          │
+│ normalize / validate / query / store                │
+│ IndexedDB (annhub) / Markdown ZIP export            │
 └─────────────────────────────────────────────────────┘
 ```
 
@@ -60,22 +57,20 @@ AnnHub 只解决一条主链路：
 ```text
 annhub/
 ├── entrypoints/
-│   ├── content/                 # 页面内采集、高亮与截图
-│   │   ├── annotation-core/     # 站点规则、DOM policy、Range 与 marker 工具
-│   │   ├── highlight/           # 高亮创建、恢复与删除
-│   │   ├── capture/             # 碎片采集流程
+│   ├── content/                 # 页面内采集：选区菜单、区块剪藏、截图会话
+│   │   ├── markdown.ts          # DOM→Markdown 转换（唯一实现）
+│   │   ├── blocks.ts            # 七种区块识别
 │   │   └── screenshot/          # 区域/元素截图与匿名处理
+│   ├── library/                 # 资料库页面（查看、搜索、导出）
 │   ├── options/                 # 设置页
-│   ├── library/                 # 碎片库与截图集
-│   └── popup/
+│   └── popup/                   # 工具栏弹窗兜底入口
 ├── background-service/
 │   └── services/
-│       ├── fragment/            # 碎片服务
-│       ├── highlight/           # 高亮存储
-│       ├── screenshot/          # 截图后台与截图集
-│       └── llm/                 # 可选的模型能力
+│       ├── entries/             # 条目/属性/导出消息门面
+│       ├── screenshot/          # 截取、跨域代取、下载
+│       └── system/              # 偏好与本地指标
 ├── learning-core/               # 共享领域核心，纯 TypeScript
-├── types/                       # 消息与数据类型
+├── types/                       # 消息协议
 ├── e2e/                         # Playwright 测试
 ├── docs/                        # 工程文档与 v2 产品文档
 └── website/                     # 独立落地页

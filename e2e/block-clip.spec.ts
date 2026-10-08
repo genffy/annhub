@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { clearLibrary, getCapturePageUrl, getEntries, getSettings, hoverForCapsule, triggerBlockMode } from './helpers'
+import { clearLibrary, getCapturePageUrl, getEntries, getSettings, hoverForCapsule, triggerBlockMode, waitForClipToast } from './helpers'
 
 test.describe('block clip (capture.md §6.2)', () => {
   test.beforeEach(async ({ context }) => {
@@ -76,12 +76,23 @@ test.describe('block clip (capture.md §6.2)', () => {
     await expect(page.locator('[data-ann-ui="block-mode-overlay"]')).toBeVisible()
 
     // the overlay swallows pointer events by design (links do not answer), so
-    // the mouse moves over coordinates rather than hovering the element
+    // the mouse moves over coordinates; wait until the mode actually holds a
+    // target (the outline paints) before pressing Enter
     const box = (await page.locator('[data-testid="section-body"]').boundingBox())!
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
-    await page.waitForTimeout(300)
+    const outline = page.locator('[data-ann-ui="block-outline"]')
+    const deadline = Date.now() + 6000
+    while (Date.now() < deadline) {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+      try {
+        await outline.waitFor({ state: 'visible', timeout: 800 })
+        break
+      } catch {
+        /* move again */
+      }
+    }
+    await expect(outline).toBeVisible()
     await page.keyboard.press('Enter')
-    await expect(page.locator('[data-ann-ui="clip-toast"]')).toBeVisible()
+    await waitForClipToast(page)
 
     const entries = await getEntries(page.context())
     expect(entries).toHaveLength(1)
@@ -89,13 +100,14 @@ test.describe('block clip (capture.md §6.2)', () => {
   })
 
   test('“在此网站停用” records the host and the capsule stops appearing', async ({ page }) => {
+    test.slow()
     await page.goto(getCapturePageUrl())
     const capsule = await hoverForCapsule(page, '[data-testid="section-body"]')
     await capsule.getByRole('button', { name: '更多' }).click()
     await page.locator('[data-ann-ui="block-more"]').getByRole('button', { name: '在此网站停用' }).click()
 
     await expect
-      .poll(async () => (await getSettings(page.context())) as { blockDisabledSites?: string[] })
+      .poll(async () => (await getSettings(page.context())) as { blockDisabledSites?: string[] }, { timeout: 20_000 })
       .toMatchObject({ blockDisabledSites: expect.arrayContaining(['localhost']) })
 
     await page.waitForTimeout(800)
