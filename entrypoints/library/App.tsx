@@ -581,7 +581,8 @@ function DetailDrawer({
     const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({
       type: 'UPDATE_ENTRY',
       id: entry.id,
-      patch: note.trim() ? { note: note.trim() } : { note: undefined },
+      // null clears the note; an undefined key would not survive the JSON transport
+      patch: { note: note.trim() ? note.trim() : null },
     })
     if (!response.success) setError(response.error ?? 'update failed')
     else setEntry(response.data!.entry)

@@ -9,7 +9,7 @@
  */
 import type { EntryQuery, HighlightQuery } from '../learning-core/query'
 import type { MetricEventName, MetricEventProps } from '../learning-core/metrics'
-import type { EntryRecord, Highlight, PropertyDefinition, PropertyValue } from '../learning-core/types'
+import type { Highlight, PropertyDefinition, PropertyValue } from '../learning-core/types'
 import type { ExtensionSettings } from '../background-service/settings-schema'
 
 export interface BaseMessage {
@@ -72,16 +72,45 @@ export interface DeleteEntryMessage extends BaseMessage {
 
 // ── Library / options / popup pages ─────────────────────────────────────
 
-export interface UpdateEntryMessage extends BaseMessage {
-  type: 'UPDATE_ENTRY'
-  id: string
-  patch: Partial<Pick<EntryRecord, 'content' | 'context' | 'note' | 'properties' | 'highlights'>> & {
+/** Field-level entry patch: `null` clears a field (undefined keys cannot survive JSON transport). */
+export interface UpdateEntryPatch {
+  content?: string
+  context?: string | null
+  note?: string | null
+  properties?: {
+    set?: Record<string, PropertyValue>
+    unset?: string[]
     newDefinitions?: PropertyDefinition[]
   }
 }
 
+export interface UpdateEntryMessage extends BaseMessage {
+  type: 'UPDATE_ENTRY'
+  id: string
+  patch: UpdateEntryPatch
+}
+
 export interface AddHighlightMessage extends BaseMessage {
   type: 'ADD_HIGHLIGHT'
+  id: string
+  highlight: Highlight
+}
+
+export interface UpdateHighlightMessage extends BaseMessage {
+  type: 'UPDATE_HIGHLIGHT'
+  id: string
+  highlightId: string
+  patch: { color?: Highlight['color']; note?: string | null }
+}
+
+export interface RemoveHighlightMessage extends BaseMessage {
+  type: 'REMOVE_HIGHLIGHT'
+  id: string
+  highlightId: string
+}
+
+export interface RestoreHighlightMessage extends BaseMessage {
+  type: 'RESTORE_HIGHLIGHT'
   id: string
   highlight: Highlight
 }
@@ -188,6 +217,9 @@ export type ExtensionMessage =
   | DeleteEntryMessage
   | UpdateEntryMessage
   | AddHighlightMessage
+  | UpdateHighlightMessage
+  | RemoveHighlightMessage
+  | RestoreHighlightMessage
   | QueryEntriesMessage
   | QueryHighlightsMessage
   | GetEntryMessage

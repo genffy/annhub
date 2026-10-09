@@ -55,12 +55,9 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
     setToolbar(null)
   }
 
-  async function patchHighlights(updater: (highlights: Highlight[]) => Highlight[]): Promise<void> {
-    const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({
-      type: 'UPDATE_ENTRY',
-      id: entry.id,
-      patch: { highlights: updater([...(entry.highlights ?? [])]) },
-    })
+  /** Runs one highlight operation server-side (storage.md §5: one transaction per op). */
+  async function runHighlightOp(message: Parameters<typeof MessageUtils.sendMessage>[0]): Promise<void> {
+    const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>(message)
     if (!response.success || !response.data?.entry) {
       setError(response.error ?? uiText('toast.saveFailed'))
       return
@@ -70,7 +67,7 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
   }
 
   function deleteHighlight(highlight: Highlight): void {
-    void patchHighlights(list => list.filter(item => item.id !== highlight.id))
+    void runHighlightOp({ type: 'REMOVE_HIGHLIGHT', id: entry.id, highlightId: highlight.id })
     if (undoTimer.current !== null) window.clearTimeout(undoTimer.current)
     setNotice({ text: uiText('reading.deleted'), undo: highlight })
     undoTimer.current = window.setTimeout(() => setNotice(null), 3000)
@@ -80,7 +77,7 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
     const highlight = notice?.undo
     if (!highlight) return
     setNotice(null)
-    void patchHighlights(list => [...list, highlight].sort((a, b) => a.start - b.start))
+    void runHighlightOp({ type: 'RESTORE_HIGHLIGHT', id: entry.id, highlight })
   }
 
   const highlights = [...(entry.highlights ?? [])].sort((a, b) => a.start - b.start)
@@ -143,11 +140,11 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
           y={popover.y}
           onClose={() => setPopover(null)}
           onColor={color => {
-            void patchHighlights(list => list.map(item => (item.id === popover.highlight.id ? { ...item, color } : item)))
+            void runHighlightOp({ type: 'UPDATE_HIGHLIGHT', id: entry.id, highlightId: popover.highlight.id, patch: { color } })
             setPopover(null)
           }}
           onNote={note => {
-            void patchHighlights(list => list.map(item => (item.id === popover.highlight.id ? { ...item, note: note || undefined } : item)))
+            void runHighlightOp({ type: 'UPDATE_HIGHLIGHT', id: entry.id, highlightId: popover.highlight.id, patch: { note: note || null } })
             setPopover(null)
           }}
           onDelete={() => {

@@ -188,9 +188,14 @@ export function openEditBubble(outcome: ClipOutcome, anchor: Range | HTMLElement
   panel.className = 'ann-clip-edit'
 
   const title = labeledInput(doc, 'edit.title', outcome.title)
+  title.input.maxLength = 1000
   const tags = labeledInput(doc, 'edit.tags', '')
   tags.input.placeholder = 'tag1, tag2'
   const note = labeledInput(doc, 'edit.note', '')
+  note.input.maxLength = 2000
+  const errorLine = doc.createElement('div')
+  errorLine.className = 'ann-clip-edit-error'
+  errorLine.setAttribute('aria-live', 'polite')
   const actions = doc.createElement('div')
   actions.className = 'ann-clip-edit-actions'
   const more = doc.createElement('button')
@@ -206,7 +211,7 @@ export function openEditBubble(outcome: ClipOutcome, anchor: Range | HTMLElement
     void persist()
   })
   actions.append(more, done)
-  panel.append(title.wrap, tags.wrap, note.wrap, actions)
+  panel.append(title.wrap, tags.wrap, note.wrap, errorLine, actions)
   host.appendChild(panel)
   doc.documentElement.appendChild(host)
   positionNear(host, anchor)
@@ -226,27 +231,52 @@ export function openEditBubble(outcome: ClipOutcome, anchor: Range | HTMLElement
   doc.addEventListener('pointerdown', close, true)
   doc.addEventListener('keydown', onKey, true)
 
-  let persisted = false
-  async function persist(): Promise<void> {
-    if (persisted) return
-    persisted = true
+  const detach = (): void => {
     doc.removeEventListener('pointerdown', close, true)
     doc.removeEventListener('keydown', onKey, true)
-    host.remove()
+  }
+
+  let persisting = false
+  async function persist(): Promise<void> {
+    if (persisting) return
+    persisting = true
+    errorLine.textContent = ''
+    const titleValue = title.input.value.trim()
     const tagList = normalizeTags(
       tags.input.value
         .split(/[,，]/)
         .map(tag => tag.trim())
         .filter(Boolean),
     )
-    const properties: Record<string, string | string[]> = { title: title.input.value.trim() || outcome.title }
-    if (tagList.length > 0) properties.tags = tagList
     const noteValue = note.input.value.trim()
-    await MessageUtils.sendMessage({
+
+    // only the fields the user actually changed travel; everything the
+    // capture wrote (author, published, …) is out of reach of this edit
+    const set: Record<string, string | string[]> = {}
+    if (titleValue && titleValue !== outcome.title) set.title = titleValue
+    if (tagList.length > 0) set.tags = tagList
+    if (Object.keys(set).length === 0 && !noteValue) {
+      detach()
+      host.remove()
+      return
+    }
+
+    const response = await MessageUtils.sendMessage({
       type: 'UPDATE_ENTRY',
       id: outcome.entryId,
-      patch: { properties, ...(noteValue ? { note: noteValue } : {}) },
+      patch: {
+        ...(Object.keys(set).length > 0 ? { properties: { set } } : {}),
+        ...(noteValue ? { note: noteValue } : {}),
+      },
     })
+    if (!response.success) {
+      // the bubble and the typed text survive; the user can adjust and retry
+      persisting = false
+      errorLine.textContent = response.error ?? uiText('toast.saveFailed')
+      return
+    }
+    detach()
+    host.remove()
   }
 }
 

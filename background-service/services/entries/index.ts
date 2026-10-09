@@ -12,8 +12,7 @@ import { presetProperties } from '../../../learning-core/properties'
 import { bucketCount } from '../../../learning-core/metrics'
 import { queryEntries, queryHighlights } from '../../../learning-core/query'
 import { buildExport, type ExportLanguage } from '../../../learning-core/export'
-import { EntryValidationError, type Highlight } from '../../../learning-core/types'
-import { HIGHLIGHT_NOTE_MAX_CHARS } from '../../../learning-core/validate'
+import { EntryValidationError } from '../../../learning-core/types'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
 import { recordCaptureSaved, recordCaptureFailed } from '../metrics/record'
@@ -75,8 +74,8 @@ export class EntryService implements IService {
         }
       },
 
-      DELETE_ENTRY: async (message): Promise<ResponseMessage> => {
-        if (!trustedSender) return forbiddenResponse()
+      DELETE_ENTRY: async (message, sender): Promise<ResponseMessage> => {
+        if (!trustedSender(sender)) return forbiddenResponse()
         try {
           const store = await initializedEntryStore()
           await store.deleteEntry(message.id)
@@ -102,36 +101,41 @@ export class EntryService implements IService {
         if (!trustedSender(sender)) return forbiddenResponse()
         try {
           const store = await initializedEntryStore()
-          const entry = await store.getEntry(message.id)
-          if (!entry) throw new EntryValidationError('ENTRY_CONTENT_INVALID', `no entry ${message.id}`)
-          // a selection crossing several highlights folds into one merged run
-          // (entry.md §4.6: union range, earliest identity, notes joined with a
-          // blank line; over-limit notes refuse the merge)
-          const rest: Highlight[] = []
-          let addition = message.highlight
-          for (const item of entry.highlights ?? []) {
-            if (!(addition.start < item.end && item.start < addition.end)) {
-              rest.push(item)
-              continue
-            }
-            const notes = [item.note, addition.note].filter((note): note is string => Boolean(note?.trim()))
-            const joined = notes.join('\n\n')
-            if (joined.length > HIGHLIGHT_NOTE_MAX_CHARS) {
-              throw new EntryValidationError('HIGHLIGHT_INVALID', 'merged note over limit')
-            }
-            addition = {
-              ...item,
-              id: item.createdAt <= addition.createdAt ? item.id : addition.id,
-              color: item.createdAt <= addition.createdAt ? item.color : addition.color,
-              start: Math.min(item.start, addition.start),
-              end: Math.max(item.end, addition.end),
-              quote: item.quote.length >= addition.quote.length ? item.quote : addition.quote,
-              note: joined || undefined,
-              createdAt: Math.min(item.createdAt, addition.createdAt),
-            }
-          }
-          const updated = await store.updateEntry(message.id, { highlights: [...rest, addition] })
-          return MessageUtils.createResponse(true, { entry: updated })
+          const entry = await store.addHighlight(message.id, message.highlight)
+          return MessageUtils.createResponse(true, { entry })
+        } catch (error) {
+          return failure(error)
+        }
+      },
+
+      UPDATE_HIGHLIGHT: async (message, sender): Promise<ResponseMessage> => {
+        if (!trustedSender(sender)) return forbiddenResponse()
+        try {
+          const store = await initializedEntryStore()
+          const entry = await store.updateHighlight(message.id, message.highlightId, message.patch)
+          return MessageUtils.createResponse(true, { entry })
+        } catch (error) {
+          return failure(error)
+        }
+      },
+
+      REMOVE_HIGHLIGHT: async (message, sender): Promise<ResponseMessage> => {
+        if (!trustedSender(sender)) return forbiddenResponse()
+        try {
+          const store = await initializedEntryStore()
+          const entry = await store.removeHighlight(message.id, message.highlightId)
+          return MessageUtils.createResponse(true, { entry })
+        } catch (error) {
+          return failure(error)
+        }
+      },
+
+      RESTORE_HIGHLIGHT: async (message, sender): Promise<ResponseMessage> => {
+        if (!trustedSender(sender)) return forbiddenResponse()
+        try {
+          const store = await initializedEntryStore()
+          const entry = await store.restoreHighlight(message.id, message.highlight)
+          return MessageUtils.createResponse(true, { entry })
         } catch (error) {
           return failure(error)
         }
