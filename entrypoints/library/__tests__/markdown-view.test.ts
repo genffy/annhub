@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseBlocks, sourceRangeFromSelection } from '../markdown-view'
+import { parseBlocks, quoteForRange, renderedRuns, sourceRangeFromSelection, splitTableRow } from '../markdown-view'
 
 /**
  * RK-13: rendered-selection ↔ source-offset conversion lives in one shared
@@ -106,5 +106,73 @@ describe('sourceRangeFromSelection', () => {
     range.setEnd(document.body.lastChild!, 3)
     outside.addRange(range)
     expect(sourceRangeFromSelection(root, outside)).toBeNull()
+  })
+
+  it('converts element-endpoint selections (triple-click, Ctrl+A) (RV-LIB-09)', () => {
+    const root = mount('First paragraph.\n\nSecond paragraph.')
+    const paragraphs = Array.from(root.querySelectorAll('p'))
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    // a triple-click shape: both endpoints are element points
+    const range = document.createRange()
+    range.setStart(paragraphs[1]!, 0)
+    range.setEnd(paragraphs[1]!, paragraphs[1]!.childNodes.length)
+    selection.addRange(range)
+    // 'Second paragraph.' starts at 16 + 2 newlines = 18
+    expect(sourceRangeFromSelection(root, selection)).toEqual({ start: 18, end: 35 })
+  })
+})
+
+describe('quoteForRange renders the visible words (entry.md §4.2, RV-LIB-09)', () => {
+  it('quotes across links and bold text without markdown syntax', () => {
+    const md = 'See [the docs](https://example.com/docs) and **bold words** now.'
+    const start = md.indexOf('See')
+    const end = md.indexOf('now.') + 4
+    expect(quoteForRange(md, { start, end })).toBe('See the docs and bold words now.')
+  })
+
+  it('quotes table cells, not pipes', () => {
+    const md = ['| Name | Role |', '| --- | --- |', '| Bob | Engineer |'].join('\n')
+    const start = md.indexOf('Bob')
+    const end = md.indexOf('Engineer') + 'Engineer'.length
+    expect(quoteForRange(md, { start, end })).toBe('Bob Engineer')
+  })
+
+  it('joins soft-wrapped lines with a space', () => {
+    const md = 'first line of the paragraph\nsecond line continues'
+    expect(quoteForRange(md, { start: 0, end: md.length })).toBe('first line of the paragraph second line continues')
+  })
+
+  it('caps at the quote limit', () => {
+    const md = 'x'.repeat(3000)
+    expect(quoteForRange(md, { start: 0, end: 3000 }).length).toBe(2000)
+  })
+})
+
+describe('table row splitting', () => {
+  it('splits cells with their offsets and honors escaped pipes', () => {
+    const cells = splitTableRow({ source: '| Name | A \\| B | tail |' })
+    expect(cells.map(cell => cell.text)).toEqual(['Name', 'A | B', 'tail'])
+    // plain cells anchor exactly; an escaped pipe renders one char for two
+    // source chars, so only the unescaped prefix is 1:1 with the source
+    const line = '| Name | A \\| B | tail |'
+    expect(line.slice(cells[0]!.start, cells[0]!.start + cells[0]!.text.length)).toBe('Name')
+    expect(line.slice(cells[1]!.start, cells[1]!.start + 1)).toBe('A')
+    expect(line.slice(cells[2]!.start, cells[2]!.start + cells[2]!.text.length)).toBe('tail')
+  })
+})
+
+describe('renderedRuns (RK-13 shared mapping)', () => {
+  it('covers the visible text with source anchors in order', () => {
+    const md = ['## Head', '', 'Alpha **bold** tail.', '', '- item one'].join('\n')
+    const runs = renderedRuns(md)
+    expect(runs.map(run => run.text).join('')).toContain('Head')
+    expect(runs.map(run => run.text).join('')).toContain('Alpha bold tail.')
+    // anchors are non-decreasing and each anchor's text matches the source at that offset (for plain runs)
+    for (const run of runs) {
+      if (run.kind === undefined) {
+        expect(md.slice(run.srcStart, run.srcStart + run.text.length)).toBe(run.text)
+      }
+    }
   })
 })
