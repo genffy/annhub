@@ -2,56 +2,193 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens. The product values come from docs/design/v2/css/tokens.css so the website and the extension share one
+   visual system; the --site-* and --ink tokens only exist for the marketing page around the product windows. */
 :root {
   color-scheme: light;
-  background: #f4f2f7;
-  font-synthesis: none;
+
+  --font-ui: var(--font-inter), ui-sans-serif, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-serif: var(--font-source-serif), 'Source Serif 4', Georgia, 'Songti SC', 'Noto Serif CJK SC', serif;
+  --font-mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* surfaces */
+  --surface: #ffffff;
+  --surface-2: hsl(220 25% 97%);
+  --surface-3: hsl(220 22% 93%);
+  --side: hsl(230 30% 97.5%);
+  --scrim: rgb(15 23 42 / 0.52);
+
+  /* text */
+  --fg: hsl(224 40% 11%);
+  --fg-2: hsl(222 18% 27%);
+  --fg-3: hsl(220 12% 42%);
+  --fg-4: hsl(220 10% 60%);
+
+  /* lines */
+  --line: hsl(220 22% 92%);
+  --line-2: hsl(220 18% 83%);
+
+  /* brand: the single accent colour, taken from assets/icons/logo.svg */
+  --brand: #673ab8;
+  --brand-fg: #ffffff;
+  --brand-text: #5b32a8;
+  --ring: color-mix(in oklab, #673ab8 42%, transparent);
+
+  /* semantic: state only, always paired with an icon and words */
+  --ok: oklch(0.58 0.13 155);
+  --warn: oklch(0.72 0.15 75);
+  --danger: oklch(0.58 0.2 25);
+  --info: oklch(0.58 0.14 250);
+
+  /* entry types (never colour alone: each has an icon and a name) */
+  --t-clip: oklch(0.55 0.17 258);
+  --t-highlight: oklch(0.66 0.15 78);
+  --t-screenshot: oklch(0.56 0.12 178);
+
+  /* highlight palette: the user's choice, carries no meaning */
+  --hl-yellow: #ffd84d;
+  --hl-green: #86e0a0;
+  --hl-blue: #8cc7ff;
+  --hl-pink: #ffa3c6;
+  --hl-purple: #c8b2ff;
+
+  --sh-1: 0 1px 2px rgb(15 23 42 / 0.06), 0 0 0 1px rgb(15 23 42 / 0.04);
+  --sh-2: 0 6px 16px -4px rgb(15 23 42 / 0.12), 0 0 0 1px rgb(15 23 42 / 0.05);
+  --sh-modal: 0 28px 70px -14px rgb(15 23 42 / 0.4), 0 0 0 1px rgb(15 23 42 / 0.08);
+  --sh-window: 0 30px 80px -24px rgb(36 24 72 / 0.42), 0 0 0 1px rgb(15 23 42 / 0.12);
+
+  /* the user's web page inside a mock browser never follows the theme */
+  --page-bg: #ffffff;
+  --page-fg: #1c1b1a;
+  --page-sel: #bcd8ff;
+
+  --chrome-bg: #dde1e8;
+  --chrome-tab: #ffffff;
+  --chrome-bar: #ffffff;
+  --chrome-fg: #3c4350;
+  --chrome-line: #c9cfd9;
+
+  /* annotation pins on the product tour (docs/design/v2 uses the same amber) */
+  --pin: #ffb020;
+  --pin-fg: #231600;
+
+  /* marketing page: a light grey-violet canvas under white product windows, and the dark ink of the selection menu */
+  --site-canvas: #f2f0f8;
+  --site-canvas-2: #e9e6f2;
+  --ink: #1b1f2a;
 }
 
-* {
-  box-sizing: border-box;
+/* A section or window wrapped in .theme-dark switches to the dark tokens of the product. */
+.theme-dark {
+  color-scheme: dark;
+
+  --surface: #14171f;
+  --surface-2: #1a1e28;
+  --surface-3: #262b38;
+  --side: #10131a;
+  --scrim: rgb(2 4 10 / 0.62);
+
+  --fg: #e9ecf3;
+  --fg-2: #bcc3d2;
+  --fg-3: #8f98ab;
+  --fg-4: #6a7387;
+
+  --line: #242937;
+  --line-2: #363c4c;
+
+  --brand: #7a55d1;
+  --brand-fg: #ffffff;
+  --brand-text: #b9a3f2;
+  --ring: color-mix(in oklab, #9a7be6 55%, transparent);
+
+  --ok: oklch(0.75 0.14 155);
+  --warn: oklch(0.8 0.14 80);
+  --danger: oklch(0.7 0.17 25);
+  --info: oklch(0.75 0.12 250);
+
+  --t-clip: oklch(0.76 0.12 258);
+  --t-highlight: oklch(0.82 0.13 85);
+  --t-screenshot: oklch(0.78 0.11 178);
+
+  --sh-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.05);
+  --sh-2: 0 8px 20px -4px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.07);
+  --sh-modal: 0 30px 80px -14px rgb(0 0 0 / 0.75), 0 0 0 1px rgb(255 255 255 / 0.09);
+  --sh-window: 0 30px 80px -20px rgb(0 0 0 / 0.8), 0 0 0 1px rgb(255 255 255 / 0.12);
+
+  --chrome-bg: #1d2028;
+  --chrome-tab: #2a2e38;
+  --chrome-bar: #2a2e38;
+  --chrome-fg: #cfd5e2;
+  --chrome-line: #12141a;
 }
 
-html {
-  max-width: 100%;
-  overflow-x: clip;
-  scroll-behavior: smooth;
-  background: #f4f2f7;
-}
+@layer base {
+  html {
+    max-width: 100%;
+    overflow-x: clip;
+    scroll-behavior: smooth;
+    background: var(--surface);
+    font-synthesis: none;
+    text-size-adjust: 100%;
+  }
 
-body {
-  min-height: 100vh;
-  max-width: 100%;
-  margin: 0;
-  overflow-x: clip;
-  color: #25232b;
-  background: #f4f2f7;
-  letter-spacing: 0;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-}
+  body {
+    min-height: 100vh;
+    max-width: 100%;
+    margin: 0;
+    overflow-x: clip;
+    color: var(--fg);
+    background: var(--surface);
+    font-family: var(--font-ui);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
 
-a {
-  color: inherit;
-  text-decoration: none;
-}
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
 
-button,
-summary,
-a {
-  -webkit-tap-highlight-color: transparent;
-}
+  button,
+  summary,
+  a {
+    -webkit-tap-highlight-color: transparent;
+  }
 
-button:focus-visible,
-summary:focus-visible,
-a:focus-visible {
-  outline: 3px solid #6f5ce7;
-  outline-offset: 3px;
-}
+  /* keyboard focus is always visible (docs/v2/extension.md §7.2) */
+  :where(a, button, summary, [tabindex]):focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
 
-::selection {
-  color: #25232b;
-  background: #ddd6f7;
+  .theme-dark :where(a, button, summary, [tabindex]):focus-visible {
+    outline-color: var(--brand-text);
+  }
+
+  ::selection {
+    color: var(--fg);
+    background: color-mix(in oklab, var(--brand) 24%, white);
+  }
+
+  .theme-dark ::selection {
+    color: #fff;
+    background: color-mix(in oklab, var(--brand) 62%, black);
+  }
+
+  /* Chinese headings need less negative tracking than Latin ones. */
+  .display {
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+
+  :lang(zh-CN) .display {
+    letter-spacing: -0.012em;
+  }
+
+  .anchor-target {
+    scroll-margin-top: 88px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

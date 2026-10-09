@@ -1,0 +1,17 @@
+// The AnnHub mark: assets/icons/logo.svg with currentColor, so it takes the brand colour (or white on a brand tile).
+export default function Logo({ className = '' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path
+        d="M128 0C57.0667 0 0 57.0667 0 128C0 198.933 57.0667 256 128 256C198.933 256 256 198.933 256 128C256 57.0667 198.933 0 128 0ZM184 181.867C184 187.733 179.733 192 173.867 192H82.1333C76.8 192 72 187.2 72 181.867V74.1333C72 68.2667 76.2667 64 82.1333 64H173.867C179.2 64 184 68.8 184 74.1333V181.867Z"
+        fill="currentColor"
+      />
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M98.8824 133.3L120.059 75H104.176L83 133.3V181H98.8824L114.765 133.3H98.8824ZM157.118 133.3L135.941 75H151.824L173 133.3V181H157.118L141.235 133.3H157.118Z"
+        fill="currentColor"
+      />
+    </svg>
+  )
+}
