@@ -32,17 +32,22 @@ export function markdownToPlainText(markdown: string): string {
 function stripInlineMarkers(line: string): string {
   return (
     line
+      // escaped characters (\*, \#, …) are literals: mark them (length-preserving),
+      // skip protected markers while stripping, then restore them verbatim
+      .replace(/\\(.)/g, '\uE000$1')
       // images keep their alt text
       .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
       // links keep their label
       .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-      // headings, emphasis, inline code fences
+      // headings, emphasis markers and inline code fences go; bare `_`
+      // stays — snake_case identifiers must survive into search (search.md §1)
       .replace(/^\s{0,3}#{1,6}\s+/g, '')
-      .replace(/(\*\*\*|___|\*\*|__|\*|_|`)/g, '')
+      .replace(/(?<!\uE000)(\*\*\*|\*\*|\*|___|__|`|==)/g, '')
       // quote markers and list bullets stay as text separators
       .replace(/^\s{0,3}>\s?/g, '')
       .replace(/^\s*[-*+]\s+/g, '')
       .replace(/^\s*\d+[.)]\s+/g, '')
+      .replace(/\uE000(.?)/g, '$1')
       .trimEnd()
   )
 }

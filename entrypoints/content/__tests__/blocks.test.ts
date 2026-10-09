@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { candidatesFor, deepElementFromPoint, type BlockCandidate } from '../blocks'
+import { candidateRect, candidatesFor, deepElementFromPoint, type BlockCandidate } from '../blocks'
 
 /**
  * Block detection over fixture DOM (capture.md §6.2). jsdom has no layout:
@@ -162,5 +162,102 @@ describe('deepElementFromPoint through open shadow roots', () => {
     const el = doc.querySelector('#intro')!
     doc.elementFromPoint = () => el
     expect(deepElementFromPoint(1, 1, doc)).toBe(el)
+  })
+})
+
+// ── Real page shapes from the review sampling (RV-CAP-01) ────────────────
+
+const FLAT_DOC = `
+<div class="content" id="flat">
+  <h2 id="flat-a">Alpha</h2>
+  <p id="flat-a-p">${'Alpha body with plenty of words to clear the floor. '.repeat(3)}</p>
+  <h2 id="flat-b">Beta</h2>
+  <p id="flat-b-p">${'Beta body with plenty of words to clear the floor. '.repeat(3)}</p>
+  <p id="flat-b-p2">Second Beta paragraph.</p>
+</div>
+`
+
+const DIV_SOUP = `
+<div class="post-content prose" id="soup">
+  <p id="soup-1">${'Plain div soup paragraph one with enough text. '.repeat(3)}</p>
+  <p id="soup-2">${'Plain div soup paragraph two with enough text. '.repeat(3)}</p>
+  <p id="soup-3">${'Plain div soup paragraph three with enough text. '.repeat(3)}</p>
+</div>
+`
+
+const DOCUSAURUS = `
+<article id="docus">
+  <div class="markdown" id="docus-md">
+    <h1 id="docus-h1">Title</h1>
+    <p id="docus-p1">${'Docusaurus paragraph with words to spare. '.repeat(4)}</p>
+    <h2 id="docus-h2">Sub</h2>
+    <p id="docus-p2">${'Second paragraph with words to spare too. '.repeat(4)}</p>
+  </div>
+</article>
+`
+
+describe('flat documents: headings and paragraphs as siblings (RV-CAP-01)', () => {
+  it('offers a heading-bounded section run, not the whole container', () => {
+    document.body.innerHTML = FLAT_DOC
+    const chain = candidatesFor(doc.querySelector('#flat-b-p')!, doc)
+    const section = chain.find(candidate => candidate.kind === 'section')
+    expect(section).toBeDefined()
+    expect(section!.range).toEqual({ start: doc.querySelector('#flat-b')!, end: null })
+    // the run under Alpha stops at the Beta heading
+    const alpha = candidatesFor(doc.querySelector('#flat-a-p')!, doc).find(candidate => candidate.kind === 'section')
+    expect(alpha!.range).toEqual({ start: doc.querySelector('#flat-a')!, end: doc.querySelector('#flat-b')! })
+  })
+
+  it('never throws on uppercase tagName headings (the old /h(\\d)/ crash)', () => {
+    document.body.innerHTML = '<div class="content"><h2>Only heading</h2><p>short</p></div>'
+    expect(() => candidatesFor(doc.querySelector('p')!, doc)).not.toThrow()
+  })
+
+  it('multi-class content containers classify as article', () => {
+    document.body.innerHTML = DIV_SOUP
+    const chain = candidatesFor(doc.querySelector('#soup-2')!, doc)
+    expect(chain.some(candidate => candidate.kind === 'article' && candidate.element.id === 'soup')).toBe(true)
+  })
+
+  it('tier three: the innermost div directly holding three text blocks', () => {
+    document.body.innerHTML = DIV_SOUP
+    // post-content is a known container class; drop it to isolate tier three
+    doc.querySelector('#soup')!.removeAttribute('class')
+    const tier3 = candidatesFor(doc.querySelector('#soup-2')!, doc)
+    expect(tier3.some(candidate => candidate.kind === 'article' && candidate.element.id === 'soup')).toBe(true)
+  })
+
+  it('Docusaurus shape: article → div.markdown → heading-led runs', () => {
+    document.body.innerHTML = DOCUSAURUS
+    const chain = candidatesFor(doc.querySelector('#docus-p2')!, doc)
+    expect(chain.some(candidate => candidate.kind === 'article' && candidate.element.id === 'docus')).toBe(true)
+    const section = chain.find(candidate => candidate.kind === 'section')
+    expect(section).toBeDefined()
+    expect(section!.range).toEqual({ start: doc.querySelector('#docus-h2')!, end: null })
+  })
+
+  it('candidateRect unions the sibling run of a range section', () => {
+    document.body.innerHTML = FLAT_DOC
+    const section = candidatesFor(doc.querySelector('#flat-b-p')!, doc).find(candidate => candidate.kind === 'section')!
+    const boxes = [doc.querySelector('#flat-b')!, doc.querySelector('#flat-b-p')!, doc.querySelector('#flat-b-p2')!].map(el => {
+      const box = el.getBoundingClientRect()
+      return { x: box.x, y: box.y, width: box.width, height: box.height }
+    })
+    // jsdom rects are zeros; stub distinct boxes and assert the union math
+    const calls: number[] = []
+    const original = Element.prototype.getBoundingClientRect
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      calls.push(1)
+      const index = ['flat-b', 'flat-b-p', 'flat-b-p2'].indexOf((this as HTMLElement).id)
+      return new DOMRect(index * 10, 5, 30, 20)
+    }
+    try {
+      const rect = candidateRect(section)
+      expect({ x: rect.x, y: rect.y, width: rect.width, height: rect.height }).toEqual({ x: 0, y: 5, width: 50, height: 20 })
+      expect(calls.length).toBe(3)
+    } finally {
+      Element.prototype.getBoundingClientRect = original
+      expect(boxes).toHaveLength(3)
+    }
   })
 })

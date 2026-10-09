@@ -29,6 +29,23 @@ describe('markdownToPlainText (search.md §1)', () => {
     expect(plain).not.toContain('**')
     expect(plain).not.toContain('](https://')
   })
+
+  it('keeps literal identifiers findable (RV-CORE-04)', () => {
+    // the capture pipeline escapes emphasis-capable literals (RV-CAP-02);
+    // intraword underscores are CommonMark-safe and stay unescaped
+    const plain = markdownToPlainText('See user_id, \\_\\_init\\_\\_, a\\*b\\*c, snake_case_name, C++ and #hashtag — plus 2\\*3\\*4 and `MAX_RETRIES` code.')
+    expect(plain).toContain('user_id')
+    expect(plain).toContain('__init__')
+    expect(plain).toContain('a*b*c')
+    expect(plain).toContain('snake_case_name')
+    expect(plain).toContain('C++')
+    expect(plain).toContain('#hashtag')
+    expect(plain).toContain('2*3*4')
+    expect(plain).toContain('MAX_RETRIES')
+    // syntax markers themselves stay unfindable
+    expect(plain).not.toContain('](https://')
+    expect(markdownToPlainText('a **bold** span')).not.toContain('**')
+  })
 })
 
 describe('writeHighlightMarks (storage.md §6)', () => {
