@@ -29,7 +29,7 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key.toLowerCase() !== 'h' || !surface.current) return
+      if (event.key.toLowerCase() !== 'h' || event.ctrlKey || event.metaKey || event.altKey || !surface.current) return
       const target = event.target as HTMLElement
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
       const range = sourceRangeFromSelection(surface.current, window.getSelection()!)
@@ -39,20 +39,21 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
     return () => document.removeEventListener('keydown', onKey)
   })
 
-  async function createHighlight(start: number, end: number, color: HighlightColor, via: 'toolbar' | 'shortcut'): Promise<void> {
+  async function createHighlight(start: number, end: number, color: HighlightColor, via: 'toolbar' | 'shortcut'): Promise<Highlight | null> {
     const quote = quoteForRange(entry.content, { start, end })
-    if (!quote) return
+    if (!quote) return null
     const highlight: Highlight = { id: newHighlightId(), start, end, quote, color, createdAt: Date.now() }
     const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({ type: 'ADD_HIGHLIGHT', id: entry.id, highlight })
     if (!response.success || !response.data?.entry) {
       setError(response.error ?? uiText('toast.saveFailed'))
-      return
+      return null
     }
     setError('')
     onEntryChanged(response.data.entry)
     void MessageUtils.sendMessage({ type: 'RECORD_EVENT', name: 'highlight.created', props: { has_note: false, via } })
     window.getSelection()?.removeAllRanges()
     setToolbar(null)
+    return (response.data.entry.highlights ?? []).find(item => item.id === highlight.id) ?? highlight
   }
 
   /** Runs one highlight operation server-side (storage.md §5: one transaction per op). */
@@ -127,7 +128,15 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
               onClick={() => void createHighlight(toolbar.start, toolbar.end, color, 'toolbar')}
             />
           ))}
-          <button type="button" className="hl-note-button" onClick={() => void createHighlight(toolbar.start, toolbar.end, defaultColor, 'toolbar')}>
+          <button
+            type="button"
+            className="hl-note-button"
+            onClick={() => {
+              void createHighlight(toolbar.start, toolbar.end, defaultColor, 'toolbar').then(created => {
+                if (created) setPopover({ highlight: created, x: toolbar.x, y: toolbar.y })
+              })
+            }}
+          >
             {uiText('reading.note')}
           </button>
         </div>

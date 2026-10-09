@@ -12,6 +12,7 @@
  */
 import type { ReactNode } from 'react'
 import type { Highlight } from '../../learning-core/types'
+import { HIGHLIGHT_QUOTE_MAX_CHARS } from '../../learning-core/validate'
 
 export interface SourceRange {
   start: number
@@ -311,8 +312,27 @@ export interface MarkdownViewProps {
 export function MarkdownView({ markdown, highlights = [], onHighlightClick, surfaceClass = 'md-view' }: MarkdownViewProps) {
   const nodes: ReactNode[] = []
   for (const block of parseBlocks(markdown)) {
-    const runLines = (lines: Block['lines'], keyPrefix: string): ReactNode[] =>
-      lines.map((line, i) => applyHighlights(inlineRuns(line.source, line.srcStart), highlights).map((piece, j) => renderRun(piece, `${keyPrefix}-${i}-${j}`, onHighlightClick)))
+    // between a paragraph's lines: a soft wrap renders as one space (carrying
+    // the newline's source offset), a hard break (trailing spaces) as <br>
+    const runLines = (lines: Block['lines'], keyPrefix: string): ReactNode[] => {
+      const out: ReactNode[] = []
+      lines.forEach((line, i) => {
+        if (i > 0) {
+          const hardBreak = / {2,}$/.test(lines[i - 1]!.source)
+          out.push(
+            hardBreak ? (
+              <br key={`${keyPrefix}-br-${i}`} />
+            ) : (
+              <span key={`${keyPrefix}-sp-${i}`} data-s={line.srcStart - 1}>
+                {' '}
+              </span>
+            ),
+          )
+        }
+        applyHighlights(inlineRuns(line.source, line.srcStart), highlights).forEach((piece, j) => out.push(renderRun(piece, `${keyPrefix}-${i}-${j}`, onHighlightClick)))
+      })
+      return out
+    }
     switch (block.kind) {
       case 'h': {
         const Tag = `h${Math.min((block.level ?? 1) + 1, 6)}` as 'h1'
@@ -336,11 +356,33 @@ export function MarkdownView({ markdown, highlights = [], onHighlightClick, surf
         break
       }
       case 'table': {
+        // a real table with per-cell source anchors: selections and
+        // highlights work cell by cell (RV-LIB-09)
         const rows = block.lines.filter(line => !/^\s*\|[\s:|-]+\|\s*$/.test(line.source))
+        const hadSeparator = block.lines.length === rows.length + 1
+        const renderRow = (line: Block['lines'][number], i: number, cellTag: 'td' | 'th') => {
+          const cells = splitTableRow(line)
+          return (
+            <tr key={`${block.key}-r${i}`}>
+              {cells.map((cell, j) => {
+                const Cell = cellTag
+                return (
+                  <Cell key={`${block.key}-r${i}-c${j}`} data-s={line.srcStart + cell.start}>
+                    {applyHighlights(inlineRuns(cell.text, line.srcStart + cell.start), highlights).map((piece, k) =>
+                      renderRun(piece, `${block.key}-r${i}-c${j}-${k}`, onHighlightClick),
+                    )}
+                  </Cell>
+                )
+              })}
+            </tr>
+          )
+        }
+        const bodyRows = hadSeparator ? rows.slice(1) : rows
         nodes.push(
-          <pre key={block.key} className="md-table">
-            <code data-s={rows[0]?.srcStart ?? block.srcStart}>{rows.map(row => row.source).join('\n')}</code>
-          </pre>,
+          <table key={block.key} className="md-table">
+            {hadSeparator && rows.length > 0 && <thead>{renderRow(rows[0]!, 0, 'th')}</thead>}
+            <tbody>{bodyRows.map((line, i) => renderRow(line, i + 1, 'td'))}</tbody>
+          </table>,
         )
         break
       }
@@ -354,6 +396,31 @@ export function MarkdownView({ markdown, highlights = [], onHighlightClick, surf
   return <div className={surfaceClass}>{nodes}</div>
 }
 
+/** Splits `| a | b |` into unescaped cells with their offsets inside the row line. */
+export function splitTableRow(line: { source: string }): { text: string; start: number }[] {
+  const cells: { text: string; start: number }[] = []
+  let cell = ''
+  let cellStart = -1
+  for (let i = 0; i < line.source.length; i++) {
+    const char = line.source[i]!
+    if (char === '\\' && line.source[i + 1] === '|') {
+      cell += '|'
+      i++
+      continue
+    }
+    if (char === '|') {
+      if (cellStart >= 0) cells.push({ text: cell.trim(), start: cellStart + (cell.length - cell.trimStart().length) })
+      cell = ''
+      cellStart = -1
+      continue
+    }
+    if (cellStart < 0 && char !== ' ' && char !== '\t') cellStart = i
+    if (cellStart >= 0) cell += char
+  }
+  if (cellStart >= 0) cells.push({ text: cell.trim(), start: cellStart + (cell.length - cell.trimStart().length) })
+  return cells
+}
+
 // ── Selection ↔ source conversion (the shared module, RK-13) ─────────────
 
 /** The [start, end) source range of a DOM selection inside the rendered view. */
@@ -362,37 +429,109 @@ export function sourceRangeFromSelection(root: HTMLElement, selection: Selection
   const range = selection.getRangeAt(0)
   if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return null
 
-  const start = offsetInSource(range.startContainer, range.startOffset, root)
-  const end = offsetInSource(range.endContainer, range.endOffset, root)
+  // an endpoint sitting on an element (triple-click, Ctrl+A, cross-block
+  // drags) normalizes to the adjacent text position first (RV-LIB-09)
+  const startPoint = textPointOf(range.startContainer, range.startOffset, root)
+  const endPoint = textPointOf(range.endContainer, range.endOffset, root)
+  if (!startPoint || !endPoint) return null
+  const start = offsetInSource(startPoint.node, startPoint.offset, root)
+  const end = offsetInSource(endPoint.node, endPoint.offset, root)
   if (start === null || end === null || end <= start) return null
   return { start, end }
 }
 
-/** The rendered text of a source range, as the highlight's quote (entry.md §4.2). */
+/** A DOM point (element containers included) as a text node + caret offset. */
+function textPointOf(node: Node, offset: number, root: HTMLElement): { node: Text; offset: number } | null {
+  if (node.nodeType === Node.TEXT_NODE) return { node: node as Text, offset }
+  const element = node as Element
+  const children = Array.from(element.childNodes)
+  if (offset < children.length) {
+    const target = children[offset]!
+    const first = firstTextNodeWithin(target) ?? textNodeAfter(target, root, false)
+    if (first) return { node: first, offset: 0 }
+  }
+  const tail = offset > 0 ? children[offset - 1]! : element
+  const last = lastTextNodeWithin(tail) ?? textNodeAfter(tail, root, true)
+  if (last) return { node: last, offset: last.textContent?.length ?? 0 }
+  return null
+}
+
+function firstTextNodeWithin(node: Node): Text | null {
+  if (node.nodeType === Node.TEXT_NODE) return node as Text
+  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT)
+  return walker.nextNode() as Text | null
+}
+
+function lastTextNodeWithin(node: Node): Text | null {
+  if (node.nodeType === Node.TEXT_NODE) return node as Text
+  const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT)
+  let last: Text | null = null
+  for (let current = walker.nextNode(); current; current = walker.nextNode()) last = current as Text
+  return last
+}
+
+/** The next (or previous) text node in document order within root. */
+function textNodeAfter(node: Node, root: HTMLElement, backwards: boolean): Text | null {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+  let lastBefore: Text | null = null
+  for (let current = walker.nextNode(); current; current = walker.nextNode()) {
+    const follows = (node.compareDocumentPosition(current) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+    if (follows) return backwards ? lastBefore : (current as Text)
+    lastBefore = current as Text
+  }
+  return backwards ? lastBefore : null
+}
+
+/**
+ * The rendered text of a source range, as the highlight's quote (entry.md
+ * §4.2): assembled from the rendered runs, never from raw Markdown, so a
+ * selection across links or bold text quotes the visible words.
+ */
 export function quoteForRange(markdown: string, range: SourceRange): string {
-  return markdown.slice(range.start, range.end).replace(/\n+/g, ' ').trim()
+  let quote = ''
+  for (const run of renderedRuns(markdown)) {
+    const from = Math.max(range.start, run.srcStart)
+    const to = Math.min(range.end, run.srcStart + run.text.length)
+    if (to > from) quote += run.text.slice(from - run.srcStart, to - run.srcStart)
+  }
+  quote = quote.replace(/\n+/g, ' ').trim()
+  return quote.length > HIGHLIGHT_QUOTE_MAX_CHARS ? quote.slice(0, HIGHLIGHT_QUOTE_MAX_CHARS) : quote
+}
+
+/** The rendered text runs of the whole document with their source anchors. */
+export function renderedRuns(markdown: string): Run[] {
+  const runs: Run[] = []
+  for (const block of parseBlocks(markdown)) {
+    if (block.kind === 'code') {
+      block.lines.forEach((line, i) => {
+        if (i > 0) runs.push({ text: '\n', srcStart: line.srcStart - 1 })
+        runs.push({ text: line.source, srcStart: line.srcStart })
+      })
+      continue
+    }
+    if (block.kind === 'table') {
+      const rows = block.lines.filter(line => !/^\s*\|[\s:|-]+\|\s*$/.test(line.source))
+      rows.forEach((row, i) => {
+        if (i > 0) runs.push({ text: ' ', srcStart: row.srcStart - 1 })
+        splitTableRow(row).forEach((cell, j) => {
+          if (j > 0) runs.push({ text: ' ', srcStart: row.srcStart + cell.start - 1 })
+          runs.push(...inlineRuns(cell.text, row.srcStart + cell.start))
+        })
+      })
+      continue
+    }
+    block.lines.forEach((line, i) => {
+      if (i > 0) runs.push({ text: ' ', srcStart: line.srcStart - 1 })
+      runs.push(...inlineRuns(line.source, line.srcStart))
+    })
+  }
+  return runs
 }
 
 function offsetInSource(node: Node, offset: number, root: HTMLElement): number | null {
-  if (node.nodeType === Node.TEXT_NODE) {
-    const span = (node as Text).parentElement
-    const base = span?.dataset.s
-    if (base !== undefined && root.contains(span)) return Number(base) + offset
-    return null
-  }
-  // element container: resolve to the first text run inside it at this offset
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-  let textNode: Text | null = walker.nextNode() as Text | null
-  let passed = 0
-  while (textNode) {
-    const length = textNode.textContent?.length ?? 0
-    if (passed + length >= offset) {
-      const base = textNode.parentElement?.dataset.s
-      if (base !== undefined) return Number(base) + Math.max(0, offset - passed)
-      return null
-    }
-    passed += length
-    textNode = walker.nextNode() as Text | null
-  }
+  if (node.nodeType !== Node.TEXT_NODE) return null
+  const span = (node as Text).parentElement
+  const base = span?.dataset.s
+  if (base !== undefined && root.contains(span)) return Number(base) + offset
   return null
 }

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { clearLibrary, getCapturePageUrl, getEntries, selectUntilMenu, waitForClipToast } from './helpers'
+import { clearLibrary, ensureServiceWorker, getCapturePageUrl, getEntries, selectUntilMenu, waitForClipToast } from './helpers'
 
 test.describe('reading view and in-library highlights (extension.md §4.2)', () => {
   test.beforeEach(async ({ context }) => {
@@ -167,6 +167,59 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
         return (entries[0]!.highlights as { note?: string }[] | undefined)?.[0]?.note
       })
       .toBe('note with color')
+    await library.close()
+  })
+
+  test('a table cell selection highlights and quotes the right cell (RV-LIB-09)', async ({ page, extensionId }) => {
+    await clearLibrary(page.context())
+    const content = '| Name | Role |\n| --- | --- |\n| Bob | Engineer |\n| Ann | Designer |'
+    const sw = await ensureServiceWorker(page.context())
+    await sw.evaluate(body => {
+      return new Promise<null>(resolve => {
+        const open = indexedDB.open('annhub')
+        open.onsuccess = () => {
+          const tx = open.result.transaction('entries', 'readwrite')
+          tx.objectStore('entries').put({
+            id: 'ent_table_rv_lib_09',
+            type: 'clip',
+            content: body,
+            sourceUrl: 'https://table.example/roles',
+            sourceHost: 'table.example',
+            properties: { title: 'Roles table' },
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          })
+          tx.oncomplete = () => resolve(null)
+        }
+      })
+    }, content)
+
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html`)
+    await library.locator('.row', { hasText: 'Roles table' }).click()
+    await library.getByTestId('drawer-read').click()
+    const reading = library.getByTestId('reading-view')
+    await expect(reading).toBeVisible()
+    await expect(reading.locator('table.md-table td', { hasText: 'Engineer' })).toBeVisible()
+
+    // dblclick "Bob": the quote and offsets must point at Bob, not at the
+    // previous row's characters (the old renderer dropped the separator row
+    // and mis-anchored every later cell)
+    await reading.locator('table.md-table td', { hasText: 'Bob' }).dblclick()
+    const toolbar = library.getByTestId('hl-toolbar')
+    await expect(toolbar).toBeVisible()
+    await toolbar.locator('.hl-dot-yellow').click()
+
+    await expect
+      .poll(async () => {
+        const entries = await getEntries(library.context())
+        return (entries[0]!.highlights as { quote?: string }[] | undefined)?.[0]?.quote
+      })
+      .toBe('Bob')
+    const entries = await getEntries(library.context())
+    const highlight = (entries[0]!.highlights as unknown as { start: number; end: number }[])[0]!
+    expect(highlight.start).toBe(content.indexOf('Bob'))
+    expect(highlight.end).toBe(content.indexOf('Bob') + 3)
     await library.close()
   })
 
