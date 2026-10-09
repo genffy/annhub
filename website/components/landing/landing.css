@@ -1,0 +1,139 @@
+/* Page-level CSS that Tailwind utilities cannot express: the hero board's scale steps and a few details. */
+
+/* ── hero board ──────────────────────────────────────────────────────────────
+   Three product windows laid out in a 1050 x 800 board and scaled as a whole. The scale is a step per breakpoint, in
+   CSS only, so nothing is measured or re-laid-out after hydration and there is no first-frame flash.
+   - 1024px and up: the board sits beside the text and bleeds off the right edge. It stops growing at 1440px, because the
+     content column is capped there; a bigger board would run into the headline.
+   - 640 to 1023px: it sits below the text at the width of the column.
+   - below 640px: hidden; phones get a compact scene instead (hero.tsx, HeroPhone). */
+.hb {
+  --s: 0.43;
+  position: relative;
+  width: calc(1050px * var(--s));
+  height: calc(800px * var(--s));
+  margin-top: 28px;
+}
+
+.hb-in {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1050px;
+  height: 800px;
+  transform: scale(var(--s));
+  transform-origin: 0 0;
+}
+
+.hb-w {
+  position: absolute;
+  transform-origin: 0 0;
+}
+
+.hb-a {
+  left: 0;
+  top: 172px;
+  z-index: 3;
+}
+
+.hb-b {
+  left: 300px;
+  top: 32px;
+  z-index: 1;
+  transform: scale(0.8);
+}
+
+.hb-c {
+  left: 604px;
+  top: 606px;
+  z-index: 4;
+  transform: scale(0.74);
+}
+
+.hb-label {
+  position: absolute;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: var(--sh-1);
+  color: var(--fg-2);
+  font: 600 13px/1 var(--font-ui);
+  white-space: nowrap;
+}
+
+.hb-label-a {
+  left: 0;
+  top: 140px;
+}
+
+.hb-label-b {
+  left: 300px;
+  top: 0;
+}
+
+/* The selection menu is the point of the first picture, so it is drawn a little larger than life. */
+.hb-a .ah-over-above {
+  transform: translateX(-50%) scale(1.22);
+  transform-origin: 50% 100%;
+}
+
+@media (min-width: 640px) {
+  .hb {
+    --s: 0.54;
+  }
+}
+
+@media (min-width: 768px) {
+  .hb {
+    --s: 0.66;
+  }
+}
+
+@media (min-width: 1024px) {
+  .hb {
+    --s: 0.5;
+    position: absolute;
+    top: 104px;
+    right: max(calc(50% - 50vw), -100px);
+    margin-top: 0;
+  }
+}
+
+@media (min-width: 1152px) {
+  .hb {
+    --s: 0.6;
+  }
+}
+
+@media (min-width: 1280px) {
+  .hb {
+    --s: 0.7;
+  }
+}
+
+@media (min-width: 1440px) {
+  .hb {
+    --s: 0.78;
+  }
+}
+
+@media (max-width: 639px) {
+  .hb {
+    display: none;
+  }
+}
+
+/* the interactive library window: a fixed stage height, the content scrolls inside it */
+.tour-window {
+  height: 600px;
+}
+
+@media (min-width: 1024px) {
+  .tour-window {
+    height: 680px;
+  }
+}

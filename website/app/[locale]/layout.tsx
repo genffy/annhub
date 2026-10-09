@@ -1,42 +1,68 @@
-import { Inter } from 'next/font/google'
+import { Inter, Source_Serif_4 } from 'next/font/google'
 import { i18n } from '@/i18n/config'
-import { NextIntlClientProvider } from 'next-intl'
+import { getLandingCopy } from '@/lib/copy'
+import { NextIntlClientProvider, hasLocale } from 'next-intl'
+import { setRequestLocale } from 'next-intl/server'
 import { notFound } from 'next/navigation'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 
 import './globals.css'
+import '@/components/product/product-page.css'
+import '@/components/product/product-app.css'
+import '@/components/landing/landing.css'
 
 export async function generateStaticParams() {
   return i18n.locales.map(locale => ({ locale }))
 }
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#f2f0f8',
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params
-  const zh = locale === 'zh-CN'
+  const { meta, locale: lang } = getLandingCopy(locale)
   return {
     metadataBase: new URL('https://annhub.org'),
-    title: zh ? 'AnnHub - 把网页中的知识变成工作中用得上的能力' : 'AnnHub - Turn web knowledge into something you can use',
-    description: zh
-      ? '在浏览器中连同语境采集好的文字、图片和问题，保存在本地，需要时再找回。本地优先，AI 可选。'
-      : 'Capture good text, images, and questions with context in the browser, saved locally and easy to find again. Local-first, AI optional.',
+    title: meta.title,
+    description: meta.description,
+    alternates: {
+      canonical: `/${lang}`,
+      languages: { 'zh-CN': '/zh-CN', 'en': '/en', 'x-default': '/zh-CN' },
+    },
     icons: {
       icon: '/icon.png',
       shortcut: '/icon.png',
       apple: '/icon.png',
     },
     openGraph: {
-      title: zh ? 'AnnHub - 知识碎片采集与内化系统' : 'AnnHub - Knowledge capture and retrieval',
-      description: zh ? '从网页选区到一次主动回忆。' : 'From a web selection to an act of recall.',
+      title: meta.ogTitle,
+      description: meta.ogDescription,
       type: 'website',
       siteName: 'AnnHub',
+      url: `/${lang}`,
+      locale: lang === 'zh-CN' ? 'zh_CN' : 'en_US',
+      alternateLocale: lang === 'zh-CN' ? ['en_US'] : ['zh_CN'],
     },
   }
 }
 
+// The product windows use the interface font plus a serif for "the user's web page": the serif tells a page of ours
+// apart from a page of theirs (docs/design/v2/README.md).
 const inter = Inter({
   weight: ['400', '500', '600', '700'],
   display: 'swap',
   subsets: ['latin'],
+  variable: '--font-inter',
+})
+
+const sourceSerif = Source_Serif_4({
+  weight: ['400', '600', '700'],
+  display: 'swap',
+  subsets: ['latin'],
+  variable: '--font-source-serif',
 })
 
 type RootLayoutProps = {
@@ -46,16 +72,14 @@ type RootLayoutProps = {
 
 export default async function RootLayout({ params, children }: RootLayoutProps) {
   const { locale } = await params
-  let messages
-  try {
-    messages = (await import(`@/i18n/messages/${locale}.json`)).default
-  } catch {
-    notFound()
-  }
+  if (!hasLocale(i18n.locales, locale)) notFound()
+  // Tells next-intl the locale up front, so it does not read request headers and the page can be prerendered.
+  setRequestLocale(locale)
+  const messages = (await import(`@/i18n/messages/${locale}.json`)).default
 
   return (
-    <html lang={locale}>
-      <body className={inter.className}>
+    <html lang={locale} className={`${inter.variable} ${sourceSerif.variable}`}>
+      <body>
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}
         </NextIntlClientProvider>
