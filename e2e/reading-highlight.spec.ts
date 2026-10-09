@@ -118,6 +118,58 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     await library.close()
   })
 
+  test('popover buttons survive a note edit: blur saves, clicks still land (RV-LIB-08)', async ({ page, extensionId }) => {
+    await page.goto(getCapturePageUrl())
+    const menu = await selectUntilMenu(page, '#intro-p')
+    await menu.locator('.ann-menu-action').nth(0).click()
+    await waitForClipToast(page)
+
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html`)
+    await library.locator('.row').first().click()
+    await library.getByTestId('drawer-read').click()
+    const reading = library.getByTestId('reading-view')
+    await expect(reading).toBeVisible()
+
+    // create one yellow highlight
+    await library.evaluate(() => {
+      const el = Array.from(document.querySelectorAll('.md-view span[data-s]'))[0]!
+      const range = document.createRange()
+      range.setStart(el.firstChild!, 0)
+      range.setEnd(el.firstChild!, 6)
+      const selection = window.getSelection()!
+      selection.removeAllRanges()
+      selection.addRange(range)
+      el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 200, clientY: 200 }))
+    })
+    const toolbar = library.getByTestId('hl-toolbar')
+    await toolbar.locator('.hl-dot-yellow').click()
+    const mark = reading.locator('.md-hl').first()
+
+    // type a note, then click delete: the click must not be swallowed by blur
+    await mark.click()
+    await library.getByTestId('hl-note-input').fill('note before delete')
+    await library.getByTestId('hl-delete').click()
+    await expect(reading.locator('.md-hl')).toHaveCount(0)
+
+    // undo brings it back (without the half-saved note interfering)
+    await library.getByTestId('hl-notice').getByRole('button', { name: '撤销' }).click()
+    await expect(reading.locator('.md-hl')).toHaveCount(1)
+
+    // type a note and click a color: the recolor lands while the note saves
+    await mark.click()
+    await library.getByTestId('hl-note-input').fill('note with color')
+    await library.getByTestId('hl-popover').locator('.hl-dot-green').click()
+    await expect(reading.locator('.md-hl-green')).toHaveCount(1)
+    await expect
+      .poll(async () => {
+        const entries = await getEntries(library.context())
+        return (entries[0]!.highlights as { note?: string }[] | undefined)?.[0]?.note
+      })
+      .toBe('note with color')
+    await library.close()
+  })
+
   test('an overlapping selection merges into one highlight (entry.md §4.6)', async ({ page, extensionId }) => {
     await page.goto(getCapturePageUrl())
     const menu = await selectUntilMenu(page, '#intro-p')

@@ -644,14 +644,6 @@ function DetailDrawer({
     void load()
   }, [load])
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
-
   const persist = useCallback(async () => {
     if (!entry) return
     const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({
@@ -663,6 +655,19 @@ function DetailDrawer({
     if (!response.success) setError(response.error ?? 'update failed')
     else setEntry(response.data!.entry)
   }, [entry, note])
+
+  /** Every close path commits the note draft first (root AGENTS.md §5, RV-LIB-08). */
+  const closeWithSave = useCallback(() => {
+    void persist().then(() => onClose())
+  }, [persist, onClose])
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') closeWithSave()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [closeWithSave])
 
   if (!entry) {
     return (
@@ -688,7 +693,7 @@ function DetailDrawer({
         <button type="button" className="danger" onClick={() => setConfirmDelete(true)}>
           {uiText('library.delete')}
         </button>
-        <button type="button" className="ghost" onClick={onClose} aria-label={uiText('common.close')}>
+        <button type="button" className="ghost" onClick={closeWithSave} aria-label={uiText('common.close')}>
           ✕
         </button>
       </header>

@@ -144,8 +144,8 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
             setPopover(null)
           }}
           onNote={note => {
+            // saves in place; the popover stays open for further edits
             void runHighlightOp({ type: 'UPDATE_HIGHLIGHT', id: entry.id, highlightId: popover.highlight.id, patch: { note: note || null } })
-            setPopover(null)
           }}
           onDelete={() => {
             deleteHighlight(popover.highlight)
@@ -192,6 +192,8 @@ function HighlightPopover({
         value={note}
         placeholder={uiText('reading.note')}
         onChange={event => setNote(event.target.value)}
+        // blur SAVES the note but never closes the popover — a click on
+        // delete or a color must still land (RV-LIB-08)
         onBlur={() => onNote(note)}
         rows={2}
         aria-label={uiText('reading.note')}
