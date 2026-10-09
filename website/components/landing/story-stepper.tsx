@@ -8,8 +8,8 @@ import { fill } from '@/lib/copy'
 import { RichText } from './shared'
 
 /**
- * Six moments of one week, one picture each. Every picture is rendered on the server and only shown or hidden here,
- * so the whole walkthrough is in the page for readers and crawlers and switching costs nothing.
+ * Six moments of one week, one picture each. Keep inactive panels for the tab relationship, but only mount the active
+ * scene; the hidden browser windows otherwise add hundreds of DOM nodes and several ResizeObservers on first load.
  */
 export default function StoryStepper({
   steps,
@@ -128,7 +128,7 @@ export default function StoryStepper({
           {steps.map((s, i) => (
             <div key={s.id} role="tabpanel" id={`${uid}-panel-${s.id}`} aria-labelledby={`${uid}-tab-${s.id}`} hidden={i !== active}>
               <div role="img" aria-label={s.caption}>
-                {scenes[s.id]}
+                {i === active ? scenes[s.id] : null}
               </div>
             </div>
           ))}

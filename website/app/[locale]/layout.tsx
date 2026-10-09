@@ -78,7 +78,9 @@ export default async function RootLayout({ params, children }: RootLayoutProps) 
   const messages = (await import(`@/i18n/messages/${locale}.json`)).default
 
   return (
-    <html lang={locale} className={`${inter.variable} ${sourceSerif.variable}`}>
+    // globals.css smooth-scrolls in-page anchors. With this attribute Next switches that off while it changes pages (the
+    // language link), so the new page opens at the top at once instead of animating a ~1s scroll up the whole page.
+    <html lang={locale} data-scroll-behavior="smooth" className={`${inter.variable} ${sourceSerif.variable}`}>
       <body>
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}

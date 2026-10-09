@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
 import Logo from '../logo'
 import type { LandingCopy } from '@/lib/copy'
-import { PROGRESS_URL } from './links'
+import { LIBRARY_URL } from './links'
 
 /** A floating white bar (docs/v2/website.md §5). Anchors are in-page, so there is no script and no hidden menu to reach. */
 export default function SiteHeader({ copy }: { copy: LandingCopy }) {
@@ -35,9 +35,7 @@ export default function SiteHeader({ copy }: { copy: LandingCopy }) {
             {header.language.label}
           </Link>
           <a
-            href={PROGRESS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
+            href={LIBRARY_URL}
             className="hidden h-9 items-center gap-1.5 rounded-md bg-brand px-3.5 text-[13px] font-semibold text-brand-fg transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_86%,#000)] sm:inline-flex"
           >
             {header.cta}

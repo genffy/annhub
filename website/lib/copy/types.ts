@@ -3,7 +3,7 @@ import type { ProductUi } from '@/components/product/types'
 export type Locale = 'zh-CN' | 'en'
 
 /** Section ids the header links to; each section component owns the matching `id`. */
-export type SectionId = 'ways' | 'story' | 'library' | 'local' | 'faq' | 'progress'
+export type SectionId = 'ways' | 'story' | 'library' | 'local' | 'faq'
 
 export type EntryKind = 'clip' | 'screenshot' | 'highlight'
 
@@ -83,16 +83,12 @@ export interface LandingCopy {
     diagram: { browser: string; entries: string; settings: string; server: string; none: string; fetch: string; page: string }
   }
   faq: { title: string; lead: string; items: { q: string; a: string; note?: string }[] }
-  progress: {
+  closing: {
     title: string
-    lead: string
-    legend: string
-    status: { done: string; todo: string }
-    stages: { id: string; name: string; body: string; done: boolean }[]
-    download: string
-    cta: string
+    body: string
+    primary: string
     secondary: string
   }
-  footer: { line: string; roadmap: string; github: string; privacy: string; terms: string; copyright: string; navLabel: string }
+  footer: { line: string; library: string; github: string; privacy: string; terms: string; copyright: string; navLabel: string }
   ui: ProductUi
 }

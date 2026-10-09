@@ -75,14 +75,17 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 @media (max-width: 600px) {
     .container { padding: 1.5rem 1.15rem; }
     h1 { font-size: 1.6rem; }
+    .nav { flex-wrap: wrap; gap: 0.75rem 1rem; }
+    .nav::after { flex: 1 1 calc(100% - 3rem); margin-right: 0; }
+    .nav a { white-space: nowrap; }
 }
 </style>
 </head>
 <body>
 <div class="container">
 <nav class="nav" aria-label="Legal pages">
-<a href="https://annhub.org/">Home</a>
-<a href="https://annhub.org/terms-of-service.html">Terms of Service 服务条款</a>
+<a href="/">Home</a>
+<a href="/terms-of-service.html">Terms of Service 服务条款</a>
 </nav>
 <section lang="en" id="en">
 <p class="lang"><a href="#zh">中文版 ↓</a></p>

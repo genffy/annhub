@@ -1,17 +1,17 @@
 import type { LandingCopy } from '@/lib/copy'
+import Closing from './closing'
 import Differences from './differences'
 import Faq from './faq'
 import Hero from './hero'
 import LibrarySection from './library'
 import Problem from './problem'
-import Progress from './progress'
 import SiteFooter from './site-footer'
 import SiteHeader from './site-header'
 import Story from './story'
 import Trust from './trust'
 import Ways from './ways'
 
-/** Order follows docs/v2/website.md §3: hero, problem, the three ways, one real story, the product, differences, trust, FAQ, progress. */
+/** Order follows docs/v2/website.md §3: hero, problem, the three ways, one real story, the product, differences, trust, FAQ, closing. */
 export default function LandingPage({ copy }: { copy: LandingCopy }) {
   return (
     <>
@@ -31,7 +31,7 @@ export default function LandingPage({ copy }: { copy: LandingCopy }) {
         <Differences copy={copy} />
         <Trust copy={copy} />
         <Faq copy={copy} />
-        <Progress copy={copy} />
+        <Closing copy={copy} />
       </main>
       <SiteFooter copy={copy} />
     </>
