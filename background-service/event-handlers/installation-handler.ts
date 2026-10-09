@@ -1,13 +1,7 @@
 import { Logger } from '../../utils/logger'
-import { ServiceContext } from '../service-context'
 
 export class InstallationHandler {
-  private serviceContext: ServiceContext
   private installedListener?: (details: chrome.runtime.InstalledDetails) => void
-
-  constructor() {
-    this.serviceContext = ServiceContext.getInstance()
-  }
 
   registerListeners(): void {
     Logger.info('[InstallationHandler] Registering installation listeners...')
@@ -47,7 +41,6 @@ export class InstallationHandler {
         Logger.info('[InstallationHandler] Installation/update handling completed successfully')
       } catch (error) {
         Logger.error('[InstallationHandler] Installation/update handling failed:', error)
-        this.serviceContext.markInitializationFailed(error instanceof Error ? error : new Error(String(error)))
       }
     }
 

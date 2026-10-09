@@ -1,19 +1,16 @@
 import { Logger } from '../../utils/logger'
 import { CommandHandler } from './command-handler'
 import { InstallationHandler } from './installation-handler'
-import { RuntimeHandler } from './runtime-handler'
 
 export class EventHandlerManager {
   private static instance: EventHandlerManager
   private commandHandler: CommandHandler
   private installationHandler: InstallationHandler
-  private runtimeHandler: RuntimeHandler
   private listenersRegistered = false
 
   private constructor() {
     this.commandHandler = new CommandHandler()
     this.installationHandler = new InstallationHandler()
-    this.runtimeHandler = new RuntimeHandler()
   }
 
   static getInstance(): EventHandlerManager {
@@ -31,8 +28,6 @@ export class EventHandlerManager {
 
     try {
       Logger.info('[EventHandlerManager] Registering event listeners...')
-
-      this.runtimeHandler.registerListeners()
 
       this.commandHandler.registerListeners()
 
@@ -76,7 +71,6 @@ export class EventHandlerManager {
     try {
       Logger.info('[EventHandlerManager] Removing event listeners...')
 
-      this.runtimeHandler.removeListeners()
       this.commandHandler.removeListeners()
       this.installationHandler.removeListeners()
 
