@@ -6,7 +6,7 @@
  * with highlight and properties views is R2; filters already live in the
  * URL hash so refresh restores the view.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
 import type { EntryQuery, EntryQueryResult, PropertyCondition } from '../../learning-core/query'
 import type { EntryRecord, PropertyDefinition, PropertyType } from '../../learning-core/types'
@@ -21,56 +21,16 @@ import type { HighlightQueryResult } from '../../learning-core/query'
 import type { HighlightColor } from '../../learning-core/types'
 import { relativeTime } from '../../utils/relative-time'
 import { currentUiLanguage, uiText } from '../../utils/ui-text'
+import { EMPTY_FILTERS, listHash, readHash, readHashFor, type FilterState, type RouteState, type View } from './route'
 
-type View = 'all' | 'clips' | 'highlights' | 'screenshots' | 'properties' | 'settings'
+/** The five highlight colors a highlights view can filter by (search.md §5). */
+const HIGHLIGHT_FILTER_COLORS: HighlightColor[] = ['yellow', 'green', 'blue', 'pink', 'purple']
 
-interface HashState {
-  view: View
-  search: string
-  host: string
-  tag: string
-  prop: string
-  op: string
-  val: string
-  val2: string
-  from: string
-  to: string
-}
+/** One page of the list (RV-LIB-02: “显示更多” appends the next page). */
+const PAGE_SIZE = 50
 
-const EMPTY_HASH: Omit<HashState, 'view'> = { search: '', host: '', tag: '', prop: '', op: '', val: '', val2: '', from: '', to: '' }
-
-function readHash(): HashState {
-  const hash = new URLSearchParams(location.hash.replace(/^#\/(all|clips|screenshots)\?*/, '') || '')
-  const viewMatch = /^#\/(all|clips|highlights|screenshots|properties|settings)/.exec(location.hash)
-  return {
-    view: (viewMatch?.[1] as View) ?? 'all',
-    search: hash.get('q') ?? '',
-    host: hash.get('host') ?? '',
-    tag: hash.get('tag') ?? '',
-    prop: hash.get('prop') ?? '',
-    op: hash.get('op') ?? '',
-    val: hash.get('val') ?? '',
-    val2: hash.get('val2') ?? '',
-    from: hash.get('from') ?? '',
-    to: hash.get('to') ?? '',
-  }
-}
-
-function writeHash(state: HashState): void {
-  const params = new URLSearchParams()
-  if (state.search) params.set('q', state.search)
-  if (state.host) params.set('host', state.host)
-  if (state.tag) params.set('tag', state.tag)
-  if (state.prop) params.set('prop', state.prop)
-  if (state.op) params.set('op', state.op)
-  if (state.val) params.set('val', state.val)
-  if (state.val2) params.set('val2', state.val2)
-  if (state.from) params.set('from', state.from)
-  if (state.to) params.set('to', state.to)
-  const query = params.toString()
-  const next = `#/${state.view}${query ? `?${query}` : ''}`
-  if (location.hash !== next) history.replaceState(null, '', next)
-}
+/** The search box debounces before it hits the query path (search.md §6). */
+const SEARCH_DEBOUNCE_MS = 250
 
 /** Operators per property type (search.md §3). */
 const OPERATORS: Record<PropertyType, { op: PropertyCondition['op']; key: string }[]> = {
@@ -118,65 +78,148 @@ function buildCondition(def: PropertyDefinition, op: string, val: string, val2: 
 }
 
 export default function App() {
-  const [state, setState] = useState<HashState>(readHash)
-  const [result, setResult] = useState<EntryQueryResult>({ items: [], total: 0 })
+  // The URL is the one source of route state (extension.md §2.2): reads
+  // happen on hashchange, writes only on user actions.
+  const [route, setRoute] = useState<RouteState>(readHash)
+  const [items, setItems] = useState<EntryRecord[]>([])
+  const [total, setTotal] = useState(0)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
   const [counts, setCounts] = useState({ all: 0, clips: 0, screenshots: 0 })
   const [hosts, setHosts] = useState<string[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [registry, setRegistry] = useState<PropertyDefinition[]>([])
   const [loading, setLoading] = useState(true)
-  const [selected, setSelected] = useState<EntryRecord | null>(null)
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null)
   const [exportState, setExportState] = useState<'idle' | 'busy' | 'done' | 'partial' | 'failed'>('idle')
   const [exportSummary, setExportSummary] = useState('')
-  const [readingId, setReadingId] = useState<string | null>(/^#\/read\/(.+)/.exec(location.hash)?.[1] ?? null)
   const [guideDismissed, setGuideDismissed] = useState(() => Boolean(localStorage.getItem('annhub.guideDismissed')))
   const [highlightResult, setHighlightResult] = useState<HighlightQueryResult>({ groups: [], total: 0 })
   const [defaultColor, setDefaultColor] = useState<HighlightColor>('yellow')
+  const [searchDraft, setSearchDraft] = useState(route.search)
+  const [reloadKey, setReloadKey] = useState(0)
+  /** The list route a reading view came from; deep links fall back to the entry's type list. */
+  const returnHashRef = useRef<string | null>(null)
+  /** Set while the user (not the page load) caused the current query (RV-LIB-13). */
+  const userQueryRef = useRef(false)
+  const querySeq = useRef(0)
 
   useEffect(() => {
-    const onHashChange = () => {
-      setReadingId(/^#\/read\/(.+)/.exec(location.hash)?.[1] ?? null)
-      setState(readHash())
-    }
+    const onHashChange = () => setRoute(readHash())
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
   useEffect(() => {
-    writeHash(state)
-    const propDef = registry.find(def => def.name === state.prop)
-    const condition = propDef && state.op ? buildCondition(propDef, state.op, state.val, state.val2) : undefined
-    const query: EntryQuery = {
-      search: state.search || undefined,
-      types: state.view === 'all' ? undefined : [state.view === 'clips' ? 'clip' : 'screenshot'],
-      hosts: state.host ? [state.host] : undefined,
-      tags: state.tag ? [state.tag] : undefined,
-      ...(condition ? { conditions: [condition] } : {}),
-      ...localDayRange(state.from, state.to),
-    }
-    let cancelled = false
+    setSearchDraft(route.search)
+  }, [route.search])
+
+  // Search settles after a quiet period; the query path sees one request per
+  // settled input, not one per keystroke (search.md §6).
+  useEffect(() => {
+    if (searchDraft === route.search) return
+    const timer = window.setTimeout(() => {
+      userQueryRef.current = true
+      const next = { ...route, search: searchDraft }
+      history.replaceState(null, '', listHash(next))
+      setRoute(next)
+    }, SEARCH_DEBOUNCE_MS)
+    return () => window.clearTimeout(timer)
+  }, [searchDraft, route])
+
+  /** A filter change rewrites the list route in place (no history spam). */
+  const setFilter = useCallback((patch: Partial<FilterState>) => {
+    setRoute(prev => {
+      const next = { ...prev, ...patch }
+      history.replaceState(null, '', listHash(next))
+      userQueryRef.current = true
+      return next
+    })
+  }, [])
+
+  const queryFor = useCallback(
+    (filters: RouteState): EntryQuery => {
+      const propDef = registry.find(def => def.name === filters.prop)
+      const condition = propDef && filters.op ? buildCondition(propDef, filters.op, filters.val, filters.val2) : undefined
+      return {
+        search: filters.search || undefined,
+        types: filters.view === 'all' ? undefined : [filters.view === 'clips' ? 'clip' : 'screenshot'],
+        hosts: filters.host ? [filters.host] : undefined,
+        tags: filters.tag ? [filters.tag] : undefined,
+        ...(condition ? { conditions: [condition] } : {}),
+        ...localDayRange(filters.from, filters.to),
+      }
+    },
+    [registry],
+  )
+
+  // The list query (first page) — re-runs when the route, the registry or an
+  // explicit reload changes (RV-LIB-03: writes refresh the list).
+  useEffect(() => {
+    if (route.view === 'settings' || route.view === 'properties' || route.view === 'highlights') return
+    const seq = ++querySeq.current
     setLoading(true)
+    const query = queryFor(route)
     void (async () => {
-      const response = await MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query })
-      if (!cancelled && response.success) setResult(response.data!.result)
-      if (!cancelled) setLoading(false)
+      const response = await MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: { ...query, limit: PAGE_SIZE } })
+      if (seq !== querySeq.current) return
       if (response.success) {
-        void MessageUtils.sendMessage<{ entry: EntryRecord }>({
+        setItems(response.data!.result.items)
+        setTotal(response.data!.result.total)
+        setNextCursor(response.data!.result.nextCursor ?? null)
+      }
+      setLoading(false)
+      if (response.success && userQueryRef.current) {
+        userQueryRef.current = false
+        const enabled = [route.search, route.host, route.tag, route.prop, route.from, route.to].filter(Boolean).length
+        void MessageUtils.sendMessage({
           type: 'RECORD_EVENT',
           name: 'library.queried',
-          props: { has_text: Boolean(state.search), filters: '0', results: bucketCount(response.data!.result.total) },
+          props: { has_text: Boolean(route.search), filters: String(enabled) as '0', results: bucketCount(response.data!.result.total) },
         })
       }
     })()
-    return () => {
-      cancelled = true
-    }
-  }, [state, registry])
+  }, [route, registry, reloadKey, queryFor])
+
+  // The highlights view runs its own query with the same filters (RV-LIB-04).
+  useEffect(() => {
+    if (route.view !== 'highlights') return
+    const seq = ++querySeq.current
+    setLoading(true)
+    void (async () => {
+      const response = await MessageUtils.sendMessage<{ result: HighlightQueryResult }>({
+        type: 'QUERY_HIGHLIGHTS',
+        query: {
+          search: route.search || undefined,
+          hosts: route.host ? [route.host] : undefined,
+          tags: route.tag ? [route.tag] : undefined,
+          colors: route.color ? [route.color as HighlightColor] : undefined,
+          ...localDayRange(route.from, route.to),
+        },
+      })
+      if (seq !== querySeq.current) return
+      if (response.success) setHighlightResult(response.data!.result)
+      setLoading(false)
+    })()
+  }, [route, reloadKey])
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor) return
+    const seq = querySeq.current
+    const response = await MessageUtils.sendMessage<{ result: EntryQueryResult }>({
+      type: 'QUERY_ENTRIES',
+      query: { ...queryFor(route), limit: PAGE_SIZE, cursor: nextCursor },
+    })
+    if (seq !== querySeq.current || !response.success) return
+    setItems(prev => [...prev, ...response.data!.result.items])
+    setTotal(response.data!.result.total)
+    setNextCursor(response.data!.result.nextCursor ?? null)
+  }, [nextCursor, queryFor, route])
 
   const refreshCounts = useCallback(async () => {
     const [all, clips, screenshots, highlights] = await Promise.all([
-      MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: {} }),
+      // candidates must cover the whole library, not the first page (RV-LIB-02);
+      // a real faceted index arrives with RV-BG-04
+      MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: { limit: 10_000 } }),
       MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: { types: ['clip'] } }),
       MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: { types: ['screenshot'] } }),
       MessageUtils.sendMessage<{ result: HighlightQueryResult }>({ type: 'QUERY_HIGHLIGHTS', query: {} }),
@@ -197,6 +240,12 @@ export default function App() {
     setHighlightResult(highlights.data?.result ?? { groups: [], total: 0 })
   }, [])
 
+  /** Any successful write refreshes list, counts and candidates together (RV-LIB-03). */
+  const reload = useCallback(() => {
+    setReloadKey(key => key + 1)
+    void refreshCounts()
+  }, [refreshCounts])
+
   useEffect(() => {
     void refreshCounts()
     void MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'LIST_PROPERTIES' }).then(response => {
@@ -210,10 +259,14 @@ export default function App() {
     })
   }, [refreshCounts])
 
-  const openEntry = useCallback(async (entry: EntryRecord) => {
-    setSelected(entry)
-    void MessageUtils.sendMessage({ type: 'RECORD_EVENT', name: 'entry.reopened', props: { type: entry.type } })
-  }, [])
+  const openEntry = useCallback(
+    async (entry: EntryRecord) => {
+      void MessageUtils.sendMessage({ type: 'RECORD_EVENT', name: 'entry.reopened', props: { type: entry.type } })
+      // the drawer is part of the route: refresh restores it (extension.md §2.2)
+      location.hash = listHash({ ...route, entryId: entry.id })
+    },
+    [route],
+  )
 
   const onExport = useCallback(async () => {
     setExportState('busy')
@@ -231,13 +284,7 @@ export default function App() {
   }, [])
 
   const viewTab = (view: View, key: 'library.all' | 'library.clips' | 'library.highlights' | 'library.screenshots' | 'library.properties' | 'library.settings', count: number) => (
-    <a
-      key={view}
-      href={`#/${view}`}
-      className={`nav-item${state.view === view ? ' nav-item-current' : ''}`}
-      aria-current={state.view === view ? 'page' : undefined}
-      onClick={() => setState(prev => ({ ...prev, view }))}
-    >
+    <a key={view} href={`#/${view}`} className={`nav-item${route.view === view ? ' nav-item-current' : ''}`} aria-current={route.view === view ? 'page' : undefined}>
       {uiText(key)} {count > 0 && <span className="nav-count">{count}</span>}
     </a>
   )
@@ -276,12 +323,22 @@ export default function App() {
             className="search"
             type="search"
             placeholder={uiText('library.searchPlaceholder')}
-            value={state.search}
-            onChange={event => setState(prev => ({ ...prev, search: event.target.value }))}
+            value={searchDraft}
+            onChange={event => setSearchDraft(event.target.value)}
             aria-label={uiText('library.searchPlaceholder')}
           />
+          {route.view === 'highlights' && (
+            <select className="filter" value={route.color} onChange={event => setFilter({ color: event.target.value })} aria-label={uiText('library.filter.color')}>
+              <option value="">{uiText('library.filter.color')}: —</option>
+              {HIGHLIGHT_FILTER_COLORS.map(color => (
+                <option key={color} value={color}>
+                  {uiText(`library.color.${color}` as 'library.color.yellow')}
+                </option>
+              ))}
+            </select>
+          )}
           {hosts.length > 0 && (
-            <select className="filter" value={state.host} onChange={event => setState(prev => ({ ...prev, host: event.target.value }))} aria-label={uiText('library.filter.host')}>
+            <select className="filter" value={route.host} onChange={event => setFilter({ host: event.target.value })} aria-label={uiText('library.filter.host')}>
               <option value="">{uiText('library.filter.host')}: —</option>
               {hosts.map(host => (
                 <option key={host} value={host}>
@@ -291,7 +348,7 @@ export default function App() {
             </select>
           )}
           {tags.length > 0 && (
-            <select className="filter" value={state.tag} onChange={event => setState(prev => ({ ...prev, tag: event.target.value }))} aria-label={uiText('library.filter.tag')}>
+            <select className="filter" value={route.tag} onChange={event => setFilter({ tag: event.target.value })} aria-label={uiText('library.filter.tag')}>
               <option value="">{uiText('library.filter.tag')}: —</option>
               {tags.map(tag => (
                 <option key={tag} value={tag}>
@@ -304,13 +361,13 @@ export default function App() {
             <>
               <select
                 className="filter"
-                value={state.prop}
+                value={route.prop}
                 aria-label={uiText('library.filter.property')}
                 onChange={event => {
                   const prop = event.target.value
                   const def = registry.find(item => item.name === prop)
                   const op = def ? OPERATORS[def.type][0]!.op : ''
-                  setState(prev => ({ ...prev, prop, op, val: '', val2: '' }))
+                  setFilter({ prop, op, val: '', val2: '' })
                 }}
               >
                 <option value="">{uiText('library.filter.property')}: —</option>
@@ -320,9 +377,9 @@ export default function App() {
                   </option>
                 ))}
               </select>
-              {state.prop &&
+              {route.prop &&
                 (() => {
-                  const def = registry.find(item => item.name === state.prop)
+                  const def = registry.find(item => item.name === route.prop)
                   if (!def) return null
                   const operators = OPERATORS[def.type]
                   const valueInput = (key: 'val' | 'val2', labelKey?: 'library.filter.value2') => {
@@ -330,9 +387,9 @@ export default function App() {
                       return (
                         <select
                           className="filter filter-value"
-                          value={state[key]}
+                          value={route[key]}
                           aria-label={labelKey ? uiText(labelKey) : uiText('library.filter.value')}
-                          onChange={event => setState(prev => ({ ...prev, [key]: event.target.value }))}
+                          onChange={event => setFilter({ [key]: event.target.value })}
                         >
                           <option value="">{uiText('library.filter.value')}: —</option>
                           <option value="yes">{uiText('library.value.yes')}</option>
@@ -345,9 +402,9 @@ export default function App() {
                       <input
                         className="filter filter-value"
                         type={inputType}
-                        value={state[key]}
+                        value={route[key]}
                         aria-label={labelKey ? uiText(labelKey) : uiText('library.filter.value')}
-                        onChange={event => setState(prev => ({ ...prev, [key]: event.target.value }))}
+                        onChange={event => setFilter({ [key]: event.target.value })}
                       />
                     )
                   }
@@ -356,9 +413,9 @@ export default function App() {
                       {operators.length > 1 && (
                         <select
                           className="filter"
-                          value={state.op}
+                          value={route.op}
                           aria-label={uiText('library.filter.operator')}
-                          onChange={event => setState(prev => ({ ...prev, op: event.target.value, val: '', val2: '' }))}
+                          onChange={event => setFilter({ op: event.target.value, val: '', val2: '' })}
                         >
                           {operators.map(({ op, key: opKey }) => (
                             <option key={op} value={op}>
@@ -368,7 +425,7 @@ export default function App() {
                         </select>
                       )}
                       {valueInput('val')}
-                      {state.op === 'between' && valueInput('val2', 'library.filter.value2')}
+                      {route.op === 'between' && valueInput('val2', 'library.filter.value2')}
                     </>
                   )
                 })()}
@@ -376,14 +433,16 @@ export default function App() {
           )}
           <label className="filter filter-time" aria-label={uiText('library.filter.time')}>
             <span className="filter-time-label">{uiText('library.filter.time')}</span>
-            <input type="date" value={state.from} aria-label={uiText('library.filter.timeFrom')} onChange={event => setState(prev => ({ ...prev, from: event.target.value }))} />
+            <input type="date" value={route.from} aria-label={uiText('library.filter.timeFrom')} onChange={event => setFilter({ from: event.target.value })} />
             <span>–</span>
-            <input type="date" value={state.to} aria-label={uiText('library.filter.timeTo')} onChange={event => setState(prev => ({ ...prev, to: event.target.value }))} />
+            <input type="date" value={route.to} aria-label={uiText('library.filter.timeTo')} onChange={event => setFilter({ to: event.target.value })} />
           </label>
-          <span className="count">{loading ? uiText('common.loading') : uiText('library.count', { count: result.total })}</span>
+          <span className="count" data-testid="list-count">
+            {loading ? uiText('common.loading') : uiText('library.count', { count: route.view === 'highlights' ? highlightResult.total : total })}
+          </span>
         </header>
 
-        {counts.all === 0 && !guideDismissed && state.view !== 'settings' && state.view !== 'properties' && (
+        {counts.all === 0 && !guideDismissed && route.view !== 'settings' && route.view !== 'properties' && (
           <div className="guide-card" data-testid="guide-card">
             <p>{uiText('library.guide.clip')}</p>
             <p>{uiText('library.guide.shot')}</p>
@@ -400,9 +459,9 @@ export default function App() {
             </button>
           </div>
         )}
-        {state.view === 'settings' ? (
+        {route.view === 'settings' ? (
           <SettingsView />
-        ) : state.view === 'properties' ? (
+        ) : route.view === 'properties' ? (
           <PropertiesView
             onRegistryChanged={() => {
               void MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'LIST_PROPERTIES' }).then(response => {
@@ -410,7 +469,7 @@ export default function App() {
               })
             }}
           />
-        ) : state.view === 'highlights' ? (
+        ) : route.view === 'highlights' ? (
           highlightResult.total === 0 ? (
             <div className="empty">{uiText('library.empty.highlights')}</div>
           ) : (
@@ -432,7 +491,8 @@ export default function App() {
                       type="button"
                       className={`hl-row hl-row-${row.highlight.color}`}
                       onClick={() => {
-                        location.hash = `#/read/${group.clip.id}`
+                        returnHashRef.current = location.hash
+                        location.hash = readHashFor(group.clip.id)
                       }}
                     >
                       <p className="hl-quote">{row.highlight.quote}</p>
@@ -443,51 +503,67 @@ export default function App() {
               ))}
             </ul>
           )
-        ) : result.items.length === 0 ? (
+        ) : items.length === 0 ? (
           <div className="empty">
             {counts.all === 0
-              ? uiText(state.view === 'clips' ? 'library.empty.clips' : state.view === 'screenshots' ? 'library.empty.screenshots' : 'library.empty')
+              ? uiText(route.view === 'clips' ? 'library.empty.clips' : route.view === 'screenshots' ? 'library.empty.screenshots' : 'library.empty')
               : uiText('library.noResults')}
             {counts.all > 0 && (
-              <button type="button" className="link" onClick={() => setState({ view: 'all', ...EMPTY_HASH })}>
+              <button type="button" className="link" onClick={() => setFilter({ ...EMPTY_FILTERS })}>
                 {uiText('library.clearFilters')}
               </button>
             )}
           </div>
         ) : (
-          <ul className="list">
-            {result.items.map(entry => (
-              <EntryRow key={entry.id} entry={entry} onOpen={() => void openEntry(entry)} />
-            ))}
-          </ul>
+          <>
+            <ul className="list">
+              {items.map(entry => (
+                <EntryRow key={entry.id} entry={entry} onOpen={() => void openEntry(entry)} />
+              ))}
+            </ul>
+            {nextCursor && items.length < total && (
+              <button type="button" className="link load-more" data-testid="load-more" onClick={() => void loadMore()}>
+                {uiText('library.loadMore', { count: total - items.length })}
+              </button>
+            )}
+          </>
         )}
       </main>
 
-      {selected && (
+      {route.entryId && !route.readId && (
         <DetailDrawer
-          entryId={selected.id}
+          key={route.entryId}
+          entryId={route.entryId}
           defaultColor={defaultColor}
           registry={registry}
           onClose={() => {
-            setSelected(null)
-            void refreshCounts()
+            const next = { ...route, entryId: null }
+            history.replaceState(null, '', listHash(next))
+            setRoute(next)
+            reload()
           }}
           onOpenReading={id => {
-            setSelected(null)
-            location.hash = `#/read/${id}`
+            returnHashRef.current = location.hash
+            location.hash = readHashFor(id)
           }}
         />
       )}
 
-      {readingId && (
+      {route.readId && (
         <ReadingView
-          entryId={readingId}
+          key={route.readId}
+          entryId={route.readId}
           defaultColor={defaultColor}
           registry={registry}
           onClose={() => {
-            history.back()
+            // back to the list route the reading view came from; a deep link
+            // falls back to the entry's type list (extension.md §4.2)
+            const fallback = '#/clips'
+            location.hash = returnHashRef.current ?? fallback
+            returnHashRef.current = null
+            reload()
           }}
-          onEntryChanged={() => void refreshCounts()}
+          onEntryChanged={() => reload()}
         />
       )}
     </div>
@@ -655,7 +731,15 @@ function DetailDrawer({
               type="button"
               className="danger"
               onClick={() => {
-                void MessageUtils.sendMessage({ type: 'DELETE_ENTRY', id: entry.id }).then(() => onClose())
+                void MessageUtils.sendMessage({ type: 'DELETE_ENTRY', id: entry.id }).then(response => {
+                  if (!response.success) {
+                    // the drawer and the entry survive; the user can retry
+                    setError(response.error ?? uiText('toast.saveFailed'))
+                    setConfirmDelete(false)
+                    return
+                  }
+                  onClose()
+                })
               }}
             >
               {uiText('library.delete')}

@@ -60,9 +60,30 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     await expect(reading.getByTestId('hl-list')).toContainText('Retrie')
     await expect(reading.getByTestId('hl-list')).toContainText('why this matters')
 
-    // refresh keeps the highlight (extension.md §8.4)
+    // refresh keeps the highlight AND the reading view (extension.md §4.2:
+    // the route lives in the URL; RV-TEST-01 replaced the old “view is gone”
+    // assertion that had codified the defect)
     await library.reload()
-    await library.getByTestId('reading-view').waitFor({ state: 'detached' })
+    await expect(library.getByTestId('reading-view')).toBeVisible()
+    await expect(library.getByTestId('reading-view').locator('.md-hl-green')).toHaveCount(1)
+
+    // Esc closes back to the list route that opened it
+    await library
+      .getByTestId('reading-view')
+      .locator('.md-view')
+      .click({ position: { x: 4, y: 4 } })
+    await library.keyboard.press('Escape')
+    await expect(library.getByTestId('reading-view')).toHaveCount(0)
+    await expect(library.locator('.row').first()).toBeVisible()
+
+    // a deep link restores the reading view; closing falls back to the type list
+    const entryId = (await getEntries(library.context()))[0]!.id
+    await library.goto(`chrome-extension://${extensionId}/library.html#/read/${entryId}`)
+    await expect(library.getByTestId('reading-view')).toBeVisible()
+    await library.keyboard.press('Escape')
+    await expect(library.getByTestId('reading-view')).toHaveCount(0)
+    await expect(library.locator('.row').first()).toBeVisible()
+
     await library.locator('.row').first().click()
     await library.getByTestId('drawer-read').click()
     await expect(library.getByTestId('reading-view').locator('.md-hl-green')).toHaveCount(1)
