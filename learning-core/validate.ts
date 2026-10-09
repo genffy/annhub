@@ -101,6 +101,10 @@ function validateProperties(entry: EntryRecord, registry: PropertyDefinition[]):
       throw new EntryValidationError('PROPERTY_VALUE_INVALID', 'tags exceed their tighter limits (20 items, 1-32 chars each)')
     }
   }
+  const title = entry.properties['title']
+  if (typeof title !== 'string' || !title.trim()) {
+    throw new EntryValidationError('PROPERTY_VALUE_INVALID', 'title is always attached and cannot be empty (entry.md §5.4)')
+  }
 }
 
 /**
@@ -151,34 +155,4 @@ export function validateEntry(entry: EntryRecord, registry: PropertyDefinition[]
 
   validateHighlights(entry)
   validateProperties(entry, registry)
-}
-
-/**
- * Overlap merge rule for adding a highlight among existing ones (entry.md
- * §4.6): union range, earliest identity/color, notes joined with a blank
- * line. A new selection crossing several highlights is rejected — the caller
- * merges pairwise.
- */
-export function mergeHighlight(existing: Highlight[], addition: Highlight): Highlight[] {
-  const merged: Highlight[] = []
-  let absorbed = false
-  for (const highlight of existing) {
-    const overlaps = addition.start < highlight.end && highlight.start < addition.end
-    if (!overlaps) {
-      merged.push(highlight)
-      continue
-    }
-    if (absorbed) throw new EntryValidationError('HIGHLIGHT_INVALID', 'new selection overlaps several highlights')
-    absorbed = true
-    const notes = [highlight.note, addition.note].filter((note): note is string => Boolean(note?.trim()))
-    merged.push({
-      ...highlight,
-      start: Math.min(highlight.start, addition.start),
-      end: Math.max(highlight.end, addition.end),
-      quote: highlight.quote.length >= addition.quote.length ? highlight.quote : addition.quote,
-      note: notes.join('\n\n') || undefined,
-      createdAt: Math.min(highlight.createdAt, addition.createdAt),
-    })
-  }
-  return absorbed ? merged : [...existing, addition]
 }

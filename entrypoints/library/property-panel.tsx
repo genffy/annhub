@@ -23,15 +23,17 @@ interface Props {
 
 export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
   const [adding, setAdding] = useState<{ name: string; type: PropertyType } | null>(null)
+  const [pending, setPending] = useState<{ name: string; type: PropertyType } | null>(null)
   const [error, setError] = useState('')
 
   const byKey = useMemo(() => new Map(registry.map(def => [def.name.toLowerCase(), def] as const)), [registry])
 
-  async function persist(properties: Record<string, PropertyValue>, newDefinition?: PropertyDefinition) {
+  /** Sends a field-level properties patch; the store fills the rest from the entry it reads in-transaction. */
+  async function persist(patch: { set?: Record<string, PropertyValue>; unset?: string[]; newDefinitions?: PropertyDefinition[] }) {
     const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({
       type: 'UPDATE_ENTRY',
       id: entry.id,
-      patch: { properties, ...(newDefinition ? { newDefinitions: [newDefinition] } : {}) },
+      patch: { properties: patch },
     })
     if (!response.success || !response.data?.entry) {
       setError(errorText(response.error))
@@ -39,18 +41,20 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
     }
     setError('')
     onEntryChanged(response.data.entry)
+    const definition = patch.newDefinitions?.[0]
     void MessageUtils.sendMessage({
       type: 'RECORD_EVENT',
       name: 'entry.property_edited',
-      props: { scope: newDefinition ? 'custom' : 'builtin', property_type: newDefinition?.type ?? 'text' },
+      props: { scope: definition ? 'custom' : 'builtin', property_type: definition?.type ?? 'text' },
     })
   }
 
   const setValue = (name: string, value: PropertyValue | undefined) => {
-    const properties = { ...entry.properties }
-    if (value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) delete properties[name]
-    else properties[name] = value
-    void persist(properties, undefined)
+    if (value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) {
+      void persist({ unset: [name] })
+      return
+    }
+    void persist({ set: { [name]: value } })
   }
 
   const addProperty = (name: string, type: PropertyType) => {
@@ -58,14 +62,23 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
     if (!trimmed) return
     const existing = byKey.get(trimmed.toLowerCase())
     if (existing) {
-      // set on this entry; the type is the registry's, unchanged
-      setValue(existing.name, defaultValueFor(existing.type))
+      // already in the registry: the row opens for editing, the value arrives on commit
+      setPending({ name: existing.name, type: existing.type })
       setAdding(null)
       return
     }
-    const definition: PropertyDefinition = { name: trimmed, type, builtin: false, presets: [] }
-    void persist({ ...entry.properties, [trimmed]: defaultValueFor(type) }, definition)
+    // the definition registers now; the row waits for its first real value
+    void persist({ newDefinitions: [{ name: trimmed, type, builtin: false, presets: [] }] })
+    setPending({ name: trimmed, type })
     setAdding(null)
+  }
+
+  const commitPending = (value: PropertyValue | undefined): void => {
+    const row = pending
+    setPending(null)
+    if (row && value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0)) {
+      void persist({ set: { [row.name]: value } })
+    }
   }
 
   const names = Object.keys(entry.properties)
@@ -84,6 +97,15 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
           </label>
         )
       })}
+
+      {pending && (
+        <label className="prop-row" data-testid="prop-row-pending">
+          <span className="prop-name" title={pending.type}>
+            <span aria-hidden>{TYPE_ICON[pending.type]}</span> {pending.name}
+          </span>
+          <PendingEditor type={pending.type} autoFocus onCommit={commitPending} />
+        </label>
+      )}
 
       {adding ? (
         <div className="prop-add">
@@ -138,14 +160,17 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
   )
 }
 
-function defaultValueFor(type: PropertyType): PropertyValue {
-  if (type === 'checkbox') return true
-  if (type === 'list') return []
-  if (type === 'number') return 0
-  return ''
-}
-
-function ValueEditor({ type, value, onChange }: { type: PropertyType; value: PropertyValue | undefined; onChange(value: PropertyValue | undefined): void }) {
+function ValueEditor({
+  type,
+  value,
+  onChange,
+  autoFocus,
+}: {
+  type: PropertyType
+  value: PropertyValue | undefined
+  onChange(value: PropertyValue | undefined): void
+  autoFocus?: boolean
+}) {
   if (type === 'checkbox') {
     return <input type="checkbox" checked={value === true} onChange={event => onChange(event.target.checked ? true : undefined)} />
   }
@@ -182,15 +207,52 @@ function ValueEditor({ type, value, onChange }: { type: PropertyType; value: Pro
     )
   }
   if (type === 'date') {
-    return <input type="date" value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value || undefined)} />
+    return <input type="date" autoFocus={autoFocus} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value || undefined)} />
   }
   if (type === 'datetime') {
-    return <input type="datetime-local" value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value || undefined)} />
+    return <input type="datetime-local" autoFocus={autoFocus} value={typeof value === 'string' ? value : ''} onChange={event => onChange(datetimeToStored(event.target.value))} />
   }
   if (type === 'number') {
-    return <input type="number" value={typeof value === 'number' ? value : ''} onChange={event => onChange(event.target.value === '' ? undefined : Number(event.target.value))} />
+    return (
+      <input
+        type="number"
+        autoFocus={autoFocus}
+        value={typeof value === 'number' ? value : ''}
+        onChange={event => onChange(event.target.value === '' ? undefined : Number(event.target.value))}
+      />
+    )
   }
-  return <input type="text" value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value || undefined)} />
+  return <input type="text" autoFocus={autoFocus} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value || undefined)} />
+}
+
+/** datetime-local gives minutes; the stored format needs seconds (entry.md §5.2). */
+function datetimeToStored(value: string): string | undefined {
+  if (!value) return undefined
+  return value.length === 16 ? `${value}:00` : value
+}
+
+/**
+ * Draft-first editor for a row with no stored value yet (RV-LIB-06): the
+ * value is kept locally and committed once — on blur, Enter or (for
+ * checkbox) the flip. An empty commit drops the row without writing.
+ */
+function PendingEditor({ type, autoFocus, onCommit }: { type: PropertyType; autoFocus?: boolean; onCommit(value: PropertyValue | undefined): void }) {
+  const [draft, setDraft] = useState<PropertyValue | undefined>(undefined)
+  const commit = (): void => onCommit(draft)
+  return (
+    <span
+      onBlur={commit}
+      onKeyDown={event => {
+        if (event.key === 'Enter') commit()
+      }}
+    >
+      {type === 'checkbox' ? (
+        <input type="checkbox" autoFocus={autoFocus} checked={draft === true} onChange={event => onCommit(event.target.checked ? true : undefined)} />
+      ) : (
+        <ValueEditor type={type} value={draft} autoFocus={autoFocus} onChange={setDraft} />
+      )}
+    </span>
+  )
 }
 
 /** Stable, readable messages for the entry error codes the panel can hit. */

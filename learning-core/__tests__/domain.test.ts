@@ -1,10 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { isBlankText, normalizeHost, normalizeText, normalizedContains } from '../normalize'
 import { cleanSourceUrl, isHttpUrl } from '../url'
-import { normalizeTags, presetProperties, validatePropertyDefinition, validatePropertyName, validatePropertyValue } from '../properties'
+import {
+  normalizeTags,
+  presetProperties,
+  validatePropertyDefinition,
+  validatePropertyName,
+  validatePropertyValue,
+  mergeNewDefinitions,
+  canonicalizeProperties,
+} from '../properties'
 import { EntryValidationError } from '../types'
 import { makeClip, makeHighlight, makeScreenshot, TEST_REGISTRY } from './helpers'
-import { mergeHighlight, validateEntry } from '../validate'
+import { validateEntry } from '../validate'
 
 describe('normalizeText (entry.md §6)', () => {
   it('applies NFKC, lowercase, quote/dash unification, whitespace collapse, edge trim in order', () => {
@@ -82,9 +90,11 @@ describe('property registry rules (entry.md §5)', () => {
     expect(() => validatePropertyValue('datetime', '2026-10-08T09:30:00+08:00')).toThrow(EntryValidationError) // no offset
     expect(() => validatePropertyValue('date', '2026-02-28')).not.toThrow()
   })
-  it('locks built-ins to their definition', () => {
+  it('locks built-ins to their type; presets may change', () => {
     expect(() => validatePropertyDefinition({ name: 'tags', type: 'text', builtin: true, presets: [] })).toThrow(EntryValidationError)
-    expect(() => validatePropertyDefinition({ name: 'tags', type: 'list', builtin: false, presets: [] })).toThrow(EntryValidationError)
+    // same type passes regardless of the incoming builtin flag — the store
+    // decides what is built-in, and presets/defaultValue are updatable
+    expect(() => validatePropertyDefinition({ name: 'tags', type: 'list', builtin: false, presets: [] })).not.toThrow()
     expect(() => validatePropertyDefinition({ name: 'tags', type: 'list', builtin: true, presets: ['clip', 'screenshot'] })).not.toThrow()
   })
   it('normalizes tags: case-dedup, 1-32 chars, at most 20', () => {
@@ -155,16 +165,34 @@ describe('validateEntry (entry.md §6)', () => {
   })
 })
 
-describe('mergeHighlight (entry.md §4.6)', () => {
-  it('unions ranges, keeps the earliest identity and joins notes with a blank line', () => {
-    const early = makeHighlight({ start: 0, end: 10, note: 'first', createdAt: 1 })
-    const late = makeHighlight({ start: 5, end: 20, note: 'second', createdAt: 2 })
-    const [merged] = mergeHighlight([early], late)
-    expect(merged).toMatchObject({ id: early.id, start: 0, end: 20, note: 'first\n\nsecond', createdAt: 1 })
+describe('property value validation (entry.md §5.2, RV-CORE-03)', () => {
+  it('accepts only real datetimes', () => {
+    expect(() => validatePropertyValue('datetime', '2026-10-09T10:30:00')).not.toThrow()
+    expect(() => validatePropertyValue('datetime', '2026-02-31T10:00:00')).toThrowError(expect.objectContaining({ code: 'PROPERTY_VALUE_INVALID' }))
+    expect(() => validatePropertyValue('datetime', '2026-10-09T25:61:61')).toThrowError(expect.objectContaining({ code: 'PROPERTY_VALUE_INVALID' }))
   })
-  it('appends non-overlapping additions', () => {
-    const a = makeHighlight({ start: 0, end: 5 })
-    const b = makeHighlight({ start: 10, end: 15 })
-    expect(mergeHighlight([a], b)).toHaveLength(2)
+  it('rejects line breaks in text values', () => {
+    expect(() => validatePropertyValue('text', 'line\nbreak')).toThrowError(expect.objectContaining({ code: 'PROPERTY_VALUE_INVALID' }))
+  })
+  it('requires a non-empty title on every entry', () => {
+    expect(() => validateEntry(makeClip({ properties: {} }), TEST_REGISTRY)).toThrowError(expect.objectContaining({ code: 'PROPERTY_VALUE_INVALID' }))
+    expect(() => validateEntry(makeClip({ properties: { title: '  ' } }), TEST_REGISTRY)).toThrowError(expect.objectContaining({ code: 'PROPERTY_VALUE_INVALID' }))
+  })
+})
+
+describe('newDefinitions merging (entry.md §5.3, RV-CORE-02)', () => {
+  it('refuses a type change of an existing property', () => {
+    expect(() => mergeNewDefinitions(TEST_REGISTRY, [{ name: 'project', type: 'number', builtin: false, presets: [] }])).toThrowError(
+      expect.objectContaining({ code: 'PROPERTY_TYPE_MISMATCH' }),
+    )
+  })
+  it('keeps the first-created spelling for same-type repeats and ignores the builtin flag', () => {
+    const { merged, toWrite } = mergeNewDefinitions(TEST_REGISTRY, [{ name: 'Project', type: 'text', builtin: true, presets: [] }])
+    expect(toWrite).toHaveLength(0)
+    expect(merged.some(def => def.name === 'project' && def.type === 'text')).toBe(true)
+  })
+  it('canonicalizes entry keys to the registry spelling', () => {
+    const canonical = canonicalizeProperties({ Title: 'T', PROJECT: 'x', tags: [] }, TEST_REGISTRY)
+    expect(canonical).toEqual({ title: 'T', project: 'x' })
   })
 })

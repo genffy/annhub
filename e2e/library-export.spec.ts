@@ -58,6 +58,26 @@ test.describe('the library page and the single export (extension.md §2.2, stora
       })
       .toBe(true)
 
+    // a written-then-cleared note really clears (null semantics, RV-BG-03)
+    const noteBox = drawer.locator('textarea')
+    await expect(noteBox).toHaveCount(1)
+    await noteBox.fill('temporary note')
+    await noteBox.blur()
+    await expect
+      .poll(async () => {
+        const entries = await getEntries(library.context())
+        return entries.find(entry => entry.properties['project'] === '支付重试')?.note
+      })
+      .toBe('temporary note')
+    await noteBox.fill('')
+    await noteBox.blur()
+    await expect
+      .poll(async () => {
+        const entries = await getEntries(library.context())
+        return entries.find(entry => entry.properties['project'] === '支付重试')?.note
+      })
+      .toBeUndefined()
+
     // the single export command runs through chrome.downloads from the
     // service worker (no page download event fires for it)
     await library.locator('.nav-export').click()
