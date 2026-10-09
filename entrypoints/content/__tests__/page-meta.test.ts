@@ -82,6 +82,55 @@ describe('context extraction (capture.md §4)', () => {
     expect(extractContext(range)).toContain('Saturation dropped quickly')
   })
 
+  it('a triple-clicked paragraph is the paragraph, not the whole article (RV-CAP-07)', () => {
+    withPage(`
+      <article>
+        <h1>Article title</h1>
+        <p id="first">First paragraph entirely on its own.</p>
+        <p id="middle">The middle paragraph that the user triple-clicked for context.</p>
+        <p id="last">Last paragraph with unrelated content.</p>
+      </article>`)
+    const range = document.createRange()
+    const middle = document.getElementById('middle')!
+    range.selectNodeContents(middle)
+    const context = extractContext(range)
+    expect(context).toContain('middle paragraph')
+    expect(context).not.toContain('Article title')
+    expect(context).not.toContain('First paragraph')
+  })
+
+  it('a selection inside bold or link text takes the surrounding sentence, not the inline element', () => {
+    withPage('<p id="p">Prefix words. <b id="b">bold text</b> and <a id="a" href="https://x.example">a link</a>. Suffix words.</p>')
+    const range = document.createRange()
+    range.selectNodeContents(document.getElementById('b')!)
+    const context = extractContext(range)
+    expect(context).toContain('Prefix words')
+    expect(context).toContain('Suffix words')
+  })
+
+  it('a selection crossing two paragraphs covers both blocks', () => {
+    withPage(`
+      <div>
+        <p id="p1">Alpha paragraph with a few more words here.</p>
+        <p id="p2">Beta paragraph closing the crossing selection.</p>
+      </div>`)
+    const range = document.createRange()
+    range.setStart(document.getElementById('p1')!.firstChild!, 0)
+    range.setEnd(document.getElementById('p2')!.firstChild!, 10)
+    const context = extractContext(range)
+    expect(context).toContain('Alpha paragraph')
+    expect(context).toContain('Beta paragraph')
+  })
+
+  it('a selection inside a list item takes the item', () => {
+    withPage('<ul><li id="li">The list item holding the selection entirely.</li><li>Other item that must not leak in.</li></ul>')
+    const range = document.createRange()
+    range.selectNodeContents(document.getElementById('li')!)
+    const context = extractContext(range)
+    expect(context).toContain('list item holding')
+    expect(context).not.toContain('Other item')
+  })
+
   it('drops context when the selection itself exceeds the limit', () => {
     withPage(`<p id="p">${'a'.repeat(2500)}</p>`)
     const range = document.createRange()
@@ -102,5 +151,31 @@ describe('context extraction (capture.md §4)', () => {
     expect(context).toBeDefined()
     expect(context).toContain('needle')
     expect((context ?? '').length).toBeLessThanOrEqual(2000)
+  })
+})
+
+describe('metadata never blocks the save (RV-CAP-06)', () => {
+  it('a many-author byline splits and over-long names drop out', () => {
+    withPage('<p>x</p>')
+    document.head.innerHTML = '<meta name="author" content="A One, B Two, C Three, D Four, E Five, F Six, G Seven, H Eight, I Nine, J Ten, K Eleven, L Twelve" />'
+    const meta = extractPageMeta(document, 'example.com')
+    expect(meta.author).toHaveLength(12)
+  })
+
+  it('a single over-long author value is dropped, not fatal', () => {
+    withPage('<p>x</p>')
+    document.head.innerHTML = `<meta name="author" content="${'a'.repeat(120)}" />`
+    const meta = extractPageMeta(document, 'example.com')
+    expect(meta.author).toBeUndefined()
+    expect(meta.title).toBe('example.com')
+  })
+
+  it('a long description is clipped with newlines folded', () => {
+    withPage('<p>x</p>')
+    document.head.innerHTML = `<meta name="description" content="${'word '.repeat(300)}\nnext line" />`
+    const meta = extractPageMeta(document, 'example.com')
+    expect(meta.description).toBeDefined()
+    expect(meta.description!.length).toBeLessThanOrEqual(1000)
+    expect(meta.description).not.toContain('\n')
   })
 })

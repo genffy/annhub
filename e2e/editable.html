@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Editable areas — selection entry must stay away</title>
+    <style>
+      body { font-family: -apple-system, system-ui, sans-serif; margin: 40px auto; max-width: 640px; }
+      #editor, textarea { width: 100%; min-height: 120px; border: 1px solid #c3c9d4; border-radius: 8px; padding: 12px; font-size: 15px; box-sizing: border-box; }
+      #editor { background: #fff; }
+      p.plain { font-size: 15px; line-height: 1.7; }
+    </style>
+  </head>
+  <body>
+    <h1>Draft notes</h1>
+    <p class="plain" id="plain">This plain paragraph is selectable and must keep the capture menu.</p>
+    <div id="editor" contenteditable="true">Selecting inside this editable block must never offer the clip menu, and Enter must keep editing.</div>
+    <textarea id="area">Same for this textarea: no menu, no swallowed keys.</textarea>
+  </body>
+</html>

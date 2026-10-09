@@ -95,6 +95,9 @@ export function isScreenshotSessionActive(): boolean {
   return activeSession !== null
 }
 
+/** Page actions killed during the capture phase (RV-CAP-05). */
+const SWALLOWED_EVENT_TYPES = ['click', 'dblclick', 'auxclick', 'contextmenu', 'submit'] as const
+
 class ScreenshotSession {
   private readonly doc: Document
   private readonly host: HTMLDivElement
@@ -265,8 +268,24 @@ class ScreenshotSession {
     // elements — that is how the click-to-capture-element mode knows its target.
     this.doc.addEventListener('pointerdown', this.onPointerDown, true)
     this.doc.addEventListener('pointermove', this.onHoverMove, true)
+    // Cancelling pointerdown does not stop the click that follows it: without
+    // this swallow, picking a link or button as the element target fires the
+    // page's own action (screenshot.md §2, RV-CAP-05).
+    for (const type of SWALLOWED_EVENT_TYPES) {
+      this.doc.addEventListener(type, this.onSwallowPageAction, true)
+    }
     this.syncHint()
     void this.loadAnonymizeDefault()
+  }
+
+  /** Kills a page action during the capture phase; the session's own UI keeps working. */
+  private readonly onSwallowPageAction = (event: Event): void => {
+    if (this.state === 'preview' || this.state === 'error' || this.state === 'done') return
+    if (!isUserInput(event)) return
+    const target = event.target
+    if (target instanceof Node && this.host.contains(target)) return
+    event.preventDefault()
+    event.stopPropagation()
   }
 
   private async loadAnonymizeDefault(): Promise<void> {
@@ -343,6 +362,9 @@ class ScreenshotSession {
     this.doc.removeEventListener('keydown', this.onKeydown, true)
     this.doc.removeEventListener('pointerdown', this.onPointerDown, true)
     this.doc.removeEventListener('pointermove', this.onHoverMove, true)
+    for (const type of SWALLOWED_EVENT_TYPES) {
+      this.doc.removeEventListener(type, this.onSwallowPageAction, true)
+    }
     this.doc.defaultView!.removeEventListener('pagehide', clearFrame)
     this.clearConfirmUi()
     this.clearHoverUi()
