@@ -1,76 +1,52 @@
 import { Logger } from '../utils/logger'
 import { ServiceManager, type IService } from './service-manager'
 import { EventHandlerManager } from './event-handlers'
-import { ServiceContext } from './service-context'
 import { EntryService } from './services/entries'
 import { ScreenshotService } from './services/screenshot'
 import { SystemService } from './services/system'
+import type { BaseMessage, ResponseMessage } from '../types/messages'
 
 export class BackgroundServiceManager {
   private static instance: BackgroundServiceManager
-  private serviceManager: ServiceManager
-  private eventHandlerManager: EventHandlerManager
-  private serviceContext: ServiceContext
-  private isInitialized = false
-
-  private constructor() {
-    this.serviceManager = ServiceManager.getInstance()
-    this.eventHandlerManager = EventHandlerManager.getInstance()
-    this.serviceContext = ServiceContext.getInstance()
-  }
+  private serviceManager = ServiceManager.getInstance()
+  private eventHandlerManager = EventHandlerManager.getInstance()
+  private servicesRegistered = false
+  private initialized = false
+  private readyPromise: Promise<void> | null = null
 
   static getInstance(): BackgroundServiceManager {
     BackgroundServiceManager.instance ??= new BackgroundServiceManager()
     return BackgroundServiceManager.instance
   }
 
+  /**
+   * Resolves once the services are ready. A failed initialization clears the
+   * cached promise so the next incoming message retries initialization.
+   */
+  whenReady(): Promise<void> {
+    this.readyPromise ??= this.initialize().catch(error => {
+      this.readyPromise = null
+      throw error
+    })
+    return this.readyPromise
+  }
+
   async initialize(): Promise<void> {
-    if (this.isInitialized) return
-    this.registerServices()
+    if (this.initialized) return
+
+    if (!this.servicesRegistered) {
+      const services: IService[] = [EntryService.getInstance(), ScreenshotService.getInstance(), SystemService.getInstance()]
+      this.serviceManager.registerServices(services)
+      this.servicesRegistered = true
+    }
     this.eventHandlerManager.registerEventListeners()
     await this.serviceManager.initializeServices()
-    this.isInitialized = true
+    this.initialized = true
     Logger.info('[BackgroundServiceManager] Initialized')
   }
 
-  private registerServices(): void {
-    const services: IService[] = [EntryService.getInstance(), ScreenshotService.getInstance(), SystemService.getInstance()]
-    this.serviceManager.registerServices(services)
-  }
-
-  async restart(): Promise<void> {
-    await this.serviceManager.restartServices()
-  }
-
-  getServiceManager(): ServiceManager {
-    return this.serviceManager
-  }
-
-  getEventHandlerManager(): EventHandlerManager {
-    return this.eventHandlerManager
-  }
-
-  getServiceContext(): ServiceContext {
-    return this.serviceContext
-  }
-
-  getStatus() {
-    return {
-      initialized: this.isInitialized,
-      serviceContext: this.serviceContext.getDetailedStatus(),
-      serviceManager: this.serviceManager.getServiceStatus(),
-      allReady: this.serviceManager.isAllServicesReady(),
-    }
-  }
-
-  isReady(): boolean {
-    return this.isInitialized && this.serviceManager.isAllServicesReady()
-  }
-
-  async cleanup(): Promise<void> {
-    this.eventHandlerManager.removeEventListeners()
-    await this.serviceManager.cleanup()
-    this.isInitialized = false
+  dispatchMessage(message: BaseMessage, sender: chrome.runtime.MessageSender): Promise<ResponseMessage> {
+    return this.serviceManager.dispatchMessage(message, sender)
   }
 }
 

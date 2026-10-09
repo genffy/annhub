@@ -68,7 +68,14 @@ export class BlockEntries {
       this.scheduleDwell()
     }
     const onLeaveWindow = (): void => this.scheduleLeave()
-    const onScroll = (): void => this.hideNow()
+    // A visible capsule/outline is anchored to scrolled-away positions: hide
+    // it. A pending dwell re-arms instead — the scroll event can trail the
+    // pointermove that armed it (hover-with-scroll), and a resting pointer
+    // stays eligible after the page settles.
+    const onScroll = (): void => {
+      if (this.capsuleEl || this.outlineEl) this.hideNow()
+      else if (this.dwellTimer !== null) this.scheduleDwell()
+    }
     const onDragSelect = (event: PointerEvent): void => {
       // pressing our own capsule is operating the entry, not starting a drag
       if (!isUserInput(event) || this.insideOwnUi(event)) return

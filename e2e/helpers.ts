@@ -234,18 +234,22 @@ export async function waitForClipToast(page: Page, timeout = 12_000): Promise<Lo
   return toast
 }
 
+/**
+ * Stops the extension's service workers (CDP). The next message has to wake a
+ * cold worker — the regression this guards is a listener that only exists
+ * after initialization (RV-BG-01).
+ */
+export async function stopServiceWorker(context: BrowserContext, page: Page): Promise<void> {
+  const session = await context.newCDPSession(page)
+  await session.send('ServiceWorker.enable' as any)
+  await session.send('ServiceWorker.stopAllWorkers' as any)
+  await session.detach()
+}
+
 /** Rests the pointer over an element long enough for the block capsule (400ms dwell). */
 export async function hoverForCapsule(page: Page, selector: string, timeout = 6000): Promise<Locator> {
   const capsule = page.locator('[data-ann-ui="block-capsule"]')
-  const deadline = Date.now() + timeout
-  while (Date.now() < deadline) {
-    await page.locator(selector).hover()
-    try {
-      await capsule.waitFor({ state: 'visible', timeout: 1200 })
-      return capsule
-    } catch {
-      /* dwell again */
-    }
-  }
-  throw new Error(`The block capsule never appeared over ${selector}`)
+  await page.locator(selector).hover()
+  await capsule.waitFor({ state: 'visible', timeout })
+  return capsule
 }

@@ -1,31 +1,35 @@
 import { Logger } from '../utils/logger'
-import type { SupportedServices } from './service-context'
-import { ServiceContext } from './service-context'
 import MessageUtils from '../utils/message'
-import type { ResponseMessage } from '../types/messages'
+import type { BaseMessage, ResponseMessage } from '../types/messages'
 import { EXTENSION_PAGES, openExtensionPage } from '../utils/extension-pages'
+
+export type SupportedServices = 'entries' | 'screenshot' | 'system'
+
+export type MessageHandler = (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>
 
 export interface IService {
   readonly name: SupportedServices
 
   initialize(): Promise<void>
 
-  getMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>>
+  getMessageHandlers(): Record<string, MessageHandler>
 
   isInitialized(): boolean
 
   cleanup?(): Promise<void>
 }
 
+/** Creation messages a lost response must never duplicate on retry. */
+const IDEMPOTENT_TYPES = new Set(['SAVE_CLIP', 'SAVE_SCREENSHOT'])
+const RESPONSE_CACHE_LIMIT = 64
+
 export class ServiceManager {
   private static instance: ServiceManager
   private services: Map<string, IService> = new Map()
-  private serviceContext: ServiceContext
-  private messageHandlersRegistered = false
+  private handlers: Record<string, MessageHandler> | null = null
+  private responseCache = new Map<string, ResponseMessage>()
 
-  private constructor() {
-    this.serviceContext = ServiceContext.getInstance()
-  }
+  private constructor() {}
 
   static getInstance(): ServiceManager {
     if (!ServiceManager.instance) {
@@ -40,7 +44,7 @@ export class ServiceManager {
     }
 
     this.services.set(service.name, service)
-    this.serviceContext.registerServiceSlot(service.name)
+    this.handlers = null
     Logger.info(`[ServiceManager] Service ${service.name} registered`)
   }
 
@@ -49,141 +53,73 @@ export class ServiceManager {
   }
 
   getService<T extends IService>(name: string): T | undefined {
-    return this.services.get(name) as T
+    return this.services.get(name) as T | undefined
   }
 
   async initializeServices(): Promise<void> {
-    return this.initializeServicesInternal(false)
-  }
-
-  private async initializeServicesInternal(forceReinitialize: boolean): Promise<void> {
     if (this.services.size === 0) {
       Logger.warn('[ServiceManager] No services registered for initialization')
       return
     }
 
-    try {
-      this.serviceContext.startInitialization()
-      Logger.info(`[ServiceManager] Starting initialization of ${this.services.size} services`)
-
-      // Registration order is initialization order.
-      for (const service of this.services.values()) {
-        await this.initializeService(service, forceReinitialize)
-      }
-
-      this.registerMessageHandlers()
-
-      Logger.info('[ServiceManager] All services initialized successfully')
-    } catch (error) {
-      Logger.error('[ServiceManager] Service initialization failed:', error)
-      this.serviceContext.markInitializationFailed(error instanceof Error ? error : new Error(String(error)))
-      throw error
-    }
-  }
-
-  private async initializeService(service: IService, forceReinitialize = false): Promise<void> {
-    try {
+    // Registration order is initialization order.
+    for (const service of this.services.values()) {
+      if (service.isInitialized()) continue
       Logger.info(`[ServiceManager] Initializing service: ${service.name}`)
-
-      if (!forceReinitialize && service.isInitialized()) {
-        Logger.info(`[ServiceManager] Service ${service.name} is already initialized, skipping...`)
-        this.serviceContext.markServiceInitialized(service.name)
-        return
-      }
-
       await service.initialize()
-      this.serviceContext.markServiceInitialized(service.name)
-      Logger.info(`[ServiceManager] Service ${service.name} initialized successfully`)
-    } catch (error) {
-      Logger.error(`[ServiceManager] Failed to initialize service ${service.name}:`, error)
-      throw error
     }
+
+    Logger.info('[ServiceManager] All services initialized successfully')
   }
 
-  private registerMessageHandlers(): void {
-    if (this.messageHandlersRegistered) {
-      Logger.info('[ServiceManager] Message handlers already registered, skipping...')
-      return
+  /**
+   * Dispatches to the service handlers. SAVE_* responses are cached by
+   * requestId so a retry after a lost response cannot save twice (RV-BG-01).
+   */
+  async dispatchMessage(message: BaseMessage, sender: chrome.runtime.MessageSender): Promise<ResponseMessage> {
+    const handler = this.ensureHandlers()[message.type]
+    if (!handler) {
+      return MessageUtils.createResponse(false, undefined, `Unknown message type: ${message.type}`)
     }
 
-    try {
-      const allHandlers: Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> = {}
+    const requestId = typeof message.requestId === 'string' ? message.requestId : ''
+    const cacheKey = requestId && IDEMPOTENT_TYPES.has(message.type) ? `${message.type}:${requestId}` : ''
+    if (cacheKey && this.responseCache.has(cacheKey)) {
+      return this.responseCache.get(cacheKey)!
+    }
 
+    const response = await handler(message, sender)
+
+    if (cacheKey) {
+      this.responseCache.set(cacheKey, response)
+      if (this.responseCache.size > RESPONSE_CACHE_LIMIT) {
+        const oldest = this.responseCache.keys().next().value
+        if (oldest !== undefined) this.responseCache.delete(oldest)
+      }
+    }
+    return response
+  }
+
+  private ensureHandlers(): Record<string, MessageHandler> {
+    if (!this.handlers) {
+      const allHandlers: Record<string, MessageHandler> = {}
       for (const [serviceName, service] of this.services) {
         const handlers = service.getMessageHandlers()
         Object.assign(allHandlers, handlers)
         Logger.info(`[ServiceManager] Collected ${Object.keys(handlers).length} message handlers from service ${serviceName}`)
       }
-
       Object.assign(allHandlers, this.getNavigationHandlers())
-
-      browser.runtime.onMessage.addListener(MessageUtils.createMessageHandler(allHandlers))
-
-      this.messageHandlersRegistered = true
-      Logger.info(`[ServiceManager] Registered ${Object.keys(allHandlers).length} total message handlers`)
-    } catch (error) {
-      Logger.error('[ServiceManager] Failed to register message handlers:', error)
-      throw error
+      this.handlers = allHandlers
+      Logger.info(`[ServiceManager] Collected ${Object.keys(allHandlers).length} total message handlers`)
     }
-  }
-
-  async restartServices(): Promise<void> {
-    try {
-      Logger.info('[ServiceManager] Restarting all services...')
-      this.serviceContext.startRestart()
-
-      for (const [name, service] of this.services) {
-        try {
-          if (service.cleanup) {
-            await service.cleanup()
-            Logger.info(`[ServiceManager] Service ${name} cleaned up before restart`)
-          }
-        } catch (error) {
-          Logger.error(`[ServiceManager] Failed to cleanup service ${name} before restart:`, error)
-        }
-      }
-
-      await this.initializeServicesInternal(true)
-
-      Logger.info('[ServiceManager] All services restarted successfully')
-    } catch (error) {
-      Logger.error('[ServiceManager] Service restart failed:', error)
-      throw error
-    }
-  }
-
-  async cleanup(): Promise<void> {
-    Logger.info('[ServiceManager] Cleaning up all services...')
-
-    for (const [name, service] of this.services) {
-      try {
-        if (service.cleanup) {
-          await service.cleanup()
-          Logger.info(`[ServiceManager] Service ${name} cleaned up successfully`)
-        }
-      } catch (error) {
-        Logger.error(`[ServiceManager] Failed to cleanup service ${name}:`, error)
-      }
-    }
-  }
-
-  getServiceStatus(): Record<string, boolean> {
-    const status: Record<string, boolean> = {}
-    for (const [name, service] of this.services) {
-      status[name] = service.isInitialized()
-    }
-    return status
-  }
-
-  isAllServicesReady(): boolean {
-    return this.serviceContext.isReady() && Array.from(this.services.values()).every(service => service.isInitialized())
+    return this.handlers
   }
 
   /**
    * Messages the manager itself answers. Content scripts cannot navigate to chrome-extension://
    * pages; only our own page set is openable.
    */
-  private getNavigationHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
+  private getNavigationHandlers(): Record<string, MessageHandler> {
     return {
       OPEN_EXTENSION_PAGE: async (message): Promise<ResponseMessage> => {
         if (!EXTENSION_PAGES.includes(message.page)) {

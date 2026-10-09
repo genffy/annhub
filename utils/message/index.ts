@@ -1,10 +1,14 @@
 import type { ExtensionMessage, ResponseMessage, BaseMessage } from '../../types/messages'
-import { ServiceWorkerManager } from './service-worker-manager'
 import { Logger } from '../logger'
 
-export default class MessageUtils {
-  private static serviceWorkerManager = ServiceWorkerManager.getInstance()
+/** Connection-level failures a retry can fix; anything else already ran. */
+const CONNECTION_ERROR_PATTERN = /Receiving end does not exist|message port closed|Extension context invalidated/i
 
+function isConnectionError(message: string): boolean {
+  return CONNECTION_ERROR_PATTERN.test(message)
+}
+
+export default class MessageUtils {
   static async sendMessage<T = any>(message: ExtensionMessage, retryCount: number = 3): Promise<ResponseMessage<T>> {
     const messageWithMeta = {
       ...message,
@@ -14,90 +18,29 @@ export default class MessageUtils {
 
     for (let attempt = 1; attempt <= retryCount; attempt++) {
       try {
-        Logger.info(`[MessageUtils] Sending message (attempt ${attempt}/${retryCount}):`, message.type)
-
         const response = await chrome.runtime.sendMessage(messageWithMeta)
 
         if (!response) {
           throw new Error('No response received from background script')
         }
 
-        Logger.info(`[MessageUtils] Message sent successfully on attempt ${attempt}`)
         return response
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
-        Logger.warn(`[MessageUtils] Message send failed on attempt ${attempt}:`, errorMessage)
 
-        if (attempt === retryCount) {
-          Logger.error(`[MessageUtils] All ${retryCount} attempts failed for message:`, message.type)
-          return this.createResponse<T>(false, undefined, `Failed after ${retryCount} attempts: ${errorMessage}`)
+        // Only retry when the message never reached a handler. A handler that
+        // ran and failed must not run again; SAVE_* is idempotent by requestId.
+        if (attempt === retryCount || !isConnectionError(errorMessage)) {
+          Logger.warn(`[MessageUtils] ${message.type} failed on attempt ${attempt}:`, errorMessage)
+          return this.createResponse<T>(false, undefined, errorMessage)
         }
 
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000)
-        Logger.info(`[MessageUtils] Retrying in ${delay}ms...`)
+        const delay = attempt === 1 ? 50 : 200
         await this.delay(delay)
       }
     }
 
     return this.createResponse<T>(false, undefined, 'Unexpected error in retry loop')
-  }
-
-  static async sendMessageWithServiceWorkerSupport<T = any>(
-    message: ExtensionMessage,
-    options: {
-      maxRetries?: number
-      retryDelay?: number
-      timeout?: number
-      waitForServiceWorker?: boolean
-    } = {},
-  ): Promise<ResponseMessage<T>> {
-    try {
-      const messageWithMeta = {
-        ...message,
-        requestId: this.generateRequestId(),
-        timestamp: Date.now(),
-      }
-
-      Logger.info('[MessageUtils] Sending message with service worker support:', message.type)
-
-      const sendPromise = this.serviceWorkerManager.sendMessageWithRetry<ResponseMessage<T>>(messageWithMeta, {
-        maxRetries: options.maxRetries || 3,
-        retryDelay: options.retryDelay || 1000,
-        waitForServiceWorker: options.waitForServiceWorker !== false,
-      })
-
-      let response: ResponseMessage<T> | null
-
-      if (options.timeout && options.timeout > 0) {
-        const timeoutPromise = new Promise<null>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error(`Message timeout after ${options.timeout}ms`))
-          }, options.timeout)
-        })
-
-        response = await Promise.race([sendPromise, timeoutPromise])
-      } else {
-        response = await sendPromise
-      }
-
-      if (!response) {
-        return this.createResponse<T>(false, undefined, 'Failed to get response from background script')
-      }
-
-      return response
-    } catch (error) {
-      Logger.error('[MessageUtils] Failed to send message with service worker support:', error)
-
-      if (error instanceof Error && error.message.includes('timeout')) {
-        return this.createResponse<T>(false, undefined, `Request timeout: ${error.message}`)
-      }
-
-      return this.createResponse<T>(false, undefined, error instanceof Error ? error.message : 'Unknown error')
-    }
-  }
-
-  static async checkServiceWorkerStatus() {
-    return await this.serviceWorkerManager.getStatus()
   }
 
   static delay(ms: number): Promise<void> {
