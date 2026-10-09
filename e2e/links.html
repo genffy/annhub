@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Links and buttons — screenshot element pick must not fire them</title>
+    <style>
+      body { font-family: -apple-system, system-ui, sans-serif; margin: 40px auto; max-width: 640px; }
+      .card { border: 1px solid #c3c9d4; border-radius: 10px; padding: 18px; margin: 24px 0; background: #fff; }
+      a, button { font-size: 16px; }
+      #count { margin-left: 10px; font-weight: 700; }
+    </style>
+  </head>
+  <body>
+    <h1>Interactive targets</h1>
+    <div class="card" id="link-card">
+      <p>Picking the link below as the element target must not navigate.</p>
+      <a id="nav-link" href="/capture.html">A link that would leave the page</a>
+    </div>
+    <div class="card" id="button-card">
+      <p>Picking the button below must not run its action.</p>
+      <button id="action" type="button">A button with its own onclick</button>
+      <span id="count">0</span>
+    </div>
+    <script>
+      let fired = 0
+      document.querySelector('#action').addEventListener('click', () => {
+        fired += 1
+        document.querySelector('#count').textContent = String(fired)
+      })
+    </script>
+  </body>
+</html>

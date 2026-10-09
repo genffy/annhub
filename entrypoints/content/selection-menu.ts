@@ -68,10 +68,12 @@ export class SelectionMenu {
         return
       }
       if (event.key === 'Enter') {
+        // Enter only fires an action once Tab focused one; a bare Enter
+        // belongs to the page (extension.md §2.1)
+        if (this.focusIndex < 0) return
         event.preventDefault()
         if (this.focusIndex === 0) this.hooks.onClip()
-        else if (this.focusIndex === 1) this.hooks.onScreenshot()
-        else this.hooks.onClip()
+        else this.hooks.onScreenshot()
       }
     }
     this.doc.addEventListener('keydown', onKey, true)
@@ -151,12 +153,35 @@ export class SelectionMenu {
   }
 }
 
-/** Whitespace-only selections never show the menu (extension.md §2.1). */
+/**
+ * Whitespace-only selections never show the menu (extension.md §2.1), and
+ * neither do selections inside editable areas (capture.md §3, US-CAP-01):
+ * the user is editing, not capturing — the menu would swallow Enter and
+ * silently save a clip of the draft.
+ */
 export function selectableRange(doc: Document): Range | null {
   const selection = doc.getSelection()
   if (!selection || selection.rangeCount === 0) return null
   const range = selection.getRangeAt(0)
   if (range.collapsed) return null
   if (isBlankText(range.toString())) return null
+  if (selectionIsEditable(range)) return null
   return range
+}
+
+/** True when either end of the selection sits in an editing host. */
+function selectionIsEditable(range: Range): boolean {
+  return editableHostOf(range.startContainer) !== null || editableHostOf(range.endContainer) !== null
+}
+
+function editableHostOf(node: Node | null): Element | null {
+  let el: Element | null = node instanceof Element ? node : (node?.parentElement ?? null)
+  while (el) {
+    const host = el as HTMLElement
+    if (host.isContentEditable) return el
+    const tag = el.tagName.toLowerCase()
+    if (tag === 'input' || tag === 'textarea') return el
+    el = el.parentElement
+  }
+  return null
 }
