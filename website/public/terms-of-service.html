@@ -6,37 +6,76 @@
 <title>AnnHub - Terms of Service 服务条款</title>
 <link rel="canonical" href="https://annhub.org/terms-of-service.html">
 <style>
+        /* Same tokens as the site (docs/design/v2/css/tokens.css): lilac canvas, white card, one brand purple. */
+        :root {
+            color-scheme: light dark;
+            --bg: #f2f0f8;
+            --card: #ffffff;
+            --fg: hsl(224 40% 11%);
+            --fg-2: hsl(222 18% 27%);
+            --fg-3: hsl(220 12% 42%);
+            --line: hsl(220 22% 90%);
+            --brand: #673ab8;
+            --brand-text: #5b32a8;
+            --code: hsl(220 22% 94%);
+            --callout: #f3eefb;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #0d1017;
+                --card: #14171f;
+                --fg: #e9ecf3;
+                --fg-2: #bcc3d2;
+                --fg-3: #8f98ab;
+                --line: #242937;
+                --brand: #7a55d1;
+                --brand-text: #b9a3f2;
+                --code: #1a1e28;
+                --callout: #1e1a2e;
+            }
+        }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.7;
-            color: #1a1a2e;
-            background: #f8fafc;
-            padding: 2rem 1rem;
+            font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', Roboto, system-ui, sans-serif;
+            line-height: 1.75;
+            color: var(--fg-2);
+            background: var(--bg);
+            padding: 2.5rem 1rem 4rem;
+            -webkit-font-smoothing: antialiased;
         }
         .container {
-            max-width: 720px;
+            max-width: 760px;
             margin: 0 auto;
-            background: #fff;
-            border-radius: 12px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 8px;
             padding: 2.5rem;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            box-shadow: 0 1px 2px rgba(15,23,42,0.06), 0 24px 60px -32px rgba(36,24,72,0.35);
         }
-        h1 { font-size: 1.75rem; margin-bottom: 0.25rem; }
-        .updated { color: #64748b; font-size: 0.875rem; margin-bottom: 2rem; }
-        h2 { font-size: 1.25rem; margin-top: 1.75rem; margin-bottom: 0.5rem; color: #0f172a; }
-        p, li { font-size: 0.95rem; color: #334155; margin-bottom: 0.75rem; }
+        h1 { font-size: 2rem; line-height: 1.2; letter-spacing: -0.02em; color: var(--fg); margin-bottom: 0.25rem; }
+        .updated { color: var(--fg-3); font-size: 0.875rem; margin-bottom: 2rem; }
+        h2 { font-size: 1.2rem; letter-spacing: -0.01em; margin-top: 2rem; margin-bottom: 0.5rem; color: var(--fg); }
+        p, li { font-size: 0.95rem; color: var(--fg-2); margin-bottom: 0.75rem; }
+        strong { color: var(--fg); }
         ul { padding-left: 1.25rem; }
         li { margin-bottom: 0.4rem; }
-        a { color: #2563eb; text-decoration: none; }
-        a:hover { text-decoration: underline; }
-        .highlight { background: #fef3c7; padding: 0.75rem 1rem; border-radius: 8px; border-left: 3px solid #f59e0b; margin: 1rem 0; }
-        .nav { display: flex; gap: 1rem; margin-bottom: 1.5rem; font-size: 0.9rem; }
+        a { color: var(--brand-text); text-decoration: none; }
+        a:hover { text-decoration: underline; text-underline-offset: 3px; }
+        a:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; border-radius: 4px; }
+        .highlight { background: var(--callout); padding: 0.75rem 1rem; border-radius: 8px; border-left: 3px solid var(--brand); margin: 1rem 0; }
+        .nav { display: flex; align-items: center; gap: 1.25rem; margin-bottom: 1.75rem; padding-bottom: 1.1rem; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
+        .nav::before { content: ''; order: -2; width: 28px; height: 28px; background: var(--brand); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M128 0C57.0667 0 0 57.0667 0 128C0 198.933 57.0667 256 128 256C198.933 256 256 198.933 256 128C256 57.0667 198.933 0 128 0ZM184 181.867C184 187.733 179.733 192 173.867 192H82.1333C76.8 192 72 187.2 72 181.867V74.1333C72 68.2667 76.2667 64 82.1333 64H173.867C179.2 64 184 68.8 184 74.1333V181.867Z'/%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M98.8824 133.3L120.059 75H104.176L83 133.3V181H98.8824L114.765 133.3H98.8824ZM157.118 133.3L135.941 75H151.824L173 133.3V181H157.118L141.235 133.3H157.118Z'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'%3E%3Cpath d='M128 0C57.0667 0 0 57.0667 0 128C0 198.933 57.0667 256 128 256C198.933 256 256 198.933 256 128C256 57.0667 198.933 0 128 0ZM184 181.867C184 187.733 179.733 192 173.867 192H82.1333C76.8 192 72 187.2 72 181.867V74.1333C72 68.2667 76.2667 64 82.1333 64H173.867C179.2 64 184 68.8 184 74.1333V181.867Z'/%3E%3Cpath fill-rule='evenodd' clip-rule='evenodd' d='M98.8824 133.3L120.059 75H104.176L83 133.3V181H98.8824L114.765 133.3H98.8824ZM157.118 133.3L135.941 75H151.824L173 133.3V181H157.118L141.235 133.3H157.118Z'/%3E%3C/svg%3E") center / contain no-repeat; }
+        .nav::after { content: 'AnnHub'; order: -1; margin-right: auto; margin-left: -0.6rem; font-size: 1.05rem; font-weight: 700; letter-spacing: -0.01em; color: var(--fg); }
 .lang { margin-bottom: 1rem; font-size: 0.9rem; }
-hr { border: 0; border-top: 1px solid #e2e8f0; margin: 2.5rem 0 1.5rem; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 2.5rem 0 1.5rem; }
 table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.9rem; }
-th, td { text-align: left; padding: 0.4rem 0.5rem; border-bottom: 1px solid #e2e8f0; color: #334155; vertical-align: top; }
-code { background: #f1f5f9; padding: 0.05rem 0.3rem; border-radius: 4px; font-size: 0.85em; }
+th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--line); color: var(--fg-2); vertical-align: top; }
+th { color: var(--fg); font-size: 0.8rem; font-weight: 600; }
+code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 0.85em; }
+@media (max-width: 600px) {
+    .container { padding: 1.5rem 1.15rem; }
+    h1 { font-size: 1.6rem; }
+}
 </style>
 </head>
 <body>
