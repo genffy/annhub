@@ -4,7 +4,7 @@
  * produce the same save; the capsule never covers the page's own controls
  * and stays inside the window for tall blocks.
  */
-import { candidatesAtPoint, deepElementFromPoint, type BlockCandidate, type BlockKind } from './blocks'
+import { candidateRect, candidatesAtPoint, deepElementFromPoint, type BlockCandidate, type BlockKind } from './blocks'
 import { isUserInput } from './user-input'
 import { uiText } from '../../utils/ui-text'
 
@@ -178,7 +178,7 @@ export class BlockEntries {
     const outline = this.doc.createElement('div')
     outline.setAttribute(ROOT_ATTR, 'block-outline')
     outline.className = 'ann-block-outline'
-    const rect = candidate.element.getBoundingClientRect()
+    const rect = candidateRect(candidate)
     Object.assign(outline.style, {
       left: `${rect.left}px`,
       top: `${rect.top + this.doc.defaultView!.scrollY - window.scrollY}px`,
@@ -423,7 +423,7 @@ export class BlockEntries {
     const outline = this.doc.createElement('div')
     outline.setAttribute(ROOT_ATTR, 'block-outline')
     outline.className = 'ann-block-outline ann-block-outline-keyboard'
-    const rect = candidate.element.getBoundingClientRect()
+    const rect = candidateRect(candidate)
     Object.assign(outline.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` })
     this.doc.documentElement.appendChild(outline)
     this.outlineEl = outline

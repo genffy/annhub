@@ -121,7 +121,7 @@ function wireBlockEntries(): void {
     {
       onClip: (candidate, levelChanged) => {
         const run = async () => {
-          const outcome = await saveBlockClip(candidate.element, candidate.kind, { via: 'block', levelChanged })
+          const outcome = await saveBlockClip(candidate, { via: 'block', levelChanged })
           if (outcome) showClipToast(outcome, candidate.element)
           else showFailureToast(() => void run())
         }

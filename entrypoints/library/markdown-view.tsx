@@ -29,34 +29,47 @@ interface Run {
   alt?: string
 }
 
-const INLINE = /(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`|==[^=\n]+==|\[[^\]\n]+\]\([^)\s]+\)|!\[[^\]\n]*\]\([^)\s]+\))/g
+const INLINE = /(?<!\uE000)(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`|==[^=\n]+==|\[[^\]\n]+\]\([^)\s]+\)|!\[[^\]\n]*\]\([^)\s]+\))/g
+
+/**
+ * Escaped characters (`\*`, `\#`, …) are literals, not syntax (capture.md
+ * §3.1): mark them with a same-length placeholder before tokenizing so the
+ * patterns above cannot open on a protected marker (lookbehind), and the
+ * offsets never notice, then restore.
+ */
+const ESCAPED_CHAR = /\\(.)/g
 
 /** Tokenizes one inline span of source into runs carrying source offsets. */
 export function inlineRuns(source: string, srcStart: number): Run[] {
+  const protectedSource = source.replace(ESCAPED_CHAR, '\uE000$1')
   const runs: Run[] = []
   let cursor = 0
   let match: RegExpExecArray | null
   INLINE.lastIndex = 0
-  while ((match = INLINE.exec(source)) !== null) {
-    if (match.index > cursor) runs.push({ text: source.slice(cursor, match.index), srcStart: srcStart + cursor })
+  while ((match = INLINE.exec(protectedSource)) !== null) {
+    if (match.index > cursor) runs.push({ text: restore(protectedSource.slice(cursor, match.index)), srcStart: srcStart + cursor })
     const token = match[0]
     const at = srcStart + match.index
-    if (token.startsWith('**')) runs.push({ text: token.slice(2, -2), srcStart: at + 2, kind: 'strong' })
-    else if (token.startsWith('==')) runs.push({ text: token.slice(2, -2), srcStart: at + 2, kind: 'mark' })
+    if (token.startsWith('**')) runs.push({ text: restore(token.slice(2, -2)), srcStart: at + 2, kind: 'strong' })
+    else if (token.startsWith('==')) runs.push({ text: restore(token.slice(2, -2)), srcStart: at + 2, kind: 'mark' })
     else if (token.startsWith('`')) runs.push({ text: token.slice(1, -1), srcStart: at + 1, kind: 'code' })
     else if (token.startsWith('![')) {
       const alt = /!\[([^\]]*)\]/.exec(token)?.[1] ?? ''
       const href = /!\[[^\]]*\]\(([^)\s]+)\)/.exec(token)?.[1]
-      runs.push({ text: alt, srcStart: at + 2, kind: 'image', href, alt })
+      runs.push({ text: restore(alt), srcStart: at + 2, kind: 'image', href, alt })
     } else if (token.startsWith('[')) {
       const label = /\[([^\]]+)\]/.exec(token)?.[1] ?? ''
       const href = /\]\(([^)\s]+)\)/.exec(token)?.[1]
-      runs.push({ text: label, srcStart: at + 1, kind: 'link', href })
-    } else if (token.startsWith('*')) runs.push({ text: token.slice(1, -1), srcStart: at + 1, kind: 'em' })
+      runs.push({ text: restore(label), srcStart: at + 1, kind: 'link', href })
+    } else if (token.startsWith('*')) runs.push({ text: restore(token.slice(1, -1)), srcStart: at + 1, kind: 'em' })
     cursor = match.index + token.length
   }
-  if (cursor < source.length) runs.push({ text: source.slice(cursor), srcStart: srcStart + cursor })
+  if (cursor < protectedSource.length) runs.push({ text: restore(protectedSource.slice(cursor)), srcStart: srcStart + cursor })
   return runs.filter(run => run.text.length > 0)
+}
+
+function restore(text: string): string {
+  return text.replace(/\uE000(.?)/g, '$1')
 }
 
 function safeHref(href: string | undefined): string | undefined {

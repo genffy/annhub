@@ -11,7 +11,7 @@ import MessageUtils from '../../utils/message'
 import { uiText } from '../../utils/ui-text'
 import { elementToMarkdown, selectionToMarkdown } from './markdown'
 import { extractContext, extractPageMeta, resolvePermalink } from './page-meta'
-import type { BlockKind } from './blocks'
+import type { BlockCandidate, BlockKind } from './blocks'
 
 const ROOT_ATTR = 'data-ann-ui'
 const TOAST_MS = 3200
@@ -43,12 +43,15 @@ export async function saveSelectionClip(range: Range, origin: ClipOrigin): Promi
 }
 
 /** Saves a block as a clip: its own permalink, no context (capture.md §6.2). */
-export async function saveBlockClip(element: HTMLElement, kind: BlockKind, origin: ClipOrigin): Promise<ClipOutcome | undefined> {
-  const { markdown, truncated } = elementToMarkdown(element)
+export async function saveBlockClip(candidate: BlockCandidate, origin: ClipOrigin): Promise<ClipOutcome | undefined> {
+  const { element, kind, range } = candidate
+  // a heading-bounded section converts (and anchors) its sibling run only
+  const slice = range && range.start.parentElement === element ? { from: range.start, to: range.end } : undefined
+  const { markdown, truncated } = elementToMarkdown(element, slice)
   if (!markdown.trim()) return undefined
   return saveClip({
     content: markdown,
-    permalink: resolvePermalink(element, location.href, kind),
+    permalink: resolvePermalink(range?.start ?? element, location.href, kind),
     origin: { ...origin, blockKind: kind, truncated },
   })
 }
