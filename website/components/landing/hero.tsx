@@ -7,7 +7,7 @@ import { Anchored, HeroArticle, SelectionMenu } from '../product/page-scenes'
 import { plural } from '../product/parts'
 import { entryById, getSample } from '../product/sample'
 import { Clauses, Container } from './shared'
-import { PROGRESS_URL } from './links'
+import { LIBRARY_URL, WORKFLOW_URL } from './links'
 
 const FACT_ICONS = [WifiOff, Lock, FileText]
 
@@ -69,16 +69,14 @@ export default function Hero({ copy }: { copy: LandingCopy }) {
 
           <div className="mt-8 flex flex-wrap items-center gap-3">
             <a
-              href={PROGRESS_URL}
-              target="_blank"
-              rel="noopener noreferrer"
+              href={LIBRARY_URL}
               className="inline-flex h-12 items-center gap-2 rounded-lg bg-brand px-5 text-[15px] font-semibold text-brand-fg shadow-[0_8px_20px_-8px_rgba(103,58,184,0.7)] transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_86%,#000)]"
             >
               {hero.cta}
               <ArrowRight size={17} aria-hidden="true" />
             </a>
             <a
-              href="#story"
+              href={WORKFLOW_URL}
               className="inline-flex h-12 items-center rounded-lg border border-line-2 bg-white px-5 text-[15px] font-semibold text-fg-2 transition-colors hover:border-brand hover:text-brand-text"
             >
               {hero.secondary}

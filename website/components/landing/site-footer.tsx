@@ -1,9 +1,9 @@
-import { GitBranch } from 'lucide-react'
+import { LibraryBig } from 'lucide-react'
 import type { LandingCopy } from '@/lib/copy'
 import { fill } from '@/lib/copy'
 import Logo from '../logo'
 import { Container } from './shared'
-import { PRIVACY_URL, PROGRESS_URL, REPO_URL, TERMS_URL } from './links'
+import { LIBRARY_URL, PRIVACY_URL, REPO_URL, TERMS_URL } from './links'
 
 export default function SiteFooter({ copy }: { copy: LandingCopy }) {
   const { footer } = copy
@@ -20,9 +20,9 @@ export default function SiteFooter({ copy }: { copy: LandingCopy }) {
             <p className="mt-4 max-w-[420px] text-[14px] leading-6 text-fg-3">{footer.line}</p>
           </div>
           <nav aria-label={footer.navLabel} className="flex flex-wrap gap-x-6 gap-y-3">
-            <a href={PROGRESS_URL} target="_blank" rel="noopener noreferrer" className={`${link} inline-flex items-center gap-1.5`}>
-              <GitBranch size={14} aria-hidden="true" />
-              {footer.roadmap}
+            <a href={LIBRARY_URL} className={`${link} inline-flex items-center gap-1.5`}>
+              <LibraryBig size={14} aria-hidden="true" />
+              {footer.library}
             </a>
             <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={link}>
               {footer.github}

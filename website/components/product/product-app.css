@@ -371,15 +371,17 @@ button.ah-erow:hover,
 }
 
 .ah-erow .acts {
-  display: none;
+  display: flex;
   gap: 2px;
   color: var(--fg-3);
+  visibility: hidden;
 }
 
+/* Keep the action column in the grid even when its buttons are hidden, so hover cannot rewrap the row. */
 .ah-erow.hov .acts,
 button.ah-erow:hover .acts,
 button.ah-erow:focus-visible .acts {
-  display: flex;
+  visibility: visible;
 }
 
 .ah-acts-btn {
