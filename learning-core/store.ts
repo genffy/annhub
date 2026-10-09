@@ -178,6 +178,14 @@ export class EntryStore {
     return countPropertyUsage(await this.listEntries(), name)
   }
 
+  /** Usage counts for a set of definitions in one entries scan (case-insensitive keys). */
+  async propertyUsageCounts(names: string[]): Promise<Record<string, number>> {
+    const entries = await this.listEntries()
+    const counts: Record<string, number> = {}
+    for (const name of names) counts[name] = countPropertyUsage(entries, name)
+    return counts
+  }
+
   async deletePropertyDefinition(name: string): Promise<void> {
     const db = this.requireDb()
     const tx = db.transaction(['entries', 'properties'], 'readwrite')

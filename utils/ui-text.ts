@@ -250,6 +250,7 @@ const STRINGS = {
   'property.error.inUse': { zh: '使用中的属性不能删除。', en: 'A property in use cannot be deleted.' },
   'property.defaultValue': { zh: '默认值', en: 'Default value' },
   'property.usage': { zh: '使用数', en: 'Usage' },
+  'property.builtin': { zh: '内置', en: 'built-in' },
   'property.presets': { zh: '预设', en: 'Presets' },
   'property.deleteUnused': { zh: '删除未使用', en: 'Delete unused' },
   'property.willDelete': { zh: '将删除：{names}', en: 'Will delete: {names}' },

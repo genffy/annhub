@@ -6,10 +6,10 @@
  * an unknown name asks for its type first and registers in the same write.
  * System fields show read-only; `type` and `id` are not properties at all.
  */
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import MessageUtils from '../../utils/message'
 import type { EntryRecord, PropertyDefinition, PropertyType, PropertyValue } from '../../learning-core/types'
-import { normalizeTags } from '../../learning-core/properties'
+import { normalizeTags, PROPERTY_LIST_ITEM_MAX, PROPERTY_LIST_ITEMS_MAX } from '../../learning-core/properties'
 import { PROPERTY_TYPES } from '../../learning-core/types'
 import { uiText } from '../../utils/ui-text'
 
@@ -28,8 +28,8 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
 
   const byKey = useMemo(() => new Map(registry.map(def => [def.name.toLowerCase(), def] as const)), [registry])
 
-  /** Sends a field-level properties patch; the store fills the rest from the entry it reads in-transaction. */
-  async function persist(patch: { set?: Record<string, PropertyValue>; unset?: string[]; newDefinitions?: PropertyDefinition[] }) {
+  /** Sends a field-level properties patch; resolves false on failure so the draft can stay. */
+  async function persist(patch: { set?: Record<string, PropertyValue>; unset?: string[]; newDefinitions?: PropertyDefinition[] }): Promise<boolean> {
     const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({
       type: 'UPDATE_ENTRY',
       id: entry.id,
@@ -37,7 +37,7 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
     })
     if (!response.success || !response.data?.entry) {
       setError(errorText(response.error))
-      return
+      return false
     }
     setError('')
     onEntryChanged(response.data.entry)
@@ -47,14 +47,14 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
       name: 'entry.property_edited',
       props: { scope: definition ? 'custom' : 'builtin', property_type: definition?.type ?? 'text' },
     })
+    return true
   }
 
-  const setValue = (name: string, value: PropertyValue | undefined) => {
+  const setValue = async (name: string, value: PropertyValue | undefined): Promise<boolean> => {
     if (value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) {
-      void persist({ unset: [name] })
-      return
+      return persist({ unset: [name] })
     }
-    void persist({ set: { [name]: value } })
+    return persist({ set: { [name]: value } })
   }
 
   const addProperty = (name: string, type: PropertyType) => {
@@ -93,7 +93,7 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
             <span className="prop-name" title={type}>
               <span aria-hidden>{TYPE_ICON[type]}</span> {name}
             </span>
-            <ValueEditor type={type} value={entry.properties[name]} onChange={value => setValue(name, value)} />
+            <DraftEditor type={type} value={entry.properties[name]} listLimit={def?.name === 'tags' ? 'tags' : 'list'} onCommit={value => setValue(name, value)} />
           </label>
         )
       })}
@@ -160,16 +160,37 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
   )
 }
 
+function normalizeListItems(items: string[], limit: 'tags' | 'list' | undefined): string[] {
+  if (limit === 'list') {
+    // other lists use the type's own limits (entry.md §5.2): 50 items, 100 chars
+    const seen = new Set<string>()
+    const out: string[] = []
+    for (const raw of items) {
+      const item = raw.trim()
+      if (!item || item.length > PROPERTY_LIST_ITEM_MAX) continue
+      const key = item.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      out.push(item)
+      if (out.length >= PROPERTY_LIST_ITEMS_MAX) break
+    }
+    return out
+  }
+  return normalizeTags(items) // tags: 20 items, 1-32 chars each
+}
+
 function ValueEditor({
   type,
   value,
   onChange,
   autoFocus,
+  listLimit,
 }: {
   type: PropertyType
   value: PropertyValue | undefined
   onChange(value: PropertyValue | undefined): void
   autoFocus?: boolean
+  listLimit?: 'tags' | 'list'
 }) {
   if (type === 'checkbox') {
     return <input type="checkbox" checked={value === true} onChange={event => onChange(event.target.checked ? true : undefined)} />
@@ -185,7 +206,14 @@ function ValueEditor({
               type="button"
               className="tag-remove"
               aria-label={uiText('settings.remove')}
-              onClick={() => onChange(normalizeTags(items.filter(candidate => candidate !== item)))}
+              onClick={() =>
+                onChange(
+                  normalizeListItems(
+                    items.filter(candidate => candidate !== item),
+                    listLimit,
+                  ),
+                )
+              }
             >
               ×
             </button>
@@ -199,7 +227,7 @@ function ValueEditor({
             if (event.key !== 'Enter') return
             event.preventDefault()
             const added = (event.target as HTMLInputElement).value.trim()
-            if (added) onChange(normalizeTags([...items, added]))
+            if (added) onChange(normalizeListItems([...items, added], listLimit))
             ;(event.target as HTMLInputElement).value = ''
           }}
         />
@@ -243,7 +271,7 @@ function PendingEditor({ type, autoFocus, onCommit }: { type: PropertyType; auto
     <span
       onBlur={commit}
       onKeyDown={event => {
-        if (event.key === 'Enter') commit()
+        if (event.key === 'Enter' && !event.nativeEvent.isComposing) commit()
       }}
     >
       {type === 'checkbox' ? (
@@ -251,6 +279,62 @@ function PendingEditor({ type, autoFocus, onCommit }: { type: PropertyType; auto
       ) : (
         <ValueEditor type={type} value={draft} autoFocus={autoFocus} onChange={setDraft} />
       )}
+    </span>
+  )
+}
+
+/**
+ * Draft-first editor for a stored row (RV-LIB-05): keystrokes stay local;
+ * one commit happens on blur or Enter — never mid-composition. A failed
+ * commit restores the stored value while the error is showing.
+ */
+function DraftEditor({
+  type,
+  value,
+  listLimit,
+  onCommit,
+}: {
+  type: PropertyType
+  value: PropertyValue | undefined
+  /** `tags` uses its tighter limits; other lists use the type's own (entry.md §5.2). */
+  listLimit?: 'tags' | 'list'
+  onCommit(value: PropertyValue | undefined): Promise<boolean> | boolean
+}) {
+  const [draft, setDraft] = useState<PropertyValue | undefined>(value)
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    if (!dirty) setDraft(value)
+  }, [value, dirty])
+
+  const commit = (): void => {
+    if (!dirty) return
+    setDirty(false)
+    void Promise.resolve(onCommit(draft)).then(ok => {
+      // a refused write (e.g. clearing title) rolls the row back to the store
+      if (!ok) setDraft(value)
+    })
+  }
+
+  if (type === 'checkbox') {
+    return <input type="checkbox" checked={value === true} onChange={event => void onCommit(event.target.checked ? true : undefined)} />
+  }
+  return (
+    <span
+      onBlur={commit}
+      onKeyDown={event => {
+        if (event.key === 'Enter' && !event.nativeEvent.isComposing) commit()
+      }}
+    >
+      <ValueEditor
+        type={type}
+        value={draft}
+        listLimit={listLimit}
+        onChange={next => {
+          setDirty(true)
+          setDraft(next)
+        }}
+      />
     </span>
   )
 }

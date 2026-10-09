@@ -175,7 +175,10 @@ export class EntryService implements IService {
       LIST_PROPERTIES: async (_message, sender): Promise<ResponseMessage> => {
         if (!trustedSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
-        return MessageUtils.createResponse(true, { definitions: await store.listPropertyDefinitions() })
+        const definitions = await store.listPropertyDefinitions()
+        // counts come from the whole library, not a page (RV-LIB-07)
+        const usage = await store.propertyUsageCounts(definitions.map(def => def.name))
+        return MessageUtils.createResponse(true, { definitions, usage })
       },
 
       UPSERT_PROPERTY: async (message, sender): Promise<ResponseMessage> => {

@@ -6,7 +6,7 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import MessageUtils from '../../utils/message'
-import { PROPERTY_TYPES, type EntryRecord, type PropertyDefinition, type PropertyType } from '../../learning-core/types'
+import { PROPERTY_TYPES, type PropertyDefinition, type PropertyType } from '../../learning-core/types'
 import { uiText } from '../../utils/ui-text'
 
 const TYPE_ICON: Record<PropertyType, string> = { text: '𝐓', list: '≔', number: '#', checkbox: '☑', date: '📅', datetime: '🕰' }
@@ -19,15 +19,11 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
   const [notice, setNotice] = useState('')
 
   const load = useCallback(async () => {
-    const defs = await MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'LIST_PROPERTIES' })
-    const entries = await MessageUtils.sendMessage<{ result: { items: EntryRecord[] } }>({ type: 'QUERY_ENTRIES', query: { limit: 200 } })
+    // usage comes from the whole library via the backend (RV-LIB-07)
+    const defs = await MessageUtils.sendMessage<{ definitions: PropertyDefinition[]; usage: Record<string, number> }>({ type: 'LIST_PROPERTIES' })
     if (!defs.success) return
     setRegistry(defs.data!.definitions)
-    const counts: Record<string, number> = {}
-    for (const entry of entries.data?.result.items ?? []) {
-      for (const name of Object.keys(entry.properties)) counts[name] = (counts[name] ?? 0) + 1
-    }
-    setUsage(counts)
+    setUsage(defs.data!.usage ?? {})
   }, [])
 
   useEffect(() => {
@@ -138,7 +134,7 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
               <tr key={def.name} data-prop={def.name}>
                 <td>
                   <span aria-hidden>{TYPE_ICON[def.type]}</span> {def.name}
-                  {def.builtin && <span className="tag">built-in</span>}
+                  {def.builtin && <span className="tag">{uiText('property.builtin')}</span>}
                 </td>
                 <td>{def.defaultValue === undefined ? '—' : String(def.defaultValue)}</td>
                 <td data-testid={`usage-${def.name}`}>{count}</td>
