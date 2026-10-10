@@ -5,11 +5,12 @@
  * not persisted.
  */
 import { normalizeHost } from '../../learning-core/normalize'
-import { normalizeTags } from '../../learning-core/properties'
+import { normalizeTags, TAG_LENGTH_MAX, TAGS_MAX } from '../../learning-core/properties'
 import { CONTEXT_MAX_CHARS } from '../../learning-core/validate'
+import { newEntryId } from '../../learning-core/assets'
 import MessageUtils from '../../utils/message'
-import { uiText } from '../../utils/ui-text'
-import { elementToMarkdown, selectionToMarkdown } from './markdown'
+import { entryErrorText, failureReason, uiText } from '../../utils/ui-text'
+import { elementToMarkdown, escapeText, selectionToMarkdown } from './markdown'
 import { extractContext, extractPageMeta, resolvePermalink } from './page-meta'
 import type { BlockCandidate, BlockKind } from './blocks'
 
@@ -26,42 +27,76 @@ export interface ClipOutcome {
   entryId: string
   title: string
   truncated: boolean
+  origin?: ClipOrigin
 }
 
-/** Saves a selection as a clip; returns undefined on failure (caller shows retry). */
-export async function saveSelectionClip(range: Range, origin: ClipOrigin): Promise<ClipOutcome | undefined> {
+/** A save that did not go through. `code` is the worker's stable answer when there was one: the toast says why. */
+export interface ClipFailure {
+  failed: true
+  code?: string
+}
+
+export type ClipResult = ClipOutcome | ClipFailure
+
+export function isClipFailure(result: ClipResult): result is ClipFailure {
+  return 'failed' in result
+}
+
+/** Nothing in what was pointed at converts to text: a failure the user can read, not a silent no-op. */
+const EMPTY: ClipFailure = { failed: true, code: 'EMPTY_CONTENT' }
+
+/** Saves a selection as a clip; a failure carries its reason (the caller shows it, with Retry). */
+export async function saveSelectionClip(range: Range, origin: ClipOrigin, id = newEntryId()): Promise<ClipResult> {
+  const startedAt = Date.now()
   const { markdown, truncated } = selectionToMarkdown(range)
-  if (!markdown.trim()) return undefined
+  if (!markdown.trim()) return EMPTY
   const selected = range.toString()
   const context = selected.length <= CONTEXT_MAX_CHARS ? extractContext(range) : undefined
   return saveClip({
+    id,
     content: markdown,
     context,
     permalink: resolvePermalink(range.commonAncestorContainer, location.href),
-    origin: { ...origin, truncated },
+    origin: { ...origin, truncated, startedAt },
   })
 }
 
+/** Older Chromium can expose shadow text but not its composed Range (D-25). */
+export async function savePlainTextSelection(text: string, origin: ClipOrigin, id = newEntryId()): Promise<ClipResult> {
+  const startedAt = Date.now()
+  const content = escapeText(text).trim()
+  if (!content) return EMPTY
+  return saveClip({ id, content, permalink: resolvePermalink(document.body, location.href), origin: { ...origin, startedAt } })
+}
+
 /** Saves a block as a clip: its own permalink, no context (capture.md §6.2). */
-export async function saveBlockClip(candidate: BlockCandidate, origin: ClipOrigin): Promise<ClipOutcome | undefined> {
+export async function saveBlockClip(candidate: BlockCandidate, origin: ClipOrigin, id = newEntryId()): Promise<ClipResult> {
+  const startedAt = Date.now()
   const { element, kind, range } = candidate
   // a heading-bounded section converts (and anchors) its sibling run only
   const slice = range && range.start.parentElement === element ? { from: range.start, to: range.end } : undefined
   const { markdown, truncated } = elementToMarkdown(element, slice)
-  if (!markdown.trim()) return undefined
+  if (!markdown.trim()) return EMPTY
   return saveClip({
+    id,
     content: markdown,
     permalink: resolvePermalink(range?.start ?? element, location.href, kind),
-    origin: { ...origin, blockKind: kind, truncated },
+    origin: { ...origin, blockKind: kind, truncated, startedAt },
   })
 }
 
-async function saveClip(input: { content: string; context?: string; permalink: string; origin: ClipOrigin & { truncated?: boolean } }): Promise<ClipOutcome | undefined> {
+async function saveClip(input: {
+  id: string
+  content: string
+  context?: string
+  permalink: string
+  origin: ClipOrigin & { truncated?: boolean; startedAt?: number }
+}): Promise<ClipResult> {
   const meta = extractPageMeta(document, normalizeHost(location.href))
-  const started = performance.now()
   const response = await MessageUtils.sendMessage<{ entry: { id: string } }>({
     type: 'SAVE_CLIP',
     draft: {
+      id: input.id,
       content: input.content,
       context: input.context,
       sourceUrl: input.permalink,
@@ -72,11 +107,10 @@ async function saveClip(input: { content: string; context?: string; permalink: s
         ...(meta.description ? { description: meta.description } : {}),
       },
       ...input.origin,
-      durationMs: performance.now() - started,
     },
   })
-  if (!response.success || !response.data?.entry) return undefined
-  return { entryId: response.data.entry.id, title: meta.title, truncated: Boolean(input.origin.truncated) }
+  if (!response.success || !response.data?.entry) return { failed: true, code: response.error }
+  return { entryId: response.data.entry.id, title: meta.title, truncated: Boolean(input.origin.truncated), origin: input.origin }
 }
 
 // ── Toast: 已剪藏 · 撤销 · 编辑 ──────────────────────────────────────────
@@ -119,9 +153,19 @@ export function showClipToast(outcome: ClipOutcome, editAnchor: Range | HTMLElem
   undo.addEventListener('click', async () => {
     clear()
     undo.disabled = true
-    const response = await MessageUtils.sendMessage({ type: 'DELETE_ENTRY', id: outcome.entryId })
-    dismiss()
-    if (response.success) showUndone()
+    const response = await MessageUtils.sendMessage({
+      type: 'DELETE_ENTRY',
+      id: outcome.entryId,
+      ...(outcome.origin ? { attribution: { ...outcome.origin, truncated: outcome.truncated } } : {}),
+    })
+    if (response.success) {
+      dismiss()
+      showUndone()
+    } else {
+      label.textContent = uiText('toast.undoFailed')
+      bar.classList.add('ann-clip-toast-error')
+      undo.disabled = false
+    }
   })
   edit.addEventListener('click', () => {
     clear()
@@ -155,8 +199,8 @@ function showUndone(): void {
   window.setTimeout(() => host.remove(), TOAST_MS)
 }
 
-/** Save failed: the reason and Retry stay until dismissed; nothing claims success. */
-export function showFailureToast(retry: () => void): void {
+/** Save failed: the reason (when there is one worth telling) and Retry stay until dismissed; nothing claims success. */
+export function showFailureToast(retry: () => void, failure?: ClipFailure): void {
   dismissToast()
   const host = document.createElement('div')
   host.setAttribute(ROOT_ATTR, 'clip-toast')
@@ -164,6 +208,13 @@ export function showFailureToast(retry: () => void): void {
   bar.className = 'ann-clip-toast ann-clip-toast-error'
   const label = document.createElement('span')
   label.textContent = uiText('toast.saveFailed')
+  const reason = failureReason(failure?.code)
+  if (reason) {
+    const why = document.createElement('div')
+    why.className = 'ann-clip-toast-reason'
+    why.textContent = reason
+    bar.appendChild(why)
+  }
   const button = document.createElement('button')
   button.textContent = uiText('toast.retry')
   button.addEventListener('click', () => {
@@ -204,7 +255,7 @@ export function openEditBubble(outcome: ClipOutcome, anchor: Range | HTMLElement
   const more = doc.createElement('button')
   more.textContent = uiText('edit.more')
   more.addEventListener('click', () => {
-    void MessageUtils.sendMessage({ type: 'OPEN_EXTENSION_PAGE', page: 'library', params: { view: outcome.entryId } })
+    void MessageUtils.sendMessage({ type: 'OPEN_EXTENSION_PAGE', page: 'library', params: { entryId: outcome.entryId } })
     host.remove()
   })
   const done = doc.createElement('button')
@@ -245,12 +296,21 @@ export function openEditBubble(outcome: ClipOutcome, anchor: Range | HTMLElement
     persisting = true
     errorLine.textContent = ''
     const titleValue = title.input.value.trim()
-    const tagList = normalizeTags(
-      tags.input.value
-        .split(/[,，]/)
-        .map(tag => tag.trim())
-        .filter(Boolean),
-    )
+    const rawTags = tags.input.value
+      .split(/[,，]/)
+      .map(tag => tag.trim())
+      .filter(Boolean)
+    if (rawTags.some(tag => tag.length > TAG_LENGTH_MAX)) {
+      errorLine.textContent = uiText('edit.error.tagTooLong', { limit: TAG_LENGTH_MAX })
+      persisting = false
+      return
+    }
+    if (rawTags.length > TAGS_MAX) {
+      errorLine.textContent = uiText('edit.error.tooManyTags', { limit: TAGS_MAX })
+      persisting = false
+      return
+    }
+    const tagList = normalizeTags(rawTags)
     const noteValue = note.input.value.trim()
 
     // only the fields the user actually changed travel; everything the
@@ -275,7 +335,7 @@ export function openEditBubble(outcome: ClipOutcome, anchor: Range | HTMLElement
     if (!response.success) {
       // the bubble and the typed text survive; the user can adjust and retry
       persisting = false
-      errorLine.textContent = response.error ?? uiText('toast.saveFailed')
+      errorLine.textContent = entryErrorText(response.error)
       return
     }
     detach()

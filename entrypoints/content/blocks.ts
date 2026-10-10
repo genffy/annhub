@@ -263,3 +263,108 @@ export function candidateRect(candidate: BlockCandidate): DOMRect {
   const bottom = Math.max(...boxes.map(box => box.bottom))
   return new DOMRect(left, top, right - left, bottom - top)
 }
+
+// ── Keyboard block mode helpers (capture.md §6.2, D-27) ───────────────────
+
+/**
+ * The node a unit is anchored at: a heading-run section starts at its
+ * heading (its `element` is only the shared parent), anything else is its own
+ * element. Detecting from the anchor reproduces the unit; detecting from
+ * `element` would not.
+ */
+export function candidateAnchor(candidate: BlockCandidate): Element {
+  return candidate.range?.start ?? candidate.element
+}
+
+export function sameCandidate(a: BlockCandidate, b: BlockCandidate): boolean {
+  return a.kind === b.kind && a.element === b.element && (a.range?.start ?? null) === (b.range?.start ?? null)
+}
+
+/** The chain a unit sits in, innermost first, computed from the unit itself. */
+export function chainOf(candidate: BlockCandidate, doc: Document): BlockCandidate[] {
+  return candidatesFor(candidateAnchor(candidate), doc)
+}
+
+const PEER_SELECTORS: Record<BlockKind, string> = {
+  post: 'article',
+  code: 'pre',
+  table: 'table',
+  figure: 'figure, img',
+  quote: 'blockquote',
+  section: 'section, h1, h2, h3, h4',
+  article: 'article, [role="article"], main, [role="main"], .entry-content, .post-content, .markdown-content, .markdown-body',
+}
+
+/** A dense-container article is a plain `div`; finding its peers means looking at divs. */
+const PEER_SCAN_LIMIT = 3_000
+
+/**
+ * The units of the same kind as `current`, in document order (Tab / Shift+Tab
+ * move between them). Runs only when the user presses Tab — never while the
+ * pointer moves — and looks inside the shadow root `current` lives in.
+ */
+export function peersOf(current: BlockCandidate, doc: Document): BlockCandidate[] {
+  const root = current.element.getRootNode()
+  const scope: ParentNode = root instanceof ShadowRoot ? root : doc
+  const denseDiv = current.kind === 'article' && current.element.tagName.toLowerCase() === 'div'
+  const selector = denseDiv ? `${PEER_SELECTORS.article}, div` : PEER_SELECTORS[current.kind]
+  const peers: BlockCandidate[] = []
+  let scanned = 0
+  for (const target of scope.querySelectorAll(selector)) {
+    if (++scanned > PEER_SCAN_LIMIT) break
+    for (const candidate of candidatesFor(target, doc)) {
+      if (candidate.kind !== current.kind) continue
+      if (candidateAnchor(candidate) !== target) continue
+      if (!peers.some(peer => sameCandidate(peer, candidate))) peers.push(candidate)
+    }
+  }
+  if (!peers.some(peer => sameCandidate(peer, current))) peers.push(current)
+  return peers.sort((a, b) => {
+    const order = candidateAnchor(a).compareDocumentPosition(candidateAnchor(b))
+    return order & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : order & Node.DOCUMENT_POSITION_PRECEDING ? 1 : 0
+  })
+}
+
+/**
+ * The chain of the first unit on screen: scans down the middle of the window
+ * and then the quarter lines, so a keyboard user who never moved the mouse
+ * still starts on something (D-27).
+ */
+export function firstVisibleChain(doc: Document): BlockCandidate[] {
+  const view = doc.defaultView
+  if (!view) return []
+  const columns = [view.innerWidth / 2, view.innerWidth / 4, (view.innerWidth * 3) / 4]
+  try {
+    for (let y = 8; y < view.innerHeight; y += 16) {
+      for (const x of columns) {
+        const chain = candidatesAtPoint(x, y, doc)
+        if (chain.length > 0) return chain
+      }
+    }
+  } catch {
+    /* a document without hit-testing has no first unit */
+  }
+  return []
+}
+
+/** What a screen reader hears after the kind: the unit's own words (a run section reads only its run). */
+export function candidateSummary(candidate: BlockCandidate, limit = 80): string {
+  let text: string
+  if (candidate.range) {
+    const children = Array.from(candidate.range.start.parentElement?.children ?? [])
+    const from = Math.max(children.indexOf(candidate.range.start), 0)
+    const end = candidate.range.end ? children.indexOf(candidate.range.end) : -1
+    text = children
+      .slice(from, end < 0 ? children.length : end)
+      .map(child => child.textContent ?? '')
+      .join(' ')
+  } else {
+    text = candidate.element.textContent ?? ''
+  }
+  text = text.replace(/\s+/g, ' ').trim()
+  if (!text) {
+    const image = candidate.element.tagName.toLowerCase() === 'img' ? candidate.element : candidate.element.querySelector('img')
+    text = candidate.element.getAttribute('aria-label') ?? image?.getAttribute('alt') ?? ''
+  }
+  return text.slice(0, limit)
+}

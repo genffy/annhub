@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { elementToMarkdown, escapeText, isPageChrome } from '../markdown'
+import { markdownToPlainText } from '../../../learning-core/markdown'
+import { fold, PAGE_TEXT_CASES } from '../../../learning-core/__tests__/fixtures/page-text'
 
 /**
  * DOM → Markdown conversion fixtures (capture.md §3.1, RV-CAP-02). jsdom has
@@ -112,7 +114,7 @@ describe('text escaping (capture.md §3.1)', () => {
     expect(convert('<p>Use * for pointers; 2*3*4.</p>')).toBe('Use \\* for pointers; 2\\*3\\*4.')
     expect(convert('<p># not a heading</p>')).toBe('\\# not a heading')
     expect(convert('<p>- not a list</p>')).toBe('\\- not a list')
-    expect(convert('<p>1. not ordered</p>')).toBe('\\1. not ordered')
+    expect(convert('<p>1. not ordered</p>')).toBe('1\\. not ordered')
     expect(convert('<p>&gt; not a quote</p>')).toBe('\\> not a quote')
     expect(convert('<p>brackets [x] and &lt;tags&gt;</p>')).toBe('brackets \\[x\\] and \\<tags\\>')
     expect(convert('<p>a `tick</p>')).toBe('a \\`tick')
@@ -126,6 +128,17 @@ describe('text escaping (capture.md §3.1)', () => {
 
   it('real emphasis still converts', () => {
     expect(convert('<p>very <b>bold</b> and <i>italic</i></p>')).toBe('very **bold** and *italic*')
+  })
+
+  it('round trips ordered markers, literal highlight marks and backslashes', () => {
+    for (const text of ['1. First step', '10. ten', '1) paren', 'if a == b and c == d', 'path \\_name and \\*']) {
+      const element = document.createElement('p')
+      element.textContent = text
+      const markdown = elementToMarkdown(element).markdown
+      expect(markdownToPlainText(markdown)).toBe(text)
+    }
+    expect(convert('<p>if a == b</p>')).toBe('if a =\\= b')
+    expect(convert('<p>path \\_name</p>')).toContain('\\\\')
   })
 })
 
@@ -157,4 +170,13 @@ describe('block slices (heading-bounded sections)', () => {
     expect(markdown).toContain('Alpha body')
     expect(markdown).not.toContain('Beta body')
   })
+})
+
+describe('shared page-text fixtures: the converter writes the pinned Markdown and search reads the words back (RV-CORE-04)', () => {
+  for (const fixture of PAGE_TEXT_CASES) {
+    it(fixture.name, () => {
+      expect(convert(fixture.html), 'converted Markdown').toBe(fixture.markdown)
+      expect(fold(markdownToPlainText(fixture.markdown)), 'plain text').toBe(fixture.visible)
+    })
+  }
 })

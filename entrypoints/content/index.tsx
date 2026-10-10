@@ -8,47 +8,62 @@
  * undo and quick edit.
  */
 import { BlockEntries } from './block-hover'
-import { saveBlockClip, saveSelectionClip, showClipToast, showFailureToast, type ClipOrigin } from './clip-flow'
-import { SelectionMenu, selectableRange } from './selection-menu'
+import type { BlockCandidate } from './blocks'
+import { isClipFailure, saveBlockClip, savePlainTextSelection, saveSelectionClip, showClipToast, showFailureToast, type ClipOrigin } from './clip-flow'
+import { SelectionMenu, plainTextForSelection, selectableRange } from './selection-menu'
 import { enterScreenshotMode } from './screenshot'
 import { isUserInput } from './user-input'
 import { normalizeHost } from '../../learning-core/normalize'
 import MessageUtils from '../../utils/message'
 import { Logger } from '../../utils/logger'
+import { newEntryId } from '../../learning-core/assets'
 import './content.css'
 
 let selectionMenu: SelectionMenu | null = null
 let blockEntries: BlockEntries | null = null
 let lastRange: Range | null = null
+let lastPlainText: string | undefined
+let lastShadowRoot: ShadowRoot | undefined
+
+function isTopFrame(): boolean {
+  return window.top === window
+}
 
 function insideOwnUi(event: Event): boolean {
   const path = event.composedPath() as HTMLElement[]
   return path.some(el => el instanceof HTMLElement && el.hasAttribute?.('data-ann-ui'))
 }
 
-async function triggerSelectionClip(origin: ClipOrigin): Promise<void> {
+async function triggerSelectionClip(origin: ClipOrigin, id = newEntryId()): Promise<void> {
   const range = lastRange
   if (!range) return
-  const outcome = await saveSelectionClip(range, origin)
+  const plainText = lastPlainText
+  const outcome = plainText ? await savePlainTextSelection(plainText, origin, id) : await saveSelectionClip(range, origin, id)
   selectionMenu?.dismiss()
   document.getSelection()?.removeAllRanges()
-  if (outcome) {
+  if (!isClipFailure(outcome)) {
     showClipToast(outcome, range)
   } else {
     // failure keeps the selection so the retry has the same material (extension.md §6)
     document.getSelection()?.addRange(range)
-    showFailureToast(() => void triggerSelectionClip(origin))
+    showFailureToast(() => void triggerSelectionClip(origin, id), outcome)
   }
 }
 
 function wireSelectionMenu(): void {
   selectionMenu = new SelectionMenu(document, {
     onClip: () => void triggerSelectionClip({ via: 'menu' }),
-    onScreenshot: () => {
-      selectionMenu?.dismiss()
-      document.getSelection()?.removeAllRanges()
-      enterScreenshotMode({ via: 'menu' })
-    },
+    // The screenshot session, its coordinates and the captured tab all belong to the top frame's
+    // viewport; a same-origin child frame offers clipping only (D-29).
+    ...(isTopFrame()
+      ? {
+          onScreenshot: () => {
+            selectionMenu?.dismiss()
+            document.getSelection()?.removeAllRanges()
+            enterScreenshotMode({ via: 'menu' })
+          },
+        }
+      : {}),
   })
 
   const onPointerUp = (event: PointerEvent): void => {
@@ -56,12 +71,19 @@ function wireSelectionMenu(): void {
     if (insideOwnUi(event)) return
     // let the selection settle before reading it
     window.setTimeout(() => {
-      const range = selectableRange(document)
+      const path = event.composedPath()
+      const shadowRoot =
+        (path.find(node => node instanceof ShadowRoot) as ShadowRoot | undefined) ??
+        (path.find(node => node instanceof Element && node.shadowRoot) as Element | undefined)?.shadowRoot ??
+        undefined
+      lastShadowRoot = shadowRoot
+      const range = selectableRange(document, shadowRoot)
       if (!range) {
         if (!blockEntries?.isBlockModeActive()) selectionMenu?.dismiss()
         return
       }
       lastRange = range.cloneRange()
+      lastPlainText = plainTextForSelection(range)
       selectionMenu?.show(range)
     }, 10)
   }
@@ -76,19 +98,22 @@ function wireSelectionMenu(): void {
       selectionSettleTimer = null
       if (blockEntries?.isBlockModeActive()) return
       const selection = document.getSelection()
-      if (!selection || selection.isCollapsed || selection.rangeCount === 0) {
+      if (!selection || !selection.toString().trim()) {
         if (!selectionMenu?.isShowing()) return
         // a click on a menu button momentarily collapses the selection; give it a grace period
         window.setTimeout(() => {
           const now = document.getSelection()
-          if (!now || now.isCollapsed) selectionMenu?.dismiss()
+          if (!now || !now.toString().trim()) selectionMenu?.dismiss()
         }, 200)
         return
       }
       if (selectionMenu?.isShowing()) return // mouse path already placed it
-      const range = selectableRange(document)
+      const root = selection.anchorNode?.getRootNode()
+      const activeShadow = root instanceof ShadowRoot ? root : selection.anchorNode instanceof Element ? selection.anchorNode.shadowRoot : undefined
+      const range = selectableRange(document, activeShadow ?? lastShadowRoot)
       if (!range) return
       lastRange = range.cloneRange()
+      lastPlainText = plainTextForSelection(range)
       selectionMenu?.show(range)
     }, 250)
   }
@@ -105,14 +130,26 @@ function wireSelectionMenu(): void {
 }
 
 function wireBlockEntries(): void {
+  let cachedSettings: Promise<{ blockEntryEnabled?: boolean; blockDisabledSites?: string[] }> | null = null
+  const settings = () => {
+    cachedSettings ??= MessageUtils.sendMessage<{ blockEntryEnabled?: boolean; blockDisabledSites?: string[] }>({ type: 'GET_SETTINGS' }).then(response => {
+      if (!response.success) {
+        cachedSettings = null
+        return {}
+      }
+      return response.data ?? {}
+    })
+    return cachedSettings
+  }
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes['annhub.settings']) cachedSettings = null
+  })
   const gate = {
     enabled: async () => {
-      const response = await MessageUtils.sendMessage<{ blockEntryEnabled?: boolean }>({ type: 'GET_SETTINGS' })
-      return response.success ? response.data?.blockEntryEnabled !== false : true
+      return (await settings()).blockEntryEnabled !== false
     },
     siteDisabled: async (host: string) => {
-      const response = await MessageUtils.sendMessage<{ blockDisabledSites?: string[] }>({ type: 'GET_SETTINGS' })
-      return Boolean(response.success && response.data?.blockDisabledSites?.some(site => normalizeHost(`https://${site}/`) === host || site === host))
+      return Boolean((await settings()).blockDisabledSites?.some(site => normalizeHost(`https://${site}/`) === host || site === host))
     },
   }
 
@@ -120,29 +157,32 @@ function wireBlockEntries(): void {
     document,
     {
       onClip: (candidate, levelChanged) => {
+        const id = newEntryId()
         const run = async () => {
-          const outcome = await saveBlockClip(candidate, { via: 'block', levelChanged })
-          if (outcome) showClipToast(outcome, candidate.element)
-          else showFailureToast(() => void run())
+          const outcome = await saveBlockClip(candidate, { via: 'block', levelChanged }, id)
+          if (!isClipFailure(outcome)) showClipToast(outcome, candidate.element)
+          else showFailureToast(() => void run(), outcome)
         }
         void run()
       },
-      onScreenshot: candidate => {
-        enterScreenshotMode({ via: 'block', element: candidate.element })
-      },
+      ...(isTopFrame()
+        ? {
+            onScreenshot: (candidate: BlockCandidate) => {
+              enterScreenshotMode({ via: 'block', element: candidate.element })
+            },
+          }
+        : {}),
       onDisableSite: () => {
         void (async () => {
           const host = normalizeHost(location.href)
-          const response = await MessageUtils.sendMessage<{ blockDisabledSites?: string[] }>({ type: 'GET_SETTINGS' })
-          const sites = new Set(response.data?.blockDisabledSites ?? [])
-          sites.add(host)
-          await MessageUtils.sendMessage({ type: 'SET_SETTINGS', patch: { blockDisabledSites: [...sites] } })
-          blockEntries?.hide()
+          const response = await MessageUtils.sendMessage({ type: 'SET_SETTINGS', appendDisabledSite: host })
+          if (response.success) blockEntries?.hide()
         })()
       },
       onDisableEntry: () => {
-        void MessageUtils.sendMessage({ type: 'SET_SETTINGS', patch: { blockEntryEnabled: false } })
-        blockEntries?.hide()
+        void MessageUtils.sendMessage({ type: 'DISABLE_BLOCK_ENTRY' }).then(response => {
+          if (response.success) blockEntries?.hide()
+        })
       },
       openSettings: () => {
         void MessageUtils.sendMessage({ type: 'OPEN_EXTENSION_PAGE', page: 'settings' })
@@ -155,10 +195,18 @@ function wireBlockEntries(): void {
 
 export default defineContentScript({
   matches: ['<all_urls>'],
+  allFrames: true,
   // Overlay CSS rides the manifest content style: the overlays append to the
   // document (not a shadow root), and every selector is namespaced under
   // [data-ann-ui] / .ann-* so the page's own styles are untouched.
   async main() {
+    if (window.top !== window) {
+      try {
+        if (window.top?.location.origin !== window.location.origin) return
+      } catch {
+        return
+      }
+    }
     if (document.readyState === 'loading') {
       await new Promise<void>(resolve => document.addEventListener('DOMContentLoaded', () => resolve(), { once: true }))
     }
@@ -166,6 +214,8 @@ export default defineContentScript({
     wireBlockEntries()
 
     chrome.runtime.onMessage.addListener(message => {
+      // the shortcut belongs to the top frame; a child frame that still hears it stays out of it
+      if (!isTopFrame()) return
       if (message?.type === 'TRIGGER_SCREENSHOT') enterScreenshotMode({ via: 'shortcut' })
       if (message?.type === 'TRIGGER_BLOCK_MODE') blockEntries?.enterBlockMode()
     })

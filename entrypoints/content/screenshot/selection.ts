@@ -132,8 +132,6 @@ export function resizeFromHandle(box: ViewportRect, handle: HandleId, dx: number
 
 // ── Element + margin frames (screenshot.md §1.4) ──────────────────────────
 
-export const MARGIN_CHOICES: readonly number[] = [0, 8, 16, 24, 32]
-
 /** The frame = the element's outer box expanded by the margin on all sides. */
 export function expandByMargin(rect: ViewportRect, margin: number): ViewportRect {
   return { x: rect.x - margin, y: rect.y - margin, width: rect.width + margin * 2, height: rect.height + margin * 2 }

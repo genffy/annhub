@@ -21,7 +21,8 @@
  */
 
 import MessageUtils from '../../../utils/message'
-import { uiText } from '../../../utils/ui-text'
+import { screenshotFailureText, screenshotSaveErrorText, uiText } from '../../../utils/ui-text'
+import { newEntryId } from '../../../learning-core/assets'
 import { isUserInput } from '../user-input'
 import type { CaptureVia } from '../../../types/messages'
 import type { ViewportRect } from './crop'
@@ -40,6 +41,7 @@ import {
   constrainToRatioValue,
   downloadExtension,
   downloadMime,
+  matteOnWhite,
   ratioOf,
   watermarkBox,
   type BeautifySettings,
@@ -99,6 +101,7 @@ export function isScreenshotSessionActive(): boolean {
 const SWALLOWED_EVENT_TYPES = ['click', 'dblclick', 'auxclick', 'contextmenu', 'submit'] as const
 
 class ScreenshotSession {
+  private readonly entryId = newEntryId()
   private readonly doc: Document
   private readonly host: HTMLDivElement
   private hintEl: HTMLDivElement | null = null
@@ -148,6 +151,7 @@ class ScreenshotSession {
   private snapYEl: HTMLDivElement | null = null
   private shiftRatio: number | null = null
   private pendingFrameRecord: FrameRecord | null = null
+  private reusedFrame = false
   private readonly onKeydown = (e: KeyboardEvent) => {
     if (!isUserInput(e)) return
     if (e.key === 'Escape') {
@@ -426,6 +430,7 @@ class ScreenshotSession {
       const x1 = Math.min(view.innerWidth, raw.x + raw.width)
       const y1 = Math.min(view.innerHeight, raw.y + raw.height)
       this.selection = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }
+      this.reusedFrame = false
       if (this.selection.width > 0 && this.selection.height > 0 && !this.selectionEl) {
         this.host.appendChild(rect)
         this.selectionEl = rect
@@ -782,6 +787,7 @@ class ScreenshotSession {
       pageY: box.top + view.scrollY,
       path: location.pathname + location.search,
     }
+    this.reusedFrame = false
     if (fitsInViewport(frame, { width: view.innerWidth, height: view.innerHeight })) {
       this.selection = frame
       void this.captureRegionMode()
@@ -854,7 +860,7 @@ class ScreenshotSession {
         requestId: `shot-${Date.now()}`,
       })
       if (!response.success || !response.data?.dataUrl) {
-        throw new Error(response.error || uiText('shot.error.capture'))
+        throw new Error(screenshotFailureText(response.error, 'shot.error.capture'))
       }
       dataUrl = response.data.dataUrl
     } catch (error) {
@@ -904,8 +910,9 @@ class ScreenshotSession {
     const element = this.resolveCaptureTarget(target)
     try {
       this.croppedCanvas = await captureElement(element, { anonymize: this.anonymizeOn })
-    } catch (error) {
-      if (!this.exited) this.showError(error instanceof Error ? error.message : uiText('shot.error.element'))
+    } catch {
+      // the rasterizer's own message is English and means nothing to the user
+      if (!this.exited) this.showError(uiText('shot.error.element'))
       return
     }
     if (this.exited) return
@@ -1249,6 +1256,8 @@ class ScreenshotSession {
   private async confirmSave(): Promise<void> {
     const canvas = this.croppedCanvas
     if (!canvas || this.busy) return
+    // `capture.saved` times the click to the committed write (D-22), not the editing that came before it
+    const clickedAt = Date.now()
     this.busy = true
     this.updateToolbar()
     try {
@@ -1258,16 +1267,18 @@ class ScreenshotSession {
       const response = await MessageUtils.sendMessage<{ entry: { id: string } }>({
         type: 'SAVE_SCREENSHOT',
         data: {
+          id: this.entryId,
           dataUrl,
           width: canvas.width,
           height: canvas.height,
           sourceUrl: this.doc.defaultView!.location.href,
           title: this.doc.title || this.doc.defaultView!.location.hostname,
           via: this.via,
-          frame: this.elementRect ? 'element' : 'drag',
+          frame: this.reusedFrame ? 'reused' : this.elementRect ? 'element' : 'drag',
+          startedAt: clickedAt,
         },
       })
-      if (!response.success) throw new Error(response.error || uiText('shot.error.saveFailed'))
+      if (!response.success) throw new Error(screenshotSaveErrorText(response.error))
       this.rememberLastFrame()
       exitScreenshotMode()
     } catch (error) {
@@ -1292,7 +1303,11 @@ class ScreenshotSession {
       await this.doc.defaultView!.navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       this.rememberLastFrame()
       this.showNotice(uiText('shot.copied'))
-      void MessageUtils.sendMessage({ type: 'RECORD_EVENT', name: 'screenshot.copied', props: { watermark: false, beautify: false } })
+      void MessageUtils.sendMessage({
+        type: 'RECORD_EVENT',
+        name: 'screenshot.copied',
+        props: { watermark: Boolean(this.settings?.watermark.enabled && this.watermarkOn), beautify: this.beautify.enabled },
+      })
     } catch {
       // The clipboard API is closed on http: pages and can be rejected without
       // focus — the image and every annotation stay for download or retry.
@@ -1310,23 +1325,18 @@ class ScreenshotSession {
     this.busy = true
     this.updateToolbar()
     try {
-      // JPEG has no alpha: the transparent beautify background matts to white (screenshot.md §4.2)
-      let dataUrl: string
       const format: DownloadFormat = (this.settings?.downloadFormat as DownloadFormat) ?? 'png'
-      if (format === 'jpeg' && this.beautify.background === 'none') {
-        const matted = this.doc.createElement('canvas')
-        matted.width = canvas.width
-        matted.height = canvas.height
-        const ctx = matted.getContext('2d')!
-        ctx.fillStyle = '#ffffff'
-        ctx.fillRect(0, 0, matted.width, matted.height)
-        ctx.drawImage(canvas, 0, 0)
-        dataUrl = matted.toDataURL(downloadMime(format), this.settings?.downloadQuality ?? 0.9)
-      } else {
-        dataUrl = canvas.toDataURL(downloadMime(format), this.settings?.downloadQuality ?? 0.9)
-      }
-      const response = await MessageUtils.sendMessage<{ downloadId: number }>({ type: 'DOWNLOAD_IMAGE', dataUrl, extension: downloadExtension(format) })
-      if (!response.success) throw new Error(response.error || uiText('shot.error.downloadFailed'))
+      // JPEG has no alpha: whatever is transparent is painted on white first (screenshot.md §4.2)
+      const output = format === 'jpeg' ? matteOnWhite(canvas, this.doc) : canvas
+      const dataUrl = output.toDataURL(downloadMime(format), this.settings?.downloadQuality ?? 0.9)
+      const response = await MessageUtils.sendMessage<{ downloadId: number }>({
+        type: 'DOWNLOAD_IMAGE',
+        dataUrl,
+        extension: downloadExtension(format),
+        watermark: Boolean(this.settings?.watermark.enabled && this.watermarkOn),
+        beautify: this.beautify.enabled,
+      })
+      if (!response.success) throw new Error(screenshotFailureText(response.error, 'shot.error.downloadFailed'))
       this.rememberLastFrame()
       this.showNotice(uiText('shot.downloaded'))
     } catch (error) {
@@ -1519,6 +1529,7 @@ class ScreenshotSession {
       label += ` · ${uiText('shot.frameTooBig')}`
     }
     this.frameLabel = label
+    this.reusedFrame = true
     this.paintFrameSelection()
     this.enterConfirming(label)
   }
