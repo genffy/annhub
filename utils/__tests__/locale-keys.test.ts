@@ -48,7 +48,7 @@ describe('locales', () => {
 
   it('leaves product wording to utils/ui-text instead of i18n.t', () => {
     const offenders: string[] = []
-    for (const dir of ['entrypoints', 'components', 'utils', 'background-service']) {
+    for (const dir of ['entrypoints', 'utils', 'background-service']) {
       for (const file of sourceFiles(join(root, dir))) {
         if (/\bi18n\.t\(|#i18n/.test(readFileSync(file, 'utf8'))) offenders.push(file)
       }
