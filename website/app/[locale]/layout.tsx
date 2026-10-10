@@ -1,6 +1,7 @@
 import { Inter, Source_Serif_4 } from 'next/font/google'
 import { i18n } from '@/i18n/config'
 import { getLandingCopy } from '@/lib/copy'
+import { SITE_ORIGIN } from '@/lib/site'
 import { NextIntlClientProvider, hasLocale } from 'next-intl'
 import { setRequestLocale } from 'next-intl/server'
 import { notFound } from 'next/navigation'
@@ -25,12 +26,14 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params
   const { meta, locale: lang } = getLandingCopy(locale)
   return {
-    metadataBase: new URL('https://annhub.org'),
+    metadataBase: new URL(SITE_ORIGIN),
     title: meta.title,
     description: meta.description,
     alternates: {
       canonical: `/${lang}`,
-      languages: { 'zh-CN': '/zh-CN', 'en': '/en', 'x-default': '/zh-CN' },
+      // Declared here only: the proxy sends no Link header and the sitemap no alternates (docs/v2/seo-geo.md §3.2).
+      // x-default is English, the same page the root path gives a browser language that is neither Chinese nor English.
+      languages: { 'zh-CN': '/zh-CN', 'en': '/en', 'x-default': '/en' },
     },
     icons: {
       icon: '/icon.png',
