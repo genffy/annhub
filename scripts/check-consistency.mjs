@@ -43,10 +43,13 @@ function readJson(relative) {
 
 const NOT_SOURCE = new Set(['node_modules', '.git', '.next', '.output', '.wxt', '.build', 'build', 'coverage'])
 
-/** The files that belong to the repository. A tree without git (the tests') is walked instead. */
+/**
+ * The files that belong to the repository: tracked ones and new ones not yet added, so a change is checked before it is
+ * committed. A tree without git (the tests') is walked instead.
+ */
 function listFiles() {
   if (exists('.git')) {
-    return execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' })
+    return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8' })
       .split('\n')
       .filter(file => file && exists(file))
   }
@@ -332,6 +335,31 @@ function checkNetlify() {
   if (nodeMajor !== null) {
     if (nodeVersion === undefined) fail('netlify.toml', '[build.environment] NODE_VERSION is not set; Netlify only reads .node-version inside the base directory')
     else if (majorOf(nodeVersion) !== nodeMajor) fail('netlify.toml', `NODE_VERSION "${nodeVersion}" does not match .node-version (${nodeMajor})`)
+  }
+
+  // Next.js writes process.env.NEXT_PUBLIC_* into the page when it builds. A variable production is not given, or one set
+  // under a name the code no longer reads, leaves the feature behind it off without a single error.
+  if (app) {
+    const reads = new Map()
+    const prefix = app.directory ? `${app.directory}/` : ''
+    for (const file of files.filter(file => file.startsWith(prefix) && /\.[cm]?[jt]sx?$/.test(file))) {
+      for (const [, name] of read(file).matchAll(/process\.env\.(NEXT_PUBLIC_\w+)/g)) if (!reads.has(name)) reads.set(name, file)
+    }
+    const production = { ...tables['build.environment'], ...tables['context.production.environment'] }
+    for (const [name, file] of reads) {
+      if (!(name in production))
+        fail(
+          file,
+          `reads ${name}, which netlify.toml sets neither in [build.environment] nor in [context.production.environment], so production builds without it. Declare it there, empty while the feature is off`,
+        )
+    }
+    const set = Object.entries(tables)
+      .filter(([table]) => table === 'build.environment' || /^context\.[^.]+\.environment$/.test(table))
+      .flatMap(([, values]) => Object.keys(values))
+    for (const name of new Set(set)) {
+      if (name.startsWith('NEXT_PUBLIC_') && !reads.has(name))
+        fail('netlify.toml', `sets ${name}, but nothing in ${normalizeDirectory(app.directory)} reads process.env.${name}: the value never reaches the site`)
+    }
   }
 
   // Static files are served from the app's public/ directory, wherever base points.
