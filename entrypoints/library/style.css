@@ -54,6 +54,10 @@ body {
   text-decoration: none;
 }
 
+.nav-item svg {
+  flex: none;
+}
+
 .nav-item:hover,
 .nav-item:focus-visible {
   background: var(--ann-surface-alt);
@@ -80,6 +84,10 @@ body {
 }
 
 .nav-export {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
   margin: 4px 8px;
   padding: 8px 10px;
   border: 0;
@@ -89,6 +97,32 @@ body {
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.nav-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  color: var(--ann-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.nav-shortcut svg {
+  flex: none;
+}
+
+.nav-note ul,
+.mobile-export-status ul {
+  max-height: 100px;
+  overflow-y: auto;
+  padding-left: 16px;
+  overflow-wrap: anywhere;
+}
+
+.mobile-export-status {
+  display: none;
 }
 
 .nav-export:disabled {
@@ -118,6 +152,7 @@ body {
 
 .toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 12px 16px;
@@ -172,6 +207,10 @@ body {
   width: 118px;
 }
 
+.filter-time-label {
+  white-space: nowrap;
+}
+
 .count {
   margin-left: auto;
   color: var(--ann-muted);
@@ -210,6 +249,107 @@ body {
 .row-main:focus-visible {
   background: var(--ann-surface-alt);
   border-radius: 6px;
+}
+
+.row-thumbnail {
+  width: 64px;
+  height: 48px;
+  flex: none;
+  object-fit: contain;
+  background: var(--ann-surface-alt);
+  border-radius: 4px;
+}
+
+.screenshot-placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--ann-muted);
+}
+
+.screenshot-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 16px;
+  list-style: none;
+}
+
+.screenshot-tile {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--ann-border);
+  border-radius: 6px;
+  background: var(--ann-surface);
+}
+
+.screenshot-tile-open {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3px;
+  padding: 0 0 10px;
+  border: 0;
+  background: transparent;
+  color: var(--ann-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.screenshot-tile-open img,
+.screenshot-tile-open .screenshot-placeholder {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: contain;
+  background: var(--ann-surface-alt);
+}
+
+.screenshot-tile-title,
+.screenshot-tile-host {
+  overflow: hidden;
+  padding: 0 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.screenshot-tile-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.screenshot-tile-host {
+  color: var(--ann-muted);
+  font-size: 11px;
+}
+
+.screenshot-tile-actions {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+}
+
+.screenshot-tile:hover .screenshot-tile-actions,
+.screenshot-tile:focus-within .screenshot-tile-actions {
+  opacity: 1;
+}
+
+.screenshot-tile-actions button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--ann-border);
+  border-radius: 4px;
+  background: var(--ann-surface);
+  color: var(--ann-text);
+  cursor: pointer;
 }
 
 .type-chip {
@@ -291,6 +431,14 @@ body {
   margin-top: 10px;
 }
 
+/* the first answer is still on its way: quiet, so a slow query never reads as "nothing here" */
+.list-loading {
+  padding: 60px 20px;
+  color: var(--ann-muted);
+  text-align: center;
+  font-size: 13.5px;
+}
+
 .link {
   color: var(--ann-accent);
   text-decoration: none;
@@ -302,6 +450,13 @@ body {
 }
 
 /* ── Detail drawer (extension.md §4.1) ── */
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+  background: rgba(0, 0, 0, 0.28);
+}
 
 .drawer {
   position: fixed;
@@ -358,6 +513,34 @@ body {
   border-radius: 6px;
 }
 
+.drawer-image-button {
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+
+.image-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.82);
+}
+
+.image-zoom > button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  color: white;
+}
+
+.image-zoom img {
+  max-width: 94vw;
+  max-height: 88vh;
+  object-fit: contain;
+}
+
 .drawer-context {
   padding: 10px;
   border-left: 3px solid var(--ann-border);
@@ -366,9 +549,17 @@ body {
 }
 
 .drawer-system {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 4px 10px;
   margin-top: 10px;
   color: var(--ann-muted);
   font-size: 11.5px;
+}
+
+.drawer-system dd {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .field {
@@ -585,6 +776,30 @@ body {
 .md-hl {
   border-bottom: 2px solid currentColor;
   cursor: pointer;
+}
+
+/* the highlight a link from the highlights view opened the reading view at */
+.md-hl-flash {
+  animation: md-hl-flash 1.4s ease-out;
+}
+
+@keyframes md-hl-flash {
+  from {
+    outline: 3px solid var(--ann-accent);
+    outline-offset: 2px;
+  }
+  to {
+    outline: 3px solid transparent;
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-hl-flash {
+    animation: none;
+    outline: 2px solid var(--ann-accent);
+    outline-offset: 2px;
+  }
 }
 
 .md-hl-yellow {
@@ -836,6 +1051,10 @@ body {
   gap: 6px;
 }
 
+.props-toolbar .prop-add {
+  flex-wrap: wrap;
+}
+
 .prop-add input,
 .prop-add select {
   padding: 6px 8px;
@@ -1034,6 +1253,9 @@ body {
 
 /* the shell collapses to a left icon rail on narrow windows (extension.md §2.2) */
 @media (max-width: 720px) {
+  .screenshot-tile-actions {
+    opacity: 1;
+  }
   .side {
     width: 52px;
     padding: 12px 6px;
@@ -1041,31 +1263,49 @@ body {
   }
 
   .brand {
-    font-size: 0;
-  }
-
-  .brand::first-letter {
     font-size: 16px;
+    margin: 0 0 14px;
   }
 
   .nav-item {
+    position: relative;
     width: 40px;
     height: 36px;
     justify-content: center;
     padding: 0;
-    font-size: 0;
   }
 
-  .nav-item::first-letter {
-    font-size: 14px;
-  }
-
-  .nav-count {
+  .nav-label,
+  .nav-export-label,
+  .nav-shortcut span {
     display: none;
   }
 
+  .nav-count {
+    position: absolute;
+    top: -3px;
+    right: -4px;
+    min-width: 15px;
+    height: 15px;
+    display: grid;
+    place-items: center;
+    padding: 0 2px;
+    border-radius: 8px;
+    background: var(--ann-accent);
+    color: var(--ann-accent-contrast);
+    font-size: 9px;
+  }
+
   .nav-export {
-    font-size: 15px;
+    width: 40px;
+    min-height: 36px;
+    margin: 4px 0;
+    padding: 0;
+  }
+
+  .nav-shortcut {
+    width: 40px;
+    justify-content: center;
     padding: 8px 0;
   }
 
@@ -1073,7 +1313,30 @@ body {
     display: none;
   }
 
+  .mobile-export-status {
+    display: block;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--ann-border);
+    background: var(--ann-surface);
+    font-size: 12px;
+    overflow-wrap: anywhere;
+  }
+
+  .reading-layout {
+    flex-direction: column;
+    overflow-y: auto;
+  }
+
+  .reading-body {
+    flex: none;
+    overflow: visible;
+  }
+
   .reading-side {
-    display: none;
+    display: block;
+    width: 100%;
+    border-left: 0;
+    border-top: 1px solid var(--ann-border);
+    overflow: visible;
   }
 }

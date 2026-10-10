@@ -6,12 +6,11 @@ export type ExtensionPage = 'library' | 'settings'
 
 export const EXTENSION_PAGES: readonly ExtensionPage[] = ['library', 'settings']
 
-export type ExtensionPageParams = { view?: string; export?: '1' }
+export type ExtensionPageParams = { entryId?: string }
 
 function extensionPagePath(page: ExtensionPage, params: ExtensionPageParams = {}): string {
   if (page === 'settings') return '/options.html'
-  const query = new URLSearchParams(params as Record<string, string>).toString()
-  return `/library.html#/all${query ? `?${query}` : ''}`
+  return params.entryId ? `/library.html#/entry/${encodeURIComponent(params.entryId)}` : '/library.html#/all'
 }
 
 export function extensionPageUrl(page: ExtensionPage, params: ExtensionPageParams = {}): string {

@@ -13,6 +13,7 @@
 import type { ReactNode } from 'react'
 import type { Highlight } from '../../learning-core/types'
 import { HIGHLIGHT_QUOTE_MAX_CHARS } from '../../learning-core/validate'
+import { closesFence, codeSpanAt, openingFence, quoteFromMarkdownRange } from '../../learning-core/markdown'
 
 export interface SourceRange {
   start: number
@@ -24,21 +25,59 @@ export interface SourceRange {
 interface Run {
   text: string
   srcStart: number
+  /** Source width differs from rendered width for a backslash escape. */
+  srcLength?: number
   /** Extra rendering semantics for the run. */
-  kind?: 'em' | 'strong' | 'code' | 'link' | 'image' | 'mark'
+  kind?: 'em' | 'strong' | 'code' | 'link' | 'image' | 'mark' | 'separator'
   href?: string
   alt?: string
 }
 
-const INLINE = /(?<!\uE000)(\*\*[^*\n]+\*\*|\*[^*\n]+\*|`[^`\n]+`|==[^=\n]+==|\[[^\]\n]+\]\([^)\s]+\)|!\[[^\]\n]*\]\([^)\s]+\))/g
+/**
+ * Code spans delimited by up to five backticks: the converter delimits with one more than the longest run
+ * inside, so `a`b` is written ``a`b``. A delimiter run is not part of a longer run.
+ */
+const CODE_SPAN = [5, 4, 3, 2, 1]
+  .map(count => {
+    const ticks = '`'.repeat(count)
+    return String.raw`(?<!\x60)${ticks}(?!\x60)[^\n]+?(?<!\x60)${ticks}(?!\x60)`
+  })
+  .join('|')
+
+const INLINE = new RegExp(String.raw`(?<!\uE000)(\*\*[^*\n]+\*\*|\*[^*\n]+\*|${CODE_SPAN}|==[^=\n]+==|\[[^\]\n]+\]\([^)\s]+\)|!\[[^\]\n]*\]\([^)\s]+\))`, 'g')
 
 /**
  * Escaped characters (`\*`, `\#`, …) are literals, not syntax (capture.md
  * §3.1): mark them with a same-length placeholder before tokenizing so the
- * patterns above cannot open on a protected marker (lookbehind), and the
- * offsets never notice, then restore.
+ * patterns above cannot open on a protected marker (lookbehind). Each escape
+ * then becomes its own run, preserving its two-character source width.
  */
 const ESCAPED_CHAR = /\\(.)/g
+
+function appendTextRuns(runs: Run[], protectedText: string, srcStart: number, extra: Pick<Run, 'kind' | 'href' | 'alt'> = {}): void {
+  let chunkStart = 0
+  for (let i = 0; i < protectedText.length; i++) {
+    if (protectedText[i] !== '\uE000' || i + 1 >= protectedText.length) continue
+    if (i > chunkStart) runs.push({ text: protectedText.slice(chunkStart, i), srcStart: srcStart + chunkStart, ...extra })
+    runs.push({ text: protectedText[i + 1]!, srcStart: srcStart + i, srcLength: 2, ...extra })
+    i++
+    chunkStart = i + 1
+  }
+  if (chunkStart < protectedText.length) runs.push({ text: protectedText.slice(chunkStart), srcStart: srcStart + chunkStart, ...extra })
+}
+
+function fullLinkToken(source: string, start: number, initial: string): string {
+  const open = start + initial.indexOf('](') + 1
+  let depth = 0
+  for (let i = open; i < source.length; i++) {
+    if (source[i] === '(') depth++
+    else if (source[i] === ')') {
+      depth--
+      if (depth === 0) return source.slice(start, i + 1)
+    }
+  }
+  return initial
+}
 
 /** Tokenizes one inline span of source into runs carrying source offsets. */
 export function inlineRuns(source: string, srcStart: number): Run[] {
@@ -48,24 +87,30 @@ export function inlineRuns(source: string, srcStart: number): Run[] {
   let match: RegExpExecArray | null
   INLINE.lastIndex = 0
   while ((match = INLINE.exec(protectedSource)) !== null) {
-    if (match.index > cursor) runs.push({ text: restore(protectedSource.slice(cursor, match.index)), srcStart: srcStart + cursor })
-    const token = match[0]
+    if (match.index > cursor) appendTextRuns(runs, protectedSource.slice(cursor, match.index), srcStart + cursor)
+    const token = match[0].startsWith('[') || match[0].startsWith('![') ? fullLinkToken(protectedSource, match.index, match[0]) : match[0]
+    INLINE.lastIndex = match.index + token.length
     const at = srcStart + match.index
-    if (token.startsWith('**')) runs.push({ text: restore(token.slice(2, -2)), srcStart: at + 2, kind: 'strong' })
-    else if (token.startsWith('==')) runs.push({ text: restore(token.slice(2, -2)), srcStart: at + 2, kind: 'mark' })
-    else if (token.startsWith('`')) runs.push({ text: token.slice(1, -1), srcStart: at + 1, kind: 'code' })
-    else if (token.startsWith('![')) {
-      const alt = /!\[([^\]]*)\]/.exec(token)?.[1] ?? ''
-      const href = /!\[[^\]]*\]\(([^)\s]+)\)/.exec(token)?.[1]
-      runs.push({ text: restore(alt), srcStart: at + 2, kind: 'image', href, alt })
+    if (token.startsWith('**')) appendTextRuns(runs, token.slice(2, -2), at + 2, { kind: 'strong' })
+    else if (token.startsWith('==')) appendTextRuns(runs, token.slice(2, -2), at + 2, { kind: 'mark' })
+    else if (token.startsWith('`')) {
+      // the code is read as written: the shared rule fixes where it starts and ends (one padding space is not code)
+      const span = codeSpanAt(token, 0)
+      const from = span?.innerStart ?? 1
+      const to = span?.innerEnd ?? token.length - 1
+      runs.push({ text: source.slice(match.index + from, match.index + to), srcStart: at + from, kind: 'code' })
+    } else if (token.startsWith('![')) {
+      const alt = token.slice(2, token.indexOf(']('))
+      const href = token.slice(token.indexOf('](') + 2, -1)
+      appendTextRuns(runs, alt, at + 2, { kind: 'image', href, alt: restore(alt) })
     } else if (token.startsWith('[')) {
-      const label = /\[([^\]]+)\]/.exec(token)?.[1] ?? ''
-      const href = /\]\(([^)\s]+)\)/.exec(token)?.[1]
-      runs.push({ text: restore(label), srcStart: at + 1, kind: 'link', href })
-    } else if (token.startsWith('*')) runs.push({ text: restore(token.slice(1, -1)), srcStart: at + 1, kind: 'em' })
+      const label = token.slice(1, token.indexOf(']('))
+      const href = token.slice(token.indexOf('](') + 2, -1)
+      appendTextRuns(runs, label, at + 1, { kind: 'link', href })
+    } else if (token.startsWith('*')) appendTextRuns(runs, token.slice(1, -1), at + 1, { kind: 'em' })
     cursor = match.index + token.length
   }
-  if (cursor < protectedSource.length) runs.push({ text: restore(protectedSource.slice(cursor)), srcStart: srcStart + cursor })
+  if (cursor < protectedSource.length) appendTextRuns(runs, protectedSource.slice(cursor), srcStart + cursor)
   return runs.filter(run => run.text.length > 0)
 }
 
@@ -128,11 +173,13 @@ export function parseBlocks(markdown: string): Block[] {
       flush()
       continue
     }
-    if (/^\s*(```|~~~)/.test(raw)) {
+    const fence = openingFence(raw)
+    if (fence) {
       flush()
-      const language = /^(```|~~~)(\w*)/.exec(trimmed)?.[2] ?? ''
+      const language = /^(?:`{3,}|~{3,})\s*(\w*)/.exec(trimmed)?.[1] ?? ''
       const codeLines: Block['lines'] = []
-      while (index < lines.length && !/^\s*(```|~~~)/.test(lines[index]!)) {
+      // only a fence as long as the one that opened it closes the block (the converter outruns the code inside)
+      while (index < lines.length && !closesFence(lines[index]!, fence)) {
         const inner = lines[index]!
         codeLines.push({ source: inner, srcStart: offset, indent: 0 })
         offset += inner.length + 1
@@ -197,7 +244,7 @@ export function parseBlocks(markdown: string): Block[] {
     push(list)
     list = null
     if (!paragraph) paragraph = { key: `b${blocks.length}`, kind: 'p', lines: [], srcStart: lineStart, srcEnd: lineEnd }
-    paragraph.lines.push({ source: trimmed, srcStart: lineStart + (raw.length - raw.trimStart().length), indent: 0 })
+    paragraph.lines.push({ source: raw.trimStart(), srcStart: lineStart + (raw.length - raw.trimStart().length), indent: 0 })
     paragraph.srcEnd = lineEnd
   }
   flush()
@@ -216,7 +263,11 @@ function applyHighlights(runs: Run[], highlights: Highlight[]): Piece[] {
   const pieces: Piece[] = []
   for (const run of runs) {
     const runStart = run.srcStart
-    const runEnd = runStart + run.text.length
+    const runEnd = runStart + (run.srcLength ?? run.text.length)
+    if (run.srcLength && run.srcLength !== run.text.length) {
+      pieces.push({ ...run, highlight: sorted.find(item => item.start < runEnd && item.end > runStart) })
+      continue
+    }
     let cursor = runStart
     for (const highlight of sorted) {
       if (highlight.end <= cursor || highlight.start >= runEnd) continue
@@ -237,7 +288,7 @@ function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highligh
   const { highlight } = piece
   if (piece.kind === 'image') {
     return (
-      <span key={keyPrefix} className="md-image-placeholder" data-s={piece.srcStart}>
+      <span key={keyPrefix} className="md-image-placeholder" data-s={piece.srcStart} data-e={piece.srcLength ? piece.srcStart + piece.srcLength : undefined}>
         [{piece.alt}]
         {piece.href && (
           <a href={safeHref(piece.href)} target="_blank" rel="noopener noreferrer">
@@ -251,6 +302,7 @@ function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highligh
     <span
       key={keyPrefix}
       data-s={piece.srcStart}
+      data-e={piece.srcLength ? piece.srcStart + piece.srcLength : undefined}
       data-hl-src={highlight ? highlight.start : undefined}
       data-hl-id={highlight ? highlight.id : undefined}
       className={highlight ? `md-hl md-hl-${highlight.color}` : undefined}
@@ -278,18 +330,18 @@ function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highligh
   if (piece.kind === 'link') {
     const href = safeHref(piece.href)
     return href ? (
-      <a key={keyPrefix} href={href} target="_blank" rel="noopener noreferrer" data-s={piece.srcStart}>
+      <a key={keyPrefix} href={href} target="_blank" rel="noopener noreferrer" data-s={piece.srcStart} data-e={piece.srcLength ? piece.srcStart + piece.srcLength : undefined}>
         {piece.text}
       </a>
     ) : (
-      <span key={keyPrefix} data-s={piece.srcStart}>
+      <span key={keyPrefix} data-s={piece.srcStart} data-e={piece.srcLength ? piece.srcStart + piece.srcLength : undefined}>
         {piece.text}
       </span>
     )
   }
   if (piece.kind === 'code') {
     return (
-      <code key={keyPrefix} data-s={piece.srcStart}>
+      <code key={keyPrefix} data-s={piece.srcStart} data-e={piece.srcLength ? piece.srcStart + piece.srcLength : undefined}>
         {piece.text}
       </code>
     )
@@ -339,13 +391,19 @@ export function MarkdownView({ markdown, highlights = [], onHighlightClick, surf
         nodes.push(<Tag key={block.key}>{runLines(block.lines, block.key)}</Tag>)
         break
       }
-      case 'code':
+      case 'code': {
+        // A highlight made inside code is drawn like any other: the text is cut at the stored
+        // ranges and every piece keeps its own source anchor, so it can be clicked, recolored and
+        // removed. Code lines are contiguous in the source, so one offset anchors the whole block.
+        const text = block.lines.map(line => line.source).join('\n')
+        const pieces = applyHighlights([{ text, srcStart: block.lines[0]?.srcStart ?? block.srcStart }], highlights)
         nodes.push(
           <pre key={block.key} data-language={block.language}>
-            <code data-s={block.lines[0]?.srcStart ?? block.srcStart}>{block.lines.map(line => line.source).join('\n')}</code>
+            <code>{pieces.map((piece, i) => renderRun(piece, `${block.key}-code-${i}`, onHighlightClick))}</code>
           </pre>,
         )
         break
+      }
       case 'quote':
         nodes.push(<blockquote key={block.key}>{runLines(block.lines, block.key)}</blockquote>)
         break
@@ -368,7 +426,7 @@ export function MarkdownView({ markdown, highlights = [], onHighlightClick, surf
                 const Cell = cellTag
                 return (
                   <Cell key={`${block.key}-r${i}-c${j}`} data-s={line.srcStart + cell.start}>
-                    {applyHighlights(inlineRuns(cell.text, line.srcStart + cell.start), highlights).map((piece, k) =>
+                    {applyHighlights(inlineRuns(cell.source, line.srcStart + cell.start), highlights).map((piece, k) =>
                       renderRun(piece, `${block.key}-r${i}-c${j}-${k}`, onHighlightClick),
                     )}
                   </Cell>
@@ -397,34 +455,33 @@ export function MarkdownView({ markdown, highlights = [], onHighlightClick, surf
 }
 
 /** Splits `| a | b |` into unescaped cells with their offsets inside the row line. */
-export function splitTableRow(line: { source: string }): { text: string; start: number }[] {
-  const cells: { text: string; start: number }[] = []
-  let cell = ''
-  let cellStart = -1
+export function splitTableRow(line: { source: string }): { text: string; source: string; start: number }[] {
+  const cells: { text: string; source: string; start: number }[] = []
+  let cellStart = 0
   for (let i = 0; i < line.source.length; i++) {
     const char = line.source[i]!
     if (char === '\\' && line.source[i + 1] === '|') {
-      cell += '|'
       i++
       continue
     }
     if (char === '|') {
-      if (cellStart >= 0) cells.push({ text: cell.trim(), start: cellStart + (cell.length - cell.trimStart().length) })
-      cell = ''
-      cellStart = -1
+      const raw = line.source.slice(cellStart, i)
+      const source = raw.trim()
+      if (source) cells.push({ text: source.replace(/\\\|/g, '|'), source, start: cellStart + (raw.length - raw.trimStart().length) })
+      cellStart = i + 1
       continue
     }
-    if (cellStart < 0 && char !== ' ' && char !== '\t') cellStart = i
-    if (cellStart >= 0) cell += char
   }
-  if (cellStart >= 0) cells.push({ text: cell.trim(), start: cellStart + (cell.length - cell.trimStart().length) })
+  const raw = line.source.slice(cellStart)
+  const source = raw.trim()
+  if (source) cells.push({ text: source.replace(/\\\|/g, '|'), source, start: cellStart + (raw.length - raw.trimStart().length) })
   return cells
 }
 
 // ── Selection ↔ source conversion (the shared module, RK-13) ─────────────
 
 /** The [start, end) source range of a DOM selection inside the rendered view. */
-export function sourceRangeFromSelection(root: HTMLElement, selection: Selection): SourceRange | null {
+export function sourceRangeFromSelection(root: HTMLElement, selection: Selection, markdown?: string): SourceRange | null {
   if (selection.rangeCount === 0 || selection.isCollapsed) return null
   const range = selection.getRangeAt(0)
   if (!root.contains(range.startContainer) || !root.contains(range.endContainer)) return null
@@ -434,9 +491,14 @@ export function sourceRangeFromSelection(root: HTMLElement, selection: Selection
   const startPoint = textPointOf(range.startContainer, range.startOffset, root)
   const endPoint = textPointOf(range.endContainer, range.endOffset, root)
   if (!startPoint || !endPoint) return null
-  const start = offsetInSource(startPoint.node, startPoint.offset, root)
-  const end = offsetInSource(endPoint.node, endPoint.offset, root)
+  let start = offsetInSource(startPoint.node, startPoint.offset, root)
+  let end = offsetInSource(endPoint.node, endPoint.offset, root)
   if (start === null || end === null || end <= start) return null
+  if (markdown) {
+    while (start < end && /\s/.test(markdown[start] ?? '')) start++
+    while (end > start && /\s/.test(markdown[end - 1] ?? '')) end--
+  }
+  if (end <= start) return null
   return { start, end }
 }
 
@@ -488,20 +550,16 @@ function textNodeAfter(node: Node, root: HTMLElement, backwards: boolean): Text 
  * selection across links or bold text quotes the visible words.
  */
 export function quoteForRange(markdown: string, range: SourceRange): string {
-  let quote = ''
-  for (const run of renderedRuns(markdown)) {
-    const from = Math.max(range.start, run.srcStart)
-    const to = Math.min(range.end, run.srcStart + run.text.length)
-    if (to > from) quote += run.text.slice(from - run.srcStart, to - run.srcStart)
-  }
-  quote = quote.replace(/\n+/g, ' ').trim()
-  return quote.length > HIGHLIGHT_QUOTE_MAX_CHARS ? quote.slice(0, HIGHLIGHT_QUOTE_MAX_CHARS) : quote
+  return quoteFromMarkdownRange(markdown, range, HIGHLIGHT_QUOTE_MAX_CHARS)
 }
 
 /** The rendered text runs of the whole document with their source anchors. */
 export function renderedRuns(markdown: string): Run[] {
   const runs: Run[] = []
+  let previousEnd: number | null = null
   for (const block of parseBlocks(markdown)) {
+    if (previousEnd !== null && block.srcStart > previousEnd) runs.push({ text: ' ', srcStart: previousEnd, srcLength: block.srcStart - previousEnd, kind: 'separator' })
+    previousEnd = block.srcEnd
     if (block.kind === 'code') {
       block.lines.forEach((line, i) => {
         if (i > 0) runs.push({ text: '\n', srcStart: line.srcStart - 1 })
@@ -515,7 +573,7 @@ export function renderedRuns(markdown: string): Run[] {
         if (i > 0) runs.push({ text: ' ', srcStart: row.srcStart - 1 })
         splitTableRow(row).forEach((cell, j) => {
           if (j > 0) runs.push({ text: ' ', srcStart: row.srcStart + cell.start - 1 })
-          runs.push(...inlineRuns(cell.text, row.srcStart + cell.start))
+          runs.push(...inlineRuns(cell.source, row.srcStart + cell.start))
         })
       })
       continue
@@ -532,6 +590,6 @@ function offsetInSource(node: Node, offset: number, root: HTMLElement): number |
   if (node.nodeType !== Node.TEXT_NODE) return null
   const span = (node as Text).parentElement
   const base = span?.dataset.s
-  if (base !== undefined && root.contains(span)) return Number(base) + offset
+  if (base !== undefined && span && root.contains(span)) return span.dataset.e ? (offset === 0 ? Number(base) : Number(span.dataset.e)) : Number(base) + offset
   return null
 }

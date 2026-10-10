@@ -161,11 +161,6 @@ export interface DeleteUnusedPropertiesMessage extends BaseMessage {
   type: 'DELETE_UNUSED_PROPERTIES'
 }
 
-export interface ExportZipMessage extends BaseMessage {
-  type: 'EXPORT_ZIP'
-  lang: 'zh' | 'en'
-}
-
 // ── Screenshot support (screenshot.md §2) ───────────────────────────────
 
 export interface CaptureVisibleTabMessage extends BaseMessage {
@@ -223,7 +218,7 @@ export interface OrphanReportMessage extends BaseMessage {
 export interface OpenExtensionPageMessage extends BaseMessage {
   type: 'OPEN_EXTENSION_PAGE'
   page: 'library' | 'settings'
-  params?: { view?: string; export?: '1'; entryId?: string }
+  params?: { entryId?: string }
 }
 
 export type ExtensionMessage =
@@ -244,7 +239,6 @@ export type ExtensionMessage =
   | UpsertPropertyMessage
   | DeletePropertyMessage
   | DeleteUnusedPropertiesMessage
-  | ExportZipMessage
   | CaptureVisibleTabMessage
   | FetchImageMessage
   | DownloadImageMessage

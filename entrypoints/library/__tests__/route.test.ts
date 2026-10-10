@@ -52,6 +52,18 @@ describe('route read/write round-trip (extension.md §2.2, RV-LIB-01)', () => {
     expect(readHash(entryHashFor('ent_x'))).toMatchObject({ entryId: 'ent_x' })
   })
 
+  it('a reading route can carry the highlight it opens at (US-LIB-03)', () => {
+    const hash = readHashFor('ent_x', 'hl_9')
+    expect(hash).toBe('#/read/ent_x?h=hl_9')
+    expect(readHash(hash)).toMatchObject({ readId: 'ent_x', highlightId: 'hl_9', entryId: null })
+    expect(readHash(readHashFor('ent_x'))).toMatchObject({ readId: 'ent_x', highlightId: null })
+    // the parameter belongs to the reading route only; a list route never reports one
+    expect(readHash('#/clips?h=hl_9').highlightId).toBeNull()
+    expect(isLibraryHash(hash)).toBe(true)
+    // ids with unusual characters survive the round trip
+    expect(readHash(readHashFor('ent_x', 'hl a&b')).highlightId).toBe('hl a&b')
+  })
+
   it('isLibraryHash accepts the routes this module owns', () => {
     expect(isLibraryHash('#/all')).toBe(true)
     expect(isLibraryHash('#/read/ent_x')).toBe(true)

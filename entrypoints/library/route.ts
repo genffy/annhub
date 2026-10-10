@@ -27,6 +27,8 @@ export interface RouteState extends FilterState {
   view: View
   /** The reading view's entry, straight from `#/read/<id>`. */
   readId: string | null
+  /** The highlight the reading view opens scrolled to, from `#/read/<id>?h=<highlight>`. */
+  highlightId: string | null
   /** The drawer's entry, from the `e` query parameter of a list route. */
   entryId: string | null
 }
@@ -44,6 +46,7 @@ export function readHash(hash: string = location.hash): RouteState {
   return {
     view,
     readId,
+    highlightId: readId ? params.get('h') : null,
     entryId: entryId ?? params.get('e'),
     search: params.get('q') ?? '',
     host: params.get('host') ?? '',
@@ -82,8 +85,9 @@ export function isLibraryHash(hash: string): boolean {
   return VIEWS.includes(path as View) || /^read\/[\w-]+$/.test(path) || /^entry\/[\w-]+$/.test(path) || path === ''
 }
 
-export function readHashFor(id: string): string {
-  return `#/read/${id}`
+/** The reading view of an entry; with a highlight id it opens scrolled to that highlight. */
+export function readHashFor(id: string, highlightId?: string): string {
+  return `#/read/${id}${highlightId ? `?h=${encodeURIComponent(highlightId)}` : ''}`
 }
 
 export function entryHashFor(id: string): string {

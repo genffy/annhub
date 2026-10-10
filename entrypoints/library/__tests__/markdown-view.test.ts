@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { parseBlocks, quoteForRange, renderedRuns, sourceRangeFromSelection, splitTableRow } from '../markdown-view'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import type { Highlight } from '../../../learning-core/types'
+import { fold, PAGE_TEXT_CASES } from '../../../learning-core/__tests__/fixtures/page-text'
+import { MarkdownView, parseBlocks, quoteForRange, renderedRuns, sourceRangeFromSelection, splitTableRow } from '../markdown-view'
 
 /**
  * RK-13: rendered-selection ↔ source-offset conversion lives in one shared
@@ -175,4 +179,153 @@ describe('renderedRuns (RK-13 shared mapping)', () => {
       }
     }
   })
+})
+
+describe('escaped source offsets and Markdown display (RV-LIB-09, RV-LIB-14)', () => {
+  it('keeps every word aligned after escaped characters', () => {
+    const md = 'alpha beta \\* gamma delta \\* epsilon zeta \\* eta theta iota'
+    document.body.innerHTML = renderToStaticMarkup(createElement(MarkdownView, { markdown: md }))
+    const root = document.querySelector<HTMLElement>('.md-view')!
+    for (const word of ['beta', 'gamma', 'epsilon', 'theta']) {
+      const span = Array.from(root.querySelectorAll<HTMLElement>('[data-s]')).find(node => node.textContent?.includes(word) && node.firstChild?.nodeType === Node.TEXT_NODE)!
+      const text = span.firstChild as Text
+      const start = text.textContent!.indexOf(word)
+      const selection = window.getSelection()!
+      selection.removeAllRanges()
+      const range = document.createRange()
+      range.setStart(text, start)
+      range.setEnd(text, start + word.length)
+      selection.addRange(range)
+      const source = sourceRangeFromSelection(root, selection, md)!
+      expect(md.slice(source.start, source.end)).toBe(word)
+      expect(quoteForRange(md, source)).toBe(word)
+    }
+    expect(
+      renderedRuns(md)
+        .map(run => run.text)
+        .join(''),
+    ).toBe('alpha beta * gamma delta * epsilon zeta * eta theta iota')
+  })
+
+  it('maps an endpoint inside an escape to the full source sequence', () => {
+    const md = 'a \\* b'
+    document.body.innerHTML = renderToStaticMarkup(createElement(MarkdownView, { markdown: md }))
+    const root = document.querySelector<HTMLElement>('.md-view')!
+    const escaped = Array.from(root.querySelectorAll<HTMLElement>('[data-s]')).find(node => node.textContent === '*')!
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    const range = document.createRange()
+    range.selectNodeContents(escaped)
+    selection.addRange(range)
+    expect(sourceRangeFromSelection(root, selection, md)).toEqual({ start: 2, end: 4 })
+  })
+
+  it('renders hard line breaks and balanced link destinations', () => {
+    const md = 'line two  \nline three\n\n[the wiki](https://en.wikipedia.org/wiki/Foo_(bar))'
+    const html = renderToStaticMarkup(createElement(MarkdownView, { markdown: md }))
+    expect(html).toContain('<br')
+    expect(html).toContain('href="https://en.wikipedia.org/wiki/Foo_(bar)"')
+    expect(html).not.toContain('the wiki</a>)')
+  })
+
+  it('separates paragraph quotes and trims a triple-click range at the last visible character', () => {
+    const md = 'Alpha two three.\n\nBravo four five.'
+    expect(quoteForRange(md, { start: 0, end: md.length })).toBe('Alpha two three. Bravo four five.')
+    document.body.innerHTML = renderToStaticMarkup(createElement(MarkdownView, { markdown: md }))
+    const root = document.querySelector<HTMLElement>('.md-view')!
+    const paragraphs = root.querySelectorAll('p')
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    const range = document.createRange()
+    range.setStart(paragraphs[0]!, 0)
+    range.setEnd(paragraphs[1]!, 0)
+    selection.addRange(range)
+    expect(sourceRangeFromSelection(root, selection, md)).toEqual({ start: 0, end: 'Alpha two three.'.length })
+  })
+})
+
+describe('highlights inside fenced code (entry.md §4.1, US-LIB-03)', () => {
+  const md = 'Before the code.\n\n```ts\nconst answer = 42\nconsole.log(answer)\n```\n\nAfter the code.'
+  const phrase = 'answer = 42'
+  const start = md.indexOf(phrase)
+  const highlight: Highlight = { id: 'hl_code', start, end: start + phrase.length, quote: phrase, color: 'yellow', createdAt: 1 }
+
+  function mountView(highlights: Highlight[] = []): HTMLElement {
+    document.body.innerHTML = `<div id="surface">${renderToStaticMarkup(createElement(MarkdownView, { markdown: md, highlights }))}</div>`
+    return document.getElementById('surface')!
+  }
+
+  function selectInside(root: HTMLElement, from: { node: number; offset: number }, to: { node: number; offset: number }): Selection {
+    const texts: Text[] = []
+    const walker = document.createTreeWalker(root.querySelector('pre code')!, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) texts.push(node as Text)
+    const range = document.createRange()
+    range.setStart(texts[from.node]!, from.offset)
+    range.setEnd(texts[to.node]!, to.offset)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+    return selection
+  }
+
+  it('draws the mark with its id and color, anchored where it was made, and keeps the code text whole', () => {
+    const root = mountView([highlight])
+    const mark = root.querySelector('pre code [data-hl-id="hl_code"]') as HTMLElement
+    expect(mark).not.toBeNull()
+    expect(mark.className).toContain('md-hl-yellow')
+    expect(mark.textContent).toBe(phrase)
+    expect(Number(mark.dataset.s)).toBe(start)
+    expect(root.querySelector('pre code')!.textContent).toBe('const answer = 42\nconsole.log(answer)')
+  })
+
+  it('without highlights the code is one anchored run', () => {
+    const root = mountView()
+    expect(root.querySelectorAll('pre code [data-hl-id]')).toHaveLength(0)
+    const spans = root.querySelectorAll('pre code span[data-s]')
+    expect(spans).toHaveLength(1)
+    expect(Number((spans[0] as HTMLElement).dataset.s)).toBe(md.indexOf('const answer'))
+  })
+
+  it('a click on the mark is wired, so it can be recolored or removed like any other', () => {
+    const html = renderToStaticMarkup(createElement(MarkdownView, { markdown: md, highlights: [highlight], onHighlightClick: () => undefined }))
+    expect(html).toMatch(/<pre[^>]*><code>.*<span[^>]*class="md-hl-hit"[^>]*>.*data-hl-id="hl_code"/s)
+  })
+
+  it("a selection inside code converts to the exact source range, across the mark's edges", () => {
+    const root = mountView([highlight])
+    // pieces: "const " | "answer = 42" (marked) | "\nconsole.log(answer)"
+    const selection = selectInside(root, { node: 0, offset: 6 }, { node: 2, offset: 8 })
+    const range = sourceRangeFromSelection(root, selection)
+    expect(range).not.toBeNull()
+    expect(md.slice(range!.start, range!.end)).toBe('answer = 42\nconsole')
+  })
+
+  it("the stored quote for a range in code is the code's own text", () => {
+    expect(quoteForRange(md, { start, end: start + phrase.length })).toBe(phrase)
+  })
+})
+
+describe('shared page-text fixtures: the reading view shows the words and anchors them to the source (RV-CORE-04, RK-13)', () => {
+  for (const fixture of PAGE_TEXT_CASES) {
+    it(fixture.name, () => {
+      // what the runs say is what a reader sees
+      expect(
+        fold(
+          renderedRuns(fixture.markdown)
+            .map(run => run.text)
+            .join(''),
+        ),
+        'rendered runs',
+      ).toBe(fixture.visible)
+
+      // every plain run points at the very same characters in the source (an escape is two source characters for one shown)
+      document.body.innerHTML = `<div id="surface">${renderToStaticMarkup(createElement(MarkdownView, { markdown: fixture.markdown }))}</div>`
+      for (const node of document.querySelectorAll<HTMLElement>('#surface [data-s]')) {
+        const text = node.textContent ?? ''
+        if (!text.trim() || node.dataset.e) continue
+        const start = Number(node.dataset.s)
+        expect(fixture.markdown.slice(start, start + text.length), `${fixture.name}: run at ${start}`).toBe(text)
+      }
+    })
+  }
 })
