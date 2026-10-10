@@ -96,6 +96,16 @@ export interface LandingCopy {
     primary: string
     secondary: string
   }
-  footer: { line: string; library: string; github: string; privacy: string; terms: string; copyright: string; navLabel: string }
+  footer: { line: string; library: string; github: string; privacy: string; terms: string; analytics: string; copyright: string; navLabel: string }
+  /** The analytics consent card (docs/v2/website.md §19); the footer's `analytics` button reopens it. */
+  consent: {
+    label: string
+    settingsLabel: string
+    body: string
+    policy: string
+    allow: string
+    deny: string
+    current: { granted: string; denied: string }
+  }
   ui: ProductUi
 }

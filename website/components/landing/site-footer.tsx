@@ -2,6 +2,7 @@ import { LibraryBig } from 'lucide-react'
 import type { LandingCopy } from '@/lib/copy'
 import { fill } from '@/lib/copy'
 import Logo from '../logo'
+import AnalyticsSettings from './analytics-settings'
 import { Container } from './shared'
 import { LIBRARY_URL, PRIVACY_URL, REPO_URL, TERMS_URL } from './links'
 
@@ -34,6 +35,7 @@ export default function SiteFooter({ copy }: { copy: LandingCopy }) {
             <a href={TERMS_URL} className={link}>
               {footer.terms}
             </a>
+            <AnalyticsSettings label={footer.analytics} className={link} />
           </nav>
         </div>
         <p className="mt-8 border-t border-line-2 pt-5 text-[12px] text-fg-3">{fill(footer.copyright, { year: new Date().getFullYear() })}</p>

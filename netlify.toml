@@ -63,6 +63,13 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# 联动：website/ 读取的每个 NEXT_PUBLIC_ 变量都在这里同名声明。Next.js 构建时把它们写进页面，名字对不上就是静默关闭。
+# 上下文的变量按名字并入 [build.environment]（Netlify 的配置解析用 deepmerge），NODE_VERSION 照样生效。
+[context.production.environment]
+  # Cloudflare Web Analytics 的站点令牌，公开值（页面里本来就带着它）。只给生产构建，本地构建和预览不统计。
+  # 留空就不加载统计脚本，也不显示同意卡片和「统计设置」。Cloudflare 侧的设置见 website/README.md 的「访问统计」。
+  NEXT_PUBLIC_CF_BEACON_TOKEN = "e877c3fd86054ad0ba678d5a859c404b"
+
 # 非生产上下文不做自动部署；这里保留显式兜底，避免 UI 设置被误打开后跑构建。
 [context.deploy-preview]
   ignore = "exit 0"

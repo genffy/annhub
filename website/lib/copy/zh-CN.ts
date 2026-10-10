@@ -190,8 +190,18 @@ export const zhCN: LandingCopy = {
     github: 'GitHub',
     privacy: '隐私政策',
     terms: '服务条款',
+    analytics: '统计设置',
     copyright: '© {year} AnnHub',
     navLabel: '站点链接',
+  },
+  consent: {
+    label: '统计同意',
+    settingsLabel: '统计设置',
+    body: '我们想用 Cloudflare Web Analytics 统计这个网站的访问量和页面速度。它不用 Cookie、不跨站追踪，我们只看到汇总数字。',
+    policy: '隐私政策',
+    allow: '允许统计',
+    deny: '不允许',
+    current: { granted: '当前：允许统计。', denied: '当前：不统计。' },
   },
   ui: {
     types: { clip: '剪藏', screenshot: '截图', highlight: '高亮' },
