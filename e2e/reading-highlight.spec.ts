@@ -95,7 +95,7 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     await expect(library.getByTestId('reading-view')).toBeVisible()
 
     // export writes the mark back as ==…== (storage.md §6)
-    await library.getByTestId('reading-view').getByRole('button', { name: '关闭' }).click()
+    await library.getByTestId('reading-view').getByRole('button', { name: '返回' }).click()
     await library.locator('.nav-export').click()
     await expect(library.locator('.nav-note').first()).toContainText('导出完成')
     const entries = await getEntries(library.context())

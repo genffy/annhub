@@ -1,6 +1,6 @@
-import type { Locator, Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
 import { test, expect } from './fixtures'
-import { clearLibrary } from './helpers'
+import { clearLibrary, textContrast } from './helpers'
 
 /**
  * Layout of the library page's own surfaces, asserted from geometry and computed colours — never from
@@ -72,31 +72,6 @@ async function seed(page: Page, extensionId: string, settings: Record<string, un
     })
   }
   await send(page, { type: 'SET_SETTINGS', requestId: 'r-layout-settings', patch: settings })
-}
-
-/** WCAG contrast of each element's text colour against the first painted background behind it. */
-function textContrast(locator: Locator): Promise<number[]> {
-  return locator.evaluateAll(elements => {
-    const channels = (value: string): number[] => (value.match(/[\d.]+/g) ?? []).map(Number)
-    const luminance = ([r, g, b]: number[]): number => {
-      const linear = [r, g, b].map(channel => {
-        const unit = (channel ?? 0) / 255
-        return unit <= 0.03928 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4
-      })
-      return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!
-    }
-    const backdrop = (element: Element): number[] => {
-      for (let node: Element | null = element; node; node = node.parentElement) {
-        const [r, g, b, a = 1] = channels(getComputedStyle(node).backgroundColor)
-        if (a > 0) return [r!, g!, b!]
-      }
-      return [255, 255, 255]
-    }
-    return elements.map(element => {
-      const [text, ground] = [luminance(channels(getComputedStyle(element).color)), luminance(backdrop(element))]
-      return (Math.max(text, ground) + 0.05) / (Math.min(text, ground) + 0.05)
-    })
-  })
 }
 
 for (const [uiLocale, shortcutLabels] of [

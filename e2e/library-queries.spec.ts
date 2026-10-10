@@ -1,11 +1,13 @@
 import { test, expect } from './fixtures'
-import { clearLibrary, ensureServiceWorker, getEntries, updateEntry } from './helpers'
+import { clearLibrary, ensureServiceWorker, getEntries, sendMessage, updateEntry } from './helpers'
 
 /**
  * What the library asks and reports when the user searches and filters (search.md §6, metrics.md §9):
  * one query and one `library.queried` event per settled input, buckets rather than numbers, and the same
  * filters in the highlights view as in the lists (extension.md §2.3, US-LIB-01).
  */
+
+const PNG_1PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/qMwAAAAASUVORK5CYII='
 
 async function saveClip(page: import('@playwright/test').Page, extensionId: string, id: string, content: string, properties: Record<string, unknown> = {}): Promise<void> {
   await page.goto(`chrome-extension://${extensionId}/sample.html`)
@@ -72,6 +74,63 @@ test.describe('searching and filtering in the library', () => {
     await library.locator('select[aria-label*="来源"]').selectOption('ent_one.example.com')
     await expect(library.locator('.row')).toHaveCount(1)
     await expect.poll(async () => (await metricsOf(context, 'library.queried'))['filters=1-2|has_text=false|results=1-2']).toBe(1)
+    await library.close()
+  })
+
+  test('the type filter is the "all" view\'s alone: it narrows that list like the type lists do and lives in the URL (extension.md §2.3)', async ({
+    page,
+    context,
+    extensionId,
+  }) => {
+    await saveClip(page, extensionId, 'ent_type_one', 'Retries can amplify an outage.')
+    await saveClip(page, extensionId, 'ent_type_two', 'Backoff with jitter spreads the load.')
+    await sendMessage(page, {
+      type: 'SAVE_SCREENSHOT',
+      requestId: 'r-type-shot',
+      data: { id: 'ent_type_shot', dataUrl: PNG_1PX, width: 1, height: 1, sourceUrl: 'https://sre.example.org/latency', title: 'p99 latency', via: 'shortcut' },
+    })
+
+    const library = await context.newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+    await expect(library.locator('.row')).toHaveCount(3)
+    const type = library.getByRole('combobox', { name: '类型', exact: true })
+    await expect(type.locator('option')).toHaveText(['类型: —', '剪藏', '截图'])
+    expect(await metricsOf(context, 'library.queried')).toEqual({}) // opening the page is not a query
+
+    await type.selectOption('clip')
+    await expect(library.locator('.row')).toHaveCount(2)
+    await expect(library.locator('.row[data-type="screenshot"]')).toHaveCount(0)
+    await expect(library.getByTestId('list-count')).toHaveText('共 2 条')
+    expect(library.url()).toContain('type=clip')
+    await expect.poll(() => metricsOf(context, 'library.queried')).toEqual({ 'filters=1-2|has_text=false|results=1-2': 1 }) // the type is one filter
+
+    await type.selectOption('screenshot')
+    await expect(library.locator('.row')).toHaveCount(1)
+    await expect(library.locator('.row[data-type="screenshot"]')).toHaveCount(1)
+
+    await library.reload()
+    await expect(type).toHaveValue('screenshot')
+    await expect(library.locator('.row')).toHaveCount(1)
+
+    // the other views are one type already: no type filter there, and the nav does not carry the choice over
+    for (const view of ['clips', 'screenshots', 'highlights']) {
+      await library.getByRole('link', { name: { clips: '剪藏', screenshots: '截图', highlights: '高亮' }[view]!, exact: true }).click()
+      await expect(library.getByRole('heading', { level: 1 })).toHaveText({ clips: '剪藏', screenshots: '截图', highlights: '高亮' }[view]!)
+      await expect(library.getByRole('combobox', { name: '类型', exact: true }), view).toHaveCount(0)
+      expect(library.url(), view).not.toContain('type=')
+    }
+    await library.getByRole('link', { name: '全部', exact: true }).click()
+    await expect(type).toHaveValue('')
+    await expect(library.locator('.row')).toHaveCount(3)
+
+    // with the only screenshot gone, the filter has nothing to show: that reads as "no results" and offers the way out
+    await sendMessage(page, { type: 'DELETE_ENTRY', id: 'ent_type_shot' })
+    await library.goto(`chrome-extension://${extensionId}/library.html#/all?type=screenshot`)
+    await library.reload()
+    await expect(library.locator('.empty')).toContainText('没有匹配的结果')
+    await library.locator('.empty').getByRole('button', { name: '清除筛选' }).click()
+    await expect(type).toHaveValue('')
+    await expect(library.locator('.row')).toHaveCount(2)
     await library.close()
   })
 

@@ -123,6 +123,16 @@ export async function updateEntry(context: BrowserContext, extensionId: string, 
   }
 }
 
+/**
+ * Sends a message from an extension page, the way the library does, and returns the response's data. `page` has to
+ * show an extension page (`sample.html` carries no UI of its own); an error response fails the test with its code.
+ */
+export async function sendMessage<T = unknown>(page: Page, message: Record<string, unknown>): Promise<T> {
+  const response = await page.evaluate(payload => chrome.runtime.sendMessage(payload), message)
+  if (!response?.success) throw new Error(`${String(message.type)} failed: ${response?.error}`)
+  return response.data as T
+}
+
 /** Image asset metadata held by the extension (bytes stay Blobs). */
 export async function getAssetMetadata(context: BrowserContext): Promise<Array<{ id: string; mimeType: string; byteLength: number; width: number; height: number }>> {
   const sw = await ensureServiceWorker(context)
@@ -169,6 +179,31 @@ export async function setSettings(context: BrowserContext, patch: Record<string,
       ),
     patch,
   )
+}
+
+/** WCAG contrast of each element's text colour against the first painted background behind it. */
+export function textContrast(locator: Locator): Promise<number[]> {
+  return locator.evaluateAll(elements => {
+    const channels = (value: string): number[] => (value.match(/[\d.]+/g) ?? []).map(Number)
+    const luminance = ([r, g, b]: number[]): number => {
+      const linear = [r, g, b].map(channel => {
+        const unit = (channel ?? 0) / 255
+        return unit <= 0.03928 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * linear[0]! + 0.7152 * linear[1]! + 0.0722 * linear[2]!
+    }
+    const backdrop = (element: Element): number[] => {
+      for (let node: Element | null = element; node; node = node.parentElement) {
+        const [r, g, b, a = 1] = channels(getComputedStyle(node).backgroundColor)
+        if (a > 0) return [r!, g!, b!]
+      }
+      return [255, 255, 255]
+    }
+    return elements.map(element => {
+      const [text, ground] = [luminance(channels(getComputedStyle(element).color)), luminance(backdrop(element))]
+      return (Math.max(text, ground) + 0.05) / (Math.min(text, ground) + 0.05)
+    })
+  })
 }
 
 // ── page driving ─────────────────────────────────────────────────────────
