@@ -1,7 +1,7 @@
 # AnnHub v2 文档
 
 > 状态：产品目标与数据契约。工程约定从 [AGENTS.md](../../AGENTS.md) 进入。
-> 更新：2026-10-08
+> 更新：2026-10-11
 
 AnnHub 是一个本地优先的浏览器扩展：把网页中值得留下的内容，用剪藏（选区或整块）和截图连同来源存进同一个本地库；再在库里阅读、划出高亮、加上可扩展的属性，之后可检索、回到来源或导出为 Markdown ZIP。产品不承诺从该 ZIP 恢复 AnnHub 数据库。
 
@@ -36,7 +36,7 @@ AnnHub 是一个本地优先的浏览器扩展：把网页中值得留下的内�
 | 第一次了解产品（15 分钟） | 本页 → [product](product.md) → [examples §2](examples.md) → [roadmap §2](roadmap.md)                                                                  |
 | 做界面与文案              | [entry](entry.md) → [extension](extension.md) → [visual](visual.md) → [examples](examples.md) → [设计稿](../design/v2/README.md)                      |
 | 做实现                    | [entry](entry.md) → [storage](storage.md) → [capture](capture.md) / [screenshot](screenshot.md) → [search](search.md) → [permissions](permissions.md) |
-| 做验收与增长              | [user-stories](user-stories.md) → [metrics](metrics.md) → [validation](validation.md) → [website](website.md)                                         |
+| 做验收与增长              | [user-stories](user-stories.md) → [metrics](metrics.md) → [validation](validation.md) → [website](website.md) → [seo-geo](seo-geo.md)                 |
 
 ## 3. 文档地图与唯一真源
 
@@ -53,16 +53,16 @@ AnnHub 是一个本地优先的浏览器扩展：把网页中值得留下的内�
 
 ### 第二层：定规格
 
-| 需要回答的问题                                                      | 唯一真源                         |
-| ------------------------------------------------------------------- | -------------------------------- |
-| 条目字段、类型、属性与校验                                          | [entry.md](entry.md)             |
-| 剪藏、截图怎样采集；区块的识别；来源与语境；内容转换                | [capture.md](capture.md)         |
-| 区域/元素截图、匿名、比例预设与取景框、复制与下载、水印、美化、入库 | [screenshot.md](screenshot.md)   |
-| IndexedDB、图片资产、删除清理和 Markdown ZIP 导出                   | [storage.md](storage.md)         |
-| 申请哪些权限、用户的数据会不会离开浏览器                            | [permissions.md](permissions.md) |
-| 搜索、筛选、排序与分页                                              | [search.md](search.md)           |
-| 扩展的页面体验与布局                                                | [extension.md](extension.md)     |
-| 品牌色、外观与版式原则                                              | [visual.md](visual.md)           |
+| 需要回答的问题                                                             | 唯一真源                         |
+| -------------------------------------------------------------------------- | -------------------------------- |
+| 条目字段、类型、属性与校验                                                 | [entry.md](entry.md)             |
+| 剪藏、截图怎样采集；区块的识别；来源与语境；内容转换                       | [capture.md](capture.md)         |
+| 区域/元素截图、匿名、比例预设与取景框、复制与下载、水印、美化、入库        | [screenshot.md](screenshot.md)   |
+| IndexedDB、图片资产、删除清理和 Markdown ZIP 导出                          | [storage.md](storage.md)         |
+| 申请哪些权限、用户的数据会不会离开浏览器；官网统计什么、什么时候先征得同意 | [permissions.md](permissions.md) |
+| 搜索、筛选、排序与分页                                                     | [search.md](search.md)           |
+| 扩展的页面体验与布局                                                       | [extension.md](extension.md)     |
+| 品牌色、外观与版式原则                                                     | [visual.md](visual.md)           |
 
 ### 第三层：验证与对外
 
@@ -72,6 +72,7 @@ AnnHub 是一个本地优先的浏览器扩展：把网页中值得留下的内�
 | 可测试的用户故事与验收                                 | [user-stories.md](user-stories.md) |
 | 指标口径、事件字典与体验护栏                           | [metrics.md](metrics.md)           |
 | 对外页面的信息与功能时态                               | [website.md](website.md)           |
+| 官网怎样被搜索引擎与 AI 搜索找到、读懂和引用，怎样衡量 | [seo-geo.md](seo-geo.md)           |
 
 ## 4. 术语表
 
