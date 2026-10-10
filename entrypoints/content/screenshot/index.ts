@@ -35,18 +35,25 @@ import { createRoot, type Root } from 'react-dom/client'
 import { ScreenshotToolbar } from './toolbar'
 import { renderScreenshot, type Annotation, type Point, type ScreenshotTool } from './editor'
 import {
+  applyBeautifyChange,
   BEAUTIFY_BACKGROUNDS,
   composeGeometry,
   constrainToRatio,
   constrainToRatioValue,
+  DEFAULT_BEAUTIFY,
   downloadExtension,
   downloadMime,
   matteOnWhite,
+  paintBeautified,
+  paintWatermark,
+  placePanel,
+  placeSizeLabel,
+  previewBox,
   ratioOf,
-  watermarkBox,
   type BeautifySettings,
   type DownloadFormat,
 } from './output'
+import { createBeautifyPanel, type BeautifyPanel } from './beautify-panel'
 import {
   HANDLES,
   adjustHierarchy,
@@ -123,6 +130,8 @@ class ScreenshotSession {
   private exited = false
   private notice: { message: string; error: boolean } | undefined
   private textInput: HTMLTextAreaElement | null = null
+  /** Where on the capture the open text box was clicked. */
+  private textAt: Point = { x: 0, y: 0 }
   private selectionCleanup: (() => void) | null = null
   private drawingCleanup: (() => void) | null = null
   private croppedCanvas: HTMLCanvasElement | null = null
@@ -133,9 +142,16 @@ class ScreenshotSession {
   private ratio = 'free'
   private ratioBarEl: HTMLDivElement | null = null
   private watermarkOn = true
-  private beautify: BeautifySettings = { enabled: false, background: 'solid-white', padding: 'medium', radius: 12, shadow: true }
-  private beautifyPanelEl: HTMLDivElement | null = null
+  private beautify: BeautifySettings = { ...DEFAULT_BEAUTIFY }
+  private beautifyPanel: BeautifyPanel | null = null
+  /** where the beautify panel is while it is open; it stays there as long as that place is free */
+  private panelSpot: { left: number; top: number } | null = null
+  /** What the preview shows, and what copy and download send: the capture composed with beautify and watermark. Always a canvas of its own. */
   private displayCanvas: HTMLCanvasElement | null = null
+  /** where the capture sits inside the display canvas (the padding of a beautified picture) */
+  private contentOrigin: Point = { x: 0, y: 0 }
+  /** the preview on screen as last laid out */
+  private previewNow: ViewportRect | null = null
   // R3 precise selection (screenshot.md §1.2, §1.4)
   private hoverEl: HTMLElement | null = null
   private hoverChain: Element[] = []
@@ -158,8 +174,11 @@ class ScreenshotSession {
       e.preventDefault()
       e.stopPropagation()
       if (this.textInput) {
-        this.textInput.remove()
-        this.textInput = null
+        this.commitText()
+        return
+      }
+      if (this.beautifyPanel) {
+        this.closeBeautifyPanel()
         return
       }
       exitScreenshotMode()
@@ -226,7 +245,7 @@ class ScreenshotSession {
         background: #252b31; color: #fff; padding: 7px 12px; border-radius: 4px; font: 13px/1.4 -apple-system, sans-serif; pointer-events: none; white-space: nowrap; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-hint b { color: #a8dad2; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-rect { position: absolute; box-sizing: border-box; border: 2px solid #4c91ff; background: transparent; box-shadow: 0 0 0 9999px rgba(22, 26, 31, 0.58); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-size { position: absolute; left: 0; bottom: calc(100% + 6px); padding: 2px 6px; background: #252b31; color: #fff; border-radius: 3px; font: 12px/1.4 -apple-system, sans-serif; white-space: nowrap; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-size { position: absolute; left: 0; bottom: calc(100% + 6px); padding: 2px 6px; pointer-events: none; background: #252b31; color: #fff; border-radius: 3px; font: 12px/1.4 -apple-system, sans-serif; white-space: nowrap; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview { position: absolute; box-sizing: border-box; border: 2px solid #4c91ff; background: #fff; box-shadow: 0 0 0 9999px rgba(22, 26, 31, 0.58); pointer-events: auto; touch-action: none; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview textarea { position: absolute; z-index: 2; min-width: 110px; min-height: 32px; padding: 4px; box-sizing: border-box; border: 1px solid #4c91ff; background: #fff; color: #20252b; font: 16px/1.3 -apple-system, sans-serif; resize: both; }
@@ -377,7 +396,7 @@ class ScreenshotSession {
     this.previewEl = null
     this.toolbarEl = null
     this.ratioBarEl = null
-    this.beautifyPanelEl = null
+    this.beautifyPanel = null
     this.displayCanvas = null
     this.croppedCanvas = null
     this.sourceCanvas = null
@@ -955,26 +974,32 @@ class ScreenshotSession {
     canvas.width = this.sourceCanvas!.width
     canvas.height = this.sourceCanvas!.height
     this.croppedCanvas = canvas
+    // what the preview shows and copy sends is a canvas of its own, composed from the capture: it is never the capture
+    // itself, which saving takes and every redraw starts over from
+    this.displayCanvas = this.doc.createElement('canvas')
     this.annotations = []
     this.renderEditor()
   }
 
-  private previewRect(): ViewportRect {
-    const view = this.doc.defaultView!
+  /**
+   * Where the capture itself sits on screen: the selection it was cut from, or — an element was not on the screen as it
+   * was captured — the room the window leaves, around where the element is.
+   */
+  private contentBox(): ViewportRect {
     if (this.selection) return this.selection
+    const view = this.doc.defaultView!
     const source = this.sourceCanvas!
-    const bounds = this.elementRect
-    const ratio = Math.min((view.innerWidth - 32) / source.width, (view.innerHeight - 116) / source.height, 1)
-    const width = Math.max(1, source.width * ratio)
-    const height = Math.max(1, source.height * ratio)
-    const centerX = bounds ? bounds.x + bounds.width / 2 : view.innerWidth / 2
-    const centerY = bounds ? bounds.y + bounds.height / 2 : view.innerHeight / 2
-    return {
-      x: Math.max(8, Math.min(view.innerWidth - width - 8, centerX - width / 2)),
-      y: Math.max(26, Math.min(view.innerHeight - height - 64, centerY - height / 2)),
-      width,
-      height,
-    }
+    const around = this.elementRect ?? { x: view.innerWidth / 2, y: view.innerHeight / 2, width: 0, height: 0 }
+    return previewBox(around, { width: source.width / this.capturedDpr, height: source.height / this.capturedDpr }, { width: view.innerWidth, height: view.innerHeight })
+  }
+
+  /** The preview on screen: the capture where it was selected, or the beautified picture grown around it. */
+  private previewRect(): ViewportRect {
+    const content = this.contentBox()
+    const display = this.displayCanvas
+    if (!this.beautify.enabled || !display) return content
+    const view = this.doc.defaultView!
+    return previewBox(content, { width: display.width / this.capturedDpr, height: display.height / this.capturedDpr }, { width: view.innerWidth, height: view.innerHeight })
   }
 
   private showPreview(): void {
@@ -987,24 +1012,17 @@ class ScreenshotSession {
     this.previewEl?.remove()
     this.toolbarRoot?.unmount()
     this.toolbarEl?.remove()
-    this.beautifyPanelEl?.remove()
-    this.beautifyPanelEl = null
+    this.beautifyPanel?.el.remove()
+    this.beautifyPanel = null
 
-    this.refreshDisplay()
-    const rect = this.previewRect()
+    const display = this.displayCanvas!
     const panel = this.doc.createElement('div')
     panel.className = 'ann-shot-preview'
     panel.setAttribute(ROOT_ATTR, 'screenshot-preview')
-    Object.assign(panel.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px` })
     const size = this.doc.createElement('span')
     size.className = 'ann-shot-size'
-    size.textContent = `${this.croppedCanvas!.width} x ${this.croppedCanvas!.height}`
-    if (rect.y < 28) {
-      size.style.bottom = 'auto'
-      size.style.top = 'calc(100% + 6px)'
-    }
-    panel.append(size, this.displayCanvas!)
-    this.croppedCanvas!.addEventListener('pointerdown', this.onCanvasPointerDown)
+    panel.append(size, display)
+    display.addEventListener('pointerdown', this.onCanvasPointerDown)
     this.host.appendChild(panel)
     this.previewEl = panel
 
@@ -1015,14 +1033,48 @@ class ScreenshotSession {
     this.toolbarEl = toolbar
     this.toolbarRoot = createRoot(toolbar)
     this.updateToolbar()
-    this.toolbarResizeObserver = new ResizeObserver(() => this.positionToolbar(rect))
+    this.toolbarResizeObserver = new ResizeObserver(() => {
+      this.positionToolbar()
+      this.positionSizeLabel()
+      this.positionBeautifyPanel()
+    })
     this.toolbarResizeObserver.observe(toolbar)
-    requestAnimationFrame(() => this.positionToolbar(rect))
+    this.refreshDisplay()
+    requestAnimationFrame(() => this.layout())
   }
 
-  private positionToolbar(rect: ViewportRect): void {
+  /** Puts the preview, the toolbar and the beautify panel where the picture now is. */
+  private layout(): void {
+    const preview = this.previewEl
+    const display = this.displayCanvas
+    if (this.state !== 'preview' || !preview || !display) return
+    const rect = this.previewRect()
+    this.previewNow = rect
+    Object.assign(preview.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px` })
+    const size = preview.querySelector<HTMLElement>('.ann-shot-size')
+    if (size) size.textContent = `${display.width} x ${display.height}`
+    this.positionToolbar()
+    this.positionSizeLabel()
+    this.positionBeautifyPanel()
+  }
+
+  /** The size label goes where the toolbar is not: above the picture, else below it, else inside its corner. */
+  private positionSizeLabel(): void {
+    const size = this.previewEl?.querySelector<HTMLElement>('.ann-shot-size')
+    const rect = this.previewNow
+    if (!size || !rect) return
+    const view = this.doc.defaultView!
+    const toolbar = this.toolbarEl?.isConnected ? this.toolbarEl.getBoundingClientRect() : null
+    const spot = placeSizeLabel(rect, { width: size.offsetWidth, height: size.offsetHeight }, toolbar, { width: view.innerWidth, height: view.innerHeight })
+    size.style.top = spot === 'above' ? '' : spot === 'below' ? 'calc(100% + 6px)' : '6px'
+    size.style.bottom = spot === 'above' ? '' : 'auto'
+    size.style.left = spot === 'inside' ? '6px' : ''
+  }
+
+  private positionToolbar(): void {
     const toolbar = this.toolbarEl
-    if (!toolbar || !toolbar.isConnected) return
+    const rect = this.previewNow
+    if (!toolbar || !toolbar.isConnected || !rect) return
     const view = this.doc.defaultView!
     const width = toolbar.getBoundingClientRect().width
     const height = toolbar.getBoundingClientRect().height
@@ -1039,6 +1091,7 @@ class ScreenshotSession {
         color: this.color,
         maskCount: this.maskBoxes.length,
         canUndo: this.annotations.length > 0,
+        beautifyOpen: this.beautifyPanel !== null,
         busy: this.busy,
         notice: this.notice,
         onTool: tool => {
@@ -1074,105 +1127,42 @@ class ScreenshotSession {
   private renderEditor(draft?: Annotation): void {
     if (!this.croppedCanvas || !this.sourceCanvas) return
     renderScreenshot(this.croppedCanvas, this.sourceCanvas, this.maskBoxes, draft ? [...this.annotations, draft] : this.annotations, this.capturedDpr)
-    this.refreshDisplay(true)
+    this.refreshDisplay()
   }
 
   /**
-   * The composed output preview: beautify canvas (background, padding,
-   * radius, shadow) with the watermark on top — exactly what copy and
-   * download will produce. The library entry keeps the un-composed content
-   * (screenshot.md §4.2-4.4).
+   * Composes the picture the preview shows — the capture with the beautify frame (background, padding, corners, shadow, ratio)
+   * and the watermark — which is exactly what copy and download send. The library entry keeps the capture without either
+   * (screenshot.md §4.2–4.4). Starts over from the capture every time: the frame is never drawn on a frame.
    */
-  private refreshDisplay(inPlace = false): void {
+  private refreshDisplay(): void {
     const content = this.croppedCanvas
-    if (!content) return
-    let out: HTMLCanvasElement = content
-    if (this.beautify.enabled) {
-      const geo = composeGeometry({ width: content.width, height: content.height }, this.beautify)
-      const canvas = this.doc.createElement('canvas')
-      canvas.width = geo.canvas.width
-      canvas.height = geo.canvas.height
-      const ctx = canvas.getContext('2d')!
-      const background = BEAUTIFY_BACKGROUNDS[this.beautify.background]
-      if (background.fill) {
-        ctx.fillStyle = background.fill as string
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-      }
-      if (this.beautify.shadow) {
-        ctx.save()
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.28)'
-        ctx.shadowBlur = Math.round(canvas.width * 0.03)
-        ctx.shadowOffsetY = Math.round(canvas.width * 0.008)
-        this.roundedRect(ctx, geo.content.x, geo.content.y, geo.content.width, geo.content.height, this.beautify.radius)
-        ctx.fillStyle = 'rgba(255,255,255,0.001)'
-        ctx.fill()
-        ctx.restore()
-      }
-      if (this.beautify.radius > 0) {
-        this.roundedRect(ctx, geo.content.x, geo.content.y, geo.content.width, geo.content.height, this.beautify.radius)
-        ctx.save()
-        ctx.clip()
-        ctx.drawImage(content, geo.content.x, geo.content.y)
-        ctx.restore()
-      } else {
-        ctx.drawImage(content, geo.content.x, geo.content.y)
-      }
-      out = canvas
+    const display = this.displayCanvas
+    if (!content || !display) return
+    const scale = this.capturedDpr
+    const geometry = this.beautify.enabled ? composeGeometry({ width: content.width, height: content.height }, this.beautify, scale) : null
+    // (re)sizing a canvas clears it, which is what a redraw wants
+    display.width = geometry ? geometry.canvas.width : content.width
+    display.height = geometry ? geometry.canvas.height : content.height
+    const ctx = display.getContext('2d')!
+    if (geometry) paintBeautified(ctx, content, geometry, this.beautify, scale)
+    else ctx.drawImage(content, 0, 0)
+    this.contentOrigin = geometry ? { x: geometry.content.x, y: geometry.content.y } : { x: 0, y: 0 }
+    const watermark = this.settings?.watermark
+    if (watermark?.enabled && this.watermarkOn) {
+      paintWatermark(ctx, display, watermark, geometry !== null && !BEAUTIFY_BACKGROUNDS[this.beautify.background].light)
     }
-    if (this.settings?.watermark.enabled && this.watermarkOn) {
-      const canvas = this.doc.createElement('canvas')
-      canvas.width = out.width
-      canvas.height = out.height
-      const ctx = canvas.getContext('2d')!
-      ctx.drawImage(out, 0, 0)
-      const wm = this.settings.watermark
-      const box = watermarkBox({ width: canvas.width, height: canvas.height }, wm)
-      ctx.globalAlpha = wm.opacity
-      ctx.fillStyle = '#20252b'
-      ctx.font = `${box.fontSize}px -apple-system, system-ui, sans-serif`
-      ctx.textAlign = wm.position.endsWith('right') ? 'right' : 'left'
-      ctx.textBaseline = wm.position.startsWith('top') ? 'top' : 'bottom'
-      if (wm.text) ctx.fillText(wm.text, box.x, box.y)
-      ctx.globalAlpha = 1
-      out = canvas
-    }
-    if (inPlace && this.displayCanvas && this.previewEl?.contains(this.displayCanvas)) {
-      // keep the element identity when only pixels changed
-      const ctx = this.displayCanvas.getContext('2d')!
-      this.displayCanvas.width = out.width
-      this.displayCanvas.height = out.height
-      ctx.drawImage(out, 0, 0)
-      return
-    }
-    this.displayCanvas = out
-    if (this.previewEl) {
-      const old = this.previewEl.querySelector('canvas')
-      old?.remove()
-      const size = this.previewEl.querySelector('.ann-shot-size')
-      size?.after(out)
-      out.addEventListener('pointerdown', this.onCanvasPointerDown)
-    }
+    this.layout()
   }
 
-  private roundedRect(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number): void {
-    const r = Math.min(radius, width / 2, height / 2)
-    ctx.beginPath()
-    ctx.moveTo(x + r, y)
-    ctx.arcTo(x + width, y, x + width, y + height, r)
-    ctx.arcTo(x + width, y + height, x, y + height, r)
-    ctx.arcTo(x, y + height, x, y, r)
-    ctx.arcTo(x, y, x + width, y, r)
-    ctx.closePath()
-  }
-
+  /** A pointer position as a point of the capture: the preview may show it with padding around it, and scaled down. */
   private canvasPoint(e: PointerEvent): Point {
-    const canvas = this.croppedCanvas!
-    const p = localPoint(canvas, e)
-    const rect = canvas.getBoundingClientRect()
-    return {
-      x: Math.max(0, Math.min(canvas.width, (p.x * canvas.width) / rect.width)),
-      y: Math.max(0, Math.min(canvas.height, (p.y * canvas.height) / rect.height)),
-    }
+    const display = this.displayCanvas!
+    const content = this.croppedCanvas!
+    const rect = display.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) * display.width) / (rect.width || 1) - this.contentOrigin.x
+    const y = ((e.clientY - rect.top) * display.height) / (rect.height || 1) - this.contentOrigin.y
+    return { x: Math.max(0, Math.min(content.width, x)), y: Math.max(0, Math.min(content.height, y)) }
   }
 
   private onCanvasPointerDown = (e: PointerEvent): void => {
@@ -1180,7 +1170,7 @@ class ScreenshotSession {
     e.preventDefault()
     e.stopPropagation()
     if (this.tool === 'text') {
-      this.openTextInput(this.canvasPoint(e), localPoint(this.croppedCanvas, e))
+      this.openTextInput(this.canvasPoint(e), localPoint(this.displayCanvas!, e))
       return
     }
     const start = this.canvasPoint(e)
@@ -1215,7 +1205,7 @@ class ScreenshotSession {
   }
 
   private openTextInput(point: Point, displayPoint: Point): void {
-    this.textInput?.remove()
+    this.commitText()
     const input = this.doc.createElement('textarea')
     input.setAttribute('aria-label', uiText('shot.textInput.placeholder'))
     input.setAttribute(ROOT_ATTR, 'screenshot-text-input')
@@ -1226,28 +1216,38 @@ class ScreenshotSession {
     input.style.left = `${Math.max(8 - panel.left, Math.min(displayPoint.x, view.innerWidth - panel.left - Math.min(210, view.innerWidth - 24) - 8))}px`
     input.style.top = `${Math.max(8 - panel.top, Math.min(displayPoint.y, view.innerHeight - panel.top - 54))}px`
     input.style.color = this.color
-    const commit = () => {
-      if (this.textInput !== input) return
-      const value = input.value.trim()
-      input.remove()
-      this.textInput = null
-      if (value) {
-        this.annotations.push({ tool: 'text', start: point, text: value, color: this.color })
-        this.renderEditor()
-        this.updateToolbar()
-      }
-    }
     input.addEventListener('keydown', event => {
       event.stopPropagation()
       if (event.key === 'Enter' && !event.shiftKey) {
         event.preventDefault()
-        commit()
+        this.commitText()
       }
     })
-    input.addEventListener('blur', commit)
+    // clicking away closes the box like Enter and Esc do; a box that was already replaced has nothing left to say
+    input.addEventListener('blur', () => {
+      if (this.textInput === input) this.commitText()
+    })
     this.previewEl!.appendChild(input)
     this.textInput = input
+    this.textAt = point
     input.focus()
+  }
+
+  /**
+   * Closes the text box, if one is open, and turns what was typed into an annotation. Enter, Esc, clicking away and
+   * opening another box all end here, so the text is never lost to the way the box was closed.
+   */
+  private commitText(): void {
+    const input = this.textInput
+    if (!input) return
+    // out of the field before out of the page: removing a focused element blurs it, and that blur comes back here
+    this.textInput = null
+    const value = input.value.trim()
+    input.remove()
+    if (!value) return
+    this.annotations.push({ tool: 'text', start: this.textAt, text: value, color: this.color })
+    this.renderEditor()
+    this.updateToolbar()
   }
 
   // ── the three destinations (screenshot.md §4) ─────────────────────
@@ -1347,122 +1347,72 @@ class ScreenshotSession {
     }
   }
 
-  /** The beautify panel (screenshot.md §4.4): immediate preview, 复原, never in the undo stack, copy/download only. */
+  /**
+   * The beautify panel (screenshot.md §4.4): its changes show at once, 复原 goes back to the style the settings give, none of it
+   * is in the undo stack, and it shapes only what is copied and downloaded.
+   */
   private toggleBeautifyPanel(): void {
-    if (this.beautifyPanelEl) {
-      this.beautifyPanelEl.remove()
-      this.beautifyPanelEl = null
-      return
-    }
-    const panel = this.doc.createElement('div')
-    panel.className = 'ann-shot-beautify'
-    panel.setAttribute('data-ann-ui', 'screenshot-beautify')
-    const row = (
-      labelKey: 'shot.beautify.background' | 'shot.beautify.padding' | 'shot.beautify.radius' | 'shot.beautify.shadow' | 'shot.beautify.ratio',
-      control: HTMLElement,
-    ) => {
-      const rowEl = this.doc.createElement('label')
-      rowEl.className = 'ann-shot-beautify-row'
-      const label = this.doc.createElement('span')
-      label.textContent = uiText(labelKey)
-      rowEl.append(label, control)
-      panel.appendChild(rowEl)
-    }
-    const select = (options: Array<{ value: string; label: string }>, value: string, onChange: (value: string) => void) => {
-      const selectEl = this.doc.createElement('select')
-      for (const option of options) {
-        const optionEl = this.doc.createElement('option')
-        optionEl.value = option.value
-        optionEl.textContent = option.label
-        if (option.value === value) optionEl.selected = true
-        selectEl.appendChild(optionEl)
-      }
-      selectEl.addEventListener('change', event => {
-        onChange((event.target as HTMLSelectElement).value)
-        this.refreshDisplay(true)
-      })
-      return selectEl
-    }
-    row(
-      'shot.beautify.background',
-      select(
-        [
-          { value: 'none', label: uiText('settings.background.none') },
-          { value: 'solid-white', label: 'A' },
-          { value: 'solid-ivory', label: 'B' },
-          { value: 'grad-purple', label: '1' },
-          { value: 'grad-blue', label: '2' },
-          { value: 'grad-green', label: '3' },
-          { value: 'grad-sunset', label: '4' },
-          { value: 'grad-slate', label: '5' },
-        ],
-        this.beautify.background,
-        value => {
-          this.beautify.enabled = value !== 'none' || this.beautify.enabled
-          this.beautify.background = value as BeautifySettings['background']
-          if (value !== 'none') this.beautify.enabled = true
-        },
-      ),
-    )
-    row(
-      'shot.beautify.padding',
-      select(
-        [
-          { value: 'small', label: '24' },
-          { value: 'medium', label: '40' },
-          { value: 'large', label: '64' },
-        ],
-        this.beautify.padding,
-        value => {
-          this.beautify.padding = value as BeautifySettings['padding']
-        },
-      ),
-    )
-    row(
-      'shot.beautify.radius',
-      select(
-        [
-          { value: '0', label: '0' },
-          { value: '12', label: '12' },
-          { value: '24', label: '24' },
-        ],
-        String(this.beautify.radius),
-        value => {
-          this.beautify.radius = Number(value)
-        },
-      ),
-    )
-    const shadowCheck = this.doc.createElement('input')
-    shadowCheck.type = 'checkbox'
-    shadowCheck.checked = this.beautify.shadow
-    shadowCheck.addEventListener('change', event => {
-      this.beautify.shadow = (event.target as HTMLInputElement).checked
-      this.refreshDisplay(true)
+    if (this.beautifyPanel) this.closeBeautifyPanel()
+    else this.openBeautifyPanel()
+  }
+
+  private openBeautifyPanel(): void {
+    if (this.state !== 'preview') return
+    const panel = createBeautifyPanel(this.doc, {
+      settings: this.beautify,
+      ratios: this.settings?.ratioPresets ?? [],
+      onChange: patch => this.changeBeautify(patch),
+      onReset: () => this.resetBeautify(),
     })
-    row('shot.beautify.shadow', shadowCheck)
-    const enabledCheck = this.doc.createElement('input')
-    enabledCheck.type = 'checkbox'
-    enabledCheck.checked = this.beautify.enabled
-    enabledCheck.setAttribute('aria-label', uiText('settings.beautify'))
-    enabledCheck.addEventListener('change', event => {
-      this.beautify.enabled = (event.target as HTMLInputElement).checked
-      this.refreshDisplay(true)
-    })
-    row('shot.beautify.shadow', enabledCheck)
-    const reset = this.doc.createElement('button')
-    reset.type = 'button'
-    reset.textContent = uiText('shot.beautify.reset')
-    reset.addEventListener('click', event => {
-      if (!isUserInput(event)) return
-      this.beautify = { ...(this.settings?.beautify ?? { enabled: false, background: 'solid-white', padding: 'medium', radius: 12, shadow: true }) }
-      this.refreshDisplay(true)
-      panel.remove()
-      this.beautifyPanelEl = null
-    })
-    panel.appendChild(reset)
-    this.host.appendChild(panel)
-    this.beautifyPanelEl = panel
-    void row
+    this.host.appendChild(panel.el)
+    this.beautifyPanel = panel
+    this.panelSpot = null
+    this.updateToolbar()
+    this.positionBeautifyPanel()
+    panel.focus()
+  }
+
+  /** Closes the panel and gives the keyboard back to the button that opened it. */
+  private closeBeautifyPanel(): void {
+    const panel = this.beautifyPanel
+    if (!panel) return
+    panel.el.remove()
+    this.beautifyPanel = null
+    this.panelSpot = null
+    this.updateToolbar()
+    this.toolbarEl?.querySelector<HTMLElement>('[data-ann-ui="screenshot-beautify"]')?.focus()
+  }
+
+  private changeBeautify(patch: Partial<BeautifySettings>): void {
+    this.beautify = applyBeautifyChange(this.beautify, patch)
+    this.beautifyPanel?.sync(this.beautify)
+    this.refreshDisplay()
+  }
+
+  private resetBeautify(): void {
+    this.beautify = { ...(this.settings?.beautify ?? DEFAULT_BEAUTIFY) }
+    this.beautifyPanel?.sync(this.beautify)
+    this.refreshDisplay()
+  }
+
+  /** Beside the picture where there is room, else under the toolbar: clear of both, inside the window. */
+  private positionBeautifyPanel(): void {
+    const panel = this.beautifyPanel?.el
+    const toolbar = this.toolbarEl
+    const preview = this.previewNow
+    if (!panel || !toolbar || !preview) return
+    const view = this.doc.defaultView!
+    const size = panel.getBoundingClientRect()
+    const bar = toolbar.getBoundingClientRect()
+    const spot = placePanel(
+      { width: size.width, height: size.height },
+      { toolbar: { x: bar.x, y: bar.y, width: bar.width, height: bar.height }, preview },
+      { width: view.innerWidth, height: view.innerHeight },
+      this.panelSpot ?? undefined,
+    )
+    this.panelSpot = spot
+    panel.style.left = `${spot.left}px`
+    panel.style.top = `${spot.top}px`
   }
 
   /**
