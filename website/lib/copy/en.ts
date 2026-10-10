@@ -241,8 +241,18 @@ export const en: LandingCopy = {
     github: 'GitHub',
     privacy: 'Privacy',
     terms: 'Terms',
+    analytics: 'Analytics settings',
     copyright: '© {year} AnnHub',
     navLabel: 'Site links',
+  },
+  consent: {
+    label: 'Analytics consent',
+    settingsLabel: 'Analytics settings',
+    body: 'We’d like to measure visits and page speed on this site with Cloudflare Web Analytics. It sets no cookies and doesn’t follow you across sites; we only see totals.',
+    policy: 'Privacy policy',
+    allow: 'Allow',
+    deny: 'Don’t allow',
+    current: { granted: 'Currently allowed.', denied: 'Currently off.' },
   },
   ui: {
     types: { clip: 'Clip', screenshot: 'Screenshot', highlight: 'Highlight' },

@@ -33,7 +33,7 @@ npm ci
 npm run dev
 ```
 
-默认开发地址为 `http://localhost:3001`，具体端口以 Next.js 启动输出为准。技术栈是 Next.js 16、React 19 和 next-intl 4，需要 Node.js 20.9 以上（仓库根目录 `.node-version`）。`npm run lint` 直接运行 ESLint（Next 16 已移除 `next lint`）；语言前缀路由在 `proxy.ts`（Next 16 对 `middleware` 的新称呼）。
+默认开发地址为 `http://localhost:3001`，具体端口以 Next.js 启动输出为准。技术栈是 Next.js 16、React 19 和 next-intl 4，需要 Node.js 20.9 以上（仓库根目录 `.node-version`）。`npm run lint` 直接运行 ESLint（Next 16 已移除 `next lint`）；语言前缀路由和统计的地区 Cookie 在 `proxy.ts`（Next 16 对 `middleware` 的新称呼）。
 
 `npm run dev` 会即时编译，并在每次请求时重新渲染这个包含大量产品界面元素的页面，因此首访和刷新都比生产构建慢；开发模式的 React 还会为元素记录调用栈。走查区只挂载当前步骤的场景，减少浏览器首次加载的 DOM 和观察器数量。检查访客实际得到的版式、滚动和交互流畅度时，用 `npm run build && npm run start` 看预渲染的生产页面。CPU 被别的进程占满时（先看 `uptime` 的负载和活动监视器），开发模式会被放大得更明显。
 
@@ -56,6 +56,12 @@ npm run start
 - **Node 版本**。Netlify 在 `website/` 里找不到仓库根目录的 `.node-version`，所以 `netlify.toml` 的 `NODE_VERSION` 要写一份，并与它一致。
 - **什么时候构建**。`ignore` 命令只在 `website/` 或 `netlify.toml` 有变化时才构建；Deploy Preview 和分支部署一律跳过，看板上显示 Canceled，并没有真的构建。`ignore` 在 base 目录里运行，路径要写成 `:/website`，从仓库根起算；写成 `website` 会指向 `website/website`，永远没有差异，等于永远跳过。`CACHED_COMMIT_REF` 不能直接信：Netlify 文档写明没有缓存的构建里它等于 `COMMIT_REF`，diff 恒为空；PR 预览被取消后，它也可能是 rebase 或 squash 合并前的头提交，内容和合并结果相同、却不在 `main` 的历史里。所以命令在这两种情形（以及取不到提交时）一律构建，只有它确实是祖先且监视的路径没有差异才跳过；`scripts/__tests__/netlify-ignore.test.ts` 用真实的 git 仓库执行这条命令。Netlify 对任何 `ignore` 取消都报 “Canceled build due to no content change”，所以部署页的报错分辨不出原因。想让看板上也不出现这些条目，在后台关掉：Project configuration > Developer settings > Continuous deployment > Branches and deploy contexts > Configure，Branch deploys 选 None，并禁用 Deploy Previews（站点设置，仓库里改不了）。
 - **语言前缀路由与法律页**。`proxy.ts` 的 matcher 放过 `privacy-policy`、`terms-of-service`、`api`、`_next` 和带扩展名的路径；前两个由 `netlify.toml` 的重写交给 `public/` 里的静态页。改其中一边，另一边一起改。两个静态页互相的链接、回首页的链接都写成站内路径（`/privacy-policy.html`、`/terms-of-service.html`、`/`），不写域名：写了域名，在本机、预览和分支部署里点一下就跳到线上，看到的是线上还没更新的旧页面。只有给爬虫读的地址写域名：两个静态页的 `rel="canonical"`、`lib/site.ts` 的 `SITE_ORIGIN`（`metadataBase` 和站点地图用它）、`public/robots.txt` 的 `Sitemap` 行；`utils/__tests__/website.test.ts` 核对这一点。
+- **Cloudflare 代理**。域名服务器在 Cloudflare，站点的记录开着代理（橙云）：访客的请求先到 Cloudflare，再到 Netlify。Netlify 的支持指南建议不要这样代理（[market.md §4.6](../docs/v2/market.md)）。[seo-geo.md](../docs/v2/seo-geo.md) 第 6 节的 AI 爬虫策略在这一层生效，AI 爬虫的请求记录也在这里，访客所在的国家也由它给出（见下一条）。暂停代理排查 Netlify 的部署或证书问题时，这些都暂时没有：拿不到国家，所有访客都先看到同意卡片，统计到的访问骤降，但不会违规。AI 爬虫策略（Security Settings 里的 AI bot policies）三类都保持 Allow：Block 会连 Googlebot、Bingbot 一起拦下，Disallow AI Training 会拦下训练类爬虫，都与第 6 节相反；对爬虫的偏好只写在站点自己的 `robots.txt` 里。这些设置都在 Cloudflare 后台，仓库里看不出来（[RK-15](../docs/v2/validation.md)）。
+- **访问统计**。Cloudflare Web Analytics 由页面自己按访客的选择加载，规则在 [permissions.md §8](../docs/v2/permissions.md)，卡片在 [蓝图 §19](../docs/v2/website.md)。不能用代理的自动注入：注入的脚本不经访客的选择就运行，同意卡片形同虚设。谁先被问由 `proxy.ts` 按 Cloudflare 的 `CF-IPCountry` 请求头判断：不在要先问的国家，就写会话 Cookie `annhub-region=outside`，页面见到它才不问直接统计；没有这个头（代理关着、本机）一律先问。国家列表在 `lib/consent.ts`。站点令牌是 `netlify.toml` 里 `[context.production.environment]` 的 `NEXT_PUBLIC_CF_BEACON_TOKEN`，构建时写进页面，是公开值；留空就不加载统计脚本、不写 Cookie，也不显示同意卡片和页脚的「统计设置」，所以本地构建和预览不统计。改变量名时 `lib/site.ts` 与 `netlify.toml` 一起改，`npm run check:consistency` 核对两边一致。Cloudflare 后台要这样设：
+  1. Web Analytics 里，annhub.org 选 “Enable with JS Snippet installation”（手动嵌入），确认没有开着自动注入。
+  2. Network 里的 IP Geolocation 开启。关着就没有 `CF-IPCountry`，所有访客都先看到同意卡片。
+
+  部署后核对：`curl -s https://annhub.org/en | grep -c cloudflareinsights` 输出 0，HTML 里没有代理注入的脚本；在欧洲以外运行 `curl -sI https://annhub.org/en`，响应里有 `set-cookie: annhub-region=outside`，说明拿到了国家。本机要看两种情形，用带任意令牌的构建（`NEXT_PUBLIC_CF_BEACON_TOKEN=任意值 npm run build && npm run start`），请求时自己带上 `cf-ipcountry: DE` 或 `CN`（curl 的 `-H`，Playwright 的 `extraHTTPHeaders`）。
 
 部署后看日志：应有 `Using Next.js Runtime - v5.x`。没有这一行，说明运行时没被加载：查 `netlify.toml` 的 `[[plugins]]` 和 `website/package.json`。是 v4.x，说明 Netlify 没有从 `website/node_modules` 里找到插件：先查后台 Build settings 里的 Base directory 与 Package directory。
 
@@ -68,10 +74,11 @@ npm run start
 ```text
 app/[locale]/globals.css          设计令牌（亮色；.theme-dark 为暗色）与基础样式，令牌取自设计稿 css/tokens.css
 lib/copy/                         中英文文案。types.ts 是唯一的结构，zh-CN.ts 与 en.ts 逐项对应，缺一项就编译失败
-lib/site.ts                       生产域名（只给爬虫读的地址用）
+lib/site.ts                       生产域名（只给爬虫读的地址用）与统计令牌
+lib/consent.ts                    什么时候加载统计、哪些国家先问：纯函数，utils/__tests__/website-consent.test.ts 覆盖
 app/sitemap.ts                    站点地图：两个语言页与两个法律页
 public/robots.txt                 全部放行、内容信号与站点地图的地址
-components/landing/               页面的各个区块（hero、问题、三种方式、走查、资料库、取舍、隐私、FAQ、收束）
+components/landing/               页面的各个区块（hero、问题、三种方式、走查、资料库、取舍、隐私、FAQ、收束）与统计同意卡片
 components/product/               扩展界面的复刻：选区菜单、剪藏提示、区块胶囊、截图、资料库、阅读视图与高亮、属性、导出
 components/product/product-*.css  从设计稿 css/ui.css、css/ext.css 移植，类名统一加 ah- 前缀，不与 Tailwind 冲突
 components/product/sample.ts      示例数据，取自 docs/v2/examples.md 的一周走查，来源是中性域名
@@ -88,6 +95,6 @@ components/product/sample.ts      示例数据，取自 docs/v2/examples.md 的�
 - 不展示未经验证的评价和使用人数，不写“完全准确”“永不丢失”这类无法证明的承诺。
 - 对其他产品的对比只写在 FAQ 里，并带 [market.md](../docs/v2/market.md) 的核对日期。
 
-**渲染方式**：两个语言的页面在构建时预渲染成静态 HTML。`app/[locale]/layout.tsx` 和 `page.tsx` 里的 `setRequestLocale(locale)` 就是为此而写：去掉它，next-intl 会去读请求头，页面退回按请求渲染。只有三个客户端组件：`Fit`（把像素定位的场景缩到容器宽度）、`StoryStepper`（走查的步骤切换，只挂载当前场景）和 `LibraryTour`（可操作的资料库，数据只在内存里，刷新即重置）。
+**渲染方式**：两个语言的页面在构建时预渲染成静态 HTML。`app/[locale]/layout.tsx` 和 `page.tsx` 里的 `setRequestLocale(locale)` 就是为此而写：去掉它，next-intl 会去读请求头，页面退回按请求渲染。客户端组件只有这几个：`Fit`（把像素定位的场景缩到容器宽度）、`StoryStepper`（走查的步骤切换，只挂载当前场景）、`LibraryTour`（可操作的资料库，数据只在内存里，刷新即重置）、`AnalyticsConsent`（同意卡片，要读 Cookie 和本地存储，所以服务器上不渲染任何东西）和 `AnalyticsSettings`（页脚的「统计设置」）。
 
 **验证**：`npm run lint`、`npx tsc --noEmit`、`npm run build`；官网的单测在仓库根目录的 `utils/__tests__/website*.test.ts`，随根目录的 `npm test` 运行。涉及版式的改动，用真实浏览器在 390、820、1024、1280、1440 和 1920 宽度各看一遍，中英文都看；只看一个宽度会漏掉场景缩放和英文长文案带来的问题。

@@ -1,9 +1,11 @@
 import type { LandingCopy } from '@/lib/copy'
+import AnalyticsConsent from './analytics-consent'
 import Closing from './closing'
 import Differences from './differences'
 import Faq from './faq'
 import Hero from './hero'
 import LibrarySection from './library'
+import { PRIVACY_WEBSITE_URL } from './links'
 import Problem from './problem'
 import SiteFooter from './site-footer'
 import SiteHeader from './site-header'
@@ -15,6 +17,7 @@ import Ways from './ways'
 export default function LandingPage({ copy }: { copy: LandingCopy }) {
   return (
     <>
+      <AnalyticsConsent copy={copy.consent} policyHref={PRIVACY_WEBSITE_URL[copy.locale]} />
       <a
         href="#main"
         className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-white focus:px-4 focus:py-2 focus:text-[14px] focus:font-semibold focus:text-brand-text focus:shadow-pop"
