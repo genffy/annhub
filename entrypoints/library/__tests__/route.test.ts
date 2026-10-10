@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { EMPTY_FILTERS, entryHashFor, isLibraryHash, listHash, readHash, readHashFor } from '../route'
+import { EMPTY_FILTERS, entryHashFor, hasActiveFilter, isLibraryHash, isListView, listHash, readHash, readHashFor } from '../route'
 
 describe('route read/write round-trip (extension.md §2.2, RV-LIB-01)', () => {
   it('reads the plain list views', () => {
@@ -70,5 +70,36 @@ describe('route read/write round-trip (extension.md §2.2, RV-LIB-01)', () => {
     expect(isLibraryHash('#/entry/ent_x')).toBe(true)
     expect(isLibraryHash('')).toBe(true)
     expect(isLibraryHash('#/settings?x=1')).toBe(true)
+  })
+})
+
+describe('which views list, and when a filter is on (extension.md §2.3, §5)', () => {
+  it('only the four list views carry the search and filter bar', () => {
+    for (const view of ['all', 'clips', 'highlights', 'screenshots'] as const) expect(isListView(view), view).toBe(true)
+    for (const view of ['properties', 'settings'] as const) expect(isListView(view), view).toBe(false)
+  })
+
+  it('no filter is on by default, in any view', () => {
+    for (const view of ['all', 'clips', 'highlights', 'screenshots'] as const) expect(hasActiveFilter({ view, ...EMPTY_FILTERS }), view).toBe(false)
+  })
+
+  it('each of search, source, tag, property and time turns it on', () => {
+    const on = { search: 'x', host: 'a.example', tag: 't', prop: 'title', from: '2026-01-01', to: '2026-02-01' }
+    for (const [field, value] of Object.entries(on)) expect(hasActiveFilter({ view: 'clips', ...EMPTY_FILTERS, [field]: value }), field).toBe(true)
+  })
+
+  it('the colour is a filter of the highlights view only', () => {
+    expect(hasActiveFilter({ view: 'highlights', ...EMPTY_FILTERS, color: 'blue' })).toBe(true)
+    expect(hasActiveFilter({ view: 'clips', ...EMPTY_FILTERS, color: 'blue' })).toBe(false)
+  })
+
+  it('an operator or value without a property filters nothing', () => {
+    expect(hasActiveFilter({ view: 'all', ...EMPTY_FILTERS, op: 'contains', val: 'x', val2: 'y' })).toBe(false)
+  })
+
+  it('clearing the filters turns every one of them off, the colour included', () => {
+    const route = readHash('#/highlights?q=a&host=h&tag=t&prop=p&op=contains&val=v&from=2026-01-01&to=2026-02-01&color=blue')
+    expect(hasActiveFilter(route)).toBe(true)
+    expect(hasActiveFilter({ ...route, ...EMPTY_FILTERS })).toBe(false)
   })
 })
