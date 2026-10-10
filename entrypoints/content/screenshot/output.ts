@@ -115,6 +115,66 @@ export function watermarkBox(
   return { x, y, fontSize, margin }
 }
 
+/** A watermark picture decoded once and ready to draw: what to draw from, and its natural size. */
+export interface WatermarkImage {
+  source: CanvasImageSource
+  width: number
+  height: number
+}
+
+/** A picture is this many text sizes tall: beside text it makes one line with it, and alone the size tier still sets how big it is. */
+const WATERMARK_IMAGE_EM = 1.5
+/** The room between the picture and the text after it, in text sizes. */
+const WATERMARK_GAP_EM = 0.5
+/** However wide its shape, a picture takes at most this share of the canvas's width. */
+const WATERMARK_IMAGE_MAX_SHARE = 0.4
+
+export interface WatermarkLayout {
+  /** where the picture is drawn */
+  image: Rect | null
+  /** the point the text hangs on, and how it hangs on it */
+  text: { x: number; y: number; align: 'left' | 'right'; baseline: 'top' | 'middle' | 'bottom' } | null
+}
+
+/**
+ * Where the parts of the watermark go in its corner box (screenshot.md §4.3): the picture first, the text after it, as
+ * one strip that is read left to right whichever corner it is anchored on, a margin in from both edges. The picture is as
+ * tall as the size tier asks and as wide as its shape says, narrowed where that would run across the canvas; the text is
+ * centred on it. `textWidth` is the text as measured, `null` without text. Text alone keeps hanging on the corner point
+ * itself, so a watermark without a picture is laid out exactly as it always was.
+ */
+export function watermarkLayout(
+  canvas: { width: number; height: number },
+  settings: Pick<WatermarkSettings, 'position' | 'size'>,
+  content: { image: { width: number; height: number } | null; textWidth: number | null },
+): WatermarkLayout {
+  const box = watermarkBox(canvas, settings)
+  const right = settings.position.endsWith('right')
+  const top = settings.position.startsWith('top')
+  const picture = content.image && content.image.width > 0 && content.image.height > 0 ? content.image : null
+  if (!picture) {
+    return { image: null, text: content.textWidth === null ? null : { x: box.x, y: box.y, align: right ? 'right' : 'left', baseline: top ? 'top' : 'bottom' } }
+  }
+
+  let height = Math.max(1, Math.round(box.fontSize * WATERMARK_IMAGE_EM))
+  let width = Math.max(1, Math.round((height * picture.width) / picture.height))
+  const widest = Math.max(1, Math.round(canvas.width * WATERMARK_IMAGE_MAX_SHARE))
+  if (width > widest) {
+    width = widest
+    height = Math.max(1, Math.round((width * picture.height) / picture.width))
+  }
+  const hasText = content.textWidth !== null
+  const gap = hasText ? Math.round(box.fontSize * WATERMARK_GAP_EM) : 0
+  const stripWidth = width + gap + (content.textWidth ?? 0)
+  const stripHeight = Math.max(height, hasText ? box.fontSize : 0)
+  const left = right ? box.x - stripWidth : box.x
+  const stripTop = top ? box.y : box.y - stripHeight
+  return {
+    image: { x: Math.round(left), y: stripTop + Math.round((stripHeight - height) / 2), width, height },
+    text: hasText ? { x: left + width + gap, y: stripTop + stripHeight / 2, align: 'left', baseline: 'middle' } : null,
+  }
+}
+
 // ── Beautify composition (screenshot.md §4.4) ────────────────────────────
 
 export type BeautifyBackground = 'none' | 'solid-white' | 'solid-ivory' | 'grad-purple' | 'grad-blue' | 'grad-green' | 'grad-sunset' | 'grad-slate'
@@ -379,19 +439,62 @@ export function placePanel(
 
 // ── Watermark painting (screenshot.md §4.3) ──────────────────────────────
 
-type TextContext = Pick<CanvasRenderingContext2D, 'globalAlpha' | 'fillStyle' | 'font' | 'textAlign' | 'textBaseline' | 'fillText'>
+type WatermarkContext = Pick<
+  CanvasRenderingContext2D,
+  'globalAlpha' | 'fillStyle' | 'font' | 'textAlign' | 'textBaseline' | 'fillText' | 'measureText' | 'drawImage' | 'imageSmoothingQuality'
+>
 
-/** The watermark text in its corner of `canvas`; `onDark` picks the light ink for a background the dark one would vanish on. */
-export function paintWatermark(ctx: TextContext, canvas: { width: number; height: number }, settings: WatermarkSettings, onDark: boolean): void {
-  if (!settings.text) return
-  const box = watermarkBox(canvas, settings)
+/**
+ * The watermark in its corner of `canvas`: the picture first, the text after it (`watermarkLayout`), both at the
+ * watermark's opacity. `image` is the picture the session decoded once (`decodeWatermarkImage`); without it — none set,
+ * or one the browser could not read — the text is written alone, exactly where it goes without a picture (screenshot.md §5).
+ * `onDark` picks the light ink for a background the dark one would vanish on: it is the text's ink only, the picture is
+ * drawn as it is.
+ */
+export function paintWatermark(
+  ctx: WatermarkContext,
+  canvas: { width: number; height: number },
+  settings: WatermarkSettings,
+  onDark: boolean,
+  image: WatermarkImage | null = null,
+): void {
+  const text = settings.text
+  if (!text && !image) return
   ctx.globalAlpha = settings.opacity
-  ctx.fillStyle = onDark ? '#f4f5f7' : '#20252b'
-  ctx.font = `${box.fontSize}px -apple-system, system-ui, sans-serif`
-  ctx.textAlign = settings.position.endsWith('right') ? 'right' : 'left'
-  ctx.textBaseline = settings.position.startsWith('top') ? 'top' : 'bottom'
-  ctx.fillText(settings.text, box.x, box.y)
+  if (text) {
+    ctx.fillStyle = onDark ? '#f4f5f7' : '#20252b'
+    ctx.font = `${watermarkBox(canvas, settings).fontSize}px -apple-system, system-ui, sans-serif`
+  }
+  // beside a picture the text has to be measured to find its place; alone it hangs on the corner and needs no width
+  const layout = watermarkLayout(canvas, settings, { image, textWidth: text ? (image ? ctx.measureText(text).width : 0) : null })
+  if (image && layout.image) {
+    const smoothing = ctx.imageSmoothingQuality
+    ctx.imageSmoothingQuality = 'high' // a logo is drawn much smaller than it is
+    ctx.drawImage(image.source, layout.image.x, layout.image.y, layout.image.width, layout.image.height)
+    ctx.imageSmoothingQuality = smoothing
+  }
+  if (text && layout.text) {
+    ctx.textAlign = layout.text.align
+    ctx.textBaseline = layout.text.baseline
+    ctx.fillText(text, layout.text.x, layout.text.y)
+  }
   ctx.globalAlpha = 1
+}
+
+/**
+ * Decodes the watermark picture — a PNG data URL from the settings — once, so that drawing it is synchronous. A picture
+ * the browser cannot read (cut short, corrupt, not a picture after all) comes back as `null`, never as an error: the
+ * watermark goes without it and its text still goes on (screenshot.md §5).
+ */
+export async function decodeWatermarkImage(dataUrl: string, doc: Document): Promise<WatermarkImage | null> {
+  const image = doc.createElement('img')
+  image.src = dataUrl
+  try {
+    await image.decode()
+  } catch {
+    return null
+  }
+  return image.naturalWidth > 0 && image.naturalHeight > 0 ? { source: image, width: image.naturalWidth, height: image.naturalHeight } : null
 }
 
 export type DownloadFormat = 'png' | 'jpeg' | 'webp'

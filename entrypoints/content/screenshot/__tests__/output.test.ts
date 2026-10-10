@@ -6,6 +6,7 @@ import {
   BEAUTIFY_BACKGROUNDS,
   composeGeometry,
   constrainToRatio,
+  decodeWatermarkImage,
   DEFAULT_BEAUTIFY,
   downloadExtension,
   downloadMime,
@@ -22,8 +23,11 @@ import {
   SIZE_LABEL_ROOM,
   ratioOf,
   watermarkBox,
+  watermarkLayout,
   type BeautifySettings,
   type Rect,
+  type WatermarkImage,
+  type WatermarkPosition,
 } from '../output'
 
 const VIEW = { width: 1280, height: 800 }
@@ -296,6 +300,242 @@ describe('the watermark ink (screenshot.md §4.3)', () => {
     const { ctx, log } = recordingContext()
     paintWatermark(ctx, { width: 1200, height: 600 }, { ...settings, text: '' }, false)
     expect(log).toEqual([])
+  })
+})
+
+describe('the watermark picture (screenshot.md §4.3, §5)', () => {
+  // 1200 × 600: the short edge is 600, so the margin is 12 px and the three text sizes are 17, 24 and 34 px
+  const canvas = { width: 1200, height: 600 }
+  /** a 2:1 picture, the way the session hands it over once it is decoded */
+  const picture: WatermarkImage = { source: {} as CanvasImageSource, width: 64, height: 32 }
+  const settings = { enabled: true, text: '@annhub', position: 'bottom-right', size: 'medium', opacity: 0.6 } as const
+
+  describe('layout', () => {
+    it('puts a picture alone against its corner, a margin in from both edges', () => {
+      const corner = (position: WatermarkPosition) => watermarkLayout(canvas, { position, size: 'medium' }, { image: picture, textWidth: null })
+      expect(corner('top-left')).toEqual({ image: { x: 12, y: 12, width: 72, height: 36 }, text: null })
+      expect(corner('top-right').image).toEqual({ x: 1116, y: 12, width: 72, height: 36 })
+      expect(corner('bottom-left').image).toEqual({ x: 12, y: 552, width: 72, height: 36 })
+      expect(corner('bottom-right').image).toEqual({ x: 1116, y: 552, width: 72, height: 36 })
+    })
+
+    it('sizes the picture by the same three tiers as the text, keeping its shape', () => {
+      const sized = (['small', 'medium', 'large'] as const).map(size => watermarkLayout(canvas, { position: 'bottom-right', size }, { image: picture, textWidth: null }).image!)
+      // a picture is one and a half text sizes tall, and the text is 17, 24 and 34 px
+      expect(sized.map(rect => rect.height)).toEqual([26, 36, 51])
+      expect(sized.map(rect => rect.width)).toEqual([52, 72, 102])
+    })
+
+    it('scales with the picture it is drawn on: the same tier is bigger on a bigger canvas', () => {
+      const big = watermarkLayout({ width: 2400, height: 1200 }, { position: 'bottom-right', size: 'medium' }, { image: picture, textWidth: null }).image
+      expect(big).toEqual({ x: 2232, y: 1104, width: 144, height: 72 })
+    })
+
+    it('sets the text after the picture, centred on it, when both share a left corner', () => {
+      const layout = watermarkLayout(canvas, { position: 'top-left', size: 'medium' }, { image: picture, textWidth: 100 })
+      expect(layout.image).toEqual({ x: 12, y: 12, width: 72, height: 36 })
+      // 72 px of picture and half a text size of room, then the text, level with the middle of the picture
+      expect(layout.text).toEqual({ x: 96, y: 30, align: 'left', baseline: 'middle' })
+    })
+
+    it('anchors the strip on a right corner by its far end: the text ends a margin from the edge, the picture comes before it', () => {
+      const layout = watermarkLayout(canvas, { position: 'bottom-right', size: 'medium' }, { image: picture, textWidth: 100 })
+      // 72 picture + 12 room + 100 text = 184 px, ending 12 px in from the right edge
+      expect(layout.image).toEqual({ x: 1004, y: 552, width: 72, height: 36 })
+      expect(layout.text).toEqual({ x: 1088, y: 570, align: 'left', baseline: 'middle' })
+      expect(layout.text!.x + 100).toBe(1188)
+      expect(layout.image!.x + layout.image!.width, 'the picture comes first').toBeLessThan(layout.text!.x)
+    })
+
+    it('leaves the text where it has always been when there is no picture', () => {
+      expect(watermarkLayout(canvas, { position: 'bottom-right', size: 'medium' }, { image: null, textWidth: 100 })).toEqual({
+        image: null,
+        text: { x: 1188, y: 588, align: 'right', baseline: 'bottom' },
+      })
+      expect(watermarkLayout(canvas, { position: 'top-left', size: 'medium' }, { image: null, textWidth: 100 })).toEqual({
+        image: null,
+        text: { x: 12, y: 12, align: 'left', baseline: 'top' },
+      })
+    })
+
+    it('has nothing to place without text and without a picture', () => {
+      expect(watermarkLayout(canvas, { position: 'top-left', size: 'small' }, { image: null, textWidth: null })).toEqual({ image: null, text: null })
+    })
+
+    it('does not let a very wide picture run across the canvas: it narrows, keeping its shape', () => {
+      const banner = watermarkLayout(canvas, { position: 'bottom-right', size: 'medium' }, { image: { width: 4000, height: 100 }, textWidth: null }).image!
+      expect(banner.width).toBe(480) // two fifths of the canvas
+      expect(banner.height).toBe(12) // 480 × 100 / 4000
+      expect(banner.x + banner.width).toBe(1188)
+    })
+
+    it('centres a picture and the text on each other even when the text is the taller of the two', () => {
+      const layout = watermarkLayout(canvas, { position: 'bottom-right', size: 'medium' }, { image: { width: 4000, height: 100 }, textWidth: 100 })
+      // 480 × 12 picture beside 24 px text: the strip is as tall as the text, the picture sits in the middle of it
+      expect(layout.image).toEqual({ x: 596, y: 570, width: 480, height: 12 })
+      expect(layout.text).toEqual({ x: 1088, y: 576, align: 'left', baseline: 'middle' })
+      expect(layout.image!.y + layout.image!.height / 2).toBe(layout.text!.y)
+    })
+
+    it('ignores a picture that has no size', () => {
+      expect(watermarkLayout(canvas, { position: 'bottom-right', size: 'medium' }, { image: { width: 0, height: 0 }, textWidth: 100 })).toEqual({
+        image: null,
+        text: { x: 1188, y: 588, align: 'right', baseline: 'bottom' },
+      })
+    })
+  })
+
+  describe('painting', () => {
+    /** A canvas context that remembers what was drawn and the state it was drawn in; the text measures `charWidth` px per character. */
+    function drawingContext(charWidth = 10) {
+      const state = { globalAlpha: 1, fillStyle: '#000000', font: '10px serif', textAlign: 'start', textBaseline: 'alphabetic' }
+      const draws: Array<
+        | { kind: 'picture'; source: unknown; x: number; y: number; width: number; height: number; alpha: number }
+        | { kind: 'text'; text: string; x: number; y: number; alpha: number; ink: string; font: string; align: string; baseline: string }
+      > = []
+      const ctx = Object.assign(state, {
+        measureText: (text: string) => ({ width: text.length * charWidth }),
+        drawImage: (source: unknown, x: number, y: number, width: number, height: number) => draws.push({ kind: 'picture', source, x, y, width, height, alpha: state.globalAlpha }),
+        fillText: (text: string, x: number, y: number) =>
+          draws.push({ kind: 'text', text, x, y, alpha: state.globalAlpha, ink: state.fillStyle, font: state.font, align: state.textAlign, baseline: state.textBaseline }),
+      })
+      return { ctx: ctx as unknown as CanvasRenderingContext2D, state, draws }
+    }
+
+    it('draws the picture and then the text after it, both at the watermark opacity, and gives the alpha back', () => {
+      const { ctx, state, draws } = drawingContext()
+      paintWatermark(ctx, canvas, settings, false, picture)
+      expect(draws.map(draw => draw.kind)).toEqual(['picture', 'text'])
+      // the text measures 70 px: 72 + 12 + 70 = 154 px of strip, ending 12 px in from the right edge
+      expect(draws[0]).toEqual({ kind: 'picture', source: picture.source, x: 1034, y: 552, width: 72, height: 36, alpha: 0.6 })
+      expect(draws[1]).toEqual({
+        kind: 'text',
+        text: '@annhub',
+        x: 1118,
+        y: 570,
+        alpha: 0.6,
+        ink: '#20252b',
+        font: '24px -apple-system, system-ui, sans-serif',
+        align: 'left',
+        baseline: 'middle',
+      })
+      expect(state.globalAlpha, 'the next thing drawn on this canvas is not faded').toBe(1)
+    })
+
+    it('draws a picture alone when there is no text', () => {
+      const { ctx, state, draws } = drawingContext()
+      paintWatermark(ctx, canvas, { ...settings, text: '' }, false, picture)
+      expect(draws).toEqual([{ kind: 'picture', source: picture.source, x: 1116, y: 552, width: 72, height: 36, alpha: 0.6 }])
+      expect(state.globalAlpha).toBe(1)
+    })
+
+    it('skips a picture that could not be read, and the text goes where text alone puts it', () => {
+      const { ctx, draws } = drawingContext()
+      paintWatermark(ctx, canvas, settings, false, null)
+      expect(draws).toEqual([
+        { kind: 'text', text: '@annhub', x: 1188, y: 588, alpha: 0.6, ink: '#20252b', font: '24px -apple-system, system-ui, sans-serif', align: 'right', baseline: 'bottom' },
+      ])
+      // not passing one at all is the same thing
+      const without = drawingContext()
+      paintWatermark(without.ctx, canvas, settings, false)
+      expect(without.draws).toEqual(draws)
+    })
+
+    it('draws nothing when there is neither text nor a picture', () => {
+      const { ctx, state, draws } = drawingContext()
+      paintWatermark(ctx, canvas, { ...settings, text: '' }, false, null)
+      expect(draws).toEqual([])
+      expect(state.globalAlpha).toBe(1)
+    })
+
+    it('takes the text ink from the background but never recolours the picture', () => {
+      const light = drawingContext()
+      const dark = drawingContext()
+      paintWatermark(light.ctx, canvas, settings, false, picture)
+      paintWatermark(dark.ctx, canvas, settings, true, picture)
+      const [lightPicture, lightText] = light.draws
+      const [darkPicture, darkText] = dark.draws
+      expect(lightText).toMatchObject({ ink: '#20252b' })
+      expect(darkText).toMatchObject({ ink: '#f4f5f7' })
+      expect(darkPicture, 'the picture is drawn as it is on a dark background').toEqual(lightPicture)
+    })
+
+    it('reaches the picture with every opacity the settings allow', () => {
+      for (const opacity of [0.2, 0.7, 1]) {
+        const { ctx, state, draws } = drawingContext()
+        paintWatermark(ctx, canvas, { ...settings, opacity }, false, picture)
+        expect(draws.map(draw => draw.alpha)).toEqual([opacity, opacity])
+        expect(state.globalAlpha).toBe(1)
+      }
+    })
+
+    it('anchors the picture and the text on each of the four corners, a margin in from the edges', () => {
+      for (const position of ['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const) {
+        const { ctx, draws } = drawingContext()
+        paintWatermark(ctx, canvas, { ...settings, position }, false, picture)
+        const [shown, text] = draws as [Extract<(typeof draws)[number], { kind: 'picture' }>, Extract<(typeof draws)[number], { kind: 'text' }>]
+        const textEnd = text.x + 70
+        if (position.endsWith('left')) expect(shown.x, `${position}: the picture starts at the margin`).toBe(12)
+        else expect(textEnd, `${position}: the text ends at the margin`).toBe(1200 - 12)
+        if (position.startsWith('top')) expect(shown.y, `${position}: the picture is a margin down`).toBe(12)
+        else expect(shown.y + shown.height, `${position}: the picture is a margin up`).toBe(600 - 12)
+        expect(shown.x + shown.width, `${position}: the picture comes first`).toBeLessThan(text.x)
+      }
+    })
+  })
+
+  describe('decoding', () => {
+    type Outcome = 'decodes' | 'fails' | 'decodes to no size'
+
+    /** An image the way the browser's behaves: `decode()` settles once the data URL is set, and refuses what it cannot decode. */
+    class FakeImage {
+      naturalWidth = 0
+      naturalHeight = 0
+      requested = ''
+      constructor(private readonly outcome: Outcome) {}
+      set src(value: string) {
+        this.requested = value
+      }
+      decode(): Promise<void> {
+        if (this.outcome === 'fails') return Promise.reject(new DOMException('The source image cannot be decoded.', 'EncodingError'))
+        if (this.outcome === 'decodes') {
+          this.naturalWidth = 64
+          this.naturalHeight = 32
+        }
+        return Promise.resolve()
+      }
+    }
+
+    function documentWhere(outcome: Outcome) {
+      const images: FakeImage[] = []
+      const doc = {
+        createElement: (tag: string) => {
+          expect(tag).toBe('img')
+          const image = new FakeImage(outcome)
+          images.push(image)
+          return image
+        },
+      } as unknown as Document
+      return { doc, images }
+    }
+
+    it('hands back the decoded picture with its natural size, ready to draw', async () => {
+      const { doc, images } = documentWhere('decodes')
+      const decoded = await decodeWatermarkImage('data:image/png;base64,AAAA', doc)
+      expect(decoded).toEqual({ source: images[0], width: 64, height: 32 })
+      expect(images).toHaveLength(1)
+      expect(images[0]!.requested).toBe('data:image/png;base64,AAAA')
+    })
+
+    it('hands back nothing for a picture the browser cannot decode, and does not throw', async () => {
+      const { doc } = documentWhere('fails')
+      await expect(decodeWatermarkImage('data:image/png;base64,AAAA', doc)).resolves.toBeNull()
+    })
+
+    it('hands back nothing for a picture that decoded to no size', async () => {
+      const { doc } = documentWhere('decodes to no size')
+      await expect(decodeWatermarkImage('data:image/png;base64,AAAA', doc)).resolves.toBeNull()
+    })
   })
 })
 
