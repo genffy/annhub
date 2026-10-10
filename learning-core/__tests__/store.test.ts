@@ -1,17 +1,23 @@
 import 'fake-indexeddb/auto'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { IDBPDatabase } from 'idb'
+import { openDB } from 'idb'
 import { EntryStore, QuotaError } from '../store'
+import { queryEntries, SEARCH_INDEX_VERSION } from '../query'
 import { EntryValidationError, type Highlight } from '../types'
 import { pngBlob } from './helpers'
 
 let store: EntryStore
+let dbName: string
 
 beforeEach(async () => {
   Object.defineProperty(globalThis, 'indexedDB', { value: new IDBFactory(), writable: true, configurable: true })
-  store = new EntryStore(`annhub-test-${Math.random().toString(36).slice(2)}`)
+  dbName = `annhub-test-${Math.random().toString(36).slice(2)}`
+  store = new EntryStore(dbName)
   await store.initialize()
 })
+
+afterEach(() => vi.restoreAllMocks())
 
 describe('registry bootstrap (storage.md §3)', () => {
   it('seeds the five built-in definitions exactly once', async () => {
@@ -20,7 +26,148 @@ describe('registry bootstrap (storage.md §3)', () => {
   })
 })
 
+describe('orphan asset cleanup (storage.md §7, RV-LIB-11)', () => {
+  it('removes an unreferenced asset but never a screenshot still using its asset', async () => {
+    const shot = await store.saveEntry({
+      type: 'screenshot',
+      content: '',
+      sourceUrl: 'https://example.com/shot',
+      properties: { title: 'Shot' },
+      asset: { bytes: pngBlob(16), width: 1, height: 1 },
+    })
+    const db = await openDB(dbName)
+    await db.put('assets', { metadata: { id: 'asset_orphan' }, bytes: pngBlob(16) }, 'asset_orphan')
+    db.close()
+    expect((await store.orphanReport()).unreferencedAssets).toContain('asset_orphan')
+    expect(await store.deleteOrphanAssets(['asset_orphan', shot.assetId!])).toEqual(['asset_orphan'])
+    expect(await store.getAsset('asset_orphan')).toBeUndefined()
+    expect(await store.getAsset(shot.assetId!)).toBeDefined()
+  })
+})
+
+describe('library facets (search.md §6, RV-LIB-18)', () => {
+  it('counts all entries and returns complete candidates without returning content', async () => {
+    const first = await store.saveEntry({
+      type: 'clip',
+      content: 'x'.repeat(50_000),
+      sourceUrl: 'https://first.example/a',
+      properties: { title: 'First', tags: ['alpha'] },
+    })
+    await store.addHighlight(first.id, { id: 'hl_first', start: 0, end: 3, quote: 'xxx', color: 'yellow', createdAt: Date.now() })
+    await store.saveEntry({
+      type: 'clip',
+      content: 'y'.repeat(50_000),
+      sourceUrl: 'https://second.example/b',
+      properties: { title: 'Second', tags: ['beta', 'alpha'] },
+    })
+    const facets = await store.libraryFacets()
+    expect(facets).toEqual({
+      counts: { all: 2, clips: 2, screenshots: 0, highlights: 1 },
+      hosts: ['first.example', 'second.example'],
+      tags: ['alpha', 'beta'],
+    })
+    expect(JSON.stringify(facets)).not.toContain('x'.repeat(100))
+  })
+})
+
+describe('indexed recent pages (search.md §6, RV-BG-04)', () => {
+  it('paginates equal timestamps by id without fetching the whole library', async () => {
+    for (let i = 119; i >= 0; i--) {
+      await store.saveEntry({
+        type: 'clip',
+        content: `Body ${i}`,
+        sourceUrl: `https://example.com/${i}`,
+        properties: { title: `Row ${i}` },
+        now: 1_000,
+      })
+    }
+    const registry = await store.listPropertyDefinitions()
+    const all = queryEntries(await store.listEntries(), registry, { limit: 120 })
+    const firstCandidates = await store.recentCandidates(50)
+    const first = queryEntries(firstCandidates.items, registry, { limit: 50 })
+    expect(firstCandidates.total).toBe(120)
+    expect(first.items.map(entry => entry.id)).toEqual(all.items.slice(0, 50).map(entry => entry.id))
+    const secondCandidates = await store.recentCandidates(50, first.nextCursor)
+    const second = queryEntries(secondCandidates.items, registry, { limit: 50 })
+    expect(second.items.map(entry => entry.id)).toEqual(all.items.slice(50, 100).map(entry => entry.id))
+  })
+})
+
+describe('derived search index lifecycle (RV-BG-04)', () => {
+  it('updates cached search fields after edits and highlight changes, and removes deleted entries', async () => {
+    const entry = await store.saveEntry({ type: 'clip', content: 'alpha body', sourceUrl: 'https://example.com/a', properties: { title: 'First title' } })
+    expect((await store.indexedQuery({ search: 'alpha' })).total).toBe(1)
+    await store.updateEntry(entry.id, { content: 'beta body', properties: { set: { title: 'Second title' } } })
+    expect((await store.indexedQuery({ search: 'alpha' })).total).toBe(0)
+    expect((await store.indexedQuery({ search: 'beta' })).total).toBe(1)
+    await store.addHighlight(entry.id, { id: 'hl_index', start: 0, end: 4, quote: 'beta', color: 'yellow', note: 'gamma note', createdAt: 1 })
+    expect((await store.indexedQuery({ search: 'gamma' })).total).toBe(1)
+    expect((await store.indexedHighlights({ search: 'gamma' })).total).toBe(1)
+    await store.removeHighlight(entry.id, 'hl_index')
+    expect((await store.indexedQuery({ search: 'gamma' })).total).toBe(0)
+    expect((await store.indexedHighlights({ search: 'gamma' })).total).toBe(0)
+    await store.deleteEntry(entry.id)
+    expect((await store.indexedQuery({ search: 'beta' })).total).toBe(0)
+  })
+
+  it('backfills a v1 library when opening the derived-index schema', async () => {
+    const name = `annhub-upgrade-${Math.random().toString(36).slice(2)}`
+    const old = await openDB(name, 1, {
+      upgrade(db) {
+        const entries = db.createObjectStore('entries', { keyPath: 'id' })
+        entries.createIndex('by-type', 'type')
+        entries.createIndex('by-host', 'sourceHost')
+        entries.createIndex('by-tag', 'properties.tags', { multiEntry: true })
+        entries.createIndex('by-created', 'createdAt')
+        db.createObjectStore('assets')
+        db.createObjectStore('properties')
+      },
+    })
+    await old.put('entries', {
+      id: 'ent_old',
+      type: 'clip',
+      content: 'legacy searchable text',
+      sourceUrl: 'https://example.com/old',
+      sourceHost: 'example.com',
+      properties: { title: 'Legacy' },
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    old.close()
+    const upgraded = new EntryStore(name)
+    await upgraded.initialize()
+    expect((await upgraded.indexedQuery({ search: 'legacy' })).items.map(entry => entry.id)).toEqual(['ent_old'])
+    await upgraded.close()
+  })
+})
+
 describe('saveEntry transactions (storage.md §5)', () => {
+  it('returns the existing entry when a stable save ID is retried', async () => {
+    const draft = { id: 'ent_retry_123', type: 'clip' as const, content: 'Stable save body', sourceUrl: 'https://example.com/retry', properties: { title: 'Retry' } }
+    const first = await store.saveEntry(draft)
+    const retried = await store.saveEntry(draft)
+    expect(retried).toEqual(first)
+    expect(await store.countEntries()).toBe(1)
+    await expect(store.saveEntry({ ...draft, content: 'Different body' })).rejects.toThrow(EntryValidationError)
+  })
+
+  it('does not create a second asset when a screenshot save ID is retried', async () => {
+    const draft = {
+      id: 'ent_retry_shot',
+      type: 'screenshot' as const,
+      content: '',
+      sourceUrl: 'https://example.com/shot',
+      properties: { title: 'Shot' },
+      asset: { bytes: pngBlob(16), width: 1, height: 1 },
+    }
+    const first = await store.saveEntry(draft)
+    const again = await store.saveEntry(draft)
+    expect(again.assetId).toBe(first.assetId)
+    const db = await openDB(dbName)
+    expect(await db.count('assets')).toBe(1)
+    db.close()
+  })
+
   it('saves a clip with its new property definitions in one transaction', async () => {
     const entry = await store.saveEntry({
       type: 'clip',
@@ -150,7 +297,7 @@ describe('updateEntry (entry.md §4.7, §6)', () => {
 })
 
 describe('highlight operations (storage.md §5, entry.md §4.6)', () => {
-  it('addHighlight merges overlaps: union range, stitched quote, joined notes', async () => {
+  it('addHighlight merges overlaps: union range, regenerated quote, joined notes', async () => {
     const entry = await store.saveEntry({ type: 'clip', content: 'Exponential backoff', sourceUrl: 'https://example.com/a', properties: { title: 'T' } })
     await store.addHighlight(entry.id, { id: 'hl_1', start: 0, end: 11, quote: 'Exponential', color: 'yellow', createdAt: 1 } satisfies Highlight)
     const merged = await store.addHighlight(entry.id, { id: 'hl_2', start: 5, end: 19, quote: 'ential backoff', color: 'green', note: 'second', createdAt: 2 } satisfies Highlight)
@@ -159,6 +306,22 @@ describe('highlight operations (storage.md §5, entry.md §4.6)', () => {
     expect(highlight).toMatchObject({ id: 'hl_1', color: 'yellow', start: 0, end: 19 })
     expect(highlight!.quote).toBe('Exponential backoff')
     expect(highlight!.note).toBe('second')
+  })
+
+  it.each([
+    ['new highlight inside old', [0, 26], [6, 10]],
+    ['new highlight contains old', [6, 10], [0, 26]],
+    ['partial overlap', [0, 16], [11, 26]],
+    ['identical range', [0, 26], [0, 26]],
+  ] as const)('regenerates the quote for %s (RV-CORE-09)', async (_label, first, second) => {
+    const content = 'alpha beta gamma delta epsilon zeta'
+    const entry = await store.saveEntry({ type: 'clip', content, sourceUrl: 'https://example.com/a', properties: { title: 'T' } })
+    await store.addHighlight(entry.id, { id: 'first', start: first[0], end: first[1], quote: content.slice(first[0], first[1]), color: 'yellow', createdAt: 1 })
+    const updated = await store.addHighlight(entry.id, { id: 'second', start: second[0], end: second[1], quote: content.slice(second[0], second[1]), color: 'green', createdAt: 2 })
+    expect(updated.highlights).toHaveLength(1)
+    const merged = updated.highlights![0]!
+    expect(merged).toMatchObject({ start: 0, end: 26, id: 'first', color: 'yellow' })
+    expect(merged.quote).toBe(content.slice(0, 26))
   })
 
   it('updateHighlight recolors and writes or clears a note', async () => {
@@ -349,5 +512,149 @@ describe('quota (storage.md §3)', () => {
       if (original) Object.defineProperty(navigator, 'storage', { configurable: true, value: { estimate: original } })
       else delete (navigator as { storage?: unknown }).storage
     }
+  })
+})
+
+describe('derived index (RV-BG-04, search.md §6)', () => {
+  const clip = (id: string, extra: Partial<Parameters<EntryStore['saveEntry']>[0]> = {}) => ({
+    id,
+    type: 'clip' as const,
+    content: `${id} body about retries`,
+    sourceUrl: `https://example.com/${id}`,
+    properties: { title: `Title ${id}`, tags: ['ops'] },
+    ...extra,
+  })
+
+  /** A new store over the same database: what a recycled service worker has. */
+  async function restarted(): Promise<EntryStore> {
+    await store.close()
+    const next = new EntryStore(dbName)
+    await next.initialize()
+    return next
+  }
+
+  /** How many times `method` ran against the named object store. */
+  function readsOf(storeName: string, method: 'openCursor' | 'getAll'): () => number {
+    const spy = vi.spyOn(IDBObjectStore.prototype, method)
+    return () => spy.mock.contexts.filter(context => (context as IDBObjectStore).name === storeName).length
+  }
+
+  beforeEach(async () => {
+    await store.saveEntry(clip('ent_a'))
+    await store.saveEntry(clip('ent_b'))
+  })
+
+  it('a restarted store trusts the index: no pass over the entries before a filtered query', async () => {
+    const next = await restarted()
+    const cursors = readsOf('entries', 'openCursor')
+    const everything = readsOf('entries', 'getAll')
+    const result = await next.indexedQuery({ tags: ['ops'] })
+    expect(result.items.map(entry => entry.id).sort()).toEqual(['ent_a', 'ent_b'])
+    expect(cursors()).toBe(0)
+    expect(everything()).toBe(0)
+  })
+
+  it('the text documents load once, and only for a query with search words', async () => {
+    const next = await restarted()
+    const loads = readsOf('searchText', 'getAll')
+    await next.indexedQuery({ tags: ['ops'] })
+    await next.indexedQuery({ types: ['clip'], hosts: ['example.com'] })
+    await next.indexedHighlights({})
+    await next.libraryFacets()
+    expect(loads()).toBe(0)
+    expect((await next.indexedQuery({ search: 'retries' })).total).toBe(2)
+    await next.indexedQuery({ search: 'ent_b' })
+    expect(loads()).toBe(1)
+  })
+
+  it('facets and property usage come from the summaries, never from the entries', async () => {
+    await store.saveEntry(clip('ent_c', { highlights: [{ id: 'hl_c', start: 0, end: 5, quote: 'ent_c', color: 'blue', createdAt: 1 }] }))
+    const next = await restarted()
+    const cursors = readsOf('entries', 'openCursor')
+    const everything = readsOf('entries', 'getAll')
+    expect(await next.libraryFacets()).toEqual({ counts: { all: 3, clips: 3, screenshots: 0, highlights: 1 }, hosts: ['example.com'], tags: ['ops'] })
+    expect((await next.propertyUsageCounts(['tags', 'title', 'project'])).tags).toBe(3)
+    expect((await next.propertyUsageCounts(['project'])).project).toBe(0)
+    expect(cursors()).toBe(0)
+    expect(everything()).toBe(0)
+  })
+
+  it('rebuilds from the entries when the derived documents are fewer than the entries', async () => {
+    const raw = await openDB(dbName)
+    await raw.delete('search', 'ent_a')
+    raw.close()
+    const next = await restarted()
+    const cursors = readsOf('entries', 'openCursor')
+    expect((await next.indexedQuery({ search: 'ent_a' })).items.map(entry => entry.id)).toEqual(['ent_a'])
+    expect(cursors()).toBeGreaterThan(0)
+    const after = await openDB(dbName)
+    expect(await after.count('search')).toBe(2)
+    expect(await after.count('searchText')).toBe(2)
+    after.close()
+  })
+
+  it('rebuilds when the documents were written in another shape', async () => {
+    const raw = await openDB(dbName)
+    const doc = await raw.get('search', 'ent_a')
+    await raw.put('search', { ...doc, version: SEARCH_INDEX_VERSION - 1 })
+    raw.close()
+    const next = await restarted()
+    expect((await next.indexedQuery({ tags: ['ops'] })).total).toBe(2)
+    const after = await openDB(dbName)
+    expect((await after.get('search', 'ent_a')).version).toBe(SEARCH_INDEX_VERSION)
+    after.close()
+  })
+
+  it('every write keeps the summary and the text document in step with the entry', async () => {
+    await store.updateEntry('ent_a', { note: 'uniqueNoteWord' })
+    await store.addHighlight('ent_a', { id: 'hl_1', start: 0, end: 5, quote: 'ent_a', color: 'yellow', createdAt: 1 })
+    const raw = await openDB(dbName)
+    expect(await raw.count('search')).toBe(await raw.count('entries'))
+    expect(await raw.count('searchText')).toBe(await raw.count('entries'))
+    const summary = await raw.get('search', 'ent_a')
+    expect(summary.summary.content).toBe('')
+    expect(summary.summary.highlights).toHaveLength(1)
+    expect(summary.version).toBe(SEARCH_INDEX_VERSION)
+    expect((await raw.get('searchText', 'ent_a')).fields.some((field: { normalized: string }) => field.normalized.includes('uniquenoteword'))).toBe(true)
+    await store.deleteEntry('ent_a')
+    expect(await raw.count('search')).toBe(1)
+    expect(await raw.count('searchText')).toBe(1)
+    raw.close()
+  })
+
+  it("replaces a v2 library's combined documents with the two stores and rebuilds them", async () => {
+    const name = `annhub-v2-${Math.random().toString(36).slice(2)}`
+    const old = await openDB(name, 2, {
+      upgrade(db) {
+        const entries = db.createObjectStore('entries', { keyPath: 'id' })
+        entries.createIndex('by-type', 'type')
+        entries.createIndex('by-host', 'sourceHost')
+        entries.createIndex('by-tag', 'properties.tags', { multiEntry: true })
+        entries.createIndex('by-created', 'createdAt')
+        db.createObjectStore('assets')
+        db.createObjectStore('properties')
+        db.createObjectStore('search', { keyPath: 'id' })
+      },
+    })
+    await old.put('entries', {
+      id: 'ent_v2',
+      type: 'clip',
+      content: 'second generation text',
+      sourceUrl: 'https://example.com/v2',
+      sourceHost: 'example.com',
+      properties: { title: 'V2' },
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    await old.put('search', { id: 'ent_v2', updatedAt: 1, summary: {}, fields: [] })
+    old.close()
+    const upgraded = new EntryStore(name)
+    await upgraded.initialize()
+    expect((await upgraded.indexedQuery({ search: 'second generation' })).items.map(entry => entry.id)).toEqual(['ent_v2'])
+    const raw = await openDB(name)
+    expect(raw.objectStoreNames.contains('searchText')).toBe(true)
+    expect((await raw.get('search', 'ent_v2')).version).toBe(SEARCH_INDEX_VERSION)
+    raw.close()
+    await upgraded.close()
   })
 })

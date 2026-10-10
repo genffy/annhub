@@ -93,19 +93,25 @@ export interface ImageAsset {
 
 // ── Stable error codes (entry.md §6) ────────────────────────────────────
 
-export type EntryErrorCode =
-  | 'ENTRY_TYPE_UNKNOWN'
-  | 'ENTRY_CONTENT_INVALID'
-  | 'ENTRY_CONTENT_LOCKED'
-  | 'ENTRY_SOURCE_INVALID'
-  | 'ENTRY_ASSET_MISSING'
-  | 'HIGHLIGHT_INVALID'
-  | 'HIGHLIGHT_LIMIT_EXCEEDED'
-  | 'PROPERTY_NAME_INVALID'
-  | 'PROPERTY_TYPE_MISMATCH'
-  | 'PROPERTY_VALUE_INVALID'
-  | 'PROPERTY_LIMIT_EXCEEDED'
-  | 'PROPERTY_IN_USE'
+export const ENTRY_ERROR_CODES = [
+  'ENTRY_TYPE_UNKNOWN',
+  'ENTRY_CONTENT_INVALID',
+  'ENTRY_CONTENT_LOCKED',
+  'ENTRY_SOURCE_INVALID',
+  'ENTRY_ASSET_MISSING',
+  'ENTRY_ASSET_TOO_LARGE',
+  'STORAGE_QUOTA_EXCEEDED',
+  'OPERATION_FAILED',
+  'HIGHLIGHT_INVALID',
+  'HIGHLIGHT_LIMIT_EXCEEDED',
+  'PROPERTY_NAME_INVALID',
+  'PROPERTY_TYPE_MISMATCH',
+  'PROPERTY_VALUE_INVALID',
+  'PROPERTY_LIMIT_EXCEEDED',
+  'PROPERTY_IN_USE',
+] as const
+
+export type EntryErrorCode = (typeof ENTRY_ERROR_CODES)[number]
 
 export class EntryValidationError extends Error {
   constructor(

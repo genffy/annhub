@@ -162,3 +162,48 @@ describe('highlight view (search.md §5)', () => {
     expect(queryHighlights([entry], TEST_REGISTRY, { tags: ['y'] }).total).toBe(0)
   })
 })
+
+describe('highlight query time and order (search.md §5, RV-CORE-05)', () => {
+  const day = 86_400_000
+  const clipAt = (createdAt: number, highlights: { at: number; quote?: string }[]) => {
+    const content = 'x'.repeat(40)
+    return {
+      id: `ent_${createdAt}`,
+      type: 'clip' as const,
+      content,
+      context: undefined,
+      sourceUrl: 'https://h.example/a',
+      sourceHost: 'h.example',
+      properties: { title: `T${createdAt}` },
+      createdAt,
+      updatedAt: createdAt,
+      highlights: highlights.map((item, index) => ({
+        id: `hl_${createdAt}_${index}`,
+        start: 0,
+        end: 4,
+        quote: item.quote ?? 'xxxx',
+        color: 'yellow' as const,
+        createdAt: item.at,
+      })),
+    }
+  }
+
+  it("filters highlights by their own createdAt, not the clip's", () => {
+    const clip = clipAt(100 * day, [{ at: 1 * day }, { at: 10 * day }])
+    const late = queryHighlights([clip], [], { createdFrom: 5 * day })
+    expect(late.groups[0]!.rows).toHaveLength(1)
+    expect(late.groups[0]!.rows[0]!.highlight.createdAt).toBe(10 * day)
+    const early = queryHighlights([clip], [], { createdTo: 5 * day })
+    expect(early.groups[0]!.rows[0]!.highlight.createdAt).toBe(1 * day)
+  })
+
+  it("group order follows the clip's newest highlight even when search keeps only older ones (D-24)", () => {
+    const a = clipAt(1, [{ at: 100 }, { at: 900 }])
+    const b = clipAt(2, [{ at: 500 }])
+    const result = queryHighlights([a, b], [], { search: 'xxxx' })
+    expect(result.groups.map(group => group.clip.id)).toEqual([a.id, b.id])
+    // keeping only the OLD highlight of a still leaves a's group first
+    const onlyOld = queryHighlights([a, b], [], { createdTo: 600 })
+    expect(onlyOld.groups.map(group => group.clip.id)).toEqual([a.id, b.id])
+  })
+})
