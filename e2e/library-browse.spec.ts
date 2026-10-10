@@ -186,6 +186,29 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await library.close()
   })
 
+  test('the clear-filters link sits under the no-results message and is centred with it (extension.md §5)', async ({ page, extensionId }) => {
+    const library = await page.context().newPage()
+    // an empty library is enough: any filter turns the empty answer into "no results"
+    for (const hash of ['#/clips?q=nosuchword', '#/highlights?color=blue']) {
+      await library.goto(`chrome-extension://${extensionId}/library.html${hash}`)
+      await library.reload()
+      await expect(library.getByRole('button', { name: '清除筛选' }), hash).toBeVisible()
+      const { message, link } = await library.evaluate(() => {
+        const empty = document.querySelector('.empty')!
+        const text = [...empty.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent?.trim())!
+        const range = document.createRange()
+        range.selectNodeContents(text)
+        const spoken = range.getBoundingClientRect()
+        const button = empty.querySelector('.link')!.getBoundingClientRect()
+        return { message: { left: spoken.left, right: spoken.right, bottom: spoken.bottom }, link: { left: button.left, right: button.right, top: button.top } }
+      })
+      // a block button with no auto margins hugs the left edge while the message above it is centred
+      expect(Math.abs((link.left + link.right) / 2 - (message.left + message.right) / 2), `${hash}: the link is centred under the message`).toBeLessThan(2)
+      expect(link.top, `${hash}: the link is on its own line below the message`).toBeGreaterThanOrEqual(message.bottom - 1)
+    }
+    await library.close()
+  })
+
   test('the highlights view tells "no highlights yet" from "no highlight matches", and clears its colour filter too (extension.md §2.3, §5)', async ({ page, extensionId }) => {
     await saveClips(page.context(), page, 1)
     const library = await page.context().newPage()

@@ -435,9 +435,10 @@ body {
   font-size: 13.5px;
 }
 
+/* its own line under the centred message; a block button hugs the left edge unless its side margins are auto */
 .empty .link {
   display: block;
-  margin-top: 10px;
+  margin: 10px auto 0;
 }
 
 /* the first answer is still on its way: quiet, so a slow query never reads as "nothing here" */
