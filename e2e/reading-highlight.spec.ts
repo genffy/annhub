@@ -22,20 +22,12 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     const reading = library.getByTestId('reading-view')
     await expect(reading).toBeVisible()
 
-    // select rendered text and create a highlight with the yellow dot
+    // select rendered text with a real double-click (the word under the pointer) and create a highlight with the yellow dot
     const surface = reading.locator('.md-view')
-    await surface.getByText('Retries can amplify an outage').first().click({ trial: true })
-    await library.evaluate(() => {
-      const el = Array.from(document.querySelectorAll('.md-view span[data-s]')).find(node => node.textContent?.includes('Retries can amplify'))
-      if (!el) throw new Error('run not found')
-      const range = document.createRange()
-      range.setStart(el.firstChild!, 0)
-      range.setEnd(el.firstChild!, 6)
-      const selection = window.getSelection()!
-      selection.removeAllRanges()
-      selection.addRange(range)
-      el.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 200, clientY: 200 }))
-    })
+    await surface
+      .locator('span[data-s]', { hasText: 'Retries can amplify' })
+      .first()
+      .dblclick({ position: { x: 10, y: 8 } })
     const toolbar = library.getByTestId('hl-toolbar')
     await expect(toolbar).toBeVisible()
     await toolbar.locator('.hl-dot-yellow').click()
@@ -67,11 +59,7 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     await expect(library.getByTestId('reading-view')).toBeVisible()
     await expect(library.getByTestId('reading-view').locator('.md-hl-green')).toHaveCount(1)
 
-    // Esc closes back to the list route that opened it
-    await library
-      .getByTestId('reading-view')
-      .locator('.md-view')
-      .click({ position: { x: 4, y: 4 } })
+    // Esc closes back to the list route that opened it (nothing is open inside the view: no popover, no toolbar)
     await library.keyboard.press('Escape')
     await expect(library.getByTestId('reading-view')).toHaveCount(0)
     await expect(library.locator('.row').first()).toBeVisible()
@@ -107,12 +95,9 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     await expect(library.getByTestId('reading-view')).toBeVisible()
 
     // export writes the mark back as ==…== (storage.md §6)
-    // export runs from the page context (a worker's message to itself does not loop back)
-    const zip = await library.evaluate(async () => {
-      const send = (globalThis as unknown as { chrome: { runtime: { sendMessage: (m: unknown) => Promise<unknown> } } }).chrome.runtime.sendMessage
-      return send({ type: 'EXPORT_ZIP', lang: 'zh', requestId: 't' }) as Promise<{ success: boolean; data?: { clips: number } }>
-    })
-    expect(zip).toMatchObject({ success: true, data: expect.objectContaining({ clips: 1 }) })
+    await library.getByTestId('reading-view').getByRole('button', { name: '关闭' }).click()
+    await library.locator('.nav-export').click()
+    await expect(library.locator('.nav-note').first()).toContainText('导出完成')
     const entries = await getEntries(library.context())
     expect(entries[0]!.highlights?.length).toBe(1)
     await library.close()
@@ -167,6 +152,54 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
         return (entries[0]!.highlights as { note?: string }[] | undefined)?.[0]?.note
       })
       .toBe('note with color')
+    await library.close()
+  })
+
+  test('Escape closes the highlight popover before the reading view and keeps its note (RV-LIB-08)', async ({ page, extensionId }) => {
+    await page.goto(getCapturePageUrl())
+    const menu = await selectUntilMenu(page, '#intro-p')
+    await menu.locator('.ann-menu-action').nth(0).click()
+    await waitForClipToast(page)
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
+    await library.locator('.row').first().click()
+    await library.getByTestId('drawer-read').click()
+    const reading = library.getByTestId('reading-view')
+    await reading.locator('.md-view span[data-s]').first().dblclick()
+    await library.getByTestId('hl-toolbar').locator('.hl-dot-yellow').click()
+    await reading.locator('.md-hl').first().click()
+    await library.getByTestId('hl-note-input').fill('Keep this note')
+    await library.getByTestId('hl-note-input').press('Escape')
+    await expect(library.getByTestId('hl-popover')).toHaveCount(0)
+    await expect(reading).toBeVisible()
+    await expect.poll(async () => ((await getEntries(library.context()))[0]?.highlights as Array<{ note?: string }> | undefined)?.[0]?.note).toBe('Keep this note')
+    await reading.press('Escape')
+    await expect(reading).toHaveCount(0)
+    await library.close()
+  })
+
+  test('the note action records has_note=true for a new highlight (RV-LIB-09)', async ({ page, extensionId }) => {
+    await page.goto(getCapturePageUrl())
+    const menu = await selectUntilMenu(page, '#intro-p')
+    await menu.locator('.ann-menu-action').first().click()
+    await waitForClipToast(page)
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
+    await library.locator('.row').first().click()
+    await library.getByTestId('drawer-read').click()
+    await library.getByTestId('reading-view').locator('.md-view span[data-s]').first().dblclick()
+    await library.getByTestId('hl-toolbar').getByRole('button', { name: '备注' }).click()
+    await expect(library.getByTestId('hl-popover')).toBeVisible()
+    await expect
+      .poll(() =>
+        library.evaluate(async () => {
+          const metrics = (await chrome.storage.local.get('annhub.metrics'))['annhub.metrics'] as Record<string, Record<string, { byProps: Record<string, number> }>>
+          return Object.values(metrics?.['highlight.created'] ?? {})
+            .flatMap(day => Object.keys(day.byProps))
+            .some(key => key.includes('has_note=true'))
+        }),
+      )
+      .toBe(true)
     await library.close()
   })
 
@@ -277,6 +310,199 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     const highlights = entries[0]!.highlights as Array<{ start: number; end: number }>
     expect(highlights).toHaveLength(1)
     expect(highlights[0]!.end - highlights[0]!.start).toBe(13)
+    await library.close()
+  })
+
+  test('real double-click keeps offsets after escaped characters (RV-LIB-14)', async ({ page, extensionId }) => {
+    const content = 'alpha beta \\* gamma delta \\* epsilon zeta \\* eta theta iota'
+    const sw = await ensureServiceWorker(page.context())
+    await sw.evaluate(
+      body =>
+        new Promise<void>(resolve => {
+          const open = indexedDB.open('annhub')
+          open.onsuccess = () => {
+            const tx = open.result.transaction('entries', 'readwrite')
+            tx.objectStore('entries').put({
+              id: 'ent_escape_rv_lib_14',
+              type: 'clip',
+              content: body,
+              sourceUrl: 'https://text.example/offsets',
+              sourceHost: 'text.example',
+              properties: { title: 'Escaped offsets' },
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            })
+            tx.oncomplete = () => resolve()
+          }
+        }),
+      content,
+    )
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/read/ent_escape_rv_lib_14`)
+    const reading = library.getByTestId('reading-view')
+    for (const word of ['gamma', 'epsilon', 'theta']) {
+      // the middle of the word itself, not of the run that holds it: a run's middle can fall on a neighbour
+      const center = await reading.locator('.md-view').evaluate((view, text) => {
+        const walker = document.createTreeWalker(view, NodeFilter.SHOW_TEXT)
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          const at = (node.textContent ?? '').indexOf(text)
+          if (at < 0) continue
+          const range = document.createRange()
+          range.setStart(node, at)
+          range.setEnd(node, at + text.length)
+          const box = range.getBoundingClientRect()
+          return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+        }
+        return null
+      }, word)
+      expect(center, `"${word}" is on screen`).not.toBeNull()
+      await library.mouse.dblclick(center!.x, center!.y)
+      await library.getByTestId('hl-toolbar').locator('.hl-dot-yellow').click()
+      await expect.poll(async () => (await getEntries(library.context()))[0]?.highlights?.length).toBe(['gamma', 'epsilon', 'theta'].indexOf(word) + 1)
+      const highlights = (await getEntries(library.context()))[0]!.highlights as Array<{ start: number; end: number; quote: string }>
+      const highlight = highlights.find(item => item.quote === word)!
+      expect(content.slice(highlight.start, highlight.end)).toBe(word)
+    }
+    await library.close()
+  })
+
+  test('a highlight made inside fenced code is drawn, survives a reload and can be removed (US-LIB-03)', async ({ page, extensionId }) => {
+    await page.goto(`chrome-extension://${extensionId}/sample.html`)
+    const content = 'Intro paragraph before the code.\n\n```js\nconst answer = 42\nconsole.log(answer)\n```\n\nOutro paragraph after the code.'
+    const saved = await page.evaluate(
+      body =>
+        chrome.runtime.sendMessage({
+          type: 'SAVE_CLIP',
+          requestId: 'r-code-hl',
+          draft: { id: 'ent_code_hl', content: body, sourceUrl: 'https://example.com/code', properties: { title: 'Code' }, via: 'menu' },
+        }),
+      content,
+    )
+    expect(saved.success).toBe(true)
+
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/read/ent_code_hl`)
+    const code = library.locator('.md-view pre code')
+    await expect(code).toBeVisible()
+    const box = (await code.boundingBox())!
+    // a real drag across the first words of the first code line
+    await library.mouse.move(box.x + 3, box.y + 8)
+    await library.mouse.down()
+    await library.mouse.move(box.x + 90, box.y + 8, { steps: 6 })
+    await library.mouse.up()
+    await library.getByTestId('hl-toolbar').locator('.hl-dot-yellow').click()
+
+    const mark = library.locator('.md-view pre .md-hl')
+    await expect(mark).toHaveCount(1)
+    expect((await getEntries(library.context())).find(entry => entry.id === 'ent_code_hl')?.highlights).toHaveLength(1)
+    // the code itself is untouched by the marks
+    await expect(code).toHaveText('const answer = 42\nconsole.log(answer)')
+
+    await library.reload()
+    await expect(library.locator('.md-view pre .md-hl')).toHaveCount(1)
+
+    await library.locator('.md-view pre .md-hl').first().click()
+    await library.getByTestId('hl-delete').click()
+    await expect(library.locator('.md-view pre .md-hl')).toHaveCount(0)
+    await expect.poll(async () => (await getEntries(library.context())).find(entry => entry.id === 'ent_code_hl')?.highlights?.length ?? 0).toBe(0)
+    await library.close()
+  })
+
+  /** Saves a clip through the message the content script uses, from an extension page. */
+  async function saveClip(page: import('@playwright/test').Page, extensionId: string, id: string, content: string): Promise<void> {
+    await page.goto(`chrome-extension://${extensionId}/sample.html`)
+    const saved = await page.evaluate(
+      payload =>
+        chrome.runtime.sendMessage({
+          type: 'SAVE_CLIP',
+          requestId: `r-${payload.id}`,
+          draft: { id: payload.id, content: payload.content, sourceUrl: `https://example.com/${payload.id}`, properties: { title: payload.id }, via: 'menu' },
+        }),
+      { id, content },
+    )
+    expect(saved.success).toBe(true)
+  }
+
+  test('a row of the highlights view opens the reading view at that highlight (US-LIB-03)', async ({ page, extensionId }) => {
+    const paragraphs = Array.from({ length: 70 }, (_, index) => `Paragraph ${index} ${'filler words to make the page long. '.repeat(6)}`)
+    const content = paragraphs.join('\n\n')
+    await saveClip(page, extensionId, 'ent_locate', content)
+    const start = content.indexOf('Paragraph 62')
+    const added = await page.evaluate(
+      range =>
+        chrome.runtime.sendMessage({
+          type: 'ADD_HIGHLIGHT',
+          id: 'ent_locate',
+          highlight: { id: 'hl_locate', start: range.start, end: range.end, quote: 'Paragraph 62', color: 'green', createdAt: Date.now() },
+        }),
+      { start, end: start + 'Paragraph 62'.length },
+    )
+    expect(added.success).toBe(true)
+
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/highlights`)
+    await library.locator('.hl-row').first().click()
+    await expect(library).toHaveURL(/#\/read\/ent_locate\?h=hl_locate/)
+    await expect(library.getByTestId('reading-view')).toBeVisible()
+    // the mark is on screen without any scrolling by the user
+    await expect(library.locator('[data-hl-id="hl_locate"]').first()).toBeInViewport()
+    // closing returns to the highlights view, and a plain reading link carries no anchor
+    await library.keyboard.press('Escape')
+    await expect(library.getByTestId('reading-view')).toHaveCount(0)
+    await expect(library).toHaveURL(/#\/highlights/)
+    await library.close()
+  })
+
+  test('a selection extended with the keyboard offers the toolbar; Escape dismisses it before the view; H highlights (US-LIB-03)', async ({ page, extensionId }) => {
+    await saveClip(page, extensionId, 'ent_keys', 'Alpha beta gamma delta epsilon zeta eta theta.')
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/read/ent_keys`)
+    const reading = library.getByTestId('reading-view')
+    // Chrome extends a selection with the arrow keys once one exists: start with the first word
+    await library
+      .locator('.md-view p span[data-s]')
+      .first()
+      .dblclick({ position: { x: 6, y: 8 } })
+    await expect(library.getByTestId('hl-toolbar')).toBeVisible()
+    // the first Escape closes the toolbar only, and the selection stays to be extended
+    await library.keyboard.press('Escape')
+    await expect(library.getByTestId('hl-toolbar')).toHaveCount(0)
+    await expect(reading).toBeVisible()
+    for (let i = 0; i < 6; i++) await library.keyboard.press('Shift+ArrowRight')
+    await expect(library.getByTestId('hl-toolbar')).toBeVisible()
+    // H creates the highlight from the extended selection
+    await library.keyboard.press('h')
+    await expect
+      .poll(async () => ((await getEntries(library.context())).find(entry => entry.id === 'ent_keys')?.highlights as Array<{ quote: string }> | undefined)?.[0]?.quote)
+      .toBe('Alpha beta')
+    // and the next Escape leaves the view
+    await library.keyboard.press('Escape')
+    await expect(reading).toHaveCount(0)
+    await library.close()
+  })
+
+  test('Escape closes a popover that was only opened, not the reading view with it (RV-LIB-08)', async ({ page, extensionId }) => {
+    await saveClip(page, extensionId, 'ent_pop', 'First paragraph with some words to mark.\n\nSecond paragraph.')
+    const added = await page.evaluate(() =>
+      chrome.runtime.sendMessage({
+        type: 'ADD_HIGHLIGHT',
+        id: 'ent_pop',
+        highlight: { id: 'hl_pop', start: 16, end: 26, quote: 'with some', color: 'yellow', createdAt: Date.now() },
+      }),
+    )
+    expect(added.success).toBe(true)
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/read/ent_pop`)
+    const mark = library.locator('.md-hl').first()
+    await mark.click()
+    await expect(library.getByTestId('hl-popover')).toBeVisible()
+    await library.keyboard.press('Escape')
+    await expect(library.getByTestId('hl-popover')).toHaveCount(0)
+    await expect(library.getByTestId('reading-view')).toBeVisible()
+    // focus is back on the mark it was opened from
+    await expect(library.locator('.md-hl-hit').first()).toBeFocused()
+    await library.keyboard.press('Escape')
+    await expect(library.getByTestId('reading-view')).toHaveCount(0)
     await library.close()
   })
 })

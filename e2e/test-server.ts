@@ -6,7 +6,6 @@ import { fileURLToPath } from 'url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const fixtureDir = __dirname // e2e/ — test HTML fixtures live here
-const projectRoot = path.join(__dirname, '..') // fallback for assets (images, etc.)
 const PORT = 8173
 
 const contentTypes: Record<string, string> = {
@@ -36,17 +35,15 @@ function resolveUnder(root: string, requestPath: string): string | undefined {
 const server = http.createServer((req, res) => {
   const requestPath = new URL(req.url ?? '/', 'http://localhost').pathname
   const url = requestPath === '/' ? '/test.html' : requestPath
-  // Try e2e/ first (fixtures), fall back to project root (assets); never anything outside them
+  // The server only exposes explicit fixture media from e2e/.
   const fixturePath = resolveUnder(fixtureDir, url)
-  const assetPath = resolveUnder(projectRoot, url)
-  const filePath = fixturePath && fs.existsSync(fixturePath) ? fixturePath : assetPath
-  if (!filePath) {
-    res.writeHead(403)
-    res.end('Forbidden')
+  if (!fixturePath || !Object.prototype.hasOwnProperty.call(contentTypes, path.extname(fixturePath))) {
+    res.writeHead(404)
+    res.end('Not Found')
     return
   }
-  const ext = path.extname(filePath)
-  fs.readFile(filePath, (err, data) => {
+  const ext = path.extname(fixturePath)
+  fs.readFile(fixturePath, (err, data) => {
     if (err) {
       res.writeHead(404)
       res.end('Not Found')
@@ -57,6 +54,6 @@ const server = http.createServer((req, res) => {
   })
 })
 
-server.listen(PORT, () => {
+server.listen(PORT, '127.0.0.1', () => {
   console.log(`[E2E] Test fixture server running on http://localhost:${PORT}`)
 })

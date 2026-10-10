@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { clearLibrary, ensureServiceWorker, getCapturePageUrl, getEntries, selectUntilMenu, waitForClipToast } from './helpers'
+import { clearLibrary, getCapturePageUrl, getEntries, selectUntilMenu, waitForClipToast } from './helpers'
 
 async function saveClipViaMenu(page: import('@playwright/test').Page, selector: string): Promise<void> {
   const menu = await selectUntilMenu(page, selector)
@@ -78,15 +78,17 @@ test.describe('the library page and the single export (extension.md §2.2, stora
       })
       .toBeUndefined()
 
-    // the single export command runs through chrome.downloads from the
-    // service worker (no page download event fires for it)
+    // The drawer is modal (its backdrop covers the navigation): close it, then export.
+    // The application page downloads a Blob URL; the archive is not sent
+    // through the service worker as a large base64 message.
+    await drawer.getByRole('button', { name: '关闭' }).click()
+    await expect(drawer).toHaveCount(0)
     await library.locator('.nav-export').click()
     await expect(library.locator('.nav-note').first()).toContainText('导出完成', { timeout: 20_000 })
     await expect
       .poll(async () => {
-        const sw = await ensureServiceWorker(library.context())
-        return sw.evaluate(() =>
-          chrome.downloads.search({ limit: 10 }).then(items => items.some(item => (item.filename ?? '').includes('AnnHub-export') || (item.url ?? '').startsWith('data:'))),
+        return library.evaluate(() =>
+          chrome.downloads.search({ limit: 10 }).then(items => items.some(item => (item.filename ?? '').includes('AnnHub-export') || (item.url ?? '').startsWith('blob:'))),
         )
       })
       .toBe(true)
@@ -101,6 +103,36 @@ test.describe('the library page and the single export (extension.md §2.2, stora
     await library.goto(`chrome-extension://${extensionId}/library.html#/all?q=lockstep`)
     await expect(library.locator('.search')).toHaveValue('lockstep')
     await expect(library.locator('.row')).toHaveCount(1)
+    await library.close()
+  })
+
+  test('a partial export lists the missing asset ID in the library (RV-LIB-12)', async ({ page, extensionId }) => {
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/screenshots`)
+    await library.evaluate(
+      () =>
+        new Promise<void>(resolve => {
+          const open = indexedDB.open('annhub')
+          open.onsuccess = () => {
+            const tx = open.result.transaction('entries', 'readwrite')
+            tx.objectStore('entries').put({
+              id: 'ent_missing_export',
+              type: 'screenshot',
+              content: '',
+              assetId: 'asset_missing_export',
+              sourceUrl: 'https://example.com/missing',
+              sourceHost: 'example.com',
+              properties: { title: 'Missing screenshot' },
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            })
+            tx.oncomplete = () => resolve()
+          }
+        }),
+    )
+    await library.reload()
+    await library.locator('.nav-export').click()
+    await expect(library.locator('.nav-note-warn')).toContainText('asset_missing_export')
     await library.close()
   })
 

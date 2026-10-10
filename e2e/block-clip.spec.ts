@@ -1,9 +1,25 @@
 import { test, expect } from './fixtures'
-import { clearLibrary, getCapturePageUrl, getEntries, getSettings, hoverForCapsule, triggerBlockMode, waitForClipToast } from './helpers'
+import { clearLibrary, ensureServiceWorker, getCapturePageUrl, getEntries, getSettings, hoverForCapsule, triggerBlockMode, waitForClipToast } from './helpers'
 
 test.describe('block clip (capture.md §6.2)', () => {
   test.beforeEach(async ({ context }) => {
     await clearLibrary(context)
+  })
+
+  test('keyboard block mode starts at focus and Tab visits peer units in document order (RV-CAP-08)', async ({ page }) => {
+    await page.goto('http://localhost:8173/keyboard-blocks.html')
+    await page.locator('#unit-two').focus()
+    await triggerBlockMode(page)
+    const status = page.locator('.ann-block-mode-status')
+    await expect(status).toHaveAttribute('role', 'status')
+    await expect(status).toContainText('Second unit')
+    await page.keyboard.press('Tab')
+    await expect(status).toContainText('Third unit')
+    await page.keyboard.press('Tab')
+    await expect(status).toContainText('First unit')
+    await page.keyboard.press('Shift+Tab')
+    await expect(status).toContainText('Third unit')
+    await page.keyboard.press('Escape')
   })
 
   test('hovering a paragraph clips its whole section with the heading and list', async ({ page }) => {
@@ -112,5 +128,42 @@ test.describe('block clip (capture.md §6.2)', () => {
 
     await page.waitForTimeout(800)
     await expect(page.locator('[data-ann-ui="block-capsule"]')).toHaveCount(0)
+  })
+
+  test('closing the block entry from the capsule disables the global setting (RV-CAP-08)', async ({ page }) => {
+    await page.goto(getCapturePageUrl())
+    const capsule = await hoverForCapsule(page, '[data-testid="section-body"]')
+    await capsule.getByRole('button', { name: '更多' }).click()
+    await page.locator('[data-ann-ui="block-more"]').getByRole('button', { name: '关闭区块剪藏入口' }).click()
+    await expect.poll(async () => (await getSettings(page.context())) as { blockEntryEnabled?: boolean }).toMatchObject({ blockEntryEnabled: false })
+    await expect(page.locator('[data-ann-ui="block-capsule"]')).toHaveCount(0)
+  })
+
+  test('resting on six blocks asks for the settings once, not twice per rest (RV-CAP-08)', async ({ page, context }) => {
+    test.slow()
+    const worker = await ensureServiceWorker(context)
+    await worker.evaluate(() => {
+      const counter = globalThis as unknown as { __settingsAsked?: number }
+      counter.__settingsAsked = 0
+      chrome.runtime.onMessage.addListener(message => {
+        if (message?.type === 'GET_SETTINGS') counter.__settingsAsked = (counter.__settingsAsked ?? 0) + 1
+        return false
+      })
+    })
+    await page.goto(getCapturePageUrl())
+    for (const selector of [
+      '[data-testid="section-body"]',
+      '#intro-p',
+      '[data-testid="code-card"]',
+      '#exponential-backoff li:nth-child(1)',
+      '#exponential-backoff li:nth-child(2)',
+      '#the-code h2',
+    ]) {
+      await page.locator(selector).first().hover()
+      await page.waitForTimeout(700)
+    }
+    const asked = await worker.evaluate(() => (globalThis as unknown as { __settingsAsked?: number }).__settingsAsked ?? 0)
+    // the page script asks once when it first needs the answer and listens for changes after that
+    expect(asked).toBeLessThanOrEqual(2)
   })
 })
