@@ -2,6 +2,7 @@ import { Logger } from '../utils/logger'
 import MessageUtils from '../utils/message'
 import type { BaseMessage, ResponseMessage } from '../types/messages'
 import { EXTENSION_PAGES, openExtensionPage } from '../utils/extension-pages'
+import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from './sender'
 
 export type SupportedServices = 'entries' | 'screenshot' | 'system'
 
@@ -27,7 +28,7 @@ export class ServiceManager {
   private static instance: ServiceManager
   private services: Map<string, IService> = new Map()
   private handlers: Record<string, MessageHandler> | null = null
-  private responseCache = new Map<string, ResponseMessage>()
+  private responseCache = new Map<string, Promise<ResponseMessage>>()
 
   private constructor() {}
 
@@ -83,21 +84,25 @@ export class ServiceManager {
     }
 
     const requestId = typeof message.requestId === 'string' ? message.requestId : ''
-    const cacheKey = requestId && IDEMPOTENT_TYPES.has(message.type) ? `${message.type}:${requestId}` : ''
+    const senderKey = `${sender.id ?? ''}:${sender.tab?.id ?? ''}:${sender.frameId ?? ''}:${sender.url ?? ''}`
+    const cacheKey = requestId && IDEMPOTENT_TYPES.has(message.type) ? `${senderKey}:${message.type}:${requestId}` : ''
     if (cacheKey && this.responseCache.has(cacheKey)) {
       return this.responseCache.get(cacheKey)!
     }
 
-    const response = await handler(message, sender)
-
-    if (cacheKey) {
-      this.responseCache.set(cacheKey, response)
-      if (this.responseCache.size > RESPONSE_CACHE_LIMIT) {
-        const oldest = this.responseCache.keys().next().value
-        if (oldest !== undefined) this.responseCache.delete(oldest)
-      }
+    const running = Promise.resolve().then(() => handler(message, sender))
+    if (!cacheKey) return running
+    this.responseCache.set(cacheKey, running)
+    if (this.responseCache.size > RESPONSE_CACHE_LIMIT) {
+      const oldest = this.responseCache.keys().next().value
+      if (oldest !== undefined) this.responseCache.delete(oldest)
     }
-    return response
+    try {
+      return await running
+    } catch (error) {
+      this.responseCache.delete(cacheKey)
+      throw error
+    }
   }
 
   private ensureHandlers(): Record<string, MessageHandler> {
@@ -121,7 +126,8 @@ export class ServiceManager {
    */
   private getNavigationHandlers(): Record<string, MessageHandler> {
     return {
-      OPEN_EXTENSION_PAGE: async (message): Promise<ResponseMessage> => {
+      OPEN_EXTENSION_PAGE: async (message, sender): Promise<ResponseMessage> => {
+        if (!isExtensionPageSender(sender) && !isSameOriginTabSender(sender)) return forbiddenResponse()
         if (!EXTENSION_PAGES.includes(message.page)) {
           return MessageUtils.createResponse(false, undefined, `Unknown extension page: ${String(message.page)}`)
         }

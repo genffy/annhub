@@ -10,7 +10,7 @@
 import type { EntryQuery, HighlightQuery } from '../learning-core/query'
 import type { MetricEventName, MetricEventProps } from '../learning-core/metrics'
 import type { Highlight, PropertyDefinition, PropertyValue } from '../learning-core/types'
-import type { ExtensionSettings } from '../background-service/settings-schema'
+import type { SettingsPatch } from '../background-service/settings-schema'
 
 export interface BaseMessage {
   type: string
@@ -33,6 +33,7 @@ export interface CaptureAttribution {
   levelChanged?: boolean
   truncated?: boolean
   durationMs?: number
+  startedAt?: number
   frame?: 'drag' | 'element' | 'reused'
 }
 
@@ -43,6 +44,7 @@ export type CaptureVia = CaptureAttribution['via']
 export interface SaveClipMessage extends BaseMessage {
   type: 'SAVE_CLIP'
   draft: {
+    id?: string
     content: string
     context?: string
     sourceUrl: string
@@ -55,6 +57,7 @@ export interface SaveClipMessage extends BaseMessage {
 export interface SaveScreenshotMessage extends BaseMessage {
   type: 'SAVE_SCREENSHOT'
   data: {
+    id?: string
     /** Wire format only; the store persists the decoded Blob (storage.md §3). */
     dataUrl: string
     width: number
@@ -125,6 +128,10 @@ export interface QueryHighlightsMessage extends BaseMessage {
   query: HighlightQuery
 }
 
+export interface QueryFacetsMessage extends BaseMessage {
+  type: 'QUERY_FACETS'
+}
+
 export interface GetEntryMessage extends BaseMessage {
   type: 'GET_ENTRY'
   id: string
@@ -137,6 +144,7 @@ export interface GetAssetDataUrlMessage extends BaseMessage {
 
 export interface ListPropertiesMessage extends BaseMessage {
   type: 'LIST_PROPERTIES'
+  includeUsage?: boolean
 }
 
 export interface UpsertPropertyMessage extends BaseMessage {
@@ -174,6 +182,8 @@ export interface DownloadImageMessage extends BaseMessage {
   dataUrl: string
   /** File extension for the chosen format (png/jpg/webp); defaults to png. */
   extension?: string
+  watermark?: boolean
+  beautify?: boolean
 }
 
 // ── Settings, metrics, housekeeping ─────────────────────────────────────
@@ -184,7 +194,12 @@ export interface GetSettingsMessage extends BaseMessage {
 
 export interface SetSettingsMessage extends BaseMessage {
   type: 'SET_SETTINGS'
-  patch: Partial<ExtensionSettings>
+  patch?: SettingsPatch
+  appendDisabledSite?: string
+}
+
+export interface DisableBlockEntryMessage extends BaseMessage {
+  type: 'DISABLE_BLOCK_ENTRY'
 }
 
 export interface RecordEventMessage extends BaseMessage {
@@ -208,7 +223,7 @@ export interface OrphanReportMessage extends BaseMessage {
 export interface OpenExtensionPageMessage extends BaseMessage {
   type: 'OPEN_EXTENSION_PAGE'
   page: 'library' | 'settings'
-  params?: { view?: string; export?: '1' }
+  params?: { view?: string; export?: '1'; entryId?: string }
 }
 
 export type ExtensionMessage =
@@ -222,6 +237,7 @@ export type ExtensionMessage =
   | RestoreHighlightMessage
   | QueryEntriesMessage
   | QueryHighlightsMessage
+  | QueryFacetsMessage
   | GetEntryMessage
   | GetAssetDataUrlMessage
   | ListPropertiesMessage
@@ -234,6 +250,7 @@ export type ExtensionMessage =
   | DownloadImageMessage
   | GetSettingsMessage
   | SetSettingsMessage
+  | DisableBlockEntryMessage
   | RecordEventMessage
   | GetMetricsMessage
   | UsageEstimateMessage

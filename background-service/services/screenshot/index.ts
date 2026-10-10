@@ -6,7 +6,7 @@
  */
 import type { IService } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
-import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
+import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender, rememberCapture } from '../../sender'
 import { RESOURCE_TIMEOUT_MS, assertFetchableUrl, readImage } from './fetch-policy'
 import { initializedEntryStore } from '../../store-instance'
 import { presetProperties } from '../../../learning-core/properties'
@@ -14,6 +14,9 @@ import { cleanSourceUrl } from '../../../learning-core/url'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
 import { recordCaptureSaved, recordCaptureFailed, recordEvent } from '../metrics/record'
+import { EntryValidationError } from '../../../learning-core/types'
+import { storageErrorCode } from '../errors'
+import { CaptureError } from './capture-error'
 
 export class ScreenshotService implements IService {
   readonly name = 'screenshot' as const
@@ -60,8 +63,14 @@ export class ScreenshotService implements IService {
         try {
           const iso = new Date().toISOString().replace(/[:.]/g, '-')
           const extension = message.extension ?? 'png'
+          if (extension !== 'png' && extension !== 'jpg' && extension !== 'webp') throw new EntryValidationError('ENTRY_ASSET_MISSING')
+          decodeImageDataUrl(message.dataUrl, extension === 'jpg' ? 'jpeg' : extension)
           const downloadId = await this.downloadDataUrl(message.dataUrl, `AnnHub/screenshot-${iso}.${extension}`)
-          await recordEvent('screenshot.downloaded', { format: extension === 'jpg' ? 'jpeg' : extension, watermark: false, beautify: false })
+          await recordEvent('screenshot.downloaded', {
+            format: extension === 'jpg' ? 'jpeg' : extension,
+            watermark: message.watermark === true,
+            beautify: message.beautify === true,
+          })
           return MessageUtils.createResponse(true, { downloadId })
         } catch (error) {
           return this.failure('downloadImage', error)
@@ -71,19 +80,27 @@ export class ScreenshotService implements IService {
       SAVE_SCREENSHOT: async (message, sender): Promise<ResponseMessage> => {
         if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
         try {
+          const { id, dataUrl, sourceUrl, title, via, frame, durationMs, startedAt } = message.data
+          const { bytes, width, height } = decodePngDataUrl(dataUrl)
+          const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'image/png' })
           const store = await initializedEntryStore()
-          const { dataUrl, width, height, sourceUrl, title, via, frame, durationMs } = message.data
-          const blob = dataUrlToBlob(dataUrl)
           const registry = await store.listPropertyDefinitions()
           const started = performance.now()
           const entry = await store.saveEntry({
+            id,
             type: 'screenshot',
             content: '',
             sourceUrl: cleanSourceUrl(sourceUrl),
             properties: presetProperties('screenshot', registry, { title }),
             asset: { bytes: blob, width, height },
           })
-          await recordCaptureSaved({ type: 'screenshot', via, frame, durationMs: durationMs ?? performance.now() - started })
+          await recordCaptureSaved({
+            type: 'screenshot',
+            via,
+            frame,
+            durationMs: typeof startedAt === 'number' && startedAt > 0 ? Math.max(0, Date.now() - startedAt) : (durationMs ?? performance.now() - started),
+          })
+          await rememberCapture(sender, entry.id)
           return MessageUtils.createResponse(true, { entry })
         } catch (error) {
           void recordCaptureFailed(error, 'screenshot')
@@ -97,10 +114,11 @@ export class ScreenshotService implements IService {
     return this.initialized
   }
 
+  /** Always answers with a stable code (never a raw browser message); the detail goes to the log only. */
   private failure(where: string, error: unknown): ResponseMessage {
-    const detail = error instanceof Error ? error.message : String(error)
-    Logger.error(`[ScreenshotService] ${where} failed:`, detail)
-    return MessageUtils.createResponse(false, undefined, detail)
+    const code = error instanceof CaptureError ? error.code : where === 'fetchImage' ? 'IMAGE_FETCH_FAILED' : storageErrorCode(error)
+    Logger.error(`[ScreenshotService] ${where} failed:`, code, error instanceof Error ? error.message : '')
+    return MessageUtils.createResponse(false, undefined, code)
   }
 
   /**
@@ -109,7 +127,7 @@ export class ScreenshotService implements IService {
    * switched away mid-shot never hands back another page.
    */
   private async captureSenderTab(sender: chrome.runtime.MessageSender): Promise<string> {
-    const notVisible = () => new Error('only the visible tab can be captured')
+    const notVisible = () => new CaptureError('CAPTURE_NOT_VISIBLE', 'only the visible tab can be captured')
     if (!isTopFrameTabSender(sender)) throw notVisible()
     const tabId = sender.tab!.id!
     const before = await chrome.tabs.get(tabId)
@@ -135,7 +153,7 @@ export class ScreenshotService implements IService {
       chrome.downloads.download({ url: dataUrl, filename, saveAs: false }, downloadId => {
         const error = chrome.runtime.lastError
         if (error || downloadId === undefined) {
-          reject(new Error(error?.message || 'download failed'))
+          reject(new CaptureError('DOWNLOAD_FAILED', error?.message || 'download failed'))
           return
         }
         resolve(downloadId)
@@ -150,7 +168,7 @@ function captureWindow(windowId: number): Promise<string> {
     chrome.tabs.captureVisibleTab(windowId, { format: 'png' }, dataUrl => {
       const error = chrome.runtime.lastError
       if (error || !dataUrl) {
-        reject(new Error(error?.message || 'captureVisibleTab returned no image'))
+        reject(new CaptureError('CAPTURE_FAILED', error?.message || 'captureVisibleTab returned no image'))
         return
       }
       resolve(dataUrl)
@@ -167,11 +185,31 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   })
 }
 
-function dataUrlToBlob(dataUrl: string): Blob {
-  const [meta, base64] = dataUrl.split(',')
-  const mime = /data:([^;]+)/.exec(meta ?? '')?.[1] ?? 'image/png'
-  const binary = atob(base64 ?? '')
+function decodeImageDataUrl(dataUrl: unknown, expectedMime: 'png' | 'jpeg' | 'webp'): Uint8Array {
+  if (typeof dataUrl !== 'string') throw new EntryValidationError('ENTRY_ASSET_MISSING')
+  const match = /^data:image\/(png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl)
+  if (!match || match[1] !== expectedMime || match[2]!.length % 4 !== 0) throw new EntryValidationError('ENTRY_ASSET_MISSING')
+  let binary: string
+  try {
+    binary = atob(match[2]!)
+  } catch {
+    throw new EntryValidationError('ENTRY_ASSET_MISSING')
+  }
   const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return new Blob([bytes], { type: mime })
+  const png = bytes.length >= 8 && [137, 80, 78, 71, 13, 10, 26, 10].every((value, index) => bytes[index] === value)
+  const jpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+  const webp = bytes.length >= 12 && String.fromCharCode(...bytes.slice(0, 4)) === 'RIFF' && String.fromCharCode(...bytes.slice(8, 12)) === 'WEBP'
+  if ((expectedMime === 'png' && !png) || (expectedMime === 'jpeg' && !jpeg) || (expectedMime === 'webp' && !webp)) throw new EntryValidationError('ENTRY_ASSET_MISSING')
+  return bytes
+}
+
+function decodePngDataUrl(dataUrl: unknown): { bytes: Uint8Array; width: number; height: number } {
+  const bytes = decodeImageDataUrl(dataUrl, 'png')
+  if (bytes.length < 24 || String.fromCharCode(...bytes.slice(12, 16)) !== 'IHDR') throw new EntryValidationError('ENTRY_ASSET_MISSING')
+  const view = new DataView(bytes.buffer)
+  const width = view.getUint32(16)
+  const height = view.getUint32(20)
+  if (width === 0 || height === 0) throw new EntryValidationError('ENTRY_ASSET_MISSING')
+  return { bytes, width, height }
 }

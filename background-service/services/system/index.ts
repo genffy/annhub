@@ -4,14 +4,14 @@
  */
 import type { IService } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
-import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
-import { readSettings, writeSettings } from '../../settings-schema'
+import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from '../../sender'
+import { addDisabledSite, readSettings, writeSettings } from '../../settings-schema'
 import { metricsSnapshot, recordEvent } from '../metrics/record'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
 
 function trustedSender(sender: chrome.runtime.MessageSender): boolean {
-  return isExtensionPageSender(sender) || isTopFrameTabSender(sender)
+  return isExtensionPageSender(sender) || isSameOriginTabSender(sender)
 }
 
 export class SystemService implements IService {
@@ -39,11 +39,25 @@ export class SystemService implements IService {
 
       SET_SETTINGS: async (message, sender): Promise<ResponseMessage> => {
         if (!trustedSender(sender)) return forbiddenResponse()
-        // Disabling the hover entry for a site comes from the capsule's menu on that page;
-        // the rest of the preferences change on the settings page only, but the write
-        // discipline is the same: a top-frame sender or an extension page.
-        const settings = await writeSettings(message.patch)
-        return MessageUtils.createResponse(true, settings)
+        try {
+          if (!isExtensionPageSender(sender)) {
+            if (message.patch !== undefined || typeof message.appendDisabledSite !== 'string') return forbiddenResponse()
+            return MessageUtils.createResponse(true, await addDisabledSite(message.appendDisabledSite))
+          }
+          if (message.patch === undefined || message.appendDisabledSite !== undefined) return MessageUtils.createResponse(false, undefined, 'SETTINGS_INVALID')
+          return MessageUtils.createResponse(true, await writeSettings(message.patch))
+        } catch {
+          return MessageUtils.createResponse(false, undefined, 'SETTINGS_INVALID')
+        }
+      },
+
+      DISABLE_BLOCK_ENTRY: async (_message, sender): Promise<ResponseMessage> => {
+        if (!trustedSender(sender)) return forbiddenResponse()
+        try {
+          return MessageUtils.createResponse(true, await writeSettings({ blockEntryEnabled: false }))
+        } catch {
+          return MessageUtils.createResponse(false, undefined, 'SETTINGS_INVALID')
+        }
       },
 
       RECORD_EVENT: async (message, sender): Promise<ResponseMessage> => {

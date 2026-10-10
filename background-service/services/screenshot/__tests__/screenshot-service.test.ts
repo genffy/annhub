@@ -14,6 +14,7 @@ const runtime: { id: string; getURL: (path: string) => string; lastError?: { mes
 }
 ;(globalThis as any).chrome = { runtime, tabs, downloads }
 
+import { Logger } from '../../../../utils/logger'
 import { ScreenshotService } from '../index'
 
 const handlers = ScreenshotService.getInstance().getMessageHandlers()
@@ -40,6 +41,7 @@ describe('CAPTURE_VISIBLE_TAB', () => {
     tabs.get.mockResolvedValue({ id: 7, windowId: 42, active: false })
     const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
     expect(response.success).toBe(false)
+    expect(response.error).toBe('CAPTURE_NOT_VISIBLE')
     expect(response.data).toBeUndefined()
     expect(tabs.captureVisibleTab).not.toHaveBeenCalled()
   })
@@ -48,7 +50,7 @@ describe('CAPTURE_VISIBLE_TAB', () => {
     tabs.get.mockResolvedValueOnce({ id: 7, windowId: 42, active: true }).mockResolvedValueOnce({ id: 7, windowId: 42, active: false })
     const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
     expect(tabs.captureVisibleTab).toHaveBeenCalledTimes(1)
-    expect(response.success).toBe(false)
+    expect(response).toMatchObject({ success: false, error: 'CAPTURE_NOT_VISIBLE' })
     expect(response.data).toBeUndefined()
   })
 
@@ -59,10 +61,12 @@ describe('CAPTURE_VISIBLE_TAB', () => {
   ])('refuses %s', async (_label, sender) => {
     const response = await handlers.CAPTURE_VISIBLE_TAB!({}, sender)
     expect(response.success).toBe(false)
+    // a code the page can localize — never an English sentence that would reach the user
+    expect(response.error).toBe('CAPTURE_NOT_VISIBLE')
     expect(tabs.captureVisibleTab).not.toHaveBeenCalled()
   })
 
-  it('reports a capture the browser refused, with what it said', async () => {
+  it('answers a capture the browser refused with a stable code, and keeps what it said in the log', async () => {
     tabs.get.mockResolvedValue({ id: 7, windowId: 42, active: true })
     tabs.captureVisibleTab.mockImplementation((_windowId: number, _options: unknown, callback: (dataUrl?: string) => void) => {
       runtime.lastError = { message: 'Cannot access contents of the page.' }
@@ -70,7 +74,9 @@ describe('CAPTURE_VISIBLE_TAB', () => {
       runtime.lastError = undefined
     })
     const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
-    expect(response).toMatchObject({ success: false, error: 'Cannot access contents of the page.' })
+    expect(response).toMatchObject({ success: false, error: 'CAPTURE_FAILED' })
+    expect(JSON.stringify(response)).not.toContain('Cannot access')
+    expect(Logger.error).toHaveBeenCalledWith(expect.any(String), 'CAPTURE_FAILED', 'Cannot access contents of the page.')
   })
 })
 
@@ -138,12 +144,47 @@ describe('FETCH_IMAGE', () => {
 
   it('reports an HTTP error without returning a body', async () => {
     fetchMock.mockResolvedValue(new Response('nope', { status: 404, headers: { 'content-type': 'image/png' } }))
-    expect(await ask('https://cdn.example.com/missing.png')).toMatchObject({ success: false, error: 'fetch failed: 404' })
+    expect(await ask('https://cdn.example.com/missing.png')).toMatchObject({ success: false, error: 'IMAGE_FETCH_FAILED' })
+    expect(Logger.error).toHaveBeenCalledWith(expect.any(String), 'IMAGE_FETCH_FAILED', 'fetch failed: 404')
   })
 
   it('serves a content script in a tab only', async () => {
     const response = await ask('https://cdn.example.com/a.png', library)
     expect(response.success).toBe(false)
     expect(fetchMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('image message validation (RV-BG-02)', () => {
+  it('rejects a download with an unsupported extension or mismatched bytes', async () => {
+    downloads.download.mockReset()
+    downloads.download.mockImplementation((_options, callback) => callback(1))
+    const sender = page({ id: 7, windowId: 42 })
+    const badExtension = await handlers.DOWNLOAD_IMAGE!({ dataUrl: 'data:image/png;base64,AAAA', extension: 'html' }, sender)
+    const badBytes = await handlers.DOWNLOAD_IMAGE!({ dataUrl: 'data:image/png;base64,AAAA', extension: 'png' }, sender)
+    expect(badExtension.success).toBe(false)
+    expect(badBytes.success).toBe(false)
+    expect(downloads.download).not.toHaveBeenCalled()
+  })
+
+  it('answers a download the browser refused with a stable code, not its message', async () => {
+    const png = `data:image/png;base64,${btoa(String.fromCharCode(137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 0))}`
+    downloads.download.mockReset()
+    downloads.download.mockImplementation((_options, callback) => {
+      runtime.lastError = { message: 'Download canceled by the user' }
+      callback(undefined)
+      runtime.lastError = undefined
+    })
+    const response = await handlers.DOWNLOAD_IMAGE!({ dataUrl: png, extension: 'png' }, page({ id: 7, windowId: 42 }))
+    expect(response).toMatchObject({ success: false, error: 'DOWNLOAD_FAILED' })
+    expect(JSON.stringify(response)).not.toContain('canceled')
+  })
+
+  it('rejects empty and non-PNG screenshot bytes before storage', async () => {
+    const sender = page({ id: 7, windowId: 42 })
+    for (const dataUrl of ['data:image/png;base64,', 'data:image/jpeg;base64,AAAA', 'data:image/png;base64,AAAA']) {
+      const response = await handlers.SAVE_SCREENSHOT!({ data: { dataUrl, width: 1, height: 1, sourceUrl: 'https://page.example/a', title: 'Shot', via: 'menu' } }, sender)
+      expect(response).toMatchObject({ success: false, error: 'ENTRY_ASSET_MISSING' })
+    }
   })
 })

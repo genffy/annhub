@@ -61,12 +61,12 @@ annhub/
 │   │   ├── markdown.ts          # DOM→Markdown 转换（唯一实现）
 │   │   ├── blocks.ts            # 七种区块识别
 │   │   └── screenshot/          # 区域/元素截图与匿名处理
-│   ├── library/                 # 资料库页面（查看、搜索、导出）
+│   ├── library/                 # 资料库页面（浏览、阅读与高亮、属性、设置；导出的 ZIP 在这里构造）
 │   ├── options/                 # 设置页
 │   └── popup/                   # 工具栏弹窗兜底入口
 ├── background-service/
 │   └── services/
-│       ├── entries/             # 条目/属性/导出消息门面
+│       ├── entries/             # 条目/属性/高亮/查询消息门面
 │       ├── screenshot/          # 截取、跨域代取、下载
 │       └── system/              # 偏好与本地指标
 ├── learning-core/               # 共享领域核心，纯 TypeScript
