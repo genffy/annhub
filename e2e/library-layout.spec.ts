@@ -34,27 +34,44 @@ const WIDE_TABLE_CLIP = [
   `| ${Array.from({ length: 8 }, (_, index) => `unbreakable-cell-value-${index}`).join(' | ')} |`,
 ].join('\n')
 
+/** Headings at the levels the renderer emits (`#` is an h2, `##` an h3, `###` an h4), each with a paragraph to measure against. */
+const HEADINGS_CLIP = [
+  '# Level one',
+  '',
+  'Paragraph under level one.',
+  '',
+  '## Level two',
+  '',
+  'Paragraph under level two.',
+  '',
+  '### Level three',
+  '',
+  'Paragraph under level three.',
+].join('\n')
+
 /** An extension page can send the same messages the library does; the seeded entries are real saves. */
+async function send(page: Page, message: Record<string, unknown>): Promise<void> {
+  const response = await page.evaluate(payload => chrome.runtime.sendMessage(payload), message)
+  expect(response?.success, `${String(message.type)}: ${response?.error}`).toBe(true)
+}
+
+/** Leaves `page` on an extension page, so a test can send one more message of its own. */
 async function seed(page: Page, extensionId: string, settings: Record<string, unknown> = {}): Promise<void> {
   await clearLibrary(page.context())
   await page.goto(`chrome-extension://${extensionId}/sample.html`)
-  const send = async (message: Record<string, unknown>) => {
-    const response = await page.evaluate(payload => chrome.runtime.sendMessage(payload), message)
-    expect(response?.success, `${String(message.type)}: ${response?.error}`).toBe(true)
-  }
   const clips: Array<[string, string, string]> = [
     ['ent_layout_table', 'Retries and backpressure', TABLE_CLIP],
     ['ent_layout_wide', 'Wide table', WIDE_TABLE_CLIP],
     ['ent_layout_plain', 'Exponential backoff with jitter', 'Jitter spreads retries so clients do not stampede.'],
   ]
   for (const [index, [id, title, content]] of clips.entries()) {
-    await send({
+    await send(page, {
       type: 'SAVE_CLIP',
       requestId: `r-layout-${index}`,
       draft: { id, content, sourceUrl: `https://engineering.example.com/${index}`, properties: { title }, via: 'menu' },
     })
   }
-  await send({ type: 'SET_SETTINGS', requestId: 'r-layout-settings', patch: settings })
+  await send(page, { type: 'SET_SETTINGS', requestId: 'r-layout-settings', patch: settings })
 }
 
 /** WCAG contrast of each element's text colour against the first painted background behind it. */
@@ -300,6 +317,66 @@ test.describe('Markdown tables (RV-LIB-09)', () => {
       expect(fit.bodyOverflow, `the drawer scrolls sideways at ${width}px`).toBeLessThanOrEqual(1)
       expect(fit.tableOverflow, `the table is what scrolls at ${width}px`).toBeGreaterThan(0)
       expect(fit.tableRight, `the table stays inside the drawer at ${width}px`).toBeLessThanOrEqual(fit.bodyRight + 1)
+    }
+    await library.close()
+  })
+})
+
+test.describe('Markdown headings in the drawer (extension.md §4.2)', () => {
+  test('a heading in the drawer looks like the same heading in the reading view, not like a section label', async ({ page, extensionId }) => {
+    await seed(page, extensionId)
+    await send(page, {
+      type: 'SAVE_CLIP',
+      requestId: 'r-layout-headings',
+      draft: { id: 'ent_layout_headings', content: HEADINGS_CLIP, sourceUrl: 'https://engineering.example.com/headings', properties: { title: 'Headings' }, via: 'menu' },
+    })
+    const library = await page.context().newPage()
+    await library.setViewportSize({ width: 1180, height: 800 })
+
+    /** Each heading's size, weight and colour against the first paragraph of the same rendered Markdown. */
+    const measure = async (route: string, container: string) => {
+      await library.goto(`chrome-extension://${extensionId}/library.html${route}`)
+      await library.reload()
+      await expect(library.locator(`${container} .md-view h3`)).toBeVisible()
+      return library.evaluate(selector => {
+        const view = document.querySelector(`${selector} .md-view`)!
+        const paragraph = getComputedStyle(view.querySelector('p')!)
+        const bodySize = parseFloat(paragraph.fontSize)
+        const heading = (tag: string) => {
+          const style = getComputedStyle(view.querySelector(tag)!)
+          return { ratio: parseFloat(style.fontSize) / bodySize, weight: Number(style.fontWeight), sameColourAsText: style.color === paragraph.color }
+        }
+        const labels = [...document.querySelectorAll('.drawer-section > h3')].map(label => {
+          const style = getComputedStyle(label)
+          return { text: label.textContent, ratio: parseFloat(style.fontSize) / bodySize, sameColourAsText: style.color === paragraph.color }
+        })
+        return { h2: heading('h2'), h3: heading('h3'), h4: heading('h4'), labels }
+      }, container)
+    }
+
+    for (const scheme of ['light', 'dark'] as const) {
+      await library.emulateMedia({ colorScheme: scheme })
+      const drawer = await measure('#/all?e=ent_layout_headings', '.drawer')
+      const ratios = await textContrast(library.locator('.drawer .md-view :is(h2, h3, h4)'))
+      expect(Math.min(...ratios), `heading contrast in the drawer (${scheme})`).toBeGreaterThanOrEqual(4.5)
+      const reading = await measure('#/read/ent_layout_headings', '[data-testid="reading-view"]')
+
+      for (const level of ['h2', 'h3', 'h4'] as const) {
+        // the drawer renders the same component as the reading view: a heading keeps its place against the text under it
+        expect(drawer[level].ratio, `${level} against its paragraph, drawer vs reading view (${scheme})`).toBeCloseTo(reading[level].ratio, 1)
+        expect(drawer[level].weight, `${level} weight in the drawer (${scheme})`).toBeGreaterThanOrEqual(600)
+        expect(drawer[level].sameColourAsText, `${level} is in the text colour, not a muted label colour (${scheme})`).toBe(true)
+      }
+      // `#` and `##` are real headings: bigger than the paragraph they introduce, the `#` one the biggest
+      expect(drawer.h3.ratio, `a ## heading is bigger than its paragraph (${scheme})`).toBeGreaterThan(1)
+      expect(drawer.h2.ratio, `a # heading is bigger than a ## heading (${scheme})`).toBeGreaterThan(drawer.h3.ratio)
+
+      // the drawer's own section titles are the small muted labels, and stay so
+      expect(drawer.labels.length, 'the drawer has its own section titles').toBeGreaterThanOrEqual(2)
+      for (const label of drawer.labels) {
+        expect(label.ratio, `"${label.text}" is smaller than the text (${scheme})`).toBeLessThan(1)
+        expect(label.sameColourAsText, `"${label.text}" is muted (${scheme})`).toBe(false)
+      }
     }
     await library.close()
   })
