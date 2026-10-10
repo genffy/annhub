@@ -29,6 +29,7 @@ const GOOD_FILES: Record<string, string> = {
   'website/postcss.config.js': 'module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }\n',
   'website/README.md': 'Built with Next.js 16, React 19 and next-intl 4.\n',
   'website/public/privacy-policy.html': '<html></html>\n',
+  'website/lib/site.ts': "export const ANALYTICS_TOKEN = process.env.NEXT_PUBLIC_CF_BEACON_TOKEN ?? ''\n",
   'netlify.toml': `[build]
   base = "website"
   command = "npm run build"
@@ -45,6 +46,9 @@ const GOOD_FILES: Record<string, string> = {
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
+
+[context.production.environment]
+  NEXT_PUBLIC_CF_BEACON_TOKEN = ""
 `,
   '.github/dependabot.yml': `version: 2
 updates:
@@ -249,6 +253,31 @@ describe('check-consistency', () => {
     it('catches a NODE_VERSION that is missing or differs from .node-version', () => {
       expectFailure({ 'netlify.toml': edit('netlify.toml', 'NODE_VERSION = "24"', 'NODE_VERSION = "22"') }, 'NODE_VERSION "22" does not match .node-version (24)')
       expectFailure({ 'netlify.toml': edit('netlify.toml', '[build.environment]\n  NODE_VERSION = "24"\n', '') }, 'NODE_VERSION is not set')
+    })
+
+    it('catches a NEXT_PUBLIC_ variable the site reads but production is not given', () => {
+      expectFailure(
+        { 'netlify.toml': edit('netlify.toml', '\n[context.production.environment]\n  NEXT_PUBLIC_CF_BEACON_TOKEN = ""\n', '') },
+        'website/lib/site.ts: reads NEXT_PUBLIC_CF_BEACON_TOKEN, which netlify.toml sets neither',
+      )
+    })
+
+    it('catches a NEXT_PUBLIC_ variable renamed on one side only', () => {
+      expectFailure(
+        { 'website/lib/site.ts': edit('website/lib/site.ts', 'NEXT_PUBLIC_CF_BEACON_TOKEN', 'NEXT_PUBLIC_ANALYTICS_TOKEN') },
+        'reads NEXT_PUBLIC_ANALYTICS_TOKEN, which netlify.toml sets neither',
+        'sets NEXT_PUBLIC_CF_BEACON_TOKEN, but nothing in /website reads process.env.NEXT_PUBLIC_CF_BEACON_TOKEN',
+      )
+    })
+
+    it('accepts a NEXT_PUBLIC_ variable from [build.environment]', () => {
+      const { status, output } = check({
+        'netlify.toml': edit('netlify.toml', '\n[context.production.environment]\n  NEXT_PUBLIC_CF_BEACON_TOKEN = ""\n', '').replace(
+          'NODE_VERSION = "24"',
+          'NODE_VERSION = "24"\n  NEXT_PUBLIC_CF_BEACON_TOKEN = ""',
+        ),
+      })
+      expect(status, output).toBe(0)
     })
 
     it('catches a redirect to a static page that does not exist', () => {
