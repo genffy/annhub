@@ -40,6 +40,7 @@ import {
   composeGeometry,
   constrainToRatio,
   constrainToRatioValue,
+  decodeWatermarkImage,
   DEFAULT_BEAUTIFY,
   downloadExtension,
   downloadMime,
@@ -52,6 +53,7 @@ import {
   ratioOf,
   type BeautifySettings,
   type DownloadFormat,
+  type WatermarkImage,
 } from './output'
 import { createBeautifyPanel, type BeautifyPanel } from './beautify-panel'
 import {
@@ -142,6 +144,8 @@ class ScreenshotSession {
   private ratio = 'free'
   private ratioBarEl: HTMLDivElement | null = null
   private watermarkOn = true
+  /** The watermark picture, decoded once when the settings arrive so that drawing it is synchronous; `null` without one, or when the browser could not read it. */
+  private watermarkImage: WatermarkImage | null = null
   private beautify: BeautifySettings = { ...DEFAULT_BEAUTIFY }
   private beautifyPanel: BeautifyPanel | null = null
   /** where the beautify panel is while it is open; it stays there as long as that place is free */
@@ -315,6 +319,7 @@ class ScreenshotSession {
     const response = await MessageUtils.sendMessage<ExtensionSettings>({ type: 'GET_SETTINGS' })
     if (!response.success || !response.data) return
     this.settings = response.data
+    if (response.data.watermark.enabled && response.data.watermark.image) void this.loadWatermarkImage(response.data.watermark.image)
     if (this.state === 'selecting') {
       this.anonymizeOn = response.data.anonymizeDefault
       this.watermarkOn = response.data.watermark.enabled
@@ -323,6 +328,17 @@ class ScreenshotSession {
       this.showRatioBar()
       this.restoreRememberedFrame()
     }
+  }
+
+  /**
+   * Decodes the watermark picture, once per session. A preview that is already up gets it as soon as it is ready; a picture
+   * the browser cannot read stays `null` and the text is written without it (screenshot.md §5).
+   */
+  private async loadWatermarkImage(dataUrl: string): Promise<void> {
+    const image = await decodeWatermarkImage(dataUrl, this.doc)
+    if (this.exited) return
+    this.watermarkImage = image
+    if (image && this.state === 'preview') this.refreshDisplay()
   }
 
   private syncHint(): void {
@@ -397,6 +413,7 @@ class ScreenshotSession {
     this.toolbarEl = null
     this.ratioBarEl = null
     this.beautifyPanel = null
+    this.watermarkImage = null
     this.displayCanvas = null
     this.croppedCanvas = null
     this.sourceCanvas = null
@@ -1150,7 +1167,7 @@ class ScreenshotSession {
     this.contentOrigin = geometry ? { x: geometry.content.x, y: geometry.content.y } : { x: 0, y: 0 }
     const watermark = this.settings?.watermark
     if (watermark?.enabled && this.watermarkOn) {
-      paintWatermark(ctx, display, watermark, geometry !== null && !BEAUTIFY_BACKGROUNDS[this.beautify.background].light)
+      paintWatermark(ctx, display, watermark, geometry !== null && !BEAUTIFY_BACKGROUNDS[this.beautify.background].light, this.watermarkImage)
     }
     this.layout()
   }
