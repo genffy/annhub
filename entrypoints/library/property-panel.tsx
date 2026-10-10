@@ -6,12 +6,12 @@
  * an unknown name asks for its type first and registers in the same write.
  * System fields show read-only; `type` and `id` are not properties at all.
  */
-import { useEffect, useMemo, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
 import type { EntryRecord, PropertyDefinition, PropertyType, PropertyValue } from '../../learning-core/types'
-import { normalizeTags, PROPERTY_LIST_ITEM_MAX, PROPERTY_LIST_ITEMS_MAX } from '../../learning-core/properties'
+import { normalizeTags, PROPERTY_LIST_ITEM_MAX, PROPERTY_LIST_ITEMS_MAX, PROPERTY_TEXT_MAX, TAG_LENGTH_MAX, TAGS_MAX } from '../../learning-core/properties'
 import { PROPERTY_TYPES } from '../../learning-core/types'
-import { uiText } from '../../utils/ui-text'
+import { entryErrorText, uiText } from '../../utils/ui-text'
 
 const TYPE_ICON: Record<PropertyType, string> = { text: '𝐓', list: '≔', number: '#', checkbox: '☑', date: '📅', datetime: '🕰' }
 
@@ -21,32 +21,60 @@ interface Props {
   onEntryChanged(entry: EntryRecord): void
 }
 
-export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
+export interface PropertyPanelHandle {
+  flush(): Promise<boolean>
+}
+
+interface EditorHandle {
+  flush(): Promise<boolean>
+}
+
+export const PropertyPanel = forwardRef<PropertyPanelHandle, Props>(function PropertyPanel({ entry, registry, onEntryChanged }, ref) {
   const [adding, setAdding] = useState<{ name: string; type: PropertyType } | null>(null)
   const [pending, setPending] = useState<{ name: string; type: PropertyType } | null>(null)
   const [error, setError] = useState('')
+  const editors = useRef(new Map<string, EditorHandle>())
+
+  useImperativeHandle(ref, () => ({
+    flush: async () => {
+      for (const editor of [...editors.current.values()]) if (!(await editor.flush())) return false
+      return true
+    },
+  }))
 
   const byKey = useMemo(() => new Map(registry.map(def => [def.name.toLowerCase(), def] as const)), [registry])
 
   /** Sends a field-level properties patch; resolves false on failure so the draft can stay. */
   async function persist(patch: { set?: Record<string, PropertyValue>; unset?: string[]; newDefinitions?: PropertyDefinition[] }): Promise<boolean> {
+    const value = Object.values(patch.set ?? {})[0]
+    if (typeof value === 'string' && value.length > PROPERTY_TEXT_MAX) {
+      setError(uiText('property.error.textTooLong', { limit: PROPERTY_TEXT_MAX, excess: value.length - PROPERTY_TEXT_MAX }))
+      return false
+    }
+    if (patch.unset?.includes('title')) {
+      setError(uiText('property.error.titleRequired'))
+      return false
+    }
     const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({
       type: 'UPDATE_ENTRY',
       id: entry.id,
       patch: { properties: patch },
     })
     if (!response.success || !response.data?.entry) {
-      setError(errorText(response.error))
+      setError(entryErrorText(response.error))
       return false
     }
     setError('')
     onEntryChanged(response.data.entry)
-    const definition = patch.newDefinitions?.[0]
-    void MessageUtils.sendMessage({
-      type: 'RECORD_EVENT',
-      name: 'entry.property_edited',
-      props: { scope: definition ? 'custom' : 'builtin', property_type: definition?.type ?? 'text' },
-    })
+    const editedName = Object.keys(patch.set ?? {})[0] ?? patch.unset?.[0] ?? patch.newDefinitions?.[0]?.name
+    const definition = patch.newDefinitions?.[0] ?? (editedName ? byKey.get(editedName.toLowerCase()) : undefined)
+    if (patch.set || patch.unset) {
+      void MessageUtils.sendMessage({
+        type: 'RECORD_EVENT',
+        name: 'entry.property_edited',
+        props: { scope: definition?.builtin ? 'builtin' : 'custom', property_type: definition?.type ?? 'text' },
+      })
+    }
     return true
   }
 
@@ -57,7 +85,7 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
     return persist({ set: { [name]: value } })
   }
 
-  const addProperty = (name: string, type: PropertyType) => {
+  const addProperty = async (name: string, type: PropertyType): Promise<void> => {
     const trimmed = name.trim()
     if (!trimmed) return
     const existing = byKey.get(trimmed.toLowerCase())
@@ -68,17 +96,22 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
       return
     }
     // the definition registers now; the row waits for its first real value
-    void persist({ newDefinitions: [{ name: trimmed, type, builtin: false, presets: [] }] })
+    const saved = await persist({ newDefinitions: [{ name: trimmed, type, builtin: false, presets: [] }] })
+    if (!saved) return
     setPending({ name: trimmed, type })
     setAdding(null)
   }
 
-  const commitPending = (value: PropertyValue | undefined): void => {
+  const commitPending = async (value: PropertyValue | undefined): Promise<boolean> => {
     const row = pending
-    setPending(null)
-    if (row && value !== undefined && value !== '' && !(Array.isArray(value) && value.length === 0)) {
-      void persist({ set: { [row.name]: value } })
+    if (!row) return true
+    if (value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) {
+      setPending(null)
+      return true
     }
+    const ok = await persist({ set: { [row.name]: value } })
+    if (ok) setPending(null)
+    return ok
   }
 
   const names = Object.keys(entry.properties)
@@ -88,23 +121,44 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
       {names.map(name => {
         const def = byKey.get(name.toLowerCase())
         const type = def?.type ?? 'text'
+        const inputId = `property-${entry.id}-${encodeURIComponent(name)}`
         return (
-          <label key={name} className="prop-row">
-            <span className="prop-name" title={type}>
+          <div key={name} className="prop-row">
+            <label className="prop-name" title={type} htmlFor={inputId}>
               <span aria-hidden>{TYPE_ICON[type]}</span> {name}
-            </span>
-            <DraftEditor type={type} value={entry.properties[name]} listLimit={def?.name === 'tags' ? 'tags' : 'list'} onCommit={value => setValue(name, value)} />
-          </label>
+            </label>
+            <DraftEditor
+              ref={handle => {
+                if (handle) editors.current.set(name, handle)
+                else editors.current.delete(name)
+              }}
+              inputId={inputId}
+              name={name}
+              type={type}
+              value={entry.properties[name]}
+              listLimit={def?.name === 'tags' ? 'tags' : 'list'}
+              onCommit={value => setValue(name, value)}
+            />
+          </div>
         )
       })}
 
       {pending && (
-        <label className="prop-row" data-testid="prop-row-pending">
-          <span className="prop-name" title={pending.type}>
+        <div className="prop-row" data-testid="prop-row-pending">
+          <label className="prop-name" title={pending.type} htmlFor={`property-${entry.id}-pending`}>
             <span aria-hidden>{TYPE_ICON[pending.type]}</span> {pending.name}
-          </span>
-          <PendingEditor type={pending.type} autoFocus onCommit={commitPending} />
-        </label>
+          </label>
+          <PendingEditor
+            ref={handle => {
+              if (handle) editors.current.set('__pending', handle)
+              else editors.current.delete('__pending')
+            }}
+            inputId={`property-${entry.id}-pending`}
+            type={pending.type}
+            autoFocus
+            onCommit={commitPending}
+          />
+        </div>
       )}
 
       {adding ? (
@@ -148,17 +202,24 @@ export function PropertyPanel({ entry, registry, onEntryChanged }: Props) {
         ))}
       </datalist>
 
-      <p className="drawer-system">
-        {uiText('library.backToSource')}:{' '}
-        <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer">
-          {entry.sourceHost}
-        </a>{' '}
-        · {new Date(entry.createdAt).toLocaleDateString()}
-      </p>
+      <dl className="drawer-system">
+        <dt>{uiText('property.type')}</dt>
+        <dd>{uiText(entry.type === 'clip' ? 'library.clips' : 'library.screenshots')}</dd>
+        <dt>{uiText('property.system.source')}</dt>
+        <dd>
+          <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer">
+            {entry.sourceHost}
+          </a>
+        </dd>
+        <dt>{uiText('property.system.created')}</dt>
+        <dd>{new Date(entry.createdAt).toLocaleString()}</dd>
+        <dt>{uiText('property.system.updated')}</dt>
+        <dd>{new Date(entry.updatedAt).toLocaleString()}</dd>
+      </dl>
       {error && <p className="warn">{error}</p>}
     </div>
   )
-}
+})
 
 function normalizeListItems(items: string[], limit: 'tags' | 'list' | undefined): string[] {
   if (limit === 'list') {
@@ -179,21 +240,50 @@ function normalizeListItems(items: string[], limit: 'tags' | 'list' | undefined)
   return normalizeTags(items) // tags: 20 items, 1-32 chars each
 }
 
-function ValueEditor({
-  type,
-  value,
-  onChange,
-  autoFocus,
-  listLimit,
-}: {
-  type: PropertyType
-  value: PropertyValue | undefined
-  onChange(value: PropertyValue | undefined): void
-  autoFocus?: boolean
-  listLimit?: 'tags' | 'list'
-}) {
+interface ValueEditorHandle {
+  flushInput(): boolean
+}
+
+const ValueEditor = forwardRef<
+  ValueEditorHandle,
+  {
+    inputId: string
+    type: PropertyType
+    value: PropertyValue | undefined
+    onChange(value: PropertyValue | undefined): void
+    onListEnter?(): void
+    autoFocus?: boolean
+    listLimit?: 'tags' | 'list'
+  }
+>(function ValueEditor({ inputId, type, value, onChange, onListEnter, autoFocus, listLimit }, ref) {
+  const [listInput, setListInput] = useState('')
+  const listInputRef = useRef('')
+  const [listError, setListError] = useState('')
+  const appendInput = (): boolean => {
+    if (type !== 'list') return true
+    const added = listInputRef.current.trim()
+    if (!added) return true
+    const limit = listLimit === 'tags' ? TAG_LENGTH_MAX : PROPERTY_LIST_ITEM_MAX
+    const maxItems = listLimit === 'tags' ? TAGS_MAX : PROPERTY_LIST_ITEMS_MAX
+    if (added.length > limit) {
+      setListError(uiText('property.error.listItemTooLong', { limit, excess: added.length - limit }))
+      return false
+    }
+    const items = Array.isArray(value) ? value : []
+    if (items.length >= maxItems && !items.some(item => item.toLowerCase() === added.toLowerCase())) {
+      setListError(uiText('property.error.listTooMany', { limit: maxItems }))
+      return false
+    }
+    onChange(normalizeListItems([...items, added], listLimit))
+    listInputRef.current = ''
+    setListInput('')
+    setListError('')
+    return true
+  }
+  useImperativeHandle(ref, () => ({ flushInput: appendInput }))
+
   if (type === 'checkbox') {
-    return <input type="checkbox" checked={value === true} onChange={event => onChange(event.target.checked ? true : undefined)} />
+    return <input id={inputId} type="checkbox" checked={value === true} onChange={event => onChange(event.target.checked ? true : undefined)} />
   }
   if (type === 'list') {
     const items = Array.isArray(value) ? value : []
@@ -220,38 +310,61 @@ function ValueEditor({
           </span>
         ))}
         <input
+          id={inputId}
           type="text"
           placeholder={uiText('property.addItem')}
           aria-label={uiText('property.addItem')}
+          value={listInput}
+          onChange={event => {
+            listInputRef.current = event.target.value
+            setListInput(event.target.value)
+            setListError('')
+          }}
+          onBlur={() => {
+            appendInput()
+          }}
           onKeyDown={event => {
             if (event.key !== 'Enter') return
             event.preventDefault()
-            const added = (event.target as HTMLInputElement).value.trim()
-            if (added) onChange(normalizeListItems([...items, added], listLimit))
-            ;(event.target as HTMLInputElement).value = ''
+            event.stopPropagation()
+            if (appendInput()) onListEnter?.()
           }}
         />
+        {listError && (
+          <span className="warn" role="alert">
+            {listError}
+          </span>
+        )}
       </span>
     )
   }
   if (type === 'date') {
-    return <input type="date" autoFocus={autoFocus} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value || undefined)} />
+    return <input id={inputId} type="date" autoFocus={autoFocus} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value || undefined)} />
   }
   if (type === 'datetime') {
-    return <input type="datetime-local" autoFocus={autoFocus} value={typeof value === 'string' ? value : ''} onChange={event => onChange(datetimeToStored(event.target.value))} />
+    return (
+      <input
+        id={inputId}
+        type="datetime-local"
+        autoFocus={autoFocus}
+        value={typeof value === 'string' ? value : ''}
+        onChange={event => onChange(datetimeToStored(event.target.value))}
+      />
+    )
   }
   if (type === 'number') {
     return (
       <input
         type="number"
+        id={inputId}
         autoFocus={autoFocus}
         value={typeof value === 'number' ? value : ''}
         onChange={event => onChange(event.target.value === '' ? undefined : Number(event.target.value))}
       />
     )
   }
-  return <input type="text" autoFocus={autoFocus} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value || undefined)} />
-}
+  return <input id={inputId} type="text" autoFocus={autoFocus} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value || undefined)} />
+})
 
 /** datetime-local gives minutes; the stored format needs seconds (entry.md §5.2). */
 function datetimeToStored(value: string): string | undefined {
@@ -264,93 +377,126 @@ function datetimeToStored(value: string): string | undefined {
  * value is kept locally and committed once — on blur, Enter or (for
  * checkbox) the flip. An empty commit drops the row without writing.
  */
-function PendingEditor({ type, autoFocus, onCommit }: { type: PropertyType; autoFocus?: boolean; onCommit(value: PropertyValue | undefined): void }) {
-  const [draft, setDraft] = useState<PropertyValue | undefined>(undefined)
-  const commit = (): void => onCommit(draft)
-  return (
-    <span
-      onBlur={commit}
-      onKeyDown={event => {
-        if (event.key === 'Enter' && !event.nativeEvent.isComposing) commit()
-      }}
-    >
-      {type === 'checkbox' ? (
-        <input type="checkbox" autoFocus={autoFocus} checked={draft === true} onChange={event => onCommit(event.target.checked ? true : undefined)} />
-      ) : (
-        <ValueEditor type={type} value={draft} autoFocus={autoFocus} onChange={setDraft} />
-      )}
-    </span>
-  )
-}
+const PendingEditor = forwardRef<EditorHandle, { inputId: string; type: PropertyType; autoFocus?: boolean; onCommit(value: PropertyValue | undefined): Promise<boolean> }>(
+  function PendingEditor({ inputId, type, autoFocus, onCommit }, ref) {
+    const [draft, setDraft] = useState<PropertyValue | undefined>(undefined)
+    const draftRef = useRef<PropertyValue | undefined>(undefined)
+    const valueEditor = useRef<ValueEditorHandle>(null)
+    const writing = useRef<Promise<boolean> | null>(null)
+    const commit = async (): Promise<boolean> => {
+      // a checkbox row has no ValueEditor and so no typed-but-unadded input to fold in
+      if (valueEditor.current && !valueEditor.current.flushInput()) return false
+      if (writing.current) return writing.current
+      const task = onCommit(draftRef.current)
+      writing.current = task
+      const ok = await task
+      writing.current = null
+      return ok
+    }
+    useImperativeHandle(ref, () => ({ flush: commit }))
+    return (
+      <span
+        onBlur={() => void commit()}
+        onKeyDown={event => {
+          if (event.key === 'Enter' && !event.nativeEvent.isComposing) void commit()
+        }}
+      >
+        {type === 'checkbox' ? (
+          <input id={inputId} type="checkbox" autoFocus={autoFocus} checked={draft === true} onChange={event => void onCommit(event.target.checked ? true : undefined)} />
+        ) : (
+          <ValueEditor
+            ref={valueEditor}
+            inputId={inputId}
+            type={type}
+            value={draft}
+            autoFocus={autoFocus}
+            onListEnter={() => void commit()}
+            onChange={next => {
+              draftRef.current = next
+              setDraft(next)
+            }}
+          />
+        )}
+      </span>
+    )
+  },
+)
 
 /**
  * Draft-first editor for a stored row (RV-LIB-05): keystrokes stay local;
  * one commit happens on blur or Enter — never mid-composition. A failed
  * commit restores the stored value while the error is showing.
  */
-function DraftEditor({
-  type,
-  value,
-  listLimit,
-  onCommit,
-}: {
-  type: PropertyType
-  value: PropertyValue | undefined
-  /** `tags` uses its tighter limits; other lists use the type's own (entry.md §5.2). */
-  listLimit?: 'tags' | 'list'
-  onCommit(value: PropertyValue | undefined): Promise<boolean> | boolean
-}) {
+const DraftEditor = forwardRef<
+  EditorHandle,
+  {
+    inputId: string
+    name: string
+    type: PropertyType
+    value: PropertyValue | undefined
+    listLimit?: 'tags' | 'list'
+    onCommit(value: PropertyValue | undefined): Promise<boolean> | boolean
+  }
+>(function DraftEditor({ inputId, name, type, value, listLimit, onCommit }, ref) {
   const [draft, setDraft] = useState<PropertyValue | undefined>(value)
-  const [dirty, setDirty] = useState(false)
+  const draftRef = useRef<PropertyValue | undefined>(value)
+  const dirty = useRef(false)
+  const writing = useRef<Promise<boolean> | null>(null)
+  const valueEditor = useRef<ValueEditorHandle>(null)
 
   useEffect(() => {
-    if (!dirty) setDraft(value)
-  }, [value, dirty])
+    if (!dirty.current) {
+      draftRef.current = value
+      setDraft(value)
+    }
+  }, [value])
 
-  const commit = (): void => {
-    if (!dirty) return
-    setDirty(false)
-    void Promise.resolve(onCommit(draft)).then(ok => {
-      // a refused write (e.g. clearing title) rolls the row back to the store
-      if (!ok) setDraft(value)
-    })
+  const commit = async (): Promise<boolean> => {
+    // a checkbox row has no ValueEditor and so no typed-but-unadded input to fold in
+    if (valueEditor.current && !valueEditor.current.flushInput()) return false
+    if (writing.current) {
+      const ok = await writing.current
+      return ok ? commit() : false
+    }
+    if (!dirty.current) return true
+    const submitted = draftRef.current
+    const task = Promise.resolve(onCommit(submitted))
+    writing.current = task
+    const ok = await task
+    writing.current = null
+    if (ok && draftRef.current === submitted) dirty.current = false
+    if (!ok && name === 'title' && (submitted === undefined || submitted === '')) {
+      draftRef.current = value
+      setDraft(value)
+      dirty.current = false
+    }
+    return ok && (!dirty.current || commit())
   }
+  useImperativeHandle(ref, () => ({ flush: commit }))
 
   if (type === 'checkbox') {
-    return <input type="checkbox" checked={value === true} onChange={event => void onCommit(event.target.checked ? true : undefined)} />
+    return <input id={inputId} type="checkbox" checked={value === true} onChange={event => void onCommit(event.target.checked ? true : undefined)} />
   }
   return (
     <span
-      onBlur={commit}
+      onBlur={() => void commit()}
       onKeyDown={event => {
-        if (event.key === 'Enter' && !event.nativeEvent.isComposing) commit()
+        if (event.key === 'Enter' && !event.nativeEvent.isComposing) void commit()
       }}
     >
       <ValueEditor
+        ref={valueEditor}
+        inputId={inputId}
         type={type}
         value={draft}
         listLimit={listLimit}
+        onListEnter={() => void commit()}
         onChange={next => {
-          setDirty(true)
+          dirty.current = true
+          draftRef.current = next
           setDraft(next)
         }}
       />
     </span>
   )
-}
-
-/** Stable, readable messages for the entry error codes the panel can hit. */
-function errorText(code: string | undefined): string {
-  switch (code) {
-    case 'PROPERTY_NAME_INVALID':
-      return uiText('property.error.name')
-    case 'PROPERTY_TYPE_MISMATCH':
-      return uiText('property.error.type')
-    case 'PROPERTY_VALUE_INVALID':
-      return uiText('property.error.value')
-    case 'PROPERTY_LIMIT_EXCEEDED':
-      return uiText('property.error.limit')
-    default:
-      return code ?? uiText('toast.saveFailed')
-  }
-}
+})

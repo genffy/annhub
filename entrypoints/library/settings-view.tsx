@@ -7,14 +7,51 @@
  * (formats, watermark, ratio presets, beautify) rides the same settings
  * object; see screenshot.ts for its shape.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
-import type { ExtensionSettings } from '../../background-service/settings-schema'
-import type { OrphanReport } from '../../learning-core/store'
+import type { ExtensionSettings, SettingsPatch } from '../../background-service/settings-schema'
+import { EntryStore, type OrphanReport } from '../../learning-core/store'
 import { RATIO_PRESETS, watermarkBox } from '../content/screenshot/output'
+import { formatBytes } from '../../utils/format-bytes'
 import { uiText } from '../../utils/ui-text'
+import { HIGHLIGHT_COLORS, type HighlightColor } from '../../learning-core/types'
 
-function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; patch(next: Partial<ExtensionSettings>): Promise<void> }) {
+function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
+  const [watermarkText, setWatermarkText] = useState(settings.watermark.text)
+  const [quality, setQuality] = useState(settings.downloadQuality)
+  const [opacity, setOpacity] = useState(settings.watermark.opacity)
+  const [error, setError] = useState('')
+  const watermarkDirty = useRef(false)
+  const qualitySaved = useRef(settings.downloadQuality)
+  const opacitySaved = useRef(settings.watermark.opacity)
+
+  useEffect(() => {
+    if (!watermarkDirty.current) setWatermarkText(settings.watermark.text)
+    qualitySaved.current = settings.downloadQuality
+    opacitySaved.current = settings.watermark.opacity
+    setQuality(settings.downloadQuality)
+    setOpacity(settings.watermark.opacity)
+  }, [settings.downloadQuality, settings.watermark.opacity, settings.watermark.text])
+
+  const saveText = async () => {
+    if (!watermarkDirty.current) return
+    const ok = await patch({ watermark: { text: watermarkText } })
+    if (ok) {
+      watermarkDirty.current = false
+      setError('')
+    } else setError(uiText('toast.saveFailed'))
+  }
+  const saveQuality = async (value: number) => {
+    if (value === qualitySaved.current) return
+    if (await patch({ downloadQuality: value })) qualitySaved.current = value
+    else setError(uiText('toast.saveFailed'))
+  }
+  const saveOpacity = async (value: number) => {
+    if (value === opacitySaved.current) return
+    if (await patch({ watermark: { opacity: value } })) opacitySaved.current = value
+    else setError(uiText('toast.saveFailed'))
+  }
+
   const watermarkPreviewRef = (node: HTMLCanvasElement | null) => {
     if (!node) return
     const ctx = node.getContext('2d')
@@ -23,12 +60,12 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
     ctx.fillStyle = '#e8ebef'
     ctx.fillRect(0, 0, node.width, node.height)
     const box = watermarkBox({ width: node.width, height: node.height }, settings.watermark)
-    ctx.globalAlpha = settings.watermark.opacity
+    ctx.globalAlpha = opacity
     ctx.fillStyle = '#20252b'
     ctx.font = `${box.fontSize}px -apple-system, system-ui, sans-serif`
     ctx.textAlign = settings.watermark.position.endsWith('right') ? 'right' : 'left'
     ctx.textBaseline = settings.watermark.position.startsWith('top') ? 'top' : 'bottom'
-    ctx.fillText(settings.watermark.text || 'AnnHub', box.x, box.y)
+    ctx.fillText(watermarkText || 'AnnHub', box.x, box.y)
     ctx.globalAlpha = 1
   }
   void watermarkPreviewRef
@@ -47,8 +84,18 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
         {settings.downloadFormat !== 'png' && (
           <label className="settings-inline">
             <span>{uiText('settings.quality')}</span>
-            <input type="range" min={0.5} max={1} step={0.05} value={settings.downloadQuality} onChange={event => void patch({ downloadQuality: Number(event.target.value) })} />
-            <span>{settings.downloadQuality.toFixed(2)}</span>
+            <input
+              type="range"
+              min={0.5}
+              max={1}
+              step={0.05}
+              value={quality}
+              onChange={event => setQuality(Number(event.target.value))}
+              onPointerUp={event => void saveQuality(Number(event.currentTarget.value))}
+              onKeyUp={event => void saveQuality(Number(event.currentTarget.value))}
+              onBlur={event => void saveQuality(Number(event.currentTarget.value))}
+            />
+            <span>{quality.toFixed(2)}</span>
           </label>
         )}
       </div>
@@ -69,8 +116,15 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
           <input
             type="text"
             maxLength={40}
-            value={settings.watermark.text}
-            onChange={event => void patch({ watermark: { ...settings.watermark, text: event.target.value } })}
+            value={watermarkText}
+            onChange={event => {
+              watermarkDirty.current = true
+              setWatermarkText(event.target.value)
+            }}
+            onBlur={() => void saveText()}
+            onKeyDown={event => {
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) void saveText()
+            }}
             placeholder="AnnHub"
           />
         </label>
@@ -81,12 +135,22 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
             accept="image/png"
             onChange={event => {
               const file = event.target.files?.[0]
-              if (!file || file.size > 512 * 1024) return
+              if (!file) return
+              if (file.size > 512 * 1024) {
+                setError(uiText('settings.error.imageTooLarge'))
+                return
+              }
+              setError('')
               const reader = new FileReader()
               reader.onload = () => void patch({ watermark: { ...settings.watermark, image: String(reader.result) } })
               reader.readAsDataURL(file)
             }}
           />
+          {settings.watermark.image && (
+            <button type="button" className="ghost" onClick={() => void patch({ watermark: { image: null } })}>
+              {uiText('settings.remove')}
+            </button>
+          )}
         </label>
         <label>
           <span>{uiText('settings.position')}</span>
@@ -112,13 +176,21 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
             min={0.2}
             max={1}
             step={0.05}
-            value={settings.watermark.opacity}
-            onChange={event => void patch({ watermark: { ...settings.watermark, opacity: Number(event.target.value) } })}
+            value={opacity}
+            onChange={event => setOpacity(Number(event.target.value))}
+            onPointerUp={event => void saveOpacity(Number(event.currentTarget.value))}
+            onKeyUp={event => void saveOpacity(Number(event.currentTarget.value))}
+            onBlur={event => void saveOpacity(Number(event.currentTarget.value))}
           />
-          <span>{Math.round(settings.watermark.opacity * 100)}%</span>
+          <span>{Math.round(opacity * 100)}%</span>
         </label>
       </div>
       <canvas ref={watermarkPreviewRef} width={260} height={90} className="watermark-preview" data-testid="watermark-preview" />
+      {error && (
+        <p className="warn" role="alert">
+          {error}
+        </p>
+      )}
 
       <h3>{uiText('settings.ratioPresets')}</h3>
       <div className="settings-inline">
@@ -186,6 +258,7 @@ export function SettingsView() {
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null)
   const [orphans, setOrphans] = useState<OrphanReport | null>(null)
   const [metrics, setMetrics] = useState<Record<string, { total: number; byProps: Record<string, number> }> | null>(null)
+  const [shortcuts, setShortcuts] = useState<chrome.commands.Command[]>([])
 
   useEffect(() => {
     void MessageUtils.sendMessage<ExtensionSettings>({ type: 'GET_SETTINGS' }).then(response => {
@@ -194,17 +267,32 @@ export function SettingsView() {
     void MessageUtils.sendMessage<{ usage: number; quota: number }>({ type: 'USAGE_ESTIMATE' }).then(response => {
       if (response.success) setUsage(response.data!)
     })
+    void chrome.commands.getAll().then(setShortcuts)
   }, [])
 
-  const patch = useCallback(async (next: Partial<ExtensionSettings>) => {
+  const patch = useCallback(async (next: SettingsPatch): Promise<boolean> => {
     const response = await MessageUtils.sendMessage<ExtensionSettings>({ type: 'SET_SETTINGS', patch: next })
     if (response.success) setSettings(response.data!)
+    return response.success
   }, [])
 
   const loadOrphans = useCallback(async () => {
     const response = await MessageUtils.sendMessage<OrphanReport>({ type: 'ORPHAN_REPORT' })
     if (response.success) setOrphans(response.data!)
   }, [])
+
+  const cleanupOrphans = useCallback(async () => {
+    const ids = orphans?.unreferencedAssets ?? []
+    if (ids.length === 0 || !window.confirm(uiText('settings.orphanConfirm', { count: ids.length }))) return
+    const store = new EntryStore('annhub')
+    try {
+      await store.initialize()
+      await store.deleteOrphanAssets(ids)
+      await loadOrphans()
+    } finally {
+      await store.close()
+    }
+  }, [orphans, loadOrphans])
 
   const loadMetrics = useCallback(async () => {
     const response = await MessageUtils.sendMessage<Record<string, { total: number; byProps: Record<string, number> }>>({ type: 'GET_METRICS' })
@@ -260,28 +348,74 @@ export function SettingsView() {
       <ScreenshotSection settings={settings} patch={patch} />
 
       <section>
+        <h2>{uiText('settings.defaultHighlightColor')}</h2>
+        <div className="hl-colors" role="group" aria-label={uiText('settings.defaultHighlightColor')}>
+          {HIGHLIGHT_COLORS.map((color: HighlightColor) => (
+            <button
+              key={color}
+              type="button"
+              className={`hl-dot hl-dot-${color}${settings.defaultHighlightColor === color ? ' hl-dot-active' : ''}`}
+              aria-label={uiText(`library.color.${color}`)}
+              aria-pressed={settings.defaultHighlightColor === color}
+              onClick={() => void patch({ defaultHighlightColor: color })}
+            />
+          ))}
+        </div>
+      </section>
+
+      <section>
         <h2>{uiText('settings.shortcuts')}</h2>
         <p className="hint">{uiText('settings.shortcutsHint')}</p>
-        <p className="keys">
-          <kbd>Ctrl/Cmd+Shift+S</kbd> · <kbd>Ctrl/Cmd+Shift+E</kbd>
-        </p>
+        {shortcuts.map(command => (
+          <p className="keys" key={command.name}>
+            {command.name === 'capture-selection' ? uiText('settings.shortcut.screenshot') : uiText('settings.shortcut.block')}:{' '}
+            <kbd>{command.shortcut || uiText('settings.shortcut.unassigned')}</kbd>
+          </p>
+        ))}
+        <button type="button" className="link" onClick={() => void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' })}>
+          {uiText('settings.shortcut.manage')}
+        </button>
       </section>
 
       <section>
         <h2>{uiText('settings.data')}</h2>
         {usage && usage.quota > 0 && (
           <p className="hint">
-            {usage.usage / 1024 / 1024 >= 1 ? `${(usage.usage / 1024 / 1024).toFixed(1)} MB` : `${Math.round(usage.usage / 1024)} KB`} /{' '}
-            {(usage.quota / 1024 / 1024 / 1024).toFixed(1)} GB
+            {formatBytes(usage.usage)} / {formatBytes(usage.quota)}
           </p>
         )}
         <button type="button" onClick={() => void loadOrphans()}>
           {uiText('settings.orphanReport')}
         </button>
         {orphans && (
-          <p className="hint" data-testid="orphan-report">
-            {uiText('settings.orphanUnreferenced')}: {orphans.unreferencedAssets.length} · {uiText('settings.orphanMissing')}: {orphans.entriesWithMissingAssets.length}
-          </p>
+          <div className="hint" data-testid="orphan-report">
+            <p>
+              {uiText('settings.orphanUnreferenced')}: {orphans.unreferencedAssets.length} · {uiText('settings.orphanMissing')}: {orphans.entriesWithMissingAssets.length}
+            </p>
+            {orphans.unreferencedAssets.length > 0 && (
+              <>
+                <ul>
+                  {orphans.unreferencedAssets.map(id => (
+                    <li key={id}>
+                      <code>{id}</code>
+                    </li>
+                  ))}
+                </ul>
+                <button type="button" onClick={() => void cleanupOrphans()}>
+                  {uiText('settings.orphanCleanup')}
+                </button>
+              </>
+            )}
+            {orphans.entriesWithMissingAssets.length > 0 && (
+              <ul>
+                {orphans.entriesWithMissingAssets.map(item => (
+                  <li key={item.id}>
+                    <code>{item.id}</code>: <code>{item.assetId}</code>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         )}
       </section>
 

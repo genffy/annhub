@@ -12,6 +12,7 @@ import type { EntryQueryResult, HighlightQueryResult } from '../../learning-core
 import type { EntryRecord } from '../../learning-core/types'
 import { relativeTime } from '../../utils/relative-time'
 import { uiText } from '../../utils/ui-text'
+import { extensionPageUrl } from '../../utils/extension-pages'
 
 type Tab = 'all' | 'clips' | 'highlights' | 'screenshots'
 
@@ -49,7 +50,8 @@ export default function App() {
     void load()
   }, [load])
 
-  const openLibrary = (view: string) => window.open(chrome.runtime.getURL(`library.html#/${view}`), '_blank')
+  const openLibrary = (view: string) => void chrome.tabs.create({ url: chrome.runtime.getURL(`library.html#/${view}`) })
+  const openEntry = (id: string) => void chrome.tabs.create({ url: extensionPageUrl('library', { entryId: id }) })
 
   return (
     <main className="popup-shell">
@@ -89,7 +91,7 @@ export default function App() {
             {highlightRows.flatMap(group =>
               group.rows.slice(0, 2).map(row => (
                 <li key={row.highlight.id}>
-                  <button type="button" onClick={() => openLibrary('highlights')}>
+                  <button type="button" onClick={() => openEntry(group.clip.id)}>
                     <span className="popup-quote">{row.highlight.quote}</span>
                     <span className="popup-meta">{group.clip.sourceHost}</span>
                   </button>
@@ -102,7 +104,7 @@ export default function App() {
           <ul className="popup-list">
             {entries.map(entry => (
               <li key={entry.id}>
-                <button type="button" onClick={() => openLibrary(entry.type === 'clip' ? 'clips' : 'screenshots')} title={String(entry.properties['title'] ?? '')}>
+                <button type="button" onClick={() => openEntry(entry.id)} title={String(entry.properties['title'] ?? '')}>
                   <span className={`type-chip type-${entry.type}`}>{uiText(entry.type === 'clip' ? 'library.clips' : 'library.screenshots')}</span>
                   <span className="popup-title">{String(entry.properties['title'] ?? '')}</span>
                   <span className="popup-meta">{relativeTime(entry.createdAt)}</span>
@@ -112,9 +114,9 @@ export default function App() {
             {entries.length === 0 && <li className="popup-empty">{uiText('library.empty')}</li>}
           </ul>
         )}
-      </section>
 
-      <footer className="popup-foot">{uiText('library.shortcutHint')}</footer>
+        <footer className="popup-foot">{uiText('library.shortcutHint')}</footer>
+      </section>
     </main>
   )
 }

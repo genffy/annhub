@@ -6,21 +6,42 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import MessageUtils from '../../utils/message'
-import { PROPERTY_TYPES, type PropertyDefinition, type PropertyType } from '../../learning-core/types'
-import { uiText } from '../../utils/ui-text'
+import { PROPERTY_TYPES, type EntryType, type PropertyDefinition, type PropertyType, type PropertyValue } from '../../learning-core/types'
+import { entryErrorText, uiText } from '../../utils/ui-text'
 
 const TYPE_ICON: Record<PropertyType, string> = { text: '𝐓', list: '≔', number: '#', checkbox: '☑', date: '📅', datetime: '🕰' }
+
+interface CreatingProperty {
+  name: string
+  type: PropertyType
+  defaultInput: string
+  presets: EntryType[]
+}
+
+function defaultValueFor(creating: CreatingProperty): PropertyValue | undefined {
+  const value = creating.defaultInput.trim()
+  if (!value) return undefined
+  if (creating.type === 'list')
+    return value
+      .split(/[,，]/)
+      .map(item => item.trim())
+      .filter(Boolean)
+  if (creating.type === 'number') return Number(value)
+  if (creating.type === 'checkbox') return value === 'true'
+  if (creating.type === 'datetime' && value.length === 16) return `${value}:00`
+  return value
+}
 
 export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): void }) {
   const [registry, setRegistry] = useState<PropertyDefinition[]>([])
   const [usage, setUsage] = useState<Record<string, number>>({})
-  const [creating, setCreating] = useState<{ name: string; type: PropertyType } | null>(null)
+  const [creating, setCreating] = useState<CreatingProperty | null>(null)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
   const load = useCallback(async () => {
     // usage comes from the whole library via the backend (RV-LIB-07)
-    const defs = await MessageUtils.sendMessage<{ definitions: PropertyDefinition[]; usage: Record<string, number> }>({ type: 'LIST_PROPERTIES' })
+    const defs = await MessageUtils.sendMessage<{ definitions: PropertyDefinition[]; usage: Record<string, number> }>({ type: 'LIST_PROPERTIES', includeUsage: true })
     if (!defs.success) return
     setRegistry(defs.data!.definitions)
     setUsage(defs.data!.usage ?? {})
@@ -30,21 +51,22 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
     void load()
   }, [load])
 
-  async function upsert(def: PropertyDefinition) {
+  async function upsert(def: PropertyDefinition): Promise<boolean> {
     const response = await MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'UPSERT_PROPERTY', def })
     if (!response.success) {
-      setError(response.error ?? uiText('toast.saveFailed'))
-      return
+      setError(entryErrorText(response.error))
+      return false
     }
     setError('')
     setRegistry(response.data!.definitions)
     onRegistryChanged()
+    return true
   }
 
   async function remove(name: string) {
     const response = await MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'DELETE_PROPERTY', name })
     if (!response.success) {
-      setError(response.error === 'PROPERTY_IN_USE' ? uiText('property.error.inUse') : (response.error ?? uiText('toast.saveFailed')))
+      setError(entryErrorText(response.error))
       return
     }
     setError('')
@@ -58,7 +80,7 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
     if (!window.confirm(uiText('property.willDelete', { names: doomed.map(def => def.name).join(', ') }))) return
     const response = await MessageUtils.sendMessage<{ removed: string[]; definitions: PropertyDefinition[] }>({ type: 'DELETE_UNUSED_PROPERTIES' })
     if (!response.success) {
-      setError(response.error ?? uiText('toast.saveFailed'))
+      setError(entryErrorText(response.error))
       return
     }
     setError('')
@@ -82,17 +104,57 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
               aria-label={uiText('property.name')}
               onChange={event => setCreating({ ...creating, name: event.target.value })}
             />
-            <select value={creating.type} aria-label={uiText('property.type')} onChange={event => setCreating({ ...creating, type: event.target.value as PropertyType })}>
+            <select
+              value={creating.type}
+              aria-label={uiText('property.type')}
+              onChange={event => setCreating({ ...creating, type: event.target.value as PropertyType, defaultInput: '' })}
+            >
               {PROPERTY_TYPES.map((type: PropertyType) => (
                 <option key={type} value={type}>
                   {uiText(`property.type.${type}` as 'property.type.text')}
                 </option>
               ))}
             </select>
+            {creating.type === 'checkbox' ? (
+              <select value={creating.defaultInput} aria-label={uiText('property.defaultValue')} onChange={event => setCreating({ ...creating, defaultInput: event.target.value })}>
+                <option value="">{uiText('property.defaultValue')}: —</option>
+                <option value="true">{uiText('library.value.yes')}</option>
+                <option value="false">{uiText('library.value.no')}</option>
+              </select>
+            ) : (
+              <input
+                type={creating.type === 'number' ? 'number' : creating.type === 'date' ? 'date' : creating.type === 'datetime' ? 'datetime-local' : 'text'}
+                value={creating.defaultInput}
+                aria-label={uiText('property.defaultValue')}
+                placeholder={uiText('property.defaultValue')}
+                onChange={event => setCreating({ ...creating, defaultInput: event.target.value })}
+              />
+            )}
+            {(['clip', 'screenshot'] as const).map(type => (
+              <label key={type} className="prop-preset">
+                <input
+                  type="checkbox"
+                  checked={creating.presets.includes(type)}
+                  onChange={event => setCreating({ ...creating, presets: event.target.checked ? [...creating.presets, type] : creating.presets.filter(item => item !== type) })}
+                />
+                {uiText(type === 'clip' ? 'library.clips' : 'library.screenshots')}
+              </label>
+            ))}
             <button
               type="button"
               className="ghost"
-              onClick={() => void upsert({ name: creating.name.trim(), type: creating.type, builtin: false, presets: [] }).then(() => setCreating(null))}
+              onClick={() => {
+                const value = defaultValueFor(creating)
+                void upsert({
+                  name: creating.name.trim(),
+                  type: creating.type,
+                  builtin: false,
+                  presets: creating.presets,
+                  ...(value === undefined ? {} : { defaultValue: value }),
+                }).then(ok => {
+                  if (ok) setCreating(null)
+                })
+              }}
             >
               {uiText('common.save')}
             </button>
@@ -101,7 +163,7 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
             </button>
           </span>
         ) : (
-          <button type="button" className="ghost" data-testid="new-property" onClick={() => setCreating({ name: '', type: 'text' })}>
+          <button type="button" className="ghost" data-testid="new-property" onClick={() => setCreating({ name: '', type: 'text', defaultInput: '', presets: [] })}>
             + {uiText('property.add')}
           </button>
         )}

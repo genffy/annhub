@@ -5,31 +5,48 @@
  * live in the clip (entry.md §4); the side list sorts by position, and a
  * click scrolls to the mark.
  */
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import MessageUtils from '../../utils/message'
 import { useState } from 'react'
 import type { EntryRecord, HighlightColor, PropertyDefinition } from '../../learning-core/types'
 import { HighlightSurface } from './highlight-surface'
-import { PropertyPanel } from './property-panel'
+import { PropertyPanel, type PropertyPanelHandle } from './property-panel'
 import { uiText } from '../../utils/ui-text'
 
 interface Props {
   entryId: string
+  /** From `#/read/<id>?h=<highlight>`: the highlight the view opens scrolled to (the highlights view links here). */
+  highlightId?: string | null
   defaultColor: HighlightColor
   registry: PropertyDefinition[]
   onClose(): void
   onEntryChanged(entry: EntryRecord): void
+  registerFlush(flush: (() => Promise<boolean>) | null): void
 }
 
-export function ReadingView({ entryId, defaultColor, registry, onClose, onEntryChanged }: Props) {
+export function ReadingView({ entryId, highlightId = null, defaultColor, registry, onClose, onEntryChanged, registerFlush }: Props) {
   const [entry, setEntry] = useState<EntryRecord | null>(null)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<'highlights' | 'properties'>('highlights')
+  const propertyPanel = useRef<PropertyPanelHandle>(null)
+  const openedAt = useRef<string | null>(null)
+
+  const flush = useCallback(async (): Promise<boolean> => (await propertyPanel.current?.flush()) ?? true, [])
+  const closeWithSave = useCallback(() => {
+    void flush().then(ok => {
+      if (ok) onClose()
+    })
+  }, [flush, onClose])
+
+  useEffect(() => {
+    registerFlush(flush)
+    return () => registerFlush(null)
+  }, [flush, registerFlush])
 
   const load = useCallback(async () => {
     const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({ type: 'GET_ENTRY', id: entryId })
     if (!response.success || !response.data?.entry) {
-      setError(response.error ?? 'not found')
+      setError(uiText('library.error.notFound'))
       return
     }
     setEntry(response.data.entry)
@@ -39,13 +56,30 @@ export function ReadingView({ entryId, defaultColor, registry, onClose, onEntryC
     void load()
   }, [load])
 
+  /** Scrolls a highlight into the middle of the window and lets it flash once (a mark can span several runs: the first one leads). */
+  const locate = useCallback((id: string, smooth: boolean): void => {
+    const mark = document.querySelector<HTMLElement>(`[data-hl-id="${CSS.escape(id)}"]`)
+    if (!mark) return
+    mark.scrollIntoView({ block: 'center', behavior: smooth ? 'smooth' : 'instant' })
+    mark.classList.add('md-hl-flash')
+    window.setTimeout(() => mark.classList.remove('md-hl-flash'), 1_400)
+  }, [])
+
+  // arriving from the highlights view: the reading view opens at the highlight that was clicked
+  useEffect(() => {
+    if (!entry || !highlightId || openedAt.current === highlightId) return
+    openedAt.current = highlightId
+    locate(highlightId, false)
+  }, [entry, highlightId, locate])
+
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') onClose()
+      // an Escape that ends an input-method composition is not a request to leave
+      if (event.key === 'Escape' && !event.isComposing && event.keyCode !== 229) closeWithSave()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [closeWithSave])
 
   if (!entry) {
     return (
@@ -60,7 +94,7 @@ export function ReadingView({ entryId, defaultColor, registry, onClose, onEntryC
   return (
     <div className="reading" data-testid="reading-view" data-entry-id={entry.id}>
       <header className="reading-header">
-        <button type="button" className="ghost" onClick={onClose} aria-label={uiText('common.close')}>
+        <button type="button" className="ghost" onClick={closeWithSave} aria-label={uiText('common.close')}>
           ←
         </button>
         <span className="reading-title">{String(entry.properties['title'] ?? '')}</span>
@@ -82,7 +116,7 @@ export function ReadingView({ entryId, defaultColor, registry, onClose, onEntryC
           />
           {entry.context && (
             <section className="drawer-context">
-              <h3>context</h3>
+              <h3>{uiText('library.context')}</h3>
               <p>{entry.context}</p>
             </section>
           )}
@@ -111,7 +145,15 @@ export function ReadingView({ entryId, defaultColor, registry, onClose, onEntryC
           </div>
           {tab === 'properties' ? (
             <section className="reading-side-section" data-testid="reading-properties">
-              <PropertyPanel entry={entry} registry={registry} onEntryChanged={onEntryChanged} />
+              <PropertyPanel
+                ref={propertyPanel}
+                entry={entry}
+                registry={registry}
+                onEntryChanged={next => {
+                  setEntry(next)
+                  onEntryChanged(next)
+                }}
+              />
             </section>
           ) : (
             <section className="reading-side-section" data-testid="hl-list">
@@ -123,11 +165,7 @@ export function ReadingView({ entryId, defaultColor, registry, onClose, onEntryC
                 <div key={highlight.id} className={`hl-row hl-row-${highlight.color}`} data-testid="hl-row">
                   <p className="hl-quote">{highlight.quote}</p>
                   {highlight.note && <p className="hl-note-text">{highlight.note}</p>}
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() => document.querySelector(`[data-hl-id="${highlight.id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })}
-                  >
+                  <button type="button" className="link" onClick={() => locate(highlight.id, true)}>
                     {uiText('reading.locate')}
                   </button>
                 </div>

@@ -1,5 +1,11 @@
 @import '../../styles/tokens.css';
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
   color: var(--ann-text);
   background: var(--ann-surface);
@@ -86,6 +92,15 @@ body {
   border-bottom: 1px solid var(--ann-border);
   color: var(--ann-muted);
   font-size: 11.5px;
+}
+
+.popup-head .link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ann-accent);
+  font: inherit;
+  cursor: pointer;
 }
 
 .popup-list {
