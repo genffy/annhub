@@ -6,7 +6,21 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['.output/**', '.wxt/**', 'node_modules/**', 'coverage/**', 'playwright-report/**', 'test-results/**', 'website/**', 'docs/**', 'scripts/data/**'],
+    ignores: [
+      '.output/**',
+      '.wxt/**',
+      '.claude/worktrees/**',
+      'node_modules/**',
+      'coverage/**',
+      'playwright-report/**',
+      'test-results/**',
+      'website/**',
+      'docs/**',
+      'scripts/data/**',
+    ],
+  },
+  {
+    languageOptions: { parserOptions: { tsconfigRootDir: import.meta.dirname } },
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -28,7 +42,7 @@ export default tseslint.config(
   },
   {
     // Hooks rules only make sense for React code (Playwright fixtures also name a callback `use`).
-    files: ['entrypoints/**/*.{ts,tsx}', 'components/**/*.{ts,tsx}'],
+    files: ['entrypoints/**/*.{ts,tsx}'],
     plugins: { 'react-hooks': reactHooks },
     rules: {
       'react-hooks/rules-of-hooks': 'error',

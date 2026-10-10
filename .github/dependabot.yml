@@ -34,11 +34,6 @@ updates:
       # it), so a new major is raised together with the Node.js version, by hand.
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
-      # Tailwind CSS 4 moves the PostCSS plugin into @tailwindcss/postcss and the configuration into CSS:
-      # a migration that needs a visual comparison. `npm run check:consistency` catches a bump without it.
-      # Staying on 3.4 keeps its build-time advisories (braces, micromatch, chokidar); only version 4 resolves them.
-      - dependency-name: tailwindcss
-        update-types: ['version-update:semver-major']
       # typescript-eslint supports TypeScript only below 6.1, and with TypeScript 7 `npm run lint` fails.
       - dependency-name: typescript
         update-types: ['version-update:semver-major']
