@@ -53,7 +53,7 @@ export interface IService {
 
 ### Current Services
 
-1. **EntryService** - entries, properties, highlights, export (`services/entries`)
+1. **EntryService** - entries, properties, highlights and queries (`services/entries`); the export ZIP is built in the library page, not here
 2. **ScreenshotService** - capture, image fetch, download, screenshot save (`services/screenshot`)
 3. **SystemService** - settings and local metrics (`services/system`)
 
@@ -61,7 +61,7 @@ export interface IService {
 
 ### 1. CommandHandler
 
-- **Responsibility**: Handle shortcut commands
+- **Responsibility**: Handle shortcut commands; the trigger goes to the top frame only (`frameId: 0`)
 - **Events**: `browser.commands.onCommand`
 
 ### 2. InstallationHandler
