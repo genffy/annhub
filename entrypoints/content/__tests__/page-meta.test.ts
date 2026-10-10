@@ -122,6 +122,14 @@ describe('context extraction (capture.md §4)', () => {
     expect(context).toContain('Beta paragraph')
   })
 
+  it('does not include the next paragraph when a triple-click ends at its start', () => {
+    withPage('<div><p id="first">First paragraph selected in full.</p><p id="next">Next paragraph is not selected.</p></div>')
+    const range = document.createRange()
+    range.setStart(document.getElementById('first')!.firstChild!, 0)
+    range.setEnd(document.getElementById('next')!.firstChild!, 0)
+    expect(extractContext(range)).toBe('First paragraph selected in full.')
+  })
+
   it('a selection inside a list item takes the item', () => {
     withPage('<ul><li id="li">The list item holding the selection entirely.</li><li>Other item that must not leak in.</li></ul>')
     const range = document.createRange()

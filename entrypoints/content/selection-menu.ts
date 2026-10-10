@@ -12,10 +12,16 @@ import { uiText } from '../../utils/ui-text'
 
 const ROOT_ATTR = 'data-ann-ui'
 const HINT_DELAY_MS = 300
+const plainSelectionText = new WeakMap<Range, string>()
+
+export function plainTextForSelection(range: Range): string | undefined {
+  return plainSelectionText.get(range)
+}
 
 export interface SelectionMenuHooks {
   onClip(): void
-  onScreenshot(): void
+  /** Absent in a child frame: the screenshot session belongs to the top frame's viewport, so the menu offers clipping only. */
+  onScreenshot?(): void
 }
 
 export class SelectionMenu {
@@ -40,10 +46,11 @@ export class SelectionMenu {
     host.setAttribute('role', 'menu')
 
     const clip = this.action('menu.clip', 'ann-menu-clip', 'bookmark')
-    const shot = this.action('menu.screenshot', 'ann-menu-shot', 'scan')
+    const shot = this.hooks.onScreenshot ? this.action('menu.screenshot', 'ann-menu-shot', 'scan') : null
+    const buttons = shot ? [clip.button, shot.button] : [clip.button]
     const row = this.doc.createElement('div')
     row.className = 'ann-menu-row'
-    row.append(clip.button, shot.button)
+    row.append(...buttons)
     const hint = this.doc.createElement('div')
     hint.className = 'ann-menu-hint'
     hint.setAttribute('aria-live', 'polite')
@@ -62,8 +69,8 @@ export class SelectionMenu {
       }
       if (event.key === 'Tab') {
         event.preventDefault()
-        this.focusIndex = (this.focusIndex + 1) % 2
-        ;(this.focusIndex === 0 ? clip.button : shot.button).focus()
+        this.focusIndex = (this.focusIndex + 1) % buttons.length
+        buttons[this.focusIndex]!.focus()
         this.showHint(this.focusIndex === 0 ? 'menu.clip.hint' : 'menu.screenshot.hint')
         return
       }
@@ -73,7 +80,7 @@ export class SelectionMenu {
         if (this.focusIndex < 0) return
         event.preventDefault()
         if (this.focusIndex === 0) this.hooks.onClip()
-        else this.hooks.onScreenshot()
+        else this.hooks.onScreenshot?.()
       }
     }
     this.doc.addEventListener('keydown', onKey, true)
@@ -92,7 +99,7 @@ export class SelectionMenu {
     button.addEventListener('click', event => {
       if (!isUserInput(event)) return
       if (key === 'menu.clip') this.hooks.onClip()
-      else this.hooks.onScreenshot()
+      else this.hooks.onScreenshot?.()
     })
     return { button }
   }
@@ -159,12 +166,48 @@ export class SelectionMenu {
  * the user is editing, not capturing — the menu would swallow Enter and
  * silently save a clip of the draft.
  */
-export function selectableRange(doc: Document): Range | null {
+export function selectableRange(doc: Document, shadowRoot?: ShadowRoot): Range | null {
   const selection = doc.getSelection()
   if (!selection || selection.rangeCount === 0) return null
-  const range = selection.getRangeAt(0)
+  let range = selection.getRangeAt(0)
+  if (range.collapsed && selection.toString().trim() && selection.getComposedRanges) {
+    const roots: ShadowRoot[] = shadowRoot ? [shadowRoot] : []
+    const visit = (parent: Document | ShadowRoot) => {
+      for (const element of parent.querySelectorAll('*')) {
+        if (element.shadowRoot) {
+          if (!roots.includes(element.shadowRoot)) roots.push(element.shadowRoot)
+          visit(element.shadowRoot)
+        }
+      }
+    }
+    visit(doc)
+    for (const root of roots) {
+      const composed = selection.getComposedRanges({ shadowRoots: [root] })[0]
+      if (!composed) continue
+      const candidate = doc.createRange()
+      candidate.setStart(composed.startContainer, composed.startOffset)
+      candidate.setEnd(composed.endContainer, composed.endOffset)
+      if (candidate.toString().trim()) {
+        range = candidate
+        break
+      }
+    }
+  }
+  if (range.collapsed && selection.toString().trim() && !selection.getComposedRanges) {
+    let root = shadowRoot ?? (selection.anchorNode instanceof Element ? selection.anchorNode.shadowRoot : null)
+    if (!root) {
+      const wanted = selection.toString().replace(/\s+/g, ' ').trim()
+      root = [...doc.querySelectorAll('*')].map(element => element.shadowRoot).find(candidate => candidate?.textContent?.replace(/\s+/g, ' ').includes(wanted)) ?? null
+    }
+    const host = root?.host
+    if (!host) return null
+    if (root?.activeElement && editableHostOf(root.activeElement)) return null
+    range = doc.createRange()
+    range.selectNode(host)
+    plainSelectionText.set(range, selection.toString())
+  }
   if (range.collapsed) return null
-  if (isBlankText(range.toString())) return null
+  if (isBlankText(plainSelectionText.get(range) ?? range.toString())) return null
   if (selectionIsEditable(range)) return null
   return range
 }
@@ -181,7 +224,7 @@ function editableHostOf(node: Node | null): Element | null {
     if (host.isContentEditable) return el
     const tag = el.tagName.toLowerCase()
     if (tag === 'input' || tag === 'textarea') return el
-    el = el.parentElement
+    el = el.parentElement ?? (el.getRootNode() as ShadowRoot).host ?? null
   }
   return null
 }

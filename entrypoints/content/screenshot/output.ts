@@ -185,3 +185,20 @@ export function downloadMime(format: DownloadFormat): string {
 export function downloadExtension(format: DownloadFormat): string {
   return format === 'jpeg' ? 'jpg' : format
 }
+
+/**
+ * JPEG has no alpha (screenshot.md §4.2): anything transparent in the canvas — a transparent beautify
+ * background, rounded corners, an element captured without a background of its own — would come out black.
+ * Painted on white first, an opaque canvas is unchanged. Whatever the settings say, a JPEG always goes
+ * through here.
+ */
+export function matteOnWhite(source: HTMLCanvasElement, doc: Document): HTMLCanvasElement {
+  const matted = doc.createElement('canvas')
+  matted.width = source.width
+  matted.height = source.height
+  const ctx = matted.getContext('2d')!
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, matted.width, matted.height)
+  ctx.drawImage(source, 0, 0)
+  return matted
+}

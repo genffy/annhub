@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { composeGeometry, constrainToRatio, downloadExtension, downloadMime, ratioOf, watermarkBox, PADDING_PX } from '../output'
+import { composeGeometry, constrainToRatio, downloadExtension, downloadMime, matteOnWhite, ratioOf, watermarkBox, PADDING_PX } from '../output'
 
 const VIEW = { width: 1280, height: 800 }
 
@@ -97,5 +97,34 @@ describe('download formats (screenshot.md §4.2)', () => {
     expect(downloadExtension('png')).toBe('png')
     expect(downloadExtension('jpeg')).toBe('jpg')
     expect(downloadExtension('webp')).toBe('webp')
+  })
+})
+
+describe('JPEG matting (screenshot.md §4.2)', () => {
+  function fakeDocument() {
+    const calls: string[] = []
+    const ctx = {
+      fillStyle: '',
+      fillRect: (x: number, y: number, width: number, height: number) => calls.push(`fillRect ${ctx.fillStyle} ${x},${y} ${width}x${height}`),
+      drawImage: () => calls.push('drawImage'),
+    }
+    const created: { width: number; height: number }[] = []
+    const doc = {
+      createElement: () => {
+        const canvas = { width: 0, height: 0, getContext: () => ctx }
+        created.push(canvas)
+        return canvas
+      },
+    } as unknown as Document
+    return { doc, calls, created }
+  }
+
+  it("paints the whole canvas white before the image, at the image's size", () => {
+    const { doc, calls, created } = fakeDocument()
+    const out = matteOnWhite({ width: 640, height: 360 } as HTMLCanvasElement, doc)
+    expect(out).toBe(created[0])
+    expect(out).toMatchObject({ width: 640, height: 360 })
+    // white first, the picture on top: transparent pixels end up white, opaque ones are untouched
+    expect(calls).toEqual(['fillRect #ffffff 0,0 640x360', 'drawImage'])
   })
 })

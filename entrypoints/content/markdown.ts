@@ -115,7 +115,6 @@ const ALWAYS_ESCAPED = /[*`<>[\]]/g
 const LINE_START_MARKER = /(^|\n)(#{1,6} |- |\+ |>\s?|\d+[.)] )/g
 // underscores escape at word boundaries only (CommonMark intraword `_` is
 // literal), so `user_id` stays readable while `__init__` survives verbatim
-const UNDERSCORE_OPENER = /(^|[^\w\\])(_+)/g
 const UNDERSCORE_CLOSER = /(\w)_(?![\w_])/g
 
 /**
@@ -126,10 +125,12 @@ const UNDERSCORE_CLOSER = /(\w)_(?![\w_])/g
  */
 export function escapeText(text: string): string {
   return text
+    .replace(/\\/g, '\\\\')
+    .replace(/==/g, '=\\=')
     .replace(ALWAYS_ESCAPED, '\\$&')
-    .replace(UNDERSCORE_OPENER, (_match, pre: string, run: string) => `${pre}${run.replace(/_/g, '\\_')}`)
+    .replace(/(^|[^\w])(_+)/g, (_match, pre: string, run: string) => `${pre}${run.replace(/_/g, '\\_')}`)
     .replace(UNDERSCORE_CLOSER, '$1\\_')
-    .replace(LINE_START_MARKER, '$1\\$2')
+    .replace(LINE_START_MARKER, (_match, pre: string, marker: string) => `${pre}${/^\d/.test(marker) ? marker.replace(/[.)]/, '\\$&') : `\\${marker}`}`)
 }
 
 /** Encodes the characters that would break the `[label](url)` form. */

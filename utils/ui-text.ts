@@ -34,6 +34,7 @@ const STRINGS = {
   'toast.undo': { zh: '撤销', en: 'Undo' },
   'toast.edit': { zh: '编辑', en: 'Edit' },
   'toast.undone': { zh: '已撤销', en: 'Undone' },
+  'toast.undoFailed': { zh: '撤销失败，请重试', en: 'Undo failed. Try again.' },
   'toast.saveFailed': { zh: '保存失败', en: 'Save failed' },
   'toast.retry': { zh: '重试', en: 'Retry' },
   'toast.truncated': {
@@ -45,6 +46,8 @@ const STRINGS = {
   'edit.note': { zh: '备注', en: 'Note' },
   'edit.more': { zh: '更多属性', en: 'More properties' },
   'edit.done': { zh: '完成', en: 'Done' },
+  'edit.error.tagTooLong': { zh: '每个标签最多 {limit} 个字符。', en: 'Each tag is limited to {limit} characters.' },
+  'edit.error.tooManyTags': { zh: '最多添加 {limit} 个标签。', en: 'You can add up to {limit} tags.' },
   // block capsule + block mode (capture.md §6.2)
   'block.clip': { zh: '剪藏', en: 'Clip' },
   'block.shot': { zh: '截图', en: 'Shot' },
@@ -54,6 +57,7 @@ const STRINGS = {
   'block.disableEntry': { zh: '关闭区块剪藏入口', en: 'Turn off block entry' },
   'block.settings': { zh: '设置…', en: 'Settings…' },
   'block.mode.hint': { zh: '区块模式：Tab 下一块 · ↑↓ 换层级 · Enter 剪藏 · S 截图 · Esc 退出', en: 'Block mode: Tab next · ↑↓ level · Enter clip · S shot · Esc exit' },
+  'block.mode.hintClipOnly': { zh: '区块模式：Tab 下一块 · ↑↓ 换层级 · Enter 剪藏 · Esc 退出', en: 'Block mode: Tab next · ↑↓ level · Enter clip · Esc exit' },
   'block.kind.post': { zh: '帖子', en: 'Post' },
   'block.kind.code': { zh: '代码块', en: 'Code block' },
   'block.kind.table': { zh: '表格', en: 'Table' },
@@ -111,6 +115,13 @@ const STRINGS = {
   'shot.error.decode': { zh: '图片解码失败', en: 'Image decoding failed' },
   'shot.error.element': { zh: '元素截图失败', en: 'Element capture failed' },
   'shot.error.saveFailed': { zh: '保存失败，请重试', en: 'Save failed, try again' },
+  'error.quota': {
+    zh: '存储空间不足，没有保存。请先在资料库里导出内容，再删除不需要的条目。',
+    en: 'Storage is full, so nothing was saved. Export your content from the library, then delete entries you no longer need.',
+  },
+  'error.imageTooLarge': { zh: '图片超过单张大小上限，没有保存。', en: 'The image exceeds the per-image limit and was not saved.' },
+  'error.imageInvalid': { zh: '图片数据无效，没有保存。', en: 'The image data is invalid and was not saved.' },
+  'error.emptyContent': { zh: '选中的内容里没有可保存的文字。', en: 'There is no text to save in what was selected.' },
   'shot.error.copyFailed': { zh: '复制失败', en: 'Copy failed' },
   'shot.error.downloadFailed': { zh: '下载失败，请重试', en: 'Download failed, try again' },
   'shot.textInput.placeholder': { zh: '输入文字', en: 'Type text' },
@@ -127,6 +138,23 @@ const STRINGS = {
   'library.exporting': { zh: '正在导出…', en: 'Exporting…' },
   'library.exportDone': { zh: '导出完成', en: 'Export complete' },
   'library.exportPartial': { zh: '部分导出', en: 'Partial export' },
+  'library.exportSummary': { zh: '{clips} 条剪藏、{screenshots} 张截图；缺失图片 {missing} 项', en: '{clips} clips, {screenshots} screenshots; {missing} missing images' },
+  'library.exportError.limit': {
+    zh: '导出失败：内容超过 ZIP 格式的上限，没有生成文件。请先删除一部分条目再导出。',
+    en: 'Export failed: the content exceeds the ZIP format limit and no file was made. Delete some entries and try again.',
+  },
+  'library.exportError.quota': {
+    zh: '导出失败：本机可用空间不足，没有生成文件。请释放磁盘空间后重试。',
+    en: 'Export failed: not enough free space on this device, and no file was made. Free some disk space and try again.',
+  },
+  'library.exportError.download': {
+    zh: '导出失败：浏览器没有接受下载，没有保存文件。请检查下载设置后重试。',
+    en: 'Export failed: the browser did not accept the download, so no file was saved. Check the download settings and try again.',
+  },
+  'library.exportError.general': { zh: '导出失败，没有生成文件。请稍后重试。', en: 'Export failed and no file was made. Try again in a moment.' },
+  'library.context': { zh: '语境', en: 'Context' },
+  'library.imagePreview': { zh: '图片预览', en: 'Image preview' },
+  'library.error.notFound': { zh: '未找到该条目。', en: 'Entry not found.' },
   'library.empty': { zh: '还没有条目：选中网页文字即可保存', en: 'Nothing yet — select text on a page to save it' },
   'library.noResults': { zh: '没有匹配的结果', en: 'No matching results' },
   'library.clearFilters': { zh: '清除筛选', en: 'Clear filters' },
@@ -233,6 +261,7 @@ const STRINGS = {
   },
   'library.guide.shot': { zh: '截图：框选或点选，原位标注、遮住身份信息后入库。', en: 'Screenshot: drag or click, annotate in place and mask identities before saving.' },
   'library.guide.hl': { zh: '高亮：在资料库里读剪藏时划重点、写想法。', en: 'Highlight: draw marks and notes while reading a clip in the library.' },
+  'library.guide.sample': { zh: '打开示例页面', en: 'Open sample page' },
   'library.guide.dismiss': { zh: '知道了', en: 'Got it' },
   'library.empty.clips': { zh: '还没有剪藏：选中网页文字即可保存。', en: 'No clips yet — select text on a page to save it.' },
   'library.empty.screenshots': { zh: '还没有截图：Ctrl/Cmd+Shift+S 框选即可。', en: 'No screenshots yet — Ctrl/Cmd+Shift+S to drag one.' },
@@ -246,6 +275,28 @@ const STRINGS = {
   },
   'property.error.type': { zh: '同名属性已注册为其他类型。', en: 'A property with this name is already registered with another type.' },
   'property.error.value': { zh: '值不符合该属性的类型或上限。', en: 'The value does not match the property type or its limits.' },
+  'property.error.textTooLong': {
+    zh: '文本最多 {limit} 个字符，当前超出 {excess} 个。',
+    en: 'Text is limited to {limit} characters; remove {excess}.',
+  },
+  'property.error.listItemTooLong': {
+    zh: '每项最多 {limit} 个字符，当前超出 {excess} 个。',
+    en: 'Each item is limited to {limit} characters; remove {excess}.',
+  },
+  'property.error.listTooMany': { zh: '列表最多 {limit} 项。', en: 'This list is limited to {limit} items.' },
+  'property.error.titleRequired': { zh: '标题不能清空。', en: 'The title cannot be empty.' },
+  'property.system.source': { zh: '来源', en: 'Source' },
+  'property.system.created': { zh: '创建时间', en: 'Created' },
+  'property.system.updated': { zh: '更新时间', en: 'Updated' },
+  'settings.error.imageTooLarge': { zh: '水印图片不能超过 512 KB。', en: 'The watermark image must be 512 KB or smaller.' },
+  'settings.defaultHighlightColor': { zh: '默认高亮颜色', en: 'Default highlight color' },
+  'settings.shortcut.screenshot': { zh: '截图', en: 'Screenshot' },
+  'settings.shortcut.block': { zh: '区块模式', en: 'Block mode' },
+  'settings.shortcut.unassigned': { zh: '未设置', en: 'Not assigned' },
+  'settings.shortcut.manage': { zh: '管理快捷键', en: 'Manage shortcuts' },
+  'settings.orphanCleanup': { zh: '清理未引用的资产', en: 'Remove unreferenced assets' },
+  'settings.orphanConfirm': { zh: '确定删除 {count} 个未引用的资产？', en: 'Remove {count} unreferenced assets?' },
+  'reading.error.noteTooLong': { zh: '高亮备注最多 1000 个字符。', en: 'Highlight notes are limited to 1000 characters.' },
   'property.error.limit': { zh: '条目属性数超过上限（50）。', en: 'This entry already carries the maximum of 50 properties.' },
   'property.error.inUse': { zh: '使用中的属性不能删除。', en: 'A property in use cannot be deleted.' },
   'property.defaultValue': { zh: '默认值', en: 'Default value' },
@@ -274,6 +325,43 @@ const STRINGS = {
 } as const
 
 export type UiTextKey = keyof typeof STRINGS
+
+/** The reasons the user can be told, by the stable code the worker answered with (entry.md §6, screenshot.md §5). */
+const ERROR_TEXT: Record<string, UiTextKey> = {
+  PROPERTY_NAME_INVALID: 'property.error.name',
+  PROPERTY_TYPE_MISMATCH: 'property.error.type',
+  PROPERTY_VALUE_INVALID: 'property.error.value',
+  PROPERTY_LIMIT_EXCEEDED: 'property.error.limit',
+  PROPERTY_IN_USE: 'property.error.inUse',
+  EMPTY_CONTENT: 'error.emptyContent',
+  STORAGE_QUOTA_EXCEEDED: 'error.quota',
+  ENTRY_ASSET_TOO_LARGE: 'error.imageTooLarge',
+  ENTRY_ASSET_MISSING: 'error.imageInvalid',
+  CAPTURE_NOT_VISIBLE: 'shot.error.notVisible',
+  CAPTURE_FAILED: 'shot.error.capture',
+  DOWNLOAD_FAILED: 'shot.error.downloadFailed',
+}
+
+/** Why something failed, in words — or '' for a code that has no reason worth telling (never a raw message). */
+export function failureReason(code?: string, lang?: UiLanguage): string {
+  const key = ERROR_TEXT[code ?? '']
+  return key ? uiText(key, {}, lang) : ''
+}
+
+/** A failure to show wherever an edit or save did not go through: the reason if there is one, else "Save failed". */
+export function entryErrorText(code?: string, lang?: UiLanguage): string {
+  return failureReason(code, lang) || uiText('toast.saveFailed', {}, lang)
+}
+
+/** The screenshot flow's own phrasing for a failed save (it keeps the preview and says "try again"). */
+export function screenshotSaveErrorText(code: string | undefined): string {
+  return failureReason(code) || uiText('shot.error.saveFailed')
+}
+
+/** A failed capture, copy or download in the screenshot session. */
+export function screenshotFailureText(code: string | undefined, fallback: UiTextKey): string {
+  return failureReason(code) || uiText(fallback)
+}
 
 export function uiText(key: UiTextKey, params: Record<string, string | number> = {}, lang?: UiLanguage): string {
   const entry = STRINGS[key]

@@ -4,7 +4,20 @@
  * produce the same save; the capsule never covers the page's own controls
  * and stays inside the window for tall blocks.
  */
-import { candidateRect, candidatesAtPoint, deepElementFromPoint, type BlockCandidate, type BlockKind } from './blocks'
+import {
+  candidateAnchor,
+  candidateRect,
+  candidatesAtPoint,
+  candidateSummary,
+  chainOf,
+  deepElementFromPoint,
+  firstVisibleChain,
+  peersOf,
+  sameCandidate,
+  candidatesFor,
+  type BlockCandidate,
+  type BlockKind,
+} from './blocks'
 import { isUserInput } from './user-input'
 import { uiText } from '../../utils/ui-text'
 
@@ -14,7 +27,8 @@ const LEAVE_MS = 150
 
 export interface BlockHoverHooks {
   onClip(candidate: BlockCandidate, levelChanged: boolean): void
-  onScreenshot(candidate: BlockCandidate): void
+  /** Absent in a child frame: the screenshot session belongs to the top frame's viewport. */
+  onScreenshot?(candidate: BlockCandidate): void
   onDisableSite(): void
   onDisableEntry(): void
   openSettings(): void
@@ -31,10 +45,17 @@ export class BlockEntries {
   private dwellTimer: number | null = null
   private leaveTimer: number | null = null
   private modeActive = false
-  private modeIndex = 0
   private modeLevelChanged = false
-  private modeCandidates: BlockCandidate[] = []
+  /** The chain of the current target, innermost first — replaced only by a new target, never rebuilt from a unit's own element. */
+  private modeChain: BlockCandidate[] = []
+  private modeDepth = 0
+  private modePainted: BlockCandidate | null = null
   private modeOverlay: HTMLElement | null = null
+  private modeKeyHandler: ((event: KeyboardEvent) => void) | null = null
+  private modeRepaint: (() => void) | null = null
+  private modeStatusEl: HTMLElement | null = null
+  private modeKindEl: HTMLElement | null = null
+  private modeRestoreFocus: HTMLElement | null = null
   private lastPoint = { x: 0, y: 0 }
   private listeners: (() => void)[] = []
 
@@ -208,16 +229,19 @@ export class BlockEntries {
       if (!keyboard) this.hideNow()
     })
 
-    const shot = this.doc.createElement('button')
-    shot.type = 'button'
-    shot.textContent = uiText('block.shot')
-    shot.addEventListener('click', event => {
-      if (!isUserInput(event)) return
-      this.hooks.onScreenshot(candidate)
-      if (!keyboard) this.hideNow()
-    })
-
-    host.append(clip, shot)
+    host.append(clip)
+    const startScreenshot = this.hooks.onScreenshot
+    if (startScreenshot) {
+      const shot = this.doc.createElement('button')
+      shot.type = 'button'
+      shot.textContent = uiText('block.shot')
+      shot.addEventListener('click', event => {
+        if (!isUserInput(event)) return
+        startScreenshot.call(this.hooks, candidate)
+        if (!keyboard) this.hideNow()
+      })
+      host.append(shot)
+    }
 
     if (!keyboard) {
       const up = this.doc.createElement('button')
@@ -334,23 +358,44 @@ export class BlockEntries {
       return
     }
     this.hideNow()
+    // The first target comes from where the user is — the focused element, else the first unit on
+    // screen (D-27) — and is found before the overlay exists, so hit-testing sees the page.
+    const initial = this.initialModeChain()
     this.modeActive = true
     this.modeLevelChanged = false
-    this.modeIndex = 0
+    this.modeChain = []
+    this.modeDepth = 0
+    this.modePainted = null
 
     const overlay = this.doc.createElement('div')
     overlay.setAttribute(ROOT_ATTR, 'block-mode-overlay')
     overlay.className = 'ann-block-mode-overlay'
+    // One live region: the kind and the unit's own words change with the target; the key hint
+    // never changes, so it is announced once with the mode and not on every move.
     const status = this.doc.createElement('div')
     status.className = 'ann-block-mode-status'
     status.setAttribute(ROOT_ATTR, 'block-mode-capsule')
-    status.textContent = uiText('block.mode.hint')
+    status.setAttribute('role', 'status')
+    status.setAttribute('aria-live', 'polite')
+    status.setAttribute('aria-atomic', 'false')
+    const kind = this.doc.createElement('span')
+    kind.className = 'ann-block-mode-kind'
+    const hint = this.doc.createElement('span')
+    hint.className = 'ann-block-mode-hint'
+    hint.textContent = uiText(this.hooks.onScreenshot ? 'block.mode.hint' : 'block.mode.hintClipOnly')
+    status.append(kind, hint)
     this.doc.documentElement.append(overlay, status)
+    // Keys must reach this document: a user whose focus sat in a child frame would otherwise type
+    // into that frame while the mode waits here. The previous focus comes back on exit.
+    const previousFocus = this.doc.activeElement
+    this.modeRestoreFocus = previousFocus instanceof HTMLElement && previousFocus !== this.doc.body ? previousFocus : null
+    overlay.tabIndex = -1
+    overlay.focus({ preventScroll: true })
 
     overlay.addEventListener('pointermove', event => {
       if (!isUserInput(event)) return
       this.lastPoint = { x: event.clientX, y: event.clientY }
-      this.refreshModeTarget()
+      this.refreshFromPointer()
     })
     // links do not respond to clicks inside the mode (capture.md §6.2)
     overlay.addEventListener('pointerdown', event => event.preventDefault())
@@ -365,61 +410,96 @@ export class BlockEntries {
         return
       }
       if (event.key === 'Tab') {
-        this.modeIndex += event.shiftKey ? -1 : 1
-        this.refreshModeTarget(true)
+        this.moveToPeer(event.shiftKey ? -1 : 1)
         return
       }
-      if (event.key === 'ArrowUp') {
-        this.modeDepth = Math.min(this.modeDepth + 1, Math.max(0, this.modeCandidates.length - 1))
+      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        // the chain stays what it was: ↓ walks back down the same chain ↑ walked up
+        const next = this.modeDepth + (event.key === 'ArrowUp' ? 1 : -1)
+        if (next < 0 || next >= this.modeChain.length) return
         this.modeLevelChanged = true
-        this.refreshModeTarget()
-        return
-      }
-      if (event.key === 'ArrowDown') {
-        this.modeDepth = Math.max(0, this.modeDepth - 1)
-        this.modeLevelChanged = true
-        this.refreshModeTarget()
+        this.modeDepth = next
+        this.paintMode(true)
         return
       }
       if (event.key === 'Enter') {
-        const candidate = this.modeCandidates[this.modeDepth]
+        const candidate = this.modeChain[this.modeDepth]
         if (candidate) {
           this.hooks.onClip(candidate, this.modeLevelChanged)
           this.exitBlockMode()
         }
         return
       }
-      if (event.key.toLowerCase() === 's') {
-        const candidate = this.modeCandidates[this.modeDepth]
-        if (candidate) {
+      if (event.key.toLowerCase() === 's' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        const candidate = this.modeChain[this.modeDepth]
+        if (candidate && this.hooks.onScreenshot) {
           this.hooks.onScreenshot(candidate)
           this.exitBlockMode()
         }
       }
     }
     this.doc.addEventListener('keydown', onKey, true)
+    // the outline is fixed to the window: a page that scrolls under it needs it repainted
+    const repaint = (): void => this.paintMode(false, true)
+    this.doc.addEventListener('scroll', repaint, true)
+    this.doc.defaultView?.addEventListener('resize', repaint)
+    this.modeRepaint = repaint
     this.modeOverlay = overlay
     this.modeKeyHandler = onKey
     this.modeStatusEl = status
-    this.refreshModeTarget()
+    this.modeKindEl = kind
+    if (initial.length > 0) this.setModeChain(initial, 0, true)
   }
 
-  private modeDepth = 0
-  private modeKeyHandler: ((event: KeyboardEvent) => void) | null = null
-  private modeStatusEl: HTMLElement | null = null
+  private initialModeChain(): BlockCandidate[] {
+    const focused = this.doc.activeElement
+    if (focused instanceof Element && focused !== this.doc.body && focused !== this.doc.documentElement) {
+      const chain = candidatesFor(focused, this.doc)
+      if (chain.length > 0) return chain
+    }
+    return firstVisibleChain(this.doc)
+  }
 
-  private refreshModeTarget(reposition = false): void {
+  /** A new target replaces the chain; the depth the user chose is kept as far as the new chain reaches. */
+  private setModeChain(chain: BlockCandidate[], depth: number, scroll: boolean): void {
+    this.modeChain = chain
+    this.modeDepth = Math.max(0, Math.min(depth, chain.length - 1))
+    this.paintMode(scroll)
+  }
+
+  private refreshFromPointer(): void {
     if (!this.modeActive) return
-    void reposition
     // hit-test through the mode overlay: it sits on top of the page by design
     if (this.modeOverlay) this.modeOverlay.style.pointerEvents = 'none'
     const chain = candidatesAtPoint(this.lastPoint.x, this.lastPoint.y, this.doc)
     if (this.modeOverlay) this.modeOverlay.style.pointerEvents = ''
-    this.modeCandidates = chain
-    this.modeDepth = Math.min(this.modeDepth, Math.max(0, chain.length - 1))
-    const candidate = chain[this.modeDepth]
-    this.outlineEl?.remove()
+    // nothing under the pointer: the previous target stays, outlined, so what is painted is what Enter saves
+    if (chain.length === 0) return
+    this.setModeChain(chain, this.modeDepth, false)
+  }
+
+  /** Tab / Shift+Tab: the next or previous unit of the same kind, in document order, wrapping around. */
+  private moveToPeer(step: 1 | -1): void {
+    const current = this.modeChain[this.modeDepth]
+    if (!current) return
+    const peers = peersOf(current, this.doc)
+    if (peers.length < 2) return
+    const index = peers.findIndex(peer => sameCandidate(peer, current))
+    const next = peers[(index + step + peers.length) % peers.length]!
+    // the chain is detected from the unit itself, so ↑↓ keep working from the new position
+    const chain = chainOf(next, this.doc)
+    const depth = chain.findIndex(candidate => sameCandidate(candidate, next))
+    this.setModeChain(depth >= 0 ? chain : [next], Math.max(depth, 0), true)
+  }
+
+  /** Outlines the current target and says what it is. `scroll`: bring it into view (keyboard moves only). */
+  private paintMode(scroll: boolean, force = false): void {
+    const candidate = this.modeChain[this.modeDepth]
     if (!candidate) return
+    if (!force && !scroll && this.modePainted && sameCandidate(this.modePainted, candidate)) return
+    this.modePainted = candidate
+    if (scroll) candidateAnchor(candidate).scrollIntoView?.({ block: 'nearest', behavior: 'instant' })
+    this.outlineEl?.remove()
     const outline = this.doc.createElement('div')
     outline.setAttribute(ROOT_ATTR, 'block-outline')
     outline.className = 'ann-block-outline ann-block-outline-keyboard'
@@ -427,24 +507,36 @@ export class BlockEntries {
     Object.assign(outline.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` })
     this.doc.documentElement.appendChild(outline)
     this.outlineEl = outline
-    if (this.modeStatusEl) {
+    if (this.modeKindEl) {
       const kind = uiText(`block.kind.${candidate.kind}` as 'block.kind.post')
-      this.modeStatusEl.textContent = `${kind} · ${uiText('block.mode.hint')}`
+      const summary = candidateSummary(candidate)
+      const text = summary ? `${kind} · ${summary}` : kind
+      if (this.modeKindEl.textContent !== text) this.modeKindEl.textContent = text
     }
   }
 
   exitBlockMode(): void {
     if (this.modeKeyHandler) this.doc.removeEventListener('keydown', this.modeKeyHandler, true)
+    if (this.modeRepaint) {
+      this.doc.removeEventListener('scroll', this.modeRepaint, true)
+      this.doc.defaultView?.removeEventListener('resize', this.modeRepaint)
+    }
     this.modeKeyHandler = null
+    this.modeRepaint = null
+    const restoreFocus = this.modeRestoreFocus
+    this.modeRestoreFocus = null
     this.modeOverlay?.remove()
     this.modeOverlay = null
     this.modeStatusEl?.remove()
     this.modeStatusEl = null
+    this.modeKindEl = null
     this.outlineEl?.remove()
     this.outlineEl = null
     this.modeActive = false
-    this.modeCandidates = []
+    this.modeChain = []
+    this.modePainted = null
     this.modeDepth = 0
+    if (restoreFocus?.isConnected) restoreFocus.focus({ preventScroll: true })
   }
 
   isBlockModeActive(): boolean {

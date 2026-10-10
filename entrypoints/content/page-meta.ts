@@ -62,8 +62,18 @@ function blockChildOf(node: Node | null): Element | null {
 /** The sibling block run [from, to] covering both selection ends. */
 function blockScopeOf(range: Range): { parent: Element; from: Element; to: Element } | null {
   const startBlock = blockChildOf(range.startContainer)
-  const endBlock = blockChildOf(range.endContainer) ?? startBlock
+  let endBlock = blockChildOf(range.endContainer) ?? startBlock
   if (!startBlock || !endBlock) return null
+  if (startBlock !== endBlock) {
+    const beforeEnd = range.cloneRange()
+    beforeEnd.selectNodeContents(endBlock)
+    beforeEnd.setEnd(range.endContainer, range.endOffset)
+    if (beforeEnd.toString().length === 0) {
+      let previous = endBlock.previousElementSibling
+      while (previous && !previous.matches(BLOCK_ANCESTOR_SELECTOR)) previous = previous.previousElementSibling
+      endBlock = previous ?? startBlock
+    }
+  }
   const parent = startBlock.parentElement
   if (!parent || endBlock.parentElement !== parent) {
     // ends in different parents: each block is its own context unit

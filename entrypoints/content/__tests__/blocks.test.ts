@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { candidateRect, candidatesFor, deepElementFromPoint, type BlockCandidate } from '../blocks'
+import { candidateAnchor, candidateRect, candidateSummary, candidatesFor, chainOf, deepElementFromPoint, peersOf, sameCandidate, type BlockCandidate } from '../blocks'
 
 /**
  * Block detection over fixture DOM (capture.md §6.2). jsdom has no layout:
@@ -259,5 +259,45 @@ describe('flat documents: headings and paragraphs as siblings (RV-CAP-01)', () =
       Element.prototype.getBoundingClientRect = original
       expect(boxes).toHaveLength(3)
     }
+  })
+})
+
+describe('keyboard mode helpers (capture.md §6.2, D-27)', () => {
+  it('detecting from a unit reproduces it: a flat section is found again from its heading, not from its container', () => {
+    document.body.innerHTML = FLAT_DOC
+    const section = candidatesFor(doc.querySelector('#flat-b-p')!, doc).find(candidate => candidate.kind === 'section')!
+    expect(candidateAnchor(section)).toBe(doc.querySelector('#flat-b'))
+    expect(chainOf(section, doc).some(candidate => sameCandidate(candidate, section))).toBe(true)
+    // the old approach (the unit's element as the target) loses the unit
+    expect(candidatesFor(section.element, doc).some(candidate => sameCandidate(candidate, section))).toBe(false)
+  })
+
+  it('peers of a flat section are the other heading runs, in document order', () => {
+    document.body.innerHTML = FLAT_DOC
+    const section = candidatesFor(doc.querySelector('#flat-b-p')!, doc).find(candidate => candidate.kind === 'section')!
+    const peers = peersOf(section, doc)
+    expect(peers.length).toBeGreaterThan(1)
+    expect(peers.every(peer => peer.kind === 'section')).toBe(true)
+    const anchors = peers.map(peer => candidateAnchor(peer))
+    for (let i = 1; i < anchors.length; i++) {
+      expect(anchors[i - 1]!.compareDocumentPosition(anchors[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    expect(peers.some(peer => sameCandidate(peer, section))).toBe(true)
+  })
+
+  it("a summary reads a run section's own words, and falls back to an image's alt text", () => {
+    document.body.innerHTML = FLAT_DOC
+    const section = candidatesFor(doc.querySelector('#flat-b-p')!, doc).find(candidate => candidate.kind === 'section')!
+    const text = candidateSummary(section, 400)
+    expect(text.startsWith(doc.querySelector('#flat-b')!.textContent!.trim())).toBe(true)
+    expect(text).not.toContain(doc.querySelector('#flat-a')!.textContent!.trim())
+    document.body.innerHTML = '<p><img id="pic" alt="p99 latency curve" src="https://img.example/c.png"></p>'
+    const image = { kind: 'figure', element: doc.getElementById('pic') as HTMLElement } as BlockCandidate
+    expect(candidateSummary(image)).toBe('p99 latency curve')
+  })
+
+  it('a summary is capped', () => {
+    document.body.innerHTML = `<pre id="long">${'word '.repeat(100)}</pre>`
+    expect(candidateSummary({ kind: 'code', element: doc.getElementById('long') as HTMLElement }, 20)).toHaveLength(20)
   })
 })
