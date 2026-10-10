@@ -1,10 +1,10 @@
 /**
- * The icons that stand for entry types and library views (visual.md §3, extension.md §2.2):
+ * The icons that stand for entry types, library views and property types (visual.md §3, extension.md §2.2):
  * one mapping for every extension page, so a clip is a bookmark and a screenshot is a scan wherever either
  * shows up — the library's nav and rows, the drawer, the popup's rail.
  */
-import { Bookmark, Highlighter, Library, Scan, Settings, Tags, type LucideIcon } from 'lucide-react'
-import type { EntryType } from '../learning-core/types'
+import { Bookmark, Calendar, CalendarClock, Hash, Highlighter, Library, List, Scan, Settings, SquareCheck, Tags, Text, type LucideIcon } from 'lucide-react'
+import type { EntryType, PropertyType } from '../learning-core/types'
 import { uiText } from './ui-text'
 
 /** The library's views, in the nav's own words: the shape of `View` in the library's route. */
@@ -21,6 +21,15 @@ export const VIEW_ICONS: Record<ViewKey, LucideIcon> = {
 }
 
 export const ENTRY_TYPE_ICONS: Record<EntryType, LucideIcon> = { clip: Bookmark, screenshot: Scan }
+
+export const PROPERTY_TYPE_ICONS: Record<PropertyType, LucideIcon> = {
+  text: Text,
+  list: List,
+  number: Hash,
+  checkbox: SquareCheck,
+  date: Calendar,
+  datetime: CalendarClock,
+}
 
 /** The type as its icon and its name together: the icon never stands alone and the colour never carries the meaning (visual.md §3). */
 export function TypeChip({ type, className }: { type: EntryType; className?: string }) {

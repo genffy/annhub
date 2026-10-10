@@ -103,6 +103,9 @@ export const BUILTIN_PROPERTY_DEFINITIONS: readonly PropertyDefinition[] = [
   { name: 'description', type: 'text', builtin: true, presets: ['clip'] },
 ]
 
+/** The built-ins every entry carries whatever its type: the type presets cannot drop them (entry.md §5.4). */
+export const FIXED_PRESET_PROPERTIES: readonly string[] = ['title', 'tags']
+
 export function builtinDefinition(name: string): PropertyDefinition | undefined {
   return BUILTIN_PROPERTY_DEFINITIONS.find(def => propertyStorageKey(def.name) === propertyStorageKey(name))
 }

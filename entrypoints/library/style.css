@@ -1170,6 +1170,10 @@ body {
   white-space: nowrap;
 }
 
+.prop-name svg {
+  vertical-align: -2px;
+}
+
 .prop-row input[type='text'],
 .prop-row input[type='number'],
 .prop-row input[type='date'],
@@ -1235,6 +1239,37 @@ body {
   max-width: 860px;
   margin: 0 auto;
   width: 100%;
+}
+
+.props-page > .page-title {
+  margin-bottom: 14px;
+}
+
+.prop-name-cell {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.prop-name-cell svg {
+  flex: none;
+  color: var(--ann-muted);
+}
+
+.tag-fixed {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* the reason a property cannot be deleted, under the dimmed button */
+.prop-reason {
+  display: block;
+  margin-top: 3px;
+  color: var(--ann-muted);
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .props-toolbar {

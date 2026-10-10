@@ -6,10 +6,11 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import MessageUtils from '../../utils/message'
+import { Lock, Trash2 } from 'lucide-react'
 import { PROPERTY_TYPES, type EntryType, type PropertyDefinition, type PropertyType, type PropertyValue } from '../../learning-core/types'
+import { PROPERTY_TYPE_ICONS } from '../../utils/entry-icons'
 import { entryErrorText, uiText } from '../../utils/ui-text'
-
-const TYPE_ICON: Record<PropertyType, string> = { text: '𝐓', list: '≔', number: '#', checkbox: '☑', date: '📅', datetime: '🕰' }
+import { isFixedProperty, orderRegistry } from './property-order'
 
 interface CreatingProperty {
   name: string
@@ -89,7 +90,7 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
     onRegistryChanged()
   }
 
-  const sorted = [...registry].sort((a, b) => Number(b.builtin) - Number(a.builtin) || a.name.localeCompare(b.name))
+  const sorted = orderRegistry(registry)
 
   return (
     <div className="props-page" data-testid="props-page">
@@ -192,12 +193,23 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
         <tbody>
           {sorted.map(def => {
             const count = usage[def.name] ?? 0
-            const fixed = def.name === 'title' || def.name === 'tags'
+            const fixed = isFixedProperty(def.name)
+            const TypeIcon = PROPERTY_TYPE_ICONS[def.type]
+            // a delete that cannot happen says why, in words next to it: a greyed-out button alone explains nothing (extension.md §2.4)
+            const blocked: 'property.deleteBuiltin' | 'property.deleteInUse' | null = def.builtin ? 'property.deleteBuiltin' : count > 0 ? 'property.deleteInUse' : null
             return (
               <tr key={def.name} data-prop={def.name}>
                 <td>
-                  <span aria-hidden>{TYPE_ICON[def.type]}</span> {def.name}
-                  {def.builtin && <span className="tag">{uiText('property.builtin')}</span>}
+                  <span className="prop-name-cell">
+                    <TypeIcon size={14} aria-hidden /> {def.name}
+                    {fixed ? (
+                      <span className="tag tag-fixed" data-testid={`fixed-${def.name}`}>
+                        <Lock size={11} aria-hidden /> {uiText('property.fixed')}
+                      </span>
+                    ) : (
+                      def.builtin && <span className="tag">{uiText('property.builtin')}</span>
+                    )}
+                  </span>
                 </td>
                 <td>{def.defaultValue === undefined ? '—' : String(def.defaultValue)}</td>
                 <td data-testid={`usage-${def.name}`}>{count}</td>
@@ -208,6 +220,7 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
                         type="checkbox"
                         checked={def.presets.includes(type)}
                         disabled={fixed}
+                        title={fixed ? uiText('property.fixedPreset') : undefined}
                         aria-label={`${def.name} ${type}`}
                         onChange={event => {
                           const presets = event.target.checked ? [...def.presets, type] : def.presets.filter(item => item !== type)
@@ -219,10 +232,21 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
                   ))}
                 </td>
                 <td>
-                  {!def.builtin && (
-                    <button type="button" className="danger" disabled={count > 0} data-testid={`delete-${def.name}`} onClick={() => void remove(def.name)}>
-                      {uiText('library.delete')}
-                    </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    disabled={blocked !== null}
+                    title={blocked ? uiText(blocked) : undefined}
+                    aria-describedby={blocked ? `delete-reason-${encodeURIComponent(def.name)}` : undefined}
+                    data-testid={`delete-${def.name}`}
+                    onClick={() => void remove(def.name)}
+                  >
+                    <Trash2 size={13} aria-hidden /> {uiText('library.delete')}
+                  </button>
+                  {blocked && (
+                    <span className="prop-reason" id={`delete-reason-${encodeURIComponent(def.name)}`} data-testid={`delete-reason-${def.name}`}>
+                      {uiText(blocked)}
+                    </span>
                   )}
                 </td>
               </tr>

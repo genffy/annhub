@@ -9,11 +9,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
 import type { EntryRecord, PropertyDefinition, PropertyType, PropertyValue } from '../../learning-core/types'
+import { PROPERTY_TYPE_ICONS } from '../../utils/entry-icons'
 import { normalizeTags, PROPERTY_LIST_ITEM_MAX, PROPERTY_LIST_ITEMS_MAX, PROPERTY_TEXT_MAX, TAG_LENGTH_MAX, TAGS_MAX } from '../../learning-core/properties'
 import { PROPERTY_TYPES } from '../../learning-core/types'
 import { entryErrorText, uiText } from '../../utils/ui-text'
-
-const TYPE_ICON: Record<PropertyType, string> = { text: '𝐓', list: '≔', number: '#', checkbox: '☑', date: '📅', datetime: '🕰' }
 
 interface Props {
   entry: EntryRecord
@@ -115,6 +114,7 @@ export const PropertyPanel = forwardRef<PropertyPanelHandle, Props>(function Pro
   }
 
   const names = Object.keys(entry.properties)
+  const PendingIcon = PROPERTY_TYPE_ICONS[pending?.type ?? 'text']
 
   return (
     <div className="prop-panel" data-testid="prop-panel">
@@ -122,10 +122,11 @@ export const PropertyPanel = forwardRef<PropertyPanelHandle, Props>(function Pro
         const def = byKey.get(name.toLowerCase())
         const type = def?.type ?? 'text'
         const inputId = `property-${entry.id}-${encodeURIComponent(name)}`
+        const TypeIcon = PROPERTY_TYPE_ICONS[type]
         return (
           <div key={name} className="prop-row">
             <label className="prop-name" title={type} htmlFor={inputId}>
-              <span aria-hidden>{TYPE_ICON[type]}</span> {name}
+              <TypeIcon size={14} aria-hidden /> {name}
             </label>
             <DraftEditor
               ref={handle => {
@@ -146,7 +147,7 @@ export const PropertyPanel = forwardRef<PropertyPanelHandle, Props>(function Pro
       {pending && (
         <div className="prop-row" data-testid="prop-row-pending">
           <label className="prop-name" title={pending.type} htmlFor={`property-${entry.id}-pending`}>
-            <span aria-hidden>{TYPE_ICON[pending.type]}</span> {pending.name}
+            <PendingIcon size={14} aria-hidden /> {pending.name}
           </label>
           <PendingEditor
             ref={handle => {
