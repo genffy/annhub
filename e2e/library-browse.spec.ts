@@ -97,7 +97,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
       const problems = await library.evaluate(() => {
         const bar = document.querySelector('.toolbar')!
         const edge = bar.getBoundingClientRect()
-        const parts = [...bar.children].map(child => ({ name: child.className || child.tagName, box: child.getBoundingClientRect() }))
+        const parts = [...bar.children].map(child => ({ name: child.className || child.tagName, element: child, box: child.getBoundingClientRect() }))
         const found: string[] = []
         for (const part of parts) if (part.box.right > edge.right + 1 || part.box.left < edge.left - 1) found.push(`${part.name} leaves the bar`)
         for (let i = 0; i < parts.length; i++) {
@@ -109,6 +109,20 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
         }
         const label = bar.querySelector('.filter-time-label')
         if (label && label.getBoundingClientRect().height > 20) found.push('the time label breaks over two lines')
+        // the checks above see only the bar's own children: the date range is one child holding two inputs, and
+        // a child can look fine while what it holds sticks out of it (the inputs once ran 90px past the label's
+        // box, over the count and out of the window)
+        for (const part of parts) {
+          for (const inner of part.element.querySelectorAll('*')) {
+            const box = inner.getBoundingClientRect()
+            if (box.width > 0 && (box.right > part.box.right + 1 || box.left < part.box.left - 1))
+              found.push(`${part.name}: <${inner.tagName.toLowerCase()}> sticks out of its control`)
+          }
+        }
+        for (const input of bar.querySelectorAll<HTMLInputElement>('.filter-time input')) {
+          if (input.scrollWidth > input.clientWidth + 1) found.push('a date input clips its value or its picker button')
+        }
+        if (document.documentElement.scrollWidth > innerWidth) found.push(`the page scrolls sideways (${document.documentElement.scrollWidth} > ${innerWidth})`)
         return found
       })
       expect(problems, `filter bar at ${width}px`).toEqual([])

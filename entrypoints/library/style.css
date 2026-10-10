@@ -186,10 +186,17 @@ body {
   width: 150px;
 }
 
+/*
+ * The date range is a .filter too, but a select's 180px cap does not fit a label and two date inputs: with the
+ * cap the inputs ran out of the control, over the count and past the window. It sizes to its content and gives
+ * way, inputs first, only when the bar itself is narrower.
+ */
 .filter-time {
   display: flex;
   align-items: center;
   gap: 4px;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--ann-border);
   border-radius: 6px;
   padding: 3px 6px;
@@ -199,12 +206,14 @@ body {
 }
 
 .filter-time input {
+  flex: 0 1 118px;
+  width: 118px;
+  min-width: 0;
   border: 0;
   background: transparent;
   color: var(--ann-text);
   font-size: 12px;
   font-family: inherit;
-  width: 118px;
 }
 
 .filter-time-label {
