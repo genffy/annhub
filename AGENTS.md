@@ -1,7 +1,7 @@
 # AnnHub 工程约定
 
 > 本文件只放跨目录通用规则。当前代码的局部维护提示见下表的 `AGENTS.md`。
-> 更新：2026-10-09。
+> 更新：2026-10-10。
 
 ## 项目与真源
 
@@ -10,7 +10,7 @@
 - 产品边界、目标契约与阶段验收以 [docs/v2/README.md](docs/v2/README.md) 为入口；当前代码行为以源码和测试为准。目标文档不代表功能已经实现。
 - 不在 v2 文档里的能力不进入仓库；发现这样的代码、文案或配置时删除，而不是兼容或隔离。
 - 本文件不复制数据结构、消息清单、目标包结构或产品决策。当前字段与消息看源码，已确认但仍在迭代的产品结论看 `docs/v2/`。
-- 2026-10-09 在真实浏览器里对照 `docs/v2` 的复核登记了一批待修缺陷：完成标准在 [roadmap.md 第 5 节](docs/v2/roadmap.md)，逐条的现象、位置、验收与测试要求在对应目录 `AGENTS.md` 的「已知问题」（编号 `RV-`），待拍板的点在 [validation.md 第 5 节](docs/v2/validation.md)（每条有默认）。改哪个目录就先读那一节，修完在原处删除该条。
+- 待确认的产品决策（`D-`）连同各自的默认在 [validation.md 第 5 节](docs/v2/validation.md)：实现不等回复，先按默认走，确认的结果与默认不同再调整。只有真机才能验收的项在 [roadmap.md 第 5 节](docs/v2/roadmap.md)。
 
 ## 按目录读取
 
@@ -35,16 +35,6 @@
 4. 日志与指标事件不包含密钥、用户内容、完整页面或附件二进制。
 5. 保存失败、返回或关闭流程不得丢失用户已输入的内容。不回退与当前任务无关的工作区改动。
 6. 模块、消息、快捷键或数据契约变化时，更新受影响的 `README.md` 与 `docs/`；只在全局规则或目录导航变化时修改本文件。
-
-## 待清理的遗留
-
-> 一次性清单，属于上面提到的复核（2026-10-09，基线提交 `cfe7c2c`）。它们跨目录、没有各自的 `AGENTS.md`，所以登记在这里；删除时按下一节「联动一致性」先 `git grep` 找全引用，依赖变化后用 npm 11 的 `npm install` 更新锁文件并跑 `npm run check:lockfiles -- --fix` 与 `npm run verify`。删完在此处删除该条。
-
-- **RV-CLN-01**：`utils/helpers/index.ts`（`generateId` 与基于 MD5 的 `hash`）没有任何引用。删除文件，并从 `package.json` 去掉 `crypto-js` 与 `@types/crypto-js`。
-- **RV-CLN-02**：`components/utils.ts`（`cn`）没有任何引用，删除，并去掉 `clsx` 与 `tailwind-merge`。Tailwind 这一整套（`tailwind.config.js`、`postcss.config.cjs`、`styles/globals.css` 里的 `@tailwind` 指令、`tailwindcss`、`tailwindcss-animate`、`autoprefixer`）在扩展页面里只剩 `entrypoints/library/settings-view.tsx` 里一处工具类：评估后整体移除，或保留并在 `entrypoints/library/AGENTS.md` 说明用途。官网有自己独立的 Tailwind，不受影响，但 `.github/dependabot.yml` 里对 `tailwindcss` 的 `ignore` 要核对。
-- **RV-CLN-03**：`types/dom.ts`（`MixedSelectionContent`）没有任何引用，删除。
-- **RV-CLN-04**：被跟踪的 `.env.publish` 只有一段注释，提到“在扩展设置里配置运行时凭据”——这是已移除产品的残留，v2 没有凭据。删除，并核对 `.gitignore`、文档里对它的引用。
-- 其余无人使用或重复的代码随各自的条目处理：`ServiceWorkerManager` 等（RV-BG-09）、`mergeHighlight`（RV-CORE-08）、`blockKindLabelKey` 与 `MARGIN_CHOICES`（RV-CAP-11）、文案泄漏（RV-LIB-12）。
 
 ## 联动一致性（强制）
 
