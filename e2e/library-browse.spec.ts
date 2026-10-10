@@ -28,6 +28,33 @@ async function expectNavTotal(library: import('@playwright/test').Page, total: n
   await expect(library.locator('a[href="#/all"] .nav-count')).toHaveText(String(total))
 }
 
+/** 120 clips straight into the database, titled "Row 0" to "Row 119", oldest first: three pages of the list. */
+async function seedThreePages(context: import('@playwright/test').BrowserContext): Promise<void> {
+  const sw = await ensureServiceWorker(context)
+  await sw.evaluate(
+    () =>
+      new Promise<void>(resolve => {
+        const open = indexedDB.open('annhub')
+        open.onsuccess = () => {
+          const tx = open.result.transaction('entries', 'readwrite')
+          for (let i = 0; i < 120; i++) {
+            tx.objectStore('entries').put({
+              id: `ent_page_${String(i).padStart(3, '0')}`,
+              type: 'clip',
+              content: `Body ${i}`,
+              sourceUrl: `https://example.com/${i}`,
+              sourceHost: 'example.com',
+              properties: { title: `Row ${i}` },
+              createdAt: i + 1,
+              updatedAt: i + 1,
+            })
+          }
+          tx.oncomplete = () => resolve()
+        }
+      }),
+  )
+}
+
 /**
  * A library with the body sizes the review measured (RV-BG-04): 70% about 0.5 KB, 20% about 6 KB, 10% about
  * 50 KB — roughly 65 MB for 10,000 clips. Written straight into IndexedDB, so the derived search documents
@@ -90,42 +117,44 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
       [390, 844],
     ] as const) {
       await library.setViewportSize({ width, height })
-      // `prop=title` adds the operator and value controls: the widest the bar gets
-      await library.goto(`chrome-extension://${extensionId}/library.html#/clips?prop=title`)
-      await library.reload()
-      await expect(library.locator('.row')).toHaveCount(3)
-      const problems = await library.evaluate(() => {
-        const bar = document.querySelector('.toolbar')!
-        const edge = bar.getBoundingClientRect()
-        const parts = [...bar.children].map(child => ({ name: child.className || child.tagName, element: child, box: child.getBoundingClientRect() }))
-        const found: string[] = []
-        for (const part of parts) if (part.box.right > edge.right + 1 || part.box.left < edge.left - 1) found.push(`${part.name} leaves the bar`)
-        for (let i = 0; i < parts.length; i++) {
-          for (let j = i + 1; j < parts.length; j++) {
-            const a = parts[i]!.box
-            const b = parts[j]!.box
-            if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) found.push(`${parts[i]!.name} overlaps ${parts[j]!.name}`)
+      // `prop=title` adds the operator and value controls; the "all" view adds the type filter: the widest the bar gets
+      for (const route of ['clips?prop=title', 'all?type=clip&prop=title']) {
+        await library.goto(`chrome-extension://${extensionId}/library.html#/${route}`)
+        await library.reload()
+        await expect(library.locator('.row')).toHaveCount(3)
+        const problems = await library.evaluate(() => {
+          const bar = document.querySelector('.toolbar')!
+          const edge = bar.getBoundingClientRect()
+          const parts = [...bar.children].map(child => ({ name: child.className || child.tagName, element: child, box: child.getBoundingClientRect() }))
+          const found: string[] = []
+          for (const part of parts) if (part.box.right > edge.right + 1 || part.box.left < edge.left - 1) found.push(`${part.name} leaves the bar`)
+          for (let i = 0; i < parts.length; i++) {
+            for (let j = i + 1; j < parts.length; j++) {
+              const a = parts[i]!.box
+              const b = parts[j]!.box
+              if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) found.push(`${parts[i]!.name} overlaps ${parts[j]!.name}`)
+            }
           }
-        }
-        const label = bar.querySelector('.filter-time-label')
-        if (label && label.getBoundingClientRect().height > 20) found.push('the time label breaks over two lines')
-        // the checks above see only the bar's own children: the date range is one child holding two inputs, and
-        // a child can look fine while what it holds sticks out of it (the inputs once ran 90px past the label's
-        // box, over the count and out of the window)
-        for (const part of parts) {
-          for (const inner of part.element.querySelectorAll('*')) {
-            const box = inner.getBoundingClientRect()
-            if (box.width > 0 && (box.right > part.box.right + 1 || box.left < part.box.left - 1))
-              found.push(`${part.name}: <${inner.tagName.toLowerCase()}> sticks out of its control`)
+          const label = bar.querySelector('.filter-time-label')
+          if (label && label.getBoundingClientRect().height > 20) found.push('the time label breaks over two lines')
+          // the checks above see only the bar's own children: the date range is one child holding two inputs, and
+          // a child can look fine while what it holds sticks out of it (the inputs once ran 90px past the label's
+          // box, over the count and out of the window)
+          for (const part of parts) {
+            for (const inner of part.element.querySelectorAll('*')) {
+              const box = inner.getBoundingClientRect()
+              if (box.width > 0 && (box.right > part.box.right + 1 || box.left < part.box.left - 1))
+                found.push(`${part.name}: <${inner.tagName.toLowerCase()}> sticks out of its control`)
+            }
           }
-        }
-        for (const input of bar.querySelectorAll<HTMLInputElement>('.filter-time input')) {
-          if (input.scrollWidth > input.clientWidth + 1) found.push('a date input clips its value or its picker button')
-        }
-        if (document.documentElement.scrollWidth > innerWidth) found.push(`the page scrolls sideways (${document.documentElement.scrollWidth} > ${innerWidth})`)
-        return found
-      })
-      expect(problems, `filter bar at ${width}px`).toEqual([])
+          for (const input of bar.querySelectorAll<HTMLInputElement>('.filter-time input')) {
+            if (input.scrollWidth > input.clientWidth + 1) found.push('a date input clips its value or its picker button')
+          }
+          if (document.documentElement.scrollWidth > innerWidth) found.push(`the page scrolls sideways (${document.documentElement.scrollWidth} > ${innerWidth})`)
+          return found
+        })
+        expect(problems, `filter bar at ${width}px, #/${route}`).toEqual([])
+      }
     }
     await library.close()
   })
@@ -395,30 +424,23 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await library.close()
   })
 
+  test('a double click on load more adds one page, not the same page twice (extension.md §2.3)', async ({ page, extensionId }) => {
+    await seedThreePages(page.context())
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+    await expect(library.locator('.row')).toHaveCount(50)
+    await library.getByTestId('load-more').dblclick()
+    await expect(library.locator('.row'), 'two pages: the second click did not ask for the second page again').toHaveCount(100)
+    await expect(library.getByTestId('load-more'), 'what is left is still on offer').toBeVisible()
+    const ids = await library.locator('.row').evaluateAll(rows => rows.map(row => row.getAttribute('data-entry-id')))
+    expect(new Set(ids).size, 'every row once').toBe(100)
+    await library.getByTestId('load-more').click()
+    await expect(library.locator('.row')).toHaveCount(120)
+    await library.close()
+  })
+
   test('closing a late drawer keeps loaded pages and refreshes an edited row (RV-LIB-15)', async ({ page, extensionId }) => {
-    const sw = await ensureServiceWorker(page.context())
-    await sw.evaluate(
-      () =>
-        new Promise<void>(resolve => {
-          const open = indexedDB.open('annhub')
-          open.onsuccess = () => {
-            const tx = open.result.transaction('entries', 'readwrite')
-            for (let i = 0; i < 120; i++) {
-              tx.objectStore('entries').put({
-                id: `ent_page_${String(i).padStart(3, '0')}`,
-                type: 'clip',
-                content: `Body ${i}`,
-                sourceUrl: `https://example.com/${i}`,
-                sourceHost: 'example.com',
-                properties: { title: `Row ${i}` },
-                createdAt: i + 1,
-                updatedAt: i + 1,
-              })
-            }
-            tx.oncomplete = () => resolve()
-          }
-        }),
-    )
+    await seedThreePages(page.context())
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
     await library.getByTestId('load-more').click()
@@ -446,7 +468,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await library.locator('.row').first().click()
     await library.getByTestId('drawer-read').click()
     await expect(library.getByTestId('reading-view')).toBeVisible()
-    await library.getByTestId('reading-view').getByRole('button', { name: '关闭' }).click()
+    await library.getByTestId('reading-view').getByRole('button', { name: '返回' }).click()
     await expect(library.getByTestId('reading-view')).toHaveCount(0)
     await library.goBack()
     await expect(library.getByTestId('reading-view')).toHaveCount(0)

@@ -1,4 +1,5 @@
 @import '../../styles/tokens.css';
+@import '../../styles/chips.css';
 
 /* ── The library shell: left nav + right content (extension.md §2.2) ── */
 
@@ -6,6 +7,14 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+}
+
+/* a control does not inherit its font by itself: without this every button, input and select drew in the browser's own face */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 html,
@@ -36,11 +45,38 @@ body {
   background: var(--ann-surface);
 }
 
+.nav-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 0 4px 14px 8px;
+}
+
 .brand {
-  margin: 0 8px 14px;
   font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.2px;
+}
+
+.nav-fold {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ann-muted);
+  cursor: pointer;
+}
+
+.nav-fold:hover,
+.nav-fold:focus-visible {
+  background: var(--ann-surface-alt);
+  color: var(--ann-text);
 }
 
 .nav-item {
@@ -143,11 +179,37 @@ body {
 
 /* ── Content: toolbar + list ── */
 
+/* the reading view lays itself over this box only: the nav beside it is never covered (extension.md §4.2) */
 .content {
+  position: relative;
   display: flex;
   flex-direction: column;
   flex: 1;
   min-width: 0;
+}
+
+.content-stage {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+
+/* the title row of a page: its name and, on the right, the search (extension.md §2.2) */
+.page-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px 4px;
+  background: var(--ann-surface);
+}
+
+.page-title {
+  flex: none;
+  margin-right: auto;
+  font-size: 19px;
+  font-weight: 700;
 }
 
 .toolbar {
@@ -155,14 +217,14 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 8px 16px 12px;
   border-bottom: 1px solid var(--ann-border);
   background: var(--ann-surface);
 }
 
 .search {
-  flex: 1;
-  max-width: 420px;
+  flex: 0 1 420px;
+  min-width: 0;
   padding: 8px 10px;
   border: 1px solid var(--ann-border);
   border-radius: 6px;
@@ -361,23 +423,9 @@ body {
   cursor: pointer;
 }
 
-.type-chip {
-  flex: none;
+/* in a row the chip sits level with the first line of the title */
+.row-main .type-chip {
   margin-top: 2px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.type-clip {
-  background: var(--ann-accent-soft);
-  color: var(--ann-accent);
-}
-
-.type-screenshot {
-  background: var(--ann-surface-alt);
-  color: var(--ann-muted);
 }
 
 .row-body {
@@ -518,6 +566,54 @@ body {
   text-transform: none;
 }
 
+.drawer-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.drawer-section-head > h3 {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ann-muted);
+  font-weight: 600;
+}
+
+/* why the original text cannot be edited: said in words beside the text, as in the reading view */
+.drawer-lock {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px dashed var(--ann-border);
+  border-radius: 6px;
+  color: var(--ann-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.drawer-lock svg {
+  flex: none;
+  margin-top: 2px;
+}
+
+.drawer-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.drawer-section textarea.drawer-edit {
+  min-height: 7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
 .drawer-image {
   max-width: 100%;
   border: 1px solid var(--ann-border);
@@ -603,6 +699,9 @@ body {
 }
 
 .danger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 5px 10px;
   border: 1px solid var(--ann-danger);
   border-radius: 5px;
@@ -612,7 +711,23 @@ body {
   cursor: pointer;
 }
 
+/* a control that cannot be used looks it: faded, no pointer; the reason, where there is one, is written beside it */
+.danger:disabled,
+.ghost:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* the next page is on its way: the link waits, so a second click cannot ask for the same page again */
+.load-more:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
 .ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 5px 10px;
   border: 1px solid var(--ann-border);
   border-radius: 5px;
@@ -732,13 +847,21 @@ body {
 
 /* ── Reading view and in-library highlights (extension.md §4.2) ── */
 
+/* it fills the content area (`.content` is its positioned parent) and leaves the nav alone */
 .reading {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 15;
   display: flex;
   flex-direction: column;
   background: var(--ann-page);
+}
+
+.reading-back {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
 }
 
 .reading-header {
@@ -1487,90 +1610,104 @@ body {
   cursor: pointer;
 }
 
-/* the shell collapses to a left icon rail on narrow windows (extension.md §2.2) */
+/*
+ * The nav folds to a 52px icon rail (extension.md §2.2): by hand with the fold button at any width, and by default
+ * in a narrow window. The App decides and sets `.is-rail` on the shell, so the rules exist once, not once per cause.
+ */
+.is-rail .side {
+  width: 52px;
+  padding: 12px 6px;
+  align-items: center;
+}
+
+.is-rail .nav-top {
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+
+/* the wordmark is wider than the rail: the logo stands in, the text stays for screen readers */
+.is-rail .brand {
+  font-size: 0;
+}
+
+.is-rail .brand::before {
+  content: '';
+  display: block;
+  width: 26px;
+  height: 26px;
+  background: var(--ann-accent);
+  -webkit-mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
+  mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
+}
+
+.is-rail .nav-item {
+  position: relative;
+  width: 40px;
+  height: 36px;
+  justify-content: center;
+  padding: 0;
+}
+
+.is-rail .nav-label,
+.is-rail .nav-export-label,
+.is-rail .nav-shortcut span {
+  display: none;
+}
+
+/* the current item's rule above (accent text on the soft tint) must not reach the badge: it is accent-filled here */
+.is-rail .nav-count,
+.is-rail .nav-item-current .nav-count {
+  position: absolute;
+  top: -3px;
+  right: -4px;
+  min-width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  padding: 0 2px;
+  border-radius: 8px;
+  background: var(--ann-accent);
+  color: var(--ann-accent-contrast);
+  font-size: 9px;
+}
+
+.is-rail .nav-export {
+  width: 40px;
+  min-height: 36px;
+  margin: 4px 0;
+  padding: 0;
+}
+
+.is-rail .nav-shortcut {
+  width: 40px;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+/* the rail has no room for the export result: it shows above the content instead */
+.is-rail .nav-note {
+  display: none;
+}
+
+.is-rail .mobile-export-status {
+  display: block;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ann-border);
+  background: var(--ann-surface);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* a touch-sized window has no hover to reveal a tile's actions */
 @media (max-width: 720px) {
   .screenshot-tile-actions {
     opacity: 1;
   }
-  .side {
-    width: 52px;
-    padding: 12px 6px;
-    align-items: center;
-  }
+}
 
-  /* the wordmark is wider than the rail: the logo stands in, the text stays for screen readers */
-  .brand {
-    margin: 0 0 14px;
-    font-size: 0;
-  }
-
-  .brand::before {
-    content: '';
-    display: block;
-    width: 26px;
-    height: 26px;
-    background: var(--ann-accent);
-    -webkit-mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
-    mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
-  }
-
-  .nav-item {
-    position: relative;
-    width: 40px;
-    height: 36px;
-    justify-content: center;
-    padding: 0;
-  }
-
-  .nav-label,
-  .nav-export-label,
-  .nav-shortcut span {
-    display: none;
-  }
-
-  /* the current item's rule above (accent text on the soft tint) must not reach the badge: it is accent-filled here */
-  .nav-count,
-  .nav-item-current .nav-count {
-    position: absolute;
-    top: -3px;
-    right: -4px;
-    min-width: 15px;
-    height: 15px;
-    display: grid;
-    place-items: center;
-    padding: 0 2px;
-    border-radius: 8px;
-    background: var(--ann-accent);
-    color: var(--ann-accent-contrast);
-    font-size: 9px;
-  }
-
-  .nav-export {
-    width: 40px;
-    min-height: 36px;
-    margin: 4px 0;
-    padding: 0;
-  }
-
-  .nav-shortcut {
-    width: 40px;
-    justify-content: center;
-    padding: 8px 0;
-  }
-
-  .nav-note {
-    display: none;
-  }
-
-  .mobile-export-status {
-    display: block;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--ann-border);
-    background: var(--ann-surface);
-    font-size: 12px;
-    overflow-wrap: anywhere;
-  }
-
+/* the reading view's side column goes under the text when the content area is too narrow to hold both */
+@media (max-width: 1000px) {
   .reading-layout {
     flex-direction: column;
     overflow-y: auto;

@@ -95,3 +95,60 @@ test('in dark mode the popup text stays readable on the popup background (extens
   for (const [part, ratio] of Object.entries(ratios)) expect(ratio, `${part} contrast in dark mode`).toBeGreaterThanOrEqual(4.5)
   await popup.close()
 })
+
+test('the popup draws the library icons: lucide in the rail, icon and name in every row (visual.md §3)', async ({ page, extensionId }) => {
+  const popup = await openPopupWithClips(page, extensionId)
+  const rail = await popup.locator('.popup-rail-item').evaluateAll(items =>
+    items.map(item => {
+      const svg = item.querySelector('svg')
+      const [button, icon] = [item.getBoundingClientRect(), svg?.getBoundingClientRect()]
+      return {
+        icons: [...item.querySelectorAll('svg')].map(element => [...element.classList].find(name => name.startsWith('lucide-'))?.replace('lucide-', '')),
+        // nothing is typed into the button apart from the count badge: a glyph character would be a font's guess at an icon
+        typed: [...item.childNodes]
+          .filter(node => node.nodeType === Node.TEXT_NODE)
+          .map(node => node.textContent)
+          .join(''),
+        offCentre: icon
+          ? Math.max(Math.abs(icon.left + icon.width / 2 - (button.left + button.width / 2)), Math.abs(icon.top + icon.height / 2 - (button.top + button.height / 2)))
+          : null,
+      }
+    }),
+  )
+  expect(rail.map(item => ({ icons: item.icons, typed: item.typed }))).toEqual([
+    { icons: ['library'], typed: '' },
+    { icons: ['bookmark'], typed: '' },
+    { icons: ['highlighter'], typed: '' },
+    { icons: ['scan'], typed: '' },
+    { icons: ['settings'], typed: '' },
+  ])
+  for (const item of rail) expect(item.offCentre, 'the icon sits in the middle of its button').toBeLessThanOrEqual(2)
+
+  const rows = await popup.locator('.popup-list li').evaluateAll(items =>
+    items.map(item => {
+      const chip = item.querySelector('.type-chip')!
+      const svg = chip.querySelector('svg')
+      return { type: chip.getAttribute('data-type'), icon: svg ? [...svg.classList].find(name => name.startsWith('lucide-')) : null, text: chip.textContent!.trim() }
+    }),
+  )
+  expect(rows).toEqual([
+    { type: 'clip', icon: 'lucide-bookmark', text: '剪藏' },
+    { type: 'clip', icon: 'lucide-bookmark', text: '剪藏' },
+  ])
+  await popup.close()
+})
+
+test('the popup buttons draw in the popup font, not the browser one (visual.md §2)', async ({ page, extensionId }) => {
+  const popup = await openPopupWithClips(page, extensionId)
+  const strangers = await popup.evaluate(() => {
+    const family = getComputedStyle(document.body).fontFamily
+    const controls = [...document.querySelectorAll<HTMLElement>('button, input, select, textarea')]
+    return {
+      checked: controls.length,
+      strangers: controls.filter(control => getComputedStyle(control).fontFamily !== family).map(control => `<${control.tagName.toLowerCase()} class="${control.className}">`),
+    }
+  })
+  expect(strangers.checked, 'the rail, the link and the rows are buttons').toBeGreaterThanOrEqual(8)
+  expect(strangers.strangers, 'controls in a font of their own').toEqual([])
+  await popup.close()
+})

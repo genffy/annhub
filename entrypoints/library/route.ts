@@ -6,12 +6,17 @@
  * effects (RV-LIB-01).
  */
 
-export type View = 'all' | 'clips' | 'highlights' | 'screenshots' | 'properties' | 'settings'
+import type { EntryType } from '../../learning-core/types'
+import type { ViewKey } from '../../utils/entry-icons'
+
+export type View = ViewKey
 
 const VIEWS: View[] = ['all', 'clips', 'highlights', 'screenshots', 'properties', 'settings']
 
 export interface FilterState {
   search: string
+  /** The entry type, a filter of the "all" view only (extension.md §2.3): the other views are one type already. */
+  type: '' | EntryType
   host: string
   tag: string
   prop: string
@@ -33,7 +38,7 @@ export interface RouteState extends FilterState {
   entryId: string | null
 }
 
-export const EMPTY_FILTERS: FilterState = { search: '', host: '', tag: '', prop: '', op: '', val: '', val2: '', from: '', to: '', color: '' }
+export const EMPTY_FILTERS: FilterState = { search: '', type: '', host: '', tag: '', prop: '', op: '', val: '', val2: '', from: '', to: '', color: '' }
 
 /**
  * The views that list entries or highlights: the ones with the search and filter bar and a total (extension.md
@@ -49,7 +54,9 @@ export function isListView(view: View): boolean {
  * and an operator or value without a property filters nothing.
  */
 export function hasActiveFilter(route: Pick<RouteState, 'view'> & FilterState): boolean {
-  return Boolean(route.search || route.host || route.tag || route.prop || route.from || route.to || (route.view === 'highlights' && route.color))
+  return Boolean(
+    route.search || route.host || route.tag || route.prop || route.from || route.to || (route.view === 'all' && route.type) || (route.view === 'highlights' && route.color),
+  )
 }
 
 /** `#/view?filters` / `#/read/<id>` / `#/entry/<id>` → route state. */
@@ -66,6 +73,7 @@ export function readHash(hash: string = location.hash): RouteState {
     highlightId: readId ? params.get('h') : null,
     entryId: entryId ?? params.get('e'),
     search: params.get('q') ?? '',
+    type: params.get('type') === 'clip' || params.get('type') === 'screenshot' ? (params.get('type') as EntryType) : '',
     host: params.get('host') ?? '',
     tag: params.get('tag') ?? '',
     prop: params.get('prop') ?? '',
@@ -82,6 +90,7 @@ export function readHash(hash: string = location.hash): RouteState {
 export function listHash(route: Pick<RouteState, 'view'> & FilterState & { entryId?: string | null }): string {
   const params = new URLSearchParams()
   if (route.search) params.set('q', route.search)
+  if (route.type) params.set('type', route.type)
   if (route.host) params.set('host', route.host)
   if (route.tag) params.set('tag', route.tag)
   if (route.prop) params.set('prop', route.prop)

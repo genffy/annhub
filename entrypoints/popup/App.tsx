@@ -7,20 +7,22 @@
  * editing here.
  */
 import { useCallback, useEffect, useState } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import MessageUtils from '../../utils/message'
 import type { EntryQueryResult, HighlightQueryResult } from '../../learning-core/query'
 import type { EntryRecord } from '../../learning-core/types'
 import { relativeTime } from '../../utils/relative-time'
 import { uiText } from '../../utils/ui-text'
 import { extensionPageUrl } from '../../utils/extension-pages'
+import { TypeChip, VIEW_ICONS } from '../../utils/entry-icons'
 
 type Tab = 'all' | 'clips' | 'highlights' | 'screenshots'
 
-const TABS: { tab: Tab; labelKey: 'library.all' | 'library.clips' | 'library.highlights' | 'library.screenshots'; icon: string }[] = [
-  { tab: 'all', labelKey: 'library.all', icon: '☰' },
-  { tab: 'clips', labelKey: 'library.clips', icon: '❏' },
-  { tab: 'highlights', labelKey: 'library.highlights', icon: '✎' },
-  { tab: 'screenshots', labelKey: 'library.screenshots', icon: '▣' },
+const TABS: { tab: Tab; labelKey: 'library.all' | 'library.clips' | 'library.highlights' | 'library.screenshots'; Icon: LucideIcon }[] = [
+  { tab: 'all', labelKey: 'library.all', Icon: VIEW_ICONS.all },
+  { tab: 'clips', labelKey: 'library.clips', Icon: VIEW_ICONS.clips },
+  { tab: 'highlights', labelKey: 'library.highlights', Icon: VIEW_ICONS.highlights },
+  { tab: 'screenshots', labelKey: 'library.screenshots', Icon: VIEW_ICONS.screenshots },
 ]
 
 export default function App() {
@@ -56,7 +58,7 @@ export default function App() {
   return (
     <main className="popup-shell">
       <nav className="popup-rail" aria-label={uiText('library.openLibrary')}>
-        {TABS.map(({ tab: item, labelKey, icon }) => (
+        {TABS.map(({ tab: item, labelKey, Icon }) => (
           <button
             key={item}
             type="button"
@@ -66,13 +68,13 @@ export default function App() {
             title={`${uiText(labelKey)} · ${counts[item]}`}
             onClick={() => setTab(item)}
           >
-            <span aria-hidden>{icon}</span>
+            <Icon size={17} aria-hidden />
             {counts[item] > 0 && <span className="popup-badge">{counts[item]}</span>}
           </button>
         ))}
         <span className="popup-rail-spacer" />
         <button type="button" className="popup-rail-item" aria-label={uiText('library.settings')} title={uiText('library.settings')} onClick={() => openLibrary('settings')}>
-          <span aria-hidden>⚙</span>
+          <VIEW_ICONS.settings size={17} aria-hidden />
         </button>
       </nav>
 
@@ -105,7 +107,7 @@ export default function App() {
             {entries.map(entry => (
               <li key={entry.id}>
                 <button type="button" onClick={() => openEntry(entry.id)} title={String(entry.properties['title'] ?? '')}>
-                  <span className={`type-chip type-${entry.type}`}>{uiText(entry.type === 'clip' ? 'library.clips' : 'library.screenshots')}</span>
+                  <TypeChip type={entry.type} />
                   <span className="popup-title">{String(entry.properties['title'] ?? '')}</span>
                   <span className="popup-meta">{relativeTime(entry.createdAt)}</span>
                 </button>

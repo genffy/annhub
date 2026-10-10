@@ -1,4 +1,5 @@
 @import '../../styles/tokens.css';
+@import '../../styles/chips.css';
 
 *,
 *::before,
@@ -20,6 +21,14 @@
 
 body {
   margin: 0;
+}
+
+/* a control does not inherit its font by itself (the rail's count badges drew in the browser's own face) */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
 }
 
 /* the compact shell: left icon rail + right content (extension.md §2.6) */
@@ -165,9 +174,4 @@ body {
   border-top: 1px solid var(--ann-border);
   color: var(--ann-muted);
   font-size: 10.5px;
-}
-
-.type-chip {
-  flex: none;
-  margin-top: 0;
 }

@@ -3,11 +3,12 @@
  * surface and the side panel (extension.md §4.2). Route `#/read/<id>`;
  * `Esc` or 返回 returns to the previous list and position. Highlights
  * live in the clip (entry.md §4); the side list sorts by position, and a
- * click scrolls to the mark.
+ * click scrolls to the mark. It fills the content area of the shell and
+ * nothing more: the nav stays where it is and stays usable (extension.md §2.2).
  */
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft } from 'lucide-react'
 import MessageUtils from '../../utils/message'
-import { useState } from 'react'
 import type { EntryRecord, HighlightColor, PropertyDefinition } from '../../learning-core/types'
 import { HighlightSurface } from './highlight-surface'
 import { PropertyPanel, type PropertyPanelHandle } from './property-panel'
@@ -29,6 +30,7 @@ export function ReadingView({ entryId, highlightId = null, defaultColor, registr
   const [error, setError] = useState('')
   const [tab, setTab] = useState<'highlights' | 'properties'>('highlights')
   const propertyPanel = useRef<PropertyPanelHandle>(null)
+  const backButton = useRef<HTMLButtonElement>(null)
   const openedAt = useRef<string | null>(null)
 
   const flush = useCallback(async (): Promise<boolean> => (await propertyPanel.current?.flush()) ?? true, [])
@@ -56,6 +58,12 @@ export function ReadingView({ entryId, highlightId = null, defaultColor, registr
     void load()
   }, [load])
 
+  // the view replaces what the keyboard was on (the drawer's button, a highlights row): focus starts at its own first control
+  const loaded = entry !== null || error !== ''
+  useEffect(() => {
+    if (loaded) backButton.current?.focus({ preventScroll: true })
+  }, [loaded])
+
   /** Scrolls a highlight into the middle of the window and lets it flash once (a mark can span several runs: the first one leads). */
   const locate = useCallback((id: string, smooth: boolean): void => {
     const mark = document.querySelector<HTMLElement>(`[data-hl-id="${CSS.escape(id)}"]`)
@@ -81,9 +89,24 @@ export function ReadingView({ entryId, highlightId = null, defaultColor, registr
     return () => document.removeEventListener('keydown', onKey)
   }, [closeWithSave])
 
+  const header = (
+    <header className="reading-header">
+      <button type="button" ref={backButton} className="ghost reading-back" onClick={closeWithSave}>
+        <ArrowLeft size={15} aria-hidden /> {uiText('reading.back')}
+      </button>
+      <h1 className="reading-title">{entry ? String(entry.properties['title'] ?? '') : ''}</h1>
+      {entry && (
+        <a className="link" href={entry.sourceUrl} target="_blank" rel="noopener noreferrer">
+          {uiText('library.backToSource')}
+        </a>
+      )}
+    </header>
+  )
+
   if (!entry) {
     return (
       <div className="reading" data-testid="reading-view">
+        {header}
         <div className="reading-body">{error || uiText('common.loading')}</div>
       </div>
     )
@@ -93,15 +116,7 @@ export function ReadingView({ entryId, highlightId = null, defaultColor, registr
 
   return (
     <div className="reading" data-testid="reading-view" data-entry-id={entry.id}>
-      <header className="reading-header">
-        <button type="button" className="ghost" onClick={closeWithSave} aria-label={uiText('common.close')}>
-          ←
-        </button>
-        <span className="reading-title">{String(entry.properties['title'] ?? '')}</span>
-        <a className="link" href={entry.sourceUrl} target="_blank" rel="noopener noreferrer">
-          {uiText('library.backToSource')}
-        </a>
-      </header>
+      {header}
 
       <div className="reading-layout">
         <div className="reading-body">

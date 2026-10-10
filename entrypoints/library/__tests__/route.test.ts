@@ -47,6 +47,16 @@ describe('route read/write round-trip (extension.md §2.2, RV-LIB-01)', () => {
     expect(readHash(hash)).toMatchObject({ view: 'screenshots', ...filters })
   })
 
+  it('writes and re-reads the type filter of the all view (extension.md §2.3)', () => {
+    expect(listHash({ view: 'all', ...EMPTY_FILTERS, type: 'screenshot' })).toBe('#/all?type=screenshot')
+    expect(readHash('#/all?type=screenshot')).toMatchObject({ view: 'all', type: 'screenshot' })
+    expect(readHash('#/all?type=clip&q=jitter')).toMatchObject({ type: 'clip', search: 'jitter' })
+    // no type in the address means no type filter; a value that is not an entry type filters nothing
+    expect(readHash('#/all').type).toBe('')
+    expect(readHash('#/all?type=highlight').type).toBe('')
+    expect(listHash({ view: 'all', ...EMPTY_FILTERS })).toBe('#/all')
+  })
+
   it('round-trips the read and entry routes', () => {
     expect(readHash(readHashFor('ent_x'))).toMatchObject({ readId: 'ent_x' })
     expect(readHash(entryHashFor('ent_x'))).toMatchObject({ entryId: 'ent_x' })
@@ -88,6 +98,12 @@ describe('which views list, and when a filter is on (extension.md §2.3, §5)', 
     for (const [field, value] of Object.entries(on)) expect(hasActiveFilter({ view: 'clips', ...EMPTY_FILTERS, [field]: value }), field).toBe(true)
   })
 
+  it('the type is a filter of the all view only: the other views are one type already', () => {
+    expect(hasActiveFilter({ view: 'all', ...EMPTY_FILTERS, type: 'clip' })).toBe(true)
+    expect(hasActiveFilter({ view: 'all', ...EMPTY_FILTERS, type: 'screenshot' })).toBe(true)
+    for (const view of ['clips', 'screenshots', 'highlights'] as const) expect(hasActiveFilter({ view, ...EMPTY_FILTERS, type: 'clip' }), view).toBe(false)
+  })
+
   it('the colour is a filter of the highlights view only', () => {
     expect(hasActiveFilter({ view: 'highlights', ...EMPTY_FILTERS, color: 'blue' })).toBe(true)
     expect(hasActiveFilter({ view: 'clips', ...EMPTY_FILTERS, color: 'blue' })).toBe(false)
@@ -101,5 +117,8 @@ describe('which views list, and when a filter is on (extension.md §2.3, §5)', 
     const route = readHash('#/highlights?q=a&host=h&tag=t&prop=p&op=contains&val=v&from=2026-01-01&to=2026-02-01&color=blue')
     expect(hasActiveFilter(route)).toBe(true)
     expect(hasActiveFilter({ ...route, ...EMPTY_FILTERS })).toBe(false)
+    const all = readHash('#/all?type=screenshot')
+    expect(hasActiveFilter(all)).toBe(true)
+    expect(hasActiveFilter({ ...all, ...EMPTY_FILTERS })).toBe(false)
   })
 })

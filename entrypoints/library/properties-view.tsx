@@ -93,6 +93,7 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
 
   return (
     <div className="props-page" data-testid="props-page">
+      <h1 className="page-title">{uiText('library.properties')}</h1>
       <header className="props-toolbar">
         {creating ? (
           <span className="prop-add">

@@ -1,0 +1,30 @@
+/*
+ * The type chip (visual.md §3): icon and name together, in the type's hue. Shared by every extension page, so a
+ * clip and a screenshot look the same in the library's rows, the drawer and the popup.
+ */
+.type-chip {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.type-chip svg {
+  flex: none;
+}
+
+.type-clip {
+  background: var(--ann-accent-soft);
+  color: var(--ann-accent);
+}
+
+.type-screenshot {
+  background: var(--ann-surface-alt);
+  color: var(--ann-muted);
+}
