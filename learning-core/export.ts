@@ -8,16 +8,17 @@
  * headings follow the interface language the export was started in; keys,
  * frontmatter fields and paths never change with it.
  */
-import { markdownToPlainText, writeHighlightMarks } from './markdown'
+import { writeHighlightMarks } from './markdown'
 import { BUILTIN_PROPERTY_DEFINITIONS, propertyStorageKey } from './properties'
 import { buildZip, type ZipEntry } from './zip'
+import { sha256Hex } from './assets'
 import type { EntryRecord, ImageAsset, PropertyDefinition, PropertyValue } from './types'
 
 export type ExportLanguage = 'zh' | 'en'
 
 export interface ExportAsset {
   metadata: ImageAsset
-  bytes: Uint8Array
+  bytes: Uint8Array | Blob
 }
 
 export interface ExportInput {
@@ -50,6 +51,11 @@ const LABELS: Record<ExportLanguage, Record<string, string>> = {
     counts: '数量',
     missing: '缺失图片',
     notARestore: '本 ZIP 供其他工具阅读，不能用于恢复 AnnHub 数据库。',
+    clips: '剪藏',
+    screenshots: '截图',
+    formatVersion: '格式版本',
+    includes: '包含：已提交的剪藏、截图条目与已保存的图片字节。',
+    excludes: '不包含：未提交的编辑、界面偏好、属性注册表和可重建缓存。',
   },
   en: {
     original: 'Original text',
@@ -63,6 +69,11 @@ const LABELS: Record<ExportLanguage, Record<string, string>> = {
     counts: 'Count',
     missing: 'Missing images',
     notARestore: 'This ZIP is for reading in other tools; it is not an AnnHub database restore.',
+    clips: 'clips',
+    screenshots: 'screenshots',
+    formatVersion: 'Format version',
+    includes: 'Includes committed clips, screenshots, and saved image bytes.',
+    excludes: 'Excludes uncommitted edits, interface settings, the property registry, and rebuildable caches.',
   },
 }
 
@@ -75,21 +86,17 @@ function yamlScalar(value: Exclude<PropertyValue, unknown[]>): string {
   return `'${value.replace(/'/g, "''")}'`
 }
 
-/** Plain YAML scalar when safe (matches the doc example's list items), quoted otherwise. */
-function yamlPlain(item: string): string {
-  const needsQuotes =
-    /^(?:true|false|null|~|-?\d[\d_.]*(?:[eE][+-]?\d+)?)$/u.test(item) || // would parse as another type
-    /^\s|[\s]$/.test(item) ||
-    /^[-?:,[\]{}#&*!|>'"%@`]/.test(item) ||
-    /:\s|\s#/.test(item) ||
-    item.includes('\n')
-  return needsQuotes ? `'${item.replace(/'/g, "''")}'` : item
+/** Plain scalars a YAML parser reads as something other than the string they spell (booleans of either generation, null). */
+const YAML_RESERVED_SCALAR = /^(?:true|false|yes|no|on|off|y|n|null|~)$/i
+
+function yamlKey(key: string): string {
+  return /^[A-Za-z_][A-Za-z0-9_-]*$/.test(key) && !YAML_RESERVED_SCALAR.test(key) ? key : yamlScalar(key)
 }
 
 function yamlValue(value: PropertyValue, indent = '  '): string {
   if (Array.isArray(value)) {
     if (value.length === 0) return '[]'
-    return '\n' + value.map(item => `${indent}- ${yamlPlain(String(item))}`).join('\n')
+    return '\n' + value.map(item => `${indent}- ${yamlScalar(String(item))}`).join('\n')
   }
   return ' ' + yamlScalar(value)
 }
@@ -116,16 +123,16 @@ export function frontmatterFor(entry: EntryRecord, registry: PropertyDefinition[
   const byKey = new Map(registry.map(def => [propertyStorageKey(def.name), def] as const))
   const lines: string[] = []
   const emitRaw = (key: string, rendered: string | undefined) => {
-    if (rendered !== undefined) lines.push(`${key}: ${rendered}`)
+    if (rendered !== undefined) lines.push(`${yamlKey(key)}: ${rendered}`)
   }
   const emit = (key: string, value: PropertyValue | undefined, typeHint?: 'text' | 'date' | 'datetime') => {
     if (value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) return
     if (typeHint === 'date' || typeHint === 'datetime') {
       // dates keep their entry.md §5.2 format, unquoted (storage.md §6)
-      lines.push(`${key}: ${value}`)
+      lines.push(`${yamlKey(key)}: ${value}`)
       return
     }
-    lines.push(`${key}:${yamlValue(value)}`)
+    lines.push(`${yamlKey(key)}:${yamlValue(value)}`)
   }
 
   emitRaw('annhub_id', entry.id ? `'${entry.id.replace(/'/g, "''")}'` : undefined)
@@ -139,7 +146,11 @@ export function frontmatterFor(entry: EntryRecord, registry: PropertyDefinition[
   }
   const customNames = Object.keys(entry.properties)
     .filter(name => !BUILTIN_PROPERTY_DEFINITIONS.some(b => propertyStorageKey(b.name) === propertyStorageKey(name)))
-    .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+    .sort((a, b) => {
+      const lowerA = a.toLowerCase()
+      const lowerB = b.toLowerCase()
+      return lowerA < lowerB ? -1 : lowerA > lowerB ? 1 : a < b ? -1 : a > b ? 1 : 0
+    })
   for (const name of customNames) {
     const def = byKey.get(propertyStorageKey(name))
     if (!def) continue
@@ -154,11 +165,19 @@ function clipBody(entry: EntryRecord, lang: ExportLanguage): string {
   const t = LABELS[lang]
   const sections: string[] = []
   const highlights = [...(entry.highlights ?? [])].sort((a, b) => a.start - b.start)
-  sections.push(`## ${t.original}\n\n${writeHighlightMarks(entry.content, highlights)}`)
+  sections.push(writeHighlightMarks(entry.content, highlights))
   if (entry.context) sections.push(`## ${t.context}\n\n${entry.context}`)
   const noted = highlights.filter(highlight => highlight.note?.trim())
   if (noted.length > 0) {
-    const notes = noted.map(highlight => `> ${highlight.quote}\n\n${highlight.note}`).join('\n\n')
+    const notes = noted
+      .map(
+        highlight =>
+          `${highlight.quote
+            .split(/\r?\n/)
+            .map(line => `> ${line}`)
+            .join('\n')}\n\n${highlight.note}`,
+      )
+      .join('\n\n')
     sections.push(`## ${t.highlightNotes}\n\n${notes}`)
   }
   if (entry.note?.trim()) sections.push(`## ${t.note}\n\n${entry.note}`)
@@ -180,8 +199,10 @@ function readme(lang: ExportLanguage, exportedAt: number, clips: number, screens
     `# ${t.readmeTitle}`,
     '',
     `- ${t.exportedAt}: ${localDateTime(exportedAt)}`,
-    `- ${t.counts}: ${clips + screenshots} (${clips} clips / ${screenshots} screenshots)`,
-    `- Format version: 1`,
+    `- ${t.counts}: ${clips + screenshots} (${clips} ${t.clips} / ${screenshots} ${t.screenshots})`,
+    `- ${t.formatVersion}: 1`,
+    `- ${t.includes}`,
+    `- ${t.excludes}`,
     `- ${t.notARestore}`,
   ]
   if (missing.length > 0) {
@@ -189,12 +210,6 @@ function readme(lang: ExportLanguage, exportedAt: number, clips: number, screens
     for (const assetId of missing) lines.push(`- ${assetId}`)
   }
   return lines.join('\n') + '\n'
-}
-
-/** Entry summaries shown while paging large exports. */
-export function entrySummary(entry: EntryRecord, maxChars = 140): string {
-  const plain = markdownToPlainText(entry.content).replace(/\s+/g, ' ')
-  return plain.length > maxChars ? `${plain.slice(0, maxChars)}…` : plain
 }
 
 // ── The export itself ───────────────────────────────────────────────────
@@ -218,13 +233,16 @@ export async function buildExport(input: ExportInput): Promise<ExportSummary> {
     screenshots++
     // assets are read one Blob at a time (storage.md §6)
     const fresh = await readAsset(entry.assetId!)
-    const present = fresh !== undefined
+    const bytes = fresh?.bytes instanceof Blob ? new Uint8Array(await fresh.bytes.arrayBuffer()) : fresh?.bytes
+    const present = Boolean(
+      fresh && bytes && fresh.metadata.id === entry.assetId && fresh.metadata.byteLength === bytes.length && fresh.metadata.sha256 === (await sha256Hex(bytes)),
+    )
     if (!present) missingAssets.push(entry.assetId!)
     zipEntries.push({
       name: `screenshots/${entry.id}.md`,
       data: new TextEncoder().encode(`${frontmatterFor(entry, registry)}\n\n${screenshotBody(entry, present, lang)}\n`),
     })
-    if (present) zipEntries.push({ name: `assets/${fresh.metadata.id}.png`, data: fresh.bytes })
+    if (present && fresh) zipEntries.push({ name: `assets/${fresh.metadata.id}.png`, data: fresh.bytes })
   }
 
   zipEntries.unshift({ name: 'README.md', data: new TextEncoder().encode(readme(lang, exportedAt, clips, screenshots, missingAssets)) })
@@ -234,6 +252,6 @@ export async function buildExport(input: ExportInput): Promise<ExportSummary> {
     clips,
     screenshots,
     missingAssets,
-    blob: buildZip(zipEntries, exportedAt),
+    blob: await buildZip(zipEntries, exportedAt),
   }
 }

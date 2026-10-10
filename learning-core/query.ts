@@ -60,6 +60,52 @@ interface WeightedField {
   text: string
 }
 
+/**
+ * Bumped when the derived documents change shape, so a library built by an older build rebuilds them
+ * instead of trusting them.
+ */
+export const SEARCH_INDEX_VERSION = 1
+
+export interface NormalizedField {
+  weight: number
+  normalized: string
+}
+
+/** What every list, filter, facet and highlight query reads: the entry without its long text. */
+export interface IndexedSummary {
+  id: string
+  updatedAt: number
+  version: number
+  summary: EntryRecord
+}
+
+/** What a text search matches against: the normalized, weighted fields — about as large as the library's text. */
+export interface IndexedText {
+  id: string
+  fields: NormalizedField[]
+}
+
+/** Both halves together, for callers that want the whole derived document. */
+export type IndexedSearchDocument = IndexedSummary & IndexedText
+
+export function indexedSummary(entry: EntryRecord): IndexedSummary {
+  return {
+    id: entry.id,
+    updatedAt: entry.updatedAt,
+    version: SEARCH_INDEX_VERSION,
+    summary: { ...entry, content: '', context: undefined, note: undefined },
+  }
+}
+
+export function indexedText(entry: EntryRecord, registry: { name: string; type: PropertyType }[]): IndexedText {
+  const registryByKey = new Map(registry.map(def => [propertyStorageKey(def.name), def] as const))
+  return { id: entry.id, fields: searchableFields(entry, registryByKey).map(field => ({ weight: field.weight, normalized: normalizeText(field.text) })) }
+}
+
+export function indexedSearchDocument(entry: EntryRecord, registry: { name: string; type: PropertyType }[]): IndexedSearchDocument {
+  return { ...indexedSummary(entry), ...indexedText(entry, registry) }
+}
+
 function searchableFields(entry: EntryRecord, registry: Map<string, { name: string; type: PropertyType }>): WeightedField[] {
   const fields: WeightedField[] = []
   fields.push({ weight: 5, text: markdownToPlainText(entry.content) })
@@ -90,9 +136,14 @@ function splitTerms(search: string): string[] {
     .filter(Boolean)
 }
 
-function matchScore(entry: EntryRecord, terms: string[], registry: Map<string, { name: string; type: PropertyType }>): number {
+/** A query with search words needs the text documents; one without never does. */
+export function hasSearchTerms(query: { search?: string }): boolean {
+  return splitTerms(query.search ?? '').length > 0
+}
+
+function matchScore(entry: EntryRecord, terms: string[], registry: Map<string, { name: string; type: PropertyType }>, indexed?: Map<string, NormalizedField[]>): number {
   if (terms.length === 0) return 0
-  const fields = searchableFields(entry, registry).map(field => ({ weight: field.weight, normalized: normalizeText(field.text) }))
+  const fields = indexed?.get(entry.id) ?? searchableFields(entry, registry).map(field => ({ weight: field.weight, normalized: normalizeText(field.text) }))
   let total = 0
   for (const term of terms) {
     const normalized = normalizeText(term)
@@ -195,7 +246,7 @@ function encodeCursor(key: [number, number, string]): string {
   return `${key[0].toString(36)}:${key[1].toString(36)}:${key[2]}`
 }
 
-function parseCursor(cursor: string): [number, number, string] | null {
+export function parseEntryCursor(cursor: string): [number, number, string] | null {
   const [score, created, id] = cursor.split(':')
   if (score === undefined || created === undefined || id === undefined) return null
   return [parseInt(score, 36), parseInt(created, 36), id]
@@ -208,7 +259,12 @@ function keyAfterCursor(cursor: [number, number, string], key: [number, number, 
   return key[2] > cursor[2]
 }
 
-export function queryEntries(entries: EntryRecord[], registry: { name: string; type: PropertyType }[], query: EntryQuery = {}): EntryQueryResult {
+export function queryEntries(
+  entries: EntryRecord[],
+  registry: { name: string; type: PropertyType }[],
+  query: EntryQuery = {},
+  indexed?: Map<string, NormalizedField[]>,
+): EntryQueryResult {
   const registryByKey = new Map(registry.map(def => [propertyStorageKey(def.name), def] as const))
   const terms = splitTerms(query.search ?? '')
   const limit = Math.max(1, query.limit ?? PAGE_DEFAULT)
@@ -216,13 +272,13 @@ export function queryEntries(entries: EntryRecord[], registry: { name: string; t
   const scored: { entry: EntryRecord; score: number }[] = []
   for (const entry of entries) {
     if (!matchesFilters(entry, query, registryByKey)) continue
-    const score = matchScore(entry, terms, registryByKey)
+    const score = matchScore(entry, terms, registryByKey, indexed)
     if (terms.length > 0 && score < 0) continue
     scored.push({ entry, score })
   }
   scored.sort((a, b) => b.score - a.score || b.entry.createdAt - a.entry.createdAt || (a.entry.id < b.entry.id ? -1 : 1))
 
-  const cursor = query.cursor ? parseCursor(query.cursor) : null
+  const cursor = query.cursor ? parseEntryCursor(query.cursor) : null
   let startIndex = 0
   if (cursor) {
     // keyset paging: first item strictly after the cursor key, so a deleted
@@ -263,13 +319,12 @@ export function queryHighlights(entries: EntryRecord[], registry: { name: string
   const groups: HighlightQueryResult['groups'] = []
   for (const clip of entries) {
     if (clip.type !== 'clip') continue
-    // host / tag / property / time-of-clip filters follow the owning clip
+    // host / tag / property filters follow the owning clip; TIME follows each
+    // highlight's own createdAt (search.md §5, RV-CORE-05)
     const clipFilters: EntryQueryFilters = {
       types: undefined,
       hosts: query.hosts,
       tags: query.tags,
-      createdFrom: query.createdFrom,
-      createdTo: query.createdTo,
       conditions: query.conditions,
     }
     if (!matchesFilters(clip, clipFilters, registryByKey)) continue
@@ -280,6 +335,8 @@ export function queryHighlights(entries: EntryRecord[], registry: { name: string
     const rows: HighlightRow[] = []
     for (const highlight of clip.highlights ?? []) {
       if (query.colors?.length && !query.colors.includes(highlight.color)) continue
+      if (query.createdFrom !== undefined && highlight.createdAt < query.createdFrom) continue
+      if (query.createdTo !== undefined && highlight.createdAt >= query.createdTo) continue
       if (terms.length > 0) {
         const needleFields = [highlight.quote, highlight.note ?? '', ...hay]
         const hit = terms.every(term => needleFields.some(text => normalizeText(text).includes(normalizeText(term))))
@@ -292,11 +349,10 @@ export function queryHighlights(entries: EntryRecord[], registry: { name: string
     groups.push({ clip, rows })
   }
 
-  // groups by their newest highlight, ties by clip id (search.md §5)
-  groups.sort((a, b) => {
-    const latest = (group: typeof a) => Math.max(...group.rows.map(row => row.highlight.createdAt))
-    return latest(b) - latest(a) || (a.clip.id < b.clip.id ? -1 : 1)
-  })
+  // groups by the clip's newest highlight overall — search only decides which
+  // highlights stay, never the group order (search.md §5, D-24)
+  const latestOf = (clip: EntryRecord): number => Math.max(0, ...(clip.highlights ?? []).map(item => item.createdAt))
+  groups.sort((a, b) => latestOf(b.clip) - latestOf(a.clip) || (a.clip.id < b.clip.id ? -1 : 1))
   return { groups, total: groups.reduce((sum, group) => sum + group.rows.length, 0) }
 }
 

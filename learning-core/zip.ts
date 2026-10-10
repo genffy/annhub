@@ -23,9 +23,25 @@ export function crc32(bytes: Uint8Array): number {
   return (crc ^ 0xffffffff) >>> 0
 }
 
+async function crc32Blob(blob: Blob): Promise<number> {
+  let crc = 0xffffffff
+  for (let offset = 0; offset < blob.size; offset += 1024 * 1024) {
+    const chunk = new Uint8Array(await blob.slice(offset, offset + 1024 * 1024).arrayBuffer())
+    for (const byte of chunk) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8)
+  }
+  return (crc ^ 0xffffffff) >>> 0
+}
+
 export interface ZipEntry {
   name: string
-  data: Uint8Array
+  data: Uint8Array | Blob
+}
+
+const ZIP32_MAX = 0xffffffff
+const ZIP16_MAX = 0xffff
+
+function assertZip32(value: number, label: string): void {
+  if (!Number.isSafeInteger(value) || value > ZIP32_MAX) throw new Error(`ZIP32 limit exceeded: ${label}`)
 }
 
 interface CentralRecord {
@@ -86,27 +102,36 @@ function centralHeader(rec: CentralRecord): Uint8Array {
   return bytes
 }
 
-export function buildZip(entries: ZipEntry[], exportedAt = Date.now()): Blob {
-  const parts: Uint8Array[] = []
+export async function buildZip(entries: ZipEntry[], exportedAt = Date.now()): Promise<Blob> {
+  if (entries.length > ZIP16_MAX) throw new Error('ZIP32 limit exceeded: entry count')
+  const parts: BlobPart[] = []
   const records: CentralRecord[] = []
   let offset = 0
   const { time, date } = dosDateTime(exportedAt)
 
   for (const entry of entries) {
     const nameBytes = new TextEncoder().encode(entry.name)
-    const crc = crc32(entry.data)
-    const rec: CentralRecord = { nameBytes, crc, size: entry.data.length, offset, dosTime: time, dosDate: date }
-    parts.push(localHeader(rec), entry.data)
+    if (nameBytes.length > ZIP16_MAX) throw new Error('ZIP32 limit exceeded: file name')
+    const size = entry.data instanceof Blob ? entry.data.size : entry.data.length
+    assertZip32(size, 'file size')
+    assertZip32(offset + 30 + nameBytes.length + size, 'local data offset')
+    const crc = entry.data instanceof Blob ? await crc32Blob(entry.data) : crc32(entry.data)
+    const rec: CentralRecord = { nameBytes, crc, size, offset, dosTime: time, dosDate: date }
+    parts.push(localHeader(rec) as BlobPart, entry.data as BlobPart)
     records.push(rec)
-    offset += 30 + nameBytes.length + entry.data.length
+    offset += 30 + nameBytes.length + size
   }
 
   const centralStart = offset
   for (const rec of records) {
     const header = centralHeader(rec)
-    parts.push(header)
+    assertZip32(offset + header.length, 'central directory offset')
+    parts.push(header as BlobPart)
     offset += header.length
   }
+
+  assertZip32(offset - centralStart, 'central directory size')
+  assertZip32(offset + 22, 'archive size')
 
   const eocd = new Uint8Array(22)
   const view = new DataView(eocd.buffer)
@@ -115,7 +140,7 @@ export function buildZip(entries: ZipEntry[], exportedAt = Date.now()): Blob {
   view.setUint16(10, records.length, true)
   view.setUint32(12, offset - centralStart, true)
   view.setUint32(16, centralStart, true)
-  parts.push(eocd)
+  parts.push(eocd as BlobPart)
 
-  return new Blob(parts as BlobPart[], { type: 'application/zip' })
+  return new Blob(parts, { type: 'application/zip' })
 }

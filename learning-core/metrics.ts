@@ -6,6 +6,7 @@
  * booleans or bucketed numbers — never content, URLs, titles, tag text or
  * property names/values.
  */
+import { ENTRY_ERROR_CODES, PROPERTY_TYPES } from './types'
 
 export type CaptureVia = 'menu' | 'block' | 'shortcut'
 export type BlockKind = 'post' | 'code' | 'table' | 'figure' | 'quote' | 'section' | 'article'
@@ -23,13 +24,24 @@ export type MetricEventName =
   | 'screenshot.copied'
   | 'screenshot.downloaded'
 
-/** Bucketing (metrics.md §9): durations and counts never travel as raw numbers. */
-export function bucketDuration(ms: number): '<15s' | '15-30s' | '30-60s' | '60-120s' | '>120s' {
-  if (ms < 15_000) return '<15s'
-  if (ms < 30_000) return '15-30s'
-  if (ms < 60_000) return '30-60s'
-  if (ms < 120_000) return '60-120s'
-  return '>120s'
+/**
+ * Bucketing (metrics.md §9): durations and counts never travel as raw numbers.
+ *
+ * `capture.saved` measures from the user's click to the committed write (D-22, default A) and so needs
+ * steps fine enough to see the 300 ms write guard of M-03; the coarse minute-scale buckets of the general
+ * rule cannot, with everything under 15 s in one bucket.
+ */
+export type CaptureDurationBucket = '<150ms' | '150-300ms' | '300-600ms' | '600-1500ms' | '1.5-5s' | '>=5s'
+
+export const CAPTURE_DURATION_BUCKETS: readonly CaptureDurationBucket[] = ['<150ms', '150-300ms', '300-600ms', '600-1500ms', '1.5-5s', '>=5s']
+
+export function bucketCaptureDuration(ms: number): CaptureDurationBucket {
+  if (ms < 150) return '<150ms'
+  if (ms < 300) return '150-300ms'
+  if (ms < 600) return '300-600ms'
+  if (ms < 1_500) return '600-1500ms'
+  if (ms < 5_000) return '1.5-5s'
+  return '>=5s'
 }
 
 export function bucketCount(n: number): '0' | '1-2' | '3-5' | '6-10' | '>10' {
@@ -41,6 +53,47 @@ export function bucketCount(n: number): '0' | '1-2' | '3-5' | '6-10' | '>10' {
 }
 
 export type MetricEventProps = Record<string, string | boolean>
+
+type PropertyCheck = (value: unknown) => boolean
+const isBoolean: PropertyCheck = value => typeof value === 'boolean'
+const oneOf =
+  (values: readonly string[]): PropertyCheck =>
+  value =>
+    typeof value === 'string' && values.includes(value)
+const countBucket = oneOf(['0', '1-2', '3-5', '6-10', '>10'])
+const captureDuration = oneOf(CAPTURE_DURATION_BUCKETS)
+const entryType = oneOf(['clip', 'screenshot'])
+const via = oneOf(['menu', 'block', 'shortcut'])
+
+const EVENT_FIELDS: Record<MetricEventName, Record<string, PropertyCheck>> = {
+  'capture.saved': {
+    type: entryType,
+    via,
+    duration: captureDuration,
+    block_kind: oneOf(['post', 'code', 'table', 'figure', 'quote', 'section', 'article']),
+    level_changed: isBoolean,
+    truncated: isBoolean,
+    frame: oneOf(['drag', 'element', 'reused']),
+  },
+  'capture.undone': { type: entryType, via },
+  'capture.save_failed': { type: entryType, error_code: oneOf(ENTRY_ERROR_CODES) },
+  'highlight.created': { has_note: isBoolean, via: oneOf(['toolbar', 'shortcut']) },
+  'entry.reopened': { type: entryType },
+  'entry.property_edited': { scope: oneOf(['builtin', 'custom']), property_type: oneOf(PROPERTY_TYPES) },
+  'library.queried': { has_text: isBoolean, filters: countBucket, results: countBucket },
+  'export.completed': { result: oneOf(['full', 'partial']), missing_assets: countBucket },
+  'screenshot.copied': { watermark: isBoolean, beautify: isBoolean },
+  'screenshot.downloaded': { format: oneOf(['png', 'jpeg', 'webp']), watermark: isBoolean, beautify: isBoolean },
+}
+
+export function validateMetricEvent(event: unknown, props: unknown): void {
+  if (typeof event !== 'string' || !Object.prototype.hasOwnProperty.call(EVENT_FIELDS, event)) throw new Error('Unknown metric event')
+  if (!props || typeof props !== 'object' || Array.isArray(props)) throw new Error('Invalid metric properties')
+  const fields = EVENT_FIELDS[event as MetricEventName]
+  for (const [key, value] of Object.entries(props)) {
+    if (!Object.prototype.hasOwnProperty.call(fields, key) || !fields[key]!(value)) throw new Error('Invalid metric property')
+  }
+}
 
 /** Per-day counters per event, keyed by serialized props. */
 export interface MetricsStoreShape {
@@ -74,9 +127,18 @@ function serializeProps(props: MetricEventProps): string {
 }
 
 export class LocalMetrics {
+  private pendingWrite: Promise<void> = Promise.resolve()
+
   constructor(private readonly storage: MetricsStorage) {}
 
   async record(event: MetricEventName, props: MetricEventProps = {}, at = Date.now()): Promise<void> {
+    validateMetricEvent(event, props)
+    const write = this.pendingWrite.catch(() => undefined).then(() => this.recordOnce(event, props, at))
+    this.pendingWrite = write
+    return write
+  }
+
+  private async recordOnce(event: MetricEventName, props: MetricEventProps, at: number): Promise<void> {
     const shape = await this.storage.get()
     const day = dayKey(at)
     shape[event] ??= {}
@@ -102,6 +164,7 @@ export class LocalMetrics {
 
   /** Aggregate snapshot for the settings panel: totals per event and per prop-bucket. */
   async snapshot(): Promise<Record<string, { total: number; byProps: Record<string, number> }>> {
+    await this.pendingWrite
     const shape = await this.storage.get()
     const out: Record<string, { total: number; byProps: Record<string, number> }> = {}
     for (const [event, days] of Object.entries(shape)) {
