@@ -3,7 +3,16 @@
  * chrome.storage. Entries and images live in IndexedDB and never here.
  */
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../learning-core/types'
-import { DEFAULT_RATIO_PRESETS, RATIO_PRESETS } from '../entrypoints/content/screenshot/output'
+import {
+  BEAUTIFY_BACKGROUND_IDS,
+  BEAUTIFY_RADII,
+  DEFAULT_BEAUTIFY,
+  DEFAULT_RATIO_PRESETS,
+  PADDING_PX,
+  RATIO_PRESETS,
+  type BeautifyBackground,
+  type BeautifyPadding,
+} from '../entrypoints/content/screenshot/output'
 
 export interface ExtensionSettings {
   /** Block-clip hover entry: default on, globally switchable (capture.md §6.2). */
@@ -31,8 +40,8 @@ export interface ExtensionSettings {
   /** Beautify defaults for copy/download (screenshot.md §4.4; R2). */
   beautify: {
     enabled: boolean
-    background: 'none' | 'solid-white' | 'solid-ivory' | 'grad-purple' | 'grad-blue' | 'grad-green' | 'grad-sunset' | 'grad-slate'
-    padding: 'small' | 'medium' | 'large'
+    background: BeautifyBackground
+    padding: BeautifyPadding
     radius: number
     shadow: boolean
   }
@@ -54,11 +63,11 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   },
   ratioPresets: [...DEFAULT_RATIO_PRESETS],
   beautify: {
-    enabled: false,
-    background: 'solid-white',
-    padding: 'medium',
-    radius: 12,
-    shadow: true,
+    enabled: DEFAULT_BEAUTIFY.enabled,
+    background: DEFAULT_BEAUTIFY.background,
+    padding: DEFAULT_BEAUTIFY.padding,
+    radius: DEFAULT_BEAUTIFY.radius,
+    shadow: DEFAULT_BEAUTIFY.shadow,
   },
 }
 
@@ -117,9 +126,9 @@ const watermarkChecks: Record<string, Check> = {
 }
 const beautifyChecks: Record<string, Check> = {
   enabled: boolean,
-  background: oneOf(['none', 'solid-white', 'solid-ivory', 'grad-purple', 'grad-blue', 'grad-green', 'grad-sunset', 'grad-slate']),
-  padding: oneOf(['small', 'medium', 'large']),
-  radius: oneOf([0, 12, 24]),
+  background: oneOf(BEAUTIFY_BACKGROUND_IDS),
+  padding: oneOf(Object.keys(PADDING_PX)),
+  radius: oneOf(BEAUTIFY_RADII),
   shadow: boolean,
 }
 

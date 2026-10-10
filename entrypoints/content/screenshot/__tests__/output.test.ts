@@ -1,5 +1,30 @@
 import { describe, expect, it } from 'vitest'
-import { composeGeometry, constrainToRatio, downloadExtension, downloadMime, matteOnWhite, ratioOf, watermarkBox, PADDING_PX } from '../output'
+import {
+  applyBeautifyChange,
+  backgroundCss,
+  BEAUTIFY_BACKGROUND_IDS,
+  BEAUTIFY_BACKGROUNDS,
+  composeGeometry,
+  constrainToRatio,
+  DEFAULT_BEAUTIFY,
+  downloadExtension,
+  downloadMime,
+  gradientLine,
+  matteOnWhite,
+  paintBackground,
+  paintBeautified,
+  paintWatermark,
+  PADDING_PX,
+  placePanel,
+  placeSizeLabel,
+  previewBox,
+  PREVIEW_RESERVE,
+  SIZE_LABEL_ROOM,
+  ratioOf,
+  watermarkBox,
+  type BeautifySettings,
+  type Rect,
+} from '../output'
 
 const VIEW = { width: 1280, height: 800 }
 
@@ -86,6 +111,339 @@ describe('beautify composition (screenshot.md §4.4, §6)', () => {
   it('padding scales with the device pixel ratio', () => {
     const geo = composeGeometry(content, { enabled: true, background: 'none', padding: 'small', radius: 0, shadow: false }, 2)
     expect(geo.canvas).toEqual({ width: 800 + PADDING_PX.small * 4, height: 400 + PADDING_PX.small * 4 })
+  })
+})
+
+/** A canvas context that writes every call and every assignment down, in order. */
+function recordingContext() {
+  const log: string[] = []
+  const state: Record<string, unknown> = {}
+  const show = (value: unknown): string => (typeof value === 'number' ? String(Math.round(value * 100) / 100) : typeof value === 'object' ? '<gradient>' : String(value))
+  const ctx = new Proxy(
+    {},
+    {
+      get(_target, key: string) {
+        if (key in state) return state[key]
+        return (...args: unknown[]) => {
+          log.push(`${key}(${args.map(show).join(', ')})`)
+          return key === 'createLinearGradient' ? { addColorStop: (offset: number, color: string) => log.push(`stop(${offset}, ${color})`) } : undefined
+        }
+      },
+      set(_target, key: string, value: unknown) {
+        state[key] = value
+        log.push(`${key} = ${show(value)}`)
+        return true
+      },
+    },
+  ) as unknown as CanvasRenderingContext2D
+  return { ctx, log, state }
+}
+
+describe('beautify backgrounds (screenshot.md §4.4)', () => {
+  it('are eight: none, two solids, five gradients — and only the dark one wants light ink', () => {
+    expect(BEAUTIFY_BACKGROUND_IDS).toHaveLength(8)
+    expect(BEAUTIFY_BACKGROUND_IDS.map(id => BEAUTIFY_BACKGROUNDS[id].paint.kind)).toEqual(['none', 'solid', 'solid', 'gradient', 'gradient', 'gradient', 'gradient', 'gradient'])
+    expect(BEAUTIFY_BACKGROUND_IDS.filter(id => !BEAUTIFY_BACKGROUNDS[id].light)).toEqual(['grad-slate'])
+  })
+
+  it('are described as CSS for the swatches', () => {
+    expect(backgroundCss('none')).toBe('transparent')
+    expect(backgroundCss('solid-ivory')).toBe('#f6f1e7')
+    expect(backgroundCss('grad-blue')).toBe('linear-gradient(135deg, #e3edfa, #c6d9f2)')
+  })
+
+  it('run a gradient from corner to corner at 135°, through the centre, at any aspect', () => {
+    expect(gradientLine(100, 100, 135)).toEqual({ x0: expect.closeTo(0, 6), y0: expect.closeTo(0, 6), x1: expect.closeTo(100, 6), y1: expect.closeTo(100, 6) })
+    const wide = gradientLine(200, 100, 135)
+    expect([wide.x0, wide.y0, wide.x1, wide.y1].map(Math.round)).toEqual([25, -25, 175, 125])
+    // the corners take the first and last colour: the top-left corner sits on the line's start, the bottom-right on its end
+    const along = (x: number, y: number) => ((x - wide.x0) * (wide.x1 - wide.x0) + (y - wide.y0) * (wide.y1 - wide.y0)) / ((wide.x1 - wide.x0) ** 2 + (wide.y1 - wide.y0) ** 2)
+    expect(along(0, 0)).toBeCloseTo(0, 6)
+    expect(along(200, 100)).toBeCloseTo(1, 6)
+    expect(gradientLine(300, 120, 90)).toEqual({ x0: expect.closeTo(0, 6), y0: expect.closeTo(60, 6), x1: expect.closeTo(300, 6), y1: expect.closeTo(60, 6) })
+  })
+
+  it('leave a transparent canvas alone', () => {
+    const { ctx, log } = recordingContext()
+    paintBackground(ctx, 400, 300, 'none')
+    expect(log).toEqual([])
+  })
+
+  it('fill a solid over the whole canvas', () => {
+    const { ctx, log } = recordingContext()
+    paintBackground(ctx, 400, 300, 'solid-ivory')
+    expect(log).toEqual(['fillStyle = #f6f1e7', 'fillRect(0, 0, 400, 300)'])
+  })
+
+  it('build a gradient out of its stops: a canvas ignores a CSS gradient string and would paint black', () => {
+    const { ctx, log } = recordingContext()
+    paintBackground(ctx, 400, 400, 'grad-purple')
+    expect(log[0]).toMatch(/^createLinearGradient\(0, 0, 400, 400\)$/)
+    expect(log.slice(1)).toEqual(['stop(0, #efe9fa)', 'stop(1, #d7c9f5)', 'fillStyle = <gradient>', 'fillRect(0, 0, 400, 400)'])
+    for (const id of BEAUTIFY_BACKGROUND_IDS) {
+      const painted = recordingContext()
+      paintBackground(painted.ctx, 100, 100, id)
+      expect(
+        painted.log.filter(line => line.startsWith('fillStyle = ') && /gradient\(|#|rgb/.test(line) && line.includes('gradient(')),
+        `${id} hands a CSS string to fillStyle`,
+      ).toEqual([])
+    }
+  })
+})
+
+describe('the beautified picture (screenshot.md §4.4)', () => {
+  const content = { width: 800, height: 400 }
+  const settings: BeautifySettings = { enabled: true, background: 'solid-white', padding: 'medium', radius: 12, shadow: true }
+  const image = {} as CanvasImageSource
+
+  function paint(overrides: Partial<BeautifySettings> = {}, scale = 1) {
+    const style = { ...settings, ...overrides }
+    const geometry = composeGeometry(content, style, scale)
+    const recorded = recordingContext()
+    paintBeautified(recorded.ctx, image, geometry, style, scale)
+    return { ...recorded, geometry }
+  }
+
+  it('draws the background, then the shadow, then the content clipped to its rounded rectangle', () => {
+    const { log, geometry } = paint()
+    const at = (prefix: string) => log.findIndex(line => line.startsWith(prefix))
+    expect(geometry.content).toEqual({ x: 40, y: 40, width: 800, height: 400 })
+    expect(at('fillRect(')).toBeLessThan(at('shadowColor'))
+    expect(at('shadowColor')).toBeLessThan(at('clip('))
+    expect(at('clip(')).toBeLessThan(at('drawImage('))
+    expect(log.filter(line => line.startsWith('drawImage('))).toEqual(['drawImage(<gradient>, 40, 40)'])
+    // the corners are rounded by the radius: the path begins one radius in from the content's left edge
+    expect(log.filter(line => line.startsWith('moveTo(')).pop()).toBe('moveTo(52, 40)')
+  })
+
+  it('casts the shadow from a shape drawn out of sight, so nothing opaque is left under a transparent content', () => {
+    const { log, state, geometry } = paint()
+    const [startX] = log
+      .filter(line => line.startsWith('moveTo('))[0]!
+      .match(/-?\d+/g)!
+      .map(Number)
+    const left = startX! - 12 // the path starts one radius in from the shape's left edge
+    // drawn left of the canvas, its right edge short of zero, and thrown back onto the content by the offset
+    expect(left + geometry.content.width).toBeLessThanOrEqual(0)
+    expect(left + (state['shadowOffsetX'] as number)).toBe(geometry.content.x)
+    expect(state['shadowOffsetY']).toBeGreaterThan(0)
+    expect(state['shadowBlur']).toBeGreaterThan(0)
+  })
+
+  it('has no shadow when it is off', () => {
+    const { log } = paint({ shadow: false })
+    expect(log.some(line => line.startsWith('shadow'))).toBe(false)
+    expect(log.some(line => line.startsWith('fill('))).toBe(false)
+    expect(log.filter(line => line.startsWith('drawImage('))).toHaveLength(1)
+  })
+
+  it('keeps the shadow inside the padding, whatever the padding', () => {
+    for (const padding of ['small', 'medium', 'large'] as const) {
+      const { state } = paint({ padding })
+      // the blur fades out within its own radius; the lift pushes it down by its offset
+      const reach = (state['shadowBlur'] as number) + (state['shadowOffsetY'] as number)
+      expect(reach, padding).toBeLessThanOrEqual(PADDING_PX[padding])
+    }
+  })
+
+  it('takes radius, blur and offset in CSS pixels: they grow with the device pixel ratio', () => {
+    const one = paint({}, 1)
+    const two = paint({}, 2)
+    expect(two.geometry.content.x).toBe(one.geometry.content.x * 2)
+    expect(two.log.filter(line => line.startsWith('moveTo(')).pop()).toBe('moveTo(104, 80)') // x 80 + radius 24
+    expect(two.state['shadowBlur']).toBe((one.state['shadowBlur'] as number) * 2)
+    expect(two.state['shadowOffsetY']).toBe((one.state['shadowOffsetY'] as number) * 2)
+  })
+
+  it('a radius of 0 clips to a plain rectangle', () => {
+    const { log } = paint({ radius: 0, shadow: false })
+    expect(log.filter(line => line.startsWith('moveTo('))).toEqual(['moveTo(40, 40)'])
+  })
+
+  it('paints nothing behind a transparent background, but the content and its shadow are still there', () => {
+    const { log } = paint({ background: 'none' })
+    expect(log.some(line => line.startsWith('fillRect('))).toBe(false)
+    expect(log.some(line => line.startsWith('drawImage('))).toBe(true)
+  })
+})
+
+describe('the watermark ink (screenshot.md §4.3)', () => {
+  const settings = { enabled: true, text: '@annhub', position: 'bottom-right', size: 'medium', opacity: 0.7 } as const
+
+  it('writes the text in its corner and puts the alpha back', () => {
+    const { ctx, log } = recordingContext()
+    paintWatermark(ctx, { width: 1200, height: 600 }, settings, false)
+    expect(log).toEqual([
+      'globalAlpha = 0.7',
+      'fillStyle = #20252b',
+      'font = 24px -apple-system, system-ui, sans-serif',
+      'textAlign = right',
+      'textBaseline = bottom',
+      'fillText(@annhub, 1188, 588)',
+      'globalAlpha = 1',
+    ])
+  })
+
+  it('turns light on a dark background, where the dark ink would vanish', () => {
+    const { ctx, log } = recordingContext()
+    paintWatermark(ctx, { width: 1200, height: 600 }, { ...settings, position: 'top-left' }, true)
+    expect(log).toContain('fillStyle = #f4f5f7')
+    expect(log).toContain('textAlign = left')
+    expect(log).toContain('textBaseline = top')
+  })
+
+  it('has nothing to write without text', () => {
+    const { ctx, log } = recordingContext()
+    paintWatermark(ctx, { width: 1200, height: 600 }, { ...settings, text: '' }, false)
+    expect(log).toEqual([])
+  })
+})
+
+describe('the panel changes the style (screenshot.md §4.4)', () => {
+  it('turns beautify on with any change but the switch itself', () => {
+    expect(DEFAULT_BEAUTIFY.enabled).toBe(false)
+    expect(applyBeautifyChange(DEFAULT_BEAUTIFY, { padding: 'large' })).toEqual({ ...DEFAULT_BEAUTIFY, padding: 'large', enabled: true })
+    expect(applyBeautifyChange(DEFAULT_BEAUTIFY, { ratio: '16:9' })).toMatchObject({ ratio: '16:9', enabled: true })
+  })
+
+  it('lets the switch turn it off, and keeps the rest', () => {
+    const on = applyBeautifyChange(DEFAULT_BEAUTIFY, { radius: 24 })
+    expect(applyBeautifyChange(on, { enabled: false })).toEqual({ ...on, enabled: false })
+  })
+
+  it('goes back to a free ratio when the ratio is cleared', () => {
+    const wide = applyBeautifyChange(DEFAULT_BEAUTIFY, { ratio: '16:9' })
+    expect(applyBeautifyChange(wide, { ratio: undefined }).ratio).toBeUndefined()
+  })
+
+  it('does not change the style it was given', () => {
+    const before = { ...DEFAULT_BEAUTIFY }
+    applyBeautifyChange(DEFAULT_BEAUTIFY, { background: 'grad-slate' })
+    expect(DEFAULT_BEAUTIFY).toEqual(before)
+  })
+})
+
+describe('where the preview and the beautify panel sit (screenshot.md §4.4)', () => {
+  const view = { width: 1280, height: 720 }
+
+  describe('previewBox', () => {
+    const selection: Rect = { x: 300, y: 200, width: 600, height: 240 }
+
+    it('centres the picture on what was selected: it grows around the selection', () => {
+      expect(previewBox(selection, { width: 680, height: 320 }, view)).toEqual({ x: 260, y: 160, width: 680, height: 320 })
+    })
+
+    it('shrinks a picture the window cannot hold, keeping its shape, and keeps it in the room left for label and toolbar', () => {
+      const box = previewBox(selection, { width: 2400, height: 1800 }, view)
+      expect(box.width / box.height).toBeCloseTo(2400 / 1800, 6)
+      expect(box.x).toBeGreaterThanOrEqual(16)
+      expect(box.x + box.width).toBeLessThanOrEqual(view.width - 16)
+      expect(box.y).toBeGreaterThanOrEqual(PREVIEW_RESERVE.top)
+      expect(box.y + box.height).toBeLessThanOrEqual(view.height - 90)
+    })
+
+    it('moves a picture that would hang off the window back into it', () => {
+      const box = previewBox({ x: 1180, y: 600, width: 90, height: 60 }, { width: 170, height: 140 }, view)
+      expect(box.x + box.width).toBeLessThanOrEqual(view.width - 16)
+      expect(box.y + box.height).toBeLessThanOrEqual(view.height - 90)
+      expect(previewBox({ x: 0, y: 0, width: 50, height: 50 }, { width: 130, height: 130 }, view)).toMatchObject({ x: 16, y: PREVIEW_RESERVE.top })
+    })
+  })
+
+  describe('placeSizeLabel', () => {
+    const label = { width: 72, height: 21 }
+    const toolbarBelow = (preview: Rect): Rect => ({ x: preview.x + preview.width - 560, y: preview.y + preview.height + 8, width: 560, height: 46 })
+
+    it('puts the label above the picture, where the window leaves room and the toolbar is not', () => {
+      const preview: Rect = { x: 300, y: 200, width: 600, height: 240 }
+      expect(placeSizeLabel(preview, label, toolbarBelow(preview), view)).toBe('above')
+      expect(placeSizeLabel(preview, label, null, view)).toBe('above')
+    })
+
+    it('keeps room for it above a preview that previewBox moved against the top of the window', () => {
+      const against = previewBox({ x: 300, y: 0, width: 400, height: 100 }, { width: 900, height: 700 }, view)
+      expect(against.y).toBe(PREVIEW_RESERVE.top)
+      expect(PREVIEW_RESERVE.top, 'the label and its gap fit in the reserve').toBeGreaterThanOrEqual(label.height + 6)
+      expect(placeSizeLabel(against, label, toolbarBelow(against), view)).toBe('above')
+      expect(SIZE_LABEL_ROOM).toBe(PREVIEW_RESERVE.top)
+    })
+
+    it('has no room above a picture at the very top, and under it is the toolbar: inside the corner it is, clear of both', () => {
+      const preview: Rect = { x: 300, y: 8, width: 400, height: 124 }
+      expect(placeSizeLabel(preview, label, toolbarBelow(preview), view)).toBe('inside')
+      // with no toolbar to avoid, below is as good as any
+      expect(placeSizeLabel(preview, label, null, view)).toBe('below')
+    })
+
+    it('goes below a picture whose toolbar sits above it, and inside when the window has no room below either', () => {
+      const preview: Rect = { x: 300, y: 120, width: 400, height: 200 }
+      const toolbarAbove: Rect = { x: 140, y: 66, width: 560, height: 46 }
+      expect(placeSizeLabel(preview, label, toolbarAbove, view)).toBe('below')
+      const atTheBottom: Rect = { x: 900, y: 560, width: 300, height: 140 }
+      expect(placeSizeLabel(atTheBottom, label, { x: 640, y: 506, width: 560, height: 46 }, view)).toBe('inside')
+    })
+
+    it('never puts it where the window would cut it off', () => {
+      const preview: Rect = { x: 1250, y: 300, width: 28, height: 100 }
+      expect(placeSizeLabel(preview, label, null, view), 'it would run off the right edge above and below').toBe('inside')
+    })
+  })
+
+  describe('placePanel', () => {
+    const panel = { width: 262, height: 330 }
+    const rectOf = (position: { left: number; top: number }): Rect => ({ x: position.left, y: position.top, ...panel })
+    const touches = (a: Rect, b: Rect) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
+
+    it('goes right of the preview, level with its top, when the window has the room', () => {
+      const preview = { x: 100, y: 80, width: 600, height: 300 }
+      const toolbar = { x: 360, y: 390, width: 340, height: 46 }
+      expect(placePanel(panel, { toolbar, preview }, view)).toEqual({ left: 710, top: 80 })
+    })
+
+    it('goes left when the right side is short', () => {
+      const preview = { x: 500, y: 80, width: 600, height: 300 }
+      const toolbar = { x: 760, y: 390, width: 340, height: 46 }
+      expect(placePanel(panel, { toolbar, preview }, view)).toEqual({ left: 228, top: 80 })
+    })
+
+    it('goes under the toolbar, flush with its right edge, when neither side has room', () => {
+      const preview = { x: 120, y: 40, width: 1040, height: 300 }
+      const toolbar = { x: 820, y: 350, width: 340, height: 46 }
+      const left = placePanel(panel, { toolbar, preview }, { width: 1280, height: 800 })
+      expect(left).toEqual({ left: 898, top: 406 })
+    })
+
+    it('goes above the preview when there is no room under the toolbar either', () => {
+      const preview = { x: 120, y: 360, width: 1040, height: 300 }
+      const toolbar = { x: 820, y: 670, width: 340, height: 46 }
+      const position = placePanel(panel, { toolbar, preview }, { width: 1280, height: 730 })
+      expect(position.top + panel.height).toBeLessThanOrEqual(preview.y - 10)
+    })
+
+    it('stays inside the window and off the toolbar even when nothing else is free', () => {
+      const cramped = { width: 420, height: 480 }
+      const preview = { x: 16, y: 30, width: 388, height: 300 }
+      const toolbar = { x: 64, y: 340, width: 340, height: 46 }
+      const position = placePanel(panel, { toolbar, preview }, cramped)
+      expect(position.left).toBeGreaterThanOrEqual(8)
+      expect(position.top).toBeGreaterThanOrEqual(8)
+      expect(position.left + panel.width).toBeLessThanOrEqual(cramped.width - 8)
+      expect(position.top + panel.height).toBeLessThanOrEqual(cramped.height - 8)
+      expect(touches(rectOf(position), toolbar)).toBe(false)
+    })
+
+    it('keeps the place it has while that place is still free, and leaves it when the preview grows over it', () => {
+      const toolbar = { x: 360, y: 390, width: 340, height: 46 }
+      const small = { x: 100, y: 80, width: 600, height: 300 }
+      const first = placePanel(panel, { toolbar, preview: small }, view)
+      const grown = { x: 90, y: 70, width: 610, height: 310 }
+      expect(placePanel(panel, { toolbar, preview: grown }, view, first)).toEqual(first)
+      const wide = { x: 60, y: 60, width: 760, height: 320 }
+      const moved = placePanel(panel, { toolbar, preview: wide }, view, first)
+      expect(moved).not.toEqual(first)
+      expect(touches(rectOf(moved), wide)).toBe(false)
+      expect(touches(rectOf(moved), toolbar)).toBe(false)
+    })
   })
 })
 

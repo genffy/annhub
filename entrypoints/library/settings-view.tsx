@@ -11,7 +11,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
 import type { ExtensionSettings, SettingsPatch } from '../../background-service/settings-schema'
 import { EntryStore, type OrphanReport } from '../../learning-core/store'
-import { RATIO_PRESETS, watermarkBox } from '../content/screenshot/output'
+import { BEAUTIFY_BACKGROUND_IDS, BEAUTIFY_RADII, PADDING_PX, RATIO_PRESETS, watermarkBox, type BeautifyBackground, type BeautifyPadding } from '../content/screenshot/output'
 import { formatBytes } from '../../utils/format-bytes'
 import { uiText } from '../../utils/ui-text'
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../../learning-core/types'
@@ -250,31 +250,35 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
         <div className="settings-grid">
           <label className="settings-field">
             <span className="settings-label">{uiText('settings.background')}</span>
-            <select value={settings.beautify.background} onChange={event => void patch({ beautify: { ...settings.beautify, background: event.target.value as 'solid-white' } })}>
-              <option value="none">{uiText('settings.background.none')}</option>
-              <option value="solid-white">{uiText('settings.background.solid')} A</option>
-              <option value="solid-ivory">{uiText('settings.background.solid')} B</option>
-              <option value="grad-purple">{uiText('settings.background.grad')} 1</option>
-              <option value="grad-blue">{uiText('settings.background.grad')} 2</option>
-              <option value="grad-green">{uiText('settings.background.grad')} 3</option>
-              <option value="grad-sunset">{uiText('settings.background.grad')} 4</option>
-              <option value="grad-slate">{uiText('settings.background.grad')} 5</option>
+            <select
+              value={settings.beautify.background}
+              onChange={event => void patch({ beautify: { ...settings.beautify, background: event.target.value as BeautifyBackground } })}
+            >
+              {BEAUTIFY_BACKGROUND_IDS.map(id => (
+                <option key={id} value={id}>
+                  {uiText(`shot.beautify.background.${id}`)}
+                </option>
+              ))}
             </select>
           </label>
           <label className="settings-field">
             <span className="settings-label">{uiText('settings.padding')}</span>
-            <select value={settings.beautify.padding} onChange={event => void patch({ beautify: { ...settings.beautify, padding: event.target.value as 'medium' } })}>
-              <option value="small">24</option>
-              <option value="medium">40</option>
-              <option value="large">64</option>
+            <select value={settings.beautify.padding} onChange={event => void patch({ beautify: { ...settings.beautify, padding: event.target.value as BeautifyPadding } })}>
+              {(Object.keys(PADDING_PX) as BeautifyPadding[]).map(size => (
+                <option key={size} value={size}>
+                  {uiText(`settings.size.${size}`)} · {PADDING_PX[size]}
+                </option>
+              ))}
             </select>
           </label>
           <label className="settings-field">
             <span className="settings-label">{uiText('settings.radius')}</span>
             <select value={settings.beautify.radius} onChange={event => void patch({ beautify: { ...settings.beautify, radius: Number(event.target.value) } })}>
-              <option value={0}>0</option>
-              <option value={12}>12</option>
-              <option value={24}>24</option>
+              {BEAUTIFY_RADII.map(radius => (
+                <option key={radius} value={radius}>
+                  {radius}
+                </option>
+              ))}
             </select>
           </label>
           <label className="settings-field">

@@ -340,47 +340,215 @@
   color: #fff;
 }
 
-/* beautify panel (screenshot.md §4.4) */
-[data-ann-ui='screenshot-beautify'] {
+/* beautify panel (screenshot.md §4.4): a dark card beside the picture, drawn like the design's .bz */
+[data-ann-ui='screenshot-beautify-panel'] {
   position: absolute;
   z-index: 4;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 210px;
-  padding: 10px;
-  border: 1px solid #d7dce1;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  box-sizing: border-box;
+  width: 262px;
+  padding: 12px 14px 14px;
+  border-radius: 12px;
+  background: #1b1f2a;
+  color: #e6e9f2;
+  font:
+    12px/1.4 -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  box-shadow:
+    0 14px 34px -8px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.07);
   pointer-events: auto;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
-[data-ann-ui='screenshot-beautify'] .ann-shot-beautify-row {
+/* the page's own button styles stop at the panel's edge */
+[data-ann-ui='screenshot-beautify-panel'] button {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+  cursor: pointer;
+  appearance: none;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] button:focus-visible {
+  outline: 2px solid #b9a3f2;
+  outline-offset: 2px;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-hd {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-grow {
+  flex: 1;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-reset {
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: #aab1c3;
+  font-weight: 500;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-reset:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-sec {
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-sec:last-child {
+  padding-bottom: 0;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-lb {
+  margin-bottom: 7px;
+  color: #aab1c3;
+  font-size: 11px;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  font-size: 12px;
-  color: #20252b;
+  gap: 10px;
 }
 
-[data-ann-ui='screenshot-beautify'] select {
-  padding: 3px 6px;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
-  font-size: 12px;
+/* the eight backgrounds, each drawn as what it paints */
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-sws {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-[data-ann-ui='screenshot-beautify'] button {
-  margin-top: 4px;
-  padding: 5px 10px;
-  border: 1px solid #cbd5e1;
-  border-radius: 4px;
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-sw {
+  width: 23px;
+  height: 23px;
+  border-radius: 7px;
+  background: var(--ann-bz-sw);
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.3);
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-sw[aria-pressed='true'] {
+  box-shadow:
+    0 0 0 2px #1b1f2a,
+    0 0 0 3.5px #fff;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-none {
+  background: repeating-linear-gradient(135deg, #3a4052 0 4px, #2b3040 4px 8px);
+}
+
+/* padding and corners: three choices side by side */
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-seg {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-seg button {
+  padding: 3px 11px;
+  border-radius: 6px;
+  color: #cdd2e0;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-seg button[aria-pressed='true'] {
+  background: rgba(185, 163, 242, 0.35);
+  color: #fff;
+}
+
+/* the two switches */
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-switch {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-switch::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
   background: #fff;
-  font-size: 12px;
-  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 0.15s;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-switch[aria-checked='true'] {
+  background: #8660dc;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-switch[aria-checked='true']::after {
+  transform: translateX(14px);
+}
+
+/* the output canvas ratio: free and the enabled presets, each with an outline of its shape */
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #dfe3ee;
+  font-size: 11.5px;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-chip[aria-pressed='true'] {
+  background: rgba(185, 163, 242, 0.3);
+  box-shadow: inset 0 0 0 1px rgba(185, 163, 242, 0.6);
+  color: #fff;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-chip svg {
+  width: 12px;
+  height: 12px;
+}
+
+[data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-rg {
+  display: inline-block;
+  box-sizing: border-box;
+  border: 1.5px solid currentcolor;
+  border-radius: 2px;
 }
 
 /* ── R3: snap guides, handles, confirm bar, margin bar, hover outline ── */

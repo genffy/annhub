@@ -1,4 +1,4 @@
-import { ArrowUpRight, Check, Circle, ClipboardCopy, Download, Grid2X2, Pencil, RectangleHorizontal, RotateCcw, Sparkles, Type, X } from 'lucide-react'
+import { ArrowUpRight, Check, Circle, ClipboardCopy, Download, Grid2X2, Palette, Pencil, RectangleHorizontal, RotateCcw, Type, X } from 'lucide-react'
 import { uiText } from '../../../utils/ui-text'
 import type { ScreenshotTool } from './editor'
 
@@ -24,6 +24,8 @@ interface Props {
   color: string
   maskCount: number
   canUndo: boolean
+  /** whether the beautify panel is open */
+  beautifyOpen: boolean
   busy: boolean
   notice?: { message: string; error: boolean }
   onTool: (tool: ScreenshotTool) => void
@@ -92,11 +94,13 @@ export function ScreenshotToolbar(props: Props) {
             type="button"
             title={uiText('shot.beautify')}
             aria-label={uiText('shot.beautify')}
+            aria-expanded={props.beautifyOpen}
+            className={props.beautifyOpen ? 'ann-shot-active' : ''}
             data-ann-ui="screenshot-beautify"
             disabled={props.busy}
             onClick={props.onBeautify}
           >
-            <Sparkles size={19} />
+            <Palette size={19} />
           </button>
           <button type="button" title={uiText('shot.tool.copy')} aria-label={uiText('shot.tool.copy')} data-ann-ui="screenshot-copy" disabled={props.busy} onClick={props.onCopy}>
             <ClipboardCopy size={19} />
