@@ -7,6 +7,7 @@ AnnHub 的公开网站与产品展示页。网站代码位于独立 Next.js 应�
 实现或修改 Landing Page 前，必须先阅读：
 
 - [网站内容蓝图](../docs/v2/website.md)
+- [官网的 SEO 与 GEO](../docs/v2/seo-geo.md)
 - [产品定位](../docs/v2/product.md)
 - [用户故事与验收](../docs/v2/user-stories.md)
 - [产品路线图](../docs/v2/roadmap.md)
@@ -54,11 +55,11 @@ npm run start
 - **`publish = ".next"`**，相对 base。写进文件是为了覆盖 Netlify 后台里可能留着的旧值（例如 `website/.next`），那个值在新 base 下会指向不存在的目录。后台的 Package directory 不需要设置（它只能在后台设置，`netlify.toml` 管不到），留空。
 - **Node 版本**。Netlify 在 `website/` 里找不到仓库根目录的 `.node-version`，所以 `netlify.toml` 的 `NODE_VERSION` 要写一份，并与它一致。
 - **什么时候构建**。`ignore` 命令只在 `website/` 或 `netlify.toml` 有变化时才构建；Deploy Preview 和分支部署一律跳过，看板上显示 Canceled，并没有真的构建。`ignore` 在 base 目录里运行，路径要写成 `:/website`，从仓库根起算；写成 `website` 会指向 `website/website`，永远没有差异，等于永远跳过。`CACHED_COMMIT_REF` 不能直接信：Netlify 文档写明没有缓存的构建里它等于 `COMMIT_REF`，diff 恒为空；PR 预览被取消后，它也可能是 rebase 或 squash 合并前的头提交，内容和合并结果相同、却不在 `main` 的历史里。所以命令在这两种情形（以及取不到提交时）一律构建，只有它确实是祖先且监视的路径没有差异才跳过；`scripts/__tests__/netlify-ignore.test.ts` 用真实的 git 仓库执行这条命令。Netlify 对任何 `ignore` 取消都报 “Canceled build due to no content change”，所以部署页的报错分辨不出原因。想让看板上也不出现这些条目，在后台关掉：Project configuration > Developer settings > Continuous deployment > Branches and deploy contexts > Configure，Branch deploys 选 None，并禁用 Deploy Previews（站点设置，仓库里改不了）。
-- **语言前缀路由与法律页**。`proxy.ts` 的 matcher 放过 `privacy-policy`、`terms-of-service`、`api`、`_next` 和带扩展名的路径；前两个由 `netlify.toml` 的重写交给 `public/` 里的静态页。改其中一边，另一边一起改。两个静态页互相的链接、回首页的链接都写成站内路径（`/privacy-policy.html`、`/terms-of-service.html`、`/`），不写域名：写了域名，在本机、预览和分支部署里点一下就跳到线上，看到的是线上还没更新的旧页面。只有 `rel="canonical"` 和 `layout.tsx` 的 `metadataBase` 需要绝对地址，`utils/__tests__/website.test.ts` 核对这一点。
+- **语言前缀路由与法律页**。`proxy.ts` 的 matcher 放过 `privacy-policy`、`terms-of-service`、`api`、`_next` 和带扩展名的路径；前两个由 `netlify.toml` 的重写交给 `public/` 里的静态页。改其中一边，另一边一起改。两个静态页互相的链接、回首页的链接都写成站内路径（`/privacy-policy.html`、`/terms-of-service.html`、`/`），不写域名：写了域名，在本机、预览和分支部署里点一下就跳到线上，看到的是线上还没更新的旧页面。只有给爬虫读的地址写域名：两个静态页的 `rel="canonical"`、`lib/site.ts` 的 `SITE_ORIGIN`（`metadataBase` 和站点地图用它）、`public/robots.txt` 的 `Sitemap` 行；`utils/__tests__/website.test.ts` 核对这一点。
 
 部署后看日志：应有 `Using Next.js Runtime - v5.x`。没有这一行，说明运行时没被加载：查 `netlify.toml` 的 `[[plugins]]` 和 `website/package.json`。是 v4.x，说明 Netlify 没有从 `website/node_modules` 里找到插件：先查后台 Build settings 里的 Base directory 与 Package directory。
 
-再核对路由：`/` 跳到 `/zh-CN`，`/en` 返回 200，`/privacy-policy` 与 `/terms-of-service` 返回静态页。本机的 `netlify serve` 在子目录 base 下所有路由都返回 500（它重打包的函数副本里没有 `.next`，部署用的 zip 里有），验证不了路由，要在真实的生产部署上看；`ignore` 取消过的部署不算（部署页写 “Canceled build due to no content change”）。
+再核对路由：`/` 按浏览器语言跳到 `/zh-CN` 或 `/en`，中文以外的语言都跳到 `/en`，响应头里没有 `Link`；`/en` 返回 200；`/privacy-policy` 与 `/terms-of-service` 返回静态页；`/robots.txt` 与 `/sitemap.xml` 符合 [seo-geo.md](../docs/v2/seo-geo.md) 第 3.4、3.5 节。本机的 `netlify serve` 在子目录 base 下所有路由都返回 500（它重打包的函数副本里没有 `.next`，部署用的 zip 里有），验证不了路由，要在真实的生产部署上看；`ignore` 取消过的部署不算（部署页写 “Canceled build due to no content change”）。
 
 ## 设计与代码结构
 
@@ -67,6 +68,9 @@ npm run start
 ```text
 app/[locale]/globals.css          设计令牌（亮色；.theme-dark 为暗色）与基础样式，令牌取自设计稿 css/tokens.css
 lib/copy/                         中英文文案。types.ts 是唯一的结构，zh-CN.ts 与 en.ts 逐项对应，缺一项就编译失败
+lib/site.ts                       生产域名（只给爬虫读的地址用）
+app/sitemap.ts                    站点地图：两个语言页与两个法律页
+public/robots.txt                 全部放行、内容信号与站点地图的地址
 components/landing/               页面的各个区块（hero、问题、三种方式、走查、资料库、取舍、隐私、FAQ、收束）
 components/product/               扩展界面的复刻：选区菜单、剪藏提示、区块胶囊、截图、资料库、阅读视图与高亮、属性、导出
 components/product/product-*.css  从设计稿 css/ui.css、css/ext.css 移植，类名统一加 ah- 前缀，不与 Tailwind 冲突
@@ -74,6 +78,7 @@ components/product/sample.ts      示例数据，取自 docs/v2/examples.md 的�
 ```
 
 - **界面复刻不是截图**。设计稿里的界面用 React 和 CSS 重画，页面上标注“界面示意”。真实构建的截图（[蓝图 §16](../docs/v2/website.md)）就绪后再替换；替换前不要把它们描述成公开构建的截图。
+- **站点地图的日期跟着内容走**：语言页的 `lastmod` 取 `lib/copy/*` 里的 `meta.updated`，文案或结构化数据有实质改动时改成当天；法律页取页面上写明的更新日期（[seo-geo.md §3.5](../docs/v2/seo-geo.md)）。
 - **界面里的字符串跟扩展一致**：`lib/copy/*` 里的 `ui` 取自扩展的 `utils/ui-text.ts`，设计稿或扩展改了文案，这里同步。
 - **设计稿变了，先改移植的那份 CSS 和组件**，再看页面。选区菜单、剪藏胶囊这类浮层锚定在被选中的文字或区块上，不写死像素，字体回退或换行变了也不会错位；必须按像素摆放的场景（整个截图会话、整张浏览器窗口）用 `Fit` 缩放。
 - **悬停和聚焦只改外观，不改尺寸**。设计稿用固定的 `.hov` 类画“悬停中”的静态状态，移植成真正的 `:hover` 时，如果靠 `display` 让操作按钮出现，就多出一列、文字重新换行，那一行和它下面所有行的高度都会在指针下变化。条目行的操作区始终占位，隐藏时只改 `visibility`；`:hover`、`:focus` 规则只能改背景、颜色、阴影这类绘制属性，`utils/__tests__/website.test.ts` 核对这一点。
@@ -85,4 +90,4 @@ components/product/sample.ts      示例数据，取自 docs/v2/examples.md 的�
 
 **渲染方式**：两个语言的页面在构建时预渲染成静态 HTML。`app/[locale]/layout.tsx` 和 `page.tsx` 里的 `setRequestLocale(locale)` 就是为此而写：去掉它，next-intl 会去读请求头，页面退回按请求渲染。只有三个客户端组件：`Fit`（把像素定位的场景缩到容器宽度）、`StoryStepper`（走查的步骤切换，只挂载当前场景）和 `LibraryTour`（可操作的资料库，数据只在内存里，刷新即重置）。
 
-**验证**：`npm run lint`、`npx tsc --noEmit`、`npm run build`。涉及版式的改动，用真实浏览器在 390、820、1024、1280、1440 和 1920 宽度各看一遍，中英文都看；只看一个宽度会漏掉场景缩放和英文长文案带来的问题。
+**验证**：`npm run lint`、`npx tsc --noEmit`、`npm run build`；官网的单测在仓库根目录的 `utils/__tests__/website*.test.ts`，随根目录的 `npm test` 运行。涉及版式的改动，用真实浏览器在 390、820、1024、1280、1440 和 1920 宽度各看一遍，中英文都看；只看一个宽度会漏掉场景缩放和英文长文案带来的问题。

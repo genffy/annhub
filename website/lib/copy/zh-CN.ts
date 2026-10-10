@@ -9,6 +9,7 @@ export const zhCN: LandingCopy = {
     description: 'AnnHub 是本地优先的浏览器扩展：把剪藏、高亮和截图连同来源存进同一个本地库，用属性分类、随时找回，并导出为 Obsidian 读得懂的 Markdown。',
     ogTitle: 'AnnHub — 本地优先的剪藏、高亮与截图资料库',
     ogDescription: '保存很容易。难的是之后找得回、分得清。',
+    updated: '2026-10-09',
   },
   header: {
     nav: [

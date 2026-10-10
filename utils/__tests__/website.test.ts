@@ -22,15 +22,18 @@ function walk(dir: string, extensions: string[]): string[] {
 describe('links inside the site', () => {
   // A production origin written into a link sends a visitor on localhost, a deploy preview or a branch to the live site,
   // which may still serve an older page: the terms of service looked "not updated" because the privacy page linked to
-  // it by absolute URL. Links are paths. What crawlers read (canonical, metadataBase) is the only place an origin belongs.
-  const sources = ['app', 'components', 'i18n', 'lib', 'public'].flatMap(dir => walk(join(site, dir), ['.css', '.html', '.json', '.ts', '.tsx']))
+  // it by absolute URL. Links are paths. What crawlers read is the only place an origin belongs: the canonical links,
+  // the one constant behind metadataBase and the sitemap, and the Sitemap line of robots.txt.
+  const sources = ['app', 'components', 'i18n', 'lib', 'public'].flatMap(dir => walk(join(site, dir), ['.css', '.html', '.json', '.ts', '.tsx', '.txt']))
 
-  it('never hard-codes the production origin, except in canonical metadata', () => {
+  it('never hard-codes the production origin, except where crawlers read it', () => {
     const offenders = sources.flatMap(file =>
       readFileSync(file, 'utf8')
         .split('\n')
         .flatMap((line, index) =>
-          /annhub\.org/i.test(line) && !/rel="canonical"|metadataBase/.test(line) ? [`${relative(root, file)}:${index + 1}  ${line.trim().slice(0, 120)}`] : [],
+          /annhub\.org/i.test(line) && !/rel="canonical"|^export const SITE_ORIGIN = |^Sitemap: /.test(line)
+            ? [`${relative(root, file)}:${index + 1}  ${line.trim().slice(0, 120)}`]
+            : [],
         ),
     )
     expect(offenders).toEqual([])
@@ -47,7 +50,8 @@ describe('links inside the site', () => {
   it('keeps canonical addresses absolute', () => {
     expect(read('website/public/privacy-policy.html')).toContain('<link rel="canonical" href="https://annhub.org/privacy-policy.html">')
     expect(read('website/public/terms-of-service.html')).toContain('<link rel="canonical" href="https://annhub.org/terms-of-service.html">')
-    expect(read('website/app/[locale]/layout.tsx')).toContain("metadataBase: new URL('https://annhub.org')")
+    expect(read('website/lib/site.ts')).toContain("export const SITE_ORIGIN = 'https://annhub.org'")
+    expect(read('website/app/[locale]/layout.tsx')).toContain('metadataBase: new URL(SITE_ORIGIN)')
   })
 })
 

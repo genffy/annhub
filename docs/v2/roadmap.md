@@ -159,9 +159,9 @@ R1 与 R2 先补齐第 5 节的真机走查项并准备内测分发，然后进�
 
 - [x] 两个语言页在构建时生成静态 HTML；`<html lang>` 与页面语言一致，规范地址是自己的绝对地址（§3.2）。
 - [x] HTML 里声明语言版本：本页、另一个语言页与 `x-default`（§3.2）。
-- [ ] 语言版本只在 HTML 里声明一次（§3.2）；`x-default` 与根路径对其他语言的回退都指向 `/en`。
+- [x] 语言版本只在 HTML 里声明一次（§3.2）；`x-default` 与根路径对其他语言的回退都指向 `/en`。
 - [ ] 社交卡片（§3.3）：中英文卡片图与 `og:image:alt`，`twitter:card` 为 `summary_large_image`；`og:title` 取自页面文案（§1 原则 3，现在是单独写的一句）。
-- [ ] `robots.txt`（含内容信号）与 `sitemap.xml`（§3.4、§3.5）。
+- [x] `robots.txt`（含内容信号）与 `sitemap.xml`（§3.4、§3.5）。
 - [ ] Cloudflare 的三类 AI 爬虫策略都是 Allow（§6）：在 Cloudflare 后台设置，仓库里核对不到。
 - [ ] 访问统计按访客的选择加载，Cloudflare 判断在欧洲或判断不出国家的访客先看到同意卡片，隐私政策第 9 节写明（§7.1、[permissions.md §8](permissions.md)、[website.md §19](website.md)）；站点令牌写进生产构建的环境。
 - [ ] Cloudflare 侧开启访问统计：Web Analytics 只用手动嵌入、关掉自动注入，Network 里的 IP Geolocation 开启（[部署说明](../../website/README.md)的“访问统计”）。
