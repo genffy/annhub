@@ -4,7 +4,9 @@ import { clearLibrary, ensureServiceWorker, getCapturePageUrl, getEntries, selec
 /**
  * Browsing scale and freshness (RV-LIB-02, RV-LIB-03): every entry is
  * reachable through “显示更多”, the oldest entry's tag is a filter candidate,
- * and a drawer delete updates the list DOM, not just the database.
+ * and a drawer delete updates the list DOM, not just the database. The search
+ * and filter bar belongs to the list views, and an empty view tells “nothing
+ * here yet” from “nothing matches” (extension.md §2.3, §5).
  */
 
 async function saveClips(context: import('@playwright/test').BrowserContext, page: import('@playwright/test').Page, count: number, expectedTotal = count): Promise<void> {
@@ -16,6 +18,14 @@ async function saveClips(context: import('@playwright/test').BrowserContext, pag
     await page.waitForTimeout(120)
   }
   expect(await getEntries(context)).toHaveLength(expectedTotal)
+}
+
+/**
+ * The nav has its counts. The counts and the list answer arrive separately, so an empty state read before the
+ * counts land can differ from the settled one; assert an empty state only after this.
+ */
+async function expectNavTotal(library: import('@playwright/test').Page, total: number): Promise<void> {
+  await expect(library.locator('a[href="#/all"] .nav-count')).toHaveText(String(total))
 }
 
 /**
@@ -103,6 +113,160 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
       })
       expect(problems, `filter bar at ${width}px`).toEqual([])
     }
+    await library.close()
+  })
+
+  test('an empty view says how to fill it until a filter is on, whatever else the library holds (extension.md §5)', async ({ page, extensionId }) => {
+    await saveClips(page.context(), page, 3)
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/screenshots`)
+    await expectNavTotal(library, 3)
+    await expect(library.getByTestId('list-count')).toHaveText('共 0 条')
+
+    // three clips and no screenshot: nothing is filtered, so nothing "did not match"
+    const empty = library.locator('.empty')
+    await expect(empty).toContainText('还没有截图')
+    await expect(empty).toContainText('Shift+S')
+    await expect(empty).not.toContainText('没有匹配的结果')
+    await expect(library.getByRole('button', { name: '清除筛选' })).toHaveCount(0)
+
+    // the same empty answer under a filter is "no results", and the way out is offered
+    await library.locator('.search').fill('anything')
+    await expect(empty).toContainText('没有匹配的结果')
+    await expect(library.locator('.search')).toHaveValue('anything')
+    await library.getByRole('button', { name: '清除筛选' }).click()
+    await expect(empty).toContainText('还没有截图')
+    await expect(library.locator('.search')).toHaveValue('')
+    await expect(library.getByRole('button', { name: '清除筛选' })).toHaveCount(0)
+    await library.close()
+  })
+
+  test('a search with no match keeps its filter and offers to clear it; every kind of filter counts (extension.md §5)', async ({ page, extensionId }) => {
+    await saveClips(page.context(), page, 3)
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
+    await expect(library.locator('.row')).toHaveCount(3)
+
+    await library.locator('.search').fill('nosuchword')
+    await expect(library.locator('.empty')).toContainText('没有匹配的结果')
+    await expect(library.locator('.empty')).not.toContainText('还没有剪藏')
+    // the filter stays where it was typed: in the box, in the URL, across a reload (extension.md §2.2)
+    await expect(library.locator('.search')).toHaveValue('nosuchword')
+    expect(library.url()).toContain('q=nosuchword')
+    await library.reload()
+    await expect(library.locator('.search')).toHaveValue('nosuchword')
+    await expect(library.locator('.empty')).toContainText('没有匹配的结果')
+    await library.getByRole('button', { name: '清除筛选' }).click()
+    await expect(library.locator('.row')).toHaveCount(3)
+    await expect(library.locator('.search')).toHaveValue('')
+    expect(library.url()).not.toContain('q=')
+
+    // source, tag, property and time filters read the same way
+    for (const filter of ['host=nowhere.example', 'tag=no-such-tag', 'prop=title&op=contains&val=no-such-title', 'from=2099-01-01']) {
+      await library.goto(`chrome-extension://${extensionId}/library.html#/clips?${filter}`)
+      await library.reload()
+      await expect(library.locator('.empty'), filter).toContainText('没有匹配的结果')
+      await library.getByRole('button', { name: '清除筛选' }).click()
+      await expect(library.locator('.row'), filter).toHaveCount(3)
+    }
+    await library.close()
+  })
+
+  test('the highlights view tells "no highlights yet" from "no highlight matches", and clears its colour filter too (extension.md §2.3, §5)', async ({ page, extensionId }) => {
+    await saveClips(page.context(), page, 1)
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/highlights`)
+    await expectNavTotal(library, 1)
+
+    // a clip without highlights: the view says how to make one
+    await expect(library.locator('.empty')).toContainText('还没有高亮')
+    await expect(library.getByRole('button', { name: '清除筛选' })).toHaveCount(0)
+
+    // one highlight, added through the extension's own write path
+    const [clip] = await getEntries(page.context())
+    const quote = clip!.content.slice(0, 7)
+    const added = await library.evaluate(
+      payload =>
+        chrome.runtime.sendMessage({
+          type: 'ADD_HIGHLIGHT',
+          id: payload.id,
+          highlight: { id: 'hl_browse', start: 0, end: payload.quote.length, quote: payload.quote, color: 'yellow', createdAt: Date.now() },
+        }),
+      { id: clip!.id, quote },
+    )
+    expect(added.success).toBe(true)
+    await library.reload()
+    await expect(library.locator('.hl-quote')).toHaveText(quote)
+
+    // a filter that excludes it: the view says nothing matches instead of claiming there are no highlights
+    await library.locator('.search').fill('nosuchword')
+    await expect(library.locator('.empty')).toContainText('没有匹配的结果')
+    await expect(library.locator('.empty')).not.toContainText('还没有高亮')
+    await expect(library.locator('.search')).toHaveValue('nosuchword')
+    await library.getByRole('button', { name: '清除筛选' }).click()
+    await expect(library.locator('.hl-quote')).toHaveText(quote)
+
+    // the colour is the one filter only this view has, and clearing resets it as well
+    const color = library.locator('select[aria-label="颜色"]')
+    await color.selectOption('blue')
+    await expect(library.locator('.empty')).toContainText('没有匹配的结果')
+    await expect(color).toHaveValue('blue')
+    await library.getByRole('button', { name: '清除筛选' }).click()
+    await expect(library.locator('.hl-quote')).toHaveText(quote)
+    await expect(color).toHaveValue('')
+    expect(library.url()).not.toContain('color=')
+    await library.close()
+  })
+
+  test('settings and properties are pages of their own: no list toolbar, and a reload leaves no loading count behind (extension.md §2.3)', async ({ page, extensionId }) => {
+    await saveClips(page.context(), page, 3)
+    const library = await page.context().newPage()
+    for (const [view, marker] of [
+      ['settings', 'settings-view'],
+      ['properties', 'props-page'],
+    ] as const) {
+      await library.goto(`chrome-extension://${extensionId}/library.html#/${view}`)
+      await library.reload()
+      await expect(library.getByTestId(marker), view).toBeVisible()
+      // the search box, the filters and the count describe a list; these pages have none
+      await expect(library.locator('.toolbar'), view).toHaveCount(0)
+      await expect(library.locator('.search'), view).toHaveCount(0)
+      await expect(library.getByTestId('list-count'), view).toHaveCount(0)
+      await expect(library.getByText('加载中…'), view).toHaveCount(0)
+    }
+
+    // back in a list view the toolbar is there and its count settles
+    await library.getByRole('link', { name: '剪藏', exact: true }).click()
+    await expect(library.locator('.search')).toBeVisible()
+    await expect(library.getByTestId('list-count')).toHaveText('共 3 条')
+    await library.close()
+  })
+
+  test('the first list view after settings waits for its answer instead of saying nothing is there (extension.md §5)', async ({ page, extensionId }) => {
+    await saveClips(page.context(), page, 1)
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/settings`)
+    await library.reload()
+    await expect(library.getByTestId('settings-view')).toBeVisible()
+
+    // hold the list's answer back until the test lets it go, the way a big library does
+    await library.evaluate(() => {
+      const runtime = chrome.runtime as unknown as { sendMessage: (...args: unknown[]) => Promise<unknown> }
+      const send = runtime.sendMessage.bind(chrome.runtime)
+      const gate = new Promise<void>(resolve => {
+        ;(window as unknown as { releaseList: () => void }).releaseList = () => resolve()
+      })
+      runtime.sendMessage = (...args) => ((args[0] as { type?: string }).type === 'QUERY_ENTRIES' ? gate.then(() => send(...args)) : send(...args))
+    })
+    await library.getByRole('link', { name: '剪藏', exact: true }).click()
+
+    // while the answer is on its way the list says so; "nothing here" would be wrong, and the library is not empty
+    await expect(library.locator('.list-loading')).toBeVisible()
+    await expect(library.locator('.empty')).toHaveCount(0)
+    await expect(library.getByTestId('list-count')).toHaveText('加载中…')
+    await library.evaluate(() => (window as unknown as { releaseList: () => void }).releaseList())
+    await expect(library.locator('.row')).toHaveCount(1)
+    await expect(library.getByTestId('list-count')).toHaveText('共 1 条')
     await library.close()
   })
 

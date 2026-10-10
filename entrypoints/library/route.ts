@@ -35,6 +35,23 @@ export interface RouteState extends FilterState {
 
 export const EMPTY_FILTERS: FilterState = { search: '', host: '', tag: '', prop: '', op: '', val: '', val2: '', from: '', to: '', color: '' }
 
+/**
+ * The views that list entries or highlights: the ones with the search and filter bar and a total (extension.md
+ * §2.3). Properties and settings are pages of their own and run no list query.
+ */
+export function isListView(view: View): boolean {
+  return view !== 'properties' && view !== 'settings'
+}
+
+/**
+ * Whether a filter is on (extension.md §5). An empty answer then reads as "no results" and offers to clear the
+ * filters; with none on, an empty view shows its own entry hint. The colour exists only in the highlights view,
+ * and an operator or value without a property filters nothing.
+ */
+export function hasActiveFilter(route: Pick<RouteState, 'view'> & FilterState): boolean {
+  return Boolean(route.search || route.host || route.tag || route.prop || route.from || route.to || (route.view === 'highlights' && route.color))
+}
+
 /** `#/view?filters` / `#/read/<id>` / `#/entry/<id>` → route state. */
 export function readHash(hash: string = location.hash): RouteState {
   const raw = hash.replace(/^#\/?/, '')
