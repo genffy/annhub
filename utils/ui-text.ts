@@ -235,6 +235,7 @@ const STRINGS = {
   'settings.size.medium': { zh: '中', en: 'Medium' },
   'settings.size.large': { zh: '大', en: 'Large' },
   'settings.opacity': { zh: '透明度', en: 'Opacity' },
+  'settings.preview': { zh: '预览', en: 'Preview' },
   'settings.ratioPresets': { zh: '比例预设（选区条上出现哪些）', en: 'Ratio presets (which appear on the selection bar)' },
   'settings.beautify': { zh: '极简美化（默认开关与初始样式）', en: 'Minimal beautify (default on/off and initial style)' },
   'settings.background': { zh: '背景', en: 'Background' },

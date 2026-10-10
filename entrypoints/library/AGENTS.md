@@ -11,7 +11,10 @@
 - 写入纪律：编辑在失焦或确认时提交一次（属性值先改本地草稿，`Enter` 或失焦提交，输入法组合期间不提交；高亮浮层的备注失焦只保存、不关浮层）；失败保留已输入的内容，显示本地化的错误与重试；任何关闭路径（`Esc`、遮罩、返回、导航）先提交未保存的编辑（根 `AGENTS.md` 第 5 条）。任何写入成功后列表、总数、导航计数与候选一起刷新（`reload`）。
 - 文案全部走 `utils/ui-text.ts`（中英对应），不在 TSX 里写字面量（`utils/__tests__/ui-literals.test.ts` 用语法树守着：JSX 文字、面向用户的属性、字符串里的汉字）；错误由稳定错误码映射成本地化文案（`failureReason`/`entryErrorText`，配额不足时带“先导出”的说明），不直接展示错误码或后台的英文 message；导出失败的原因按阶段与错误类别选（`export-error.ts`），每条都说明没有生成文件。载入期间列表为空时显示“加载中”，不显示空状态。
 - 渲染不解析原始 HTML；链接只允许 http(s)，新标签页打开并带 `rel="noopener noreferrer"`（capture.md §3.1）。围栏代码块里的高亮同样画出来（`code` 块按存下的范围切开，每段带自己的源偏移），可点、可改色、可删。
-- 样式是手写 CSS：`style.css` 开头有自己的重置，设计令牌在 `styles/tokens.css`，没有 Tailwind 也没有它的 preflight。新增按钮、输入和链接按钮要自己写外观，否则显示浏览器默认外观（弹窗的 `.link` 就这样漏过）。弹窗是 340×360 的固定壳：左侧图标栏、右侧 `.popup-body`，快捷键提示在 `.popup-body` 里、列表下方，不能做成壳的第三列。筛选条会换行，不能溢出或互相盖住。版式由 `e2e/popup-entry.spec.ts`（弹窗的宽度、暗色对比度）和 `e2e/library-browse.spec.ts`（筛选条在 1180、1024、390 像素宽度下）用 `getBoundingClientRect` 断言守着。
+- 样式是手写 CSS：`style.css` 开头有自己的重置，设计令牌在 `styles/tokens.css`，没有 Tailwind 也没有它的 preflight。新增按钮、输入和链接按钮要自己写外观，否则显示浏览器默认外观（弹窗的 `.link` 就这样漏过）。弹窗是 340×360 的固定壳：左侧图标栏、右侧 `.popup-body`，快捷键提示在 `.popup-body` 里、列表下方，不能做成壳的第三列。筛选条会换行，不能溢出或互相盖住。版式由 `e2e/popup-entry.spec.ts`（弹窗的宽度、暗色对比度）、`e2e/library-browse.spec.ts`（筛选条在 1180、1024、390 像素宽度下）和 `e2e/library-layout.spec.ts`（设置页的行与控件、Markdown 表格、窄窗口图标栏）用 `getBoundingClientRect` 与 `getComputedStyle` 断言守着。
+- 设置页自己滚动（`.settings-view` 是滚动容器，导航不跟着走，visual.md §4）。每张卡片是容器（`container-type: inline-size`）：标签与控件的行在卡片窄时改成上下排，按卡片宽度判断，不按视口写断点（视口 721 像素时卡片只有约 420 像素宽）。控件统一高度（`--settings-control-h`），滑块与数值同行不换行，需要换行的组合控件（文件选择加移除按钮）才允许换行。
+- 层叠陷阱，都出现过：容器上的通配规则会盖住类名上的外观（`.settings-view button` 曾把高亮色点 `.hl-dot-*` 的背景压成透明，所以用 `:not(.hl-dot)` 排除）；权重相同的规则按源码顺序取胜（窄窗口里计数徽章的填充规则没把 `.nav-item-current .nav-count` 一起列上，当前项的徽章成了强调色字压强调色底）；TSX 里的类名没有规则时页面照样渲染，只是排版散了（`settings-grid` 就这样空了很久）。新增类名时先写规则，再看真实页面。
+- 窄窗口图标栏只有 52 像素：品牌用 `assets/icons/logo.svg` 的遮罩（构建时内联进 CSS）代替字样，文字留给读屏；计数徽章与别的项同色。折叠后的新元素要在 `e2e/library-layout.spec.ts` 的“都在图标栏里”断言下过。
 - 抽屉是模态：遮罩盖住左导航（要导出先关抽屉），焦点进入并被限制在里面，关闭后回到触发行，`Esc` 在输入法组合期间不关。`Esc` 永远先关最里面的一层：高亮工具条，其次浮层（打开时取得焦点，关闭后还给原来的标记），最后才是阅读视图或抽屉。键盘扩展出的选区（`Shift` + 方向键，Chrome 在已有选区之后才允许）与鼠标一样出工具条，`H` 以默认颜色创建。
 - 属性面板的每种行（含复选框）都参与 `flush()`：任何关闭路径先提交未提交的草稿；一行没有输入控件时视为“没有待并入的输入”，不能因此让 `flush()` 失败，否则抽屉就关不掉。
 - 关闭路径永远不能被“没有可保存的内容”拦住：抽屉的条目还在加载、或已经不存在（URL 里的 `e=` 指向被删的条目）时，`Esc` 与遮罩照样关闭。抽屉的按键处理器只订阅一次，通过 ref 调用最新的“保存并关闭”；用依赖 `entry` 的回调重新订阅，异步渲染提交之后到被动副作用执行之前会有一个空档，这时的 `Esc` 落在上一次渲染的闭包上（`e2e/library-property-regressions.spec.ts` 里用 `MutationObserver` 在提交之后立刻发 `Esc` 守着）。
@@ -19,4 +22,4 @@
 ## 验证
 
 - 渲染与偏移换算等纯函数：`npx vitest run entrypoints/library`。
-- 页面行为：先 `rm -rf .output/chrome-mv3 && npm run build`，再跑 `e2e/library-browse.spec.ts`、`e2e/library-export.spec.ts`、`e2e/library-property-regressions.spec.ts`、`e2e/library-queries.spec.ts`、`e2e/reading-highlight.spec.ts`、`e2e/settings-drafts.spec.ts`、`e2e/popup-entry.spec.ts`。选区一律用真实鼠标和键盘操作（三击、拖选、`dblclick`），不要程序化设置 Range 再派发合成事件；双击一个词时点词自己的中点（用 Range 量），不要点包含它的片段的中点——片段的中点可能落在邻词上。
+- 页面行为：先 `rm -rf .output/chrome-mv3 && npm run build`，再跑 `e2e/library-browse.spec.ts`、`e2e/library-export.spec.ts`、`e2e/library-layout.spec.ts`、`e2e/library-property-regressions.spec.ts`、`e2e/library-queries.spec.ts`、`e2e/reading-highlight.spec.ts`、`e2e/settings-drafts.spec.ts`、`e2e/popup-entry.spec.ts`。选区一律用真实鼠标和键盘操作（三击、拖选、`dblclick`），不要程序化设置 Range 再派发合成事件；双击一个词时点词自己的中点（用 Range 量），不要点包含它的片段的中点——片段的中点可能落在邻词上。

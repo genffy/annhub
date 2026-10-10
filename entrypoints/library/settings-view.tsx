@@ -7,7 +7,7 @@
  * (formats, watermark, ratio presets, beautify) rides the same settings
  * object; see screenshot.ts for its shape.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
 import type { ExtensionSettings, SettingsPatch } from '../../background-service/settings-schema'
 import { EntryStore, type OrphanReport } from '../../learning-core/store'
@@ -15,8 +15,13 @@ import { RATIO_PRESETS, watermarkBox } from '../content/screenshot/output'
 import { formatBytes } from '../../utils/format-bytes'
 import { uiText } from '../../utils/ui-text'
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../../learning-core/types'
+import { ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
+
+/** The two browser commands the shortcut hint speaks of; the browser also lists the toolbar button's own command. */
+const SHORTCUT_COMMANDS: readonly string[] = [ANN_SCREENSHOT_COMMAND, ANN_BLOCK_MODE_COMMAND]
 
 function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
+  const imageInputId = useId()
   const [watermarkText, setWatermarkText] = useState(settings.watermark.text)
   const [quality, setQuality] = useState(settings.downloadQuality)
   const [opacity, setOpacity] = useState(settings.watermark.opacity)
@@ -74,180 +79,209 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
     <section>
       <h2>{uiText('settings.screenshot')}</h2>
 
-      <h3>{uiText('settings.downloadFormat')}</h3>
-      <div className="settings-inline">
-        <select value={settings.downloadFormat} aria-label={uiText('settings.downloadFormat')} onChange={event => void patch({ downloadFormat: event.target.value as 'png' })}>
-          <option value="png">PNG</option>
-          <option value="jpeg">JPEG</option>
-          <option value="webp">WebP</option>
-        </select>
-        {settings.downloadFormat !== 'png' && (
-          <label className="settings-inline">
-            <span>{uiText('settings.quality')}</span>
+      <div className="settings-group">
+        <h3>{uiText('settings.downloadFormat')}</h3>
+        <div className="settings-inline">
+          <select value={settings.downloadFormat} aria-label={uiText('settings.downloadFormat')} onChange={event => void patch({ downloadFormat: event.target.value as 'png' })}>
+            <option value="png">PNG</option>
+            <option value="jpeg">JPEG</option>
+            <option value="webp">WebP</option>
+          </select>
+          {settings.downloadFormat !== 'png' && (
+            <label className="settings-control settings-range">
+              <span className="settings-label">{uiText('settings.quality')}</span>
+              <input
+                type="range"
+                min={0.5}
+                max={1}
+                step={0.05}
+                value={quality}
+                onChange={event => setQuality(Number(event.target.value))}
+                onPointerUp={event => void saveQuality(Number(event.currentTarget.value))}
+                onKeyUp={event => void saveQuality(Number(event.currentTarget.value))}
+                onBlur={event => void saveQuality(Number(event.currentTarget.value))}
+              />
+              <span className="settings-value">{quality.toFixed(2)}</span>
+            </label>
+          )}
+        </div>
+      </div>
+
+      <div className="settings-group">
+        <h3>{uiText('settings.watermark')}</h3>
+        <label className="switch-row">
+          <input
+            type="checkbox"
+            checked={settings.watermark.enabled}
+            onChange={event => void patch({ watermark: { ...settings.watermark, enabled: event.target.checked } })}
+            data-testid="watermark-toggle"
+          />
+          <span>{uiText(settings.watermark.enabled ? 'shot.on' : 'shot.off')}</span>
+        </label>
+        <div className="settings-grid">
+          <label className="settings-field">
+            <span className="settings-label">{uiText('settings.watermarkText')}</span>
             <input
-              type="range"
-              min={0.5}
-              max={1}
-              step={0.05}
-              value={quality}
-              onChange={event => setQuality(Number(event.target.value))}
-              onPointerUp={event => void saveQuality(Number(event.currentTarget.value))}
-              onKeyUp={event => void saveQuality(Number(event.currentTarget.value))}
-              onBlur={event => void saveQuality(Number(event.currentTarget.value))}
+              type="text"
+              maxLength={40}
+              value={watermarkText}
+              onChange={event => {
+                watermarkDirty.current = true
+                setWatermarkText(event.target.value)
+              }}
+              onBlur={() => void saveText()}
+              onKeyDown={event => {
+                if (event.key === 'Enter' && !event.nativeEvent.isComposing) void saveText()
+              }}
+              placeholder="AnnHub"
             />
-            <span>{quality.toFixed(2)}</span>
           </label>
+          {/* the remove button sits beside the chooser, outside the label: the label names the chooser only */}
+          <div className="settings-field">
+            <label className="settings-label" htmlFor={imageInputId}>
+              {uiText('settings.watermarkImage')}
+            </label>
+            <span className="settings-control">
+              <input
+                id={imageInputId}
+                type="file"
+                accept="image/png"
+                onChange={event => {
+                  const file = event.target.files?.[0]
+                  if (!file) return
+                  if (file.size > 512 * 1024) {
+                    setError(uiText('settings.error.imageTooLarge'))
+                    return
+                  }
+                  setError('')
+                  const reader = new FileReader()
+                  reader.onload = () => void patch({ watermark: { ...settings.watermark, image: String(reader.result) } })
+                  reader.readAsDataURL(file)
+                }}
+              />
+              {settings.watermark.image && (
+                <button type="button" className="ghost" onClick={() => void patch({ watermark: { image: null } })}>
+                  {uiText('settings.remove')}
+                </button>
+              )}
+            </span>
+          </div>
+          <label className="settings-field">
+            <span className="settings-label">{uiText('settings.position')}</span>
+            <select value={settings.watermark.position} onChange={event => void patch({ watermark: { ...settings.watermark, position: event.target.value as 'bottom-right' } })}>
+              <option value="top-left">↖</option>
+              <option value="top-right">↗</option>
+              <option value="bottom-left">↙</option>
+              <option value="bottom-right">↘</option>
+            </select>
+          </label>
+          <label className="settings-field">
+            <span className="settings-label">{uiText('settings.size')}</span>
+            <select value={settings.watermark.size} onChange={event => void patch({ watermark: { ...settings.watermark, size: event.target.value as 'medium' } })}>
+              <option value="small">{uiText('settings.size.small')}</option>
+              <option value="medium">{uiText('settings.size.medium')}</option>
+              <option value="large">{uiText('settings.size.large')}</option>
+            </select>
+          </label>
+          <label className="settings-field">
+            <span className="settings-label">{uiText('settings.opacity')}</span>
+            <span className="settings-control settings-range">
+              <input
+                type="range"
+                min={0.2}
+                max={1}
+                step={0.05}
+                value={opacity}
+                onChange={event => setOpacity(Number(event.target.value))}
+                onPointerUp={event => void saveOpacity(Number(event.currentTarget.value))}
+                onKeyUp={event => void saveOpacity(Number(event.currentTarget.value))}
+                onBlur={event => void saveOpacity(Number(event.currentTarget.value))}
+              />
+              <span className="settings-value">{Math.round(opacity * 100)}%</span>
+            </span>
+          </label>
+          <div className="settings-field settings-field-top">
+            <span className="settings-label" aria-hidden="true">
+              {uiText('settings.preview')}
+            </span>
+            <canvas
+              ref={watermarkPreviewRef}
+              width={260}
+              height={90}
+              className="watermark-preview"
+              role="img"
+              aria-label={uiText('settings.preview')}
+              data-testid="watermark-preview"
+            />
+          </div>
+        </div>
+        {error && (
+          <p className="warn" role="alert">
+            {error}
+          </p>
         )}
       </div>
 
-      <h3>{uiText('settings.watermark')}</h3>
-      <label className="switch-row">
-        <input
-          type="checkbox"
-          checked={settings.watermark.enabled}
-          onChange={event => void patch({ watermark: { ...settings.watermark, enabled: event.target.checked } })}
-          data-testid="watermark-toggle"
-        />
-        <span>{uiText(settings.watermark.enabled ? 'shot.on' : 'shot.off')}</span>
-      </label>
-      <div className="settings-grid">
-        <label>
-          <span>{uiText('settings.watermarkText')}</span>
-          <input
-            type="text"
-            maxLength={40}
-            value={watermarkText}
-            onChange={event => {
-              watermarkDirty.current = true
-              setWatermarkText(event.target.value)
-            }}
-            onBlur={() => void saveText()}
-            onKeyDown={event => {
-              if (event.key === 'Enter' && !event.nativeEvent.isComposing) void saveText()
-            }}
-            placeholder="AnnHub"
-          />
-        </label>
-        <label>
-          <span>{uiText('settings.watermarkImage')}</span>
-          <input
-            type="file"
-            accept="image/png"
-            onChange={event => {
-              const file = event.target.files?.[0]
-              if (!file) return
-              if (file.size > 512 * 1024) {
-                setError(uiText('settings.error.imageTooLarge'))
-                return
-              }
-              setError('')
-              const reader = new FileReader()
-              reader.onload = () => void patch({ watermark: { ...settings.watermark, image: String(reader.result) } })
-              reader.readAsDataURL(file)
-            }}
-          />
-          {settings.watermark.image && (
-            <button type="button" className="ghost" onClick={() => void patch({ watermark: { image: null } })}>
-              {uiText('settings.remove')}
-            </button>
-          )}
-        </label>
-        <label>
-          <span>{uiText('settings.position')}</span>
-          <select value={settings.watermark.position} onChange={event => void patch({ watermark: { ...settings.watermark, position: event.target.value as 'bottom-right' } })}>
-            <option value="top-left">↖</option>
-            <option value="top-right">↗</option>
-            <option value="bottom-left">↙</option>
-            <option value="bottom-right">↘</option>
-          </select>
-        </label>
-        <label>
-          <span>{uiText('settings.size')}</span>
-          <select value={settings.watermark.size} onChange={event => void patch({ watermark: { ...settings.watermark, size: event.target.value as 'medium' } })}>
-            <option value="small">{uiText('settings.size.small')}</option>
-            <option value="medium">{uiText('settings.size.medium')}</option>
-            <option value="large">{uiText('settings.size.large')}</option>
-          </select>
-        </label>
-        <label>
-          <span>{uiText('settings.opacity')}</span>
-          <input
-            type="range"
-            min={0.2}
-            max={1}
-            step={0.05}
-            value={opacity}
-            onChange={event => setOpacity(Number(event.target.value))}
-            onPointerUp={event => void saveOpacity(Number(event.currentTarget.value))}
-            onKeyUp={event => void saveOpacity(Number(event.currentTarget.value))}
-            onBlur={event => void saveOpacity(Number(event.currentTarget.value))}
-          />
-          <span>{Math.round(opacity * 100)}%</span>
-        </label>
+      <div className="settings-group">
+        <h3>{uiText('settings.ratioPresets')}</h3>
+        <div className="settings-inline">
+          {RATIO_PRESETS.map(preset => (
+            <label key={preset.id} className="prop-preset">
+              <input
+                type="checkbox"
+                checked={settings.ratioPresets.includes(preset.id)}
+                onChange={event => {
+                  const next = event.target.checked ? [...settings.ratioPresets, preset.id] : settings.ratioPresets.filter(id => id !== preset.id)
+                  void patch({ ratioPresets: next })
+                }}
+              />
+              {preset.id}
+            </label>
+          ))}
+        </div>
       </div>
-      <canvas ref={watermarkPreviewRef} width={260} height={90} className="watermark-preview" data-testid="watermark-preview" />
-      {error && (
-        <p className="warn" role="alert">
-          {error}
-        </p>
-      )}
 
-      <h3>{uiText('settings.ratioPresets')}</h3>
-      <div className="settings-inline">
-        {RATIO_PRESETS.map(preset => (
-          <label key={preset.id} className="prop-preset">
-            <input
-              type="checkbox"
-              checked={settings.ratioPresets.includes(preset.id)}
-              onChange={event => {
-                const next = event.target.checked ? [...settings.ratioPresets, preset.id] : settings.ratioPresets.filter(id => id !== preset.id)
-                void patch({ ratioPresets: next })
-              }}
-            />
-            {preset.id}
+      <div className="settings-group">
+        <h3>{uiText('settings.beautify')}</h3>
+        <label className="switch-row">
+          <input type="checkbox" checked={settings.beautify.enabled} onChange={event => void patch({ beautify: { ...settings.beautify, enabled: event.target.checked } })} />
+          <span>{uiText(settings.beautify.enabled ? 'shot.on' : 'shot.off')}</span>
+        </label>
+        <div className="settings-grid">
+          <label className="settings-field">
+            <span className="settings-label">{uiText('settings.background')}</span>
+            <select value={settings.beautify.background} onChange={event => void patch({ beautify: { ...settings.beautify, background: event.target.value as 'solid-white' } })}>
+              <option value="none">{uiText('settings.background.none')}</option>
+              <option value="solid-white">{uiText('settings.background.solid')} A</option>
+              <option value="solid-ivory">{uiText('settings.background.solid')} B</option>
+              <option value="grad-purple">{uiText('settings.background.grad')} 1</option>
+              <option value="grad-blue">{uiText('settings.background.grad')} 2</option>
+              <option value="grad-green">{uiText('settings.background.grad')} 3</option>
+              <option value="grad-sunset">{uiText('settings.background.grad')} 4</option>
+              <option value="grad-slate">{uiText('settings.background.grad')} 5</option>
+            </select>
           </label>
-        ))}
-      </div>
-
-      <h3>{uiText('settings.beautify')}</h3>
-      <label className="switch-row">
-        <input type="checkbox" checked={settings.beautify.enabled} onChange={event => void patch({ beautify: { ...settings.beautify, enabled: event.target.checked } })} />
-        <span>{uiText(settings.beautify.enabled ? 'shot.on' : 'shot.off')}</span>
-      </label>
-      <div className="settings-grid">
-        <label>
-          <span>{uiText('settings.background')}</span>
-          <select value={settings.beautify.background} onChange={event => void patch({ beautify: { ...settings.beautify, background: event.target.value as 'solid-white' } })}>
-            <option value="none">{uiText('settings.background.none')}</option>
-            <option value="solid-white">{uiText('settings.background.solid')} A</option>
-            <option value="solid-ivory">{uiText('settings.background.solid')} B</option>
-            <option value="grad-purple">{uiText('settings.background.grad')} 1</option>
-            <option value="grad-blue">{uiText('settings.background.grad')} 2</option>
-            <option value="grad-green">{uiText('settings.background.grad')} 3</option>
-            <option value="grad-sunset">{uiText('settings.background.grad')} 4</option>
-            <option value="grad-slate">{uiText('settings.background.grad')} 5</option>
-          </select>
-        </label>
-        <label>
-          <span>{uiText('settings.padding')}</span>
-          <select value={settings.beautify.padding} onChange={event => void patch({ beautify: { ...settings.beautify, padding: event.target.value as 'medium' } })}>
-            <option value="small">24</option>
-            <option value="medium">40</option>
-            <option value="large">64</option>
-          </select>
-        </label>
-        <label>
-          <span>{uiText('settings.radius')}</span>
-          <select value={settings.beautify.radius} onChange={event => void patch({ beautify: { ...settings.beautify, radius: Number(event.target.value) } })}>
-            <option value={0}>0</option>
-            <option value={12}>12</option>
-            <option value={24}>24</option>
-          </select>
-        </label>
-        <label className="prop-preset">
-          <input type="checkbox" checked={settings.beautify.shadow} onChange={event => void patch({ beautify: { ...settings.beautify, shadow: event.target.checked } })} />
-          <span>{uiText('settings.shadow')}</span>
-        </label>
+          <label className="settings-field">
+            <span className="settings-label">{uiText('settings.padding')}</span>
+            <select value={settings.beautify.padding} onChange={event => void patch({ beautify: { ...settings.beautify, padding: event.target.value as 'medium' } })}>
+              <option value="small">24</option>
+              <option value="medium">40</option>
+              <option value="large">64</option>
+            </select>
+          </label>
+          <label className="settings-field">
+            <span className="settings-label">{uiText('settings.radius')}</span>
+            <select value={settings.beautify.radius} onChange={event => void patch({ beautify: { ...settings.beautify, radius: Number(event.target.value) } })}>
+              <option value={0}>0</option>
+              <option value={12}>12</option>
+              <option value={24}>24</option>
+            </select>
+          </label>
+          <label className="settings-field">
+            <span className="settings-label">{uiText('settings.shadow')}</span>
+            <input type="checkbox" checked={settings.beautify.shadow} onChange={event => void patch({ beautify: { ...settings.beautify, shadow: event.target.checked } })} />
+          </label>
+        </div>
       </div>
     </section>
   )
@@ -267,7 +301,7 @@ export function SettingsView() {
     void MessageUtils.sendMessage<{ usage: number; quota: number }>({ type: 'USAGE_ESTIMATE' }).then(response => {
       if (response.success) setUsage(response.data!)
     })
-    void chrome.commands.getAll().then(setShortcuts)
+    void chrome.commands.getAll().then(commands => setShortcuts(commands.filter(command => SHORTCUT_COMMANDS.includes(command.name ?? ''))))
   }, [])
 
   const patch = useCallback(async (next: SettingsPatch): Promise<boolean> => {
@@ -368,8 +402,8 @@ export function SettingsView() {
         <p className="hint">{uiText('settings.shortcutsHint')}</p>
         {shortcuts.map(command => (
           <p className="keys" key={command.name}>
-            {command.name === 'capture-selection' ? uiText('settings.shortcut.screenshot') : uiText('settings.shortcut.block')}:{' '}
-            <kbd>{command.shortcut || uiText('settings.shortcut.unassigned')}</kbd>
+            <span>{command.name === ANN_SCREENSHOT_COMMAND ? uiText('settings.shortcut.screenshot') : uiText('settings.shortcut.block')}</span>
+            {command.shortcut ? <kbd>{command.shortcut}</kbd> : <span className="keys-unassigned">{uiText('settings.shortcut.unassigned')}</span>}
           </p>
         ))}
         <button type="button" className="link" onClick={() => void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' })}>

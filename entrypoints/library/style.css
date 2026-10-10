@@ -684,6 +684,33 @@ body {
   color: var(--ann-accent);
 }
 
+/*
+ * Tables shrink to their content and scroll sideways rather than widen the column (the drawer is 520px).
+ * The cells paint the surface so the grid reads the same on the drawer and on the reading view's page colour.
+ */
+.md-view table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  line-height: 1.5;
+}
+
+.md-view th,
+.md-view td {
+  padding: 6px 12px;
+  border: 1px solid var(--ann-border);
+  background: var(--ann-surface);
+  text-align: left;
+  vertical-align: top;
+}
+
+.md-view th {
+  background: var(--ann-surface-alt);
+  font-weight: 600;
+}
+
 .md-view .md-image-placeholder {
   color: var(--ann-muted);
   font-size: 12px;
@@ -1142,11 +1169,18 @@ body {
 
 /* ── Settings view, guide card, narrow-window icon rail (extension.md §2.2, §5) ── */
 
+/*
+ * The settings page scrolls inside the content column, like the list does, so the nav stays where it is
+ * (visual.md §4). The view is the scroller: its side padding centres a 600px column of cards while the
+ * scrollbar stays at the window edge.
+ */
 .settings-view {
-  max-width: 640px;
-  margin: 0 auto;
+  --settings-control-h: 30px;
+  flex: 1 1 0;
+  min-height: 0;
   width: 100%;
-  padding: 24px 20px 60px;
+  padding: 24px max(20px, calc((100% - 600px) / 2)) 60px;
+  overflow-y: auto;
 }
 
 .settings-view h1 {
@@ -1154,12 +1188,14 @@ body {
   font-size: 19px;
 }
 
+/* each card is a container: its rows stack their label over the control when the card itself is narrow */
 .settings-view section {
   margin-bottom: 24px;
   padding: 16px 18px;
   border: 1px solid var(--ann-border);
   border-radius: 10px;
   background: var(--ann-surface);
+  container: settings-card / inline-size;
 }
 
 .settings-view h2 {
@@ -1173,6 +1209,10 @@ body {
   color: var(--ann-muted);
 }
 
+.settings-view code {
+  overflow-wrap: anywhere;
+}
+
 .settings-view .switch-row {
   display: flex;
   align-items: center;
@@ -1181,9 +1221,62 @@ body {
   font-size: 13px;
 }
 
-.settings-view .switch-row input {
+.settings-view input[type='checkbox'] {
   width: 16px;
   height: 16px;
+  margin: 0;
+  accent-color: var(--ann-accent);
+}
+
+/* one height for every control, so a row of mixed controls does not step */
+.settings-view select,
+.settings-view input[type='text'] {
+  height: var(--settings-control-h);
+  padding: 0 10px;
+  border: 1px solid var(--ann-border);
+  border-radius: 5px;
+  background: var(--ann-page);
+  color: var(--ann-text);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.settings-view select {
+  width: 10rem;
+}
+
+.settings-view input[type='text'] {
+  width: 100%;
+}
+
+.settings-view input[type='file'] {
+  min-width: 0;
+  max-width: 100%;
+  height: var(--settings-control-h);
+  color: var(--ann-muted);
+  font-family: inherit;
+  font-size: 12.5px;
+}
+
+.settings-view input[type='file']::file-selector-button {
+  height: var(--settings-control-h);
+  margin-right: 10px;
+  padding: 0 12px;
+  border: 1px solid var(--ann-border);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ann-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* a slider gives way before its value wraps below it */
+.settings-view input[type='range'] {
+  flex: 0 1 12rem;
+  width: 12rem;
+  min-width: 4rem;
+  height: var(--settings-control-h);
+  margin: 0;
   accent-color: var(--ann-accent);
 }
 
@@ -1193,7 +1286,8 @@ body {
   padding: 0;
 }
 
-.settings-view .sites li {
+.settings-view .sites li,
+.settings-view .keys {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1203,8 +1297,9 @@ body {
   font-size: 13px;
 }
 
-.settings-view .sites li button,
-.settings-view button {
+/* the colour dots are buttons too, but keep the look .hl-dot gives them */
+.settings-view button:not(.hl-dot) {
+  min-height: var(--settings-control-h);
   padding: 5px 10px;
   border: 1px solid var(--ann-border);
   border-radius: 5px;
@@ -1212,6 +1307,10 @@ body {
   color: var(--ann-text);
   font-size: 12.5px;
   cursor: pointer;
+}
+
+.settings-view button.link {
+  margin-top: 12px;
 }
 
 .settings-view kbd {
@@ -1222,6 +1321,132 @@ body {
   background: var(--ann-surface-alt);
   font-family: ui-monospace, Menlo, monospace;
   font-size: 11.5px;
+}
+
+.settings-view .keys-unassigned {
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+/* the screenshot card holds four groups; a rule and a title tell them apart */
+.settings-group {
+  margin-top: 10px;
+}
+
+.settings-group + .settings-group {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--ann-border);
+}
+
+.settings-view .settings-group h3 {
+  margin: 0 0 8px;
+}
+
+.settings-view .settings-group .switch-row {
+  margin-top: 0;
+}
+
+/* controls that belong on one line (format and quality, the ratio chips); they wrap when the card is narrow */
+.settings-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+}
+
+.settings-inline .prop-preset {
+  gap: 6px;
+  height: var(--settings-control-h);
+  margin-right: 0;
+  padding: 0 10px;
+  border: 1px solid var(--ann-border);
+  border-radius: 5px;
+  background: var(--ann-page);
+  color: var(--ann-text);
+  font-size: 12.5px;
+}
+
+.settings-inline .prop-preset:has(input:checked) {
+  border-color: var(--ann-accent);
+  background: var(--ann-accent-soft);
+}
+
+/* labelled rows: the label column is the same in every row of a card, the control fills the rest */
+.settings-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.settings-field {
+  display: grid;
+  grid-template-columns: 11rem minmax(0, 1fr);
+  align-items: center;
+  gap: 4px 14px;
+  min-height: var(--settings-control-h);
+}
+
+.settings-field-top {
+  align-items: start;
+}
+
+.settings-label {
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* a control made of several parts: a slider and its value, a file chooser and its remove button */
+.settings-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-range {
+  flex-wrap: nowrap;
+}
+
+.settings-value {
+  min-width: 3.5ch;
+  color: var(--ann-muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.watermark-preview {
+  display: block;
+  width: 260px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 260 / 90;
+  border: 1px solid var(--ann-border);
+  border-radius: 6px;
+}
+
+@container settings-card (max-width: 420px) {
+  .settings-field {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-view select {
+    width: 100%;
+  }
+}
+
+.hl-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.settings-view .hl-dot {
+  width: 24px;
+  height: 24px;
+  padding: 0;
 }
 
 .guide-card {
@@ -1262,9 +1487,20 @@ body {
     align-items: center;
   }
 
+  /* the wordmark is wider than the rail: the logo stands in, the text stays for screen readers */
   .brand {
-    font-size: 16px;
     margin: 0 0 14px;
+    font-size: 0;
+  }
+
+  .brand::before {
+    content: '';
+    display: block;
+    width: 26px;
+    height: 26px;
+    background: var(--ann-accent);
+    -webkit-mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
+    mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
   }
 
   .nav-item {
@@ -1281,7 +1517,9 @@ body {
     display: none;
   }
 
-  .nav-count {
+  /* the current item's rule above (accent text on the soft tint) must not reach the badge: it is accent-filled here */
+  .nav-count,
+  .nav-item-current .nav-count {
     position: absolute;
     top: -3px;
     right: -4px;
