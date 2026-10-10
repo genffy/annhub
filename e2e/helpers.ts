@@ -86,7 +86,7 @@ export async function clearLibrary(context: BrowserContext): Promise<void> {
       request.onerror = () => resolve()
       request.onsuccess = () => {
         const db = request.result
-        const stores = ['entries', 'assets'].filter(name => db.objectStoreNames.contains(name))
+        const stores = ['entries', 'assets', 'search', 'searchText'].filter(name => db.objectStoreNames.contains(name))
         const finish = () => chrome.storage.local.clear(() => resolve())
         if (stores.length === 0) {
           db.close()
@@ -105,6 +105,22 @@ export async function clearLibrary(context: BrowserContext): Promise<void> {
       }
     })
   })
+}
+
+/**
+ * Edits an entry through the message the library itself sends. Tests that write straight into IndexedDB
+ * skip the derived search documents the store keeps in step with every real edit; use this wherever a
+ * test needs an entry to change the way it changes for a user.
+ */
+export async function updateEntry(context: BrowserContext, extensionId: string, id: string, patch: Record<string, unknown>): Promise<void> {
+  const page = await context.newPage()
+  try {
+    await page.goto(`chrome-extension://${extensionId}/sample.html`)
+    const response = await page.evaluate(payload => chrome.runtime.sendMessage({ type: 'UPDATE_ENTRY', id: payload.id, patch: payload.patch }), { id, patch })
+    if (!response?.success) throw new Error(`UPDATE_ENTRY ${id} failed: ${response?.error}`)
+  } finally {
+    await page.close()
+  }
 }
 
 /** Image asset metadata held by the extension (bytes stay Blobs). */
@@ -191,8 +207,8 @@ export async function selectUntilMenu(page: Page, selector: string, timeout = 80
 }
 
 /**
- * What the keyboard shortcut does: the background messages the content
- * script of the tab showing `page` — never a DOM event the page's own
+ * What the keyboard shortcut does: the background messages the top frame's
+ * content script of the tab showing `page` — never a DOM event the page's own
  * scripts could dispatch.
  */
 async function sendTabMessage(page: Page, message: Record<string, unknown>): Promise<void> {
@@ -205,7 +221,7 @@ async function sendTabMessage(page: Page, message: Record<string, unknown>): Pro
         const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === payload.url)
         if (tab?.id === undefined) return `no tab shows ${payload.url}`
         try {
-          await chrome.tabs.sendMessage(tab.id, { type: payload.type })
+          await chrome.tabs.sendMessage(tab.id, { type: payload.type }, { frameId: 0 })
           return ''
         } catch (failure) {
           return failure instanceof Error ? failure.message : String(failure)

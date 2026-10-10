@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Content shapes</title></head>
+  <body>
+    <article id="shapes" tabindex="0">
+      <h2>Shapes of content</h2>
+      <ul>
+        <li>Top item
+          <ul>
+            <li>Nested item
+              <ul><li>Third level</li></ul>
+            </li>
+          </ul>
+        </li>
+        <li>Second top item</li>
+      </ul>
+      <p id="br-p">Line one<br>Line two<br>Line three of a short poem that is part of this article.</p>
+      <table>
+        <thead><tr><th>Key</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>cell<br>with a break</td><td>plain</td></tr>
+          <tr><td>second row</td><td>done</td></tr>
+        </tbody>
+      </table>
+      <p>Run <code>a`b</code> and <code>plain</code> inline, then read on for the rest of this paragraph.</p>
+      <pre><code>```nested fence
+inside the block</code></pre>
+      <p>Literal marks: 2 * 3 == 6, the path C:\temp\new, snake_case and #hash stay words.</p>
+      <p>1. looks like a list item but is prose, and # a heading marker that is only text</p>
+    </article>
+  </body>
+</html>

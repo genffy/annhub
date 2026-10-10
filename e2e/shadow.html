@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Shadow selection</title></head>
+  <body>
+    <div id="host"></div>
+    <script>
+      const root = document.getElementById('host').attachShadow({ mode: 'open' })
+      root.innerHTML = '<p id="shadow-text">A shadow paragraph with distinct words to capture.</p>'
+    </script>
+  </body>
+</html>
