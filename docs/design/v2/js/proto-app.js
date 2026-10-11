@@ -248,7 +248,7 @@ const paSettingsPage = () => {
     `<div class="set-r" style="display:block"><div class="l"><b>比例预设</b><small>勾选哪些比例出现在截图的选区条上；每次截图从“自由”开始。</small></div>${ratioChecks}</div>` +
     settingsRow('品牌水印', '署名用，只加在复制与下载的图片上；入库的图片不带水印。文字、图片、位置、大小与透明度见上方“设置”画板。', `<span class="pa-click" data-act="wm">${sw(PA.wm)}</span>`) +
     settingsRow('默认开启美化', '开启后，每次截图一进编辑就带上默认的背景、留白、圆角与阴影；工具栏的美化面板里随时可以改。样式与预览见上方“设置”画板。', `<span class="pa-click" data-act="bz">${sw(PA.bz)}</span>`)
-  const data = `<div class="set-r"><div class="l grow" style="min-width:0"><b>本地存储</b><small>其中截图 89 MB。接近浏览器配额时，会在保存前提示。</small><div class="progress" style="margin-top:8px"><i style="width:3%"></i></div></div><div class="none tnum b">126 MB / 约 4.2 GB 可用</div></div>${settingsRow('导出内容', '包含全部条目的 Markdown（属性即 frontmatter，高亮写成 ==…==）和处理后的图片。', btn('导出内容', { icon: 'download', v: 'primary', attrs: 'data-act="export"' }))}`
+  const data = `<div class="set-r"><div class="l grow" style="min-width:0"><b>本地存储</b><small>其中截图 89 MB。接近浏览器配额时，会在保存前提示。</small><div class="progress" style="margin-top:8px"><i style="width:3%"></i></div></div><div class="none tnum b">126 MB / 约 4.2 GB 可用</div></div>`
   return `<div class="phead"><div class="grow"><h1>设置</h1><div class="sub">偏好只保存在本机</div></div></div><div class="pbody" style="overflow:auto"><div class="vs g16" style="max-width:720px">${settingsCard('偏好', '每一项都用一句话说清后果。', prefs)}${settingsCard('截图', '输出的格式、比例、水印和默认匿名。', shot)}${settingsCard('数据', '', data)}</div></div>`
 }
 
