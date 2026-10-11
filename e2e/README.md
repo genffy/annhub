@@ -11,6 +11,10 @@ npx playwright test
 
 `e2e/global-setup.ts` 在 `.output/chrome-mv3` 已存在时不会自动重建。源码有变化时，必须先手动构建。fixture 服务器由 Playwright 配置启动，不需要为自动化测试另开服务。
 
+## 真实 Chrome 场景
+
+自动化够不着的验收——真实站点（X、Medium、文档站）、只有操作系统才能产生的输入（全局快捷键、读屏）、要人判断的通读——写成了逐条可执行的场景：[real-chrome-scenarios.md](real-chrome-scenarios.md)。每个场景写明需要的能力、步骤、页面内的测量代码和通过标准，不限定执行工具。
+
 ## chrome-devtools-mcp 手工实测
 
 以下是 2026-09-23 在本机自动化 Chrome 上观察到的环境限制，版本或 MCP 配置改变后先验证现状。共享配置 `.agents/mcp.json` 定义了 `chrome-devtools-annhub`，使用独立 profile `~/.cache/chrome-devtools-mcp/chrome-profile`（`.zcode/` 只放本机私有状态，已被忽略）。官网实测前启动 `cd website && npm run dev`，默认端口 3001。
