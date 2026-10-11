@@ -11,9 +11,11 @@
 import { toCanvas } from 'html-to-image'
 import MessageUtils from '../../../utils/message'
 import { anonymizeClone } from './anonymize'
+import type { IdentityParts } from './detect'
 
 export interface ElementCaptureOptions {
-  anonymize?: boolean
+  /** The identity kinds to cover in the clone; absent means no anonymization. */
+  anonymize?: IdentityParts
 }
 
 /** Alpha must be 1 for the color to work as the capture's own background. */
@@ -80,7 +82,7 @@ export async function captureElement(element: HTMLElement, options: ElementCaptu
   doc.body.appendChild(surface)
 
   try {
-    if (options.anonymize) anonymizeClone(clone, doc)
+    if (options.anonymize) anonymizeClone(clone, doc, options.anonymize)
     await inlineImages(surface)
     await doc.fonts?.ready.catch(() => undefined)
 

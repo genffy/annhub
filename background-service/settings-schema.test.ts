@@ -36,6 +36,15 @@ describe('settings schema (RV-BG-07)', () => {
     expect(JSON.stringify(await readSettings())).not.toContain('secret')
   })
 
+  it('covers avatars and names unless one is switched off, also for settings stored before the switch existed', async () => {
+    stored['annhub.settings'] = { anonymizeDefault: false }
+    expect(await readSettings()).toMatchObject({ anonymizeDefault: false, anonymizeAvatars: true, anonymizeNames: true })
+    await writeSettings({ anonymizeAvatars: false })
+    expect(await readSettings()).toMatchObject({ anonymizeDefault: false, anonymizeAvatars: false, anonymizeNames: true })
+    await expect(writeSettings({ anonymizeNames: 'no' } as never)).rejects.toThrow()
+    expect((await readSettings()).anonymizeNames).toBe(true)
+  })
+
   it('serializes concurrent site additions', async () => {
     await Promise.all([addDisabledSite('first.example'), addDisabledSite('second.example')])
     expect((await readSettings()).blockDisabledSites).toEqual(['first.example', 'second.example'])

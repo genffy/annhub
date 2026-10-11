@@ -24,13 +24,14 @@ import MessageUtils from '../../../utils/message'
 import { screenshotFailureText, screenshotSaveErrorText, uiText } from '../../../utils/ui-text'
 import { newEntryId } from '../../../learning-core/assets'
 import { isUserInput } from '../user-input'
-import type { CaptureVia } from '../../../types/messages'
+import type { CaptureVia, ResponseMessage } from '../../../types/messages'
 import type { ViewportRect } from './crop'
 import { computeCropSource, CropError, intersectRects } from './crop'
-import { detectIdentityRects } from './detect'
+import { ALL_IDENTITY_PARTS, detectIdentityRects, type IdentityParts } from './detect'
 import { applyViewportAnonymization } from './anonymize'
 import { captureElement } from './element-capture'
 import { createElement } from 'react'
+import { flushSync } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
 import { ScreenshotToolbar } from './toolbar'
 import { renderScreenshot, type Annotation, type Point, type ScreenshotTool } from './editor'
@@ -79,6 +80,9 @@ import type { ExtensionSettings } from '../../../background-service/settings-sch
 
 const ROOT_ATTR = 'data-ann-ui'
 const ROOT_VALUE = 'screenshot-session'
+/** Asking again this often, this many times, covers the whole second the browser's capture limit counts. */
+const CAPTURE_RATE_RETRY_MS = 400
+const CAPTURE_RATE_RETRIES = 3
 
 let activeSession: ScreenshotSession | null = null
 
@@ -141,6 +145,12 @@ class ScreenshotSession {
   private croppedCanvas: HTMLCanvasElement | null = null
   private capturedDpr = 1
   private anonymizeOn = true
+  /** Which identity kinds anonymization covers, from settings (screenshot.md §3). */
+  private anonymizeParts: IdentityParts = ALL_IDENTITY_PARTS
+  /** The user pressed `A` before the settings arrived: their choice stands. */
+  private anonymizeToggled = false
+  /** Settings arrive after the session starts; every capture waits for them. */
+  private settingsLoaded: Promise<void> = Promise.resolve()
   private via: CaptureVia
   private settings: ExtensionSettings | null = null
   private ratio = 'free'
@@ -200,9 +210,12 @@ class ScreenshotSession {
       void this.copyCurrent()
       return
     }
-    if (this.state === 'selecting' && (e.key === 'a' || e.key === 'A')) {
+    // `A` works until the shot is taken: a pending frame (R3, the selection
+    // menu, the last frame) has not been captured yet
+    if ((this.state === 'selecting' || this.state === 'confirming') && (e.key === 'a' || e.key === 'A') && this.anonymizeAvailable()) {
       e.preventDefault()
       this.anonymizeOn = !this.anonymizeOn
+      this.anonymizeToggled = true
       this.syncHint()
     }
     if (this.state === 'confirming' && this.selection && !this.hoverOutlineEl) {
@@ -326,7 +339,7 @@ class ScreenshotSession {
       this.doc.addEventListener(type, this.onSwallowPageAction, true)
     }
     this.syncHint()
-    void this.loadAnonymizeDefault()
+    this.settingsLoaded = this.loadAnonymizeDefault()
   }
 
   /** Kills a page action during the capture phase; the session's own UI keeps working. */
@@ -341,16 +354,20 @@ class ScreenshotSession {
 
   private async loadAnonymizeDefault(): Promise<void> {
     const response = await MessageUtils.sendMessage<ExtensionSettings>({ type: 'GET_SETTINGS' })
-    if (!response.success || !response.data) return
+    if (this.exited || !response.success || !response.data) return
     this.settings = response.data
+    // every capture waits for this, so no shot is taken before the defaults
+    // are in: the block capsule's shot starts together with the session
+    this.anonymizeParts = { avatar: response.data.anonymizeAvatars, name: response.data.anonymizeNames }
+    if (!this.anonymizeToggled) this.anonymizeOn = response.data.anonymizeDefault
+    this.watermarkOn = response.data.watermark.enabled
+    this.beautify = { ...response.data.beautify }
     if (response.data.watermark.enabled && response.data.watermark.image) void this.loadWatermarkImage(response.data.watermark.image)
-    if (this.state === 'selecting') {
-      this.anonymizeOn = response.data.anonymizeDefault
-      this.watermarkOn = response.data.watermark.enabled
-      this.beautify = { ...response.data.beautify }
-      this.syncHint()
+    this.syncHint()
+    // a frame handed over by the selection menu is pending, not captured
+    if (this.state === 'selecting' || this.state === 'confirming') {
       this.showRatioBar()
-      await this.restoreRememberedFrame()
+      void this.restoreRememberedFrame()
     }
   }
 
@@ -373,17 +390,22 @@ class ScreenshotSession {
     const sep = (): Text => this.textNode(' · ')
     this.hintEl.append(
       this.textNode(uiText('shot.hint')),
-      sep(),
-      this.boldNode('A'),
-      this.textNode(uiText('shot.anonymize', { state: uiText(this.anonymizeOn ? 'shot.on' : 'shot.off') })),
+      // with both identity kinds switched off in settings there is nothing for `A` to do
+      ...(this.anonymizeAvailable()
+        ? [sep(), this.boldNode('A'), this.textNode(` ${uiText('shot.anonymize', { state: uiText(this.anonymizeOn ? 'shot.on' : 'shot.off') })}`)]
+        : []),
       ...(this.settings?.watermark.enabled
-        ? [sep(), this.boldNode('W'), this.textNode(uiText('shot.watermark', { state: uiText(this.watermarkOn ? 'shot.on' : 'shot.off') }))]
+        ? [sep(), this.boldNode('W'), this.textNode(` ${uiText('shot.watermark', { state: uiText(this.watermarkOn ? 'shot.on' : 'shot.off') })}`)]
         : []),
     )
   }
 
   private syncStatus(): void {
     this.syncHint()
+  }
+
+  private anonymizeAvailable(): boolean {
+    return this.anonymizeParts.avatar || this.anonymizeParts.name
   }
 
   /** The selection bar's ratio chips: 自由 plus the presets enabled in settings (screenshot.md §1.3). */
@@ -889,13 +911,15 @@ class ScreenshotSession {
     const selection = this.selection
     if (!selection) return
     this.state = 'capturing'
+    await this.settingsLoaded
+    if (this.exited) return
 
     // Auto-detected identity rects are computed BEFORE any DOM mutation
     // (element rects share the viewport coordinate space with the selection).
-    const identity = detectIdentityRects(this.doc, this.doc.defaultView!.location.hostname, selection)
+    const identity = detectIdentityRects(this.doc, this.doc.defaultView!.location.hostname, selection, this.anonymizeParts)
     // With DOM anonymization on, identity elements are covered by gray
     // placeholders during the shot — no pixelate pre-fill needed.
-    const restoreAnonymize = this.anonymizeOn ? applyViewportAnonymization(this.doc, this.doc.defaultView!.location.hostname) : null
+    const restoreAnonymize = this.anonymizeOn ? applyViewportAnonymization(this.doc, this.doc.defaultView!.location.hostname, this.anonymizeParts) : null
 
     // captureVisibleTab photographs the screen — our session UI must be gone.
     // The frame waits for a settled layout (max 500ms), and a transparent
@@ -920,10 +944,7 @@ class ScreenshotSession {
 
     let dataUrl: string
     try {
-      const response = await MessageUtils.sendMessage<{ dataUrl: string }>({
-        type: 'CAPTURE_VISIBLE_TAB',
-        requestId: `shot-${Date.now()}`,
-      })
+      const response = await this.requestCapture()
       if (!response.success || !response.data?.dataUrl) {
         throw new Error(screenshotFailureText(response.error, 'shot.error.capture'))
       }
@@ -999,11 +1020,28 @@ class ScreenshotSession {
     await this.captureElementMode(target)
   }
 
+  /**
+   * The browser takes two captures a second and refuses a third (`CAPTURE_RATE_LIMITED`): a shot right after two
+   * others waits the second out and asks again (screenshot.md §2). The wait is here, in the page, whose timers keep
+   * time; the worker's can fire seconds late.
+   */
+  private async requestCapture(): Promise<ResponseMessage<{ dataUrl: string }>> {
+    for (let retry = 0; ; retry++) {
+      const response = await MessageUtils.sendMessage<{ dataUrl: string }>({ type: 'CAPTURE_VISIBLE_TAB', requestId: `shot-${Date.now()}` })
+      if (response.success || response.error !== 'CAPTURE_RATE_LIMITED' || retry === CAPTURE_RATE_RETRIES) return response
+      await new Promise(resolve => setTimeout(resolve, CAPTURE_RATE_RETRY_MS))
+      // cancelled while waiting: nothing more to photograph
+      if (this.exited) return response
+    }
+  }
+
   private async captureElementMode(target: HTMLElement): Promise<void> {
     this.state = 'capturing'
+    await this.settingsLoaded
+    if (this.exited) return
     const element = this.resolveCaptureTarget(target)
     try {
-      this.croppedCanvas = await captureElement(element, { anonymize: this.anonymizeOn })
+      this.croppedCanvas = await captureElement(element, this.anonymizeOn ? { anonymize: this.anonymizeParts } : {})
     } catch {
       // the rasterizer's own message is English and means nothing to the user
       if (!this.exited) this.showError(uiText('shot.error.element'))
@@ -1107,7 +1145,9 @@ class ScreenshotSession {
     this.host.appendChild(toolbar)
     this.toolbarEl = toolbar
     this.toolbarRoot = createRoot(toolbar)
-    this.updateToolbar()
+    // React 19 commits a root's first render later; without flushSync the frame
+    // below can run before the buttons exist and focus stays on the page (真机走查 P2-6).
+    flushSync(() => this.updateToolbar())
     this.toolbarResizeObserver = new ResizeObserver(() => {
       this.positionToolbar()
       this.positionSizeLabel()

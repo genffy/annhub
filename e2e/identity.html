@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Identity Fixture</title>
+    <style>
+      body { font-family: Georgia, serif; max-width: 640px; margin: 40px auto; padding: 0 16px; color: #1f2937; background: #fff; }
+      .post { border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; }
+      .header { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+      /* pure colours a spec can count in the capture: the avatar is red, the name and handle are blue */
+      .avatar { display: block; width: 48px; height: 48px; border-radius: 50%; background: #ff0000; }
+      .name { display: inline-block; padding: 8px 12px; background: #0000ff; color: #fff; font: 15px/1.2 sans-serif; }
+      p { line-height: 1.7; }
+    </style>
+  </head>
+  <body>
+    <article class="post" data-testid="tweet">
+      <div class="header">
+        <span class="avatar" data-ann-identity="avatar" data-testid="identity-avatar"></span>
+        <span class="name" data-ann-identity data-testid="identity-name">Somebody @somebody</span>
+      </div>
+      <p data-testid="identity-body">Shipped the new retry policy today. The error budget recovered within the hour, and nobody was paged.</p>
+    </article>
+  </body>
+</html>

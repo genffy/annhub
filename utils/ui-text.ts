@@ -254,6 +254,9 @@ const STRINGS = {
   'settings.remove': { zh: '移除', en: 'Remove' },
   'settings.anonymize': { zh: '截图默认匿名', en: 'Anonymize screenshots by default' },
   'settings.anonymizeHint': { zh: '截图开始时自动遮住页面上的身份元素', en: 'Covers identity elements when a screenshot starts' },
+  'settings.anonymizeParts': { zh: '遮住哪些', en: 'What to cover' },
+  'settings.anonymizeAvatars': { zh: '头像', en: 'Avatars' },
+  'settings.anonymizeNames': { zh: '名字与账号', en: 'Names and handles' },
   'settings.shortcuts': { zh: '快捷键', en: 'Shortcuts' },
   'settings.screenshot': { zh: '截图输出', en: 'Screenshot output' },
   'settings.downloadFormat': { zh: '下载格式', en: 'Download format' },
@@ -376,6 +379,8 @@ const ERROR_TEXT: Record<string, UiTextKey> = {
   ENTRY_ASSET_TOO_LARGE: 'error.imageTooLarge',
   ENTRY_ASSET_MISSING: 'error.imageInvalid',
   CAPTURE_NOT_VISIBLE: 'shot.error.notVisible',
+  // still refused after the session waited the browser's second out
+  CAPTURE_RATE_LIMITED: 'shot.error.capture',
   CAPTURE_FAILED: 'shot.error.capture',
   DOWNLOAD_FAILED: 'shot.error.downloadFailed',
 }

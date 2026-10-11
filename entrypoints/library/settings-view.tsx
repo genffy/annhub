@@ -1,7 +1,7 @@
 /**
  * The settings view inside the application page (extension.md §2.5):
  * preferences (block entry + disabled sites, screenshot anonymize
- * default), shortcuts display, data (export entry lives in the nav, here
+ * default and what it covers), shortcuts display, data (export entry lives in the nav, here
  * storage usage and the orphan report), and the local-metrics readout —
  * aggregate numbers only, nothing readable. The screenshot output section
  * (formats, watermark, ratio presets, beautify) rides the same settings
@@ -381,6 +381,25 @@ export function SettingsView() {
           <input type="checkbox" checked={settings.anonymizeDefault} onChange={event => void patch({ anonymizeDefault: event.target.checked })} data-testid="anonymize-toggle" />
           <span>{uiText(settings.anonymizeDefault ? 'shot.on' : 'shot.off')}</span>
         </label>
+        {/* a kind left unchecked is neither covered nor pre-filled as mosaic (screenshot.md §3) */}
+        <div className="settings-group">
+          <h3>{uiText('settings.anonymizeParts')}</h3>
+          <div className="settings-inline">
+            <label className="prop-preset">
+              <input
+                type="checkbox"
+                checked={settings.anonymizeAvatars}
+                onChange={event => void patch({ anonymizeAvatars: event.target.checked })}
+                data-testid="anonymize-avatars"
+              />
+              {uiText('settings.anonymizeAvatars')}
+            </label>
+            <label className="prop-preset">
+              <input type="checkbox" checked={settings.anonymizeNames} onChange={event => void patch({ anonymizeNames: event.target.checked })} data-testid="anonymize-names" />
+              {uiText('settings.anonymizeNames')}
+            </label>
+          </div>
+        </div>
       </section>
 
       <ScreenshotSection settings={settings} patch={patch} />

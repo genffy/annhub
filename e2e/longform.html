@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="UTF-8" /><title>Long-form article</title><style>main { max-width: 24em; }</style></head>
+  <body>
+    <main id="longform">
+      <h1>What ownership means</h1>
+      <blockquote id="lf-quote"><p>Unlearn what you have learned, before you read on.</p></blockquote>
+      <p>The introduction runs long on purpose, so that it fills the whole window before the first heading arrives. Ownership is a set of rules that govern how a program manages memory, checked at compile time.</p>
+      <p>Some languages have garbage collection that regularly looks for no-longer-used memory as the program runs; in other languages, the programmer must explicitly allocate and free the memory.</p>
+      <p>This paragraph keeps the introduction going, with nothing in it but words: no code, no table, no picture, so that nothing inside the window is smaller than a section of the article.</p>
+      <p>Because ownership is a new concept for many programmers, it does take some time to get used to. The good news is that the more experienced you become, the more natural the rules feel.</p>
+      <p>Understanding ownership will give you a solid foundation for understanding the features that make the language unique, and this introduction is now nearly long enough to fill a window.</p>
+      <p>One more paragraph of introduction, as long as the others, to be sure that the first section begins below the bottom edge of the window on any reasonable screen the tests run on.</p>
+      <p>Two more paragraphs make the introduction longer than any window the tests open, whatever the fonts on the machine: the first heading must start below the bottom edge.</p>
+      <p>This is the second of them, as plain as the rest, so that the window holds nothing but the article, its quote and its words.</p>
+      <p>And a last one: the reader who presses the down arrow here expects to land in the first section of the article, which the mode then scrolls into view, rather than on the quote at the top.</p>
+      <h2 id="lf-stack">The stack</h2>
+      <p>The stack stores values in the order it gets them and removes the values in the opposite order. This is referred to as last in, first out, and the section has words enough to count.</p>
+      <figure id="lf-figure"><pre id="lf-code"><code>let s = "hello";</code></pre></figure>
+      <p>Pushing to the stack is faster than allocating on the heap because the allocator never has to search for a place to store new data; that location is always at the top of the stack.</p>
+      <h2 id="lf-heap">The heap</h2>
+      <p>The heap is less organized: when you put data on the heap, you request a certain amount of space, and the memory allocator finds an empty spot that is big enough for it.</p>
+      <table id="lf-table">
+        <thead><tr><th>Where</th><th>Speed</th></tr></thead>
+        <tbody><tr><td>Stack</td><td>Fast</td></tr><tr><td>Heap</td><td>Slower</td></tr></tbody>
+      </table>
+    </main>
+  </body>
+</html>

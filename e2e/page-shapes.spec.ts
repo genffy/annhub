@@ -70,6 +70,66 @@ test.describe('block detection on real page shapes (capture.md §6.2)', () => {
     expect(entry.content).not.toContain('Getting started covers')
   })
 
+  // the unit test stubs hit-testing; only a real browser has the mode's overlay on top of the page (真机走查 P2-1)
+  test('↓ from the whole article goes into its sections, one level at a time, and Enter saves the one outlined', async ({ page }) => {
+    await page.goto(`${BASE}/docusaurus.html`)
+    await page.locator('#docus').evaluate(element => {
+      element.setAttribute('tabindex', '0')
+      ;(element as HTMLElement).focus()
+    })
+    await triggerBlockMode(page)
+    const kind = page.locator('.ann-block-mode-kind')
+    await expect(kind).toContainText('文章')
+    await page.keyboard.press('ArrowDown')
+    await expect(kind, 'into the first section').toContainText('一节')
+    await expect(kind).toContainText('Getting started')
+    await page.keyboard.press('ArrowDown')
+    await expect(kind, 'and on into the one inside it').toContainText('Configuration')
+    await page.keyboard.press('ArrowUp')
+    await page.keyboard.press('ArrowUp')
+    await expect(kind, '↑ walks back out the way ↓ came in').toContainText('文章')
+    await page.keyboard.press('ArrowDown')
+    await page.keyboard.press('ArrowDown')
+    await expect(kind).toContainText('Configuration')
+    await page.keyboard.press('Enter')
+    await waitForClipToast(page)
+    const entry = (await getEntries(page.context()))[0]!
+    expect(entry.content).toContain('## Configuration')
+    expect(entry.content).not.toContain('Getting started covers')
+  })
+
+  // shaped like the Rust book and danluu: the headings are main's own children, the introduction fills the window, a
+  // quote sits above the first heading and the code is inside a figure (Overreacted) — 真机走查 P2-1
+  test('the keyboard reaches every level of a long article: ↓ into the section below the window and its code, Tab within a tier', async ({ page }) => {
+    await page.goto(`${BASE}/longform.html`)
+    await page.locator('#longform').evaluate(element => {
+      element.setAttribute('tabindex', '0')
+      ;(element as HTMLElement).focus()
+    })
+    await triggerBlockMode(page)
+    const kind = page.locator('.ann-block-mode-kind')
+    await expect(kind).toContainText('文章')
+    await expect(page.locator('#lf-stack'), 'the first section starts below the window').not.toBeInViewport()
+    await page.keyboard.press('ArrowDown')
+    await expect(kind, 'the section, not the quote above the first heading').toContainText('一节 · The stack')
+    await expect(page.locator('#lf-stack'), 'scrolled into view').toBeInViewport()
+    await page.keyboard.press('ArrowDown')
+    await expect(kind).toContainText('图')
+    await page.keyboard.press('Tab')
+    await expect(kind, 'Tab moves within a tier: from the figure to the table').toContainText('表格')
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Shift+Tab')
+    await expect(kind, 'back past the figure to the quote above the first heading').toContainText('引用')
+    await page.keyboard.press('Tab')
+    await expect(kind).toContainText('图')
+    await page.keyboard.press('ArrowDown')
+    await expect(kind, 'the code inside the figure is a level below it').toContainText('代码块')
+    await page.keyboard.press('Enter')
+    await waitForClipToast(page)
+    const entry = (await getEntries(page.context()))[0]!
+    expect(entry.content.trim()).toMatch(/^```\w*\nlet s = "hello";\n```$/)
+  })
+
   test('a blog made of divs: the post container is found and clipped whole', async ({ page }) => {
     await page.goto(`${BASE}/divsoup.html`)
     const capsule = await hoverForCapsule(page, '#soup-2')

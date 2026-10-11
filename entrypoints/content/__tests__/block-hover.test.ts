@@ -271,22 +271,22 @@ describe('a child frame offers clipping only (D-29)', () => {
   })
 })
 
-describe('↓ at the innermost level enters child units (真机走查 P2-1)', () => {
-  it('splices the child chain so ↑ walks back out the way ↓ came in', () => {
+describe('↓ at the innermost level enters the unit, one level at a time (真机走查 P2-1)', () => {
+  it('goes to the section inside the article before the code inside the section, and ↑ walks back out the same way', () => {
     document.body.innerHTML = NESTED
-    const code = document.getElementById('code')!
-    const article = document.querySelector('article')!
-    // jsdom has no layout: the article's box and the hit-test come from stubs
-    article.getBoundingClientRect = () => ({ left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect
-    document.elementFromPoint = vi.fn(() => code)
     // start on the article itself: its own chain is just [article]
+    const article = document.querySelector('article')!
     article.setAttribute('tabindex', '0')
     article.focus()
     const { hooks } = start()
     expect(kindText()).toContain(uiText('block.kind.article'))
-    press('ArrowDown') // enters the children instead of doing nothing
+    press('ArrowDown') // into the article: its section, not straight to the code inside the section
+    expect(kindText()).toContain(uiText('block.kind.section'))
+    press('ArrowDown')
     expect(kindText()).toContain(uiText('block.kind.code'))
-    press('ArrowUp') // climbs back through the spliced chain
+    press('ArrowDown') // nothing is inside a code block: it stays
+    expect(kindText()).toContain(uiText('block.kind.code'))
+    press('ArrowUp')
     expect(kindText()).toContain(uiText('block.kind.section'))
     press('ArrowUp')
     expect(kindText()).toContain(uiText('block.kind.article'))
@@ -294,5 +294,27 @@ describe('↓ at the innermost level enters child units (真机走查 P2-1)', ()
     press('ArrowDown')
     press('Enter') // the outlined code block is what gets saved
     expect(clipped(hooks).candidate.kind).toBe('code')
+  })
+
+  it('with a code block in the window, the section around it comes first', () => {
+    // a long section of a flat article, scrolled to its code: the heading and the first paragraph are above the window
+    document.body.innerHTML = `<main><h2 id="setup">Setup</h2><p id="setup-p">${LONG}</p><pre id="code">npm install</pre><p>${LONG}</p><h2>Next</h2><p>${LONG}</p></main>`
+    const place = (id: string, top: number, bottom: number): void => {
+      document.getElementById(id)!.getBoundingClientRect = () => new DOMRect(0, top, 600, bottom - top)
+    }
+    place('setup', -400, -360)
+    place('setup-p', -340, -20)
+    place('code', 10, 200)
+    const main = document.querySelector('main')!
+    main.setAttribute('tabindex', '0')
+    main.focus()
+    const { hooks } = start()
+    expect(kindText()).toContain(uiText('block.kind.article'))
+    press('ArrowDown')
+    expect(kindText()).toContain(`${uiText('block.kind.section')} · Setup`)
+    press('ArrowDown')
+    expect(kindText()).toContain(uiText('block.kind.code'))
+    press('Enter')
+    expect(clipped(hooks).candidate.element.id).toBe('code')
   })
 })
