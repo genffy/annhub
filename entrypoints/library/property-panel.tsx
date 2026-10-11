@@ -65,15 +65,6 @@ export const PropertyPanel = forwardRef<PropertyPanelHandle, Props>(function Pro
     }
     setError('')
     onEntryChanged(response.data.entry)
-    const editedName = Object.keys(patch.set ?? {})[0] ?? patch.unset?.[0] ?? patch.newDefinitions?.[0]?.name
-    const definition = patch.newDefinitions?.[0] ?? (editedName ? byKey.get(editedName.toLowerCase()) : undefined)
-    if (patch.set || patch.unset) {
-      void MessageUtils.sendMessage({
-        type: 'RECORD_EVENT',
-        name: 'entry.property_edited',
-        props: { scope: definition?.builtin ? 'builtin' : 'custom', property_type: definition?.type ?? 'text' },
-      })
-    }
     return true
   }
 

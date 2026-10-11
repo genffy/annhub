@@ -83,6 +83,19 @@ test.describe('selection clip (capture.md §6.1, extension.md §2.1)', () => {
           properties: expect.objectContaining({ tags: ['retry', 'backoff'] }),
         }),
       ])
+    // the tags are a property edit like one in the drawer (metrics.md §9, M-20); the untouched title is not sent, so not counted
+    const sw = await ensureServiceWorker(page.context())
+    await expect
+      .poll(() =>
+        sw.evaluate(async () => {
+          const metrics = (await chrome.storage.local.get('annhub.metrics'))['annhub.metrics'] as Record<string, Record<string, { byProps: Record<string, number> }>>
+          const merged: Record<string, number> = {}
+          for (const day of Object.values(metrics?.['entry.property_edited'] ?? {}))
+            for (const [key, count] of Object.entries(day.byProps)) merged[key] = (merged[key] ?? 0) + count
+          return merged
+        }),
+      )
+      .toEqual({ 'property_type=list|scope=builtin': 1 })
   })
 
   test('a real triple-click keeps the context to that paragraph alone (RV-CAP-07)', async ({ page }) => {
