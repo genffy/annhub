@@ -124,6 +124,9 @@ export function showClipToast(outcome: ClipOutcome, editAnchor: Range | HTMLElem
   const doc = document
   const host = doc.createElement('div')
   host.setAttribute(ROOT_ATTR, 'clip-toast')
+  // spoken as well as seen (真机走查 P3-5)
+  host.setAttribute('role', 'status')
+  host.setAttribute('aria-live', 'polite')
 
   const label = doc.createElement('span')
   label.textContent = uiText('toast.clipped')
@@ -147,8 +150,18 @@ export function showClipToast(outcome: ClipOutcome, editAnchor: Range | HTMLElem
   host.appendChild(bar)
   doc.documentElement.appendChild(host)
 
-  const timer = window.setTimeout(dismiss, TOAST_MS)
+  // the ~3 s countdown pauses while the user is on the toast — reading the
+  // warning or aiming at Undo — and resumes on leaving it (真机走查 P3-5)
+  let timer = window.setTimeout(dismiss, TOAST_MS)
   const clear = () => window.clearTimeout(timer)
+  const resume = () => {
+    clear()
+    timer = window.setTimeout(dismiss, TOAST_MS)
+  }
+  host.addEventListener('pointerenter', clear)
+  host.addEventListener('pointerleave', resume)
+  host.addEventListener('focusin', clear)
+  host.addEventListener('focusout', resume)
 
   undo.addEventListener('click', async () => {
     clear()
@@ -191,6 +204,8 @@ function dismissToast(): void {
 function showUndone(): void {
   const host = document.createElement('div')
   host.setAttribute(ROOT_ATTR, 'clip-toast')
+  host.setAttribute('role', 'status')
+  host.setAttribute('aria-live', 'polite')
   const bar = document.createElement('div')
   bar.className = 'ann-clip-toast ann-clip-toast-undone'
   bar.textContent = uiText('toast.undone')
@@ -204,6 +219,7 @@ export function showFailureToast(retry: () => void, failure?: ClipFailure): void
   dismissToast()
   const host = document.createElement('div')
   host.setAttribute(ROOT_ATTR, 'clip-toast')
+  host.setAttribute('role', 'alert')
   const bar = document.createElement('div')
   bar.className = 'ann-clip-toast ann-clip-toast-error'
   const label = document.createElement('span')

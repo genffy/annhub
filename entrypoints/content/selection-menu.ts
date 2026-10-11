@@ -75,11 +75,14 @@ export class SelectionMenu {
         return
       }
       if (event.key === 'Enter') {
-        // Enter only fires an action once Tab focused one; a bare Enter
-        // belongs to the page (extension.md §2.1)
-        if (this.focusIndex < 0) return
+        // Enter fires the action of the button that actually holds focus; with
+        // caret browsing the arrows can move focus off the menu, and a stale
+        // recorded index must not fire instead (真机走查 P3-3). A bare Enter —
+        // nothing of ours focused — still belongs to the page (extension.md §2.1).
+        const index = buttons.indexOf(this.doc.activeElement as HTMLButtonElement)
+        if (index < 0) return
         event.preventDefault()
-        if (this.focusIndex === 0) this.hooks.onClip()
+        if (index === 0) this.hooks.onClip()
         else this.hooks.onScreenshot?.()
       }
     }

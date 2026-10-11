@@ -61,7 +61,6 @@ import {
   adjustHierarchy,
   boxWithinTolerance,
   buildSelector,
-  clearFrame,
   collectEdges,
   elementChain,
   expandByMargin,
@@ -87,6 +86,8 @@ export interface EnterScreenshotOptions {
   via?: CaptureVia
   /** The block capsule's target: skip selection, straight to element capture. */
   element?: HTMLElement
+  /** A pending frame to confirm (Enter) or adjust, e.g. the selection menu's screenshot path (真机走查 P2-5). */
+  initialRect?: ViewportRect
 }
 
 export function enterScreenshotMode(options: EnterScreenshotOptions = {}): void {
@@ -95,6 +96,7 @@ export function enterScreenshotMode(options: EnterScreenshotOptions = {}): void 
   activeSession = new ScreenshotSession(document, options.via ?? 'shortcut')
   activeSession.begin()
   if (options.element) void activeSession.captureElementTarget(options.element)
+  else if (options.initialRect) activeSession.beginWithInitialRect(options.initialRect)
 }
 
 export function exitScreenshotMode(): void {
@@ -231,6 +233,30 @@ class ScreenshotSession {
       this.syncStatus()
       this.refreshDisplay()
     }
+    // The editor is modal for the keyboard: Tab stays inside the session's own
+    // controls instead of walking the masked page, where Enter on a link would
+    // navigate away and drop the shot (真机走查 P2-6). The text input keeps the
+    // browser's own Tab so typing still behaves as usual.
+    if (this.state === 'preview' && e.key === 'Tab' && !this.textInput) {
+      e.preventDefault()
+      this.cycleFocus(!e.shiftKey)
+    }
+  }
+
+  /** Focusables of the session's own UI, in document order. */
+  private sessionFocusables(): HTMLElement[] {
+    if (!this.host.isConnected) return []
+    return Array.from(this.host.querySelectorAll<HTMLElement>('button, input, select, [tabindex]:not([tabindex="-1"])')).filter(
+      el => !el.hasAttribute('disabled') && el.offsetParent !== null,
+    )
+  }
+
+  private cycleFocus(forward: boolean): void {
+    const items = this.sessionFocusables()
+    if (items.length === 0) return
+    const current = items.indexOf(this.doc.activeElement as HTMLElement)
+    const next = current < 0 ? 0 : (current + (forward ? 1 : -1) + items.length) % items.length
+    items[next]!.focus()
   }
 
   constructor(doc: Document, via: CaptureVia) {
@@ -288,8 +314,6 @@ class ScreenshotSession {
     this.host.appendChild(overlay)
 
     this.doc.documentElement.appendChild(this.host)
-    // the remembered frame lives for this tab and this page only (screenshot.md §1.4)
-    this.doc.defaultView!.addEventListener('pagehide', clearFrame)
     this.doc.addEventListener('keydown', this.onKeydown, true)
     // The host is pointer-events:none so pointer events keep hitting real page
     // elements — that is how the click-to-capture-element mode knows its target.
@@ -326,7 +350,7 @@ class ScreenshotSession {
       this.beautify = { ...response.data.beautify }
       this.syncHint()
       this.showRatioBar()
-      this.restoreRememberedFrame()
+      await this.restoreRememberedFrame()
     }
   }
 
@@ -344,11 +368,17 @@ class ScreenshotSession {
   private syncHint(): void {
     if (!this.hintEl) return
     this.hintEl.innerHTML = ''
+    // the segments read as one line; “ · ” keeps them from running together
+    // (真机走查 P3-1：“Esc to cancelAAnonymize: on”)
+    const sep = (): Text => this.textNode(' · ')
     this.hintEl.append(
       this.textNode(uiText('shot.hint')),
+      sep(),
       this.boldNode('A'),
       this.textNode(uiText('shot.anonymize', { state: uiText(this.anonymizeOn ? 'shot.on' : 'shot.off') })),
-      ...(this.settings?.watermark.enabled ? [this.boldNode('W'), this.textNode(uiText('shot.watermark', { state: uiText(this.watermarkOn ? 'shot.on' : 'shot.off') }))] : []),
+      ...(this.settings?.watermark.enabled
+        ? [sep(), this.boldNode('W'), this.textNode(uiText('shot.watermark', { state: uiText(this.watermarkOn ? 'shot.on' : 'shot.off') }))]
+        : []),
     )
   }
 
@@ -404,7 +434,6 @@ class ScreenshotSession {
     for (const type of SWALLOWED_EVENT_TYPES) {
       this.doc.removeEventListener(type, this.onSwallowPageAction, true)
     }
-    this.doc.defaultView!.removeEventListener('pagehide', clearFrame)
     this.clearConfirmUi()
     this.clearHoverUi()
     this.host.remove()
@@ -935,9 +964,38 @@ class ScreenshotSession {
 
   // ── element mode (DOM clone rasterization) ────────────────────────
 
-  /** The block capsule's direct path: capture a known element without selection. */
+  /** A pending frame handed over by the caller (selection menu): confirm with Enter, adjust, or cancel. */
+  beginWithInitialRect(rect: ViewportRect): void {
+    if (this.state !== 'selecting') return
+    const view = this.doc.defaultView!
+    const clamped = intersectRects(rect, { x: 0, y: 0, width: view.innerWidth, height: view.innerHeight })
+    if (!clamped || clamped.width < 4 || clamped.height < 4) return
+    this.selection = clamped
+    this.paintFrameSelection()
+    this.enterConfirming()
+  }
+
+  /**
+   * The block capsule's direct path: capture a known element without
+   * selection. The element also becomes the remembered frame, like the
+   * click path does (真机走查 P3-4：区块路径的截图也记为“上次取景框”).
+   */
   async captureElementTarget(target: HTMLElement): Promise<void> {
     if (this.exited) return
+    const element = this.resolveCaptureTarget(target)
+    const view = this.doc.defaultView!
+    const box = element.getBoundingClientRect()
+    this.pendingFrameRecord = {
+      kind: 'element',
+      selector: buildSelector(element),
+      margin: 0,
+      width: box.width,
+      height: box.height,
+      pageX: box.left + view.scrollX,
+      pageY: box.top + view.scrollY,
+      path: location.pathname + location.search,
+    }
+    this.reusedFrame = false
     await this.captureElementMode(target)
   }
 
@@ -1057,7 +1115,12 @@ class ScreenshotSession {
     })
     this.toolbarResizeObserver.observe(toolbar)
     this.refreshDisplay()
-    requestAnimationFrame(() => this.layout())
+    requestAnimationFrame(() => {
+      this.layout()
+      // The editor takes the keyboard: focus starts on the toolbar, not on the
+      // masked page behind it (真机走查 P2-6).
+      this.toolbarEl?.querySelector<HTMLElement>('button:not([disabled])')?.focus()
+    })
   }
 
   /** Puts the preview, the toolbar and the beautify panel where the picture now is. */
@@ -1297,6 +1360,7 @@ class ScreenshotSession {
       })
       if (!response.success) throw new Error(screenshotSaveErrorText(response.error))
       this.rememberLastFrame()
+      announceSaved(this.doc)
       exitScreenshotMode()
     } catch (error) {
       this.showNotice(error instanceof Error ? error.message : uiText('shot.error.saveFailed'), true)
@@ -1457,7 +1521,7 @@ class ScreenshotSession {
         record.pageY = this.selection.y + view.scrollY
       }
     }
-    rememberFrame(record)
+    void rememberFrame(record)
   }
 
   /**
@@ -1466,9 +1530,9 @@ class ScreenshotSession {
    * 10% drift, otherwise the recorded page position with a notice; the page
    * scrolls so the frame lands fully in view.
    */
-  private restoreRememberedFrame(): void {
-    const record = readFrame()
-    if (!record) return
+  private async restoreRememberedFrame(): Promise<void> {
+    const record = await readFrame()
+    if (!record || this.exited || this.state !== 'selecting') return
     const view = this.doc.defaultView!
     let label = `${uiText('shot.lastFrame')} · ${Math.round(record.width + (record.kind === 'element' ? record.margin * 2 : 0))} × ${Math.round(record.height + (record.kind === 'element' ? record.margin * 2 : 0))}`
     if (record.kind === 'element') {
@@ -1571,6 +1635,21 @@ class ScreenshotSession {
 
 function doubleRaf(): Promise<void> {
   return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+}
+
+/**
+ * “Screenshot saved”, spoken once: the session's own DOM goes away with the
+ * save, so the live region lives on the document and removes itself (真机走查
+ * P2-6：保存成功读屏没有任何播报).
+ */
+function announceSaved(doc: Document): void {
+  const el = doc.createElement('div')
+  el.setAttribute(ROOT_ATTR, 'screenshot-saved-notice')
+  el.setAttribute('role', 'status')
+  el.textContent = uiText('shot.saved')
+  Object.assign(el.style, { position: 'fixed', left: '-9999px', top: '0' })
+  doc.documentElement.appendChild(el)
+  window.setTimeout(() => el.remove(), 4000)
 }
 
 function localPoint(el: HTMLElement, e: PointerEvent): { x: number; y: number } {

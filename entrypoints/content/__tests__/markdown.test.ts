@@ -180,3 +180,78 @@ describe('shared page-text fixtures: the converter writes the pinned Markdown an
     })
   }
 })
+
+describe('page furniture that class detection cannot see (真机走查 P2-3)', () => {
+  it('drops edit/help/share UI links wherever they appear', () => {
+    const md = convert(`
+      <p>Intro paragraph with real content.</p>
+      <p><a href="/edit">Edit this page</a></p>
+      <p><a href="/e">[edit]</a></p>
+      <p><a href="/feedback">Was this helpful?</a></p>
+      <p><a href="/q">View quotes</a></p>
+    `)
+    expect(md).toContain('Intro paragraph')
+    expect(md).not.toContain('Edit this page')
+    expect(md).not.toContain('[edit]')
+    expect(md).not.toContain('Was this helpful')
+    expect(md).not.toContain('View quotes')
+  })
+
+  it('drops view-count and duration blocks and links (X)', () => {
+    const md = convert(`
+      <article data-testid="tweet"><p>The post body says something real.</p>
+        <a href="/analytics">6.3M Views</a><a href="/analytics">10M</a><span>0:03</span>
+      </article>
+    `)
+    expect(md).toContain('post body')
+    expect(md).not.toContain('6.3M Views')
+    expect(md).not.toContain('10M')
+    expect(md).not.toContain('0:03')
+  })
+
+  it('drops Medium sign-in and subscribe blocks', () => {
+    const md = convert(`
+      <p>Article closing paragraph.</p>
+      <div><span>Remember me for faster sign in</span></div>
+      <div><h3>Get Dan Abramov’s stories in your inbox</h3></div>
+    `)
+    expect(md).toContain('closing paragraph')
+    expect(md).not.toContain('faster sign in')
+    expect(md).not.toContain('stories in your inbox')
+  })
+})
+
+describe('highlighted code blocks', () => {
+  it('recovers the lines when each line is its own span (Docusaurus/Prism)', () => {
+    const md = convert(`
+      <pre><code class="language-js"><span class="token-line"><span>const a = 1</span></span><span class="token-line"><span>const b = 2</span></span></code></pre>
+    `)
+    expect(md).toContain('const a = 1\nconst b = 2')
+  })
+
+  it('keeps ordinary pre text untouched', () => {
+    expect(convert('<pre><code>plain\nlines</code></pre>')).toContain('plain\nlines')
+  })
+
+  it('a figure carrying code instead of a picture still yields the code (Overreacted)', () => {
+    const md = convert(`
+      <figure><pre><code class="language-js">useEffect(() => {})</code></pre><figcaption>The effect hook</figcaption></figure>
+    `)
+    expect(md).toContain('useEffect')
+    expect(md).toContain('The effect hook')
+  })
+})
+
+describe('open shadow roots carry content (MDN, 真机走查 P2-3)', () => {
+  it('converts the code inside an empty host element', () => {
+    const host = doc.createElement('div')
+    const shadowHost = doc.createElement('div')
+    host.appendChild(shadowHost)
+    host.insertAdjacentHTML('beforeend', '<p>After the example.</p>')
+    const shadow = shadowHost.attachShadow({ mode: 'open' })
+    shadow.innerHTML = '<pre><code class="language-js">fetch(url)</code></pre>'
+    const md = elementToMarkdown(host).markdown
+    expect(md).toContain('fetch(url)')
+    expect(md).toContain('After the example.')
+  })
+})

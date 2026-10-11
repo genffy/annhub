@@ -37,7 +37,7 @@ export function TypeChip({ type, className }: { type: EntryType; className?: str
   return (
     <span className={`type-chip type-${type}${className ? ` ${className}` : ''}`} data-type={type}>
       <Icon size={12} aria-hidden />
-      {uiText(type === 'clip' ? 'library.clips' : 'library.screenshots')}
+      {uiText(type === 'clip' ? 'library.type.clip' : 'library.type.screenshot')}
     </span>
   )
 }

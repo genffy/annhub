@@ -200,7 +200,7 @@ const STRINGS = {
   'library.read': { zh: '阅读', en: 'Read' },
   'library.delete': { zh: '删除', en: 'Delete' },
   'library.deleteConfirm': { zh: '删除这条条目？', en: 'Delete this entry?' },
-  'library.deleteWithHighlights': { zh: '删除这条剪藏？它带着 {count} 条高亮，会一并删除。', en: 'Delete this clip? Its {count} highlights go with it.' },
+  'library.deleteWithHighlights': { zh: '删除这条剪藏？它带着 {count} 条高亮，会一并删除。', en: 'Delete this clip? Its {count} highlights will be deleted too.' },
   'library.imageMissing': { zh: '图片缺失', en: 'Image missing' },
   'library.highlightsCount': { zh: '{count} 高亮', en: '{count} highlights' },
   'library.highlights': { zh: '高亮', en: 'Highlights' },
@@ -211,12 +211,18 @@ const STRINGS = {
   'reading.empty': { zh: '在正文里选中文字即可创建高亮；键盘上选中后按 H。', en: 'Select text in the article to highlight; press H after a keyboard selection.' },
   'reading.note': { zh: '备注', en: 'Note' },
   'reading.edit': { zh: '编辑高亮', en: 'Edit highlight' },
+  'reading.highlightLabel': { zh: '高亮，{color}', en: 'Highlight, {color}' },
   'reading.deleted': { zh: '已删除', en: 'Deleted' },
   'reading.locate': { zh: '定位', en: 'Locate' },
   'reading.back': { zh: '返回', en: 'Back' },
   'library.imagePlaceholder': { zh: '图片未保存', en: 'Image not saved' },
   'library.openOriginal': { zh: '打开原图', en: 'Open original' },
   'library.count': { zh: '共 {count} 条', en: '{count} entries' },
+  // English plural agreement: “1 entry”, “2 entries” — Chinese has no such form
+  // (真机走查 P3-2). Applied after substitution, only for the value 1.
+  'library.type.clip': { zh: '剪藏', en: 'Clip' },
+  'library.type.screenshot': { zh: '截图', en: 'Screenshot' },
+  'shot.saved': { zh: '截图已保存', en: 'Screenshot saved' },
   'library.loadMore': { zh: '显示更多（还有 {count} 条）', en: 'Show more ({count} more)' },
   'library.storageUsed': { zh: '已用 {size}', en: '{size} used' },
   'library.originalText': { zh: '原文', en: 'Original text' },
@@ -235,6 +241,7 @@ const STRINGS = {
   'library.note': { zh: '备注', en: 'Note' },
   'library.properties': { zh: '属性', en: 'Properties' },
   'library.openLibrary': { zh: '在资料库中打开', en: 'Open in library' },
+  'library.name': { zh: '资料库', en: 'Library' },
   'library.shortcutHint': { zh: '选中网页文字即可保存 · Cmd/Ctrl+Shift+S 截图', en: 'Select text on a page to save it · Cmd/Ctrl+Shift+S to screenshot' },
   // settings page (extension.md §2.5) — R1 subset
   'settings.title': { zh: '设置', en: 'Settings' },
@@ -255,6 +262,10 @@ const STRINGS = {
   'settings.watermarkText': { zh: '水印文字（至多 40 字符）', en: 'Watermark text (≤ 40 characters)' },
   'settings.watermarkImage': { zh: '水印图片（PNG ≤ 512 KB）', en: 'Watermark image (PNG ≤ 512 KB)' },
   'settings.position': { zh: '位置', en: 'Position' },
+  'settings.position.topLeft': { zh: '左上 ↖', en: 'Top left ↖' },
+  'settings.position.topRight': { zh: '右上 ↗', en: 'Top right ↗' },
+  'settings.position.bottomLeft': { zh: '左下 ↙', en: 'Bottom left ↙' },
+  'settings.position.bottomRight': { zh: '右下 ↘', en: 'Bottom right ↘' },
   'settings.size': { zh: '大小', en: 'Size' },
   'settings.size.small': { zh: '小', en: 'Small' },
   'settings.size.medium': { zh: '中', en: 'Medium' },
@@ -390,6 +401,16 @@ export function screenshotFailureText(code: string | undefined, fallback: UiText
   return failureReason(code) || uiText(fallback)
 }
 
+/** English plural forms that follow a count in the string table; the singular is used after “1”. */
+const EN_SINGULARS: Record<string, string> = {
+  entries: 'entry',
+  highlights: 'highlight',
+  screenshots: 'screenshot',
+  clips: 'clip',
+  images: 'image',
+  assets: 'asset',
+}
+
 export function uiText(key: UiTextKey, params: Record<string, string | number> = {}, lang?: UiLanguage): string {
   const entry = STRINGS[key]
   if (!entry) return key
@@ -397,6 +418,13 @@ export function uiText(key: UiTextKey, params: Record<string, string | number> =
   let text: string = entry[language]
   for (const [name, value] of Object.entries(params)) {
     text = text.split(`{${name}}`).join(String(value))
+  }
+  if (language === 'en') {
+    // “1 entry”, “1 missing image”, “1 unreferenced asset” — the plural word
+    // may sit right after the 1 or behind one modifier word
+    for (const [plural, singular] of Object.entries(EN_SINGULARS)) {
+      text = text.replace(new RegExp(`\\b1 ((?:[a-z\\u2019'-]+ )?)${plural}\\b`, 'g'), `1 $1${singular}`)
+    }
   }
   return text
 }

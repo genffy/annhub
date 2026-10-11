@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/icon/32.png" />
+    <!-- WXT builds the options_ui entry from this file; the flag lives here, not
+         in wxt.config.ts, whose options_ui block never reached the built manifest
+         (真机走查 P2-9：chrome://extensions 的小对话框里挤进了整个资料库) -->
+    <meta name="manifest.open_in_tab" content="true" />
     <meta http-equiv="refresh" content="0; url=../library.html#/settings" />
     <title>AnnHub Settings</title>
     <script>

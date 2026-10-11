@@ -82,7 +82,7 @@ export function ClipToast({ ui, progress = 62, state = 'clipped', className = ''
   )
 }
 
-/** The small bubble from the toast's "Edit": title, tags, note. Nothing else is asked at save time. */
+/** The small bubble from the toast's "Edit": title, tags, note — exactly the fields the product asks for (真机走查 P2-10). */
 export function QuickEdit({ ui, data, className = '' }: { ui: ProductUi; data: { title: string; tags: string[]; note: string }; className?: string }) {
   return (
     <span className={`ah ah-pop static ${className}`} style={{ width: 322 }}>
@@ -91,9 +91,6 @@ export function QuickEdit({ ui, data, className = '' }: { ui: ProductUi; data: {
           <Ic icon={Bookmark} />
           {ui.toast.clipped}
           <span className="ah-grow" />
-          <span className="ah-muted" style={{ fontSize: 11, fontWeight: 400 }}>
-            {ui.edit.autosave}
-          </span>
         </span>
         <span className="ah-field">
           <span className="ah-label">{ui.edit.title}</span>

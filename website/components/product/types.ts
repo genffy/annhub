@@ -54,7 +54,7 @@ export interface ProductUi {
   types: { clip: string; screenshot: string; highlight: string }
   menu: { clip: string; screenshot: string; clipHint: string; screenshotHint: string }
   toast: { clipped: string; undo: string; edit: string; undone: string }
-  edit: { title: string; tags: string; note: string; more: string; done: string; addTag: string; autosave: string }
+  edit: { title: string; tags: string; note: string; more: string; done: string; addTag: string }
   block: { clip: string; shot: string; parent: string; more: string; clipped: string }
   shot: {
     hint: string
@@ -136,20 +136,10 @@ export interface ProductUi {
   }
   colors: Record<HighlightColor, string>
   export: {
-    title: string
-    ready: string
-    includes: string
-    includesBody: string
-    excludes: string
-    excludesBody: string
-    cancel: string
-    action: string
-    progress: string
-    writing: string
+    running: string
     done: string
-    doneBody: string
-    note: string
-    ok: string
+    summary: string
+    file: string
   }
   file: { folder: string }
 }

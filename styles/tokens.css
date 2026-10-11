@@ -12,6 +12,7 @@
   --ann-text: #1a1d24;
   --ann-muted: #636977;
   --ann-accent: #673ab8;
+  --ann-accent-text: #673ab8;
   --ann-accent-contrast: #ffffff;
   --ann-accent-soft: #efe9fa;
   --ann-danger: #c6373c;
@@ -28,7 +29,11 @@
     --ann-border: #3d414c;
     --ann-text: #ececf1;
     --ann-muted: #a3a8b6;
-    --ann-accent: #8a63d2;
+    /* fill and text split like the design's --brand / --brand-text (真机走查
+       P2-8)：#7a55d2 fill keeps white text at 5.19:1, #b9a3f2 as text reads
+       8.10:1 on the dark page — one #8a63d2 for both sat under 4.5:1. */
+    --ann-accent: #7a55d1;
+    --ann-accent-text: #b9a3f2;
     --ann-accent-contrast: #ffffff;
     --ann-accent-soft: #332a4a;
     --ann-danger: #ff8a8e;

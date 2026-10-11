@@ -83,8 +83,16 @@
 
 [data-ann-ui='clip-toast'] {
   position: fixed;
-  right: 20px;
+  /* bottom-center: the corners belong to the page's own floating buttons
+     (X's Chat sat under the old bottom-right toast for its whole 3 s —
+     真机走查 P3-11). Centered with auto margins so the fade-in's transform
+     does not fight a translateX. */
+  left: 0;
+  right: 0;
   bottom: 24px;
+  margin: 0 auto;
+  width: max-content;
+  max-width: calc(100vw - 24px);
   z-index: 2147483646;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   animation: ann-fade-in 0.14s ease-out;

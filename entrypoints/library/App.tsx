@@ -398,6 +398,20 @@ export default function App() {
     void refreshCounts()
   }, [refreshCounts])
 
+  // A clip or screenshot saved from a page tab while this library tab is open:
+  // the background broadcasts the mutation, the list refreshes itself instead
+  // of waiting for a reload (真机走查 P3-12).
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null
+    try {
+      channel = new BroadcastChannel('annhub.entries')
+      channel.onmessage = () => reload()
+    } catch {
+      /* without the channel the page keeps its manual reload behaviour */
+    }
+    return () => channel?.close()
+  }, [reload])
+
   useEffect(() => {
     void refreshCounts()
     void MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'LIST_PROPERTIES' }).then(response => {
@@ -507,7 +521,7 @@ export default function App() {
 
   return (
     <div className={`shell${rail ? ' is-rail' : ''}`}>
-      <nav className="side" aria-label={uiText('library.openLibrary')}>
+      <nav className="side" aria-label={uiText('library.name')}>
         <div className="nav-top">
           <div className="brand">AnnHub</div>
           <button
@@ -785,6 +799,7 @@ export default function App() {
                         key={row.highlight.id}
                         type="button"
                         className={`hl-row hl-row-${row.highlight.color}`}
+                        aria-label={`${uiText('reading.highlightLabel', { color: uiText(`library.color.${row.highlight.color}` as 'library.color.yellow') })}：${row.highlight.quote}`}
                         onClick={() => {
                           returnHashRef.current = location.hash
                           location.hash = readHashFor(group.clip.id, row.highlight.id)
@@ -935,7 +950,7 @@ function ScreenshotTile({ entry, onOpen, onChanged }: { entry: EntryRecord; onOp
   }
   return (
     <li className="screenshot-tile" data-entry-id={entry.id}>
-      <button type="button" className="screenshot-tile-open" onClick={onOpen} aria-label={title}>
+      <button type="button" className="screenshot-tile-open" onClick={onOpen} aria-label={entry.sourceHost ? `${title} · ${entry.sourceHost}` : title}>
         {url ? (
           <img src={url} alt="" loading="lazy" />
         ) : (

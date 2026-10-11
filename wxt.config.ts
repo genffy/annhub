@@ -30,10 +30,9 @@ export default defineConfig({
       default_title: '__MSG_extName__',
       default_popup: 'popup/index.html',
     },
-    options_ui: {
-      page: 'options/index.html',
-      open_in_tab: true,
-    },
+    // `options_ui` is generated from entrypoints/options/index.html (the
+    // open-in-tab flag is a meta tag there); a block here never reached the
+    // built manifest (真机走查 P2-9).
 
     commands: {
       [ANN_SCREENSHOT_COMMAND]: {

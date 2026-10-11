@@ -63,3 +63,18 @@ describe('ui text localization (extension.md §2.7)', () => {
     expect(screenshotSaveErrorText('storage quota would be exceeded')).toBe(uiText('shot.error.saveFailed'))
   })
 })
+
+describe('English plural agreement (真机走查 P3-2)', () => {
+  it('uses the singular after 1 and the plural otherwise', () => {
+    expect(uiText('library.count', { count: 1 }, 'en')).toBe('1 entry')
+    expect(uiText('library.count', { count: 21 }, 'en')).toBe('21 entries')
+    expect(uiText('library.highlightsCount', { count: 1 }, 'en')).toBe('1 highlight')
+    expect(uiText('library.highlightsCount', { count: 2 }, 'en')).toBe('2 highlights')
+    expect(uiText('library.exportSummary', { clips: 1, screenshots: 2, missing: 1 }, 'en')).toBe('1 clip, 2 screenshots; 1 missing image')
+    expect(uiText('library.deleteWithHighlights', { count: 1 }, 'en')).toContain('1 highlight will be deleted')
+  })
+
+  it('leaves Chinese untouched', () => {
+    expect(uiText('library.count', { count: 1 }, 'zh')).toBe('共 1 条')
+  })
+})

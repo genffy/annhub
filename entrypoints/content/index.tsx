@@ -58,9 +58,14 @@ function wireSelectionMenu(): void {
     ...(isTopFrame()
       ? {
           onScreenshot: () => {
+            // The selection itself becomes the pending frame: Enter confirms,
+            // arrows nudge, Esc cancels — the keyboard is never a dead end
+            // (真机走查 P2-5).
+            const rect = lastRange?.getBoundingClientRect()
             selectionMenu?.dismiss()
             document.getSelection()?.removeAllRanges()
-            enterScreenshotMode({ via: 'menu' })
+            const initial = rect && rect.width >= 4 && rect.height >= 4 ? { x: rect.left, y: rect.top, width: rect.width, height: rect.height } : undefined
+            enterScreenshotMode({ via: 'menu', ...(initial ? { initialRect: initial } : {}) })
           },
         }
       : {}),

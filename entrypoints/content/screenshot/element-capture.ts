@@ -16,11 +16,18 @@ export interface ElementCaptureOptions {
   anonymize?: boolean
 }
 
+/** Alpha must be 1 for the color to work as the capture's own background. */
+function isOpaqueColor(color: string): boolean {
+  const m = color.match(/^rgba?\(\s*[\d.]+\s*,\s*[\d.]+\s*,\s*[\d.]+\s*(?:,\s*([\d.]+)\s*)?\)$/)
+  if (!m) return false
+  return m[1] === undefined || parseFloat(m[1]) >= 1
+}
+
 function opaqueBackground(el: HTMLElement): string {
   let current: HTMLElement | null = el
   while (current) {
     const color = getComputedStyle(current).backgroundColor
-    if (color && color !== 'transparent' && color !== 'rgba(0, 0, 0, 0)') return color
+    if (color && color !== 'transparent' && color !== 'rgba(0, 0, 0, 0)' && isOpaqueColor(color)) return color
     current = current.parentElement
   }
   return 'rgb(255, 255, 255)'
@@ -77,12 +84,17 @@ export async function captureElement(element: HTMLElement, options: ElementCaptu
     await inlineImages(surface)
     await doc.fonts?.ready.catch(() => undefined)
 
+    // The surface lives offscreen, but html-to-image copies the root's computed
+    // style (position/left) into the SVG, which would paint the content 10000px
+    // outside the canvas. Override the root back to the canvas origin for the
+    // rasterization only (真机走查 P1-2：元素截图全空白的原因).
+    const rootStyle = { position: 'static', left: '0px', top: '0px' }
     try {
-      return await toCanvas(surface, { backgroundColor: background, pixelRatio: 2 })
+      return await toCanvas(surface, { backgroundColor: background, pixelRatio: 2, style: rootStyle })
     } catch {
       // Font embedding is the usual failure (cross-origin stylesheets);
       // retry without it — system fallback fonts still render.
-      return await toCanvas(surface, { backgroundColor: background, pixelRatio: 2, skipFonts: true })
+      return await toCanvas(surface, { backgroundColor: background, pixelRatio: 2, style: rootStyle, skipFonts: true })
     }
   } finally {
     surface.remove()

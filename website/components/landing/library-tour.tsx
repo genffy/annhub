@@ -15,7 +15,7 @@ import { Ic, plural } from '../product/parts'
 import { getSample } from '../product/sample'
 import type { Entry, HighlightColor, ProductUi } from '../product/types'
 
-type Dialog = null | 'ready' | 'progress' | 'full'
+type ExportState = null | 'exporting' | 'done'
 type Bar = { kind: 'create'; start: number; end: number; left: number; top: number } | { kind: 'edit'; id: string; left: number; top: number }
 
 const ROUTE: Record<LibraryView, string> = { all: 'all', clip: 'clips', highlight: 'highlights', screenshot: 'screenshots', properties: 'properties' }
@@ -29,112 +29,19 @@ function matches(entry: Entry, query: string): boolean {
   return haystack.includes(q)
 }
 
-function ExportDialog({
-  ui,
-  state,
-  totals,
-  onStart,
-  onClose,
-}: {
-  ui: ProductUi
-  state: Exclude<Dialog, null>
-  totals: { entries: number; images: number }
-  onStart: () => void
-  onClose: () => void
-}) {
-  const t = ui.export
-  const done = Math.round((totals.entries + totals.images) * 0.63)
-  const box = useRef<HTMLDivElement>(null)
-
-  // The dialog is modal: focus moves into it (again whenever its content changes), Tab stays inside it.
-  useEffect(() => {
-    const primary = box.current?.querySelector<HTMLElement>('.ah-btn-primary')
-    ;(primary ?? box.current)?.focus()
-  }, [state])
-
-  const trapTab = (e: React.KeyboardEvent) => {
-    if (e.key !== 'Tab' || !box.current) return
-    const items = [...box.current.querySelectorAll<HTMLElement>('button:not([disabled])')]
-    if (!items.length) {
-      e.preventDefault()
-      box.current.focus()
-      return
-    }
-    const first = items[0]!
-    const last = items[items.length - 1]!
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
-
+function ExportNotice({ ui, state, totals }: { ui: ProductUi; state: 'exporting' | 'done'; totals: { clips: number; screenshots: number } }) {
+  // one click exports, the notice line is the whole flow — no dialog, like the product (真机走查 P2-10)
   return (
-    <div className="ah-dlg-back" role="presentation" onClick={onClose}>
-      <div ref={box} className="ah-dlg" role="dialog" aria-modal="true" aria-label={t.title} tabIndex={-1} onClick={e => e.stopPropagation()} onKeyDown={trapTab}>
-        <h4>{t.title}</h4>
-        {state === 'ready' ? (
+    <div className="ah-banner" role="status" style={{ margin: '0 0 12px' }}>
+      <Ic icon={state === 'done' ? CircleCheck : Download} />
+      <div>
+        {state === 'done' ? (
           <>
-            <p className="ah-help" style={{ margin: '6px 0 12px' }}>
-              {fill(t.ready, totals)}
-            </p>
-            <div className="mb-3.5 grid grid-cols-2 gap-4 text-[12.5px]">
-              <div>
-                <div className="mb-1 font-semibold">{t.includes}</div>
-                <div className="ah-muted leading-relaxed">{t.includesBody}</div>
-              </div>
-              <div>
-                <div className="mb-1 font-semibold">{t.excludes}</div>
-                <div className="ah-muted leading-relaxed">{t.excludesBody}</div>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button type="button" className="ah-btn ah-btn-ghost" onClick={onClose}>
-                {t.cancel}
-              </button>
-              <button type="button" className="ah-btn ah-btn-primary" onClick={onStart}>
-                <Ic icon={Download} />
-                <span>{t.action}</span>
-              </button>
-            </div>
+            <b>{ui.export.done}</b> · {fill(ui.export.summary, { clips: totals.clips, screenshots: totals.screenshots, missing: 0 })} · {ui.export.file}
           </>
-        ) : null}
-        {state === 'progress' ? (
-          <>
-            <p className="ah-help" style={{ margin: '6px 0 12px' }}>
-              {t.progress}
-            </p>
-            <div className="mb-1.5 flex justify-between text-[12.5px]">
-              <span>{t.writing}</span>
-              <span className="ah-tnum ah-b">
-                {done} / {totals.entries + totals.images}
-              </span>
-            </div>
-            <div className="ah-progress">
-              <i style={{ width: '63%' }} />
-            </div>
-          </>
-        ) : null}
-        {state === 'full' ? (
-          <>
-            <div className="ah-banner" style={{ marginTop: 10 }}>
-              <Ic icon={CircleCheck} />
-              <div>
-                <b>{t.done}</b>：{fill(t.doneBody, totals)}
-              </div>
-            </div>
-            <p className="ah-help" style={{ margin: '10px 0 12px' }}>
-              {t.note}
-            </p>
-            <div className="flex justify-end">
-              <button type="button" className="ah-btn ah-btn-primary" onClick={onClose}>
-                {t.ok}
-              </button>
-            </div>
-          </>
-        ) : null}
+        ) : (
+          ui.export.running
+        )}
       </div>
     </div>
   )
@@ -144,7 +51,7 @@ const LEGEND_ICONS = [PanelLeft, LinkIcon, Highlighter, Tags, Download]
 
 /**
  * The library as a working window: the navigation, search, the detail drawer, the reading view with highlights you can
- * create, recolour and delete, the property registry and the export dialog. State lives in memory only; a reload resets
+ * create, recolour and delete, the property registry and the one-click export notice. State lives in memory only; a reload resets
  * it, and nothing is stored or sent anywhere.
  */
 export default function LibraryTour({ copy }: { copy: LandingCopy }) {
@@ -158,9 +65,8 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
   const [tab, setTab] = useState<'highlights' | 'properties'>('highlights')
   const [activeHl, setActiveHl] = useState<string | null>(null)
   const [bar, setBar] = useState<Bar | null>(null)
-  const [dialog, setDialog] = useState<Dialog>(null)
+  const [exportState, setExportState] = useState<ExportState>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
-  const opener = useRef<HTMLElement | null>(null)
   const seq = useRef(0)
   const timers = useRef<number[]>([])
 
@@ -272,24 +178,14 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
   }
 
   const openExport = () => {
-    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    setDialog('ready')
-  }
-
-  const closeExport = () => {
-    setDialog(null)
-    opener.current?.focus()
-  }
-
-  const startExport = () => {
-    setDialog('progress')
-    timers.current.push(window.setTimeout(() => setDialog('full'), 1300))
+    setExportState('exporting')
+    timers.current.push(window.setTimeout(() => setExportState('done'), 900))
+    timers.current.push(window.setTimeout(() => setExportState(null), 4600))
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'Escape') return
-    if (dialog) closeExport()
-    else if (bar) clearBar()
+    if (bar) clearBar()
     else if (opened) setOpenId(null)
     else if (reading) setReadId(null)
   }
@@ -361,12 +257,12 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
     </>
   )
 
-  const activeLegend = dialog ? 4 : view === 'properties' ? 3 : view === 'highlight' ? 2 : opened ? 1 : 0
+  const activeLegend = exportState ? 4 : view === 'properties' ? 3 : view === 'highlight' ? 2 : opened ? 1 : 0
   const applyLegend = (i: number) => {
     setReadId(null)
     clearBar()
     setQuery('')
-    setDialog(null)
+    setExportState(null)
     setOpenId(i === 1 ? 'storm' : null)
     setView(i === 2 ? 'highlight' : i === 3 ? 'properties' : 'all')
     if (i === 4) openExport()
@@ -408,8 +304,8 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
               ) : null
             }
           >
+            {exportState ? <ExportNotice ui={ui} state={exportState} totals={{ clips: counts.clip, screenshots: counts.screenshot }} /> : null}
             {content}
-            {dialog ? <ExportDialog ui={ui} state={dialog} totals={{ entries: counts.all, images: counts.screenshot }} onStart={startExport} onClose={closeExport} /> : null}
           </AppShell>
         </BrowserFrame>
       </div>
