@@ -21,7 +21,7 @@
 
 .type-clip {
   background: var(--ann-accent-soft);
-  color: var(--ann-accent);
+  color: var(--ann-accent-text);
 }
 
 .type-screenshot {

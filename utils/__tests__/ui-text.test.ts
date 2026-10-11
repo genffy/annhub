@@ -21,6 +21,10 @@ describe('ui text localization (extension.md §2.7)', () => {
     expect(uiText('library.count', { count: 3 }, 'en')).toBe('3 entries')
   })
 
+  it('names a highlight with each language’s own punctuation (真机走查 P2-7)', () => {
+    expect(uiText('reading.highlightLabel', { color: '黄色', text: '原文' }, 'zh')).toBe('高亮，黄色：原文')
+    expect(uiText('reading.highlightLabel', { color: 'Yellow', text: 'the words' }, 'en')).toBe('Highlight, Yellow: the words')
+  })
 
   it('answers unknown keys with the key itself rather than crashing', () => {
     expect(uiText('nosuch.key' as never)).toBe('nosuch.key')

@@ -60,19 +60,19 @@ test.describe('searching and filtering in the library', () => {
 
     const library = await context.newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
-    await expect(library.locator('.row')).toHaveCount(2)
+    await expect(library.locator('.entry-card')).toHaveCount(2)
     expect(await metricsOf(context, 'library.queried')).toEqual({}) // opening the page is not a query
 
     await library.locator('.search').pressSequentially('jitter', { delay: 30 })
-    await expect(library.locator('.row')).toHaveCount(1)
+    await expect(library.locator('.entry-card')).toHaveCount(1)
     expect(await worker.evaluate(() => (globalThis as unknown as { __searches?: number }).__searches)).toBe(1)
     await expect.poll(() => metricsOf(context, 'library.queried')).toEqual({ 'filters=0|has_text=true|results=1-2': 1 })
 
     // a source filter is one filter, and the words typed before it are no longer a "query" of their own
     await library.locator('.search').fill('')
-    await expect(library.locator('.row')).toHaveCount(2)
+    await expect(library.locator('.entry-card')).toHaveCount(2)
     await library.locator('select[aria-label*="来源"]').selectOption('ent_one.example.com')
-    await expect(library.locator('.row')).toHaveCount(1)
+    await expect(library.locator('.entry-card')).toHaveCount(1)
     await expect.poll(async () => (await metricsOf(context, 'library.queried'))['filters=1-2|has_text=false|results=1-2']).toBe(1)
     await library.close()
   })
@@ -92,25 +92,25 @@ test.describe('searching and filtering in the library', () => {
 
     const library = await context.newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
-    await expect(library.locator('.row')).toHaveCount(3)
+    await expect(library.locator('.entry-card')).toHaveCount(3)
     const type = library.getByRole('combobox', { name: '类型', exact: true })
     await expect(type.locator('option')).toHaveText(['类型: —', '剪藏', '截图'])
     expect(await metricsOf(context, 'library.queried')).toEqual({}) // opening the page is not a query
 
     await type.selectOption('clip')
-    await expect(library.locator('.row')).toHaveCount(2)
-    await expect(library.locator('.row[data-type="screenshot"]')).toHaveCount(0)
+    await expect(library.locator('.entry-card')).toHaveCount(2)
+    await expect(library.locator('.entry-card[data-type="screenshot"]')).toHaveCount(0)
     await expect(library.getByTestId('list-count')).toHaveText('共 2 条')
     expect(library.url()).toContain('type=clip')
     await expect.poll(() => metricsOf(context, 'library.queried')).toEqual({ 'filters=1-2|has_text=false|results=1-2': 1 }) // the type is one filter
 
     await type.selectOption('screenshot')
-    await expect(library.locator('.row')).toHaveCount(1)
-    await expect(library.locator('.row[data-type="screenshot"]')).toHaveCount(1)
+    await expect(library.locator('.entry-card')).toHaveCount(1)
+    await expect(library.locator('.entry-card[data-type="screenshot"]')).toHaveCount(1)
 
     await library.reload()
     await expect(type).toHaveValue('screenshot')
-    await expect(library.locator('.row')).toHaveCount(1)
+    await expect(library.locator('.entry-card')).toHaveCount(1)
 
     // the other views are one type already: no type filter there, and the nav does not carry the choice over
     for (const view of ['clips', 'screenshots', 'highlights']) {
@@ -121,7 +121,7 @@ test.describe('searching and filtering in the library', () => {
     }
     await library.getByRole('link', { name: '全部', exact: true }).click()
     await expect(type).toHaveValue('')
-    await expect(library.locator('.row')).toHaveCount(3)
+    await expect(library.locator('.entry-card')).toHaveCount(3)
 
     // with the only screenshot gone, the filter has nothing to show: that reads as "no results" and offers the way out
     await sendMessage(page, { type: 'DELETE_ENTRY', id: 'ent_type_shot' })
@@ -130,7 +130,7 @@ test.describe('searching and filtering in the library', () => {
     await expect(library.locator('.empty')).toContainText('没有匹配的结果')
     await library.locator('.empty').getByRole('button', { name: '清除筛选' }).click()
     await expect(type).toHaveValue('')
-    await expect(library.locator('.row')).toHaveCount(2)
+    await expect(library.locator('.entry-card')).toHaveCount(2)
     await library.close()
   })
 
@@ -174,7 +174,7 @@ test.describe('searching and filtering in the library', () => {
 
     const library = await context.newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     const row = library.locator('.drawer .prop-row', { has: library.locator('.prop-name', { hasText: 'reviewers' }) })
     await row.locator('input[type="text"]').fill('grace')
     await row.locator('input[type="text"]').press('Enter')

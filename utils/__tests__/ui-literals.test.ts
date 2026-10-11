@@ -16,6 +16,8 @@ const root = resolve(__dirname, '../..')
 const SAME_EVERYWHERE = new Set(['AnnHub', 'PNG', 'JPEG', 'WebP', 'A', 'B'])
 const USER_FACING_ATTRIBUTES = new Set(['aria-label', 'title', 'placeholder', 'alt', 'aria-description'])
 const CJK = /[㐀-鿿]/
+/** Chinese punctuation: in text put together around values it is display text (“Highlight, Yellow：…”, 真机走查 P2-7). */
+const CJK_PUNCTUATION = /[\u3000-\u303f\uff00-\uffef]/
 
 function sourceFiles(dir: string, extensions: RegExp): string[] {
   return readdirSync(dir).flatMap(name => {
@@ -39,8 +41,11 @@ export function literalOffences(source: string, fileName = 'file.tsx'): string[]
       const text = node.initializer.text
       if (/\p{L}/u.test(text) && !SAME_EVERYWHERE.has(text)) offences.push(`${at(node)}: ${node.name.getText(file)}="${text}"`)
     }
-    if ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node)) && CJK.test(node.text)) {
-      offences.push(`${at(node)}: Chinese in a string "${node.text.slice(0, 24)}"`)
+    const templatePiece = ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || templatePiece) {
+      // a piece of text joined to values, in a template or with `+`, is read as one line: its punctuation too
+      const joined = templatePiece || (ts.isBinaryExpression(node.parent) && node.parent.operatorToken.kind === ts.SyntaxKind.PlusToken)
+      if (CJK.test(node.text) || (joined && CJK_PUNCTUATION.test(node.text))) offences.push(`${at(node)}: Chinese in a string "${node.text.slice(0, 24)}"`)
     }
     ts.forEachChild(node, visit)
   }
@@ -54,6 +59,10 @@ describe('the detector', () => {
     expect(literalOffences('const a = <button aria-label="Close" />')).toHaveLength(1)
     expect(literalOffences("const a = '保存'", 'a.ts')).toHaveLength(1)
     expect(literalOffences('const a = <p title={`你好`}>{x}</p>')).toHaveLength(1)
+    // Chinese punctuation that joins values into one line, anywhere in a template or around `+`
+    expect(literalOffences('const a = <p aria-label={`${label}：${text}`} />')).toHaveLength(1)
+    expect(literalOffences('const a = `${count} 条`', 'a.ts')).toHaveLength(1)
+    expect(literalOffences("const a = label + '：' + text", 'a.ts')).toHaveLength(1)
   })
 
   it('lets through localized text, symbols, brand and format names, and code in attributes', () => {
@@ -62,6 +71,8 @@ describe('the detector', () => {
     expect(literalOffences('const a = <div className="nav-item" data-testid="list-count">AnnHub</div>')).toHaveLength(0)
     expect(literalOffences('const a = <option value="png">PNG</option>')).toHaveLength(0)
     expect(literalOffences("const a: Array<string> = []; if (b > c && d < e) f('plain English in code')", 'a.ts')).toHaveLength(0)
+    // punctuation that code looks for in the page's text is not display text
+    expect(literalOffences("const a = text.lastIndexOf('。') + text.split(/[,，]/).length", 'a.ts')).toHaveLength(0)
   })
 })
 

@@ -50,11 +50,19 @@ const paNavHtml = () => {
     <div class="nav-label">资料库</div>${NAV.map(item).join('')}<div class="nav-label">管理</div>${NAV2.map(item).join('')}${foot}</nav>`
 }
 
-const paRow = e => `<div class="erow pa-click ${PA.sel === e.id ? 'sel' : ''}" data-id="${e.id}">
-  ${ttile(e.type)}
-  <div style="min-width:0"><div class="tx clamp-2 ${e.type === 'screenshot' ? 'b' : ''}">${esc(e.type === 'screenshot' ? e.title : mdPlain(e.content))}</div>
-    <div class="meta">${tchip(e.type, { sm: true })}${e.type !== 'screenshot' ? `<span class="ttl truncate">${esc(e.title)}</span>` : ''}<span>${e.host}</span><span>·</span><span>${e.when}</span>${e.tags.map(t => `<span class="tag pa-click" data-tag="${esc(t)}">#${esc(t)}</span>`).join('')}${e.props.project != null && e.props.project !== '' ? `<span class="ppill pa-click" data-project="${esc(e.props.project)}">${I('text')}<span>project</span><b>${esc(e.props.project)}</b></span>` : ''}${e.props.reviewed === true ? `<span class="ppill">${I('square-check')}<span>reviewed</span></span>` : ''}${e.props.priority != null && e.props.priority !== '' ? `<span class="ppill">${I('hash')}<span>priority</span><b>${esc(e.props.priority)}</b></span>` : ''}${hlCount(e)}</div></div>
-  <div class="side">${e.type === 'screenshot' ? thumb(e.img) : ''}</div></div>`
+// 条目卡片（与 entryCard 同构）：点卡片打开抽屉；标签与 project 小标签点一下就按它筛选
+const paCardTags = e => {
+  const out = [
+    ...e.tags.map(t => `<span class="tag pa-click" data-tag="${esc(t)}">#${esc(t)}</span>`),
+    e.props.project != null && e.props.project !== '' ? `<span class="ppill pa-click" data-project="${esc(e.props.project)}">${I('text')}<span>project</span><b>${esc(e.props.project)}</b></span>` : '',
+    e.props.reviewed === true ? `<span class="ppill">${I('square-check')}<span>reviewed</span></span>` : '',
+    e.props.priority != null && e.props.priority !== '' ? `<span class="ppill">${I('hash')}<span>priority</span><b>${esc(e.props.priority)}</b></span>` : '',
+  ].join('')
+  return out ? `<div class="hs g4 wrap">${out}</div>` : ''
+}
+const paCard = e => `<div class="ecard pa-click ${PA.sel === e.id ? 'sel' : ''}" data-id="${e.id}">
+  <div class="ec-prev">${e.type === 'screenshot' ? imgSvg(e.img) : `<div class="ec-tx">${esc(mdPlain(e.content))}</div>`}</div>
+  <div class="ec-b"><div class="ec-ttl clamp-2">${esc(e.title)}</div>${paCardTags(e)}<div class="ec-meta">${tchip(e.type, { sm: true })}<span class="truncate">${e.host} · ${e.when}</span>${hlCount(e)}</div></div></div>`
 
 const paFilterBar = shown => {
   const typeChips = PA.view === 'all' ? TYPE_ORDER.map(t => `<span class="fchip pa-click ${PA.types.includes(t) ? 'on' : ''}" data-type="${t}">${I(TYPES[t].icon)}${TYPES[t].zh}</span>`).join('') : ''
@@ -75,9 +83,8 @@ const paListPage = () => {
   let body
   if (!total) body = `${onboarding()}${emptyState('library', '还没有条目', '选中网页中的一段文字，点“剪藏”；按 ⌘⇧S 框选一张截图。')}`
   else if (!shown.length) body = emptyState('search', '没有符合条件的条目', '当前搜索词与筛选条件下没有结果。筛选条件都还保留着，可以逐个移除。', btn('清除筛选', { v: 'primary', attrs: 'data-act="clear-all"' }))
-  else if (PA.view === 'screenshot') body = `<div class="gal">${shown.map(e => `<div class="pa-click" data-id="${e.id}">${galTile(e, { sel: PA.sel === e.id })}</div>`).join('')}</div>`
-  else body = `<div class="list">${shown.map(paRow).join('')}</div>`
-  return `${head}<div class="pbody ${PA.view === 'screenshot' ? '' : 'cap'}" style="overflow:auto">${paFilterBar(shown.length)}${body}</div>`
+  else body = `<div class="egrid">${shown.map(paCard).join('')}</div>`
+  return `${head}<div class="pbody" style="overflow:auto">${paFilterBar(shown.length)}${body}</div>`
 }
 
 // “高亮”视图：以高亮为单位，按所属剪藏分组（extension.md §2.3）
@@ -91,7 +98,7 @@ const paHlPage = () => {
     ? emptyState('highlighter', '还没有高亮', '在资料库里打开一条剪藏，点“阅读”，选中原文里的一段，点一个颜色。')
     : !rows.length
       ? emptyState('search', '没有符合条件的高亮', '当前搜索词与筛选条件下没有结果。筛选条件都还保留着，可以逐个移除。', btn('清除筛选', { v: 'primary', attrs: 'data-act="clear-all"' }))
-      : ordered
+      : `<div class="hgs">${ordered
           .map(
             ({ e, hs }, gi) => `<div class="hg"><div class="hg-h">${favicon(gi)}<span class="ttl truncate">${esc(e.title)}</span><span class="host">${e.host}</span><span class="grow"></span><span class="chip">${hs.length} 条</span><span class="link t-sm hs g4 pa-click" data-act="src">回到来源${I('arrow-up-right', 'i-sm')}</span></div>
           ${[...hs]
@@ -101,8 +108,8 @@ const paHlPage = () => {
             )
             .join('')}</div>`,
           )
-          .join('')
-  return `${head}<div class="pbody cap" style="overflow:auto">${paFilterBar(rows.length)}${body}</div>`
+          .join('')}</div>`
+  return `${head}<div class="pbody" style="overflow:auto">${paFilterBar(rows.length)}${body}</div>`
 }
 
 // ── 属性：编辑器 ─────────────────────────────────────────────────────────
@@ -282,7 +289,7 @@ function paRender(root) {
   })
   PA.lastKeys = now
   // 键盘可达：行、芯片、图标按钮都能 Tab 到，Enter / 空格触发；fid 让重绘之后焦点回到原处
-  app.querySelectorAll('.nav .pa-click, .phead .pa-click, .fbar .pa-click, .erow, .hr, .gal > .pa-click, .drawer .pa-click, .rd-rail .pa-click, .rd-bar .pa-click, .ptab .pa-click, [data-dlg] .pa-click').forEach(el => {
+  app.querySelectorAll('.nav .pa-click, .phead .pa-click, .fbar .pa-click, .ecard, .hr, .drawer .pa-click, .rd-rail .pa-click, .rd-bar .pa-click, .ptab .pa-click, [data-dlg] .pa-click').forEach(el => {
     if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0')
     if (!el.hasAttribute('role')) el.setAttribute('role', 'button')
     if (!el.dataset.fid) el.dataset.fid = ['k', el.dataset.act, el.dataset.prop, el.dataset.v, el.dataset.id, el.dataset.hl, el.dataset.type, el.dataset.color].filter(Boolean).join(':')
@@ -817,7 +824,7 @@ function extProtoGroup() {
     id: 'proto-app',
     body: browser('<div class="pa-root" style="height:100%;position:relative"></div>', { h: 860, title: '全部 · AnnHub', url: 'chrome-extension://annhub/app.html#/all' }),
     notes: [
-      '<b>读与划（核心）</b>：点一条剪藏（例如“Retries and backpressure”那条整节）→ 抽屉里点“阅读”，或直接在抽屉的原文里：<b>选中一段文字</b>，选区旁出现五个颜色点，点一个就创建高亮；<kbd>H</kbd> 以默认颜色创建；点已有高亮改色、写备注、删除（可撤销）；选区跨过已有高亮会合并。左边导航里的“高亮”按剪藏分组列出所有高亮，点一行回到阅读视图的原位置。',
+      '<b>读与划（核心）</b>：点一条剪藏（例如“Retries and backpressure”那条整节）→ 抽屉里点“阅读”，或直接在抽屉的原文里：<b>选中一段文字</b>，选区旁出现五个颜色点，点一个就创建高亮；<kbd>H</kbd> 以默认颜色创建；点已有高亮改色、写备注、删除（可撤销）；选区跨过已有高亮会合并。左边导航里的“高亮”按剪藏分组列出所有高亮，点一条高亮回到阅读视图的原位置。',
       '<b>规则是真的</b>：有高亮的剪藏原文只读（抽屉里写着）；删除有高亮的剪藏会先提示高亮数；颜色在设置里选默认色。高亮不会出现在上面的“网页”里。',
       '<b>属性与壳</b>：点左侧导航切换视图、折叠成图标栏；在搜索框里输入；点标签或 <code>project</code> 小标签筛选；在抽屉或阅读视图的“属性”标签里添加属性——输入 <code>pro</code> 补全已有的 project，输入 <code>owner</code> 会让你选类型再创建，输入 <code>source</code> 或 <code>Project</code> 被就地拒绝；属性页的使用数实时变化，使用中的不能删。',
     ],

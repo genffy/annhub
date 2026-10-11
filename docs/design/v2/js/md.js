@@ -127,7 +127,7 @@ const mdSel = (src, quote) => {
   return s < 0 ? null : { s, e: s + quote.length }
 }
 
-// Markdown 去掉语法后的纯文本：列表行摘要、搜索用（search.md §1）
+// Markdown 去掉语法后的纯文本：卡片的正文预览、搜索用（search.md §1）
 const mdPlain = s =>
   String(s)
     .replace(/^```\S*\s*$/gm, '')

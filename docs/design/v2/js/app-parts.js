@@ -14,7 +14,6 @@ const tableSvg = () => `<svg viewBox="0 0 168 112" preserveAspectRatio="xMidYMid
 const barsSvg = () => `<svg viewBox="0 0 168 112" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><rect width="168" height="112" fill="#fff"/><path d="M12 92H156" stroke="#d6d9e2"/><g fill="#7c8be0"><rect x="22" y="62" width="16" height="30"/><rect x="48" y="48" width="16" height="44"/><rect x="74" y="30" width="16" height="62"/><rect x="100" y="52" width="16" height="40"/><rect x="126" y="70" width="16" height="22"/></g><text x="14" y="16" font-size="8" fill="#6b7280" font-family="sans-serif">error rate by hour</text></svg>`
 
 const imgSvg = k => ({ chart: chartSvg, diagram: diagramSvg, table: tableSvg, bars: barsSvg }[k] || chartSvg)()
-const thumb = (k, o = {}) => `<div class="thumb" style="${o.style || ''}">${imgSvg(k)}</div>`
 
 // ── 导航与壳 ────────────────────────────────────────────────────────────
 const NAV = [
@@ -94,23 +93,21 @@ const propPills = e => {
   return out.join('')
 }
 
-// 有高亮的剪藏在行里显示高亮数
+// 有高亮的剪藏在卡片的最后一行显示高亮数
 const hlCount = e => (e.hls && e.hls.length ? `<span class="hlc">${I('highlighter', 'i-sm')}${e.hls.length} 高亮</span>` : '')
 
-// o: { sel, hov, pin }
-const entryRow = (e, o = {}) => `<div class="erow ${o.sel ? 'sel' : ''} ${o.hov ? 'hov' : ''}">
-  ${o.pin ? pin(o.pin, 'pin-in-r') : ''}
-  ${ttile(e.type)}
-  <div style="min-width:0">
-    <div class="tx clamp-2 ${e.type === 'screenshot' ? 'b' : ''}">${esc(e.type === 'screenshot' ? e.title : mdPlain(e.content))}</div>
-    <div class="meta">${tchip(e.type, { sm: true })}${e.type !== 'screenshot' ? `<span class="ttl truncate">${esc(e.title)}</span>` : ''}<span>${e.host}</span><span>·</span><span>${e.when}</span>${tags(e.tags)}${propPills(e)}${hlCount(e)}</div>
-  </div>
-  <div class="side">${e.type === 'screenshot' ? thumb(e.img) : ''}<span class="acts">${btn('', { icon: 'arrow-up-right', iconOnly: true, sm: true, v: 'ghost' })}${btn('', { icon: 'trash', iconOnly: true, sm: true, v: 'ghost' })}</span></div>
+// 条目卡片：全部、剪藏、截图共用一种（extension.md §2.3）。上部是预览——剪藏是正文的前几行，截图是缩略图，每张卡片一样高；
+// 下部是标题（最多两行）与标签，最后一行是类型、来源主机与相对时间。o: { sel, hov, pin, act }，act 是截图视图悬停出现的下载与删除
+const entryCard = (e, o = {}) => `<div class="ecard ${o.sel ? 'sel' : ''} ${o.hov ? 'hov' : ''}">
+  ${o.pin ? pin(o.pin, 'pin-in') : ''}
+  <div class="ec-prev">${e.type === 'screenshot' ? imgSvg(e.img) : `<div class="ec-tx">${esc(mdPlain(e.content))}</div>`}${o.act ? `<div class="ec-act">${btn('', { icon: 'download', iconOnly: true, sm: true })}${btn('', { icon: 'trash', iconOnly: true, sm: true })}</div>` : ''}</div>
+  <div class="ec-b"><div class="ec-ttl clamp-2">${esc(e.title)}</div>${e.tags.length || propPills(e) ? `<div class="hs g4 wrap">${tags(e.tags)}${propPills(e)}</div>` : ''}<div class="ec-meta">${tchip(e.type, { sm: true })}<span class="truncate">${e.host} · ${e.when}</span>${hlCount(e)}</div></div>
 </div>`
 
-const entryList = (ids, o = {}) => `<div class="list">${ids.map(id => entryRow(ENTRIES0.find(e => e.id === id), { sel: o.sel === id, hov: o.hov === id, pin: o.pinId === id ? o.pinN : 0 })).join('')}</div>`
+// 卡片网格铺满内容区，列数随宽度增减
+const entryList = (ids, o = {}) => `<div class="egrid">${ids.map(id => entryCard(ENTRIES0.find(e => e.id === id), { sel: o.sel === id, hov: o.hov === id, pin: o.pinId === id ? o.pinN : 0, act: o.act === id })).join('')}</div>`
 
-// 高亮视图：以高亮为单位，按所属剪藏分组（extension.md §2.3）。id 是剪藏的 id
+// 高亮视图：以高亮为单位，按所属剪藏分组，每组一张卡片，放进 .hgs 沿列排开（extension.md §2.3）。id 是剪藏的 id
 const hlGroup = (id, o = {}) => {
   const e = ENTRIES0.find(x => x.id === id)
   return `<div class="hg" style="position:relative">
@@ -125,12 +122,6 @@ const hlGroup = (id, o = {}) => {
       .join('')}
   </div>`
 }
-
-// 截图视图：画廊
-const galTile = (e, o = {}) => `<div class="gt ${o.sel ? 'sel' : ''}">${o.pin ? pin(o.pin, 'pin-in') : ''}
-  <div class="gt-img">${imgSvg(e.img)}${o.act ? `<div class="gt-act">${btn('', { icon: 'download', iconOnly: true, sm: true })}${btn('', { icon: 'trash', iconOnly: true, sm: true })}</div>` : ''}</div>
-  <div class="gt-b"><div class="b t-md clamp-1">${esc(e.title)}</div><div class="t-xs muted">${e.host} · ${e.when}</div>${e.tags.length || propPills(e) ? `<div class="hs g4 wrap" style="margin-top:4px">${tags(e.tags)}${propPills(e)}</div>` : ''}</div>
-</div>`
 
 // ── 属性：值的呈现、行、添加 ─────────────────────────────────────────────
 const pval = (type, v) => {

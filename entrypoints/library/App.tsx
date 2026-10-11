@@ -222,6 +222,10 @@ export default function App() {
   /** A page of the list is on its way: a second click on 显示更多 would ask for the same page again and add it twice. */
   const loadingMoreRef = useRef(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  /** The card the keyboard goes on from once 显示更多 has added its page (D-28): set by `loadMore` only, so a reload or a filter never moves the focus. */
+  const focusAfterLoadRef = useRef<string | null>(null)
+  const loadMoreButtonRef = useRef<HTMLButtonElement>(null)
+  const entryGridRef = useRef<HTMLUListElement>(null)
   const loadedCountRef = useRef(PAGE_SIZE)
   const lastListQueryKeyRef = useRef<string | null>(null)
   const listQueryKey = route.readId ? listHash({ ...readHash(returnHashRef.current ?? '#/clips'), entryId: null }) : listHash({ ...route, entryId: null })
@@ -371,15 +375,29 @@ export default function App() {
         query: { ...queryFor(route), limit: PAGE_SIZE, cursor: nextCursor },
       })
       if (seq !== querySeq.current || !response.success) return
-      setItems(prev => [...prev, ...response.data!.result.items])
-      loadedCountRef.current += response.data!.result.items.length
+      const page = response.data!.result.items
+      // an empty page (its entries deleted meanwhile) still takes the button away: the keyboard stays on the last card
+      focusAfterLoadRef.current = (page[0] ?? items[items.length - 1])?.id ?? null
+      setItems(prev => [...prev, ...page])
+      loadedCountRef.current += page.length
       setTotal(response.data!.result.total)
       setNextCursor(response.data!.result.nextCursor ?? null)
     } finally {
       loadingMoreRef.current = false
       setLoadingMore(false)
     }
-  }, [nextCursor, queryFor, route])
+  }, [items, nextCursor, queryFor, route])
+
+  // Before paint, so a last page that took the focused button away never leaves the keyboard on the page itself. A
+  // user who moved the focus while the page was on its way (into a drawer, back to a card) keeps it where they put it.
+  useLayoutEffect(() => {
+    const id = focusAfterLoadRef.current
+    focusAfterLoadRef.current = null
+    if (!id) return
+    const active = document.activeElement
+    if (active && active !== document.body && active !== loadMoreButtonRef.current) return
+    entryGridRef.current?.querySelector<HTMLElement>(`[data-entry-id="${CSS.escape(id)}"] > .entry-card-open`)?.focus()
+  }, [items])
 
   const refreshCounts = useCallback(async () => {
     const response = await MessageUtils.sendMessage<{ facets: LibraryFacets }>({ type: 'QUERY_FACETS' })
@@ -782,36 +800,43 @@ export default function App() {
                 emptyState('library.empty.highlights')
               )
             ) : (
-              <ul className="list hl-groups" data-testid="hl-groups">
-                {highlightResult.groups.map(group => (
-                  <li key={group.clip.id} className="hl-group">
-                    <div className="hl-group-head">
-                      <span className="row-title">{String(group.clip.properties['title'] ?? '')}</span>
-                      <span className="row-meta">
-                        {group.clip.sourceHost} · {uiText('library.highlightsCount', { count: group.rows.length })}
-                      </span>
-                      <a className="link" href={group.clip.sourceUrl} target="_blank" rel="noopener noreferrer">
-                        {uiText('library.backToSource')}
-                      </a>
-                    </div>
-                    {group.rows.map(row => (
-                      <button
-                        key={row.highlight.id}
-                        type="button"
-                        className={`hl-row hl-row-${row.highlight.color}`}
-                        aria-label={`${uiText('reading.highlightLabel', { color: uiText(`library.color.${row.highlight.color}` as 'library.color.yellow') })}：${row.highlight.quote}`}
-                        onClick={() => {
-                          returnHashRef.current = location.hash
-                          location.hash = readHashFor(group.clip.id, row.highlight.id)
-                        }}
-                      >
-                        <p className="hl-quote">{row.highlight.quote}</p>
-                        {row.highlight.note && <p className="hl-note-text">{row.highlight.note}</p>}
-                      </button>
-                    ))}
-                  </li>
-                ))}
-              </ul>
+              <div className="list">
+                <ul className="hl-groups" data-testid="hl-groups">
+                  {highlightResult.groups.map(group => (
+                    <li key={group.clip.id} className="hl-group">
+                      <div className="hl-group-head">
+                        <span className="hl-group-title">{String(group.clip.properties['title'] ?? '')}</span>
+                        <span className="hl-group-meta">
+                          {group.clip.sourceHost} · {uiText('library.highlightsCount', { count: group.rows.length })}
+                        </span>
+                        <a className="link" href={group.clip.sourceUrl} target="_blank" rel="noopener noreferrer">
+                          {uiText('library.backToSource')}
+                        </a>
+                      </div>
+                      <div className="hl-group-rows">
+                        {group.rows.map(row => (
+                          <button
+                            key={row.highlight.id}
+                            type="button"
+                            className={`hl-row hl-row-${row.highlight.color}`}
+                            aria-label={uiText('reading.highlightLabel', {
+                              color: uiText(`library.color.${row.highlight.color}` as 'library.color.yellow'),
+                              text: row.highlight.quote,
+                            })}
+                            onClick={() => {
+                              returnHashRef.current = location.hash
+                              location.hash = readHashFor(group.clip.id, row.highlight.id)
+                            }}
+                          >
+                            <p className="hl-quote">{row.highlight.quote}</p>
+                            {row.highlight.note && <p className="hl-note-text">{row.highlight.note}</p>}
+                          </button>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )
           ) : items.length === 0 && loading ? (
             // the first answer is still on its way: saying "nothing here" now would be wrong
@@ -822,17 +847,23 @@ export default function App() {
             emptyState(route.view === 'clips' ? 'library.empty.clips' : route.view === 'screenshots' ? 'library.empty.screenshots' : 'library.empty')
           ) : (
             <>
-              <ul className={route.view === 'screenshots' ? 'screenshot-gallery' : 'list'}>
-                {items.map(entry =>
-                  route.view === 'screenshots' ? (
-                    <ScreenshotTile key={entry.id} entry={entry} onOpen={() => void openEntry(entry)} onChanged={reload} />
-                  ) : (
-                    <EntryRow key={entry.id} entry={entry} onOpen={() => void openEntry(entry)} />
-                  ),
-                )}
-              </ul>
+              <div className="list">
+                <ul className="entry-grid" ref={entryGridRef}>
+                  {items.map(entry => (
+                    <EntryCard key={entry.id} entry={entry} onOpen={() => void openEntry(entry)} onChanged={route.view === 'screenshots' ? reload : undefined} />
+                  ))}
+                </ul>
+              </div>
               {nextCursor && items.length < total && (
-                <button type="button" className="link load-more" data-testid="load-more" disabled={loadingMore} onClick={() => void loadMore()}>
+                // aria-disabled, not disabled: Chrome takes the focus off a button that becomes disabled and leaves it on the page
+                <button
+                  ref={loadMoreButtonRef}
+                  type="button"
+                  className="link load-more"
+                  data-testid="load-more"
+                  aria-disabled={loadingMore || undefined}
+                  onClick={() => void loadMore()}
+                >
                   {uiText('library.loadMore', { count: total - items.length })}
                 </button>
               )}
@@ -889,51 +920,75 @@ export default function App() {
   )
 }
 
-function EntryRow({ entry, onOpen }: { entry: EntryRecord; onOpen: () => void }) {
+/** As much of a clip as its card shows: the first lines, and the card cuts them off where its box ends. */
+const EXCERPT_CHARS = 480
+
+/**
+ * One entry in the All, Clips and Screenshots grids (extension.md §2.3): on top what it holds — the first lines of a
+ * clip, the picture of a screenshot — and below its title, tags, type, source and time. Its name is the title and
+ * those details; the clip's words are its description, so a reader hears what the card is before all of what it says.
+ * `onChanged` gives a screenshot its own download and delete (the Screenshots view).
+ */
+function EntryCard({ entry, onOpen, onChanged }: { entry: EntryRecord; onOpen(): void; onChanged?(): void }) {
+  const url = useAssetUrl(entry.type === 'screenshot' ? entry.assetId : undefined)
   const title = String(entry.properties['title'] ?? '')
   const tags = (entry.properties['tags'] as string[] | undefined) ?? []
-  const summary = entry.type === 'clip' ? markdownToPlainText(entry.content).slice(0, 160) : ''
+  const highlights = entry.highlights?.length ?? 0
+  const excerpt =
+    entry.type === 'clip'
+      ? markdownToPlainText(entry.content)
+          .replace(/\n{2,}/g, '\n')
+          .slice(0, EXCERPT_CHARS)
+      : ''
+  const id = (part: string) => `card-${part}-${entry.id}`
+  const named = [title && id('title'), tags.length > 0 && id('tags'), id('meta')].filter(Boolean).join(' ')
   return (
-    <li className="row" data-type={entry.type} data-entry-id={entry.id}>
-      <button type="button" className="row-main" onClick={onOpen}>
-        {entry.type === 'screenshot' && <ScreenshotThumbnail assetId={entry.assetId} className="row-thumbnail" />}
-        <TypeChip type={entry.type} />
-        <span className="row-body">
-          {title && <span className="row-title">{title}</span>}
-          {summary && <span className="row-summary">{summary}</span>}
-          <span className="row-meta">
-            {entry.sourceHost} · {relativeTime(entry.createdAt)}
-            {(entry.highlights?.length ?? 0) > 0 && <span className="row-highlights"> · {uiText('library.highlightsCount', { count: entry.highlights!.length })}</span>}
+    <li className="entry-card" data-type={entry.type} data-entry-id={entry.id}>
+      <button type="button" className="entry-card-open" onClick={onOpen} aria-labelledby={named} aria-describedby={excerpt ? id('excerpt') : undefined}>
+        {entry.type === 'clip' ? (
+          <span className="entry-card-preview">
+            <span className="entry-card-excerpt" id={id('excerpt')}>
+              {excerpt}
+            </span>
           </span>
-        </span>
-        {tags.length > 0 && (
-          <span className="row-tags">
-            {tags.map(tag => (
-              <span key={tag} className="tag">
-                #{tag}
-              </span>
-            ))}
+        ) : url ? (
+          <img className="entry-card-preview" src={url} alt="" loading="lazy" />
+        ) : (
+          <span className="entry-card-preview screenshot-placeholder" aria-hidden>
+            <Scan size={28} />
           </span>
         )}
+        <span className="entry-card-body">
+          {title && (
+            <span className="entry-card-title" id={id('title')}>
+              {title}
+            </span>
+          )}
+          {tags.length > 0 && (
+            <span className="entry-card-tags" id={id('tags')}>
+              {tags.map(tag => (
+                <span key={tag} className="tag">
+                  #{tag}
+                </span>
+              ))}
+            </span>
+          )}
+          <span className="entry-card-meta" id={id('meta')}>
+            <TypeChip type={entry.type} />
+            <span className="entry-card-source">
+              {entry.sourceHost} · {relativeTime(entry.createdAt)}
+            </span>
+            {highlights > 0 && <span className="entry-card-highlights">· {uiText('library.highlightsCount', { count: highlights })}</span>}
+          </span>
+        </span>
       </button>
+      {onChanged && entry.type === 'screenshot' && <ScreenshotActions entry={entry} url={url} onChanged={onChanged} />}
     </li>
   )
 }
 
-function ScreenshotThumbnail({ assetId, className }: { assetId?: string; className: string }) {
-  const url = useAssetUrl(assetId)
-  return url ? (
-    <img className={className} src={url} alt="" loading="lazy" />
-  ) : (
-    <span className={`${className} screenshot-placeholder`} aria-hidden>
-      <Scan size={20} />
-    </span>
-  )
-}
-
-function ScreenshotTile({ entry, onOpen, onChanged }: { entry: EntryRecord; onOpen(): void; onChanged(): void }) {
-  const url = useAssetUrl(entry.assetId)
-  const title = String(entry.properties['title'] ?? '')
+/** A screenshot card's download and delete, shown on hover and focus (extension.md §2.3). */
+function ScreenshotActions({ entry, url, onChanged }: { entry: EntryRecord; url: string | null; onChanged(): void }) {
   const download = async () => {
     if (!url) return
     try {
@@ -949,27 +1004,14 @@ function ScreenshotTile({ entry, onOpen, onChanged }: { entry: EntryRecord; onOp
     else window.alert(entryErrorText(response.error))
   }
   return (
-    <li className="screenshot-tile" data-entry-id={entry.id}>
-      <button type="button" className="screenshot-tile-open" onClick={onOpen} aria-label={entry.sourceHost ? `${title} · ${entry.sourceHost}` : title}>
-        {url ? (
-          <img src={url} alt="" loading="lazy" />
-        ) : (
-          <span className="screenshot-placeholder">
-            <Scan size={28} />
-          </span>
-        )}
-        <span className="screenshot-tile-title">{title}</span>
-        <span className="screenshot-tile-host">{entry.sourceHost}</span>
+    <div className="entry-card-actions">
+      <button type="button" disabled={!url} title={uiText('shot.tool.download')} aria-label={uiText('shot.tool.download')} onClick={() => void download()}>
+        <Download size={16} />
       </button>
-      <div className="screenshot-tile-actions">
-        <button type="button" disabled={!url} title={uiText('shot.tool.download')} aria-label={uiText('shot.tool.download')} onClick={() => void download()}>
-          <Download size={16} />
-        </button>
-        <button type="button" title={uiText('library.delete')} aria-label={uiText('library.delete')} onClick={() => void remove()}>
-          <Trash2 size={16} />
-        </button>
-      </div>
-    </li>
+      <button type="button" title={uiText('library.delete')} aria-label={uiText('library.delete')} onClick={() => void remove()}>
+        <Trash2 size={16} />
+      </button>
+    </div>
   )
 }
 
