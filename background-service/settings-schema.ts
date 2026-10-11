@@ -21,6 +21,9 @@ export interface ExtensionSettings {
   blockDisabledSites: string[]
   /** DOM anonymization at the start of a screenshot session (screenshot.md §3). */
   anonymizeDefault: boolean
+  /** Which identity elements anonymization covers: avatars, and names with their handles (screenshot.md §3). */
+  anonymizeAvatars: boolean
+  anonymizeNames: boolean
   /** Default highlight color for new marks in the reading view (entry.md §4.3). */
   defaultHighlightColor: HighlightColor
   /** Screenshot download format + quality (screenshot.md §4.2; R2). */
@@ -51,6 +54,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   blockEntryEnabled: true,
   blockDisabledSites: [],
   anonymizeDefault: true,
+  anonymizeAvatars: true,
+  anonymizeNames: true,
   defaultHighlightColor: 'yellow',
   downloadFormat: 'png',
   downloadQuality: 0.9,
@@ -111,6 +116,8 @@ const rootChecks: Record<string, Check> = {
   blockEntryEnabled: boolean,
   blockDisabledSites: value => Array.isArray(value) && value.every(host),
   anonymizeDefault: boolean,
+  anonymizeAvatars: boolean,
+  anonymizeNames: boolean,
   defaultHighlightColor: oneOf(HIGHLIGHT_COLORS),
   downloadFormat: oneOf(['png', 'jpeg', 'webp']),
   downloadQuality: between(0.5, 1),

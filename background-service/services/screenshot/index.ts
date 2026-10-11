@@ -77,6 +77,7 @@ export class ScreenshotService implements IService {
         }
       },
 
+
       SAVE_SCREENSHOT: async (message, sender): Promise<ResponseMessage> => {
         if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
         try {
@@ -162,13 +163,18 @@ export class ScreenshotService implements IService {
   }
 }
 
+/** The refusal the browser gives a third capture within a second (`tabs.MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND` is 2). */
+const CAPTURE_QUOTA_ERROR = 'MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND'
+
 // PNG keeps text crisp (screenshot.md §2); region capture uses viewport pixels.
 function captureWindow(windowId: number): Promise<string> {
   return new Promise<string>((resolve, reject) => {
     chrome.tabs.captureVisibleTab(windowId, { format: 'png' }, dataUrl => {
       const error = chrome.runtime.lastError
       if (error || !dataUrl) {
-        reject(new CaptureError('CAPTURE_FAILED', error?.message || 'captureVisibleTab returned no image'))
+        // the page waits the second out and asks again: its timers keep time, a worker's need not
+        const code = error?.message?.includes(CAPTURE_QUOTA_ERROR) ? 'CAPTURE_RATE_LIMITED' : 'CAPTURE_FAILED'
+        reject(new CaptureError(code, error?.message || 'captureVisibleTab returned no image'))
         return
       }
       resolve(dataUrl)

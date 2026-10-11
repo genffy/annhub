@@ -21,6 +21,7 @@ describe('ui text localization (extension.md §2.7)', () => {
     expect(uiText('library.count', { count: 3 }, 'en')).toBe('3 entries')
   })
 
+
   it('answers unknown keys with the key itself rather than crashing', () => {
     expect(uiText('nosuch.key' as never)).toBe('nosuch.key')
   })
@@ -46,7 +47,16 @@ describe('ui text localization (extension.md §2.7)', () => {
   })
 
   it('explains only the codes it knows, and says nothing for anything else', () => {
-    for (const code of ['CAPTURE_NOT_VISIBLE', 'CAPTURE_FAILED', 'DOWNLOAD_FAILED', 'EMPTY_CONTENT', 'ENTRY_ASSET_TOO_LARGE', 'ENTRY_ASSET_MISSING', 'PROPERTY_IN_USE']) {
+    for (const code of [
+      'CAPTURE_NOT_VISIBLE',
+      'CAPTURE_RATE_LIMITED',
+      'CAPTURE_FAILED',
+      'DOWNLOAD_FAILED',
+      'EMPTY_CONTENT',
+      'ENTRY_ASSET_TOO_LARGE',
+      'ENTRY_ASSET_MISSING',
+      'PROPERTY_IN_USE',
+    ]) {
       expect(failureReason(code, 'zh'), code).not.toBe('')
       expect(failureReason(code, 'en'), code).not.toMatch(/[\u4e00-\u9fff]/)
     }

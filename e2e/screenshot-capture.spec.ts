@@ -39,6 +39,30 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
     expect(entries[0]!.assetId).toBe(assets[0]!.id)
   })
 
+  // the toolbar is drawn by React, whose first commit could come after the frame that moves the focus: the keyboard
+  // then stayed on the masked page (真机走查 P2-6, 2 shots in 8). Shots in a row make a lost focus show up.
+  test('the keyboard starts on the toolbar every time the preview opens', async ({ page }) => {
+    await page.goto(getScreenshotPageUrl())
+    const post = page.getByTestId('screenshot-post')
+    for (let shot = 1; shot <= 6; shot++) {
+      await triggerScreenshot(page)
+      await expect(page.locator('[data-ann-ui="screenshot-session"]')).toBeVisible()
+      const box = (await post.boundingBox())!
+      await page.mouse.move(box.x + 5, box.y + 5)
+      await page.mouse.down()
+      await page.mouse.move(box.x + 300, box.y + 120, { steps: 4 })
+      await page.mouse.up()
+      await expect(page.locator('[data-ann-ui="shot-confirm-bar"]')).toBeVisible()
+      await page.keyboard.press('Enter')
+      await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible()
+      await expect
+        .poll(() => page.evaluate(() => document.activeElement?.closest('[data-ann-ui="screenshot-toolbar"]') != null), { message: `shot ${shot}`, timeout: 1500 })
+        .toBe(true)
+      await page.keyboard.press('Escape')
+      await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
+    }
+  })
+
   test('a click without a drag captures the clicked element instead', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
     await triggerScreenshot(page)
@@ -148,9 +172,9 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
 
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
-    await expect(library.locator(`.row[data-entry-id="${id}"] img`)).toBeVisible()
+    await expect(library.locator(`.entry-card[data-entry-id="${id}"] img`)).toBeVisible()
     await library.goto(`chrome-extension://${extensionId}/library.html#/screenshots`)
-    const tile = library.locator(`.screenshot-tile[data-entry-id="${id}"]`)
+    const tile = library.locator(`.entry-card[data-entry-id="${id}"]`)
     await expect(tile.locator('img')).toBeVisible()
     await tile.locator('img').click()
     await expect(library.locator('.drawer-image')).toBeVisible()

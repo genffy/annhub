@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from '@playwright/test'
 import { test, expect } from './fixtures'
-import { clearLibrary, ensureServiceWorker, getEntries, getScreenshotPageUrl, setSettings, triggerScreenshot } from './helpers'
+import { clearLibrary, ensureServiceWorker, getEntries, getScreenshotPageUrl, hoverForCapsule, setSettings, triggerScreenshot } from './helpers'
 
 /**
  * The screenshot editor's beautify panel and the picture it makes (screenshot.md §4.4): where the panel sits, what its
@@ -373,6 +373,17 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
       analysis.at.map(pixel => pixel[3]),
       'nothing is painted behind the content',
     ).toEqual([0, 0])
+  })
+
+  // the capsule's shot starts together with the session, before the settings arrive (真机走查复核)
+  test('a shot from the block capsule starts with the style saved in settings, as a dragged one does', async ({ page, context }) => {
+    await setSettings(context, { beautify: { enabled: true, background: 'grad-slate', padding: 'large', radius: 12, shadow: false } })
+    await page.goto(getScreenshotPageUrl())
+    const capsule = await hoverForCapsule(page, '[data-testid="capture-body"]')
+    await capsule.getByRole('button', { name: '截图' }).click()
+    await expect(page.locator(PREVIEW)).toBeVisible()
+    const [topLeft] = (await analyze(page, { source: 'canvas', points: [[0, 0]] })).at as [number[]]
+    expect(near(topLeft, [42, 45, 53]), `the saved slate background around the paragraph, got ${topLeft}`).toBe(true)
   })
 
   test('padding, corners, shadow and ratio: the content stays whole and centred, the corners round, the shadow falls under it', async ({ page }) => {

@@ -63,6 +63,27 @@ describe('applyViewportAnonymization', () => {
     expect(parent.querySelector('[data-ann-ui="anonymize-overlay"]')).toBeNull()
   })
 
+  it('covers only the kinds switched on, an avatar as a circle (screenshot.md §3)', () => {
+    document.body.innerHTML = `
+      <div data-ann-identity="avatar" data-rect='{"left":0,"top":0}'></div>
+      <div data-ann-identity data-rect='{"left":40,"top":0}'>@somebody</div>
+    `
+    const [avatar, name] = Array.from(document.querySelectorAll<HTMLElement>('[data-ann-identity]'))
+    const overlay = (el: HTMLElement) => el.querySelector<HTMLElement>('[data-ann-ui="anonymize-overlay"]')
+
+    let restore = applyViewportAnonymization(document, 'localhost', { avatar: true, name: false })
+    expect(overlay(avatar!)!.style.borderRadius).toBe('50%')
+    expect(overlay(name!)).toBeNull()
+    expect(name!.style.backgroundColor).toBe('')
+    restore()
+
+    restore = applyViewportAnonymization(document, 'localhost', { avatar: false, name: true })
+    expect(overlay(avatar!)).toBeNull()
+    expect(overlay(name!)!.style.borderRadius).toBe('4px')
+    restore()
+    expect(document.querySelectorAll('[data-ann-ui="anonymize-overlay"]')).toHaveLength(0)
+  })
+
   it('skips zero-area elements', () => {
     stubRect(0, 0)
     document.body.innerHTML = `<div data-ann-identity data-rect='{"left":0,"top":0}'>hidden</div>`
@@ -91,7 +112,21 @@ describe('anonymizeClone', () => {
     expect(placeholder).not.toBeNull()
     expect(placeholder.style.width).toBe('120px')
     expect(placeholder.style.height).toBe('24px')
+    // the placeholder's rounded corners show the element itself: no background of its own left there
+    expect(swapped.style.background).toBe('rgb(209, 213, 219)')
     expect(clone.querySelector('p')!.textContent).toBe('body text stays')
+  })
+
+  it('keeps a kind switched off in the clone', () => {
+    const clone = document.createElement('div')
+    clone.innerHTML = `
+      <img data-ann-identity="avatar" data-rect='{"left":0,"top":0}' src="a.png" />
+      <div data-ann-identity data-rect='{"left":40,"top":0}'>@somebody</div>
+    `
+    anonymizeClone(clone, document, { avatar: false, name: true })
+    expect(clone.querySelector('img')).not.toBeNull()
+    expect(clone.textContent).not.toContain('@somebody')
+    expect(clone.querySelectorAll('[data-ann-ui="anonymize-overlay"]')).toHaveLength(1)
   })
 
   it('replaces replaced-elements entirely in the clone', () => {

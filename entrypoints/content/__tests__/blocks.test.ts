@@ -296,6 +296,25 @@ describe('keyboard mode helpers (capture.md §6.2, D-27)', () => {
     expect(peers.some(peer => sameCandidate(peer, section))).toBe(true)
   })
 
+  it('Tab moves within a tier: from a code block to the table and the quote after it, in document order (D-27)', () => {
+    const peers = peersOf(candidatesFor(doc.querySelector('#code')!, doc)[0]!, doc)
+    expect(peers.map(peer => peer.element.id)).toEqual(['code', 'table', 'figure', 'quote', 'post'])
+  })
+
+  it('a small unit inside another is a level below it, not its peer: Tab goes from post to post', () => {
+    document.body.innerHTML = ['one', 'two']
+      .map(
+        id =>
+          `<article data-testid="tweet" id="${id}"><p>A post with a picture.</p><figure id="${id}-pic"><img alt="chart" src="https://img.example/${id}.png" /></figure></article>`,
+      )
+      .join('')
+    const post = candidatesFor(doc.getElementById('one')!, doc)[0]!
+    expect(peersOf(post, doc).map(peer => peer.element.id)).toEqual(['one', 'two'])
+    // a picture reached with ↓ moves on to the next post, not into the next picture
+    const picture = candidatesFor(doc.getElementById('one-pic')!, doc)[0]!
+    expect(peersOf(picture, doc).map(peer => peer.element.id)).toEqual(['one', 'one-pic', 'two'])
+  })
+
   it("a summary reads a run section's own words, and falls back to an image's alt text", () => {
     document.body.innerHTML = FLAT_DOC
     const section = candidatesFor(doc.querySelector('#flat-b-p')!, doc).find(candidate => candidate.kind === 'section')!
@@ -327,25 +346,126 @@ describe('candidateSummary starts at the unit content (真机走查 P3-8)', () =
   })
 })
 
-describe('childChainOf (真机走查 P2-1: ↓ enters child units)', () => {
-  it('finds a chain strictly inside the parent', () => {
+const WORDS = 'Enough words in this paragraph to give the section it belongs to the characters a section needs. '.repeat(2)
+
+describe('headings that are an article’s own children (danluu, the Rust book: 真机走查 P2-1)', () => {
+  it('divide the article into sections: a paragraph’s target is its heading run, then the article', () => {
+    document.body.innerHTML = `<main id="m"><p id="intro">${WORDS}</p><h3 id="a">Alpha</h3><p id="a-p">${WORDS}</p><h3 id="b">Beta</h3><p>${WORDS}</p></main>`
+    const chain = candidatesFor(doc.getElementById('a-p')!, doc)
+    expect(kinds(chain)).toEqual(['section', 'article'])
+    expect(chain[0]!.element.id).toBe('m')
+    expect(chain[0]!.range).toEqual({ start: doc.getElementById('a'), end: doc.getElementById('b') })
+    // before the first heading there is no section: the article
+    expect(kinds(candidatesFor(doc.getElementById('intro')!, doc))).toEqual(['article'])
+  })
+
+  it('a run that is the whole article is the article, not a section of it', () => {
+    document.body.innerHTML = `<article><h1>The title</h1><p id="body">${WORDS}</p><p>${WORDS}</p></article>`
+    expect(kinds(candidatesFor(doc.getElementById('body')!, doc))).toEqual(['article'])
+  })
+})
+
+describe('childChainOf: what ↓ enters (真机走查 P2-1)', () => {
+  const unit = (kind: BlockCandidate['kind'], id: string): BlockCandidate => ({ kind, element: doc.getElementById(id) as HTMLElement })
+  const ids = (chain: BlockCandidate[]): string[] => chain.map(candidate => (candidate.range ? `${candidate.range.start.id} run` : candidate.element.id))
+
+  it('the first unit inside, not the parent itself; inside that, the code', () => {
+    document.body.innerHTML = `<main id="m"><section id="s"><h2>Heading</h2><p>${WORDS}</p><pre id="code">const x = 1</pre></section></main>`
+    expect(ids(childChainOf(unit('article', 'm'), doc))).toEqual(['s'])
+    expect(ids(childChainOf(unit('section', 's'), doc))).toEqual(['code'])
+    // nothing is inside a code block
+    expect(childChainOf(unit('code', 'code'), doc)).toEqual([])
+  })
+
+  it('goes past blocks with nothing inside them, to a section below them (danluu: the intro fills the window)', () => {
+    document.body.innerHTML = `<main id="m"><p>${WORDS}</p><p>${WORDS}</p><h3 id="a">Alpha</h3><p>${WORDS}</p></main>`
+    const [run] = childChainOf(unit('article', 'm'), doc)
+    expect(ids([run!])).toEqual(['a run'])
+    // the run shares its element with the article: the article is around the run, not inside it
+    expect(childChainOf(run!, doc)).toEqual([])
+  })
+
+  it('skips the same-kind wrappers of a docs page: main, its article and the Markdown container hold the same words', () => {
     document.body.innerHTML = `
-      <main>
-        <h2>First section heading text</h2>
-        <p>Some body text for the first section right here, long enough to matter for the section rule.</p>
-        <pre><code>const x = 1</code></pre>
-      </main>
-    `
-    const main = document.querySelector('main')!
-    const pre = document.querySelector('pre')!
-    // jsdom has no layout: hit-testing and the parent's box come from stubs
-    main.getBoundingClientRect = () => ({ left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect
-    document.elementFromPoint = () => pre
-    const parent = { kind: 'article', element: main } as BlockCandidate
-    const chain = childChainOf(parent, document)
-    expect(chain.length).toBeGreaterThan(0)
-    expect(chain.every(candidate => main.contains(candidateAnchor(candidate)))).toBe(true)
-    expect(chain.some(candidate => candidate.element === main)).toBe(false)
+      <main id="m"><div class="row">
+        <article id="art"><div class="markdown" id="md">
+          <header><h1>Code blocks</h1></header>
+          <p>${WORDS}</p>
+          <h2 id="a">Alpha</h2><p>${WORDS}</p><pre>const a = 1</pre>
+        </div></article>
+        <div class="toc"><ul><li>Alpha</li></ul></div>
+      </div></main>`
+    const chain = childChainOf(unit('article', 'm'), doc)
+    expect(ids(chain)).toEqual(['a run'])
+    // ...but a unit of another kind is a level, and so is a same-kind unit that holds only part of the parent
+    document.body.innerHTML = `<main id="m"><article id="one"><p>${WORDS}</p></article><article id="two"><p>${WORDS}</p></article></main>`
+    expect(ids(childChainOf(unit('article', 'm'), doc))).toEqual(['one'])
+  })
+
+  it('starts where the window is, and wraps around to the top when nothing below has a unit inside', () => {
+    document.body.innerHTML = `<main id="m">
+      <section id="s1"><h2>One</h2><p>${WORDS}</p></section>
+      <section id="s2"><h2>Two</h2><p>${WORDS}</p></section>
+      <section id="s3"><h2>Three</h2><p>${WORDS}</p></section>
+      <p id="tail">${WORDS}</p></main>`
+    // jsdom has no layout: the window's position comes from the boxes
+    const place = (id: string, top: number, bottom: number): void => {
+      doc.getElementById(id)!.getBoundingClientRect = () => new DOMRect(0, top, 600, bottom - top)
+    }
+    place('s1', -900, -500)
+    place('s2', -480, 120)
+    place('s3', 140, 700)
+    expect(ids(childChainOf(unit('article', 'm'), doc)), 'the section the window shows the end of').toEqual(['s2'])
+    place('s2', -480, -20)
+    place('s3', -10, -5)
+    place('tail', 0, 300)
+    expect(ids(childChainOf(unit('article', 'm'), doc)), 'past the last section: back to the first').toEqual(['s1'])
+  })
+
+  it('an article’s next level is its sections: past a quote above the first heading (Overreacted)', () => {
+    document.body.innerHTML = `<main id="m"><blockquote id="q"><p>Unlearn what you have learned, said Yoda.</p></blockquote><p>${WORDS}</p><h2 id="a">Alpha</h2><p>${WORDS}</p><pre>const a = 1</pre></main>`
+    expect(ids(childChainOf(unit('article', 'm'), doc))).toEqual(['a run'])
+    // with no section inside, the first unit there is
+    doc.getElementById('a')!.remove()
+    expect(ids(childChainOf(unit('article', 'm'), doc))).toEqual(['q'])
+  })
+
+  it('the section the window is in, though its heading is above the window', () => {
+    document.body.innerHTML = `<main id="m"><h2 id="a">Alpha</h2><p id="a-p">${WORDS}</p><h2 id="b">Beta</h2><p>${WORDS}</p></main>`
+    const place = (id: string, top: number, bottom: number): void => {
+      doc.getElementById(id)!.getBoundingClientRect = () => new DOMRect(0, top, 600, bottom - top)
+    }
+    place('a', -300, -260)
+    place('a-p', -240, 60)
+    place('b', 80, 120)
+    expect(ids(childChainOf(unit('article', 'm'), doc))).toEqual(['a run'])
+  })
+
+  it('reaches code in an open shadow root (MDN)', () => {
+    document.body.innerHTML = `<main><section id="s"><h2>Fetch</h2><p>${WORDS}</p><div id="host"></div></section></main>`
+    const shadow = doc.getElementById('host')!.attachShadow({ mode: 'open' })
+    shadow.innerHTML = '<pre id="shadow-code">fetch(url)</pre>'
+    const chain = childChainOf(unit('section', 's'), doc)
+    expect(chain.map(candidate => candidate.element)).toEqual([shadow.getElementById('shadow-code')])
+  })
+
+  it('skips what the page does not render, and what sits in its page furniture', () => {
+    document.body.innerHTML = `<main id="m"><div hidden><pre>hidden</pre></div><aside><pre>aside</pre></aside><pre id="shown">shown</pre><p>${WORDS}</p></main>`
+    expect(ids(childChainOf(unit('article', 'm'), doc))).toEqual(['shown'])
+  })
+
+  it('inside a heading run: its sub-runs and their code, never a neighbouring run', () => {
+    document.body.innerHTML = `<div class="content">
+      <h2 id="a">Alpha</h2><p>${WORDS}</p>
+      <h3 id="a1">Alpha one</h3><p>${WORDS}</p><pre id="code">const a = 1</pre>
+      <h2 id="b">Beta</h2><p>${WORDS}</p><pre>const b = 2</pre>
+      <h2 id="c">Gamma</h2><p>${WORDS}</p>
+    </div>`
+    const runAt = (id: string): BlockCandidate => candidatesFor(doc.getElementById(id)!, doc).find(candidate => candidate.kind === 'section')!
+    expect(ids(childChainOf(runAt('a'), doc))).toEqual(['a1 run'])
+    expect(ids(childChainOf(runAt('a1'), doc))).toEqual(['code'])
+    // Gamma has only words: Beta's code is not inside it
+    expect(childChainOf(runAt('c'), doc)).toEqual([])
   })
 })
 

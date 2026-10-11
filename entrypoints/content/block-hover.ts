@@ -440,9 +440,10 @@ export class BlockEntries {
           this.paintMode(true)
           return
         }
-        // ↓ at the innermost level enters the unit's first child unit (真机走查
-        // P2-1：区块模式停在整篇文章下不去). The child chain is spliced in front,
-        // so ↑ walks back out the way ↓ came in.
+        // ↓ at the innermost level enters the unit (真机走查 P2-1：区块模式停在整篇
+        // 文章下不去), one level at a time: the outermost unit inside it first.
+        // The child chain is spliced in front, so the next ↓ goes on down it and
+        // ↑ walks back out the way ↓ came in.
         if (event.key === 'ArrowDown' && this.modeDepth === 0) {
           const current = this.modeChain[this.modeDepth]
           if (!current) return
@@ -450,7 +451,7 @@ export class BlockEntries {
           if (inner.length === 0) return
           this.modeLevelChanged = true
           this.modeChain = [...inner, ...this.modeChain]
-          this.modeDepth = 0
+          this.modeDepth = inner.length - 1
           this.paintMode(true)
         }
         return

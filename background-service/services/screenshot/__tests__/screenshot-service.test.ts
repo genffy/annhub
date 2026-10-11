@@ -78,6 +78,20 @@ describe('CAPTURE_VISIBLE_TAB', () => {
     expect(JSON.stringify(response)).not.toContain('Cannot access')
     expect(Logger.error).toHaveBeenCalledWith(expect.any(String), 'CAPTURE_FAILED', 'Cannot access contents of the page.')
   })
+
+  it('answers the browser’s limit of two captures a second with its own code, for the page to wait out (screenshot.md §2)', async () => {
+    tabs.get.mockResolvedValue({ id: 7, windowId: 42, active: true })
+    tabs.captureVisibleTab.mockImplementation((_windowId: number, _options: unknown, callback: (dataUrl?: string) => void) => {
+      runtime.lastError = { message: 'This request exceeds the MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND quota.' }
+      callback(undefined)
+      runtime.lastError = undefined
+    })
+    const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
+    expect(response).toMatchObject({ success: false, error: 'CAPTURE_RATE_LIMITED' })
+    expect(JSON.stringify(response)).not.toContain('quota')
+    // the worker does not wait: its timers can fire seconds late
+    expect(tabs.captureVisibleTab).toHaveBeenCalledTimes(1)
+  })
 })
 
 describe('FETCH_IMAGE', () => {
