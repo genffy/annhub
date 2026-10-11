@@ -253,7 +253,7 @@ const exportDlg = (state, o = {}) => {
     progress: `<div class="help" style="margin:2px 0 12px">正在读取已提交的记录与图片，不会上传到任何地方。</div>
       <div class="vs g6" style="margin-bottom:14px"><div class="hs between t-sm"><span>写入 Markdown 与图片</span><span class="tnum b">75 / 119</span></div><div class="progress"><i style="width:63%"></i></div></div>
       <div class="hs g8 end">${btn('取消', { v: 'ghost' })}</div>`,
-    full: `${banner('ok', '<b>导出完成</b>：95 条条目、24 张图片，已写入 <span class="mono">AnnHub-export.zip</span>。')}<div class="help" style="margin:10px 0 12px">README.md 记录了导出时间、范围与数量。这个 ZIP 供其他工具阅读，不是 AnnHub 数据库的备份。</div><div class="hs g8 end">${btn('完成', { v: 'primary' })}</div>`,
+    full: `${banner('ok', '<b>导出完成</b>：95 条条目、24 张图片，已写入 <span class="mono">AnnHub-export-2026-10-11.zip</span>。')}<div class="help" style="margin:10px 0 12px">README.md 记录了导出时间、范围与数量。这个 ZIP 供其他工具阅读，不是 AnnHub 数据库的备份。</div><div class="hs g8 end">${btn('完成', { v: 'primary' })}</div>`,
     partial: `${banner('warn', '<b>部分导出</b>：2 张图片缺失，对应的 Markdown 标注了“图片缺失”，资产 ID 已列入 README。')}<div class="help" style="margin:10px 0 12px">其余 93 条条目与 22 张图片已正常写入，可以下载这份部分 ZIP。</div><div class="hs g8 end">${btn('查看缺失列表', { v: 'ghost' })}${btn('下载部分 ZIP', { v: 'primary', icon: 'download' })}</div>`,
   }[state]
   return `<div class="dlg" style="${o.style || ''}"><div class="hs between" style="margin-bottom:6px"><h3>导出内容</h3>${chip({ ready: '准备', progress: '进行中', full: '完整', partial: '部分导出' }[state], { v: state === 'partial' ? 'warn' : state === 'full' ? 'ok' : '' })}</div>${body}</div>`

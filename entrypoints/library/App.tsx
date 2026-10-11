@@ -12,7 +12,7 @@ import type { EntryQuery, EntryQueryResult, PropertyCondition } from '../../lear
 import type { EntryRecord, PropertyDefinition, PropertyType } from '../../learning-core/types'
 import { markdownToPlainText } from '../../learning-core/markdown'
 import { EntryStore, type LibraryFacets } from '../../learning-core/store'
-import { buildExport } from '../../learning-core/export'
+import { buildExport, exportFileName } from '../../learning-core/export'
 import { bucketCount } from '../../learning-core/metrics'
 import { HighlightSurface } from './highlight-surface'
 import { PropertyPanel, type PropertyPanelHandle } from './property-panel'
@@ -461,8 +461,9 @@ export default function App() {
     let stage: ExportStage = 'build'
     try {
       await store.initialize()
+      const exportedAt = Date.now()
       const summary = await buildExport({
-        exportedAt: Date.now(),
+        exportedAt,
         lang: currentUiLanguage(),
         entries: await store.listEntries(),
         registry: await store.listPropertyDefinitions(),
@@ -474,8 +475,7 @@ export default function App() {
       const url = URL.createObjectURL(summary.blob)
       stage = 'download'
       try {
-        const filename = `AnnHub-export-${new Date().toISOString().slice(0, 10)}.zip`
-        await chrome.downloads.download({ url, filename, saveAs: false })
+        await chrome.downloads.download({ url, filename: exportFileName(exportedAt), saveAs: false })
       } catch (error) {
         URL.revokeObjectURL(url)
         throw error

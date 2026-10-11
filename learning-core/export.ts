@@ -107,6 +107,11 @@ function localDate(epochMs: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+/** The ZIP's file name carries the local date of the export: the same day the README's “Exported at” shows (storage.md §6). */
+export function exportFileName(exportedAt: number): string {
+  return `AnnHub-export-${localDate(exportedAt)}.zip`
+}
+
 function localDateTime(epochMs: number): string {
   const d = new Date(epochMs)
   const pad = (n: number) => String(n).padStart(2, '0')
