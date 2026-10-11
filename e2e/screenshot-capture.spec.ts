@@ -206,7 +206,7 @@ test.describe('element capture renders content (真机走查 P1-2)', () => {
     // the capture the preview draws must contain real pixels: text, several
     // colours — not the single shade the offscreen-surface bug produced
     const stats = await page.evaluate(() => {
-      const canvas = document.querySelector('[data-ann-ui="screenshot-preview"] canvas')
+      const canvas = document.querySelector<HTMLCanvasElement>('[data-ann-ui="screenshot-preview"] canvas')
       if (!canvas) return null
       const ctx = canvas.getContext('2d')!
       const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
@@ -239,7 +239,7 @@ test.describe('element capture renders content (真机走查 P1-2)', () => {
     await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible()
 
     const stats = await page.evaluate(() => {
-      const canvas = document.querySelector('[data-ann-ui="screenshot-preview"] canvas')
+      const canvas = document.querySelector<HTMLCanvasElement>('[data-ann-ui="screenshot-preview"] canvas')
       if (!canvas) return null
       const ctx = canvas.getContext('2d')!
       const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)

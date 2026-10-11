@@ -6,6 +6,8 @@
 
 同日下午的第三轮（第 7 节）用 computer use 直接操作真实 Chrome，把第 5 节里除 VoiceOver、产品负责人通读之外的项全部执行：真实断网的场景 A 在干净 profile 里全流程通过（导出文件名确认为 `AnnHub-export-YYYY-MM-DD.zip`），P1-1 三组共 30 轮循环未复现，Medium 补测 2/3 页（第三篇被 Cloudflare 人机验证拦住，按规则不代点）。
 
+修复轮（`fix/walkthrough-issues` 分支）：除 P1-1（未复现、无根因）外的全部 P1/P2/P3 已修复，751 条单测与 165 条 E2E 全绿；每项的修法与验证见第 4 节各项的“修复”行。待人工的回归：在真实 Chrome 154 里按第 7 节的方法抽查 P1-2、P2-12 与键盘项（`$TMPDIR/annhub-ext-test` 已同步修复后的构建）。
+
 ## 1. 环境与方法
 
 | 项            | 值                                                                                                                                                                                                                                                                   |
@@ -30,12 +32,12 @@
 | R1 区块剪藏的真实页面走查           | **部分通过**           | 区块截图（胶囊的 Shot、区块模式的 `S`）在所有页面都是空白（P1-2）；覆盖 30/32 个可评估页面达标（门槛 30/33，第三轮 Abramov 真机达标，Medium 还差 2 页）；MDN 与 Overreacted 的整篇 Markdown 丢掉全部代码；胶囊在 3 个文档站点和 X 的 5/5 条帖子上盖住页面按钮；X 3/3、Medium 2/3 完成，Medium 第 3 篇被人机验证拦住                                                |
 | 官网文案、隐私政策、服务条款        | 未关闭                 | 权限表与清单一致；隐私政策没有覆盖写进网页 `sessionStorage` 的取景框记忆；落地页的导出演示与产品不符；产品负责人通读未做                                                                                                                                                                                                                                           |
 
-四项各自要关闭，需要：
+四项各自要关闭，需要（修复轮后）：
 
-- R1 新安装到导出：**已关闭**（第三轮场景 A + P1-1 复现尝试；P1-1 未复现但未改代码，建议随 P1-2 的修复版本一起回归）。
-- R2 键盘与读屏：修 P2-1、P2-5、P2-6、P2-7，并做第 5 节第 4 条的 VoiceOver 实听；P2-8 违反设计系统自己的对比度规定，同时处理。
-- R1 区块剪藏：修 P1-2、P2-3、P2-4；补测 Medium 第 3 篇（人工过一次 Cloudflare 人机验证后即可继续）。
-- 对外页面：修 P2-10、P2-11，产品负责人通读。
+- R1 新安装到导出：**已关闭**。
+- R2 键盘与读屏：P2-1、P2-5、P2-6、P2-7、P2-8 已修；剩 VoiceOver 实听与真实 Chrome 的键盘回归。
+- R1 区块剪藏：P1-2、P2-3、P2-4 已修（含新增的元素截图像素 E2E）；剩 Medium 第 3 篇与真实 Chrome 回归。
+- 对外页面：P2-10、P2-11 已修（隐私政策与 permissions.md 同步）；剩产品负责人通读。
 
 不在这四项里、但应尽快修的：P2-12。截图的匿名默认开启，X 上却只盖住头像，名字与账号留在图里。
 
@@ -175,6 +177,7 @@ Claude in Chrome 的限制：打不开 `chrome-extension://` 页面（地址被�
 - 第二轮：Chromium 153 上场景 A、全部视图、抽屉、阅读视图、刷新、带截图缩略图的列表都没有崩溃。版本不同，不能据此排除。
 - 第三轮（7.2）：Chrome 154 上按第 5 节第 2 条的方法做了三组共 30 轮“点行 → Read → Back → 切导航”，全部无崩溃、Crashpad 无新转储。未改代码，不能宣称修复；两条既定复现路径都试过之后，把它按“未复现、保持观察”处理，建议与 P1-2 的修复一起回归。
 - 线索：列表与抽屉用 IndexedDB 里的 Blob 建 object URL 并在卸载时撤销（`entrypoints/library/App.tsx` 的 `useAssetUrl`）；阅读视图打开时给列表加 `inert`。第一轮同时看到截图缩略图是破图（第一轮 P3-1），两者可能同源。
+- 修复轮：无根因，不动代码。保持观察，随下一轮真机回归再试。
 
 **P1-2 元素截图在所有页面都是空白**（第一轮 P1-2 只报了 x.com；本轮复现并定位）
 
@@ -183,6 +186,7 @@ Claude in Chrome 的限制：打不开 `chrome-extension://` 页面（地址被�
 - 测试没发现：e2e 只检查区域截图的像素，没有测试看元素截图里有没有内容。
 - 区域截图正常：场景 A；真实 Chrome 里在 X 上拖拽框选，得到 454×321、3176 种颜色的正常图片。第一轮说拖拽框选在 X 上也是白图，本轮没有复现。窗口不在当前桌面时，扩展按设计拒绝截取，提示“Only the visible tab can be captured”（[screenshot.md §2](./v2/screenshot.md#2-截取与像素处理)）。
 - 另：同一文件的 `opaqueBackground`（19 行）把半透明背景当作不透明。X 悬停时帖子的背景是 `rgba(0,0,0,0.03)`，于是 X 上元素截图的每个像素都是 `(0,0,0,8)`，几乎透明。上面的问题修好后，这里也要改成取第一个不透明的背景。
+- 修复：栅格化时给根节点覆盖回原点样式；`opaqueBackground` 只认 alpha 为 1 的颜色，找不到不透明背景时用白色。补了 e2e：单击元素路径的预览必须有真实内容（颜色数与前景占比），半透明背景的元素不得截成近透明（走查前的测试缺口）。
 
 ### P2
 
@@ -190,6 +194,7 @@ Claude in Chrome 的限制：打不开 `chrome-extension://` 页面（地址被�
 
 - 起点由 `firstVisibleChain`（`entrypoints/content/blocks.ts:333`）从视口顶部往下扫，第一个命中点通常只落在文章容器里，链只有 `[Article]` 一层；`↑` `↓` 只在这条链里换层级，Tab 只在同类单元之间跳（`moveToPeer`，`entrypoints/content/block-hover.ts:482`），页面通常只有一个 Article，于是原地不动。缺的是“进入子单元”的一步，或者起点直接取视口里第一个最小单元。
 - Medium 的区块树是 `Article → Section×6` 两层：Tab 能在 6 个 h2 小节间移动并剪藏（7.5），但 `↓` 仍然进不去小节内部，代码块无法用键盘到达。
+- 修复：`↓` 在最内层时进入该单元的第一个子单元链（`childChainOf`，描边单元内部扫描），链拼接在前面，`↑` 沿原路退出；单测与 keyboard-blocks E2E 守着。
 
 **P2-2 文章级覆盖差 1 页**：见 3.5。PostgreSQL 与 Simon Willison 没有 `main`、语义容器或常见类名，靠“文字密集的容器”也没有接住；Tailwind 没有文章级区块。
 
@@ -199,41 +204,52 @@ Claude in Chrome 的限制：打不开 `chrome-extension://` 页面（地址被�
 - Overreacted：代码包在 `figure` 里，转换的 `figure` 分支只取图片与图注（`entrypoints/content/markdown.ts:318`），整篇 0 个代码块。
 - Docusaurus：每行代码是一个 `display:block` 的 `span`，没有换行字符；`pre` 分支取 `textContent`（`entrypoints/content/markdown.ts:272`），整块挤成一行。
 - 页面界面残留：见 3.6 末段。Medium 的整篇 Markdown 还带着文末登录表单（“Remember me for faster sign in”两行）与订阅框（“Get Dan Abramov's stories in your inbox”），“3 min read”与日期粘连无分隔（7.5）。
+- 修复：`pre` 按行元素（`token-line`、display:block）恢复换行；`figure` 分支转出其中的代码块；空 shadow host 展开其影子树，`candidatesFor` 沿 `composedParent` 穿过边界；界面残留按整块或链接文案剔除（edit/views/duration/sign-in/订阅框等短语表），只对“整块就是这个短语”生效，不碰正文。
 
 **P2-4 胶囊盖住页面按钮**（见 3.7）
 
 - `capsuleAreaOccupied`（`entrypoints/content/block-hover.ts:334`）在胶囊范围里取 5×3 个点，横向间隔约 44px，比常见的 30px 图标按钮宽，代码块右上角的按钮正好落在两点之间；`isPageControl` 不把 `summary` 当控件；四个角都被占时退回右上角（同文件 321 行）。
+- 修复：探测步距加密到 24px（按胶囊尺寸自适应网格）；`summary` 计为控件；四角全占时沿上边向左滑动找空位，不再原地坐下。
 
 **P2-5 选区菜单的“截图”对键盘用户是死路**
 
 - `onScreenshot` 先清掉选区，再以拖拽 / 单击模式开会话（`entrypoints/content/index.tsx:60`），没有把选区的范围带进去，也没有键盘可用的下一步。可以把选区外框作为待确认的选区（Enter 确认），或在提示里指向区块模式。
+- 修复：选区外框现在作为待确认取景框带进会话（Enter 确认、方向键微调、Esc 取消），键盘不是死路。
 
 **P2-6 截图编辑态不接管焦点，保存没有播报**
 
 - 编辑态出现后焦点留在页面，工具栏挂在文档末尾，要先经过页面全部链接。遮罩下的页面链接仍可聚焦：danluu.com 上区块模式按 `S` 后按一次 Tab 落在页面第一个链接，再按 Enter 页面跳到 Wikipedia，截图与标注全部丢失，离开前没有任何确认——拦截页面动作的 `onSwallowPageAction`（同文件 309 行）在编辑态直接放行。[extension.md §7.2](./v2/extension.md#72-可访问性) 要求截图工具栏的主流程只用键盘能完成：44 次 Tab 能到，但途中任何一次在链接上按 Enter 都会丢掉截图，所以判为不通过。保存成功后会话直接关闭（`confirmSave`，`entrypoints/content/screenshot/index.ts:1273`），读屏没有任何反馈。
 - 建议：编辑态出现时把焦点移进工具栏，Tab 限制在工具栏与美化面板之内，Esc 照旧退出。
+- 修复：预览出现时焦点落在工具栏第一个按钮；`Tab` 在会话自己的控件间循环，不再走到被遮罩的页面（文字输入框保留浏览器默认 Tab）；保存成功经文档级 `role=status` 播报“Screenshot saved”。
 
 **P2-7 高亮不读“高亮，颜色名”**
 
 - 高亮外层是 `role="button"` 的 `span`（`entrypoints/library/markdown-view.tsx:318`），名称就是原文；颜色只体现在 class 上。高亮页的列表与右栏同样没有颜色名。
+- 修复：正文的高亮标记与高亮视图的行的可访问名称都改为“高亮，{颜色}：原文”（`reading.highlightLabel`）。VoiceOver 实听仍待人工。
 
 **P2-8 暗色主题对比度不足**（见 3.4）
 
 - 设计稿暗色主题把填充色与文字色分开：`--brand: #7a55d1`（白字 5.19:1）、`--brand-text: #b9a3f2`（在页面底色上 8.10:1），见 `docs/design/v2/css/tokens.css:93`。产品的 `styles/tokens.css:31` 只有一个 `--ann-accent: #8a63d2`，既当填充又当文字。
+- 修复：暗色拆为 `--ann-accent: #7a55d1`（填充）与 `--ann-accent-text: #b9a3f2`（文字），六处文字用法（当前导航项、行内计数、链接、阅读视图链接、当前标签、指南卡）换用文字 token；亮色两值相同，行为不变。
 
 **P2-9 Chrome 的“扩展程序选项”里是挤扁的资料库**
 
 - `wxt.config.ts:33` 写了 `options_ui.open_in_tab: true`，但构建出的 manifest 是 `open_in_tab: false`、`page: options.html`：WXT 按 `entrypoints/options/index.html` 生成这一项，配置里的值没有生效。选项页随后跳到 `library.html#/settings`，于是在 chrome://extensions 的小对话框里显示整个应用壳。在选项页 HTML 里声明在新标签页打开即可（并改掉配置里不生效的那段）。
+- 修复：配置块删除，选项页 HTML 以 meta 声明；重建后 manifest 为 `"options_ui":{"open_in_tab":true,"page":"options.html"}`。
 
 **P2-10 落地页的导出演示与产品不符**：`website/lib/copy/en.ts:347` 起的导出对话框文案与 `AnnHub-export.zip`，对照产品的一键导出与 `AnnHub-export-YYYY-MM-DD.zip`；快速编辑演示的“Saved on blur”（同文件 266 行）产品里没有。
+
+- 修复：导出演示重写为产品的一键导出——点击后导航里出现一行提示（“Export complete · N clips, N screenshots; 0 missing images · AnnHub-export-YYYY-MM-DD.zip · written to your downloads”），无对话框；快速编辑演示删掉“Saved on blur”。中英文案与类型同步，`cd website && npx tsc --noEmit` 通过。
 
 **P2-11 隐私政策没有覆盖网页 `sessionStorage` 里的取景框记忆**
 
 - `entrypoints/content/screenshot/selection.ts:206` 起把上次取景框（元素选择器、页面坐标、尺寸、边距、路径）写进网页自己的 `sessionStorage`，网站脚本可读，也就能知道用户用 AnnHub 截过页面上的哪一块。隐私政策说数据都在“IndexedDB and chrome.storage.local”，[permissions.md §1](./v2/permissions.md#1-数据边界) 也没有提。二选一：改存到扩展自己的会话存储，或在两处写明。
+- 修复：选了改存——记忆移到 `chrome.storage.session`（键含页面 origin+path，`pagehide` 清除不再需要），后台设 `TRUSTED_AND_UNTRUSTED_CONTEXTS` 让内容脚本可写；`permissions.md` §1 与隐私政策页（中英）同步写明。单测断言 `sessionStorage.length === 0`。
 
 **P2-12 X 截图的匿名漏掉名字与账号**
 
 - 身份元素的选择器是 `[data-testid="User-Names"]`（`entrypoints/content/screenshot/detect.ts:14`），X 页面上实际是 `User-Name`：真实页面上后者 7 处匹配，前者 0 处；[market.md §4.3](./v2/market.md#43-区块与元素的指认现有做法与页面抽样) 引 Defuddle 的那一行写的也是 `User-Name`。匿名默认开启，但在真实 Chrome 里截出的 X 帖子只有头像换成了灰色占位，显示名与 @账号原样留在图里。单测 `entrypoints/content/screenshot/__tests__/detect.test.ts:10`、`:69` 断言的是同一个错误的名字，所以一直是绿的。不符合 [screenshot.md §3](./v2/screenshot.md#3-匿名与预览)：DOM 匿名默认开启，X 用稳定的 `data-testid` 识别身份元素。
+- 修复：选择器与两处单测改为 `User-Name`。X 上的实际遮盖效果待真机回归（登录态页面）。
 
 ### P3
 
@@ -251,6 +267,8 @@ Claude in Chrome 的限制：打不开 `chrome-extension://` 页面（地址被�
 | P3-10 | 资料库导航地标的名称借用了“在资料库中打开”的按钮文案（`library.openLibrary`），英文是“Open in library”；地标应以资料库命名                          | `entrypoints/library/App.tsx:510`                                       |
 | P3-11 | 剪藏提示固定在右下角，不避让页面自己的浮动按钮：X 上盖住“Chat”按钮（55×36），持续 3.2 秒                                                            | `entrypoints/content/content.css:84`                                    |
 | P3-12 | 已打开的资料库页不实时反映新剪藏：第三轮在用户 profile 里开着库页剪藏 Medium 文章，列表不更新，`Cmd+R` 后才出现（第三轮发现，见 7.6）               | `entrypoints/library/App.tsx` 的列表查询                                |
+
+P3 全部已修复（修复轮）：P3-1 提示条以 “ · ” 分隔；P3-2 英文单数在 `uiText` 出参处统一（“1 entry”“1 highlight”“1 clip”、行首类型标签用单数键）；P3-3 菜单 Enter 改为跟随当前焦点按钮，无焦点时不拦；P3-4 区块路径的元素也写取景框记录；P3-5 剪藏提示挂 `role=status` 且悬停/聚焦暂停 3 秒倒计时，失败提示为 `role=alert`；P3-6 画廊格子的名称补上来源；P3-7 水印位置选项带文字（“右上 ↗”等）；P3-8 摘要从单元第一个正文块起读；P3-9 `.md-view` 标题定字号、标题内链接继承标题外观；P3-10 导航地标改名 “Library”；P3-11 剪藏提示改底部居中，不再压页面右下角的浮动按钮；P3-12 后台在写入成功后经 `BroadcastChannel` 广播，打开中的库页自动刷新列表。
 
 ### 第一轮其余结论的复核
 
