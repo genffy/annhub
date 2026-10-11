@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { clearLibrary, ensureServiceWorker, getCapturePageUrl, getEntries, selectUntilMenu, stopServiceWorker, updateEntry, waitForClipToast } from './helpers'
+import { clearLibrary, ensureServiceWorker, getCapturePageUrl, getEntries, selectUntilMenu, sendMessage, stopServiceWorker, updateEntry, waitForClipToast } from './helpers'
 
 /**
  * Browsing scale and freshness (RV-LIB-02, RV-LIB-03): every entry is
@@ -121,7 +121,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
       for (const route of ['clips?prop=title', 'all?type=clip&prop=title']) {
         await library.goto(`chrome-extension://${extensionId}/library.html#/${route}`)
         await library.reload()
-        await expect(library.locator('.row')).toHaveCount(3)
+        await expect(library.locator('.entry-card')).toHaveCount(3)
         const problems = await library.evaluate(() => {
           const bar = document.querySelector('.toolbar')!
           const edge = bar.getBoundingClientRect()
@@ -188,7 +188,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await saveClips(page.context(), page, 3)
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    await expect(library.locator('.row')).toHaveCount(3)
+    await expect(library.locator('.entry-card')).toHaveCount(3)
 
     await library.locator('.search').fill('nosuchword')
     await expect(library.locator('.empty')).toContainText('没有匹配的结果')
@@ -200,7 +200,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await expect(library.locator('.search')).toHaveValue('nosuchword')
     await expect(library.locator('.empty')).toContainText('没有匹配的结果')
     await library.getByRole('button', { name: '清除筛选' }).click()
-    await expect(library.locator('.row')).toHaveCount(3)
+    await expect(library.locator('.entry-card')).toHaveCount(3)
     await expect(library.locator('.search')).toHaveValue('')
     expect(library.url()).not.toContain('q=')
 
@@ -210,7 +210,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
       await library.reload()
       await expect(library.locator('.empty'), filter).toContainText('没有匹配的结果')
       await library.getByRole('button', { name: '清除筛选' }).click()
-      await expect(library.locator('.row'), filter).toHaveCount(3)
+      await expect(library.locator('.entry-card'), filter).toHaveCount(3)
     }
     await library.close()
   })
@@ -331,7 +331,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await expect(library.locator('.empty')).toHaveCount(0)
     await expect(library.getByTestId('list-count')).toHaveText('加载中…')
     await library.evaluate(() => (window as unknown as { releaseList: () => void }).releaseList())
-    await expect(library.locator('.row')).toHaveCount(1)
+    await expect(library.locator('.entry-card')).toHaveCount(1)
     await expect(library.getByTestId('list-count')).toHaveText('共 1 条')
     await library.close()
   })
@@ -348,19 +348,19 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
 
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    await expect(library.locator('.row')).toHaveCount(50)
+    await expect(library.locator('.entry-card')).toHaveCount(50)
     await expect(library.getByTestId('list-count')).toContainText('120')
 
     await library.getByTestId('load-more').click()
-    await expect(library.locator('.row')).toHaveCount(100)
+    await expect(library.locator('.entry-card')).toHaveCount(100)
     await library.getByTestId('load-more').click()
-    await expect(library.locator('.row')).toHaveCount(120)
+    await expect(library.locator('.entry-card')).toHaveCount(120)
     await expect(library.getByTestId('load-more')).toHaveCount(0)
 
     // the oldest entry's unique tag is a filter candidate from the whole library
     const tagFilter = library.locator('select[aria-label*="标签"], select[aria-label*="tag"], select[aria-label*="Tag"]').first()
     await tagFilter.selectOption('oldest-tag')
-    await expect(library.locator('.row')).toHaveCount(1)
+    await expect(library.locator('.entry-card')).toHaveCount(1)
     expect(library.url()).toContain('tag=oldest-tag')
     await library.close()
   })
@@ -369,17 +369,17 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await saveClips(page.context(), page, 3)
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
-    await expect(library.locator('.row')).toHaveCount(3)
+    await expect(library.locator('.entry-card')).toHaveCount(3)
     await expect(library.getByTestId('list-count')).toContainText('3')
 
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     const drawer = library.locator('.drawer')
     await expect(drawer).toBeVisible()
     await drawer.getByRole('button', { name: '删除' }).click()
     await drawer.getByRole('alertdialog').getByRole('button', { name: '删除' }).click()
 
     await expect(drawer).toHaveCount(0)
-    await expect(library.locator('.row')).toHaveCount(2)
+    await expect(library.locator('.entry-card')).toHaveCount(2)
     await expect(library.getByTestId('list-count')).toContainText('2')
     expect(await getEntries(library.context())).toHaveLength(2)
     await library.close()
@@ -417,7 +417,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
     await expect(library.getByTestId('list-count')).toContainText('1500', { timeout: 60_000 })
-    await expect(library.locator('.row')).toHaveCount(50)
+    await expect(library.locator('.entry-card')).toHaveCount(50)
     await expect(library.getByTestId('guide-card')).toHaveCount(0)
     await expect(library.locator('select option[value="oldest.example"]')).toHaveCount(1)
     await expect(library.locator('select option[value="oldest-tag"]')).toHaveCount(1)
@@ -428,14 +428,94 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await seedThreePages(page.context())
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
-    await expect(library.locator('.row')).toHaveCount(50)
+    await expect(library.locator('.entry-card')).toHaveCount(50)
     await library.getByTestId('load-more').dblclick()
-    await expect(library.locator('.row'), 'two pages: the second click did not ask for the second page again').toHaveCount(100)
+    await expect(library.locator('.entry-card'), 'two pages: the second click did not ask for the second page again').toHaveCount(100)
     await expect(library.getByTestId('load-more'), 'what is left is still on offer').toBeVisible()
-    const ids = await library.locator('.row').evaluateAll(rows => rows.map(row => row.getAttribute('data-entry-id')))
+    const ids = await library.locator('.entry-card').evaluateAll(rows => rows.map(row => row.getAttribute('data-entry-id')))
     expect(new Set(ids).size, 'every row once').toBe(100)
     await library.getByTestId('load-more').click()
-    await expect(library.locator('.row')).toHaveCount(120)
+    await expect(library.locator('.entry-card')).toHaveCount(120)
+    await library.close()
+  })
+
+  test('load more moves the keyboard to the first card it added, on the last page too; a list that changes by itself leaves it alone (D-28)', async ({ page, extensionId }) => {
+    await seedRealisticLibrary(page.context(), 120)
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+    const cards = library.locator('.entry-card')
+    const loadMore = library.getByTestId('load-more')
+    await expect(cards).toHaveCount(50)
+
+    // the library's order, through the message the list itself sends: the second page starts at its 51st entry, the third at its 101st
+    const { result } = await sendMessage<{ result: { items: { id: string }[]; total: number } }>(library, { type: 'QUERY_ENTRIES', query: { limit: 120 } })
+    expect(result.total).toBe(120)
+    const order = result.items.map(item => item.id)
+
+    /** document.activeElement: the card holding it (1-based, in list order) and what it is. */
+    const focus = () =>
+      library.evaluate(() => {
+        const active = document.activeElement
+        const card = active?.closest('.entry-card')
+        return {
+          card: card ? [...document.querySelectorAll('.entry-card')].indexOf(card) + 1 : null,
+          entry: card?.getAttribute('data-entry-id') ?? null,
+          element: active === document.body ? 'body' : (active?.getAttribute('data-testid') ?? active?.className ?? null),
+        }
+      })
+
+    // hold each page back until the test lets it go, the way a cold worker or a big library does
+    await library.evaluate(() => {
+      const runtime = chrome.runtime as unknown as { sendMessage: (...args: unknown[]) => Promise<unknown> }
+      const send = runtime.sendMessage.bind(chrome.runtime)
+      runtime.sendMessage = (...args) => {
+        const message = args[0] as { type?: string; query?: { cursor?: string } }
+        if (message.type !== 'QUERY_ENTRIES' || !message.query?.cursor) return send(...args)
+        return new Promise<void>(resolve => {
+          ;(window as unknown as { releasePage: () => void }).releasePage = resolve
+        }).then(() => send(...args))
+      }
+    })
+
+    for (const [shown, after, rest] of [
+      [50, 100, '显示更多（还有 20 条）'],
+      [100, 120, null],
+    ] as const) {
+      // keyboard only: Tab from the last card reaches load more, Enter presses it
+      await expect(cards).toHaveCount(shown)
+      await cards.last().locator('.entry-card-open').focus()
+      await library.keyboard.press('Tab')
+      await expect(loadMore).toBeFocused()
+      await library.keyboard.press('Enter')
+      // while the page is on its way the button keeps the keyboard and says it is busy (Chrome drops the focus of a button that turns disabled)
+      await expect(loadMore).toBeFocused()
+      await expect(loadMore).toHaveAttribute('aria-disabled', 'true')
+      await library.evaluate(() => (window as unknown as { releasePage: () => void }).releasePage())
+      await expect(cards).toHaveCount(after)
+      // the keyboard goes on from the first card the page added: not left on the button, not dropped to the page
+      await expect.poll(focus, `focus once ${after} cards show`).toEqual({ card: shown + 1, entry: order[shown], element: 'entry-card-open' })
+      const added = library.locator(`.entry-card[data-entry-id="${order[shown]}"]`)
+      await expect(added).toBeInViewport()
+      await expect(added, 'the card shows the focus ring').toHaveCSS('outline-style', 'solid')
+      await expect(library.getByTestId('list-count')).toHaveText('共 120 条')
+      if (rest) await expect(loadMore).toHaveText(rest)
+      else await expect(loadMore, 'the last page takes the button away').toHaveCount(0)
+    }
+
+    // the list changing under the keyboard (a filter, then a write from another tab) is not a page the user asked for
+    const search = library.locator('.search')
+    const matching = await sendMessage<{ result: { total: number } }>(library, { type: 'QUERY_ENTRIES', query: { search: 'jitter', limit: 1 } })
+    await search.fill('jitter')
+    await expect(cards).toHaveCount(matching.result.total)
+    await expect(search).toBeFocused()
+    await search.fill('')
+    await expect(cards).toHaveCount(50)
+    await expect(search).toBeFocused()
+    await updateEntry(page.context(), extensionId, order[0]!, { properties: { set: { title: 'Renamed in another tab' } } })
+    const renamed = await sendMessage<{ entry: { properties: Record<string, unknown> } }>(library, { type: 'GET_ENTRY', id: order[0] })
+    expect(renamed.entry.properties['title']).toBe('Renamed in another tab')
+    await expect(cards.first()).toContainText('Renamed in another tab')
+    await expect(search).toBeFocused()
     await library.close()
   })
 
@@ -445,18 +525,18 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
     await library.getByTestId('load-more').click()
     await library.getByTestId('load-more').click()
-    await expect(library.locator('.row')).toHaveCount(120)
-    const late = library.locator('.row[data-entry-id="ent_page_000"]')
+    await expect(library.locator('.entry-card')).toHaveCount(120)
+    const late = library.locator('.entry-card[data-entry-id="ent_page_000"]')
     await late.click()
     await library.locator('.drawer').getByRole('button', { name: '关闭' }).click()
-    await expect(library.locator('.row')).toHaveCount(120)
+    await expect(library.locator('.entry-card')).toHaveCount(120)
     await expect(late).toBeVisible()
     await late.click()
     const title = library.locator('.drawer .prop-row').filter({ hasText: 'title' }).locator('input')
     await title.fill('Edited late row')
     await title.blur()
     await library.locator('.drawer').getByRole('button', { name: '关闭' }).click()
-    await expect(library.locator('.row')).toHaveCount(120)
+    await expect(library.locator('.entry-card')).toHaveCount(120)
     await expect(late).toContainText('Edited late row')
     await library.close()
   })
@@ -465,7 +545,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await saveClips(page.context(), page, 1)
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await library.getByTestId('drawer-read').click()
     await expect(library.getByTestId('reading-view')).toBeVisible()
     await library.getByTestId('reading-view').getByRole('button', { name: '返回' }).click()

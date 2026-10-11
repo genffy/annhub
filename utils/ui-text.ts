@@ -211,7 +211,7 @@ const STRINGS = {
   'reading.empty': { zh: '在正文里选中文字即可创建高亮；键盘上选中后按 H。', en: 'Select text in the article to highlight; press H after a keyboard selection.' },
   'reading.note': { zh: '备注', en: 'Note' },
   'reading.edit': { zh: '编辑高亮', en: 'Edit highlight' },
-  'reading.highlightLabel': { zh: '高亮，{color}', en: 'Highlight, {color}' },
+  'reading.highlightLabel': { zh: '高亮，{color}：{text}', en: 'Highlight, {color}: {text}' },
   'reading.deleted': { zh: '已删除', en: 'Deleted' },
   'reading.locate': { zh: '定位', en: 'Locate' },
   'reading.back': { zh: '返回', en: 'Back' },

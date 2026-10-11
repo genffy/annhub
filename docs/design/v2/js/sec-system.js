@@ -15,7 +15,7 @@ const shellDiagram = (o) => {
     <div class="hs between t-xs muted" style="margin-bottom:6px"><b style="color:var(--fg)">${o.title}</b><span class="mono">${o.range}</span></div>
     <div style="position:relative;height:${H}px;border:1.5px solid var(--line-2);border-radius:10px;background:var(--surface-2);overflow:hidden">
       <div style="position:absolute;left:0;top:0;bottom:0;width:${navW}px;background:color-mix(in oklab,var(--brand) 9%,var(--surface));border-right:1.5px solid color-mix(in oklab,var(--brand) 35%,var(--line-2));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11.5px;color:var(--brand-text);font-weight:650">${navW < 50 ? `<span style="writing-mode:vertical-rl;letter-spacing:.06em">导航 · <span class="mono" style="font-weight:500">${o.nav}</span></span>` : `<span>导航</span><span class="mono" style="font-weight:500">${o.nav}</span>`}</div>
-      <div style="position:absolute;left:${navW}px;right:0;top:0;bottom:0;padding:14px 16px;display:flex;flex-direction:column;gap:7px"><span class="t-xs muted">内容 · 自适应</span>${[90, 70, 82, 60, 76].map(p => `<i style="display:block;height:12px;width:${p}%;border-radius:6px;background:var(--surface-3)"></i>`).join('')}</div>
+      <div style="position:absolute;left:${navW}px;right:0;top:0;bottom:0;padding:14px 16px;display:flex;flex-direction:column;gap:7px"><span class="t-xs muted">内容 · 卡片网格</span><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(${240 * k}px,1fr));gap:${14 * k}px">${Array.from({ length: 6 }, () => `<i style="display:flex;flex-direction:column;height:64px;border:1px solid var(--line-2);border-radius:6px;background:var(--surface);overflow:hidden"><b style="display:block;height:38px;background:var(--surface-3)"></b></i>`).join('')}</div></div>
       ${o.drawer ? `<div style="position:absolute;right:0;top:0;bottom:0;width:${dr}px;background:var(--surface);border-left:1.5px dashed var(--line-2);box-shadow:-10px 0 20px -14px rgb(15 23 42 / .35);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11.5px;color:var(--fg-3);font-weight:650"><span>抽屉</span><span class="mono" style="font-weight:500">${o.drawerFull ? '占满内容区' : '440'}</span></div>` : ''}
     </div>
   </div>`
@@ -40,8 +40,8 @@ function secSystem() {
   const types = group(
     { id: 'ds-type-code', title: '条目类型与高亮的编码', small: 'visual §3', desc: '两种条目类型（剪藏、截图）和库里的高亮是产品里出现频率最高的标识。每种都用<b>图标 + 文字 + 颜色</b>三重编码，颜色只是辅助；芯片底色与文字色由同一个 --t 混合得出，亮暗两套自动适配。高亮不是条目类型，它只在导航、入口和阅读视图里出现。' },
     row(
-      specGroup('芯片 · 图块', 'tchip（22px）用于列表和详情，ttile（32px）用于列表行左侧与导航。', `<table class="sp-table"><thead><tr><th>类型</th><th>图块</th><th>令牌</th><th>一句话</th><th>图标</th></tr></thead><tbody>${typeRows}</tbody></table>`),
-      specGroup('出现的位置', '导航、列表行、详情、弹窗、页面里的选区菜单，类型出现的任何地方都同时有图标和文字。', `<div class="vs g16">
+      specGroup('芯片 · 图块', 'tchip（22px）用于条目卡片和详情，ttile（32px）用于弹窗列表的行首与首次引导卡。', `<table class="sp-table"><thead><tr><th>类型</th><th>图块</th><th>令牌</th><th>一句话</th><th>图标</th></tr></thead><tbody>${typeRows}</tbody></table>`),
+      specGroup('出现的位置', '导航、条目卡片、详情、弹窗、页面里的选区菜单，类型出现的任何地方都同时有图标和文字。', `<div class="vs g16">
         <div><div class="t-xs muted" style="margin-bottom:6px">列表芯片 · 小号 / 标准</div><div class="hs g8 wrap">${TYPE_ORDER.map(t => tchip(t, { sm: true })).join('')}${TYPE_ORDER.map(t => tchip(t)).join('')}<span class="tchip t-highlight">${I(HLV.icon)}${HLV.zh}</span></div></div>
         <div><div class="t-xs muted" style="margin-bottom:6px">导航项里的类型图标</div><div class="app" style="height:auto;display:block;background:transparent;width:200px"><div class="nav" style="border:1px solid var(--line);border-radius:10px;padding:8px">${NAV.slice(1).map(it => navItem(it, 'highlight', 'zh')).join('')}</div></div></div>
         <div><div class="t-xs muted" style="margin-bottom:6px">高亮调色板（五色，每个色点都有文字名称）</div><div class="hs g10 wrap">${HL_COLORS.map((c, i) => `<span class="hs g6">${hlDot(c, i === 0)}<span class="t-xs muted">${HL_NAMES[c]}</span></span>`).join('')}</div></div>
@@ -76,7 +76,8 @@ function secSystem() {
     </div>
     <table class="sp-table" style="margin-top:26px"><thead><tr><th style="width:160px">项</th><th style="width:230px">值</th><th>说明</th></tr></thead><tbody>
       <tr><td>导航宽度</td><td class="mono">232 / 60</td><td>展开 232px，图标栏 60px；折叠后图标有文字提示，当前视图仍有底色与竖条</td></tr>
-      <tr><td>内容区</td><td>自适应 · 列表最大行宽 960</td><td>页头左右 32（窄窗口 20）、上 22；列表类视图限制最大行宽，画廊与属性表占满</td></tr>
+      <tr><td>内容区</td><td>自适应 · 卡片最小宽 240 · 间距 14</td><td>页头左右 32（窄窗口 20）、上 22；全部、剪藏、高亮、截图的卡片铺满内容区，列数随宽度增减，窄窗口里一列；属性表占满；引导与空状态最大行宽 960</td></tr>
+      <tr><td>条目卡片</td><td class="mono">预览 150 · 标题最多 2 行</td><td>预览是剪藏正文的前几行或截图的缩略图，所有卡片一样高；同一行的卡片等高，最后一行（类型、来源、时间）对齐</td></tr>
       <tr><td>详情抽屉</td><td class="mono">440</td><td>覆盖在内容之上，Esc 或点击遮罩关闭；窄窗口里占满内容区</td></tr>
       <tr><td>阅读视图</td><td class="mono">正文最大 700 · 右栏 320</td><td>正文居中，右栏是“高亮 / 属性”两个标签，与抽屉共用属性面板；窄窗口里右栏收到正文下方（extension §4.2），本稿没有单独画这一态</td></tr>
       <tr><td>断点</td><td class="mono">1100 · 720</td><td>≥ 1100 展开；720–1099 默认展开、可手动折叠；&lt; 720 默认折叠为图标栏。任何宽度都不换成顶部导航</td></tr>
@@ -143,7 +144,7 @@ function secSystem() {
     cls: 'ui',
     body: `<div style="padding:26px 28px 28px;display:grid;grid-template-columns:repeat(3,1fr);gap:26px">
       <div class="vs g12"><b class="t-lg">1 · 来源始终可见</b><div class="help" style="margin-top:-6px">任何一条内容都能回答“这是从哪来的、怎么回去”。</div>
-        <div class="list">${entryRow(ENTRIES0[0])}</div>
+        <div style="max-width:320px">${entryCard(ENTRIES0[0])}</div>
         ${banner('info', '原页面可能已经变化；<b>原文和语境都存在这里</b>，可以继续阅读、高亮和整理。', { icon: 'unplug' })}</div>
       <div class="vs g12"><b class="t-lg">2 · 状态不只靠颜色</b><div class="help" style="margin-top:-6px">每个状态至少有两种线索：图标 / 文字 / 形状之一加颜色。</div>
         <table class="sp-table" style="font-size:12.5px"><tbody>
@@ -185,7 +186,7 @@ function secSystem() {
       <div class="vs g8"><b>动效</b><table class="sp-table" style="font-size:12.5px"><tbody>
         <tr><td>剪藏提示</td><td>约 3 秒，细条表示剩余时间</td></tr><tr><td>悬停提示</td><td>延迟约 300ms，淡入 120ms</td></tr><tr><td>详情抽屉</td><td>从右滑入 160ms；Esc 关闭</td></tr><tr><td>减少动态</td><td>全部降级为瞬时切换</td></tr></tbody></table></div>
       <div class="vs g8"><b>焦点与键盘</b><ul class="t-sm" style="margin:0;padding-left:18px;line-height:1.75;color:var(--fg-2)"><li>选区菜单可用 Tab / ← → / Enter，不抢页面焦点</li><li>资料库按 / 聚焦搜索；导航可用 ↑ ↓ 切换；阅读视图里选中文字按 H 高亮</li><li>抽屉打开时焦点进入并被限制在其中，关闭后回到触发位置</li><li>Esc 依次关闭气泡、抽屉、菜单</li></ul></div>
-      <div class="vs g8"><b>读屏与语义</b><ul class="t-sm" style="margin:0;padding-left:18px;line-height:1.75;color:var(--fg-2)"><li>导航是 <code>nav</code> 地标，当前视图 <code>aria-current</code>；折叠为图标栏后仍有可读名称</li><li>每一行读出：类型、标题、来源、时间</li><li>图标按钮一律有 aria-label；颜色色块有文字名称；正文里的高亮读作“高亮，颜色名”</li></ul></div>
+      <div class="vs g8"><b>读屏与语义</b><ul class="t-sm" style="margin:0;padding-left:18px;line-height:1.75;color:var(--fg-2)"><li>导航是 <code>nav</code> 地标，当前视图 <code>aria-current</code>；折叠为图标栏后仍有可读名称</li><li>每张卡片读出：标题、标签、类型、来源、时间，剪藏接着读正文的开头</li><li>图标按钮一律有 aria-label；颜色色块有文字名称；正文里的高亮读作“高亮，颜色名”</li></ul></div>
       <div class="vs g8"><b>对比度与尺寸</b><ul class="t-sm" style="margin:0;padding-left:18px;line-height:1.75;color:var(--fg-2)"><li>正文与控件文字对背景 ≥ 4.5:1（亮 / 暗两套都校验，见下方实测表）</li><li>状态传达至少两种线索，不只靠颜色</li><li>可点击区域 ≥ 28px 高；主要按钮 32–36px</li><li>文字可随系统字号放大，布局不依赖固定字数</li></ul></div>
     </div>`,
     notes: ['这些数值是本稿的建议起点，落地后在首次使用走查（E-03）里验证；与 extension §7 的验收条款一致。'],

@@ -60,7 +60,7 @@ function extReadGroup() {
       shell({
         active: 'clip',
         main: `${pageHead({ title: '剪藏', sub: '71 条', right: searchBox({}) })}
-          <div class="pbody cap">${fbar({ noType: true, count: '共 71 条' })}${entryList(['e1', 'e2', 'e4', 'e5', 'e6'], { sel: 'e2' })}</div>`,
+          <div class="pbody">${fbar({ noType: true, count: '共 71 条' })}${entryList(['e1', 'e2', 'e4', 'e5', 'e6'], { sel: 'e2' })}</div>`,
         drawer: drawer(e2, { pin: 1 }),
       }),
       { active: 'clip', h: 1010 },
@@ -68,7 +68,7 @@ function extReadGroup() {
     notes: [
       '抽屉里的“原文”用的是<b>同一个正文组件</b>：选中文字同样出现颜色点，已有高亮同样可以点开；“阅读”按钮只是换成更舒服的版式。',
       '<b>有高亮时原文只读</b>，并在“原文”标题旁写明原因：高亮的范围依赖它；删除全部高亮后恢复可编辑（entry §4 第 7 条）。',
-      '列表行上，有高亮的剪藏多一枚“N 高亮”的小标签；搜索也会命中高亮的引文与备注（search §1）。',
+      '条目卡片的最后一行，有高亮的剪藏多一枚“N 高亮”；搜索也会命中高亮的引文与备注（search §1）。',
     ],
   })
 

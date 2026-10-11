@@ -15,7 +15,7 @@ function extAppGroup() {
         active: 'all',
         pins: { nav: 1, foot: 5 },
         main: `${pageHead({ title: '全部', sub: '95 条 · 71 剪藏 · 24 截图', right: searchBox({ pin: 2 }) })}
-          <div class="pbody cap">
+          <div class="pbody">
             ${fbar({ pin: 3, count: '共 95 条' })}
             ${entryList(['e1', 'e2', 'e3', 'e4', 'e5', 'e6'], { hov: 'e2', pinId: 'e1', pinN: 4 })}
           </div>`,
@@ -26,7 +26,7 @@ function extAppGroup() {
       '<b>所有扩展页面都是“左侧导航 + 右侧内容”</b>：资料库的各个视图、属性页、设置页和弹窗共用同一套壳，导航的位置与顺序在所有页面里一致。当前视图用<b>底色、加粗和左侧竖条</b>标出，不只靠颜色（<code>aria-current="page"</code>）。',
       '搜索在页头右侧，按 <kbd>/</kbd> 聚焦；覆盖正文、语境、备注、高亮的引文与备注、来源和文本 / 列表属性（search §1），空查询只执行筛选。',
       '筛选条：类型（剪藏 / 截图，<b>只在“全部”里有</b>）、来源、标签、时间、属性。同维度 OR、跨维度 AND；条件写入 URL，刷新后恢复。',
-      '每一行都带<b>类型图标 + 文字</b>、正文摘要（Markdown 去掉语法后的文字）、页面标题、来源主机、相对时间、标签，以及自定义属性的小标签（如 <code>project</code>）；<b>有高亮的剪藏多一枚“N 高亮”</b>。“剪藏”视图与它同构，只是按 <code>type</code> 过滤，筛选条里没有“类型”。',
+      '条目是<b>卡片网格</b>，铺满内容区，列数随窗口宽度增减。卡片上部是预览：剪藏是正文的前几行（Markdown 去掉语法后的文字），截图是缩略图，每张卡片一样高；下部是页面标题（最多两行）、标签与自定义属性的小标签（如 <code>project</code>），最后一行是<b>类型图标 + 文字</b>、来源主机和相对时间，<b>有高亮的剪藏多一枚“N 高亮”</b>。“剪藏”视图与它同构，只是按 <code>type</code> 过滤，筛选条里没有“类型”。',
       '导航底部放<b>导出内容</b>（唯一的导出入口）、存储用量和截图快捷键提示；设置只通过导航进入，不在别处重复。',
     ],
   })
@@ -40,7 +40,7 @@ function extAppGroup() {
       shell({
         active: 'all',
         main: `${pageHead({ title: '全部', sub: '筛选后 2 条', right: searchBox({ q: '重试' }) })}
-          <div class="pbody cap">
+          <div class="pbody">
             <div style="position:relative">
               ${fbar({ active: [{ icon: 'layout-grid', label: '类型：剪藏' }, { icon: 'sliders-horizontal', label: 'project 等于 支付重试' }], count: '2 条' })}
               <div class="pcombo" style="position:absolute;left:340px;top:36px;width:340px;z-index:6">${pin(1, 'pin-in')}
@@ -71,17 +71,15 @@ function extAppGroup() {
       shell({
         active: 'highlight',
         main: `${pageHead({ title: '高亮', sub: '33 条 · 来自 14 条剪藏', right: searchBox({}) })}
-          <div class="pbody cap">
+          <div class="pbody">
             ${fbar({ noType: true, color: true, count: '共 33 条' })}
-            ${hlGroup('e2', { pin: 1 })}
-            ${hlGroup('e8', { fav: 1 })}
-            ${hlGroup('e11', { fav: 2 })}
+            <div class="hgs">${hlGroup('e2', { pin: 1 })}${hlGroup('e8', { fav: 1 })}${hlGroup('e11', { fav: 2 })}</div>
           </div>`,
       }),
       { active: 'highlight', h: 800 },
     ),
     notes: [
-      '“高亮”视图<b>以高亮为单位，按所属剪藏分组</b>：组头是剪藏标题、主机和条数，“回到来源”只打开原页面（页面上没有任何标记）；点一行在阅读视图里定位到这条高亮。',
+      '“高亮”视图<b>以高亮为单位，按所属剪藏分组</b>，每组是一张卡片，卡片沿列自上而下排开，列宽与条目卡片相同：卡片头是剪藏标题、主机和条数，“回到来源”只打开原页面（页面上没有任何标记）；点一条高亮在阅读视图里定位到它。',
       '每行左侧的色条是高亮的颜色（调色板五色），引文下方是备注。颜色只是用户的选择，不承担含义。筛选条多一个“颜色”；来源、标签、属性按<b>所属剪藏</b>计算（search §5）。',
     ],
   })
@@ -97,13 +95,13 @@ function extAppGroup() {
         main: `${pageHead({ title: '截图', sub: '24 张 · 已保存 89 MB', right: searchBox({}) })}
           <div class="pbody">
             ${fbar({ noType: true, count: '共 24 张' })}
-            <div class="gal">${['e3', 'e7', 'e10', 'e12', 'e3', 'e7'].map((id, i) => galTile(ENTRIES0.find(e => e.id === id), { act: i === 0, sel: i === 0, pin: i === 0 ? 1 : 0 })).join('')}</div>
+            <div class="egrid">${['e3', 'e7', 'e10', 'e12', 'e3', 'e7'].map((id, i) => entryCard(ENTRIES0.find(e => e.id === id), { act: i === 0, sel: i === 0, pin: i === 0 ? 1 : 0 })).join('')}</div>
           </div>`,
       }),
       { active: 'screenshot', h: 800 },
     ),
     notes: [
-      '截图是画廊：缩略图、标题、来源主机和属性小标签；悬停出现<b>下载</b>与<b>删除</b>，点开进入右侧详情抽屉。',
+      '截图是画廊：与“全部”相同的卡片，上部是缩略图；指针悬停或焦点进入卡片时出现<b>下载</b>与<b>删除</b>，点开进入右侧详情抽屉。',
       '截图与剪藏是<b>同一种条目</b>：同样可以加标签和属性、同样被搜索与筛选覆盖。删除一张截图会同时删除它的图片。',
     ],
   })
@@ -132,7 +130,7 @@ function extDetailGroup() {
       shell({
         active: 'all',
         main: `${pageHead({ title: '全部', sub: '95 条', right: searchBox({}) })}
-          <div class="pbody cap">${fbar({ count: '共 95 条' })}${entryList(['e1', 'e2', 'e3', 'e4', 'e5'], { sel: 'e2' })}</div>`,
+          <div class="pbody">${fbar({ count: '共 95 条' })}${entryList(['e1', 'e2', 'e3', 'e4', 'e5'], { sel: 'e2' })}</div>`,
         drawer: drawer(e2, { pin: 1, hovTags: true }),
       }),
       { active: 'all', h: 1010 },

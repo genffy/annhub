@@ -357,6 +357,194 @@ test.describe('Markdown headings in the drawer (extension.md §4.2)', () => {
   })
 })
 
+test.describe('accent text on the accent tint (visual.md §3, 真机走查 P2-8)', () => {
+  test('the Clip chip and the current reading tab read at 4.5:1 or more, light and dark', async ({ page, extensionId }) => {
+    await seed(page, extensionId)
+    const library = await page.context().newPage()
+    for (const scheme of ['light', 'dark'] as const) {
+      await library.emulateMedia({ colorScheme: scheme })
+      await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+      await library.reload()
+      await expect(library.locator('.type-chip.type-clip')).toHaveCount(3)
+      for (const ratio of await textContrast(library.locator('.type-chip.type-clip'))) expect(ratio, `the Clip chip (${scheme})`).toBeGreaterThanOrEqual(4.5)
+      await library.goto(`chrome-extension://${extensionId}/library.html#/read/ent_layout_plain`)
+      await expect(library.locator('.reading-tab-current')).toBeVisible()
+      const [tab] = await textContrast(library.locator('.reading-tab-current'))
+      expect(tab, `the current reading tab (${scheme})`).toBeGreaterThanOrEqual(4.5)
+    }
+    await library.close()
+  })
+})
+
+/** Clips of every length, some tagged and some highlighted, and two screenshots: the cards' shapes vary the way a library's do. */
+async function seedCards(page: Page, extensionId: string): Promise<void> {
+  await clearLibrary(page.context())
+  await page.goto(`chrome-extension://${extensionId}/sample.html`)
+  const long = 'Retries amplify the load when every client backs off together and tries again at once. '.repeat(8).trim()
+  const clips: Array<[string, string, string[], number]> = [
+    ['Retries and backpressure: why a saturated dependency gets worse when every client retries at once', long, ['reliability', 'retry', 'distributed-systems'], 3],
+    ['Inbox', 'A short clip.', [], 0],
+    ['Exponential backoff with jitter', 'Jitter spreads retries so clients do not stampede.', ['retry'], 1],
+    ['Load shedding', 'Reject the request at the edge before it consumes a thread.', [], 2],
+    ['Circuit breakers', long, ['sre'], 1],
+    ['为什么重试会放大故障', '当下游已经饱和时，每个超时的客户端都会再试一次。', ['可靠性', '重试'], 0],
+  ]
+  for (const [index, [title, content, tags, highlights]] of clips.entries()) {
+    const id = `ent_card_${index}`
+    await send(page, {
+      type: 'SAVE_CLIP',
+      requestId: `r-card-${index}`,
+      draft: { id, content, sourceUrl: `https://engineering.example.com/${index}`, properties: { title, ...(tags.length ? { tags } : {}) }, via: 'menu' },
+    })
+    for (let n = 0; n < highlights; n++) {
+      const quote = content.slice(n * 6, n * 6 + 5)
+      await send(page, { type: 'ADD_HIGHLIGHT', id, highlight: { id: `hl_card_${index}_${n}`, start: n * 6, end: n * 6 + 5, quote, color: 'yellow', createdAt: Date.now() } })
+    }
+  }
+  for (const [index, title] of ['p99 latency', 'Error budget'].entries()) {
+    await send(page, {
+      type: 'SAVE_SCREENSHOT',
+      requestId: `r-card-shot-${index}`,
+      data: { id: `ent_card_shot_${index}`, dataUrl: PNG_1PX, width: 1, height: 1, sourceUrl: 'https://sre.example.org/latency', title, via: 'shortcut' },
+    })
+  }
+}
+
+/**
+ * Where the cards of the open list view are, and what is wrong with how they sit. `grid` adds the checks only a grid
+ * passes: a row of cards is the same height with its previews and meta lines level, and the cards fill the width
+ * (only when there are enough of them to fill a row).
+ */
+function measureCards(library: Page, card: string, grid: boolean): Promise<{ columns: number; widths: number[]; found: string[] }> {
+  return library.evaluate(
+    ({ card, grid }) => {
+      const found: string[] = []
+      const listElement = document.querySelector('.list')!
+      const list = listElement.getBoundingClientRect()
+      const title = document.querySelector('.page-title')!.getBoundingClientRect()
+      const cards = [...document.querySelectorAll(card)].map(element => ({
+        element,
+        box: element.getBoundingClientRect(),
+        preview: element.querySelector('.entry-card-preview')?.getBoundingClientRect(),
+        meta: element.querySelector('.entry-card-meta')?.getBoundingClientRect(),
+      }))
+      const name = (element: Element) => element.getAttribute('data-entry-id') ?? element.querySelector('.hl-group-title')?.textContent
+      const lefts = [...new Set(cards.map(({ box }) => Math.round(box.left)))]
+      // lined up with the page head
+      const left = Math.min(...cards.map(({ box }) => box.left))
+      if (Math.abs(left - title.left) > 1) found.push(`the cards start at ${Math.round(left)}, the page title at ${Math.round(title.left)}`)
+      if (document.documentElement.scrollWidth > innerWidth) found.push('the page scrolls sideways')
+      for (const [index, a] of cards.entries()) {
+        if (a.box.right > list.left + listElement.clientLeft + listElement.clientWidth + 1) found.push(`${name(a.element)} runs past the list`)
+        for (const b of cards.slice(index + 1)) {
+          const across = Math.min(a.box.right, b.box.right) - Math.max(a.box.left, b.box.left)
+          const down = Math.min(a.box.bottom, b.box.bottom) - Math.max(a.box.top, b.box.top)
+          if (across > 1 && down > 1) found.push(`${name(a.element)} and ${name(b.element)} overlap`)
+        }
+      }
+      if (grid) {
+        // filling the content area rather than a column in its middle, once there are cards enough for a row
+        const right = Math.max(...cards.map(({ box }) => box.right))
+        const inner = list.left + listElement.clientLeft + listElement.clientWidth
+        const rowFull = cards.filter(({ box }) => Math.round(box.top) === Math.round(cards[0]!.box.top)).length === lefts.length
+        if (rowFull && cards.length > lefts.length && inner - right > title.left - list.left + 1) found.push(`${Math.round(inner - right)}px left empty on the right`)
+        const rows = new Map<number, typeof cards>()
+        for (const item of cards) rows.set(Math.round(item.box.top), [...(rows.get(Math.round(item.box.top)) ?? []), item])
+        const spread = (values: number[]) => Math.max(...values) - Math.min(...values)
+        for (const [top, row] of rows) {
+          if (spread(row.map(({ box }) => box.height)) > 1) found.push(`the row at ${top} has cards of different heights`)
+          if (spread(row.map(({ meta }) => meta!.bottom)) > 1) found.push(`the row at ${top} has its meta lines at different heights`)
+        }
+        const previews = new Set(cards.map(({ preview }) => Math.round(preview!.height)))
+        if (previews.size > 1) found.push(`previews of ${[...previews].join(', ')}px`)
+      }
+      return { columns: lefts.length, widths: [...new Set(cards.map(({ box }) => Math.round(box.width)))], found }
+    },
+    { card, grid },
+  )
+}
+
+test.describe('the list views are grids of cards (extension.md §2.3)', () => {
+  test('All, Clips and Screenshots fill the content area with columns of same-sized cards, as many as fit', async ({ page, extensionId }) => {
+    await seedCards(page, extensionId)
+    const library = await page.context().newPage()
+    for (const [width, columns] of [
+      [1440, (n: number) => n >= 4],
+      [1024, (n: number) => n >= 3],
+      [390, (n: number) => n === 1],
+    ] as const) {
+      await library.setViewportSize({ width, height: 900 })
+      const widths = new Set<number>()
+      for (const [view, count] of [
+        ['all', 8],
+        ['clips', 6],
+        ['screenshots', 2],
+      ] as const) {
+        await library.goto(`chrome-extension://${extensionId}/library.html#/${view}`)
+        await library.reload()
+        await expect(library.locator('.entry-card')).toHaveCount(count)
+        const cards = await measureCards(library, '.entry-card', true)
+        expect(cards.found, `${view} at ${width}px`).toEqual([])
+        if (view === 'all') expect(columns(cards.columns), `${cards.columns} columns at ${width}px`).toBe(true)
+        cards.widths.forEach(value => widths.add(value))
+      }
+      // one card for every view: a screenshot is the same size in All as in its own gallery
+      expect([...widths].length, `card widths at ${width}px: ${[...widths].join(', ')}`).toBe(1)
+    }
+    // only the gallery puts download and delete on a screenshot
+    await library.setViewportSize({ width: 1440, height: 900 })
+    await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+    await library.reload()
+    await expect(library.locator('.entry-card[data-type="screenshot"]')).toHaveCount(2)
+    await expect(library.locator('.entry-card-actions')).toHaveCount(0)
+    await library.goto(`chrome-extension://${extensionId}/library.html#/screenshots`)
+    await expect(library.locator('.entry-card .entry-card-actions')).toHaveCount(2)
+    await library.close()
+  })
+
+  test("a clip's card shows its first lines inside the preview and reads as its title and details, the words after", async ({ page, extensionId }) => {
+    await seedCards(page, extensionId)
+    const library = await page.context().newPage()
+    await library.setViewportSize({ width: 1440, height: 900 })
+    await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
+    await library.reload()
+    const card = library.locator('.entry-card[data-entry-id="ent_card_0"]')
+    const clamp = await card.evaluate(element => {
+      const preview = element.querySelector('.entry-card-preview')!.getBoundingClientRect()
+      const excerpt = element.querySelector<HTMLElement>('.entry-card-excerpt')!
+      const style = getComputedStyle(excerpt)
+      const shown = (excerpt.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)) / parseFloat(style.lineHeight)
+      return { cut: excerpt.scrollHeight > excerpt.clientHeight + 1, inside: excerpt.getBoundingClientRect().bottom <= preview.bottom + 1, shown }
+    })
+    expect(clamp.cut, 'the long clip is cut off, not shown whole').toBe(true)
+    expect(clamp.inside, 'no line shows below the preview box').toBe(true)
+    // a clamp on a box taller than its lines still draws the lines after the ellipsis, half of one at the bottom
+    expect(Math.abs(clamp.shown - Math.round(clamp.shown)), `the excerpt shows ${clamp.shown.toFixed(2)} lines`).toBeLessThan(0.05)
+    const open = card.locator('.entry-card-open')
+    await expect(open).toHaveAccessibleName(/^Retries and backpressure: .* #reliability #retry #distributed-systems 剪藏 engineering\.example\.com · .+ · 3 高亮$/)
+    await expect(open).toHaveAccessibleDescription(/^Retries amplify the load when every client backs off together/)
+    await library.close()
+  })
+
+  test('the highlights view flows its clip cards down columns, none overlapping', async ({ page, extensionId }) => {
+    await seedCards(page, extensionId)
+    const library = await page.context().newPage()
+    for (const [width, columns] of [
+      [1440, (n: number) => n >= 2],
+      [390, (n: number) => n === 1],
+    ] as const) {
+      await library.setViewportSize({ width, height: 900 })
+      await library.goto(`chrome-extension://${extensionId}/library.html#/highlights`)
+      await library.reload()
+      await expect(library.locator('.hl-group')).toHaveCount(4)
+      const groups = await measureCards(library, '.hl-group', false)
+      expect(groups.found, `highlights at ${width}px`).toEqual([])
+      expect(columns(groups.columns), `${groups.columns} columns at ${width}px`).toBe(true)
+    }
+    await library.close()
+  })
+})
+
 test.describe('the icon rail in a narrow window (extension.md §2.2)', () => {
   test("the brand fits the rail and every badge, the current item's included, is legible", async ({ page, extensionId }) => {
     await seed(page, extensionId)

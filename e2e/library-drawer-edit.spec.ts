@@ -120,7 +120,7 @@ test.describe('editing the original and the context in the drawer (extension.md 
     await expect(drawer).toHaveCount(0)
     await expect.poll(async () => (await stored(page, 'ent_edit_plain')).content).toBe('when clients retry together')
 
-    await library.locator('.row-main').filter({ hasText: 'Retries' }).click()
+    await library.locator('.entry-card-open').filter({ hasText: 'Retries' }).click()
     await drawer.getByTestId('edit-context').click()
     await drawer.getByRole('textbox', { name: '语境' }).fill(`Then, ${'when clients retry together'}, the queue grows.`)
     await library.locator('.drawer-backdrop').click({ position: { x: 20, y: 20 } })

@@ -13,7 +13,7 @@ test.describe('library property regressions', () => {
   test('reading panel keeps successive edits and updates the header (RV-LIB-16)', async ({ page, extensionId }) => {
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await library.getByTestId('drawer-read').click()
     const reading = library.getByTestId('reading-view')
     await reading.getByRole('tab', { name: /属性|Properties/ }).click()
@@ -47,7 +47,7 @@ test.describe('library property regressions', () => {
     )
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     const row = library.locator('.drawer .prop-row', { has: library.locator('.prop-name', { hasText: 'tags' }) })
     await row.locator('.prop-name').click()
     await expect(row.locator('.tag')).toHaveCount(2)
@@ -58,12 +58,12 @@ test.describe('library property regressions', () => {
   test('Escape saves an active title draft before closing the drawer (RV-LIB-05)', async ({ page, extensionId }) => {
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     const title = library.locator('.drawer .prop-row').filter({ hasText: 'title' }).locator('input')
     await title.fill('Saved by Escape')
     await title.press('Escape')
     await expect(library.locator('.drawer')).toHaveCount(0)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await expect(library.locator('.drawer .prop-row').filter({ hasText: 'title' }).locator('input')).toHaveValue('Saved by Escape')
     await library.close()
   })
@@ -71,7 +71,7 @@ test.describe('library property regressions', () => {
   test('browser Back saves an unblurred drawer note before leaving (RV-LIB-05)', async ({ page, extensionId }) => {
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await library.locator('.drawer textarea').fill('Kept across Back')
     await library.goBack()
     await expect(library.locator('.drawer')).toHaveCount(0)
@@ -82,7 +82,7 @@ test.describe('library property regressions', () => {
   test('a rejected long value keeps its draft and explains the limit (RV-LIB-05)', async ({ page, extensionId }) => {
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await library.getByTestId('add-property').click()
     await library.locator('.prop-add input').fill('custom_text')
     await library
@@ -100,7 +100,7 @@ test.describe('library property regressions', () => {
   test('a pending list saves the item entered with one Enter (RV-LIB-06)', async ({ page, extensionId }) => {
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await library.getByTestId('add-property').click()
     await library.locator('.prop-add input').fill('reviewers')
     await library.locator('.prop-add select').selectOption('list')
@@ -136,7 +136,7 @@ test.describe('library property regressions', () => {
   test('the property panel shows read-only system fields (RV-LIB-07)', async ({ page, extensionId }) => {
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     const system = library.locator('.drawer-system')
     await expect(system).toContainText('剪藏')
     await expect(system).toContainText('localhost')
@@ -144,11 +144,11 @@ test.describe('library property regressions', () => {
     await library.close()
   })
 
-  test('drawer traps Tab, closes from the backdrop and restores row focus (RV-LIB-10)', async ({ page, extensionId }) => {
+  test('drawer traps Tab, closes from the backdrop and restores card focus (RV-LIB-10)', async ({ page, extensionId }) => {
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    const row = library.locator('.row-main').first()
-    await row.click()
+    const card = library.locator('.entry-card-open').first()
+    await card.click()
     const drawer = library.locator('.drawer')
     await expect(drawer).toBeVisible()
     await expect.poll(() => drawer.evaluate(node => node.contains(document.activeElement))).toBe(true)
@@ -158,7 +158,7 @@ test.describe('library property regressions', () => {
     await expect.poll(() => drawer.evaluate(node => node.contains(document.activeElement))).toBe(true)
     await library.locator('.drawer-backdrop').click({ position: { x: 20, y: 20 } })
     await expect(drawer).toHaveCount(0)
-    await expect(row).toBeFocused()
+    await expect(card).toBeFocused()
     await library.close()
   })
 
@@ -169,7 +169,7 @@ test.describe('library property regressions', () => {
     await expect(library.locator('.side .nav-item svg')).toHaveCount(6)
     await expect(library.getByRole('link', { name: '截图' })).toBeVisible()
     await expect(library.getByRole('link', { name: '设置' })).toBeVisible()
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await library.getByTestId('drawer-read').click()
     await expect(library.locator('.reading-side')).toBeVisible()
     await library.getByRole('tab', { name: /属性/ }).click()
@@ -199,16 +199,16 @@ test.describe('library property regressions', () => {
     await library.reload()
     const drawer = library.locator('.drawer')
 
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await expect(drawer.locator('.prop-row', { hasText: 'reviewed' }).locator('input[type="checkbox"]')).toBeChecked()
     await library.keyboard.press('Escape')
     await expect(drawer).toHaveCount(0)
 
     // the close button and the backdrop share the same flush
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await drawer.getByRole('button', { name: '关闭' }).click()
     await expect(drawer).toHaveCount(0)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await library.locator('.drawer-backdrop').click({ position: { x: 20, y: 20 } })
     await expect(drawer).toHaveCount(0)
 
@@ -223,7 +223,7 @@ test.describe('library property regressions', () => {
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
     await giveCheckbox(library, entry.id)
     await library.reload()
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await expect(library.locator('.drawer')).toBeVisible()
     await library.goBack()
     await expect(library.locator('.drawer')).toHaveCount(0)
@@ -270,7 +270,7 @@ test.describe('library property regressions', () => {
   test('a pending checkbox row can be left unset and the drawer still closes (RV-LIB-06)', async ({ page, extensionId }) => {
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await library.getByTestId('add-property').click()
     await library.locator('.prop-add input').fill('approved')
     await library.locator('.prop-add select').selectOption('checkbox')

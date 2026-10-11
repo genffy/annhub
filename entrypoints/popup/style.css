@@ -71,7 +71,7 @@ textarea {
 .popup-rail-item:hover,
 .popup-rail-current {
   background: var(--ann-accent-soft);
-  color: var(--ann-accent);
+  color: var(--ann-accent-text);
 }
 
 .popup-badge {
@@ -107,7 +107,7 @@ textarea {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--ann-accent);
+  color: var(--ann-accent-text);
   font: inherit;
   cursor: pointer;
 }

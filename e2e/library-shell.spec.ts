@@ -19,7 +19,7 @@ const NAV_FOLDED_KEY = 'annhub.navFolded'
 
 /**
  * A library of clips and, optionally, one screenshot. Leaves `page` on an extension page, so a test can send one more
- * message of its own. The newest clip (the first row) is the one with the highest index.
+ * message of its own. The newest clip (the first card) is the one with the highest index.
  */
 async function seed(page: Page, extensionId: string, options: { clips?: number; screenshot?: boolean } = {}): Promise<void> {
   const { clips = 3, screenshot = false } = options
@@ -47,11 +47,11 @@ async function seed(page: Page, extensionId: string, options: { clips?: number; 
   }
 }
 
-/** Opens the library at a list and reads its first clip the way a user does: row, drawer, 阅读. */
+/** Opens the library at a list and reads its first clip the way a user does: card, drawer, 阅读. */
 async function openReading(library: Page, extensionId: string, view = 'clips'): Promise<void> {
   await library.goto(`chrome-extension://${extensionId}/library.html#/${view}`)
   await library.reload()
-  await library.locator('.row-main').first().click()
+  await library.locator('.entry-card-open').first().click()
   await library.getByTestId('drawer-read').click()
   await expect(library.getByTestId('reading-view').locator('.reading-title')).not.toHaveText('')
 }
@@ -131,10 +131,10 @@ test.describe('the reading view takes the content area and nothing more (extensi
     ).toEqual([])
     expect(visited.has('reading view') && visited.has('nav'), `focus moved through both (saw ${[...visited].join(', ')})`).toBe(true)
 
-    // and the pointer cannot reach the list either: the row under the reading view is not what a click there would hit
+    // and the pointer cannot reach the list either: the card under the reading view is not what a click there would hit
     const blocked = await library.evaluate(() => {
-      const row = document.querySelector('.row-main')!.getBoundingClientRect()
-      const hit = document.elementFromPoint(row.left + row.width / 2, row.top + row.height / 2)
+      const card = document.querySelector('.entry-card-open')!.getBoundingClientRect()
+      const hit = document.elementFromPoint(card.left + card.width / 2, card.top + card.height / 2)
       return Boolean(hit?.closest('[data-testid="reading-view"]'))
     })
     expect(blocked, 'a click over the list lands on the reading view').toBe(true)
@@ -158,28 +158,31 @@ test.describe('the reading view takes the content area and nothing more (extensi
   test('Back returns to the list where it was left, not to its top', async ({ page, extensionId }) => {
     await seed(page, extensionId, { clips: 16 })
     const library = await page.context().newPage()
-    await library.setViewportSize({ width: 1180, height: 520 })
+    await library.setViewportSize({ width: 1180, height: 640 })
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
     await library.reload()
-    await expect(library.locator('.row')).toHaveCount(16)
+    await expect(library.locator('.entry-card')).toHaveCount(16)
 
+    // a row of cards more than 200px down sits at the top of the list: far enough to tell, and wholly on screen
     const list = library.locator('.list')
-    await list.evaluate(element => {
-      element.scrollTop = 260
+    const before = await list.evaluate(element => {
+      const frame = element.getBoundingClientRect()
+      const rows = [...new Set([...element.querySelectorAll('.entry-card')].map(card => Math.round(card.getBoundingClientRect().top - frame.top)))].sort((a, b) => a - b)
+      element.scrollTop = rows.find(top => top > 200)! - 8
+      return element.scrollTop
     })
-    const before = await list.evaluate(element => element.scrollTop)
     expect(before, 'the list scrolls at all').toBeGreaterThan(200)
 
-    // a row that is on screen now, so that opening it does not scroll the list
-    const visible = await library.locator('.row').evaluateAll(rows => {
+    // a card that is on screen now, so that opening it does not scroll the list
+    const visible = await library.locator('.entry-card').evaluateAll(cards => {
       const frame = document.querySelector('.list')!.getBoundingClientRect()
-      return rows.findIndex(row => {
-        const box = row.getBoundingClientRect()
+      return cards.findIndex(card => {
+        const box = card.getBoundingClientRect()
         return box.top >= frame.top + 4 && box.bottom <= frame.bottom - 4
       })
     })
     expect(visible).toBeGreaterThanOrEqual(0)
-    await library.locator('.row-main').nth(visible).click()
+    await library.locator('.entry-card-open').nth(visible).click()
     await library.getByTestId('drawer-read').click()
     await expect(library.getByTestId('reading-view').locator('.reading-title')).not.toHaveText('')
 
@@ -378,7 +381,7 @@ test.describe('icons and type (visual.md §3)', () => {
     await library.setViewportSize({ width: 1180, height: 800 })
     await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
     await library.reload()
-    await expect(library.locator('.row')).toHaveCount(2)
+    await expect(library.locator('.entry-card')).toHaveCount(2)
 
     const chips = (container: string) =>
       library.locator(`${container} .type-chip`).evaluateAll(elements =>
@@ -401,14 +404,14 @@ test.describe('icons and type (visual.md §3)', () => {
       { type: 'screenshot', icon: 'lucide-scan', text: '截图', iconBeforeText: true, iconInsideChip: true, iconSize: 12 },
       { type: 'clip', icon: 'lucide-bookmark', text: '剪藏', iconBeforeText: true, iconInsideChip: true, iconSize: 12 },
     ]
-    await expect.poll(() => chips('.list')).toEqual(expectedChips) // the screenshot was saved last, so it is the first row
+    await expect.poll(() => chips('.list')).toEqual(expectedChips) // the screenshot was saved last, so it is the first card
 
     // polled: the drawer opens a beat after the click, and `evaluateAll` does not wait for it
-    await library.locator('.row[data-type="screenshot"] .row-main').click()
+    await library.locator('.entry-card[data-type="screenshot"] .entry-card-open').click()
     await expect.poll(() => chips('.drawer-header')).toEqual([expectedChips[0]])
     await library.keyboard.press('Escape')
     await expect(library.locator('.drawer')).toHaveCount(0)
-    await library.locator('.row[data-type="clip"] .row-main').click()
+    await library.locator('.entry-card[data-type="clip"] .entry-card-open').click()
     await expect.poll(() => chips('.drawer-header')).toEqual([expectedChips[1]])
     await library.close()
   })

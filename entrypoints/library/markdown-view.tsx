@@ -320,7 +320,7 @@ function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highligh
         tabIndex={0}
         // the name says what it is — a highlight and its colour — before the
         // words themselves (extension.md §7.2, 真机走查 P2-7)
-        aria-label={`${uiText('reading.highlightLabel', { color: uiText(`library.color.${highlight.color}` as 'library.color.yellow') })}：${piece.text}`}
+        aria-label={uiText('reading.highlightLabel', { color: uiText(`library.color.${highlight.color}` as 'library.color.yellow'), text: piece.text })}
         className="md-hl-hit"
         onClick={event => onHighlightClick(highlight, event)}
         onKeyDown={event => {

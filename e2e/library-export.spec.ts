@@ -22,22 +22,22 @@ test.describe('the library page and the single export (extension.md §2.2, stora
     await library.goto(`chrome-extension://${extensionId}/library.html`)
 
     // both clips are listed with type, source and relative time
-    await expect(library.locator('.row')).toHaveCount(2)
-    await expect(library.locator('.row').first()).toContainText('localhost')
+    await expect(library.locator('.entry-card')).toHaveCount(2)
+    await expect(library.locator('.entry-card').first()).toContainText('localhost')
 
     // search narrows to the matching clip and writes the URL hash
     await library.locator('.search').fill('lockstep')
-    await expect(library.locator('.row')).toHaveCount(1)
+    await expect(library.locator('.entry-card')).toHaveCount(1)
     expect(library.url()).toContain('q=lockstep')
 
     // no-result state keeps the filter and offers to clear it
     await library.locator('.search').fill('nosuchword')
     await expect(library.locator('.empty')).toContainText('没有匹配的结果')
     await library.getByRole('button', { name: '清除筛选' }).click()
-    await expect(library.locator('.row')).toHaveCount(2)
+    await expect(library.locator('.entry-card')).toHaveCount(2)
 
     // the drawer renders the markdown, never raw HTML, and links back to the source
-    await library.locator('.row', { hasText: 'Retries can amplify' }).click()
+    await library.locator('.entry-card', { hasText: 'Retries can amplify' }).click()
     const drawer = library.locator('.drawer')
     await expect(drawer).toBeVisible()
     await expect(drawer.locator('.md-view a[href="https://engineering.example.com/jitter"]')).toHaveCount(1)
@@ -102,7 +102,7 @@ test.describe('the library page and the single export (extension.md §2.2, stora
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/all?q=lockstep`)
     await expect(library.locator('.search')).toHaveValue('lockstep')
-    await expect(library.locator('.row')).toHaveCount(1)
+    await expect(library.locator('.entry-card')).toHaveCount(1)
     await library.close()
   })
 
@@ -142,7 +142,7 @@ test.describe('the library page and the single export (extension.md §2.2, stora
 
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html`)
-    await library.locator('.row').first().click()
+    await library.locator('.entry-card').first().click()
     await library.locator('.drawer .danger').click()
     await library.locator('.modal .danger').click()
     await expect.poll(() => getEntries(library.context())).toHaveLength(0)

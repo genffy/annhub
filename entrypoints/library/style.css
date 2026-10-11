@@ -289,46 +289,95 @@ body {
   white-space: nowrap;
 }
 
+/* the four list views scroll here, under the page head and the filters */
 .list {
-  list-style: none;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 8px 16px 24px;
-  max-width: 860px;
-  width: 100%;
-  margin: 0 auto;
 }
 
-.row {
-  border-bottom: 1px solid var(--ann-border);
+/*
+ * All, Clips and Screenshots are one grid of cards (extension.md §2.3): as many columns as the content area holds,
+ * none narrower than the card's minimum, lined up with the page head above. The highlights view flows its cards down
+ * columns of the same width.
+ */
+.entry-grid,
+.hl-groups {
+  --card-min: 240px;
+  --card-gap: 14px;
+  padding: 16px 16px 24px;
+  list-style: none;
 }
 
-.row-main {
+.entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+  gap: var(--card-gap);
+}
+
+.entry-card,
+.hl-group {
+  border: 1px solid var(--ann-border);
+  border-radius: 6px;
+  background: var(--ann-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.entry-card {
+  position: relative;
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.entry-card:hover {
+  border-color: color-mix(in srgb, var(--ann-accent) 45%, var(--ann-border));
+}
+
+.entry-card-open {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
   border: 0;
-  background: none;
+  background: transparent;
+  color: var(--ann-text);
   text-align: left;
   cursor: pointer;
-  color: inherit;
-  font: inherit;
 }
 
-.row-main:hover,
-.row-main:focus-visible {
-  background: var(--ann-surface-alt);
-  border-radius: 6px;
+/* the card clips its corners, so the ring goes round the card instead of inside it */
+.entry-card-open:focus-visible {
+  outline: none;
 }
 
-.row-thumbnail {
-  width: 64px;
-  height: 48px;
+.entry-card:has(> .entry-card-open:focus-visible) {
+  outline: 2px solid var(--ann-accent);
+  outline-offset: 2px;
+}
+
+/* what the entry holds, the same height on every card: the picture, or the first lines of the clip */
+.entry-card-preview {
+  display: block;
   flex: none;
-  object-fit: contain;
+  width: 100%;
+  height: 150px;
+  border-bottom: 1px solid var(--ann-border);
   background: var(--ann-surface-alt);
-  border-radius: 4px;
+  object-fit: contain;
+}
+
+/* clamped inside the box rather than as the box: a clamp on a box of fixed height still shows the lines after it */
+.entry-card-excerpt {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 12px 14px 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
 }
 
 .screenshot-placeholder {
@@ -337,67 +386,58 @@ body {
   color: var(--ann-muted);
 }
 
-.screenshot-gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 14px;
-  width: 100%;
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 16px;
-  list-style: none;
+.entry-card-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 12px 12px;
 }
 
-.screenshot-tile {
-  position: relative;
+.entry-card-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* type, source and time are the card's last line, level across a row of cards whatever the title and tags above */
+.entry-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  min-width: 0;
+  color: var(--ann-muted);
+  font-size: 11.5px;
+}
+
+/* one line: a long host gives way, the type and the highlight count stay whole */
+.entry-card-source {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid var(--ann-border);
-  border-radius: 6px;
-  background: var(--ann-surface);
-}
-
-.screenshot-tile-open {
-  display: flex;
-  width: 100%;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 3px;
-  padding: 0 0 10px;
-  border: 0;
-  background: transparent;
-  color: var(--ann-text);
-  text-align: left;
-  cursor: pointer;
-}
-
-.screenshot-tile-open img,
-.screenshot-tile-open .screenshot-placeholder {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: contain;
-  background: var(--ann-surface-alt);
-}
-
-.screenshot-tile-title,
-.screenshot-tile-host {
-  overflow: hidden;
-  padding: 0 10px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.screenshot-tile-title {
-  font-size: 13px;
-  font-weight: 600;
+.entry-card-highlights {
+  flex: none;
+  color: var(--ann-accent-text);
+  white-space: nowrap;
 }
 
-.screenshot-tile-host {
-  color: var(--ann-muted);
-  font-size: 11px;
+.entry-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
 }
 
-.screenshot-tile-actions {
+.entry-card-actions {
   position: absolute;
   top: 7px;
   right: 7px;
@@ -406,12 +446,12 @@ body {
   opacity: 0;
 }
 
-.screenshot-tile:hover .screenshot-tile-actions,
-.screenshot-tile:focus-within .screenshot-tile-actions {
+.entry-card:hover .entry-card-actions,
+.entry-card:focus-within .entry-card-actions {
   opacity: 1;
 }
 
-.screenshot-tile-actions button {
+.entry-card-actions button {
   display: grid;
   place-items: center;
   width: 28px;
@@ -421,51 +461,6 @@ body {
   background: var(--ann-surface);
   color: var(--ann-text);
   cursor: pointer;
-}
-
-/* in a row the chip sits level with the first line of the title */
-.row-main .type-chip {
-  margin-top: 2px;
-}
-
-.row-body {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1;
-}
-
-.row-title {
-  font-size: 13.5px;
-  font-weight: 600;
-}
-
-.row-summary {
-  color: var(--ann-muted);
-  font-size: 12.5px;
-  line-height: 1.45;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-}
-
-.row-meta {
-  color: var(--ann-muted);
-  font-size: 11.5px;
-}
-
-.row-highlights {
-  color: var(--ann-accent-text);
-}
-
-.row-tags {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-  flex: none;
 }
 
 .tag {
@@ -718,8 +713,11 @@ body {
   cursor: not-allowed;
 }
 
-/* the next page is on its way: the link waits, so a second click cannot ask for the same page again */
-.load-more:disabled {
+/*
+ * the next page is on its way: the link waits, so a second click cannot ask for the same page again. It is
+ * aria-disabled, not disabled, so the keyboard stays on it until the page arrives.
+ */
+.load-more[aria-disabled='true'] {
   opacity: 0.6;
   cursor: progress;
 }
@@ -1164,15 +1162,44 @@ body {
   font-size: 11.5px;
 }
 
+/* the highlights view: a card per clip, its highlights inside, the cards flowing down the columns */
+.hl-groups {
+  column-width: var(--card-min);
+  column-gap: var(--card-gap);
+}
+
 .hl-group {
-  margin-bottom: 18px;
+  margin-bottom: var(--card-gap);
+  break-inside: avoid;
 }
 
 .hl-group-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ann-border);
+  border-radius: 6px 6px 0 0;
+  background: var(--ann-surface-alt);
+}
+
+.hl-group-title {
+  flex: 1 1 100%;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.hl-group-meta {
+  margin-right: auto;
+  color: var(--ann-muted);
+  font-size: 11.5px;
+}
+
+.hl-group-rows {
+  padding: 10px 12px 2px;
 }
 
 /* ── Property panel and properties page (extension.md §2.4, §4.1) ── */
@@ -1360,7 +1387,7 @@ body {
 .reading-tab-current {
   background: var(--ann-accent-soft);
   border-color: var(--ann-accent-text);
-  color: var(--ann-accent);
+  color: var(--ann-accent-text);
   font-weight: 600;
 }
 
@@ -1762,9 +1789,9 @@ body {
   overflow-wrap: anywhere;
 }
 
-/* a touch-sized window has no hover to reveal a tile's actions */
+/* a touch-sized window has no hover to reveal a card's actions */
 @media (max-width: 720px) {
-  .screenshot-tile-actions {
+  .entry-card-actions {
     opacity: 1;
   }
 }

@@ -90,9 +90,21 @@ test('in dark mode the popup text stays readable on the popup background (extens
       const [text, ground] = [luminance(channels(getComputedStyle(element).color)), luminance(backdrop(element))]
       return (Math.max(text, ground) + 0.05) / (Math.min(text, ground) + 0.05)
     }
-    return { title: contrast('.popup-title'), head: contrast('.popup-head'), hint: contrast('.popup-foot') }
+    return {
+      text: {
+        title: contrast('.popup-title'),
+        head: contrast('.popup-head'),
+        // accent text on the dark surface and on the accent tint (真机走查 P2-8)
+        link: contrast('.popup-head .link'),
+        chip: contrast('.type-chip.type-clip'),
+        hint: contrast('.popup-foot'),
+      },
+      // the current view's icon is a UI indicator: 3:1
+      rail: contrast('.popup-rail-current'),
+    }
   })
-  for (const [part, ratio] of Object.entries(ratios)) expect(ratio, `${part} contrast in dark mode`).toBeGreaterThanOrEqual(4.5)
+  for (const [part, ratio] of Object.entries(ratios.text)) expect(ratio, `${part} contrast in dark mode`).toBeGreaterThanOrEqual(4.5)
+  expect(ratios.rail, 'the current view in the rail, dark mode').toBeGreaterThanOrEqual(3)
   await popup.close()
 })
 
