@@ -181,6 +181,24 @@ export interface DownloadImageMessage extends BaseMessage {
   beautify?: boolean
 }
 
+/**
+ * The last frame of a screenshot (screenshot.md §1.4): the element it was anchored to with its margin, or a plain
+ * box, and where it was on the page. The worker keeps one per tab, for the page it was taken on.
+ */
+export type FrameRecord =
+  | { kind: 'element'; selector: string; margin: number; width: number; height: number; pageX: number; pageY: number }
+  | { kind: 'box'; pageX: number; pageY: number; width: number; height: number }
+
+export interface RememberFrameMessage extends BaseMessage {
+  type: 'REMEMBER_FRAME'
+  record: FrameRecord
+}
+
+/** Answers `{ record }`: this tab's frame when it was taken on the sender's page, otherwise null. */
+export interface ReadFrameMessage extends BaseMessage {
+  type: 'READ_FRAME'
+}
+
 // ── Settings, metrics, housekeeping ─────────────────────────────────────
 
 export interface GetSettingsMessage extends BaseMessage {
@@ -242,6 +260,8 @@ export type ExtensionMessage =
   | CaptureVisibleTabMessage
   | FetchImageMessage
   | DownloadImageMessage
+  | RememberFrameMessage
+  | ReadFrameMessage
   | GetSettingsMessage
   | SetSettingsMessage
   | DisableBlockEntryMessage

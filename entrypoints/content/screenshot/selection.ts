@@ -9,8 +9,8 @@
  * - an element + margin frame is the element's outer box expanded outward,
  *   and must fit the window (bigger elements go the element path instead);
  * - the remembered frame anchors to an element (selector + size tolerance)
- *   or to page coordinates, lives in sessionStorage for this tab and this
- *   page, and clears on navigation;
+ *   or to page coordinates; the worker keeps it for this tab and this page
+ *   (`frame-memory.ts`);
  * - a capture waits for two consecutive frames of unchanged layout
  *   (max 500ms) so repeated frames of the same element rasterize
  *   identically.
@@ -196,71 +196,6 @@ export function buildSelector(el: Element): string {
 /** Box drift check: a re-found element counts as the same one within 10%. */
 export function boxWithinTolerance(a: { width: number; height: number }, b: { width: number; height: number }, tolerance = 0.1): boolean {
   return Math.abs(a.width - b.width) / Math.max(1, b.width) <= tolerance && Math.abs(a.height - b.height) / Math.max(1, b.height) <= tolerance
-}
-
-// ── Frame memory: per page, in the extension's own session storage ────────
-
-export type FrameRecord =
-  | { kind: 'element'; selector: string; margin: number; width: number; height: number; pageX: number; pageY: number; path: string }
-  | { kind: 'box'; pageX: number; pageY: number; width: number; height: number; path: string }
-
-/**
- * The frame memory lives in `chrome.storage.session` under the page's own
- * origin and path — never in the page's `sessionStorage`, which the site's
- * own scripts can read (真机走查 P2-11). Content scripts reach that area only
- * after the background sets its access level; without it the feature degrades
- * to no memory, exactly like the private-mode refusal did before.
- */
-function storageArea(): chrome.storage.StorageArea | null {
-  try {
-    return globalThis.chrome?.storage?.session ?? null
-  } catch {
-    return null
-  }
-}
-
-function frameKey(): string {
-  return `annhub.frame:${location.origin}${location.pathname}${location.search}`
-}
-
-/** Remembers the frame for the next session on this page. */
-export async function rememberFrame(record: FrameRecord): Promise<void> {
-  try {
-    await storageArea()?.set({ [frameKey()]: record })
-  } catch {
-    // no memory available: the feature degrades to no memory
-  }
-}
-
-/**
- * The remembered frame for this page, or null. A record left by another page
- * is discarded — the memory is per page.
- */
-export async function readFrame(): Promise<FrameRecord | null> {
-  try {
-    const area = storageArea()
-    if (!area) return null
-    const key = frameKey()
-    const bag = (await area.get(key)) as Record<string, FrameRecord | undefined>
-    const record = bag[key]
-    if (!record) return null
-    if (record.path !== location.pathname + location.search) {
-      await area.remove(key)
-      return null
-    }
-    return record
-  } catch {
-    return null
-  }
-}
-
-/** Clears the memory for this page. */
-export async function clearFrame(): Promise<void> {
-  try {
-    await storageArea()?.remove(frameKey())
-  } catch {
-    /* nothing to clear */
-  }
 }
 
 // ── Stability wait (screenshot.md §1.4) ───────────────────────────────────

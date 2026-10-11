@@ -17,6 +17,7 @@ import { recordCaptureSaved, recordCaptureFailed, recordEvent } from '../metrics
 import { EntryValidationError } from '../../../learning-core/types'
 import { storageErrorCode } from '../errors'
 import { CaptureError } from './capture-error'
+import { frameRecordFrom, readFrame, rememberFrame } from './frame-memory'
 
 export class ScreenshotService implements IService {
   readonly name = 'screenshot' as const
@@ -77,6 +78,19 @@ export class ScreenshotService implements IService {
         }
       },
 
+      // The last frame (screenshot.md §1.4) belongs to the asking tab and the page its top frame shows.
+      REMEMBER_FRAME: async (message, sender): Promise<ResponseMessage> => {
+        if (!isTopFrameTabSender(sender)) return forbiddenResponse()
+        const record = frameRecordFrom(message.record)
+        if (!record) return MessageUtils.createResponse(false, undefined, 'FRAME_INVALID')
+        await rememberFrame(sender.tab!.id!, sender.url, record)
+        return MessageUtils.createResponse(true)
+      },
+
+      READ_FRAME: async (_message, sender): Promise<ResponseMessage> => {
+        if (!isTopFrameTabSender(sender)) return forbiddenResponse()
+        return MessageUtils.createResponse(true, { record: await readFrame(sender.tab!.id!, sender.url) })
+      },
 
       SAVE_SCREENSHOT: async (message, sender): Promise<ResponseMessage> => {
         if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
