@@ -171,6 +171,8 @@ test.describe('searching and filtering in the library', () => {
     await updateEntry(context, extensionId, 'ent_props', {
       properties: { set: { reviewers: ['ada'] }, newDefinitions: [{ name: 'reviewers', type: 'list', builtin: false, presets: [] }] },
     })
+    // the worker counts every saved property write, whichever page sent it: the seeding above is one too
+    await expect.poll(() => metricsOf(context, 'entry.property_edited')).toEqual({ 'property_type=list|scope=custom': 1 })
 
     const library = await context.newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
@@ -179,7 +181,8 @@ test.describe('searching and filtering in the library', () => {
     await row.locator('input[type="text"]').fill('grace')
     await row.locator('input[type="text"]').press('Enter')
     await expect.poll(async () => (await getEntries(context)).find(entry => entry.id === 'ent_props')?.properties.reviewers).toEqual(['ada', 'grace'])
-    await expect.poll(() => metricsOf(context, 'entry.property_edited')).toEqual({ 'property_type=list|scope=custom': 1 })
+    // the drawer's edit adds exactly one: the page does not record it a second time
+    await expect.poll(() => metricsOf(context, 'entry.property_edited')).toEqual({ 'property_type=list|scope=custom': 2 })
     await library.close()
   })
 })

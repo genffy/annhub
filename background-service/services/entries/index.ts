@@ -10,10 +10,11 @@ import { initializedEntryStore } from '../../store-instance'
 import { cleanSourceUrl } from '../../../learning-core/url'
 import { presetProperties } from '../../../learning-core/properties'
 import { queryEntries } from '../../../learning-core/query'
+import type { EntryPatch, EntryStore } from '../../../learning-core/store'
 import { storageErrorCode } from '../errors'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
-import { recordCaptureSaved, recordCaptureFailed } from '../metrics/record'
+import { recordCaptureSaved, recordCaptureFailed, recordEvent } from '../metrics/record'
 
 /** A sender allowed to read or change user data: an extension page, or a page's own content script. */
 function trustedSender(sender: chrome.runtime.MessageSender): boolean {
@@ -95,6 +96,7 @@ export class EntryService implements IService {
         try {
           const store = await initializedEntryStore()
           const entry = await store.updateEntry(message.id, message.patch)
+          await recordPropertyEdits(store, message.patch)
           return MessageUtils.createResponse(true, { entry })
         } catch (error) {
           return failure(error)
@@ -265,8 +267,25 @@ function quickEditPatch(patch: unknown): boolean {
   )
 }
 
+/**
+ * One `entry.property_edited` per property a write set or cleared (metrics.md §9), recorded on the write path so the
+ * quick-edit bubble and the drawer count alike; scope and type come from the registry, not from the caller.
+ */
+async function recordPropertyEdits(store: EntryStore, patch: EntryPatch | undefined): Promise<void> {
+  const names = [...Object.keys(patch?.properties?.set ?? {}), ...(patch?.properties?.unset ?? [])]
+  if (names.length === 0) return
+  try {
+    const registry = await store.listPropertyDefinitions()
+    for (const name of names) {
+      const definition = registry.find(item => item.name.toLowerCase() === name.toLowerCase())
+      if (definition) await recordEvent('entry.property_edited', { scope: definition.builtin ? 'builtin' : 'custom', property_type: definition.type })
+    }
+  } catch {
+    // the write already succeeded: a metric must never turn it into a failure
+  }
+}
+
 async function recordCaptureUndone(attribution: { via: string; type?: string; blockKind?: string; levelChanged?: boolean }): Promise<void> {
-  const { recordEvent } = await import('../metrics/record')
   await recordEvent('capture.undone', {
     type: (attribution.type ?? 'clip') as 'clip' | 'screenshot',
     via: attribution.via as 'menu' | 'block' | 'shortcut',
