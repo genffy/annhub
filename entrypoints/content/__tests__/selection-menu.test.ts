@@ -17,3 +17,36 @@ describe('shadow selection fallback (D-25)', () => {
     vi.restoreAllMocks()
   })
 })
+
+describe('Enter follows the button that holds focus (真机走查 P3-3)', () => {
+  it('fires the focused action, not a stale recorded one; a bare Enter stays with the page', async () => {
+    vi.resetModules()
+    vi.doMock('../user-input', () => ({ isUserInput: () => true }))
+    const { SelectionMenu } = await import('../selection-menu')
+    document.body.innerHTML = '<p id="para">Selectable words for the menu to appear.</p>'
+    const para = document.getElementById('para')!
+    const range = document.createRange()
+    range.selectNodeContents(para)
+    // jsdom ranges have no layout box
+    ;(range as unknown as { getBoundingClientRect: () => DOMRect }).getBoundingClientRect = () =>
+      ({ left: 10, top: 10, right: 300, bottom: 40, width: 290, height: 30, x: 10, y: 10, toJSON: () => ({}) }) as DOMRect
+    const onClip = vi.fn()
+    const onScreenshot = vi.fn()
+    const menu = new SelectionMenu(document, { onClip, onScreenshot })
+    menu.show(range)
+    const buttons = Array.from(document.querySelectorAll('[data-ann-ui="selection-menu"] button'))
+    expect(buttons.length).toBe(2)
+    // focus walked off the menu (caret browsing arrows): Enter must not fire the stale item
+    document.body.focus()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    expect(onClip).not.toHaveBeenCalled()
+    expect(onScreenshot).not.toHaveBeenCalled()
+    // the Screenshot button focused: Enter fires exactly that one
+    ;(buttons[1] as HTMLElement).focus()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    expect(onClip).not.toHaveBeenCalled()
+    expect(onScreenshot).toHaveBeenCalledTimes(1)
+    menu.dismiss()
+    vi.restoreAllMocks()
+  })
+})

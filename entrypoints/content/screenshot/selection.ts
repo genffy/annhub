@@ -198,34 +198,54 @@ export function boxWithinTolerance(a: { width: number; height: number }, b: { wi
   return Math.abs(a.width - b.width) / Math.max(1, b.width) <= tolerance && Math.abs(a.height - b.height) / Math.max(1, b.height) <= tolerance
 }
 
-// ── Frame memory: this tab, this page (screenshot.md §1.4) ────────────────
+// ── Frame memory: per page, in the extension's own session storage ────────
 
 export type FrameRecord =
   | { kind: 'element'; selector: string; margin: number; width: number; height: number; pageX: number; pageY: number; path: string }
   | { kind: 'box'; pageX: number; pageY: number; width: number; height: number; path: string }
 
-const STORAGE_KEY = 'annhub.frame'
-
-/** Remembers the frame for the next session on this page in this tab. */
-export function rememberFrame(record: FrameRecord): void {
+/**
+ * The frame memory lives in `chrome.storage.session` under the page's own
+ * origin and path — never in the page's `sessionStorage`, which the site's
+ * own scripts can read (真机走查 P2-11). Content scripts reach that area only
+ * after the background sets its access level; without it the feature degrades
+ * to no memory, exactly like the private-mode refusal did before.
+ */
+function storageArea(): chrome.storage.StorageArea | null {
   try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(record))
+    return globalThis.chrome?.storage?.session ?? null
   } catch {
-    // private modes can refuse; the feature degrades to no memory
+    return null
+  }
+}
+
+function frameKey(): string {
+  return `annhub.frame:${location.origin}${location.pathname}${location.search}`
+}
+
+/** Remembers the frame for the next session on this page. */
+export async function rememberFrame(record: FrameRecord): Promise<void> {
+  try {
+    await storageArea()?.set({ [frameKey()]: record })
+  } catch {
+    // no memory available: the feature degrades to no memory
   }
 }
 
 /**
  * The remembered frame for this page, or null. A record left by another page
- * of the same origin is discarded — the memory is per page.
+ * is discarded — the memory is per page.
  */
-export function readFrame(): FrameRecord | null {
+export async function readFrame(): Promise<FrameRecord | null> {
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    const record = JSON.parse(raw) as FrameRecord
+    const area = storageArea()
+    if (!area) return null
+    const key = frameKey()
+    const bag = (await area.get(key)) as Record<string, FrameRecord | undefined>
+    const record = bag[key]
+    if (!record) return null
     if (record.path !== location.pathname + location.search) {
-      sessionStorage.removeItem(STORAGE_KEY)
+      await area.remove(key)
       return null
     }
     return record
@@ -234,10 +254,10 @@ export function readFrame(): FrameRecord | null {
   }
 }
 
-/** Clears the memory; wired to pagehide so any navigation drops it. */
-export function clearFrame(): void {
+/** Clears the memory for this page. */
+export async function clearFrame(): Promise<void> {
   try {
-    sessionStorage.removeItem(STORAGE_KEY)
+    await storageArea()?.remove(frameKey())
   } catch {
     /* nothing to clear */
   }

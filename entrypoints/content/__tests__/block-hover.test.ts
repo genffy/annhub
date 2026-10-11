@@ -270,3 +270,29 @@ describe('a child frame offers clipping only (D-29)', () => {
     entries.dispose()
   })
 })
+
+describe('↓ at the innermost level enters child units (真机走查 P2-1)', () => {
+  it('splices the child chain so ↑ walks back out the way ↓ came in', () => {
+    document.body.innerHTML = NESTED
+    const code = document.getElementById('code')!
+    const article = document.querySelector('article')!
+    // jsdom has no layout: the article's box and the hit-test come from stubs
+    article.getBoundingClientRect = () => ({ left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect
+    document.elementFromPoint = vi.fn(() => code)
+    // start on the article itself: its own chain is just [article]
+    article.setAttribute('tabindex', '0')
+    article.focus()
+    const { hooks } = start()
+    expect(kindText()).toContain(uiText('block.kind.article'))
+    press('ArrowDown') // enters the children instead of doing nothing
+    expect(kindText()).toContain(uiText('block.kind.code'))
+    press('ArrowUp') // climbs back through the spliced chain
+    expect(kindText()).toContain(uiText('block.kind.section'))
+    press('ArrowUp')
+    expect(kindText()).toContain(uiText('block.kind.article'))
+    press('ArrowDown')
+    press('ArrowDown')
+    press('Enter') // the outlined code block is what gets saved
+    expect(clipped(hooks).candidate.kind).toBe('code')
+  })
+})

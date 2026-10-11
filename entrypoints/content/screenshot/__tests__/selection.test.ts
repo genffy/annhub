@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   HANDLES,
   adjustHierarchy,
@@ -126,8 +126,28 @@ describe('selector anchoring and tolerance (screenshot.md §1.4)', () => {
 })
 
 describe('frame memory (screenshot.md §1.4)', () => {
-  it("round-trips a record for this page and discards another page's record", () => {
-    sessionStorage.clear()
+  // the memory lives in the extension's chrome.storage.session, not in the
+  // page's sessionStorage (真机走查 P2-11); jsdom has neither, so an in-memory
+  // stand-in answers to the same call shapes
+  const memory = new Map<string, unknown>()
+  const fakeSessionArea = {
+    get: async (key: string) => (memory.has(key) ? { [key]: memory.get(key) } : {}),
+    set: async (items: Record<string, unknown>) => {
+      for (const [key, value] of Object.entries(items)) memory.set(key, value)
+    },
+    remove: async (key: string) => {
+      memory.delete(key)
+    },
+  }
+  beforeEach(() => {
+    memory.clear()
+    ;(globalThis as { chrome?: unknown }).chrome = { storage: { session: fakeSessionArea } }
+  })
+  afterEach(() => {
+    delete (globalThis as { chrome?: unknown }).chrome
+  })
+
+  it("round-trips a record for this page and discards another page's record", async () => {
     const record: FrameRecord = {
       kind: 'element',
       selector: 'div > p:nth-of-type(2)',
@@ -138,19 +158,24 @@ describe('frame memory (screenshot.md §1.4)', () => {
       pageY: 96,
       path: location.pathname + location.search,
     }
-    rememberFrame(record)
-    expect(readFrame()).toEqual(record)
+    await rememberFrame(record)
+    expect(await readFrame()).toEqual(record)
 
-    rememberFrame({ ...record, path: '/other-page' })
-    expect(readFrame()).toBeNull() // discarded and cleared
-    clearFrame()
-    expect(readFrame()).toBeNull()
+    await rememberFrame({ ...record, path: '/other-page' })
+    expect(await readFrame()).toBeNull() // discarded and cleared
+    await clearFrame()
+    expect(await readFrame()).toBeNull()
   })
 
-  it('keeps a box record for free-dragged frames', () => {
+  it('keeps a box record for free-dragged frames', async () => {
+    await rememberFrame({ kind: 'box', pageX: 120, pageY: 64, width: 300, height: 200, path: location.pathname })
+    expect(await readFrame()).toMatchObject({ kind: 'box', pageX: 120, width: 300 })
+    await clearFrame()
+  })
+
+  it('never touches the page sessionStorage', async () => {
     sessionStorage.clear()
-    rememberFrame({ kind: 'box', pageX: 120, pageY: 64, width: 300, height: 200, path: location.pathname })
-    expect(readFrame()).toMatchObject({ kind: 'box', pageX: 120, width: 300 })
-    clearFrame()
+    await rememberFrame({ kind: 'box', pageX: 0, pageY: 0, width: 10, height: 10, path: location.pathname })
+    expect(sessionStorage.length).toBe(0)
   })
 })

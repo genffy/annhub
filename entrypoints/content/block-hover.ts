@@ -10,6 +10,7 @@ import {
   candidatesAtPoint,
   candidateSummary,
   chainOf,
+  childChainOf,
   deepElementFromPoint,
   firstVisibleChain,
   peersOf,
@@ -326,6 +327,18 @@ export class BlockEntries {
         break
       }
     }
+    if (this.capsuleAreaOccupied(x, y, box, capsule)) {
+      // all four corners taken (an X post's are): slide along the top edge
+      // instead of sitting on the corner's controls (真机走查 P2-4)
+      const topY = corners[0]![1]
+      for (let cx = corners[0]![0] - 24; cx >= rect.left - box.width / 2 && cx >= 0; cx -= 24) {
+        if (!this.capsuleAreaOccupied(cx, topY, box, capsule)) {
+          x = cx
+          y = topY
+          break
+        }
+      }
+    }
     capsule.style.left = `${Math.max(0, Math.min(view.innerWidth - box.width, x))}px`
     capsule.style.top = `${Math.max(0, Math.min(view.innerHeight - box.height, y))}px`
   }
@@ -335,9 +348,14 @@ export class BlockEntries {
     const view = this.doc.defaultView!
     const clampX = (x: number) => Math.max(1, Math.min(view.innerWidth - 1, x))
     const clampY = (y: number) => Math.max(1, Math.min(view.innerHeight - 1, y))
-    for (let ix = 0; ix <= 4; ix++) {
-      for (let iy = 0; iy <= 2; iy++) {
-        const probe = this.doc.elementFromPoint(clampX(cx + (box.width * ix) / 4), clampY(cy + (box.height * iy) / 2))
+    // dense enough that a common 30px icon button cannot fall between probes
+    // (真机走查 P2-4：代码块右上角的按钮正好落在两个采样点之间)
+    const step = 24
+    const nx = Math.max(2, Math.ceil(box.width / step))
+    const ny = Math.max(2, Math.ceil(box.height / step))
+    for (let ix = 0; ix <= nx; ix++) {
+      for (let iy = 0; iy <= ny; iy++) {
+        const probe = this.doc.elementFromPoint(clampX(cx + (box.width * ix) / nx), clampY(cy + (box.height * iy) / ny))
         if (probe instanceof Element && probe !== capsule && !capsule.contains(probe) && this.isPageControl(probe)) return true
       }
     }
@@ -346,8 +364,8 @@ export class BlockEntries {
 
   private isPageControl(el: Element): boolean {
     const tag = el.tagName.toLowerCase()
-    if (['a', 'button', 'input', 'select'].includes(tag)) return true
-    return el.getAttribute('role') === 'button' || el.closest('a,button,[role="button"]') !== null
+    if (['a', 'button', 'input', 'select', 'summary'].includes(tag)) return true
+    return el.getAttribute('role') === 'button' || el.closest('a,button,summary,[role="button"]') !== null
   }
 
   // ── Block mode (keyboard) ─────────────────────────────────────────────
@@ -416,10 +434,25 @@ export class BlockEntries {
       if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
         // the chain stays what it was: ↓ walks back down the same chain ↑ walked up
         const next = this.modeDepth + (event.key === 'ArrowUp' ? 1 : -1)
-        if (next < 0 || next >= this.modeChain.length) return
-        this.modeLevelChanged = true
-        this.modeDepth = next
-        this.paintMode(true)
+        if (next >= 0 && next < this.modeChain.length) {
+          this.modeLevelChanged = true
+          this.modeDepth = next
+          this.paintMode(true)
+          return
+        }
+        // ↓ at the innermost level enters the unit's first child unit (真机走查
+        // P2-1：区块模式停在整篇文章下不去). The child chain is spliced in front,
+        // so ↑ walks back out the way ↓ came in.
+        if (event.key === 'ArrowDown' && this.modeDepth === 0) {
+          const current = this.modeChain[this.modeDepth]
+          if (!current) return
+          const inner = childChainOf(current, this.doc).filter(candidate => !this.modeChain.some(existing => sameCandidate(existing, candidate)))
+          if (inner.length === 0) return
+          this.modeLevelChanged = true
+          this.modeChain = [...inner, ...this.modeChain]
+          this.modeDepth = 0
+          this.paintMode(true)
+        }
         return
       }
       if (event.key === 'Enter') {

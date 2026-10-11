@@ -169,10 +169,10 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
           <label className="settings-field">
             <span className="settings-label">{uiText('settings.position')}</span>
             <select value={settings.watermark.position} onChange={event => void patch({ watermark: { ...settings.watermark, position: event.target.value as 'bottom-right' } })}>
-              <option value="top-left">↖</option>
-              <option value="top-right">↗</option>
-              <option value="bottom-left">↙</option>
-              <option value="bottom-right">↘</option>
+              <option value="top-left">{uiText('settings.position.topLeft')}</option>
+              <option value="top-right">{uiText('settings.position.topRight')}</option>
+              <option value="bottom-left">{uiText('settings.position.bottomLeft')}</option>
+              <option value="bottom-right">{uiText('settings.position.bottomRight')}</option>
             </select>
           </label>
           <label className="settings-field">

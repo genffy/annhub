@@ -43,6 +43,14 @@ export function deepElementFromPoint(x: number, y: number, doc: Document): Eleme
   return el
 }
 
+/** The parent across the light/shadow boundary: `parentElement` stops at the shadow root's edge. */
+export function composedParent(el: Element): Element | null {
+  const parent = el.parentElement
+  if (parent) return parent
+  const root = el.getRootNode()
+  return root instanceof ShadowRoot ? root.host : null
+}
+
 /** The heading level of an element (case-safe), or 0 when it is not a heading. */
 function headingLevel(el: Element): number {
   const match = /^h([1-6])$/.exec(el.tagName.toLowerCase())
@@ -199,7 +207,9 @@ export function candidatesFor(target: Element, doc: Document): BlockCandidate[] 
         /* not a candidate */
       }
     }
-    el = el.parentElement
+    // through open shadow roots: the chain crosses the boundary, so "Parent"
+    // climbs from a shadow-root code block back into the page (真机走查 P2-3)
+    el = composedParent(el)
   }
 
   // innermost-first: rank, then DOM depth (deeper first within a rank)
@@ -347,6 +357,32 @@ export function firstVisibleChain(doc: Document): BlockCandidate[] {
   return []
 }
 
+/**
+ * The chain of the first unit strictly inside `parent` (真机走查 P2-1: ↓ at
+ * the innermost level enters the unit's children instead of doing nothing).
+ * Scans the parent's own box the way firstVisibleChain scans the window;
+ * returns [] when the parent has no smaller unit inside.
+ */
+export function childChainOf(parent: BlockCandidate, doc: Document): BlockCandidate[] {
+  const view = doc.defaultView
+  if (!view) return []
+  const rect = candidateRect(parent)
+  const columns = [rect.left + rect.width / 2, rect.left + rect.width / 4, rect.left + (rect.width * 3) / 4]
+  try {
+    for (let y = Math.max(rect.top, 0) + 8; y < Math.min(rect.bottom, view.innerHeight); y += 16) {
+      for (const x of columns) {
+        if (x < 1 || x > view.innerWidth - 1) continue
+        const chain = candidatesAtPoint(x, y, doc)
+        const inner = chain.filter(candidate => !sameCandidate(candidate, parent) && parent.element.contains(candidateAnchor(candidate)))
+        if (inner.length > 0) return inner
+      }
+    }
+  } catch {
+    /* a document without hit-testing has no child unit */
+  }
+  return []
+}
+
 /** What a screen reader hears after the kind: the unit's own words (a run section reads only its run). */
 export function candidateSummary(candidate: BlockCandidate, limit = 80): string {
   let text: string
@@ -359,7 +395,7 @@ export function candidateSummary(candidate: BlockCandidate, limit = 80): string 
       .map(child => child.textContent ?? '')
       .join(' ')
   } else {
-    text = candidate.element.textContent ?? ''
+    text = summaryTextOf(candidate.element)
   }
   text = text.replace(/\s+/g, ' ').trim()
   if (!text) {
@@ -367,4 +403,21 @@ export function candidateSummary(candidate: BlockCandidate, limit = 80): string 
     text = candidate.element.getAttribute('aria-label') ?? image?.getAttribute('alt') ?? ''
   }
   return text.slice(0, limit)
+}
+
+/**
+ * The unit's own words, starting at its first content block: a heading or
+ * paragraph inside the unit, not the page furniture that happens to sit in it
+ * (Wikipedia's “Toggle the table of contents”, Medium's tags and highlight
+ * markers — 真机走查 P3-8). Falls back to the whole text when no content
+ * block qualifies.
+ */
+function summaryTextOf(el: HTMLElement): string {
+  const blocks = Array.from(el.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6,p,li,blockquote,pre'))
+  for (const block of blocks) {
+    if (block.closest('button, nav, aside, summary, [aria-hidden="true"], [role="button"]')) continue
+    const t = (block.textContent ?? '').replace(/\s+/g, ' ').trim()
+    if (t.length >= 12) return t
+  }
+  return el.textContent ?? ''
 }

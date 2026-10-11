@@ -101,7 +101,7 @@ body {
 
 .nav-item-current {
   background: var(--ann-accent-soft);
-  color: var(--ann-accent);
+  color: var(--ann-accent-text);
   font-weight: 600;
 }
 
@@ -457,7 +457,7 @@ body {
 }
 
 .row-highlights {
-  color: var(--ann-accent);
+  color: var(--ann-accent-text);
 }
 
 .row-tags {
@@ -498,7 +498,7 @@ body {
 }
 
 .link {
-  color: var(--ann-accent);
+  color: var(--ann-accent-text);
   text-decoration: none;
   font-size: 13px;
   background: none;
@@ -785,6 +785,34 @@ body {
   line-height: 1.35;
 }
 
+.md-view h1 {
+  font-size: 1.55em;
+}
+
+.md-view h2 {
+  font-size: 1.35em;
+}
+
+.md-view h3 {
+  font-size: 1.18em;
+}
+
+.md-view h4 {
+  font-size: 1.05em;
+}
+
+/* a heading written as a link (“### [标题](#锚点)”) still reads as the heading,
+   not as an underlined body-sized link (真机走查 P3-9) */
+.md-view h1 a,
+.md-view h2 a,
+.md-view h3 a,
+.md-view h4 a,
+.md-view h5 a,
+.md-view h6 a {
+  color: inherit;
+  text-decoration: none;
+}
+
 .md-view pre {
   padding: 10px 12px;
   border: 1px solid var(--ann-border);
@@ -807,7 +835,7 @@ body {
 }
 
 .md-view a {
-  color: var(--ann-accent);
+  color: var(--ann-accent-text);
 }
 
 /*
@@ -1331,7 +1359,7 @@ body {
 
 .reading-tab-current {
   background: var(--ann-accent-soft);
-  border-color: var(--ann-accent);
+  border-color: var(--ann-accent-text);
   color: var(--ann-accent);
   font-weight: 600;
 }
@@ -1640,7 +1668,7 @@ body {
   border: 1px solid var(--ann-accent);
   border-radius: 5px;
   background: var(--ann-surface);
-  color: var(--ann-accent);
+  color: var(--ann-accent-text);
   font-size: 12.5px;
   cursor: pointer;
 }

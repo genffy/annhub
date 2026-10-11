@@ -7,7 +7,9 @@ function mount(html: string): void {
 
 describe('identitySelectorsForHost', () => {
   it('adds X selectors on x.com and twitter.com (incl. subdomains)', () => {
-    expect(identitySelectorsForHost('x.com')).toContain('[data-testid="User-Names"]')
+    // X's real DOM uses data-testid="User-Name" (singular) — 真机走查 P2-12:
+    // the plural form never matched, leaving names and handles in the shot.
+    expect(identitySelectorsForHost('x.com')).toContain('[data-testid="User-Name"]')
     expect(identitySelectorsForHost('mobile.twitter.com')).toContain('[data-testid^="UserAvatar"]')
   })
 
@@ -66,7 +68,7 @@ describe('detectIdentityRects', () => {
 
   it('dedupes near-identical rects when several selectors match the same element', () => {
     mount(`
-      <div data-testid="User-Names" data-ann-identity data-rect='{"left":10,"top":20,"width":120,"height":40}'>name</div>
+      <div data-testid="User-Name" data-ann-identity data-rect='{"left":10,"top":20,"width":120,"height":40}'>name</div>
     `)
     const rects = detectIdentityRects(document, 'x.com', fullSelection)
     expect(rects).toHaveLength(1)

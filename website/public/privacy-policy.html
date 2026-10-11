@@ -101,7 +101,7 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 <li><strong>Local counters</strong> — aggregate counts and timings (for example how many clips were saved this week) shown on the Settings page. They contain no page text, no URL and no title, and they are never sent anywhere.</li>
 </ul>
 <div class="highlight">
-<strong>All of this stays on your device:</strong> in your browser (IndexedDB and <code>chrome.storage.local</code>). The Markdown ZIP you export is an ordinary file that you own and manage.
+<strong>All of this stays on your device:</strong> in your browser (IndexedDB and the extension's own <code>chrome.storage</code> areas, including a screenshot frame note kept in the session area that page scripts cannot read). The Markdown ZIP you export is an ordinary file that you own and manage.
 </div>
 
 <h2>2. The only outbound request</h2>
@@ -169,7 +169,7 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 <li><strong>本地计数</strong>——设置页展示的聚合数字与耗时（例如本周保存了多少条剪藏）。不含页面文字、URL 和标题，也从不上传。</li>
 </ul>
 <div class="highlight">
-<strong>以上全部只留在你的设备上：</strong>在浏览器的 IndexedDB 与 <code>chrome.storage.local</code> 里。你导出的 Markdown ZIP 是普通文件，由你自己保管。
+<strong>以上全部只留在你的设备上：</strong>在浏览器的 IndexedDB 与扩展自己的 <code>chrome.storage</code> 区域里（包括记着上次截图取景框的会话区域，页面脚本读不到它）。你导出的 Markdown ZIP 是普通文件，由你自己保管。
 </div>
 
 <h2>2. 唯一会产生的出站请求</h2>

@@ -1,5 +1,16 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { candidateAnchor, candidateRect, candidateSummary, candidatesFor, chainOf, deepElementFromPoint, peersOf, sameCandidate, type BlockCandidate } from '../blocks'
+import {
+  candidateAnchor,
+  candidateRect,
+  candidateSummary,
+  candidatesFor,
+  chainOf,
+  childChainOf,
+  deepElementFromPoint,
+  peersOf,
+  sameCandidate,
+  type BlockCandidate,
+} from '../blocks'
 
 /**
  * Block detection over fixture DOM (capture.md §6.2). jsdom has no layout:
@@ -299,5 +310,54 @@ describe('keyboard mode helpers (capture.md §6.2, D-27)', () => {
   it('a summary is capped', () => {
     document.body.innerHTML = `<pre id="long">${'word '.repeat(100)}</pre>`
     expect(candidateSummary({ kind: 'code', element: doc.getElementById('long') as HTMLElement }, 20)).toHaveLength(20)
+  })
+})
+
+describe('candidateSummary starts at the unit content (真机走查 P3-8)', () => {
+  it('skips the page furniture that sits inside the unit', () => {
+    document.body.innerHTML = `
+      <article>
+        <button toggle>Toggle the table of contents</button>
+        <h1>Zettelkasten</h1>
+        <p>The method takes notes and links them into a network.</p>
+      </article>
+    `
+    const article = document.querySelector('article')!
+    expect(candidateSummary({ kind: 'article', element: article })).toMatch(/^Zettelkasten/)
+  })
+})
+
+describe('childChainOf (真机走查 P2-1: ↓ enters child units)', () => {
+  it('finds a chain strictly inside the parent', () => {
+    document.body.innerHTML = `
+      <main>
+        <h2>First section heading text</h2>
+        <p>Some body text for the first section right here, long enough to matter for the section rule.</p>
+        <pre><code>const x = 1</code></pre>
+      </main>
+    `
+    const main = document.querySelector('main')!
+    const pre = document.querySelector('pre')!
+    // jsdom has no layout: hit-testing and the parent's box come from stubs
+    main.getBoundingClientRect = () => ({ left: 0, top: 0, right: 800, bottom: 600, width: 800, height: 600, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect
+    document.elementFromPoint = () => pre
+    const parent = { kind: 'article', element: main } as BlockCandidate
+    const chain = childChainOf(parent, document)
+    expect(chain.length).toBeGreaterThan(0)
+    expect(chain.every(candidate => main.contains(candidateAnchor(candidate)))).toBe(true)
+    expect(chain.some(candidate => candidate.element === main)).toBe(false)
+  })
+})
+
+describe('candidatesFor crosses open shadow roots (MDN, 真机走查 P2-3)', () => {
+  it('climbs from a shadow-root pre into the light DOM ancestors', () => {
+    document.body.innerHTML = `<main><div id="host-slot"></div><p>${'light body text '.repeat(12)}</p></main>`
+    const host = document.getElementById('host-slot')!
+    const shadow = host.attachShadow({ mode: 'open' })
+    shadow.innerHTML = '<pre><code>fetch(url)</code></pre>'
+    const pre = shadow.querySelector('pre')!
+    const chain = candidatesFor(pre, document)
+    expect(chain.some(candidate => candidate.element === pre)).toBe(true)
+    expect(chain.some(candidate => candidate.element === document.querySelector('main'))).toBe(true)
   })
 })

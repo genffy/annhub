@@ -11,7 +11,7 @@ import { intersectRects } from './crop'
 const GENERIC_SELECTOR = '[data-ann-identity]'
 
 /** X/Twitter identity blocks (same surfaces twitterclip anonymizes). */
-const X_SELECTORS = ['[data-testid="User-Names"]', '[data-testid^="UserAvatar"]']
+const X_SELECTORS = ['[data-testid="User-Name"]', '[data-testid^="UserAvatar"]']
 
 export function identitySelectorsForHost(hostname: string): string[] {
   const host = hostname.toLowerCase()

@@ -138,6 +138,50 @@ function encodeDestination(href: string): string {
   return href.replace(/\(/g, '%28').replace(/\)/g, '%29').replace(/ /g, '%20')
 }
 
+// ── Page furniture that survives class-based detection ───────────────────
+//
+// Edit links, view counts, video durations, Medium's sign-in and subscribe
+// boxes: none of them carry chrome classes, so whole blocks and link labels
+// that are nothing but these phrases are dropped by text (真机走查 P2-3 的
+// 页面界面残留).
+
+const UI_BLOCK_PATTERNS: RegExp[] = [
+  /^\[?edit\]?$/i,
+  /^edit this page$/i,
+  /^was this helpful\??$/i,
+  /^view quotes$/i,
+  /^\d[\d.,]*\s*[kmb]?\s*views$/i,
+  /^\d+:\d{2}(?::\d{2})?$/,
+  /^remember me for faster sign in$/i,
+  /^(sign in|sign up|log in|create account|get started)$/i,
+  /^get .{0,80} stories in your inbox$/i,
+  /^written by$/i,
+  /^share this article$/i,
+]
+
+function isUiCruft(block: string): boolean {
+  const text = block
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^#{1,6}\s+/, '') // a heading that says nothing but the phrase is still furniture
+  return UI_BLOCK_PATTERNS.some(pattern => pattern.test(text))
+}
+
+const UI_LINK_PATTERNS: RegExp[] = [
+  /^\[?edit\]?$/i,
+  /^edit this page$/i,
+  /^was this helpful\??$/i,
+  /^view quotes$/i,
+  /^share$/i,
+  /^copy link$/i,
+  /^\d[\d.,]*\s*[kmb]( views)?$/i,
+  /^\d[\d.,]*\s*views$/i,
+]
+
+function isUiLinkLabel(label: string): boolean {
+  return UI_LINK_PATTERNS.some(pattern => pattern.test(label))
+}
+
 // ── Emitter ─────────────────────────────────────────────────────────────
 
 class Emitter {
@@ -150,6 +194,7 @@ class Emitter {
   addBlock(text: string): void {
     const block = text.trim()
     if (!block) return
+    if (isUiCruft(block)) return
     if (this.length + block.length + 2 > CONTENT_MAX_CHARS) {
       const remaining = CONTENT_MAX_CHARS - this.length
       if (remaining > 0) {
@@ -215,6 +260,7 @@ function inlineText(node: Node, ctx: Ctx): string {
     case 'a': {
       const label = text.trim()
       if (!label) return ''
+      if (isUiLinkLabel(label)) return ''
       const href = absoluteHttp(el.getAttribute('href'), ctx.baseUrl)
       return href ? `[${label}](${encodeDestination(href)})` : label
     }
@@ -269,7 +315,7 @@ function emitElement(el: Element, ctx: Ctx, out: Emitter): void {
     case 'pre': {
       const code = el.querySelector('code')
       const language = /language-([\w-]+)/.exec(code?.className ?? el.className ?? '')?.[1] ?? ''
-      const text = (code ?? el).textContent ?? ''
+      const text = preText(code ?? el)
       // the fence must be longer than any backtick run inside the code
       const fence = '`'.repeat(Math.max(3, (text.match(/`+/g)?.reduce((max, run) => Math.max(max, run.length), 0) ?? 0) + 1))
       out.addBlock(`${fence}${language}\n${text.replace(/\n$/, '')}\n${fence}`)
@@ -320,6 +366,14 @@ function emitElement(el: Element, ctx: Ctx, out: Emitter): void {
       const caption = el.querySelector('figcaption')
       const parts: string[] = []
       if (img) parts.push(imageLine(img, ctx))
+      // a figure can carry highlighted code instead of a picture (Gatsby
+      // wraps every code block in one — 真机走查 P2-3：Overreacted 整篇丢代码)
+      for (const codeBlock of Array.from(el.querySelectorAll('pre'))) {
+        const inner = new Emitter()
+        emitElement(codeBlock, ctx, inner)
+        const md = inner.finish().markdown
+        if (md) parts.push(md)
+      }
       if (caption?.textContent?.trim()) parts.push(`*${escapeText(caption.textContent.trim())}*`)
       if (parts.length > 0) out.addBlock(parts.join('\n\n'))
       return
@@ -382,8 +436,48 @@ function inlineChildren(el: Element, ctx: Ctx): string {
     .join('')
 }
 
+/**
+ * The source text of a highlighted code block. Highlighters that render each
+ * line as its own element (Prism's `token-line`, or any display:block line)
+ * carry no newline characters at all — the lines are recovered from the
+ * markup (真机走查 P2-3：Docusaurus 代码块挤成一行).
+ */
+function preText(source: Element): string {
+  const text = source.textContent ?? ''
+  if (text.includes('\n')) return text
+  const children = Array.from(source.children)
+  if (children.length >= 2) {
+    const lineish = children.filter(child => {
+      const cls = child.getAttribute('class') ?? ''
+      if (/(^|\s)token-line($|\s)/.test(cls)) return true
+      const display = source.ownerDocument?.defaultView?.getComputedStyle(child)?.display
+      return display === 'block'
+    })
+    if (lineish.length === children.length) return children.map(child => child.textContent ?? '').join('\n')
+  }
+  return text
+}
+
+/**
+ * Walks into open shadow roots when a host carries no light-DOM children:
+ * its rendered content lives in the shadow tree (MDN's code examples — 真机
+ * 走查 P2-3：整篇 Markdown 丢掉全部代码). Hosts with light children keep
+ * them; walking both would double-project slotted content.
+ */
+function expandShadowHosts(nodes: Node[]): Node[] {
+  const result: Node[] = []
+  for (const node of nodes) {
+    if (node instanceof Element && node.shadowRoot && node.childNodes.length === 0) {
+      result.push(...expandShadowHosts(Array.from(node.shadowRoot.childNodes)))
+    } else {
+      result.push(node)
+    }
+  }
+  return result
+}
+
 function emitChildren(el: Element, ctx: Ctx, out: Emitter, slice?: MarkdownSlice): void {
-  const children = slice ? sliceChildren(el, slice) : Array.from(el.childNodes)
+  const children = expandShadowHosts(slice ? sliceChildren(el, slice) : Array.from(el.childNodes))
   // inline siblings accumulate into one paragraph; a block child flushes it
   let buffer = ''
   const flush = () => {

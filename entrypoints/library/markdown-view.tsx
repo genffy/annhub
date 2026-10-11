@@ -14,6 +14,7 @@ import type { ReactNode } from 'react'
 import type { Highlight } from '../../learning-core/types'
 import { HIGHLIGHT_QUOTE_MAX_CHARS } from '../../learning-core/validate'
 import { closesFence, codeSpanAt, openingFence, quoteFromMarkdownRange } from '../../learning-core/markdown'
+import { uiText } from '../../utils/ui-text'
 
 export interface SourceRange {
   start: number
@@ -317,6 +318,9 @@ function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highligh
         key={keyPrefix}
         role="button"
         tabIndex={0}
+        // the name says what it is — a highlight and its colour — before the
+        // words themselves (extension.md §7.2, 真机走查 P2-7)
+        aria-label={`${uiText('reading.highlightLabel', { color: uiText(`library.color.${highlight.color}` as 'library.color.yellow') })}：${piece.text}`}
         className="md-hl-hit"
         onClick={event => onHighlightClick(highlight, event)}
         onKeyDown={event => {
