@@ -2,7 +2,7 @@
 
 > 层级：core
 > 状态：存储设计真源
-> 更新：2026-10-10
+> 更新：2026-10-11
 > 适用端：浏览器扩展
 
 本文定义条目（含剪藏里的高亮）与截图资产的本地存储和 Markdown ZIP 导出。条目字段形状见 [条目契约](entry.md)。
@@ -105,7 +105,7 @@ validate -> write entity -> commit
 扩展只提供一个“导出内容”命令。扩展读取已提交的本地记录与图片字节，生成一个 ZIP，供 Obsidian 等工具读取；不导出浏览器管理的 IndexedDB 物理文件，也不提供单独的 JSON / CSV 用户导出。
 
 ```text
-AnnHub-export.zip
+AnnHub-export-YYYY-MM-DD.zip   # 导出当天的本地日期，与 README 里的导出时间同一天
 ├── README.md                  # 导出时间、范围、数量、缺失图片清单（章节标题与 README 随导出时的界面语言）
 ├── clips/<id>.md              # 高亮写成 ==…==
 ├── screenshots/<id>.md        # 含相对图片链接

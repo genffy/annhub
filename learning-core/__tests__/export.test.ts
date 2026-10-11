@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { buildExport, frontmatterFor, type ExportAsset } from '../export'
+import { buildExport, exportFileName, frontmatterFor, type ExportAsset } from '../export'
 import { sha256Hex } from '../assets'
 import { makeClip, makeHighlight, makeScreenshot, pngBlob, TEST_REGISTRY } from './helpers'
 
@@ -11,6 +11,29 @@ async function decode(blob: Blob): Promise<Uint8Array> {
 async function fixtureAsset(id: string, bytes: Uint8Array): Promise<ExportAsset> {
   return { metadata: { id, mimeType: 'image/png', byteLength: bytes.length, sha256: await sha256Hex(bytes), width: 4, height: 4, createdAt: 0 }, bytes }
 }
+
+describe('the export file name (storage.md §6)', () => {
+  // east of UTC just after midnight, and west of it just before, the UTC date is another day
+  it('carries the local date, the day the README says it was exported', async () => {
+    const zone = process.env.TZ
+    try {
+      for (const [timeZone, hour] of [
+        ['Asia/Shanghai', 0],
+        ['America/New_York', 23],
+      ] as const) {
+        process.env.TZ = timeZone
+        const exportedAt = new Date(2026, 9, 11, hour, 30).getTime()
+        expect(new Date(exportedAt).toISOString().slice(0, 10), timeZone).not.toBe('2026-10-11')
+        expect(exportFileName(exportedAt), timeZone).toBe('AnnHub-export-2026-10-11.zip')
+        const summary = await buildExport({ exportedAt, lang: 'en', entries: [], registry: TEST_REGISTRY, readAsset: async () => undefined })
+        expect(new TextDecoder().decode(await decode(summary.blob)), timeZone).toContain('- Exported at: 2026-10-11T')
+      }
+    } finally {
+      if (zone === undefined) delete process.env.TZ
+      else process.env.TZ = zone
+    }
+  })
+})
 
 describe('frontmatterFor (storage.md §6, entry.md §5.5)', () => {
   it('round-trips unusual keys and string-shaped list values through a YAML parser (RV-CORE-06)', () => {
