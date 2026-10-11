@@ -2,7 +2,7 @@
 
 > 层级：product
 > 状态：产品度量真源
-> 更新：2026-10-11
+> 更新：2026-10-12
 
 本文定义 AnnHub 的激活、核心习惯、指标口径和体验护栏。指标只用于改进产品，不作为操纵用户增加使用时长的手段。
 
@@ -32,17 +32,26 @@
 
 每个指标有稳定编号，其他文档用编号引用。“事件”列指向第 9 节的事件字典；“目标或护栏”列只写已确认的护栏，新的目标值在 [validation.md](validation.md) 的假设里登记并随阶段 V 校准。官网指标（M-26 至 M-29）不来自事件，见第 11 节。
 
-| ID   | 指标           | 口径                                                                           | 来自事件                                                      | 目标或护栏                                  |
-| ---- | -------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------- | ------------------------------------------- |
-| M-03 | 采集用时       | 从触发到保存成功的中位时间与 95 分位，按入口分别统计：选区剪藏、区块剪藏、截图 | `capture.saved`                                               | 剪藏的本地写入 95 分位 < 300ms              |
-| M-11 | 扩展激活率     | 见第 2 节                                                                      | `capture.saved`、`entry.reopened`                             | 先建立基线                                  |
-| M-19 | 找回次数       | 每周被再次打开、经搜索或筛选后打开、或被导出的条目数（去重）                   | `entry.reopened`、`library.queried`、`export.completed`       | 先建立基线；见 [H-16](validation.md)        |
-| M-20 | 属性使用率     | 近 14 天内至少给一条条目添加过标签或自定义属性的活跃用户占比                   | `entry.property_edited`                                       | 见 [H-17](validation.md)                    |
-| M-21 | 高亮率         | 近 14 天内至少剪藏过一条的活跃用户里，至少在资料库创建过一条高亮的占比         | `highlight.created`                                           | 见 [H-19](validation.md)                    |
-| M-22 | 截图外用率     | 近 14 天内至少截过一次图的活跃用户里，至少复制或下载过一次截图的占比           | `capture.saved`、`screenshot.copied`、`screenshot.downloaded` | 见 [H-21](validation.md)                    |
-| M-23 | 区块一次命中率 | 区块剪藏里，没有调整层级（`level_changed` 为否）且没有被撤销的占比             | `capture.saved`、`capture.undone`                             | 见 [H-20](validation.md)                    |
-| M-24 | 美化使用率     | 近 14 天内复制或下载过截图的用户里，至少带美化输出过一次的占比                 | `screenshot.copied`、`screenshot.downloaded`                  | 见 [H-21](validation.md)                    |
-| M-25 | 取景框复用率   | 同一标签页、同一网页里，第二张及以后的截图中沿用上次取景框的占比               | `capture.saved`                                               | 先建立基线；见 [US-CAP-16](user-stories.md) |
+口径里的“用户”指一个扩展安装（第 2 节）。“活跃用户”指在该指标的统计窗口里（如近 14 天）至少记录过一次第 9 节事件的安装：采集过，在资料库里打开、搜索或筛选、高亮、编辑属性、导出过，或复制、下载过截图。只安装、没用过的不算；不按使用的天数或次数分档（第 7 节）。
+
+| ID   | 指标           | 口径                                                                                         | 来自事件                                                      | 目标或护栏                                  |
+| ---- | -------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------- |
+| M-03 | 采集用时       | 从触发到保存成功的中位时间与 95 分位，按入口分别统计：选区剪藏、区块剪藏、截图               | `capture.saved`                                               | 剪藏的本地写入 95 分位 < 300ms              |
+| M-11 | 扩展激活率     | 见第 2 节                                                                                    | `capture.saved`、`entry.reopened`                             | 先建立基线                                  |
+| M-19 | 找回次数       | 每周从资料库再次打开条目的次数与导出次数之和；同周的搜索与筛选次数并列显示                   | `entry.reopened`、`export.completed`、`library.queried`       | 先建立基线；见 [H-16](validation.md)        |
+| M-20 | 属性使用率     | 近 14 天内至少编辑过一次自定义属性或内置列表属性（标签、作者）的活跃用户占比                 | `entry.property_edited`                                       | 见 [H-17](validation.md)                    |
+| M-21 | 高亮率         | 近 14 天内至少剪藏过一条的活跃用户里，至少在资料库创建过一条高亮的占比                       | `capture.saved`、`highlight.created`                          | 见 [H-19](validation.md)                    |
+| M-22 | 截图外用率     | 近 14 天内至少截过一次图的活跃用户里，至少复制或下载过一次截图的占比                         | `capture.saved`、`screenshot.copied`、`screenshot.downloaded` | 见 [H-21](validation.md)                    |
+| M-23 | 区块一次命中率 | 区块剪藏里没有调整层级（`level_changed` 为否）的次数减去区块剪藏的撤销次数，除以区块剪藏次数 | `capture.saved`、`capture.undone`                             | 见 [H-20](validation.md)                    |
+| M-24 | 美化使用率     | 近 14 天内复制或下载过截图的用户里，至少带美化输出过一次的占比                               | `screenshot.copied`、`screenshot.downloaded`                  | 见 [H-21](validation.md)                    |
+| M-25 | 取景框复用率   | 截图里沿用上次取景框（`frame` 为 reused）的占比                                              | `capture.saved`                                               | 先建立基线；见 [US-CAP-16](user-stories.md) |
+
+事件不带条目、标签页或网页的标识，也不带属性名（第 9 节），下列指标因此按事件计数近似：
+
+- M-19 按次数计，不按条目去重：同一条目打开两次计两次，一次导出计一次。打开之前有没有搜索或筛选分不出来，所以并列同周的搜索与筛选次数。
+- M-20 想看的是标签与自定义属性，但分不出标签和作者（两者都是内置的列表属性），也分不出新增、修改和清除，按任一次编辑计，结果偏高。
+- M-23 的撤销事件不带 `level_changed`，区块剪藏的撤销全部从没有调整层级的那部分里扣除，算出的是下限。
+- M-25 的分母是全部截图，含每个网页的第一张（那一张还没有可沿用的取景框），结果偏低。
 
 ## 6. 体验护栏
 
@@ -74,18 +83,18 @@
 - 耗时统一分桶：< 15 秒、15–30 秒、30–60 秒、60–120 秒、> 120 秒；数量分桶：0、1–2、3–5、6–10、> 10。
 - 新增事件须同时登记它服务的指标；没有对应指标的事件不记录。
 
-| 事件                    | 触发时机                       | 允许属性                                                                                                                                                                                                                                                                         | 服务指标                           |
-| ----------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| `capture.saved`         | 条目本地写入成功               | `type`、`via`（menu / block / shortcut）、`duration`（分桶）；`via` 为 block 时另有 `block_kind`（post / code / table / figure / quote / section / article）、`level_changed`（是否调整过层级）；剪藏另有 `truncated`（是否被截断）；截图另有 `frame`（drag / element / reused） | M-03、M-11、M-23、M-25、数据可靠性 |
-| `highlight.created`     | 在资料库里创建了一条高亮       | `has_note`、`via`（toolbar / shortcut）                                                                                                                                                                                                                                          | M-21                               |
-| `capture.undone`        | 用户撤销刚保存的剪藏           | `type`、`via`（同 `capture.saved`）                                                                                                                                                                                                                                              | M-23、数据可靠性                   |
-| `capture.save_failed`   | 保存失败                       | `type`、`error_code`                                                                                                                                                                                                                                                             | 数据可靠性                         |
-| `entry.reopened`        | 从资料库再次打开一条条目       | `type`                                                                                                                                                                                                                                                                           | M-11、M-19                         |
-| `entry.property_edited` | 保存了对属性的新增、修改或清除 | `scope`（builtin / custom）、`property_type`                                                                                                                                                                                                                                     | M-20                               |
-| `library.queried`       | 在资料库里执行了搜索或筛选     | `has_text`、`filters`（分桶）、`results`（分桶）                                                                                                                                                                                                                                 | M-19                               |
-| `export.completed`      | 导出结束                       | `result`（full / partial）、`missing_assets`（分桶）                                                                                                                                                                                                                             | M-19、数据可靠性                   |
-| `screenshot.copied`     | 截图复制到剪贴板成功           | `watermark`（本次是否带水印）、`beautify`（本次是否带美化）                                                                                                                                                                                                                      | M-22、M-24                         |
-| `screenshot.downloaded` | 截图下载成功                   | `format`（png / jpeg / webp）、`watermark`、`beautify`                                                                                                                                                                                                                           | M-22、M-24                         |
+| 事件                    | 触发时机                       | 允许属性                                                                                                                                                                                                                                                                         | 服务指标                                       |
+| ----------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `capture.saved`         | 条目本地写入成功               | `type`、`via`（menu / block / shortcut）、`duration`（分桶）；`via` 为 block 时另有 `block_kind`（post / code / table / figure / quote / section / article）、`level_changed`（是否调整过层级）；剪藏另有 `truncated`（是否被截断）；截图另有 `frame`（drag / element / reused） | M-03、M-11、M-21、M-22、M-23、M-25、数据可靠性 |
+| `highlight.created`     | 在资料库里创建了一条高亮       | `has_note`、`via`（toolbar / shortcut）                                                                                                                                                                                                                                          | M-21                                           |
+| `capture.undone`        | 用户撤销刚保存的剪藏           | `type`、`via`（同 `capture.saved`）                                                                                                                                                                                                                                              | M-23、数据可靠性                               |
+| `capture.save_failed`   | 保存失败                       | `type`、`error_code`                                                                                                                                                                                                                                                             | 数据可靠性                                     |
+| `entry.reopened`        | 从资料库再次打开一条条目       | `type`                                                                                                                                                                                                                                                                           | M-11、M-19                                     |
+| `entry.property_edited` | 保存了对属性的新增、修改或清除 | `scope`（builtin / custom）、`property_type`                                                                                                                                                                                                                                     | M-20                                           |
+| `library.queried`       | 在资料库里执行了搜索或筛选     | `has_text`、`filters`（分桶）、`results`（分桶）                                                                                                                                                                                                                                 | M-19                                           |
+| `export.completed`      | 导出结束                       | `result`（full / partial）、`missing_assets`（分桶）                                                                                                                                                                                                                             | M-19、数据可靠性                               |
+| `screenshot.copied`     | 截图复制到剪贴板成功           | `watermark`（本次是否带水印）、`beautify`（本次是否带美化）                                                                                                                                                                                                                      | M-22、M-24                                     |
+| `screenshot.downloaded` | 截图下载成功                   | `format`（png / jpeg / webp）、`watermark`、`beautify`                                                                                                                                                                                                                           | M-22、M-24                                     |
 
 ## 10. 本地指标面板
 

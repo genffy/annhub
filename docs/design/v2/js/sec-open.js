@@ -1,7 +1,7 @@
 // 范围边界：明确不在本稿范围内的内容。
 // 设计稿里没有文档依据的方案，按 docs/v2/AGENTS.md 先登记到 validation.md，确认后才迁入真源，再回到这里列出。
 function secOpen() {
-  const out = `<div class="sp-card ui" style="margin-top:22px"><h5>明确没有设计的内容</h5><p>按“不为未进入当前版本的能力提前增加 UI 入口”（roadmap §1）。精确选区与可重复的取景框（R3）是排在阶段 V 之后、但画了目标体验的范围。</p><table class="sp-table" style="font-size:12.5px"><tbody>
+  const out = `<div class="sp-card ui" style="margin-top:22px"><h5>明确没有设计的内容</h5><p>按“不为未进入当前版本的能力提前增加 UI 入口”（roadmap §1）。</p><table class="sp-table" style="font-size:12.5px"><tbody>
       <tr><td style="width:200px">网页上的高亮标记</td><td>页面里没有高亮入口，也不留任何标记；高亮在资料库里读剪藏时完成，网页保持原样（entry §4）。</td></tr>
       <tr><td>AI 与模型接入</td><td>与“内容不离开本机”的承诺冲突；设置里没有任何 Provider 或密钥入口（permissions §1）。</td></tr>
       <tr><td>设备外框、封面与文案卡模板、自动平衡、模板市场</td><td>不做：截图首先是资料，不是设计稿；美化只做背景、留白、圆角与阴影（screenshot §4.4、product §2.3）。</td></tr>

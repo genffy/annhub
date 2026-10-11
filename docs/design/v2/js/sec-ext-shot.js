@@ -1,4 +1,4 @@
-// 浏览器扩展 · 截图：区域与元素截图、选区内原位编辑、失败状态；以及精确选区（R3，阶段 V 之后排期）。
+// 浏览器扩展 · 截图：区域与元素截图、选区内原位编辑、失败状态；以及精确选区与可重复的取景框（R3）。
 // 依据 screenshot §1–§5。截图确认后保存为 screenshot 条目，出现在资料库的“截图”视图。
 
 const chartWide = () => `<svg viewBox="0 0 640 170" aria-hidden="true">
@@ -81,7 +81,7 @@ function extShotGroup() {
     w: 760,
     body: `<div class="shot" style="height:470px">${shotScene()}${selection.replace('<span class="shot-size">', `${pin(1, 'pin-in')}<span class="shot-size">`)}${hint}
       <div style="position:absolute;z-index:7;left:690px;top:384px;color:#fff">${I('crosshair', 'i-lg')}</div></div>`,
-    notes: ['快捷键 <b>Ctrl/⌘+Shift+S</b> 进入：页面变暗，拖拽时选区保持明亮，显示<b>蓝色边框和像素尺寸</b>。', '拖拽选区、单击选元素共用同一入口；顶部提示条说明手势和快捷键，进入编辑后消失。', '比例预设在 R2（见“截图输出”）；精确选区（吸附、八向手柄、方向键微调、确认选区）属于 R3，阶段 V 之后排期，设计见下方“精确选区”。'],
+    notes: ['快捷键 <b>Ctrl/⌘+Shift+S</b> 进入：页面变暗，拖拽时选区保持明亮，显示<b>蓝色边框和像素尺寸</b>。', '拖拽选区、单击选元素共用同一入口；顶部提示条说明手势和快捷键，进入编辑后消失。', '比例预设在 R2（见“截图输出”）；精确选区（吸附、八向手柄、方向键微调、确认选区）属于 R3，设计见下方“精确选区”。'],
   })
 
   const edit = board({
@@ -143,7 +143,7 @@ function extShotGroup() {
   )
 }
 
-// ── 精确选区（R3，阶段 V 之后排期）──────────────────────────────────────────
+// ── 精确选区（R3）──────────────────────────────────────────
 function extShotR3Group() {
   const snap = board({
     title: '拖拽吸附 · 元素边缘',
@@ -285,7 +285,7 @@ function extShotR3Group() {
   })
 
   return group(
-    { id: 'ext-shot-r3', title: '精确选区与可重复的取景框 · R3', small: 'screenshot §1.2 · roadmap R3', desc: '截图选区的精度改进，惠及所有截图用户；阶段 V 之后排期。预设比例的锁定在 R2（见“截图输出”），这里只有拖拽中按住 Shift 的临时锁定。' },
+    { id: 'ext-shot-r3', title: '精确选区与可重复的取景框 · R3', small: 'screenshot §1.2 · roadmap R3', desc: '截图选区的精度改进，惠及所有截图用户。预设比例的锁定在 R2（见“截图输出”），这里只有拖拽中按住 Shift 的临时锁定。' },
     row(snap, handles),
     row(frameBoard, keysBoard),
     row(reuse),

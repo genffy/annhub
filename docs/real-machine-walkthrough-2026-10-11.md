@@ -405,7 +405,7 @@ P3 全部已修复（修复轮）：P3-1 提示条以 “ · ” 分隔；P3-2 �
 - **导出文件名**：
   - 文件名的日期是 UTC（`new Date().toISOString().slice(0, 10)`，`entrypoints/library/App.tsx:459`），ZIP 里 README 的“Exported at”是本地时间。本地日期与 UTC 日期不同的时刻，两者差一天。这一条按源码推断，场景 OP-3 验证。
   - [storage.md §6](./v2/storage.md#6-唯一的用户导出markdown-zip) 的目录树写 `AnnHub-export.zip`，产品与官网是 `AnnHub-export-YYYY-MM-DD.zip`。
-- **上次取景框的范围**：记忆存在 `chrome.storage.session`，键是页面的来源 + 路径 + 查询，不区分标签页，离开页面也不清除。[screenshot.md §1.4](./v2/screenshot.md#14-可重复的取景框r3阶段-v-之后排期) 的契约是只存在这个标签页的这个网页里，导航到别的页面、关闭标签页或重启浏览器就清除。这一条按源码推断（场景 FX-10），要产品定：改契约，还是在键里加上标签页并在导航时清除。
+- **上次取景框的范围**：记忆存在 `chrome.storage.session`，键是页面的来源 + 路径 + 查询，不区分标签页，离开页面也不清除。[screenshot.md §1.4](./v2/screenshot.md#14-可重复的取景框r3) 的契约是只存在这个标签页的这个网页里，导航到别的页面、关闭标签页或重启浏览器就清除。这一条按源码推断（场景 FX-10），要产品定：改契约，还是在键里加上标签页并在导航时清除。
 - **Medium**：第 3 篇的地址（`@dan_abramov/before-you-memoize`）不是 Medium 文章，《Before You memo()》在 overreacted.io 上。场景 MD-1 改用《Making Sense of React Hooks》。“3 min read”与日期连写，修复轮没有处理。
 - **Rust 手册**：mdBook 折叠起来的样板行（如 `fn main() {`）进了 Markdown。它们是可运行代码的一部分，记为观察。
 - **文档**：[screenshot.md](./v2/screenshot.md) 说匿名与水印状态显示在“编辑界面底部的状态条”；实现里这条提示在取景时位于窗口顶部，进入编辑态就隐藏。

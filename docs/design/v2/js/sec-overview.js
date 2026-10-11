@@ -28,7 +28,7 @@ function secOverview() {
 
   const inventory = `<div class="sp-card ui" style="margin-top:22px">
     <h5>界面清单</h5>
-    <p>每一行对应一组画板；“版本”取自 roadmap.md 的交付范围。R3 排在阶段 V 之后，画出来只表达目标体验，不代表进入开发。</p>
+    <p>每一行对应一组画板；“版本”取自 roadmap.md 的交付范围。</p>
     <table class="sp-table">
       <thead><tr><th style="width:170px">界面</th><th>职责</th><th style="width:230px">依据</th><th style="width:100px">版本</th><th style="width:70px"></th></tr></thead>
       <tbody>
