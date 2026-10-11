@@ -69,13 +69,11 @@ import {
   handleAnchor,
   nudgeBox,
   pageStable,
-  readFrame,
-  rememberFrame,
   resizeFromHandle,
   snapPoint,
-  type FrameRecord,
   type HandleId,
 } from './selection'
+import { readFrame, rememberFrame, type FrameRecord } from './frame-memory'
 import type { ExtensionSettings } from '../../../background-service/settings-schema'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -728,7 +726,6 @@ class ScreenshotSession {
       pageY: this.selection.y + view.scrollY,
       width: this.selection.width,
       height: this.selection.height,
-      path: location.pathname + location.search,
     }
     this.clearConfirmUi()
     await this.captureRegionMode()
@@ -872,7 +869,6 @@ class ScreenshotSession {
       height: box.height,
       pageX: box.left + view.scrollX,
       pageY: box.top + view.scrollY,
-      path: location.pathname + location.search,
     }
     this.reusedFrame = false
     if (fitsInViewport(frame, { width: view.innerWidth, height: view.innerHeight })) {
@@ -1014,7 +1010,6 @@ class ScreenshotSession {
       height: box.height,
       pageX: box.left + view.scrollX,
       pageY: box.top + view.scrollY,
-      path: location.pathname + location.search,
     }
     this.reusedFrame = false
     await this.captureElementMode(target)
@@ -1572,7 +1567,9 @@ class ScreenshotSession {
    */
   private async restoreRememberedFrame(): Promise<void> {
     const record = await readFrame()
-    if (!record || this.exited || this.state !== 'selecting') return
+    // the frame arrives a worker round trip after the session opened: a pointer that
+    // is already picking its own target keeps it, and the frame waits for the next trigger
+    if (!record || this.exited || this.state !== 'selecting' || this.hoverEl) return
     const view = this.doc.defaultView!
     let label = `${uiText('shot.lastFrame')} · ${Math.round(record.width + (record.kind === 'element' ? record.margin * 2 : 0))} × ${Math.round(record.height + (record.kind === 'element' ? record.margin * 2 : 0))}`
     if (record.kind === 'element') {

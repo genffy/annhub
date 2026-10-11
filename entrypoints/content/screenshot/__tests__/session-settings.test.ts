@@ -116,6 +116,41 @@ describe('the screenshot session and its settings (screenshot.md §3)', () => {
     expect(hintText()).not.toMatch(/匿名/)
   })
 
+  it('keeps a hover the user already started; the remembered frame does not take it over', async () => {
+    // the settings and the frame both come back from the worker, later than the user's first move
+    let answerSettings: (settings: ExtensionSettings) => void = () => undefined
+    let answerFrame: (record: unknown) => void = () => undefined
+    const settingsPending = new Promise<ExtensionSettings>(resolve => (answerSettings = resolve))
+    const framePending = new Promise<unknown>(resolve => (answerFrame = resolve))
+    sendMessage.mockImplementation((message: { type: string }) => {
+      if (message.type === 'GET_SETTINGS') return settingsPending.then(data => ({ success: true, data }))
+      if (message.type === 'READ_FRAME') return framePending.then(record => ({ success: true, data: { record } }))
+      return Promise.resolve({ success: false, error: 'stop here' })
+    })
+
+    enterScreenshotMode()
+    aPerson = true
+    const post = document.getElementById('post')!
+    // jsdom has no elementsFromPoint; the session skips hover without it, so lend it this one element
+    const realElementsFromPoint = document.elementsFromPoint?.bind(document)
+    document.elementsFromPoint = () => [post]
+    try {
+      document.dispatchEvent(new Event('pointermove'))
+      await settle()
+      expect(session().querySelector('[data-ann-ui="shot-hover-outline"]')).not.toBeNull()
+      expect(session().querySelector('[data-ann-ui="shot-margin-bar"]')).not.toBeNull()
+
+      answerSettings({ ...DEFAULT_SETTINGS })
+      answerFrame({ kind: 'element', selector: '#post', margin: 24, pageX: 0, pageY: 0, width: 300, height: 150 })
+      await settle()
+      // the hover (and its margin bar) survive; no pending "last frame" takes the pointer's target away
+      expect(session().querySelector('[data-ann-ui="shot-margin-bar"]')).not.toBeNull()
+      expect(session().querySelector('[data-ann-ui="shot-frame-label"]')).toBeNull()
+    } finally {
+      if (realElementsFromPoint) document.elementsFromPoint = realElementsFromPoint
+      else Reflect.deleteProperty(document, 'elementsFromPoint')
+    }
+  })
 })
 
 const session = (): Element => document.querySelector('[data-ann-ui="screenshot-session"]')!

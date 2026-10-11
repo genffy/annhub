@@ -3,16 +3,28 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('../../../../utils/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 vi.mock('../../../../learning-core/store', () => ({ EntryStore: vi.fn() }))
 
+const tabEvent = () => ({ addListener: vi.fn(), removeListener: vi.fn() })
 const tabs = {
   get: vi.fn(),
   captureVisibleTab: vi.fn(),
+  onUpdated: tabEvent(),
+  onRemoved: tabEvent(),
+  onReplaced: tabEvent(),
 }
 const downloads = { download: vi.fn() }
 const runtime: { id: string; getURL: (path: string) => string; lastError?: { message: string } } = {
   id: 'ext-id',
   getURL: path => `chrome-extension://ext-id/${path}`,
 }
-;(globalThis as any).chrome = { runtime, tabs, downloads }
+const sessionItems = new Map<string, unknown>()
+const session = {
+  get: async (key: string | null) => (key === null ? Object.fromEntries(sessionItems) : sessionItems.has(key) ? { [key]: sessionItems.get(key) } : {}),
+  set: async (items: Record<string, unknown>) => {
+    for (const [key, value] of Object.entries(items)) sessionItems.set(key, value)
+  },
+  remove: async (key: string) => void sessionItems.delete(key),
+}
+;(globalThis as any).chrome = { runtime, tabs, downloads, storage: { session } }
 
 import { Logger } from '../../../../utils/logger'
 import { ScreenshotService } from '../index'
@@ -200,5 +212,25 @@ describe('image message validation (RV-BG-02)', () => {
       const response = await handlers.SAVE_SCREENSHOT!({ data: { dataUrl, width: 1, height: 1, sourceUrl: 'https://page.example/a', title: 'Shot', via: 'menu' } }, sender)
       expect(response).toMatchObject({ success: false, error: 'ENTRY_ASSET_MISSING' })
     }
+  })
+})
+
+describe('REMEMBER_FRAME and READ_FRAME (screenshot.md §1.4)', () => {
+  const frame = { kind: 'box', pageX: 10, pageY: 20, width: 300, height: 200 }
+  const top = (tabId: number, url: string) => ({ id: 'ext-id', url, tab: { id: tabId }, frameId: 0 }) as chrome.runtime.MessageSender
+
+  it("keeps the asking tab's frame for its page and gives it back there only", async () => {
+    expect(await handlers.REMEMBER_FRAME!({ record: frame }, top(5, 'https://shop.example/pricing?period=monthly'))).toMatchObject({ success: true })
+    expect((await handlers.READ_FRAME!({}, top(5, 'https://shop.example/pricing?period=yearly'))).data).toEqual({ record: frame })
+    expect((await handlers.READ_FRAME!({}, top(6, 'https://shop.example/pricing'))).data, 'another tab').toEqual({ record: null })
+    expect((await handlers.READ_FRAME!({}, top(5, 'https://shop.example/checkout'))).data, 'another page').toEqual({ record: null })
+  })
+
+  it('serves the top frame of a tab only, and refuses a frame the session would not build', async () => {
+    for (const sender of [page({ id: 7 }, 3), library, { id: 'other', url: 'https://shop.example/' } as chrome.runtime.MessageSender]) {
+      expect((await handlers.REMEMBER_FRAME!({ record: frame }, sender)).error).toContain('Forbidden')
+      expect((await handlers.READ_FRAME!({}, sender)).error).toContain('Forbidden')
+    }
+    expect(await handlers.REMEMBER_FRAME!({ record: { ...frame, width: -1 } }, top(5, 'https://shop.example/'))).toMatchObject({ success: false, error: 'FRAME_INVALID' })
   })
 })

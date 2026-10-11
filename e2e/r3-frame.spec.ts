@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { clearLibrary, ensureServiceWorker, getAssetMetadata, getEntries, triggerScreenshot } from './helpers'
+import { clearLibrary, ensureServiceWorker, getAssetMetadata, getEntries, stopServiceWorker, triggerScreenshot } from './helpers'
 
 /**
  * R3: precise selection and repeatable frames (screenshot.md §1.2, §1.4;
@@ -199,6 +199,117 @@ test.describe('repeatable frames (screenshot.md §1.4)', () => {
     expect(dims).toHaveLength(2)
     expect(dims[1]!.width).toBe(first.width)
     expect(dims[1]!.height).toBe(first.height)
+  })
+})
+
+test.describe('the last frame is kept for this tab and this page only (screenshot.md §1.4)', () => {
+  test.beforeEach(async ({ context }) => {
+    await clearLibrary(context)
+  })
+
+  /** Drags a box and saves it: the frame this tab now remembers. */
+  async function saveDraggedFrame(page: import('@playwright/test').Page): Promise<void> {
+    await triggerScreenshot(page)
+    await page.mouse.move(60, 80)
+    await page.mouse.down()
+    await page.mouse.move(420, 260, { steps: 4 })
+    await page.mouse.up()
+    await page.keyboard.press('Enter')
+    await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible({ timeout: 15_000 })
+    await page.locator('[data-ann-ui="screenshot-save"]').click()
+    await page.locator('[data-ann-ui="screenshot-session"]').waitFor({ state: 'detached', timeout: 15_000 })
+  }
+
+  /** Whether a new session opens on the remembered frame; the session is cancelled again either way. */
+  async function offersLastFrame(page: import('@playwright/test').Page): Promise<boolean> {
+    await triggerScreenshot(page)
+    await page.locator('[data-ann-ui="screenshot-session"]').waitFor()
+    const offered = await page
+      .locator('[data-ann-ui="shot-frame-label"]')
+      .waitFor({ timeout: 2000 })
+      .then(
+        () => true,
+        () => false,
+      )
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
+    return offered
+  }
+
+  /** The tabs the worker keeps a frame for. */
+  async function keptFrames(context: import('@playwright/test').BrowserContext): Promise<string[]> {
+    const sw = await ensureServiceWorker(context)
+    return sw.evaluate(async () => Object.keys(await chrome.storage.session.get(null)).filter(key => key.startsWith('annhub.frame:')))
+  }
+
+  test('a reload, another query or another fragment keep it; another tab on the same page does not have it', async ({ page, context }) => {
+    await open(page)
+    await saveDraggedFrame(page)
+    await expect.poll(() => keptFrames(context)).toHaveLength(1)
+    await page.reload()
+    expect(await offersLastFrame(page), 'after a reload').toBe(true)
+    await page.goto(`${PAGE_URL}?period=yearly#plans`)
+    expect(await offersLastFrame(page), 'with another query and fragment').toBe(true)
+
+    const other = await context.newPage()
+    await open(other)
+    expect(await offersLastFrame(other), 'in another tab').toBe(false)
+    expect(await keptFrames(context)).toHaveLength(1)
+    await other.close()
+  })
+
+  test('moving to another page forgets it, even when the worker was asleep', async ({ page, context }) => {
+    await open(page)
+    await saveDraggedFrame(page)
+    await expect.poll(() => keptFrames(context)).toHaveLength(1)
+    // the tab event has to wake the worker: its listener is there only because a tab has a frame
+    await stopServiceWorker(context, page)
+    await page.goto('http://localhost:8173/capture.html')
+    await expect.poll(() => keptFrames(context)).toHaveLength(0)
+    await open(page)
+    expect(await offersLastFrame(page), 'back on the page').toBe(false)
+  })
+
+  test('a page that changes its path in place has moved to another page', async ({ page, context }) => {
+    await open(page)
+    await saveDraggedFrame(page)
+    await expect.poll(() => keptFrames(context)).toHaveLength(1)
+    await page.evaluate(() => history.pushState(null, '', '/pricing-yearly.html'))
+    await expect.poll(() => keptFrames(context)).toHaveLength(0)
+    await page.evaluate(() => history.pushState(null, '', '/pricing.html'))
+    expect(await offersLastFrame(page), 'back on the first path').toBe(false)
+  })
+
+  test('closing the tab forgets it', async ({ context }) => {
+    const tab = await context.newPage()
+    await open(tab)
+    await saveDraggedFrame(tab)
+    await expect.poll(() => keptFrames(context)).toHaveLength(1)
+    await tab.close()
+    await expect.poll(() => keptFrames(context)).toHaveLength(0)
+  })
+
+  // the area also holds the captures sender.ts lets a content script undo and edit: it must stay closed to them
+  test("neither the page's scripts nor the extension's content scripts can read it", async ({ page, context }) => {
+    await open(page)
+    await saveDraggedFrame(page)
+    await expect.poll(() => keptFrames(context)).toHaveLength(1)
+    expect(await page.evaluate(() => [...Object.keys(sessionStorage), ...Object.keys(localStorage)].filter(key => key.startsWith('annhub')))).toEqual([])
+
+    const cdp = await context.newCDPSession(page)
+    const worlds: Array<{ id: number; origin: string; auxData?: { type?: string } }> = []
+    cdp.on('Runtime.executionContextCreated', event => worlds.push(event.context))
+    await cdp.send('Runtime.enable')
+    await expect.poll(() => worlds.some(world => world.auxData?.type === 'isolated' && world.origin.startsWith('chrome-extension://'))).toBe(true)
+    const contentScripts = worlds.find(world => world.auxData?.type === 'isolated' && world.origin.startsWith('chrome-extension://'))!
+    const { result } = await cdp.send('Runtime.evaluate', {
+      contextId: contentScripts.id,
+      expression: "chrome.storage.session.get(null).then(items => 'read ' + Object.keys(items).join(', '), error => 'refused: ' + error.message)",
+      awaitPromise: true,
+      returnByValue: true,
+    })
+    expect(result.value).toMatch(/^refused/)
+    await cdp.detach()
   })
 })
 

@@ -10,7 +10,7 @@
 
 1. 采集只在用户主动选中、指一下或框选截图时读取页面内容，不读取用户没有指认的内容。
 2. 条目、图片、设置和本地指标只保存在浏览器本地（[storage.md §1](storage.md)）。不把页面内容、URL、标题或用户整理的内容发往 AnnHub 或任何第三方服务；没有账号、云端和 AI 服务。
-3. 截图的“上次取景框”记忆保存在扩展自己的 `chrome.storage.session`（按页面路径隔离），不写进网页的 `sessionStorage`——网站脚本读不到它（[screenshot.md §1.4](screenshot.md)）。
+3. 截图的“上次取景框”记忆只由扩展后台保存在 `chrome.storage.session` 里：每个标签页一份，只对拍下它的网页有效，导航到别的页面、关闭标签页或重启浏览器即清除。它不写进网页的 `sessionStorage`，网站脚本和扩展注入页面的脚本都读不到它（[screenshot.md §1.4](screenshot.md)）。
 4. 采集唯一会产生的出站请求，是截图时由扩展后台代取页面里的跨域图片：目标就是页面自己引用的那张图，不带凭据，只接受公网地址（[screenshot.md §2](screenshot.md)）。剪藏里的图片只保留原地址，阅读视图不联网加载（[capture.md §3.1](capture.md)）。
 5. 扩展页面只执行扩展自带的脚本，不加载远程代码。
 6. 阶段 V 的本地指标只在本机计算，以聚合数字展示、不展示正文，也不新增导出或上传入口（[metrics.md §10](metrics.md)）；实验同样不上传正文、URL 或标题（[validation.md §4](validation.md)）。
