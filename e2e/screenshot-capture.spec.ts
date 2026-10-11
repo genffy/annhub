@@ -191,3 +191,63 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
     await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
   })
 })
+
+test.describe('element capture renders content (真机走查 P1-2)', () => {
+  test('the preview of a clicked element shows the element, not one flat colour', async ({ page }) => {
+    await page.goto(getScreenshotPageUrl())
+    await triggerScreenshot(page)
+    await expect(page.locator('[data-ann-ui="screenshot-session"]')).toBeVisible()
+
+    const body = page.getByTestId('capture-body')
+    const box = (await body.boundingBox())!
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+    await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible()
+
+    // the capture the preview draws must contain real pixels: text, several
+    // colours — not the single shade the offscreen-surface bug produced
+    const stats = await page.evaluate(() => {
+      const canvas = document.querySelector('[data-ann-ui="screenshot-preview"] canvas')
+      if (!canvas) return null
+      const ctx = canvas.getContext('2d')!
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const colors = new Set<string>()
+      let nonBackground = 0
+      const bg = `${data[0]},${data[1]},${data[2]}`
+      for (let i = 0; i < data.length; i += 4) {
+        const key = `${data[i]!},${data[i + 1]!},${data[i + 2]!}`
+        colors.add(key)
+        if (key !== bg) nonBackground++
+      }
+      return { colors: colors.size, nonBackgroundRatio: nonBackground / (data.length / 4) }
+    })
+    expect(stats).not.toBeNull()
+    expect(stats!.colors).toBeGreaterThan(50)
+    expect(stats!.nonBackgroundRatio).toBeGreaterThan(0.02)
+  })
+
+  test('a translucent page background no longer reads as opaque (X hover case)', async ({ page }) => {
+    await page.goto(getScreenshotPageUrl())
+    await triggerScreenshot(page)
+    await expect(page.locator('[data-ann-ui="screenshot-session"]')).toBeVisible()
+
+    // the same click-path but on an element whose background is rgba(...,0.03):
+    // the capture must still come out with visible content
+    const translucent = page.getByTestId('capture-translucent')
+    await translucent.scrollIntoViewIfNeeded()
+    const box = (await translucent.boundingBox())!
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+    await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible()
+
+    const stats = await page.evaluate(() => {
+      const canvas = document.querySelector('[data-ann-ui="screenshot-preview"] canvas')
+      if (!canvas) return null
+      const ctx = canvas.getContext('2d')!
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      const colors = new Set<string>()
+      for (let i = 0; i < data.length; i += 4) colors.add(`${data[i]!},${data[i + 1]!},${data[i + 2]!}`)
+      return { colors: colors.size }
+    })
+    expect(stats).not.toBeNull()
+    expect(stats!.colors).toBeGreaterThan(10)
+  })
+})
