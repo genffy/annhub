@@ -170,15 +170,17 @@ export async function getSettings(context: BrowserContext): Promise<Record<strin
   )
 }
 
+/**
+ * Merges a patch onto the stored settings, one level deep: a nested object (`watermark`, `beautify`) is replaced
+ * whole, the other settings stay as they were. `get` answers with the items keyed by name, so the settings are one
+ * level down; spreading the answer itself kept them under a junk key, and every call reset what the last one set.
+ */
 export async function setSettings(context: BrowserContext, patch: Record<string, unknown>): Promise<void> {
   const sw = await ensureServiceWorker(context)
-  await sw.evaluate(
-    next =>
-      new Promise<void>(resolve =>
-        chrome.storage.local.get('annhub.settings', current => chrome.storage.local.set({ 'annhub.settings': { ...current, ...next } }, () => resolve())),
-      ),
-    patch,
-  )
+  await sw.evaluate(async next => {
+    const stored = (await chrome.storage.local.get('annhub.settings'))['annhub.settings']
+    await chrome.storage.local.set({ 'annhub.settings': { ...(stored && typeof stored === 'object' ? stored : {}), ...next } })
+  }, patch)
 }
 
 /** WCAG contrast of each element's text colour against the first painted background behind it. */
