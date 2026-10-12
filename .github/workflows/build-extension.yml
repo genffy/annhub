@@ -13,8 +13,12 @@ on:
 
 permissions: {}
 
+# In a called workflow `github.workflow` is the CALLER's name, so
+# `${{ github.workflow }}-${{ github.ref }}` would collide with release.yml's
+# run-level group and the build job would kill its own run. Prefix with this
+# file's own name instead; group is only meant to dedupe standalone dispatches.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: Build-Extension-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
