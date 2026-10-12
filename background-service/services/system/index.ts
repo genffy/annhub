@@ -6,7 +6,7 @@ import type { IService } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from '../../sender'
 import { addDisabledSite, readSettings, writeSettings } from '../../settings-schema'
-import { metricsSnapshot, recordEvent } from '../metrics/record'
+import { metricsPanel, recordEvent } from '../metrics/record'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
 
@@ -68,7 +68,7 @@ export class SystemService implements IService {
 
       GET_METRICS: async (_message, sender): Promise<ResponseMessage> => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
-        return MessageUtils.createResponse(true, await metricsSnapshot())
+        return MessageUtils.createResponse(true, await metricsPanel())
       },
     }
   }

@@ -18,7 +18,7 @@
 | 检索               | `query.ts`（词命中、权重、属性运算符、keyset 分页、高亮视图；派生文档由 `indexedSummary`/`indexedText` 构造）                  | search.md                       |
 | Markdown 工具      | `markdown.ts`（纯文本化、围栏与行内代码的判定、引文换算、`==…==` 写回不跨块不破记号）                                          | storage.md §6                   |
 | ZIP 导出           | `export.ts` + `zip.ts`（store-only ZIP、frontmatter 键序、README）                                                             | storage.md §6                   |
-| 本地指标           | `metrics.ts`（事件字典与运行时校验、分桶、串行写入、按天累计、chrome.storage 注入）                                            | metrics.md §9                   |
+| 本地指标           | `metrics.ts`（事件字典与运行时校验、分桶、串行写入、按天累计、面板汇总 `metricSummaries`、chrome.storage 注入）                | metrics.md §9、§5、§10          |
 | ID 与摘要          | `assets.ts`（`ent_`/`asset_` ID、SHA-256、单图上限初始值）                                                                     | storage.md §4（Q-03 校准上限）  |
 
 ## 数据不变量

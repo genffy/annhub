@@ -10,7 +10,7 @@ import { initializedEntryStore } from '../../store-instance'
 import { cleanSourceUrl } from '../../../learning-core/url'
 import { presetProperties } from '../../../learning-core/properties'
 import { queryEntries } from '../../../learning-core/query'
-import type { EntryPatch, EntryStore } from '../../../learning-core/store'
+import { DB_VERSION, type EntryPatch, type EntryStore } from '../../../learning-core/store'
 import { storageErrorCode } from '../errors'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
@@ -35,7 +35,7 @@ export class EntryService implements IService {
     if (this.initialized) return
     await initializedEntryStore()
     this.initialized = true
-    Logger.info('[EntryService] Initialized (annhub IndexedDB v1)')
+    Logger.info(`[EntryService] Initialized (annhub IndexedDB v${DB_VERSION})`)
   }
 
   getMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
@@ -47,7 +47,10 @@ export class EntryService implements IService {
           const draft = message.draft
           const { via, blockKind, levelChanged, truncated, durationMs, startedAt, ...fields } = draft
           const registry = await store.listPropertyDefinitions()
-          const properties = { ...presetProperties('clip', registry, fields.properties), ...fields.properties }
+          // only the type's presets attach (entry.md §5.4): a page-extracted
+          // value for an unchecked preset (author, …) is dropped here, not
+          // layered on top; title/tags are fixed presets and always pass.
+          const properties = presetProperties('clip', registry, fields.properties)
           const started = performance.now()
           const entry = await store.saveEntry({
             id: fields.id,

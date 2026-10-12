@@ -294,6 +294,17 @@ describe('updateEntry (entry.md §4.7, §6)', () => {
     const mine = (await store.listPropertyDefinitions()).find(def => def.name === 'mine')!
     expect(mine.builtin).toBe(false)
   })
+
+  it('keeps title and tags attached to both types whatever an upsert says (entry.md §5.4)', async () => {
+    await store.upsertPropertyDefinition({ name: 'tags', type: 'list', builtin: true, presets: ['clip'] })
+    await store.upsertPropertyDefinition({ name: 'title', type: 'text', builtin: true, presets: [] })
+    const defs = await store.listPropertyDefinitions()
+    expect(defs.find(def => def.name === 'tags')!.presets).toEqual(['clip', 'screenshot'])
+    expect(defs.find(def => def.name === 'title')!.presets).toEqual(['clip', 'screenshot'])
+    // non-fixed built-ins take the upsert's presets, filtered to real entry types
+    await store.upsertPropertyDefinition({ name: 'author', type: 'list', builtin: true, presets: ['screenshot', 'clip', 'clip'] })
+    expect((await store.listPropertyDefinitions()).find(def => def.name === 'author')!.presets).toEqual(['screenshot', 'clip'])
+  })
 })
 
 describe('highlight operations (storage.md §5, entry.md §4.6)', () => {

@@ -38,6 +38,59 @@ test('default highlight color and watermark image removal persist (RV-LIB-11)', 
   await expect(page.getByRole('button', { name: '管理快捷键' })).toBeVisible()
 })
 
+test('the watermark preview paints the picture beside the text (screenshot.md §4.3)', async ({ page, extensionId }) => {
+  await page.goto(`chrome-extension://${extensionId}/library.html#/settings`)
+  // a solid red square, drawn by the browser itself so the bytes are a readable PNG
+  const redPng = Buffer.from(
+    (await page.evaluate(() => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 16
+      canvas.height = 16
+      const ctx = canvas.getContext('2d')!
+      ctx.fillStyle = '#f00'
+      ctx.fillRect(0, 0, 16, 16)
+      return canvas.toDataURL('image/png')
+    }))!.split(',')[1]!,
+    'base64',
+  )
+  await page.locator('input[type="file"][accept="image/png"]').setInputFiles({ name: 'mark.png', mimeType: 'image/png', buffer: redPng })
+  // the preview paints the strip at the watermark's opacity: red over the light grey canvas keeps a red-dominant pixel
+  const preview = page.getByTestId('watermark-preview')
+  await expect
+    .poll(() =>
+      preview.evaluate((canvas: HTMLCanvasElement) => {
+        const data = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data
+        for (let i = 0; i < data.length; i += 4) if (data[i]! > 180 && data[i + 1]! < 90 && data[i + 2]! < 90) return true
+        return false
+      }),
+    )
+    .toBe(true)
+})
+
+test('an unreadable watermark image keeps the preview textual and asks for a re-upload (screenshot.md §5)', async ({ page, extensionId }) => {
+  const sw = await ensureServiceWorker(page.context())
+  await sw.evaluate(async () => {
+    // PNG magic bytes, truncated: passes the size-and-magic check, fails the browser's decode
+    const stored = ((await chrome.storage.local.get('annhub.settings'))['annhub.settings'] ?? {}) as { watermark?: Record<string, unknown> }
+    stored.watermark = { ...(stored.watermark ?? {}), image: 'data:image/png;base64,iVBORw0KGgoAAAA' }
+    await chrome.storage.local.set({ 'annhub.settings': stored })
+  })
+  await page.goto(`chrome-extension://${extensionId}/library.html#/settings`)
+  await expect(page.getByRole('alert')).toContainText(/重新上传|upload it again/)
+  // the text watermark still paints on the preview — its font is canvas-scaled (≈4 px here), so any pixel
+  // clearly darker than the light grey background counts as ink
+  const preview = page.getByTestId('watermark-preview')
+  await expect
+    .poll(() =>
+      preview.evaluate((canvas: HTMLCanvasElement) => {
+        const data = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data
+        for (let i = 0; i < data.length; i += 4) if (data[i]! < 190 && data[i + 1]! < 195 && data[i + 2]! < 200) return true
+        return false
+      }),
+    )
+    .toBe(true)
+})
+
 test('orphan asset IDs are visible and cleanup keeps referenced assets (RV-LIB-11)', async ({ page, extensionId }) => {
   const sw = await ensureServiceWorker(page.context())
   await sw.evaluate(

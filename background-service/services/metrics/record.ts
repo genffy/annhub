@@ -2,7 +2,15 @@
  * Event recording helpers — the only writers of the local metrics store
  * (docs/v2/metrics.md §9). Props are enums/booleans/bucketed numbers only.
  */
-import { bucketCaptureDuration, LocalMetrics, type MetricEventName, type MetricEventProps, type MetricsStorage, type MetricsStoreShape } from '../../../learning-core/metrics'
+import {
+  bucketCaptureDuration,
+  LocalMetrics,
+  type MetricEventName,
+  type MetricEventProps,
+  type MetricsPanelData,
+  type MetricsStorage,
+  type MetricsStoreShape,
+} from '../../../learning-core/metrics'
 import { storageErrorCode } from '../errors'
 
 let recorder: LocalMetrics | null = null
@@ -57,4 +65,9 @@ export async function recordCaptureFailed(error: unknown, type: 'clip' | 'screen
 
 export async function metricsSnapshot(): Promise<Record<string, { total: number; byProps: Record<string, number> }>> {
   return metrics().snapshot()
+}
+
+/** One read for the settings panel: per-event totals plus the metrics.md §5 summaries. */
+export async function metricsPanel(): Promise<MetricsPanelData> {
+  return metrics().panel()
 }

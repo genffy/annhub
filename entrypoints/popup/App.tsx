@@ -15,6 +15,7 @@ import { relativeTime } from '../../utils/relative-time'
 import { uiText } from '../../utils/ui-text'
 import { extensionPageUrl } from '../../utils/extension-pages'
 import { TypeChip, VIEW_ICONS } from '../../utils/entry-icons'
+import { ANN_SCREENSHOT_COMMAND } from '../../constants'
 
 type Tab = 'all' | 'clips' | 'highlights' | 'screenshots'
 
@@ -30,6 +31,15 @@ export default function App() {
   const [entries, setEntries] = useState<EntryRecord[]>([])
   const [highlightRows, setHighlightRows] = useState<HighlightQueryResult['groups']>([])
   const [counts, setCounts] = useState<Record<Tab, number>>({ all: 0, clips: 0, highlights: 0, screenshots: 0 })
+  // starts from the default binding and follows the browser's own assignment (extension.md §7.1)
+  const [shortcutHint, setShortcutHint] = useState(() => uiText('library.shortcutHint', { keys: 'Cmd/Ctrl+Shift+S' }))
+
+  useEffect(() => {
+    void chrome.commands.getAll().then(commands => {
+      const binding = commands.find(command => command.name === ANN_SCREENSHOT_COMMAND)?.shortcut
+      if (binding) setShortcutHint(uiText('library.shortcutHint', { keys: binding }))
+    })
+  }, [])
 
   const load = useCallback(async () => {
     const [all, clips, highlights, screenshots] = await Promise.all([
@@ -90,16 +100,18 @@ export default function App() {
 
         {tab === 'highlights' ? (
           <ul className="popup-list">
-            {highlightRows.flatMap(group =>
-              group.rows.slice(0, 2).map(row => (
+            {/* the five most recent highlights across clips, each with its clip (extension.md §2.6) */}
+            {highlightRows
+              .flatMap(group => group.rows.map(row => ({ row, clip: group.clip })))
+              .slice(0, 5)
+              .map(({ row, clip }) => (
                 <li key={row.highlight.id}>
-                  <button type="button" onClick={() => openEntry(group.clip.id)}>
+                  <button type="button" onClick={() => openEntry(clip.id)}>
                     <span className="popup-quote">{row.highlight.quote}</span>
-                    <span className="popup-meta">{group.clip.sourceHost}</span>
+                    <span className="popup-meta">{String(clip.properties['title'] ?? clip.sourceHost)}</span>
                   </button>
                 </li>
-              )),
-            )}
+              ))}
             {highlightRows.length === 0 && <li className="popup-empty">{uiText('library.empty.highlights')}</li>}
           </ul>
         ) : (
@@ -117,7 +129,7 @@ export default function App() {
           </ul>
         )}
 
-        <footer className="popup-foot">{uiText('library.shortcutHint')}</footer>
+        <footer className="popup-foot">{shortcutHint}</footer>
       </section>
     </main>
   )

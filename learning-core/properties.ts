@@ -114,7 +114,8 @@ export function builtinDefinition(name: string): PropertyDefinition | undefined 
 
 export function validatePropertyName(name: string): void {
   const trimmed = name.trim()
-  if (!trimmed || trimmed.length > PROPERTY_NAME_MAX || name.includes('\n')) {
+  // "no line breaks" (entry.md §5.3.2) covers both newline characters — a lone \r must not slip through
+  if (!trimmed || trimmed.length > PROPERTY_NAME_MAX || /[\n\r]/.test(name)) {
     throw new EntryValidationError('PROPERTY_NAME_INVALID', `property name length or shape invalid: ${JSON.stringify(name)}`)
   }
   if (RESERVED.has(trimmed.toLowerCase()) || trimmed.toLowerCase().startsWith('annhub_')) {

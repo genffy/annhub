@@ -165,17 +165,258 @@ export class LocalMetrics {
   /** Aggregate snapshot for the settings panel: totals per event and per prop-bucket. */
   async snapshot(): Promise<Record<string, { total: number; byProps: Record<string, number> }>> {
     await this.pendingWrite
+    return aggregateShape(await this.storage.get())
+  }
+
+  /** Everything the settings panel shows (metrics.md §10): per-event totals plus the §5 summaries. */
+  async panel(now = Date.now()): Promise<MetricsPanelData> {
+    await this.pendingWrite
     const shape = await this.storage.get()
-    const out: Record<string, { total: number; byProps: Record<string, number> }> = {}
-    for (const [event, days] of Object.entries(shape)) {
-      const agg = (out[event] ??= { total: 0, byProps: {} })
-      for (const day of Object.values(days)) {
-        agg.total += day.total
-        for (const [key, count] of Object.entries(day.byProps)) {
-          agg.byProps[key] = (agg.byProps[key] ?? 0) + count
-        }
+    return { events: aggregateShape(shape), summaries: metricSummaries(shape, now) }
+  }
+}
+
+function aggregateShape(shape: MetricsStoreShape): Record<string, { total: number; byProps: Record<string, number> }> {
+  const out: Record<string, { total: number; byProps: Record<string, number> }> = {}
+  for (const [event, days] of Object.entries(shape)) {
+    const agg = (out[event] ??= { total: 0, byProps: {} })
+    for (const day of Object.values(days)) {
+      agg.total += day.total
+      for (const [key, count] of Object.entries(day.byProps)) {
+        agg.byProps[key] = (agg.byProps[key] ?? 0) + count
       }
     }
-    return out
+  }
+  return out
+}
+
+// ── Panel summaries (metrics.md §5, §10) ────────────────────────────────
+//
+// The events carry no entry, tab, page or property-name identifiers (§9), so
+// the share-of-users metrics reduce to this one install's standing and the
+// counting metrics are approximations by event counts; metrics.md §5 records
+// each bias. Everything here is computed from day buckets only.
+
+/** M-03 per entrance: durations are only known as buckets, so the median and p95 are the buckets holding those events. */
+export interface CaptureTimingSummary {
+  count: number
+  byBucket: Record<CaptureDurationBucket, number>
+  median: CaptureDurationBucket | null
+  p95: CaptureDurationBucket | null
+  /** The clip guardrail (M-03): the p95 event sits below 300 ms. */
+  within300ms: boolean
+}
+
+/** M-11 at day granularity: the store keeps days, not the install moment or clock times. */
+export interface ActivationSummary {
+  /** First local day with a `capture.saved`; null before any save. */
+  firstSaveDay: string | null
+  firstReopenDay: string | null
+  /** A reopen on the first save's day or the next day — up to 48 h, the honest day-granularity reading of the 24 h rule. */
+  activated: boolean
+}
+
+/** One Monday-start week of M-19. */
+export interface WeekSummary {
+  /** The week's Monday, local time, `YYYY-MM-DD`. */
+  weekStart: string
+  reopens: number
+  exports: number
+  /** M-19: reopens + exports. */
+  retrieved: number
+  /** The same week's searches and filters, shown alongside (metrics.md §5). */
+  queried: number
+  /** H-16's weekly reading: searched or filtered and reopened, or exported. */
+  soughtBack: boolean
+}
+
+/** A share-of-users habit, reduced to this install: the panel cannot see other installs. */
+export interface HabitSummary {
+  /** The counted activity's events in the window. */
+  numerator: number
+  /** The defining activity's events in the window (what puts an install in the denominator). */
+  denominator: number
+  /** This install counts in the metric's numerator; null when not in the denominator either. */
+  satisfied: boolean | null
+}
+
+/** A rate over event counts, fully computable locally. */
+export interface RateSummary {
+  numerator: number
+  denominator: number
+  /** 0–1, null on an empty denominator. */
+  rate: number | null
+}
+
+export interface MetricSummaries {
+  /** M-03, per entrance, over the retained window. */
+  timing: { selection: CaptureTimingSummary; block: CaptureTimingSummary; screenshot: CaptureTimingSummary }
+  activation: ActivationSummary
+  /** M-19: the last six weeks, oldest first; the newest is the partial current week. */
+  weeks: WeekSummary[]
+  /** M-20: property edits among active use, last 14 days. */
+  propertyUse: HabitSummary
+  /** M-21: highlight creators among clip capturers, last 14 days. */
+  highlightUse: HabitSummary
+  /** M-22: copy or download among screenshot takers, last 14 days. */
+  screenshotExternalUse: HabitSummary
+  /** M-23: block saves without a level change minus block undos, over block saves. */
+  blockFirstHit: RateSummary & { unchangedLevels: number; undos: number }
+  /** M-24: beautified output among copiers or downloaders, last 14 days. */
+  beautifyUse: HabitSummary
+  /** M-25: reused frames among screenshots, over the retained window (the denominator counts every page's first shot). */
+  frameReuse: RateSummary
+}
+
+/** What `GET_METRICS` answers: the per-event totals and the §5 summaries in one read. */
+export interface MetricsPanelData {
+  events: Record<string, { total: number; byProps: Record<string, number> }>
+  summaries: MetricSummaries
+}
+
+const WINDOW_DAYS = 14
+const WEEKS_SHOWN = 6
+
+function parseProps(serialized: string): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const pair of serialized.split('|')) {
+    if (!pair) continue
+    const at = pair.indexOf('=')
+    if (at > 0) out[pair.slice(0, at)] = pair.slice(at + 1)
+  }
+  return out
+}
+
+type PropMatcher = (props: Record<string, string>) => boolean
+
+const withProps =
+  (expected: Record<string, string | boolean>): PropMatcher =>
+  props =>
+    Object.entries(expected).every(([key, value]) => props[key] === String(value))
+
+/** Counts an event's days from `sinceDay` (inclusive), whole retained window when omitted, optionally by prop match. */
+function countEvents(shape: MetricsStoreShape, event: MetricEventName, matches?: PropMatcher, sinceDay?: string): number {
+  const days = shape[event]
+  if (!days) return 0
+  let total = 0
+  for (const [day, bucket] of Object.entries(days)) {
+    if (sinceDay !== undefined && day < sinceDay) continue
+    if (!matches) {
+      total += bucket.total
+      continue
+    }
+    for (const [key, count] of Object.entries(bucket.byProps)) {
+      if (matches(parseProps(key))) total += count
+    }
+  }
+  return total
+}
+
+function sortedDays(shape: MetricsStoreShape, event: MetricEventName): string[] {
+  return Object.keys(shape[event] ?? {}).sort()
+}
+
+function nextDay(day: string): string {
+  const [y, m, d] = day.split('-').map(Number)
+  return dayKey(new Date(y!, m! - 1, d! + 1).getTime())
+}
+
+function timingFor(shape: MetricsStoreShape, matches: PropMatcher): CaptureTimingSummary {
+  const byBucket = Object.fromEntries(CAPTURE_DURATION_BUCKETS.map(bucket => [bucket, 0])) as Record<CaptureDurationBucket, number>
+  for (const bucket of Object.values(shape['capture.saved'] ?? {})) {
+    for (const [key, count] of Object.entries(bucket.byProps)) {
+      const props = parseProps(key)
+      if (!matches(props)) continue
+      const duration = props['duration']
+      if (duration && (CAPTURE_DURATION_BUCKETS as readonly string[]).includes(duration)) byBucket[duration as CaptureDurationBucket] += count
+    }
+  }
+  const count = CAPTURE_DURATION_BUCKETS.reduce((sum, bucket) => sum + byBucket[bucket], 0)
+  const bucketAt = (quantile: number): CaptureDurationBucket | null => {
+    if (!count) return null
+    const target = Math.ceil(count * quantile)
+    let seen = 0
+    for (const bucket of CAPTURE_DURATION_BUCKETS) {
+      seen += byBucket[bucket]
+      if (seen >= target) return bucket
+    }
+    return null
+  }
+  const p95 = bucketAt(0.95)
+  return { count, byBucket, median: bucketAt(0.5), p95, within300ms: p95 === '<150ms' || p95 === '150-300ms' }
+}
+
+function habit(numerator: number, denominator: number): HabitSummary {
+  return { numerator, denominator, satisfied: denominator === 0 ? null : numerator > 0 }
+}
+
+function rate(numerator: number, denominator: number): RateSummary {
+  return { numerator, denominator, rate: denominator === 0 ? null : numerator / denominator }
+}
+
+/** The summaries behind the settings panel (metrics.md §5, §10). Pure: same shape and moment, same numbers. */
+export function metricSummaries(shape: MetricsStoreShape, now = Date.now()): MetricSummaries {
+  const since14d = dayKey(now - (WINDOW_DAYS - 1) * DAY_MS)
+
+  const activationDays = sortedDays(shape, 'capture.saved')
+  const firstSaveDay = activationDays[0] ?? null
+  const reopenDays = sortedDays(shape, 'entry.reopened')
+
+  const weeks: WeekSummary[] = []
+  const monday = new Date(now)
+  monday.setHours(0, 0, 0, 0)
+  // date arithmetic, not millisecond subtraction: it stays on the same local clock time across DST changes
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7))
+  for (let back = WEEKS_SHOWN - 1; back >= 0; back--) {
+    const start = new Date(monday)
+    start.setDate(monday.getDate() - back * 7)
+    const end = new Date(monday)
+    end.setDate(monday.getDate() - (back - 1) * 7)
+    const weekStart = dayKey(start.getTime())
+    const weekEnd = dayKey(end.getTime())
+    const reopens = countEvents(shape, 'entry.reopened', undefined, weekStart) - countEvents(shape, 'entry.reopened', undefined, weekEnd)
+    const exports = countEvents(shape, 'export.completed', undefined, weekStart) - countEvents(shape, 'export.completed', undefined, weekEnd)
+    const queried = countEvents(shape, 'library.queried', undefined, weekStart) - countEvents(shape, 'library.queried', undefined, weekEnd)
+    weeks.push({ weekStart, reopens, exports, retrieved: reopens + exports, queried, soughtBack: (queried > 0 && reopens > 0) || exports > 0 })
+  }
+
+  const blockSaves = countEvents(shape, 'capture.saved', withProps({ type: 'clip', via: 'block' }))
+  const unchangedLevels = countEvents(shape, 'capture.saved', withProps({ type: 'clip', via: 'block', level_changed: false }))
+  const undos = countEvents(shape, 'capture.undone', withProps({ type: 'clip', via: 'block' }))
+
+  const anyEvent14d = (Object.keys(shape) as MetricEventName[]).reduce((sum, event) => sum + countEvents(shape, event, undefined, since14d), 0)
+  const clipSaves14d = countEvents(shape, 'capture.saved', withProps({ type: 'clip' }), since14d)
+  const shotSaves14d = countEvents(shape, 'capture.saved', withProps({ type: 'screenshot' }), since14d)
+  const copies14d = countEvents(shape, 'screenshot.copied', undefined, since14d)
+  const downloads14d = countEvents(shape, 'screenshot.downloaded', undefined, since14d)
+  const outputs14d = copies14d + downloads14d
+
+  return {
+    timing: {
+      selection: timingFor(shape, withProps({ type: 'clip', via: 'menu' })),
+      block: timingFor(shape, withProps({ type: 'clip', via: 'block' })),
+      screenshot: timingFor(shape, withProps({ type: 'screenshot' })),
+    },
+    activation: {
+      firstSaveDay,
+      firstReopenDay: reopenDays[0] ?? null,
+      activated: firstSaveDay !== null && reopenDays.some(day => day === firstSaveDay || day === nextDay(firstSaveDay)),
+    },
+    weeks,
+    propertyUse: habit(
+      countEvents(shape, 'entry.property_edited', props => props['scope']! === 'custom' || props['property_type']! === 'list', since14d),
+      anyEvent14d,
+    ),
+    highlightUse: habit(countEvents(shape, 'highlight.created', undefined, since14d), clipSaves14d),
+    screenshotExternalUse: habit(outputs14d, shotSaves14d),
+    blockFirstHit: { ...rate(Math.max(0, unchangedLevels - undos), blockSaves), unchangedLevels, undos },
+    beautifyUse: habit(
+      countEvents(shape, 'screenshot.copied', withProps({ beautify: true }), since14d) + countEvents(shape, 'screenshot.downloaded', withProps({ beautify: true }), since14d),
+      outputs14d,
+    ),
+    frameReuse: rate(
+      countEvents(shape, 'capture.saved', withProps({ type: 'screenshot', frame: 'reused' })),
+      countEvents(shape, 'capture.saved', withProps({ type: 'screenshot' })),
+    ),
   }
 }

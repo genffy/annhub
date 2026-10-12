@@ -1,6 +1,6 @@
 import { test, expect } from './fixtures'
 import { markdownToPlainText } from '../learning-core/markdown'
-import { clearLibrary, getEntries, hoverForCapsule, selectUntilMenu, triggerBlockMode, waitForClipToast } from './helpers'
+import { clearLibrary, getEntries, hoverForCapsule, selectUntilMenu, sendMessage, triggerBlockMode, triggerScreenshot, waitForClipToast } from './helpers'
 
 /**
  * The page shapes the 2026-10-09 review sampled (RV-TEST-02), in a real browser: the unit tests cover the
@@ -179,6 +179,47 @@ test.describe('page meta on real pages (capture.md §5)', () => {
     expect(entry.properties.author).toHaveLength(12)
     expect((entry.properties.author as string[])[0]).toBe('Ada Lovelace')
     expect(entry.properties.description).toBe('A long byline must not stop the clip from being saved.')
+  })
+
+  // clearLibrary keeps the property registry: preset changes are restored after each test
+  test.afterEach(async ({ page, extensionId }) => {
+    await page.goto(`chrome-extension://${extensionId}/sample.html`)
+    await sendMessage(page, { type: 'UPSERT_PROPERTY', def: { name: 'author', type: 'list', builtin: true, presets: ['clip'] } })
+  })
+
+  test('an unchecked preset stays off: page meta for it is not attached (entry.md §5.4, US-PROP-02)', async ({ page, extensionId }) => {
+    await page.goto(`chrome-extension://${extensionId}/sample.html`)
+    await sendMessage(page, { type: 'UPSERT_PROPERTY', def: { name: 'author', type: 'list', builtin: true, presets: [] } })
+
+    await page.goto(`${BASE}/meta-article.html`)
+    const menu = await selectUntilMenu(page, '#meta-p')
+    await menu.locator('.ann-menu-action').nth(0).click()
+    await waitForClipToast(page)
+    const entry = (await getEntries(page.context()))[0]!
+    // the page has an author; the unchecked preset drops it, while the still-checked presets keep theirs
+    expect(entry.properties).not.toHaveProperty('author')
+    expect(entry.properties).toMatchObject({ published: '2026-09-12', description: 'How retries amplify an outage, and what to do about it.' })
+  })
+
+  test('a screenshot-checked preset takes its value from the page meta (entry.md §5.4)', async ({ page, extensionId }) => {
+    await page.goto(`chrome-extension://${extensionId}/sample.html`)
+    await sendMessage(page, { type: 'UPSERT_PROPERTY', def: { name: 'author', type: 'list', builtin: true, presets: ['screenshot'] } })
+
+    await page.goto(`${BASE}/meta-article.html`)
+    await triggerScreenshot(page)
+    const box = (await page.locator('#meta-p').boundingBox())!
+    await page.mouse.move(box.x + 5, box.y + 5)
+    await page.mouse.down()
+    await page.mouse.move(box.x + 200, box.y + 60, { steps: 4 })
+    await page.mouse.up()
+    await expect(page.locator('[data-ann-ui="shot-confirm-bar"]')).toBeVisible()
+    await page.keyboard.press('Enter')
+    await page.locator('[data-ann-ui="screenshot-save"]').click()
+    await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
+
+    const entry = (await getEntries(page.context()))[0]!
+    expect(entry.type).toBe('screenshot')
+    expect(entry.properties.author).toEqual(['Jane Doe'])
   })
 })
 

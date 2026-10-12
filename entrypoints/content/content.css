@@ -13,6 +13,71 @@
   }
 }
 
+/* ── Overlay appearance (visual.md §2): two sets, following the system ──
+   Every overlay root carries these variables and its descendants read them;
+   the dark values are the same set the extension pages use (styles/tokens.css).
+   Selection blue (#4c91ff) and the keyboard outline stay the same in both
+   appearances: they mark a region over page content, not a surface. */
+[data-ann-ui='selection-menu'],
+[data-ann-ui='clip-toast'],
+[data-ann-ui='clip-edit'],
+[data-ann-ui='block-capsule'],
+[data-ann-ui='block-mode-capsule'],
+[data-ann-ui='block-more'],
+[data-ann-ui='screenshot-ratio-bar'],
+[data-ann-ui='screenshot-session'] {
+  --annov-surface: #ffffff;
+  --annov-border: #d7dce1;
+  --annov-text: #20252b;
+  --annov-muted: #5c6670;
+  --annov-input-border: #cbd5e1;
+  --annov-accent: #673ab8;
+  --annov-accent-text: #673ab8;
+  --annov-accent-hover: #5a2fa1;
+  --annov-accent-soft: #f0eefb;
+  --annov-on-accent: #ffffff;
+  --annov-danger: #8a2c2c;
+  --annov-danger-border: #f3b8b8;
+  --annov-warn: #8a6116;
+  --annov-chip-bg: #edf0f2;
+  --annov-tool-hover-bg: #e7f1f0;
+  --annov-tool-hover-text: #126f65;
+  --annov-tool-confirm: #15805c;
+  --annov-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  [data-ann-ui='selection-menu'],
+  [data-ann-ui='clip-toast'],
+  [data-ann-ui='clip-edit'],
+  [data-ann-ui='block-capsule'],
+  [data-ann-ui='block-mode-capsule'],
+  [data-ann-ui='block-more'],
+  [data-ann-ui='screenshot-ratio-bar'],
+  [data-ann-ui='screenshot-session'] {
+    --annov-surface: #1f2127;
+    --annov-border: #3d414c;
+    --annov-text: #ececf1;
+    --annov-muted: #a3a8b6;
+    --annov-input-border: #4a4f5b;
+    /* the dark pair from the library's tokens (真机走查 P2-8): white on #7a55d1
+       reads 5.19:1, #b9a3f2 as text on the dark surface reads 8.10:1 */
+    --annov-accent: #7a55d1;
+    --annov-accent-text: #b9a3f2;
+    --annov-accent-hover: #8a63d2;
+    --annov-accent-soft: #332a4a;
+    --annov-on-accent: #ffffff;
+    --annov-danger: #ff8a8e;
+    --annov-danger-border: #553133;
+    --annov-warn: #d9b465;
+    --annov-chip-bg: #2a2d35;
+    --annov-tool-hover-bg: #2a2d35;
+    --annov-tool-hover-text: #7fd8a1;
+    --annov-tool-confirm: #7fd8a1;
+    --annov-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+  }
+}
+
 /* ── Selection menu (extension.md §2.1) ── */
 
 [data-ann-ui='selection-menu'] {
@@ -20,10 +85,10 @@
   z-index: 2147483646;
   min-width: 200px;
   padding: 4px;
-  border: 1px solid #d7dce1;
+  border: 1px solid var(--annov-border);
   border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  background: var(--annov-surface);
+  box-shadow: var(--annov-shadow);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   animation: ann-fade-in 0.12s ease-out;
 }
@@ -41,7 +106,7 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #20252b;
+  color: var(--annov-text);
   font-size: 13px;
   cursor: pointer;
   white-space: nowrap;
@@ -62,19 +127,31 @@
 }
 
 [data-ann-ui='selection-menu'] .ann-menu-shot::before {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23673ab8' stroke-width='2'%3E%3Cpath d='M3 7v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V9.5L21 8a2 2 0 0 0-2-2h-4l-2-3H7L5 6H3z'/%3E%3C/svg%3E");
+  /* lucide "scan" (extension.md §2.1, visual.md §3): the same icon the library uses for screenshots */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23673ab8' stroke-width='2'%3E%3Cpath d='M3 7V5a2 2 0 0 1 2-2h2'/%3E%3Cpath d='M17 3h2a2 2 0 0 1 2 2v2'/%3E%3Cpath d='M21 17v2a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M7 21H5a2 2 0 0 1-2-2v-2'/%3E%3Cpath d='M7 12h10'/%3E%3C/svg%3E");
+}
+
+/* a data-URI stroke cannot read a variable: the dark appearance swaps the whole icon */
+@media (prefers-color-scheme: dark) {
+  [data-ann-ui='selection-menu'] .ann-menu-clip::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b9a3f2' stroke-width='2'%3E%3Cpath d='m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z'/%3E%3C/svg%3E");
+  }
+
+  [data-ann-ui='selection-menu'] .ann-menu-shot::before {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b9a3f2' stroke-width='2'%3E%3Cpath d='M3 7V5a2 2 0 0 1 2-2h2'/%3E%3Cpath d='M17 3h2a2 2 0 0 1 2 2v2'/%3E%3Cpath d='M21 17v2a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M7 21H5a2 2 0 0 1-2-2v-2'/%3E%3Cpath d='M7 12h10'/%3E%3C/svg%3E");
+  }
 }
 
 [data-ann-ui='selection-menu'] .ann-menu-action:hover,
 [data-ann-ui='selection-menu'] .ann-menu-action:focus-visible {
-  background: #f0eefb;
+  background: var(--annov-accent-soft);
   outline: none;
 }
 
 [data-ann-ui='selection-menu'] .ann-menu-hint {
   min-height: 16px;
   padding: 2px 10px 4px;
-  color: #5c6670;
+  color: var(--annov-muted);
   font-size: 11.5px;
   line-height: 1.35;
 }
@@ -101,21 +178,21 @@
 .ann-clip-toast {
   min-width: 220px;
   padding: 10px 12px;
-  border: 1px solid #d7dce1;
+  border: 1px solid var(--annov-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--annov-surface);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
 }
 
 .ann-clip-toast-error {
-  border-color: #f3b8b8;
+  border-color: var(--annov-danger-border);
 }
 
 .ann-clip-toast-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: #20252b;
+  color: var(--annov-text);
   font-size: 13px;
 }
 
@@ -127,21 +204,21 @@
   padding: 0;
   border: 0;
   background: none;
-  color: #673ab8;
+  color: var(--annov-accent-text);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
 }
 
 .ann-clip-toast-row button:disabled {
-  color: #9aa4ae;
+  color: var(--annov-muted);
   cursor: default;
 }
 
 .ann-clip-toast-reason {
   max-width: 320px;
   margin-bottom: 6px;
-  color: #8a2c2c;
+  color: var(--annov-danger);
   font-size: 11.5px;
   line-height: 1.4;
   white-space: normal;
@@ -149,13 +226,13 @@
 
 .ann-clip-toast-warn {
   margin-bottom: 6px;
-  color: #8a6116;
+  color: var(--annov-warn);
   font-size: 11.5px;
   line-height: 1.4;
 }
 
 .ann-clip-toast-undone {
-  color: #20252b;
+  color: var(--annov-text);
   font-size: 13px;
 }
 
@@ -166,9 +243,9 @@
   z-index: 2147483646;
   width: 300px;
   padding: 12px;
-  border: 1px solid #d7dce1;
+  border: 1px solid var(--annov-border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--annov-surface);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   animation: ann-fade-in 0.12s ease-out;
@@ -182,7 +259,7 @@
 .ann-clip-edit-field span {
   display: block;
   margin-bottom: 3px;
-  color: #5c6670;
+  color: var(--annov-muted);
   font-size: 11.5px;
 }
 
@@ -190,13 +267,13 @@
   box-sizing: border-box;
   width: 100%;
   padding: 6px 8px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--annov-input-border);
   border-radius: 4px;
   font-size: 13px;
 }
 
 .ann-clip-edit-field input:focus {
-  border-color: #673ab8;
+  border-color: var(--annov-accent);
   outline: none;
 }
 
@@ -208,17 +285,18 @@
 
 .ann-clip-edit-actions button {
   padding: 5px 10px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--annov-input-border);
   border-radius: 4px;
-  background: #fff;
+  background: var(--annov-surface);
+  color: var(--annov-text);
   font-size: 12.5px;
   cursor: pointer;
 }
 
 .ann-clip-edit-actions .ann-clip-edit-done {
-  border-color: #673ab8;
-  background: #673ab8;
-  color: #fff;
+  border-color: var(--annov-accent);
+  background: var(--annov-accent);
+  color: var(--annov-on-accent);
 }
 
 /* ── Block clip: outline, capsule, more menu (capture.md §6.2) ── */
@@ -244,9 +322,9 @@
   align-items: center;
   gap: 2px;
   padding: 3px;
-  border: 1px solid #d7dce1;
+  border: 1px solid var(--annov-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--annov-surface);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   animation: ann-fade-in 0.1s ease-out;
@@ -258,24 +336,24 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #20252b;
+  color: var(--annov-text);
   font-size: 12.5px;
   white-space: nowrap;
   cursor: pointer;
 }
 
 [data-ann-ui='block-capsule'] button:first-child {
-  background: #673ab8;
-  color: #fff;
+  background: var(--annov-accent);
+  color: var(--annov-on-accent);
 }
 
 [data-ann-ui='block-capsule'] button:hover:not(:disabled),
 [data-ann-ui='block-more'] button:hover {
-  background: #f0eefb;
+  background: var(--annov-accent-soft);
 }
 
 [data-ann-ui='block-capsule'] button:first-child:hover {
-  background: #5a2fa1;
+  background: var(--annov-accent-hover);
 }
 
 [data-ann-ui='block-capsule'] button:disabled {
@@ -289,9 +367,9 @@
   display: flex;
   flex-direction: column;
   padding: 3px;
-  border: 1px solid #d7dce1;
+  border: 1px solid var(--annov-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--annov-surface);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
@@ -312,7 +390,7 @@
   gap: 0;
   padding: 7px 12px;
   font-size: 12px;
-  color: #20252b;
+  color: var(--annov-text);
   white-space: nowrap;
 }
 
@@ -325,9 +403,9 @@
   display: flex;
   gap: 4px;
   padding: 4px;
-  border: 1px solid #d7dce1;
+  border: 1px solid var(--annov-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--annov-surface);
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   pointer-events: auto;
@@ -338,14 +416,14 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #20252b;
+  color: var(--annov-text);
   font-size: 12px;
   cursor: pointer;
 }
 
 [data-ann-ui='screenshot-ratio-bar'] button.ann-shot-ratio-active {
-  background: #673ab8;
-  color: #fff;
+  background: var(--annov-accent);
+  color: var(--annov-on-accent);
 }
 
 /* beautify panel (screenshot.md §4.4): a dark card beside the picture, drawn like the design's .bz */
@@ -636,9 +714,9 @@
   align-items: center;
   gap: 8px;
   padding: 5px 7px;
-  border: 1px solid #d7dce1;
+  border: 1px solid var(--annov-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--annov-surface);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
   pointer-events: auto;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -653,18 +731,18 @@
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-confirm-bar button:first-child {
-  background: #673ab8;
-  color: #fff;
+  background: var(--annov-accent);
+  color: var(--annov-on-accent);
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-confirm-bar button:last-of-type {
   background: transparent;
-  border: 1px solid #cbd5e1;
-  color: #20252b;
+  border: 1px solid var(--annov-input-border);
+  color: var(--annov-text);
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-frame-label {
-  color: #5c6670;
+  color: var(--annov-muted);
   font-size: 11.5px;
 }
 
@@ -675,9 +753,9 @@
   align-items: center;
   gap: 3px;
   padding: 4px 6px;
-  border: 1px solid #d7dce1;
+  border: 1px solid var(--annov-border);
   border-radius: 6px;
-  background: #fff;
+  background: var(--annov-surface);
   box-shadow: 0 5px 16px rgba(0, 0, 0, 0.18);
   pointer-events: auto;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -685,7 +763,7 @@
 
 [data-ann-ui='screenshot-session'] .ann-shot-margin-label {
   padding: 0 4px;
-  color: #5c6670;
+  color: var(--annov-muted);
   font-size: 11.5px;
 }
 
@@ -694,20 +772,20 @@
   border: 0;
   border-radius: 4px;
   background: transparent;
-  color: #20252b;
+  color: var(--annov-text);
   font-size: 12px;
   cursor: pointer;
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-margin-bar button.ann-shot-ratio-active {
-  background: #673ab8;
-  color: #fff;
+  background: var(--annov-accent);
+  color: var(--annov-on-accent);
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-margin-bar input {
   width: 44px;
   padding: 3px 5px;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--annov-input-border);
   border-radius: 4px;
   font-size: 12px;
 }

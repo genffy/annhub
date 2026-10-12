@@ -33,19 +33,36 @@ function isTokenParam(rawName: string): boolean {
   return TOKEN_NAMES.has(rawName.trim().toLowerCase())
 }
 
-/** Strip token params from a `k=v&k2=v2` string; returns null when nothing matched. */
+/**
+ * Strip token-shaped segments from a raw `k=v&k2=v2` string by splicing, not
+ * re-encoding: the parameters that survive keep their original spelling
+ * exactly (capture.md §5 “其余保留” — `%7E` stays `%7E`, `%20` stays `%20`).
+ * Returns null when nothing matched.
+ */
 function stripParams(query: string): string | null {
   if (!query) return null
-  const params = new URLSearchParams(query)
   let removed = false
-  for (const key of [...params.keys()]) {
-    if (isTokenParam(key)) {
-      params.delete(key)
+  const kept: string[] = []
+  for (const segment of query.split('&')) {
+    const eq = segment.indexOf('=')
+    const name = eq >= 0 ? segment.slice(0, eq) : segment
+    if (isTokenParam(decodeSegment(name))) {
       removed = true
+      continue
     }
+    kept.push(segment)
   }
   if (!removed) return null
-  return params.toString()
+  return kept.join('&')
+}
+
+/** Best-effort percent-decode of a segment name, only for the token-name comparison. */
+function decodeSegment(name: string): string {
+  try {
+    return decodeURIComponent(name.replace(/\+/g, ' '))
+  } catch {
+    return name
+  }
 }
 
 /**
@@ -64,7 +81,9 @@ export function cleanSourceUrl(raw: string): string {
     return raw
   }
 
-  const cleanedQuery = stripParams(url.searchParams.toString())
+  // the raw search, not `searchParams.toString()`: re-serializing would rewrite
+  // `%20` as `+` and the like before the splice even runs
+  const cleanedQuery = stripParams(url.search.startsWith('?') ? url.search.slice(1) : url.search)
   if (cleanedQuery !== null) {
     url.search = cleanedQuery
   }

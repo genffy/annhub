@@ -57,6 +57,15 @@ describe('cleanSourceUrl (capture.md §5)', () => {
     expect(cleanSourceUrl('https://example.com/a?b=1#x')).toBe('https://example.com/a?b=1#x')
     expect(cleanSourceUrl('not a url')).toBe('not a url')
   })
+  it('keeps surviving params byte-for-byte when a token param is removed', () => {
+    // “其余保留” (capture.md §5): the splice must not normalize %7E, %20, hex case or empty values
+    expect(cleanSourceUrl('https://example.com/a?token=1&x=%7E')).toBe('https://example.com/a?x=%7E')
+    expect(cleanSourceUrl('https://example.com/a?token=1&x=a%20b&y=')).toBe('https://example.com/a?x=a%20b&y=')
+    expect(cleanSourceUrl('https://example.com/a?sig=1&Tag=Two%20Words')).toBe('https://example.com/a?Tag=Two%20Words')
+  })
+  it('matches token names that arrive percent-encoded', () => {
+    expect(cleanSourceUrl('https://example.com/a?t%6Fken=1&x=2')).toBe('https://example.com/a?x=2')
+  })
   it('isHttpUrl accepts only absolute http(s)', () => {
     expect(isHttpUrl('https://a.b/c')).toBe(true)
     expect(isHttpUrl('http://a.b/c')).toBe(true)
@@ -66,11 +75,12 @@ describe('cleanSourceUrl (capture.md §5)', () => {
 })
 
 describe('property registry rules (entry.md §5)', () => {
-  it('rejects bad names: empty, >64 chars, newline, reserved, annhub_ prefix', () => {
+  it('rejects bad names: empty, >64 chars, newline, carriage return, reserved, annhub_ prefix', () => {
     const expectInvalid = (name: string) => expect(() => validatePropertyName(name)).toThrow(EntryValidationError)
     expectInvalid('')
     expectInvalid('x'.repeat(65))
     expectInvalid('a\nb')
+    expectInvalid('a\rb')
     expectInvalid('source')
     expectInvalid('annhub_id')
   })
