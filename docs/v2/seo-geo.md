@@ -65,6 +65,13 @@
 - 有真实访问之后，以真实用户的数据为准（M-27）。
 - 悬停与聚焦只改颜色、背景、阴影这类绘制属性，不改元素尺寸，指针下的内容不跳动。
 
+### 3.7 边缘缓存
+
+- 语言页的 HTML 在 Cloudflare 边缘按 POP 缓存（第 3.6 节的 TTFB 大头是每次回源）。两个语言页由 Worker（cloudflare/edge-cache.js）处理：缓存键是路径，查询串不参与；副本存 1 小时（`s-maxage`），浏览器仍按源站的 `max-age=0` 每次校验，ETag 匹配返回 304；响应带 `x-annhub-edge: hit|miss` 便于核对。带数据头（`RSC`、`x-nextjs-data`、`next-router-prefetch`）的请求绕过缓存。
+- 副本不带任何 `Set-Cookie`；每访客的差异只剩同意 Cookie（[permissions.md §8](permissions.md)），由 Worker 按请求的国家逐次写或删，规则与 `website/lib/consent.ts` 一致，`website-consent.test.ts` 核对两边不漂移。部署与回滚步骤在 [cloudflare/README.md](../../cloudflare/README.md)。
+- 两个法律页没有每访客差异，用一条 Cache Rule 直接缓存（同上 README）。
+- 内容更新后各 POP 最多 1 小时过期，需要立即生效就在控制台清缓存；发布后自动清缓存暂不做。根路径的语言跳转暂不经 Worker，仍回源。
+
 ## 4. 内容
 
 ### 4.1 产品定义
@@ -161,7 +168,8 @@
 
 1. 站长平台：两个语言页与两个法律页都已收录，没有覆盖错误；记下展现最多的查询词。
 2. Cloudflare 的设置（RK-15）：AI 爬虫控制里第 6 节的爬虫没有被拦截的请求，搜索索引类有成功的请求；线上的 `robots.txt` 与第 3.4 节一致，Cloudflare 没有往里写入规则；页面的 HTML 里没有统计脚本，它只由页面在浏览器里按访客的选择插入；从欧洲以外请求语言页，响应写入“不必先问”的 Cookie（[permissions.md §8](permissions.md)），没有就是拿不到国家，所有访客都在被询问。
-3. 运行第 7.4 节的探针，结果连同本月的改动记入探针记录。
+3. 边缘缓存（第 3.7 节）：第二次请求语言页起 `x-annhub-edge: hit`，带 `RSC` 头的请求没有这个头；从欧洲以外请求仍写同意 Cookie、欧洲请求不写；法律页第二次起 `cf-cache-status: HIT`。
+4. 运行第 7.4 节的探针，结果连同本月的改动记入探针记录。
 
 ### 7.4 AI 搜索探针
 
