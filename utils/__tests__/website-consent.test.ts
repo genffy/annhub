@@ -3,7 +3,18 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 // Next.js is installed in website/ only.
 import { NextRequest } from '../../website/node_modules/next/server.js'
-import { analyticsState, asksFirst, asksFromCookies, GRANT_DAYS, readChoice, REGION_COOKIE, REGION_OUTSIDE, regionCookie, storedChoice } from '../../website/lib/consent'
+import {
+  analyticsState,
+  asksFirst,
+  asksFromCookies,
+  ASKED_COUNTRIES,
+  GRANT_DAYS,
+  readChoice,
+  REGION_COOKIE,
+  REGION_OUTSIDE,
+  regionCookie,
+  storedChoice,
+} from '../../website/lib/consent'
 import { PRIVACY_WEBSITE_URL } from '../../website/components/landing/links'
 
 /** When the website may load its analytics script, and how the proxy tells the page (docs/v2/permissions.md §8). */
@@ -77,6 +88,27 @@ describe('the card', () => {
   it("links to the privacy policy's section on this website in each language", () => {
     const policy = readFileSync(resolve(__dirname, '../../website/public/privacy-policy.html'), 'utf8')
     for (const url of Object.values(PRIVACY_WEBSITE_URL)) expect(policy).toContain(`id="${url.split('#')[1]}"`)
+  })
+})
+
+describe('the edge worker', () => {
+  // cloudflare/edge-cache.js repeats the asked-countries list and the cookie contract; production serves the pages
+  // through it (docs/v2/seo-geo.md §3.7), so the two copies must not drift apart.
+  const worker = readFileSync(resolve(__dirname, '../../cloudflare/edge-cache.js'), 'utf8')
+
+  it('asks the same countries as the page rule', () => {
+    const literal = worker.match(/ASKED_COUNTRIES = new Set\(\[([\s\S]*?)\]\)/)?.[1] ?? ''
+    const codes = new Set(literal.match(/'([A-Z]{2})'/g)?.map(token => token.slice(1, -1)) ?? [])
+    expect([...codes].sort()).toEqual([...ASKED_COUNTRIES].sort())
+  })
+
+  it('sets, clears and gates the same cookie', () => {
+    expect(worker).toContain(`const REGION_COOKIE = '${REGION_COOKIE}'`)
+    expect(worker).toContain(`const REGION_OUTSIDE = '${REGION_OUTSIDE}'`)
+    expect(worker).toContain('${REGION_COOKIE}=; Path=/; Max-Age=0')
+    expect(worker).toContain('${REGION_COOKIE}=${REGION_OUTSIDE}; Path=/; SameSite=Lax; Secure')
+    // A copy stored for everyone must not carry any per-visitor header.
+    expect(worker).toContain("headers.delete('set-cookie')")
   })
 })
 

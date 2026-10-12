@@ -29,8 +29,10 @@ export const REGION_OUTSIDE = 'outside'
  * Countries whose visitors are asked first, as ISO 3166-1 alpha-2 codes like Cloudflare's CF-IPCountry header: the EU,
  * the rest of the EEA, the United Kingdom and Switzerland; the EU's regions that have a code of their own; and `EU`,
  * which some address ranges are given when only the continent is known.
+ *
+ * The edge worker repeats this list (cloudflare/edge-cache.js); the consent test fails when the two drift apart.
  */
-const ASKED_COUNTRIES = new Set([
+export const ASKED_COUNTRIES = new Set([
   ...['AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'],
   ...['IS', 'LI', 'NO', 'GB', 'CH'],
   // Åland, French Guiana, Guadeloupe, Martinique, Mayotte, Réunion, Saint-Martin
