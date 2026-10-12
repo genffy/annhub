@@ -499,3 +499,29 @@ P2-1、P2-6、P2-7、P2-8 已在复核时修好（8.3），对应场景 FX-3、F
 ### 9.3 对第 5 节的影响
 
 P1-2、P2-1、P2-7 在真实 Chrome 154 确认修复；OP-3 关闭。**P1-3 成为新的阻断项**：修复并复跑受波及场景之前，R2 的截图链路验收与 R1 的区块剪藏回归都算未完成。
+
+## 10. 第五轮：CUA 真机回归（2026-10-12 中午）
+
+文档对齐批（85b80ee，39 文件：指标面板、多选筛选、浮层暗色 CSS 变量、预设接线、popup 高亮页签、快捷键提示、URL 清洗）在真实 Chrome 上回归。环境：用户日常 Chrome 154.0.8037.99（`en-US`，浅色，1608×988 @2x），「AnnHub Test」profile（Profile 33），扩展 ID `laghhikflmimmabkfakfgdafhleebemh`，`$TMPDIR/annhub-ext-test` 重同步后在扩展页 Reload（卡片确认 "Reloaded"、无 Errors）。
+
+方法与第四轮不同：用户全程在机器上使用其他应用，焦点竞争频繁。a11y 元素操作（AXPress 按钮/菜单/勾选框）在后台稳定；真实键盘事件（`Cmd+A`、`Cmd+Shift+E`、`Tab`、`Enter`、地址栏输入）先 `open -a` 激活 Chrome 再发送。**本机 CUA 的坐标点击不可用**：多轮按截图栅格坐标的单击/双击/拖选都落不到目标文字（落点与栅格位置系统性偏移，疑似光栅→屏幕坐标被 DPR 换算了两次），文字选区改用 `Cmd+A` 全选——同样是真实选区，选区菜单照常出现。经验补进场景手册 1.2。
+
+### 10.1 通过
+
+- **P1-3 回归（写入链路）**：jvns.ca 文章页 `Cmd+A` 全选 → 选区菜单出现（Clip / Screenshot 两钮，浅色渲染正常）→ Clip → "Clipped" + Undo toast → popup 计数 All 3→4、Clips 2→3，资料库列表新增「Some notes on using esbuild · Clip · jvns.ca · 1 min ago」。第四轮的写入静默丢失在新构建未复现（本轮两次真实写入两次落库，读路径计数与列表同步一致）。
+- **FX-1 键盘路径（区块剪藏）**：`Cmd+Shift+E`（系统级全局快捷键，能力矩阵 C）启动区块模式，状态行「Article · Some notes on using esbuild」（类型 · 摘要），提示行「Block mode: Tab next · ↑↓ level · Enter clip · S shot · Esc …」；`Tab` 在单元间移动（状态行摘要随之更新，视口内未出现侧栏广告类旁路单元——jvns 页面本身无侧栏广告，FX-3 的旁路观察仍在 MDN 上由第四轮记录覆盖）；`Enter` 保存 → popup All 4→5、Clips 3→4，新增「Clip · just now」。
+- **多选筛选（search.md §3）**：资料库 Source 下拉选 jvns.ca → chip「jvns.ca: remove filter」出现，列表 4→3（x.com 截图被滤掉）；再选 x.com → 双 chip 并存，列表回到 4（同维 OR 语义成立）。筛选行的「Add property condition」下拉与 From/To 日期在 AX 树完整可见。URL 编码断言由 e2e `library-queries.spec.ts` 的三个多选用例覆盖。
+- **popup 高亮页签（extension.md）**：popup 计数 All 4 / Clips 3 / Highlights 3 / Screenshots 1 与资料库一致；Highlights 页签列出 3 条，每条为「高亮引文 + 所属剪藏标题（Importing a frontend Javascript library without a build system）」；底部「Select text on a page to save it · ⇧⌘S to screenshot」显示的是 `chrome.commands` 真实绑定（修复前写死文案的问题在真机确认修复）。资料库侧栏同一提示也在。
+- **属性预设页（entry.md §5.4）**：title / tags 显示 Fixed、勾选禁用且恒为开（固定预设不可关）；author / description / published 为 built-in、预设可编辑——clip 预设开、screenshot 预设关；author 的 Usage=4（历史剪藏全部带 author）。author 的 screenshot 预设勾选 0→1、再还原 0，交互与持久化正常。
+- 顺带：chrome-extension:// 页面在真实 Chrome 正常打开（此前 MCP Chrome 的 ERR_BLOCKED_BY_CLIENT 是该实例 `--disable-extensions` 所致，与本扩展无关）；扩展 popup 以独立 AX 窗口出现，AXPress 工具栏图标即可打开读取。
+
+### 10.2 无法执行及原因
+
+- **FX-8 暗色浮层（OS 级）**：本轮用户正在机器上办公，切换系统外观会影响用户所有应用，未执行。暗色渲染管线与对比度（≥4.5）已由 e2e 在 `emulateMedia dark` 下断言（`--annov-*` 变量与 tokens 一致）；OS 级亮暗切换的实机表现留待用户回访时补一轮。
+- **截图会话真机重跑（FX-5 / FX-10 / FX-11 / MD-1 的入库断言）**：区域拖选依赖坐标点击，本轮不可用。入库路径本轮代码未改（第四轮真机已确认 danluu 整篇区块截图落库），本轮改动部分（`extractPageMeta` → `SAVE_SCREENSHOT` 的 author/published/description 传参）由 e2e `screenshot-capture.spec.ts` 与 `page-shapes.spec.ts` 的预设用例覆盖。
+- OP-2（P1-1 循环）：前轮 30 轮未复现，本轮不涉库页路由，未跑。FX-9：同第四轮理由未跑。
+- 附录 A 的页面内像素测量：CUA 无法在页面主环境执行脚本，继续以「截图 + 图像分析」替代（与第四轮一致）。
+
+### 10.3 对第 5 节的影响
+
+**P1-3 关闭**：真实 Chrome 154 上剪藏与区块剪藏两次写入两次落库，读路径一致。FX-1/FX-3 的落库断言补齐；FX-8 维持 e2e 覆盖、OS 级留待回访；截图链路沿用第四轮真机结论加本轮 e2e 覆盖。AnnHub Test profile 保留本轮两条剪藏（esbuild 全选 ×1、区块 ×1）供下轮回归对照；测试开的窗口已关闭，焦点已归还用户所在应用。
