@@ -88,13 +88,13 @@ export default function StoryStepper({
                   className={`absolute -left-[7px] top-[22px] h-3 w-3 rounded-full border-2 bg-white ${on ? 'border-brand' : 'border-line-2 group-hover:border-fg-4'}`}
                   aria-hidden="true"
                 />
-                <span className="font-mono text-[12px] text-fg-4">{s.when}</span>
+                <span className="font-mono text-[12px] text-fg-3">{s.when}</span>
                 <span className={`mt-1 block text-[18px] font-semibold leading-snug sm:text-[19px] ${on ? 'text-fg' : 'text-fg-3 group-hover:text-fg-2'}`}>{s.title}</span>
-                {on ? (
-                  <span className="mt-2 block max-w-[460px] text-[15px] leading-7 text-fg-3">
-                    <RichText text={s.body} />
-                  </span>
-                ) : null}
+                {/* Every step's body is rendered, the inactive ones only hidden: the build output must carry the whole
+                    walk-through, not just the first step (docs/v2/seo-geo.md §4.3). */}
+                <span className={`mt-2 block max-w-[460px] text-[15px] leading-7 text-fg-3 ${on ? '' : 'hidden'}`}>
+                  <RichText text={s.body} />
+                </span>
               </button>
             )
           })}
@@ -117,7 +117,7 @@ export default function StoryStepper({
             {labels.next}
             <ArrowRight size={15} aria-hidden="true" />
           </button>
-          <span className="ml-1 font-mono text-[12.5px] tabular-nums text-fg-4" aria-live="polite">
+          <span className="ml-1 font-mono text-[12.5px] tabular-nums text-fg-3" aria-live="polite">
             {fill(labels.stepOf, { n: active + 1, total: steps.length })}
           </span>
         </div>

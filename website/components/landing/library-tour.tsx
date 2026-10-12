@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { CircleCheck, Download, Highlighter, PanelLeft, Tags, Link as LinkIcon } from 'lucide-react'
+import { CircleCheck, Download } from 'lucide-react'
 import type { LandingCopy } from '@/lib/copy'
 import { fill } from '@/lib/copy'
 import { BrowserFrame } from '../product/browser'
@@ -47,12 +47,10 @@ function ExportNotice({ ui, state, totals }: { ui: ProductUi; state: 'exporting'
   )
 }
 
-const LEGEND_ICONS = [PanelLeft, LinkIcon, Highlighter, Tags, Download]
-
 /**
  * The library as a working window: the navigation, search, the detail drawer, the reading view with highlights you can
  * create, recolour and delete, the property registry and the one-click export notice. State lives in memory only; a reload resets
- * it, and nothing is stored or sent anywhere.
+ * it, and nothing is stored or sent anywhere. The hint and the pins beside it are server-rendered (see library.tsx).
  */
 export default function LibraryTour({ copy }: { copy: LandingCopy }) {
   const { ui, tour } = copy
@@ -177,11 +175,11 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
     clearBar()
   }
 
-  const openExport = () => {
+  const openExport = useCallback(() => {
     setExportState('exporting')
     timers.current.push(window.setTimeout(() => setExportState('done'), 900))
     timers.current.push(window.setTimeout(() => setExportState(null), 4600))
-  }
+  }, [])
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'Escape') return
@@ -258,15 +256,33 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
   )
 
   const activeLegend = exportState ? 4 : view === 'properties' ? 3 : view === 'highlight' ? 2 : opened ? 1 : 0
-  const applyLegend = (i: number) => {
-    setReadId(null)
-    clearBar()
-    setQuery('')
-    setExportState(null)
-    setOpenId(i === 1 ? 'storm' : null)
-    setView(i === 2 ? 'highlight' : i === 3 ? 'properties' : 'all')
-    if (i === 4) openExport()
-  }
+  const applyLegend = useCallback(
+    (i: number) => {
+      setReadId(null)
+      clearBar()
+      setQuery('')
+      setExportState(null)
+      setOpenId(i === 1 ? 'storm' : null)
+      setView(i === 2 ? 'highlight' : i === 3 ? 'properties' : 'all')
+      if (i === 4) openExport()
+    },
+    [clearBar, openExport],
+  )
+
+  // The pins are server-rendered outside this chunk (library.tsx). Once the window has mounted they drive it, and the
+  // window marks the pin it is showing — across the server/client border, straight through the DOM.
+  useEffect(() => {
+    const section = document.getElementById('library')
+    if (!section) return
+    const sync = () => section.querySelectorAll<HTMLButtonElement>('[data-tour-pin]').forEach((pin, i) => pin.setAttribute('aria-pressed', String(i === activeLegend)))
+    sync()
+    const onClick = (event: MouseEvent) => {
+      const pin = (event.target as HTMLElement).closest<HTMLElement>('[data-tour-pin]')
+      if (pin) applyLegend(Number(pin.dataset.tourPin))
+    }
+    section.addEventListener('click', onClick)
+    return () => section.removeEventListener('click', onClick)
+  }, [activeLegend, applyLegend])
 
   return (
     <div onKeyDown={onKeyDown}>
@@ -309,31 +325,6 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
           </AppShell>
         </BrowserFrame>
       </div>
-
-      <p className="mt-4 text-[13.5px] leading-6 text-fg-2">{tour.hint}</p>
-
-      <ol className="mt-6 grid gap-3 md:grid-cols-2 lg:grid-cols-5">
-        {tour.pins.map((pin, i) => {
-          const Icon = LEGEND_ICONS[i]!
-          const on = i === activeLegend
-          return (
-            <li key={pin.title}>
-              <button
-                type="button"
-                onClick={() => applyLegend(i)}
-                aria-pressed={on}
-                className={`h-full w-full rounded-lg border p-4 text-left transition-colors ${on ? 'border-brand bg-white shadow-card' : 'border-line bg-white/60 hover:border-line-2 hover:bg-white'}`}
-              >
-                <span className={`flex h-8 w-8 items-center justify-center rounded-md ${on ? 'bg-brand text-brand-fg' : 'bg-surface-3 text-fg-3'}`}>
-                  <Icon size={16} aria-hidden="true" />
-                </span>
-                <span className="mt-3 block text-[15px] font-semibold leading-snug text-fg">{pin.title}</span>
-                <span className="mt-1.5 block text-[13px] leading-6 text-fg-3">{pin.body}</span>
-              </button>
-            </li>
-          )
-        })}
-      </ol>
     </div>
   )
 }
