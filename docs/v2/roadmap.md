@@ -158,12 +158,12 @@ R1 与 R2 先补齐第 5 节的真机走查项并准备内测分发，然后进�
 - [x] 两个语言页在构建时生成静态 HTML；`<html lang>` 与页面语言一致，规范地址是自己的绝对地址（§3.2）。
 - [x] HTML 里声明语言版本：本页、另一个语言页与 `x-default`（§3.2）。
 - [x] 语言版本只在 HTML 里声明一次（§3.2）；`x-default` 与根路径对其他语言的回退都指向 `/en`。
-- [ ] 社交卡片（§3.3）：中英文卡片图与 `og:image:alt`，`twitter:card` 为 `summary_large_image`；`og:title` 取自页面文案（§1 原则 3，现在是单独写的一句）。
+- [x] 社交卡片（§3.3）：中英文卡片图与 `og:image:alt`，`twitter:card` 为 `summary_large_image`；`og:title` 与 `og:description` 取自页面的标题与描述。卡片图在 `website/public/og/`，生成器在 `website/scripts/og-cards/`，画面带社交账号（x.com/genffy、小红书 genffy）。
 - [x] `robots.txt`（含内容信号）与 `sitemap.xml`（§3.4、§3.5）。
 - [x] Cloudflare 的三类 AI 爬虫策略都是 Allow（§6）：在 Cloudflare 后台设置，仓库里核对不到。
 - [x] 访问统计按访客的选择加载，Cloudflare 判断在欧洲或判断不出国家的访客先看到同意卡片，隐私政策第 9 节写明（§7.1、[permissions.md §8](permissions.md)、[website.md §19](website.md)）；站点令牌写进生产构建的环境。
 - [x] Cloudflare 侧开启访问统计：Web Analytics 只用手动嵌入、关掉自动注入，Network 里的 IP Geolocation 开启（[部署说明](../../website/README.md)的“访问统计”）。
-- [ ] `FAQPage` 结构化数据（§5.1）。
-- [ ] 一周走查每一步的正文都在构建生成的 HTML 标记里（§4.3）：现在只有第一步的正文在标记里，其余只在脚本数据里。
-- [ ] 实验室性能验收（§3.6）：Lighthouse 移动端配置，两个语言页各测三次取中位数。
+- [x] `FAQPage` 结构化数据（§5.1）：文字取自页面 FAQ，竞品答案带核对日期。
+- [x] 一周走查每一步的正文都在构建生成的 HTML 标记里（§4.3）：非激活步骤的正文渲染后用 `hidden` 隐藏；资料库演示窗口随滚动懒挂载，提示与要点作为服务端内容留在标记里。
+- [ ] 实验室性能验收（§3.6）：Lighthouse 移动端配置，两个语言页各测三次取中位数。本地同口径 A/B（gzip 代理）相对旧版 LCP -170ms、FCP -235ms、性能分 84→86；绝对门槛待合并部署后在生产源上复验，本地 `next start` 不压缩静态资源、且为 HTTP/1.1，Lighthouse 模拟值偏悲观。
 - [ ] 按 §4.2 复核各板块的说明段落与 FAQ，改写先改 [website.md](website.md)。
