@@ -37,7 +37,10 @@ export const test = base.extend<{
       ...(executablePath ? { executablePath } : { channel: 'chromium' as const }),
       locale: uiLocale,
       acceptDownloads: true,
-      args: [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`, '--no-first-run', '--disable-default-apps'],
+      // Linux renders glyphs with LCD subpixel antialiasing, whose red-blue fringes read as
+      // "red pixels" to the colour assertions in the pixel specs; macOS and Windows headless
+      // do not. Grayscale antialiasing everywhere keeps the pixels comparable across platforms.
+      args: [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`, '--no-first-run', '--disable-default-apps', '--disable-lcd-text'],
     })
     await use(context)
     await context.close()
