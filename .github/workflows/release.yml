@@ -65,6 +65,9 @@ jobs:
       - name: Create the release and upload the asset
         env:
           GH_TOKEN: ${{ github.token }}
+          # Without a checkout gh resolves the repository via git remotes only;
+          # point it at the API instead.
+          GH_REPO: ${{ github.repository }}
           TAG_NAME: ${{ github.ref_name }}
           ZIP_PATH: ./release-assets/${{ needs.build.outputs.zip-name }}
         run: |
