@@ -39,8 +39,16 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            website/package-lock.json
 
       - name: Install dependencies
+        run: npm ci
+
+      # npm run compile reaches website/ through utils/__tests__/website-*.test.ts, same as CI.
+      - name: Install website dependencies
+        working-directory: website
         run: npm ci
 
       - name: Resolve package metadata

@@ -40,8 +40,17 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            website/package-lock.json
 
       - name: Install dependencies
+        run: npm ci
+
+      # utils/__tests__/website-*.test.ts resolve the real Next.js from website/node_modules
+      # ("Next.js is installed in website/ only"), and tsc follows them into website/proxy.ts.
+      - name: Install website dependencies
+        working-directory: website
         run: npm ci
 
       - name: Format
