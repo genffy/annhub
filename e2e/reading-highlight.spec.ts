@@ -165,7 +165,12 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     await library.locator('.entry-card').first().click()
     await library.getByTestId('drawer-read').click()
     const reading = library.getByTestId('reading-view')
-    await reading.locator('.md-view span[data-s]').first().dblclick()
+    // dblclick lands on a word, not on whatever glyph the platform's font metrics put at the
+    // span's centre — a space there selects just the space and no toolbar appears (RV-LIB-08).
+    await reading
+      .locator('.md-view span[data-s]')
+      .first()
+      .dblclick({ position: { x: 10, y: 8 } })
     await library.getByTestId('hl-toolbar').locator('.hl-dot-yellow').click()
     await reading.locator('.md-hl').first().click()
     await library.getByTestId('hl-note-input').fill('Keep this note')
@@ -187,7 +192,11 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
     await library.locator('.entry-card').first().click()
     await library.getByTestId('drawer-read').click()
-    await library.getByTestId('reading-view').locator('.md-view span[data-s]').first().dblclick()
+    await library
+      .getByTestId('reading-view')
+      .locator('.md-view span[data-s]')
+      .first()
+      .dblclick({ position: { x: 10, y: 8 } })
     await library.getByTestId('hl-toolbar').getByRole('button', { name: '备注' }).click()
     await expect(library.getByTestId('hl-popover')).toBeVisible()
     await expect
