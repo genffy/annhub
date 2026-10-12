@@ -70,20 +70,30 @@ export default {
     const cache = caches.default
     const key = new Request(`${url.origin}${url.pathname}`, { method: 'GET' })
 
-    let response = await cache.match(key)
+    // Both branches end in one fresh Response that owns the body stream alone: the MISS path must never read the
+    // origin's stream twice (a Response body can be consumed once), and the HIT path needs mutable headers.
+    const cached = await cache.match(key)
+    let response
     let edge = 'hit'
-    if (!response) {
+    if (cached) {
+      response = new Response(cached.body, cached)
+    } else {
       edge = 'miss'
-      response = await fetchOrigin(request, url)
+      const origin = await fetchOrigin(request, url)
+      // The page is ~60KB gzipped: buffer it, and let the edge copy and the visitor's response share the one
+      // ArrayBuffer. A teed clone() of the streaming body is truncated by the local runtime and is not worth the
+      // risk anywhere for a page this small.
+      const body = await origin.arrayBuffer()
+      response = new Response(body, origin)
       // A copy stored for everyone must not carry anything per-visitor; the region cookie is added per request below.
-      const stored = new Response(response.body, response)
-      stored.headers.delete('set-cookie')
+      response.headers.delete('set-cookie')
       // Browsers keep revalidating as the origin asks (max-age=0); only the edge copy lives for the TTL.
-      stored.headers.set('cache-control', `public, max-age=0, must-revalidate, s-maxage=${EDGE_TTL_SECONDS}`)
-      ctx.waitUntil(cache.put(key, stored))
+      response.headers.set('cache-control', `public, max-age=0, must-revalidate, s-maxage=${EDGE_TTL_SECONDS}`)
+      // Only a good page becomes the copy a POP serves for the next hour; an origin hiccup must not poison it.
+      if (response.status === 200) ctx.waitUntil(cache.put(key, new Response(body, response)))
     }
 
-    response = withRegionCookie(request, new Response(response.body, response))
+    withRegionCookie(request, response)
     response.headers.set('x-annhub-edge', edge)
 
     if (request.method === 'HEAD') return new Response(null, { status: response.status, headers: response.headers })
