@@ -126,7 +126,7 @@ export function AppShell({
             <div style={{ position: 'relative' }}>
               {pins?.export ? <Pin n={pins.export} style={{ top: -9, right: -6, left: 'auto' }} /> : null}
               {onExport ? (
-                <button type="button" className="ah-btn ah-btn-block ah-btn-export" onClick={onExport}>
+                <button type="button" className="ah-btn ah-btn-block ah-btn-export" onClick={onExport} aria-label={ui.nav.export}>
                   <Ic icon={Download} />
                   <span>{ui.nav.export}</span>
                 </button>
