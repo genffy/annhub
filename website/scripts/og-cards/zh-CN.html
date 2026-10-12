@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+    The zh social card, 1200×630 (docs/v2/seo-geo.md §3.3). Regenerate after editing:
+      cd website/scripts/og-cards && npx playwright screenshot --viewport-size=1200,630 zh-CN.html ../../public/og/zh-CN.png
+    Colours and words come from the page's own tokens and copy; entry titles are the tour's sample data.
+  -->
+    <style>
+      :root {
+        --canvas: #f2f0f8;
+        --surface: #fff;
+        --surface-2: hsl(220 25% 97%);
+        --surface-3: hsl(220 22% 93%);
+        --fg: hsl(224 40% 11%);
+        --fg-2: hsl(222 18% 27%);
+        --fg-3: hsl(220 12% 42%);
+        --line: hsl(220 22% 92%);
+        --line-2: hsl(220 18% 83%);
+        --brand: #673ab8;
+        --brand-text: #5b32a8;
+        --t-clip: oklch(0.55 0.17 258);
+        --t-screenshot: oklch(0.56 0.12 178);
+        --t-highlight: oklch(0.66 0.15 78);
+        --hl-yellow: #ffd84d;
+      }
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+      }
+      main {
+        width: 100%;
+        height: 100%;
+        padding: 58px 60px;
+        display: flex;
+        gap: 48px;
+        align-items: center;
+        background:
+          radial-gradient(560px 420px at 88% -8%, rgb(103 58 184 / 0.14), transparent 70%), radial-gradient(420px 320px at -6% 108%, rgb(103 58 184 / 0.08), transparent 70%),
+          var(--canvas);
+        font-family: -apple-system, 'SF Pro Display', 'PingFang SC', 'Hiragino Sans GB', system-ui, sans-serif;
+        color: var(--fg);
+      }
+      .left {
+        flex: 0 0 470px;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        font-size: 40px;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+      }
+      .brand svg {
+        width: 52px;
+        height: 52px;
+        color: var(--brand);
+      }
+      .chip {
+        margin-top: 22px;
+        align-self: flex-start;
+        padding: 7px 14px;
+        border-radius: 999px;
+        background: rgb(103 58 184 / 0.1);
+        color: var(--brand-text);
+        font-size: 15px;
+        font-weight: 600;
+      }
+      h1 {
+        margin-top: 26px;
+        font-size: 36px;
+        line-height: 1.42;
+        font-weight: 800;
+        letter-spacing: -0.5px;
+      }
+      h1 em {
+        font-style: normal;
+        background: linear-gradient(transparent 64%, rgb(255 216 77 / 0.9) 64%);
+        padding: 0 1px;
+      }
+      .meta {
+        margin-top: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .meta .social {
+        font-size: 15px;
+        font-weight: 600;
+        color: var(--fg-2);
+      }
+      .meta .social b {
+        color: var(--brand-text);
+        font-weight: 700;
+      }
+      .meta .note {
+        font-size: 12.5px;
+        color: var(--fg-3);
+      }
+      .right {
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        display: flex;
+        align-items: center;
+      }
+      .win {
+        width: 100%;
+        height: 470px;
+        background: var(--surface);
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid rgb(15 23 42 / 0.1);
+        box-shadow:
+          0 30px 80px -24px rgb(36 24 72 / 0.42),
+          0 0 0 1px rgb(15 23 42 / 0.06);
+        display: flex;
+        flex-direction: column;
+      }
+      .bar {
+        height: 40px;
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        padding: 0 16px;
+        border-bottom: 1px solid var(--line);
+        background: var(--surface-2);
+      }
+      .dots {
+        display: flex;
+        gap: 7px;
+      }
+      .dots i {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: var(--line-2);
+      }
+      .url {
+        flex: 1;
+        height: 22px;
+        border-radius: 6px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        display: flex;
+        align-items: center;
+        padding: 0 10px;
+        font:
+          500 11.5px/1 ui-monospace,
+          'SF Mono',
+          Menlo,
+          monospace;
+        color: var(--fg-3);
+      }
+      .body {
+        flex: 1;
+        display: flex;
+        min-height: 0;
+      }
+      .nav {
+        width: 132px;
+        border-right: 1px solid var(--line);
+        padding: 14px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        background: var(--surface-2);
+      }
+      .nav .label {
+        font-size: 10px;
+        font-weight: 700;
+        color: var(--fg-3);
+        padding: 6px 10px 4px;
+        letter-spacing: 0.4px;
+      }
+      .nav .item {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 8px 10px;
+        border-radius: 7px;
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--fg-2);
+      }
+      .nav .item i {
+        width: 15px;
+        height: 15px;
+        border-radius: 4.5px;
+        background: var(--surface-3);
+      }
+      .nav .item.on {
+        background: var(--surface);
+        color: var(--fg);
+        box-shadow: 0 0 0 1px var(--line);
+        position: relative;
+      }
+      .nav .item.on::before {
+        content: '';
+        position: absolute;
+        left: -10px;
+        top: 7px;
+        bottom: 7px;
+        width: 3px;
+        border-radius: 3px;
+        background: var(--brand);
+      }
+      .nav .item .n {
+        margin-left: auto;
+        font-size: 10.5px;
+        font-weight: 700;
+        color: var(--fg-3);
+      }
+      .content {
+        flex: 1;
+        padding: 16px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        min-width: 0;
+      }
+      .search {
+        height: 34px;
+        border-radius: 8px;
+        border: 1.5px solid var(--line-2);
+        background: var(--surface);
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 0 12px;
+        color: var(--fg-3);
+        font-size: 13px;
+      }
+      .search svg {
+        width: 14px;
+        height: 14px;
+      }
+      .filters {
+        display: flex;
+        gap: 8px;
+      }
+      .filters span {
+        padding: 5px 11px;
+        border-radius: 999px;
+        border: 1px solid var(--line-2);
+        font-size: 11.5px;
+        font-weight: 600;
+        color: var(--fg-2);
+      }
+      .filters .on {
+        background: rgb(103 58 184 / 0.1);
+        border-color: transparent;
+        color: var(--brand-text);
+      }
+      .rows {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 14px;
+        background: var(--surface);
+      }
+      .row.sel {
+        border-color: rgb(103 58 184 / 0.35);
+        box-shadow: 0 0 0 1px rgb(103 58 184 / 0.18);
+        background: #fbfaff;
+      }
+      .type {
+        flex: none;
+        width: 58px;
+        text-align: center;
+        padding: 4px 0;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 700;
+        color: #fff;
+      }
+      .t-clip {
+        background: var(--t-clip);
+      }
+      .t-screenshot {
+        background: var(--t-screenshot);
+      }
+      .t-highlight {
+        background: var(--t-highlight);
+      }
+      .row .mid {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .row .title {
+        font-size: 14px;
+        font-weight: 650;
+        color: var(--fg);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row .title mark {
+        background: var(--hl-yellow);
+        color: inherit;
+        padding: 0 1px;
+        border-radius: 2px;
+      }
+      .row .sub {
+        font-size: 11.5px;
+        color: var(--fg-3);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .row .tags {
+        margin-left: auto;
+        display: flex;
+        gap: 6px;
+        flex: none;
+      }
+      .row .tags span {
+        padding: 3px 9px;
+        border-radius: 6px;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        font-size: 10.5px;
+        font-weight: 600;
+        color: var(--fg-2);
+      }
+      .hlcard {
+        margin-top: 2px;
+        border: 1px solid var(--line);
+        border-left: 3px solid var(--t-highlight);
+        border-radius: 10px;
+        padding: 11px 14px;
+        background: var(--surface-2);
+      }
+      .hlcard .q {
+        font-size: 13px;
+        line-height: 1.55;
+        color: var(--fg-2);
+      }
+      .hlcard .q mark {
+        background: var(--hl-yellow);
+        color: var(--fg);
+        padding: 0 1px;
+        border-radius: 2px;
+      }
+      .hlcard .c {
+        margin-top: 5px;
+        font-size: 11px;
+        color: var(--fg-3);
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="left">
+        <div class="brand">
+          <svg viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path
+              d="M128 0C57.0667 0 0 57.0667 0 128C0 198.933 57.0667 256 128 256C198.933 256 256 198.933 256 128C256 57.0667 198.933 0 128 0ZM184 181.867C184 187.733 179.733 192 173.867 192H82.1333C76.8 192 72 187.2 72 181.867V74.1333C72 68.2667 76.2667 64 82.1333 64H173.867C179.2 64 184 68.8 184 74.1333V181.867Z"
+              fill="currentColor"
+            />
+            <path
+              fill-rule="evenodd"
+              clip-rule="evenodd"
+              d="M98.8824 133.3L120.059 75H104.176L83 133.3V181H98.8824L114.765 133.3H98.8824ZM157.118 133.3L135.941 75H151.824L173 133.3V181H157.118L141.235 133.3H157.118Z"
+              fill="currentColor"
+            />
+          </svg>
+          AnnHub
+        </div>
+        <span class="chip">浏览器扩展 · 本地优先</span>
+        <h1>把网页里值得留下的内容，<br />存进<em>同一个本地库</em>。</h1>
+        <div class="meta">
+          <span class="social"><b>x.com/genffy</b> · 小红书 <b>genffy</b></span>
+          <span class="note">界面示意：依据 v2 设计稿绘制，使用示例数据</span>
+        </div>
+      </section>
+      <section class="right">
+        <div class="win">
+          <div class="bar">
+            <span class="dots"><i></i><i></i><i></i></span>
+            <span class="url">chrome-extension://annhub/app.html#/all</span>
+          </div>
+          <div class="body">
+            <nav class="nav">
+              <span class="label">资料库</span>
+              <span class="item on"><i></i>全部 <span class="n">42</span></span>
+              <span class="item"><i></i>剪藏 <span class="n">26</span></span>
+              <span class="item"><i></i>高亮 <span class="n">31</span></span>
+              <span class="item"><i></i>截图 <span class="n">16</span></span>
+              <span class="label">管理</span>
+              <span class="item"><i></i>属性</span>
+              <span class="item"><i></i>设置</span>
+            </nav>
+            <div class="content">
+              <div class="search">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-3.8-3.8" />
+                </svg>
+                搜索条目…
+              </div>
+              <div class="filters"><span class="on">属性 · project = Payments retry</span><span>类型 · 剪藏</span></div>
+              <div class="rows">
+                <div class="row sel">
+                  <span class="type t-clip">剪藏</span>
+                  <span class="mid"><span class="title">重试与背压</span><span class="sub">engineering.example.com · 周一 10:12 · project = Payments retry</span></span>
+                  <span class="tags"><span>retry</span></span>
+                </div>
+                <div class="row">
+                  <span class="type t-screenshot">截图</span>
+                  <span class="mid"><span class="title">重试开始后 p99 延迟曲线</span><span class="sub">engineering.example.com · 周一 10:40</span></span>
+                  <span class="tags"><span>latency</span></span>
+                </div>
+                <div class="row">
+                  <span class="type t-clip">剪藏</span>
+                  <span class="mid"><span class="title">Idempotency keys</span><span class="sub">newsletter.example.com · 上周三</span></span>
+                  <span class="tags"><span>payments</span></span>
+                </div>
+              </div>
+              <div class="hlcard">
+                <span class="q">“在没有预算时，<mark>每个客户端都会立刻重试</mark>，放大的流量压垮了上游。”</span>
+                <div class="c">高亮 · 黄色 · 备注：对照复盘里的流量曲线。</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

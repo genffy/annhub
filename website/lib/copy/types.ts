@@ -27,8 +27,8 @@ export interface LandingCopy {
   meta: {
     title: string
     description: string
-    ogTitle: string
-    ogDescription: string
+    /** The social card image's alt text, shared by `og:image:alt` (docs/v2/seo-geo.md §3.3). */
+    ogImageAlt: string
     /** The day the page's text last changed in substance, YYYY-MM-DD: the sitemap's lastmod (docs/v2/seo-geo.md §3.5). */
     updated: string
   }
