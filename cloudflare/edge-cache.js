@@ -60,12 +60,17 @@ const REGION_OUTSIDE = 'outside'
 
 export default {
   async fetch(request, env, ctx) {
+    const url = new URL(request.url)
+    // The routes are wildcards (annhub.org/en*, annhub.org/zh-CN*) because an exact pattern lets ?utm_* shares slip
+    // past the Worker. Only these two pages are cached; anything else the wildcard catches — a future /entries, or
+    // /en/ waiting for its redirect — passes straight through.
+    if (url.pathname !== '/en' && url.pathname !== '/zh-CN') return fetch(request)
+
     // Data requests for the same URL (RSC payloads, router prefetches) must not receive a cached HTML page.
     if (request.headers.get('rsc') || request.headers.get('x-nextjs-data') || request.headers.get('next-router-prefetch')) {
       return fetch(request)
     }
 
-    const url = new URL(request.url)
     // The query string does not change the page; sharing one edge copy per path keeps shares with utm params a hit.
     const cache = caches.default
     const key = new Request(`${url.origin}${url.pathname}`, { method: 'GET' })

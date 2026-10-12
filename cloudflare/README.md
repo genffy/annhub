@@ -9,7 +9,7 @@
 导航按 2026-10 版控制台写；旧版把第 1 步的入口叫「Workers & Pages」，现在在 **Compute** 分组下。
 
 1. **Worker**：Cloudflare 控制台 → 侧边栏 **Compute** → Workers & Pages → Create → Worker → 名字 `annhub-edge` → Edit code → 粘贴 `edge-cache.js` 全文 → Deploy。
-2. **路由**：该 Worker → Settings → Domains & Routes → Add → Route：`annhub.org/en`（zone 选 annhub.org）→ 再加一条 `annhub.org/zh-CN`。只匹配这两个精确路径，其余流量（`/_next`、`/og`、法律页、根路径跳转）不受影响。
+2. **路由**：该 Worker → Settings → Domains & Routes → Add → Route：`annhub.org/en*`（zone 选 annhub.org）→ 再加一条 `annhub.org/zh-CN*`。必须带 `*`：精确模式不匹配带 `?utm_*` 查询串的分享链接，实测会绕过 Worker。通配符可能误伤的路径（例如将来的 `/entries`）由脚本开头的守卫放行，只有 `/en` 与 `/zh-CN` 两个精确页面被缓存；其余流量（`/_next`、`/og`、法律页、根路径跳转）不经 Worker。
 3. **法律页的 Cache Rule**：域名 annhub.org → **Caching → Cache Rules** → Create rule：
    - 名字 `legal-pages`；When incoming requests match：Hostname equals `annhub.org` AND（URI Path starts with `/privacy-policy` OR URI Path starts with `/terms-of-service`）；
    - Then：Eligible for cache；Edge TTL：Ignore cache-control and set this TTL → 1 hour。
@@ -21,6 +21,7 @@
 curl -sI https://annhub.org/en | grep -i 'x-annhub-edge\|set-cookie'   # 第一次 miss，第二次起 hit；应有 annhub-region=outside
 curl -sI https://annhub.org/zh-CN | grep -i 'x-annhub-edge'             # hit
 curl -sI https://annhub.org/en -H 'rsc: 1' | grep -i 'x-annhub-edge'    # 无此头（绕过缓存，直接回源）
+curl -sI "https://annhub.org/en?utm_source=verify" | grep -i 'x-annhub-edge'  # 也应是 hit（查询串共享副本）
 curl -s https://annhub.org/en | grep -c 'FAQPage'                       # 页面内容完整（缓存的是真页面）
 ```
 
