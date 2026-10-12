@@ -1,16 +1,13 @@
 {
   "name": "annhub",
   "version": "1.0.3",
-  "description": "Browser extension that captures knowledge fragments (text, images, questions) with their context",
+  "description": "Browser extension that clips and screenshots web content with its source into one local library",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "wxt",
-    "dev:firefox": "wxt -b firefox",
     "build": "wxt build",
-    "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
-    "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
     "lint": "eslint --config eslint.config.js .",
     "format": "prettier --write .",

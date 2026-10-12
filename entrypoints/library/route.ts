@@ -13,19 +13,27 @@ export type View = ViewKey
 
 const VIEWS: View[] = ['all', 'clips', 'highlights', 'screenshots', 'properties', 'settings']
 
-export interface FilterState {
-  search: string
-  /** The entry type, a filter of the "all" view only (extension.md §2.3): the other views are one type already. */
-  type: '' | EntryType
-  host: string
-  tag: string
+/** One property condition: property, operator, value(s) — search.md §3, several AND together. */
+export interface PropertyFilter {
   prop: string
   op: string
   val: string
   val2: string
+}
+
+export interface FilterState {
+  search: string
+  /** The entry type, a filter of the "all" view only (extension.md §2.3): the other views are one type already. */
+  type: '' | EntryType
+  /** Sources and tags: several of one dimension OR together (search.md §3). */
+  hosts: string[]
+  tags: string[]
+  /** Property conditions: several AND together (search.md §3). */
+  conditions: PropertyFilter[]
   from: string
   to: string
-  color: string
+  /** Highlight colours, a filter of the highlights view only. */
+  colors: string[]
 }
 
 export interface RouteState extends FilterState {
@@ -38,7 +46,7 @@ export interface RouteState extends FilterState {
   entryId: string | null
 }
 
-export const EMPTY_FILTERS: FilterState = { search: '', type: '', host: '', tag: '', prop: '', op: '', val: '', val2: '', from: '', to: '', color: '' }
+export const EMPTY_FILTERS: FilterState = { search: '', type: '', hosts: [], tags: [], conditions: [], from: '', to: '', colors: [] }
 
 /**
  * The views that list entries or highlights: the ones with the search and filter bar and a total (extension.md
@@ -50,13 +58,32 @@ export function isListView(view: View): boolean {
 
 /**
  * Whether a filter is on (extension.md §5). An empty answer then reads as "no results" and offers to clear the
- * filters; with none on, an empty view shows its own entry hint. The colour exists only in the highlights view,
+ * filters; with none on, an empty view shows its own entry hint. The colours exist only in the highlights view,
  * and an operator or value without a property filters nothing.
  */
 export function hasActiveFilter(route: Pick<RouteState, 'view'> & FilterState): boolean {
   return Boolean(
-    route.search || route.host || route.tag || route.prop || route.from || route.to || (route.view === 'all' && route.type) || (route.view === 'highlights' && route.color),
+    route.search ||
+    route.hosts.length > 0 ||
+    route.tags.length > 0 ||
+    route.conditions.some(condition => condition.prop) ||
+    route.from ||
+    route.to ||
+    (route.view === 'all' && route.type) ||
+    (route.view === 'highlights' && route.colors.length > 0),
   )
+}
+
+/**
+ * Conditions travel as index-aligned `prop`/`op`/`val`/`val2` params (the shape a
+ * single condition always used), so an old one-condition URL reads unchanged.
+ */
+function conditionsOf(params: URLSearchParams): PropertyFilter[] {
+  const props = params.getAll('prop')
+  const ops = params.getAll('op')
+  const vals = params.getAll('val')
+  const val2s = params.getAll('val2')
+  return props.map((prop, index) => ({ prop, op: ops[index] ?? '', val: vals[index] ?? '', val2: val2s[index] ?? '' }))
 }
 
 /** `#/view?filters` / `#/read/<id>` / `#/entry/<id>` → route state. */
@@ -74,15 +101,12 @@ export function readHash(hash: string = location.hash): RouteState {
     entryId: entryId ?? params.get('e'),
     search: params.get('q') ?? '',
     type: params.get('type') === 'clip' || params.get('type') === 'screenshot' ? (params.get('type') as EntryType) : '',
-    host: params.get('host') ?? '',
-    tag: params.get('tag') ?? '',
-    prop: params.get('prop') ?? '',
-    op: params.get('op') ?? '',
-    val: params.get('val') ?? '',
-    val2: params.get('val2') ?? '',
+    hosts: params.getAll('host').filter(Boolean),
+    tags: params.getAll('tag').filter(Boolean),
+    conditions: conditionsOf(params),
     from: params.get('from') ?? '',
     to: params.get('to') ?? '',
-    color: params.get('color') ?? '',
+    colors: params.getAll('color').filter(Boolean),
   }
 }
 
@@ -91,15 +115,18 @@ export function listHash(route: Pick<RouteState, 'view'> & FilterState & { entry
   const params = new URLSearchParams()
   if (route.search) params.set('q', route.search)
   if (route.type) params.set('type', route.type)
-  if (route.host) params.set('host', route.host)
-  if (route.tag) params.set('tag', route.tag)
-  if (route.prop) params.set('prop', route.prop)
-  if (route.op) params.set('op', route.op)
-  if (route.val) params.set('val', route.val)
-  if (route.val2) params.set('val2', route.val2)
+  for (const host of route.hosts) params.append('host', host)
+  for (const tag of route.tags) params.append('tag', tag)
+  // all four params append for every condition, so their indices stay aligned on the way back
+  for (const condition of route.conditions) {
+    params.append('prop', condition.prop)
+    params.append('op', condition.op)
+    params.append('val', condition.val)
+    params.append('val2', condition.val2)
+  }
   if (route.from) params.set('from', route.from)
   if (route.to) params.set('to', route.to)
-  if (route.color) params.set('color', route.color)
+  for (const color of route.colors) params.append('color', color)
   if (route.entryId) params.set('e', route.entryId)
   const query = params.toString()
   return `#/${route.view}${query ? `?${query}` : ''}`

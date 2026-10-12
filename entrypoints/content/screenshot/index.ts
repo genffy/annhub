@@ -23,6 +23,8 @@
 import MessageUtils from '../../../utils/message'
 import { screenshotFailureText, screenshotSaveErrorText, uiText } from '../../../utils/ui-text'
 import { newEntryId } from '../../../learning-core/assets'
+import { normalizeHost } from '../../../learning-core/normalize'
+import { extractPageMeta } from '../page-meta'
 import { isUserInput } from '../user-input'
 import type { CaptureVia, ResponseMessage } from '../../../types/messages'
 import type { ViewportRect } from './crop'
@@ -44,6 +46,7 @@ import {
   decodeWatermarkImage,
   DEFAULT_BEAUTIFY,
   downloadExtension,
+  downloadFormatFor,
   downloadMime,
   matteOnWhite,
   paintBeautified,
@@ -289,28 +292,28 @@ class ScreenshotSession {
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-size { position: absolute; left: 0; bottom: calc(100% + 6px); padding: 2px 6px; pointer-events: none; background: #252b31; color: #fff; border-radius: 3px; font: 12px/1.4 -apple-system, sans-serif; white-space: nowrap; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview { position: absolute; box-sizing: border-box; border: 2px solid #4c91ff; background: #fff; box-shadow: 0 0 0 9999px rgba(22, 26, 31, 0.58); pointer-events: auto; touch-action: none; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview textarea { position: absolute; z-index: 2; min-width: 110px; min-height: 32px; padding: 4px; box-sizing: border-box; border: 1px solid #4c91ff; background: #fff; color: #20252b; font: 16px/1.3 -apple-system, sans-serif; resize: both; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-toolbar { position: absolute; z-index: 3; box-sizing: border-box; max-width: calc(100vw - 16px); padding: 5px; border: 1px solid #d7dce1; border-radius: 5px; background: #fff; box-shadow: 0 6px 20px rgba(0,0,0,.22); pointer-events: auto; color: #252b31; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview textarea { position: absolute; z-index: 2; min-width: 110px; min-height: 32px; padding: 4px; box-sizing: border-box; border: 1px solid #4c91ff; background: var(--annov-surface, #fff); color: var(--annov-text, #20252b); font: 16px/1.3 -apple-system, sans-serif; resize: both; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-toolbar { position: absolute; z-index: 3; box-sizing: border-box; max-width: calc(100vw - 16px); padding: 5px; border: 1px solid var(--annov-border, #d7dce1); border-radius: 5px; background: var(--annov-surface, #fff); box-shadow: 0 6px 20px rgba(0,0,0,.22); pointer-events: auto; color: var(--annov-text, #252b31); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools { display: flex; align-items: center; width: max-content; max-width: calc(100vw - 28px); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tool-scroll { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tool-scroll > button, [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tool-scroll > span { flex: none; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-actions { display: flex; align-items: center; flex: none; margin-left: 5px; padding-left: 5px; border-left: 1px solid #d7dce1; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: #252b31; cursor: pointer; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button:hover, [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-active { background: #e7f1f0; color: #126f65; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-actions { display: flex; align-items: center; flex: none; margin-left:  5px; padding-left: 5px; border-left: 1px solid var(--annov-border, #d7dce1); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--annov-text, #252b31); cursor: pointer; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button:hover, [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-active { background: var(--annov-tool-hover-bg, #e7f1f0); color: var(--annov-tool-hover-text, #126f65); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button:disabled { opacity: .35; cursor: default; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-confirm { color: #15805c; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-divider { width: 1px; height: 22px; margin: 0 3px; background: #d7dce1; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-confirm { color: var(--annov-tool-confirm, #15805c); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-divider { width: 1px; height: 22px; margin: 0 3px; background: var(--annov-border, #d7dce1); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-colors { display: flex; gap: 2px; align-items: center; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-colors { flex: none; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-swatch { width: 19px; height: 19px; margin: 0 2px; border: 1px solid #aeb6bd; border-radius: 50%; background: var(--swatch); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-swatch { width: 19px; height: 19px; margin: 0 2px; border: 1px solid var(--annov-input-border, #aeb6bd); border-radius: 50%; background: var(--swatch); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-swatch-active { outline: 2px solid #4c91ff; outline-offset: 2px; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks { display: flex; gap: 5px; padding: 5px 2px 1px; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks span { display: flex; align-items: center; gap: 3px; padding: 2px 5px; background: #edf0f2; border-radius: 3px; font: 11px/1.2 -apple-system, sans-serif; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks span { display: flex; align-items: center; gap: 3px; padding: 2px 5px; background: var(--annov-chip-bg, #edf0f2); border-radius: 3px; font: 11px/1.2 -apple-system, sans-serif; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks button { display: grid; place-items: center; padding: 0; border: 0; background: none; cursor: pointer; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-notice { padding: 4px 6px 2px; font: 12px/1.3 -apple-system, sans-serif; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100vw - 32px)); min-height: 70px; padding: 18px; border: 0; border-radius: 5px; box-shadow: 0 8px 28px rgba(0,0,0,.28); font: 14px/1.5 -apple-system, sans-serif; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel button { margin-top: 12px; padding: 5px 12px; border: 1px solid #cbd5e1; border-radius: 4px; background: #fff; cursor: pointer; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error { color: #b91c1c; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel button { margin-top: 12px; padding: 5px 12px; border: 1px solid var(--annov-input-border, #cbd5e1); border-radius: 4px; background: var(--annov-surface, #fff); cursor: pointer; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error { color: var(--annov-danger, #b91c1c); }
     `
     this.host.appendChild(style)
 
@@ -1379,6 +1382,9 @@ class ScreenshotSession {
       // runtime messaging cannot carry Blobs, so the processed PNG travels as
       // a dataUrl; the store persists bytes (dataUrl is transport only).
       const dataUrl = canvas.toDataURL('image/png')
+      // the page's meta fills whichever presets the user checked for
+      // screenshots (entry.md §5.4) — same extractor and fallbacks as clips
+      const meta = extractPageMeta(this.doc, normalizeHost(this.doc.defaultView!.location.href))
       const response = await MessageUtils.sendMessage<{ entry: { id: string } }>({
         type: 'SAVE_SCREENSHOT',
         data: {
@@ -1387,7 +1393,10 @@ class ScreenshotSession {
           width: canvas.width,
           height: canvas.height,
           sourceUrl: this.doc.defaultView!.location.href,
-          title: this.doc.title || this.doc.defaultView!.location.hostname,
+          title: meta.title,
+          ...(meta.author ? { author: meta.author } : {}),
+          ...(meta.published ? { published: meta.published } : {}),
+          ...(meta.description ? { description: meta.description } : {}),
           via: this.via,
           frame: this.reusedFrame ? 'reused' : this.elementRect ? 'element' : 'drag',
           startedAt: clickedAt,
@@ -1445,16 +1454,19 @@ class ScreenshotSession {
       // JPEG has no alpha: whatever is transparent is painted on white first (screenshot.md §4.2)
       const output = format === 'jpeg' ? matteOnWhite(canvas, this.doc) : canvas
       const dataUrl = output.toDataURL(downloadMime(format), this.settings?.downloadQuality ?? 0.9)
+      // a codec the browser cannot encode comes back as PNG bytes (screenshot.md §5):
+      // download the PNG and say so, instead of failing on a name the bytes do not match
+      const actual = downloadFormatFor(format, dataUrl)
       const response = await MessageUtils.sendMessage<{ downloadId: number }>({
         type: 'DOWNLOAD_IMAGE',
         dataUrl,
-        extension: downloadExtension(format),
+        extension: downloadExtension(actual),
         watermark: Boolean(this.settings?.watermark.enabled && this.watermarkOn),
         beautify: this.beautify.enabled,
       })
       if (!response.success) throw new Error(screenshotFailureText(response.error, 'shot.error.downloadFailed'))
       this.rememberLastFrame()
-      this.showNotice(uiText('shot.downloaded'))
+      this.showNotice(actual === format ? uiText('shot.downloaded') : uiText('shot.downloadedAsPng'))
     } catch (error) {
       this.showNotice(error instanceof Error ? error.message : uiText('shot.error.downloadFailed'), true)
     } finally {

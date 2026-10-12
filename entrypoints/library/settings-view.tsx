@@ -11,9 +11,20 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
 import type { ExtensionSettings, SettingsPatch } from '../../background-service/settings-schema'
 import { EntryStore, type OrphanReport } from '../../learning-core/store'
-import { BEAUTIFY_BACKGROUND_IDS, BEAUTIFY_RADII, PADDING_PX, RATIO_PRESETS, watermarkBox, type BeautifyBackground, type BeautifyPadding } from '../content/screenshot/output'
+import type { CaptureTimingSummary, HabitSummary, MetricsPanelData } from '../../learning-core/metrics'
+import {
+  BEAUTIFY_BACKGROUND_IDS,
+  BEAUTIFY_RADII,
+  PADDING_PX,
+  RATIO_PRESETS,
+  decodeWatermarkImage,
+  paintWatermark,
+  type BeautifyBackground,
+  type BeautifyPadding,
+  type WatermarkImage,
+} from '../content/screenshot/output'
 import { formatBytes } from '../../utils/format-bytes'
-import { uiText } from '../../utils/ui-text'
+import { uiText, type UiTextKey } from '../../utils/ui-text'
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../../learning-core/types'
 import { ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
 
@@ -26,6 +37,7 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
   const [quality, setQuality] = useState(settings.downloadQuality)
   const [opacity, setOpacity] = useState(settings.watermark.opacity)
   const [error, setError] = useState('')
+  const [imageBroken, setImageBroken] = useState(false)
   const watermarkDirty = useRef(false)
   const qualitySaved = useRef(settings.downloadQuality)
   const opacitySaved = useRef(settings.watermark.opacity)
@@ -57,23 +69,35 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
     else setError(uiText('toast.saveFailed'))
   }
 
+  // The preview is the watermark exactly as copy/download paints it (screenshot.md §4.3): picture first, text after,
+  // at the chosen corner, size and opacity. A picture the browser cannot read falls back to text alone and says so —
+  // the same degradation the output takes, plus the re-upload hint (screenshot.md §5).
   const watermarkPreviewRef = (node: HTMLCanvasElement | null) => {
     if (!node) return
     const ctx = node.getContext('2d')
     if (!ctx) return
-    ctx.clearRect(0, 0, node.width, node.height)
-    ctx.fillStyle = '#e8ebef'
-    ctx.fillRect(0, 0, node.width, node.height)
-    const box = watermarkBox({ width: node.width, height: node.height }, settings.watermark)
-    ctx.globalAlpha = opacity
-    ctx.fillStyle = '#20252b'
-    ctx.font = `${box.fontSize}px -apple-system, system-ui, sans-serif`
-    ctx.textAlign = settings.watermark.position.endsWith('right') ? 'right' : 'left'
-    ctx.textBaseline = settings.watermark.position.startsWith('top') ? 'top' : 'bottom'
-    ctx.fillText(watermarkText || 'AnnHub', box.x, box.y)
-    ctx.globalAlpha = 1
+    const paint = (image: WatermarkImage | null): void => {
+      ctx.clearRect(0, 0, node.width, node.height)
+      ctx.fillStyle = '#e8ebef'
+      ctx.fillRect(0, 0, node.width, node.height)
+      paintWatermark(
+        ctx,
+        node,
+        { enabled: settings.watermark.enabled, position: settings.watermark.position, size: settings.watermark.size, opacity, text: watermarkText || 'AnnHub' },
+        false,
+        image,
+      )
+    }
+    if (settings.watermark.image) {
+      void decodeWatermarkImage(settings.watermark.image, node.ownerDocument).then(image => {
+        paint(image)
+        setImageBroken(image === null)
+      })
+    } else {
+      paint(null)
+      setImageBroken(false)
+    }
   }
-  void watermarkPreviewRef
 
   return (
     <section>
@@ -220,6 +244,11 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
             {error}
           </p>
         )}
+        {imageBroken && (
+          <p className="warn" role="alert">
+            {uiText('settings.error.imageUnreadable')}
+          </p>
+        )}
       </div>
 
       <div className="settings-group">
@@ -295,7 +324,7 @@ export function SettingsView() {
   const [settings, setSettings] = useState<ExtensionSettings | null>(null)
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null)
   const [orphans, setOrphans] = useState<OrphanReport | null>(null)
-  const [metrics, setMetrics] = useState<Record<string, { total: number; byProps: Record<string, number> }> | null>(null)
+  const [panel, setPanel] = useState<MetricsPanelData | null>(null)
   const [shortcuts, setShortcuts] = useState<chrome.commands.Command[]>([])
 
   useEffect(() => {
@@ -333,8 +362,8 @@ export function SettingsView() {
   }, [orphans, loadOrphans])
 
   const loadMetrics = useCallback(async () => {
-    const response = await MessageUtils.sendMessage<Record<string, { total: number; byProps: Record<string, number> }>>({ type: 'GET_METRICS' })
-    if (response.success) setMetrics(response.data!)
+    const response = await MessageUtils.sendMessage<MetricsPanelData>({ type: 'GET_METRICS' })
+    if (response.success) setPanel(response.data!)
   }, [])
 
   if (!settings) {
@@ -482,21 +511,128 @@ export function SettingsView() {
         <button type="button" onClick={() => void loadMetrics()}>
           {uiText('settings.metricsRefresh')}
         </button>
-        {metrics && (
-          <table className="props-table" data-testid="metrics-table">
-            <tbody>
-              {Object.entries(metrics)
-                .sort(([a], [b]) => a.localeCompare(b))
-                .map(([name, bucket]) => (
-                  <tr key={name}>
-                    <td>{name}</td>
-                    <td>{bucket.total}</td>
-                  </tr>
-                ))}
-            </tbody>
-          </table>
-        )}
+        {panel && <MetricsPanel panel={panel} />}
       </section>
     </div>
+  )
+}
+
+/**
+ * The local-metrics readout (metrics.md §5, §10): the roadmap's V-prep coverage of M-03, M-11 and M-19–M-25,
+ * every number an aggregate. Share-of-users metrics show this install's standing — the panel cannot see other
+ * installs — next to the event counts that support it.
+ */
+function MetricsPanel({ panel }: { panel: MetricsPanelData }) {
+  const summaries = panel.summaries
+
+  const timingRow = (entrance: UiTextKey, timing: CaptureTimingSummary, guard: boolean) => (
+    <tr key={entrance}>
+      <th scope="row">
+        {uiText('metrics.m03')} · {uiText(entrance)}
+      </th>
+      <td>
+        {timing.count === 0 ? (
+          uiText('metrics.m03.none')
+        ) : (
+          <>
+            {uiText('metrics.m03.value', { count: timing.count, median: timing.median ?? '', p95: timing.p95 ?? '' })}
+            {guard && <span className="hint"> · {uiText(timing.within300ms ? 'metrics.m03.guard.pass' : 'metrics.m03.guard.fail')}</span>}
+          </>
+        )}
+      </td>
+    </tr>
+  )
+
+  const habitRow = (label: UiTextKey, habit: HabitSummary, support: string) => (
+    <tr key={label}>
+      <th scope="row">{uiText(label)}</th>
+      <td>{habit.satisfied === null ? uiText('metrics.none') : `${habit.satisfied ? uiText('metrics.yes') : uiText('metrics.no')} · ${support}`}</td>
+    </tr>
+  )
+
+  const rateRow = (label: UiTextKey, rate: { rate: number | null }, support: string) => (
+    <tr key={label}>
+      <th scope="row">{uiText(label)}</th>
+      <td>{rate.rate === null ? uiText('metrics.none') : uiText('metrics.rate', { pct: Math.round(rate.rate * 100), support })}</td>
+    </tr>
+  )
+
+  const activation = summaries.activation
+  return (
+    <>
+      <table className="props-table" data-testid="metrics-summary">
+        <tbody>
+          {timingRow('metrics.m03.selection', summaries.timing.selection, true)}
+          {timingRow('metrics.m03.block', summaries.timing.block, true)}
+          {timingRow('metrics.m03.screenshot', summaries.timing.screenshot, false)}
+          <tr>
+            <th scope="row">{uiText('metrics.m11')}</th>
+            <td>
+              {activation.firstSaveDay === null
+                ? uiText('metrics.m11.noSaves')
+                : `${activation.activated ? uiText('metrics.m11.activated') : uiText('metrics.m11.notYet')} · ${uiText('metrics.m11.firstSave', { day: activation.firstSaveDay })}`}
+            </td>
+          </tr>
+          {habitRow('metrics.m20', summaries.propertyUse, uiText('metrics.m20.support', { n: summaries.propertyUse.numerator }))}
+          {habitRow('metrics.m21', summaries.highlightUse, uiText('metrics.m21.support', { n: summaries.highlightUse.numerator, m: summaries.highlightUse.denominator }))}
+          {habitRow(
+            'metrics.m22',
+            summaries.screenshotExternalUse,
+            uiText('metrics.m22.support', { n: summaries.screenshotExternalUse.numerator, m: summaries.screenshotExternalUse.denominator }),
+          )}
+          {rateRow(
+            'metrics.m23',
+            summaries.blockFirstHit,
+            uiText('metrics.m23.support', { a: summaries.blockFirstHit.unchangedLevels, u: summaries.blockFirstHit.undos, d: summaries.blockFirstHit.denominator }),
+          )}
+          {habitRow('metrics.m24', summaries.beautifyUse, uiText('metrics.m24.support', { n: summaries.beautifyUse.numerator, m: summaries.beautifyUse.denominator }))}
+          {rateRow('metrics.m25', summaries.frameReuse, uiText('metrics.m25.support', { n: summaries.frameReuse.numerator, d: summaries.frameReuse.denominator }))}
+        </tbody>
+      </table>
+
+      <div className="settings-group">
+        <h3>{uiText('metrics.m19')}</h3>
+        <table className="props-table" data-testid="metrics-weeks">
+          <thead>
+            <tr>
+              <th scope="col">{uiText('metrics.week')}</th>
+              <th scope="col">{uiText('metrics.m19.reopens')}</th>
+              <th scope="col">{uiText('metrics.m19.exports')}</th>
+              <th scope="col">{uiText('metrics.m19.retrieved')}</th>
+              <th scope="col">{uiText('metrics.queried')}</th>
+              <th scope="col">{uiText('metrics.m19.sought')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {summaries.weeks.map(week => (
+              <tr key={week.weekStart}>
+                <td>{week.weekStart}</td>
+                <td>{week.reopens}</td>
+                <td>{week.exports}</td>
+                <td>{week.retrieved}</td>
+                <td>{week.queried}</td>
+                <td>{week.soughtBack ? uiText('metrics.yes') : uiText('metrics.no')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="settings-group">
+        <h3>{uiText('metrics.events')}</h3>
+        <table className="props-table" data-testid="metrics-table">
+          <tbody>
+            {Object.entries(panel.events)
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([name, bucket]) => (
+                <tr key={name}>
+                  <td>{name}</td>
+                  <td>{bucket.total}</td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   )
 }

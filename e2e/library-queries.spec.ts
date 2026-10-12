@@ -185,4 +185,97 @@ test.describe('searching and filtering in the library', () => {
     await expect.poll(() => metricsOf(context, 'entry.property_edited')).toEqual({ 'property_type=list|scope=custom': 2 })
     await library.close()
   })
+
+  test('several sources and tags of one dimension OR together, across dimensions AND (search.md §3)', async ({ page, context, extensionId }) => {
+    await saveClip(page, extensionId, 'ent_or_one', 'Retries can amplify an outage.', { tags: ['reliability'] })
+    await saveClip(page, extensionId, 'ent_or_two', 'Backoff with jitter spreads the load.', { tags: ['retry'] })
+    await saveClip(page, extensionId, 'ent_or_three', 'Idempotency keys belong on the write path.', { tags: ['reliability', 'payments'] })
+
+    const library = await context.newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+    await expect(library.locator('.entry-card')).toHaveCount(3)
+
+    const host = library.locator('select[aria-label*="来源"]')
+    await host.selectOption('ent_or_one.example.com')
+    await expect(library.locator('.entry-card')).toHaveCount(1)
+    // a second source of the same dimension joins with OR, not AND, and both show as removable chips
+    await host.selectOption('ent_or_two.example.com')
+    await expect(library.locator('.entry-card')).toHaveCount(2)
+    await expect(library.locator('.filter-chip')).toHaveCount(2)
+    expect(library.url()).toContain('host=ent_or_one.example.com')
+    expect(library.url()).toContain('host=ent_or_two.example.com')
+    await library.locator('.filter-chip', { hasText: 'ent_or_one.example.com' }).click()
+    await expect(library.locator('.entry-card')).toHaveCount(1)
+
+    // a tag of the same dimension ORs; the source dimension still ANDs with it
+    const tag = library.locator('select[aria-label*="标签"]')
+    await tag.selectOption('reliability')
+    await expect(library.locator('.entry-card')).toHaveCount(0) // the remaining source carries only "retry"
+    await tag.selectOption('retry')
+    await expect(library.locator('.entry-card')).toHaveCount(1)
+    await library.close()
+  })
+
+  test('several property conditions AND together and survive a reload (search.md §3)', async ({ page, context, extensionId }) => {
+    await saveClip(page, extensionId, 'ent_and_one', 'Alpha beta gamma.')
+    await saveClip(page, extensionId, 'ent_and_two', 'Omega psi chi.')
+    const definitions = [
+      { name: 'project', type: 'text', builtin: false, presets: [] },
+      { name: 'rating', type: 'number', builtin: false, presets: [] },
+    ]
+    const added = await page.evaluate(
+      defs =>
+        Promise.all([
+          chrome.runtime.sendMessage({
+            type: 'UPDATE_ENTRY',
+            id: 'ent_and_one',
+            patch: { properties: { set: { project: 'apollo', rating: 5 }, newDefinitions: defs } },
+          }),
+          chrome.runtime.sendMessage({
+            type: 'UPDATE_ENTRY',
+            id: 'ent_and_two',
+            patch: { properties: { set: { project: 'apollo', rating: 2 }, newDefinitions: defs } },
+          }),
+        ]),
+      definitions,
+    )
+    expect(added.every(response => response.success)).toBe(true)
+
+    const library = await context.newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+    const addCondition = library.locator('select[aria-label="添加属性条件"]')
+    await addCondition.selectOption('project')
+    await library.locator('input[aria-label="值"]').first().fill('apollo')
+    await expect(library.locator('.entry-card')).toHaveCount(2)
+    await addCondition.selectOption('rating')
+    await library.locator('input[aria-label="值"]').nth(1).fill('5')
+    await expect(library.locator('.entry-card')).toHaveCount(1)
+    // both conditions live in the URL, index-aligned, and come back after a reload
+    expect(library.url()).toContain('prop=project')
+    expect(library.url()).toContain('prop=rating')
+    await library.reload()
+    await expect(library.locator('.entry-card')).toHaveCount(1)
+    await library.close()
+  })
+
+  test('opening the reading view from a highlight counts as reopening the entry (metrics.md §9)', async ({ page, context, extensionId }) => {
+    await saveClip(page, extensionId, 'ent_hl_read', 'Backoff with jitter spreads the load.')
+    const highlighted = await page.evaluate(() =>
+      chrome.runtime.sendMessage({
+        type: 'ADD_HIGHLIGHT',
+        id: 'ent_hl_read',
+        highlight: { id: 'hl_r', start: 0, end: 7, quote: 'Backoff', color: 'yellow', createdAt: Date.now() },
+      }),
+    )
+    expect(highlighted.success).toBe(true)
+
+    const library = await context.newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/highlights`)
+    await expect(library.locator('.hl-row')).toHaveCount(1)
+    expect(await metricsOf(context, 'entry.reopened')).toEqual({})
+    await library.locator('.hl-row').click()
+    await expect(library.locator('.reading')).toBeVisible()
+    await expect.poll(() => metricsOf(context, 'entry.reopened')).toEqual({ 'type=clip': 1 })
+    await library.close()
+  })
 })

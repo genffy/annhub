@@ -64,6 +64,10 @@ export interface SaveScreenshotMessage extends BaseMessage {
     height: number
     sourceUrl: string
     title: string
+    /** Page meta for screenshot-checked presets (entry.md §5.4); absent when the page has none. */
+    author?: string[]
+    published?: string
+    description?: string
   } & CaptureAttribution
 }
 
@@ -221,6 +225,7 @@ export interface RecordEventMessage extends BaseMessage {
   props: MetricEventProps
 }
 
+/** Answers `MetricsPanelData`: per-event totals plus the metrics.md §5 summaries for the settings panel. */
 export interface GetMetricsMessage extends BaseMessage {
   type: 'GET_METRICS'
 }

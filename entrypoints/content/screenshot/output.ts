@@ -508,6 +508,15 @@ export function downloadExtension(format: DownloadFormat): string {
 }
 
 /**
+ * The format a download actually carries: `toDataURL`/`toBlob` answer a codec the browser cannot encode with
+ * PNG instead of an error, so the dataUrl's own prefix is the truth (screenshot.md §5 — fall back to PNG and
+ * say so, never hand the worker a jpeg name over png bytes).
+ */
+export function downloadFormatFor(format: DownloadFormat, dataUrl: string): DownloadFormat {
+  return format !== 'png' && !dataUrl.startsWith(`data:${downloadMime(format)}`) ? 'png' : format
+}
+
+/**
  * JPEG has no alpha (screenshot.md §4.2): anything transparent in the canvas — a transparent beautify
  * background, rounded corners, an element captured without a background of its own — would come out black.
  * Painted on white first, an opaque canvas is unchanged. Whatever the settings say, a JPEG always goes

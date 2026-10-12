@@ -9,6 +9,7 @@ import {
   decodeWatermarkImage,
   DEFAULT_BEAUTIFY,
   downloadExtension,
+  downloadFormatFor,
   downloadMime,
   gradientLine,
   matteOnWhite,
@@ -724,5 +725,18 @@ describe('JPEG matting (screenshot.md §4.2)', () => {
     expect(out).toMatchObject({ width: 640, height: 360 })
     // white first, the picture on top: transparent pixels end up white, opaque ones are untouched
     expect(calls).toEqual(['fillRect #ffffff 0,0 640x360', 'drawImage'])
+  })
+})
+
+describe('download format fallback (screenshot.md §5)', () => {
+  it('keeps the requested format when the dataUrl matches it', () => {
+    expect(downloadFormatFor('png', 'data:image/png;base64,AAA')).toBe('png')
+    expect(downloadFormatFor('jpeg', 'data:image/jpeg;base64,AAA')).toBe('jpeg')
+    expect(downloadFormatFor('webp', 'data:image/webp;base64,AAA')).toBe('webp')
+  })
+
+  it('answers PNG when the browser silently encoded PNG for another format', () => {
+    expect(downloadFormatFor('jpeg', 'data:image/png;base64,AAA')).toBe('png')
+    expect(downloadFormatFor('webp', 'data:image/png;base64,AAA')).toBe('png')
   })
 })

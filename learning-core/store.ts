@@ -19,6 +19,7 @@ import {
   builtinDefinition,
   canonicalizeProperties,
   countPropertyUsage,
+  FIXED_PRESET_PROPERTIES,
   mergeNewDefinitions,
   propertyStorageKey,
   removePropertyValue,
@@ -105,6 +106,9 @@ export interface OrphanReport {
   entriesWithMissingAssets: { id: string; assetId: string }[]
 }
 
+/** The one place the IndexedDB schema version lives; the worker's log quotes it. */
+export const DB_VERSION = 3
+
 export interface LibraryFacets {
   counts: { all: number; clips: number; screenshots: number; highlights: number }
   hosts: string[]
@@ -133,7 +137,7 @@ export class EntryStore {
 
   async initialize(): Promise<void> {
     if (this.db) return
-    this.db = await openDB<AnnHubDB>(this.dbName, 3, {
+    this.db = await openDB<AnnHubDB>(this.dbName, DB_VERSION, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           const entries = db.createObjectStore('entries', { keyPath: 'id' })
@@ -308,9 +312,14 @@ export class EntryStore {
       const key = propertyStorageKey(def.name)
       const builtin = builtinDefinition(def.name)
       if (builtin) {
-        // built-ins: name and type are fixed; presets and defaultValue may change
+        // built-ins: name and type are fixed; presets and defaultValue may change —
+        // except title/tags, whose presets are fixed for both types (entry.md §5.4)
         validatePropertyDefinition(def)
-        const next: PropertyDefinition = { ...builtin, presets: def.presets }
+        const fixed = FIXED_PRESET_PROPERTIES.includes(builtin.name)
+        const next: PropertyDefinition = {
+          ...builtin,
+          presets: fixed ? builtin.presets : [...new Set(def.presets.filter(preset => preset === 'clip' || preset === 'screenshot'))],
+        }
         if (def.defaultValue !== undefined) next.defaultValue = def.defaultValue
         else delete next.defaultValue
         await tx.store.put(next, key)

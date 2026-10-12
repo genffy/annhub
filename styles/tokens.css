@@ -1,7 +1,7 @@
 /*
  * Extension surface tokens (docs/v2/visual.md): one brand-purple accent,
  * neutral surfaces, light and dark sets that follow the system. The names and
- * values match the in-page window tokens in entrypoints/content/capture/theme.tsx.
+ * values match the in-page overlay tokens in entrypoints/content/content.css.
  */
 :root {
   color-scheme: light dark;

@@ -62,11 +62,14 @@ export class ScreenshotService implements IService {
       DOWNLOAD_IMAGE: async (message, sender): Promise<ResponseMessage> => {
         if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
         try {
-          const iso = new Date().toISOString().replace(/[:.]/g, '-')
+          // local time, like the export filename (storage.md §6): a UTC stamp crosses a day near midnight
+          const now = new Date()
+          const pad = (n: number) => String(n).padStart(2, '0')
+          const stamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}-${String(now.getMilliseconds()).padStart(3, '0')}`
           const extension = message.extension ?? 'png'
           if (extension !== 'png' && extension !== 'jpg' && extension !== 'webp') throw new EntryValidationError('ENTRY_ASSET_MISSING')
           decodeImageDataUrl(message.dataUrl, extension === 'jpg' ? 'jpeg' : extension)
-          const downloadId = await this.downloadDataUrl(message.dataUrl, `AnnHub/screenshot-${iso}.${extension}`)
+          const downloadId = await this.downloadDataUrl(message.dataUrl, `AnnHub/screenshot-${stamp}.${extension}`)
           await recordEvent('screenshot.downloaded', {
             format: extension === 'jpg' ? 'jpeg' : extension,
             watermark: message.watermark === true,
@@ -95,7 +98,7 @@ export class ScreenshotService implements IService {
       SAVE_SCREENSHOT: async (message, sender): Promise<ResponseMessage> => {
         if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
         try {
-          const { id, dataUrl, sourceUrl, title, via, frame, durationMs, startedAt } = message.data
+          const { id, dataUrl, sourceUrl, title, author, published, description, via, frame, durationMs, startedAt } = message.data
           const { bytes, width, height } = decodePngDataUrl(dataUrl)
           const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'image/png' })
           const store = await initializedEntryStore()
@@ -106,7 +109,14 @@ export class ScreenshotService implements IService {
             type: 'screenshot',
             content: '',
             sourceUrl: cleanSourceUrl(sourceUrl),
-            properties: presetProperties('screenshot', registry, { title }),
+            // only the screenshot presets attach (entry.md §5.4); page meta
+            // for unchecked presets is dropped, title comes with its own fallback
+            properties: presetProperties('screenshot', registry, {
+              title,
+              ...(author ? { author } : {}),
+              ...(published ? { published } : {}),
+              ...(description ? { description } : {}),
+            }),
             asset: { bytes: blob, width, height },
           })
           await recordCaptureSaved({

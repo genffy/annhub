@@ -19,7 +19,7 @@
 
 ## 领域接线
 
-- `services/entries` 只做消息到 `learning-core/store` 的适配：保存前 `cleanSourceUrl` 去令牌参数、按注册表附加类型预设，不复制领域规则。属性筛选、排序、分页全部经 `learning-core/query`。
+- `services/entries` 只做消息到 `learning-core/store` 的适配：保存前 `cleanSourceUrl` 去令牌参数、按注册表附加类型预设，不复制领域规则。预设是唯一的入口：页面提取值只对预设内的属性生效（`presetProperties`），取消的预设不再写入；`SAVE_SCREENSHOT` 同样带页面 meta（author/published/description），给勾了截图预设的属性取值（entry.md §5.4）。属性筛选、排序、分页全部经 `learning-core/query`。
 - 查询路径：`QUERY_ENTRIES` 无筛选、无搜索词的首页走 `by-created` 索引游标，只取一页；其余经 `store.indexedQuery`，读内存里的摘要，带搜索词才读检索文本。`QUERY_FACETS` 读摘要，一次返回计数、来源与标签候选、高亮总数，不让页面为此取回整库。`LIST_PROPERTIES` 默认只读注册表，`includeUsage` 才统计使用数。列表响应里的条目正文截到 500 字符，阅读与抽屉用 `GET_ENTRY` 取全文。摘要与检索文本的维护规则见 `learning-core/AGENTS.md`。
 - ZIP 导出不在后台：资料库页面用同源 IndexedDB 与 `buildExport` 逐个 Blob 构造 ZIP，把 Blob URL 交给 `chrome.downloads.download`。后台没有导出消息（根 `AGENTS.md` 第 2 条）。
 - `services/screenshot`：`CAPTURE_VISIBLE_TAB` 只拍发送者所在窗口且前后各查一次活动状态，不要用 `WINDOW_ID_CURRENT`；浏览器每秒只给两次截取，第三次被拒（错误里带 `MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`）时回 `CAPTURE_RATE_LIMITED`，由页面里的截图会话等过这一秒再要；worker 里不等待，它的定时器可能晚几秒才触发；`FETCH_IMAGE` 持有 `<all_urls>` 的网络位置，只经 `fetch-policy.ts`（公网 http(s)、不带凭据、只返回不超过 `MAX_IMAGE_BYTES` 的图片、重定向后再查一次）。`DOWNLOAD_IMAGE` 只收 `png`/`jpg`/`webp` 和与扩展名相符的字节；`SAVE_SCREENSHOT` 校验 PNG 签名，宽高以解码结果为准，空字节拒绝。

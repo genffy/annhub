@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { clearLibrary, getEntries, selectUntilMenu, triggerBlockMode, triggerScreenshot } from './helpers'
+import { clearLibrary, getEntries, hoverForCapsule, selectUntilMenu, textContrast, triggerBlockMode, triggerScreenshot } from './helpers'
 
 /**
  * Page-entry boundaries (RV-CAP-04, RV-CAP-05): editable areas never offer
@@ -39,6 +39,30 @@ test.describe('editable areas (capture.md §3, US-CAP-01)', () => {
     const menu = await selectUntilMenu(page, '#plain')
     await expect(menu).toBeVisible()
     await page.keyboard.press('Escape')
+  })
+})
+
+test.describe('overlay appearance follows the system (visual.md §2)', () => {
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`the selection menu carries the ${scheme} surface and stays readable`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme })
+      await page.goto('http://localhost:8173/editable.html')
+      const menu = await selectUntilMenu(page, '#plain')
+      const background = await menu.evaluate(node => getComputedStyle(node).backgroundColor)
+      expect(background, scheme).toBe(scheme === 'dark' ? 'rgb(31, 33, 39)' : 'rgb(255, 255, 255)')
+      // every action's label reads at 4.5:1 or more on it (extension.md §7.2)
+      for (const ratio of await textContrast(menu.locator('.ann-menu-action'))) expect(ratio, `an action label (${scheme})`).toBeGreaterThanOrEqual(4.5)
+      await page.keyboard.press('Escape')
+    })
+  }
+
+  test('the block capsule follows the system the same way', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'dark' })
+    await page.goto('http://localhost:8173/capture.html')
+    const capsule = await hoverForCapsule(page, '#intro-p')
+    const background = await capsule.evaluate(node => getComputedStyle(node).backgroundColor)
+    expect(background).toBe('rgb(31, 33, 39)')
+    for (const ratio of await textContrast(capsule.locator('button:not(:first-child)'))) expect(ratio).toBeGreaterThanOrEqual(4.5)
   })
 })
 

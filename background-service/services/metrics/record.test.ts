@@ -44,6 +44,15 @@ describe('capture.saved (D-22)', () => {
     expect(byProps['block_kind=code|duration=1.5-5s|level_changed=true|truncated=false|type=clip|via=block']).toBe(1)
   })
 
+  it('answers the panel in one read: event totals plus the metrics.md §5 summaries', async () => {
+    const { recordCaptureSaved, metricsPanel } = await recorders()
+    await recordCaptureSaved({ type: 'clip', via: 'menu', durationMs: 120 })
+    const panel = await metricsPanel()
+    expect(panel.events['capture.saved']?.total).toBe(1)
+    expect(panel.summaries.timing.selection.count).toBe(1)
+    expect(panel.summaries.activation.firstSaveDay).toBeTypeOf('string')
+  })
+
   it('never lets a measuring failure break the save it measures', async () => {
     const { recordCaptureSaved } = await recorders()
     await expect(recordCaptureSaved({ type: 'clip', via: 'sideways' as never, durationMs: 10 })).resolves.toBeUndefined()

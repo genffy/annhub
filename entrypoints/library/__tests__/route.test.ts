@@ -14,13 +14,11 @@ describe('route read/write round-trip (extension.md §2.2, RV-LIB-01)', () => {
     expect(route).toMatchObject({
       view: 'clips',
       search: 'lockstep',
-      host: 'a.example',
-      tag: 'retry',
-      prop: 'rating',
-      op: 'gt',
-      val: '2',
+      hosts: ['a.example'],
+      tags: ['retry'],
+      conditions: [{ prop: 'rating', op: 'gt', val: '2', val2: '' }],
       from: '2026-01-01',
-      color: 'blue',
+      colors: ['blue'],
       entryId: 'ent_1',
     })
   })
@@ -33,15 +31,15 @@ describe('route read/write round-trip (extension.md §2.2, RV-LIB-01)', () => {
     const filters = {
       ...EMPTY_FILTERS,
       search: 'needle',
-      host: 'h.example',
-      tag: 't',
-      prop: 'rating',
-      op: 'between',
-      val: '1',
-      val2: '5',
+      hosts: ['h.example', 'other.example'],
+      tags: ['t'],
+      conditions: [
+        { prop: 'rating', op: 'between', val: '1', val2: '5' },
+        { prop: 'project', op: 'contains', val: '支付', val2: '' },
+      ],
       from: '2026-01-01',
       to: '2026-02-01',
-      color: 'green',
+      colors: ['green', 'blue'],
     }
     const hash = listHash({ view: 'screenshots', ...filters })
     expect(readHash(hash)).toMatchObject({ view: 'screenshots', ...filters })
@@ -83,6 +81,31 @@ describe('route read/write round-trip (extension.md §2.2, RV-LIB-01)', () => {
   })
 })
 
+describe('multi-select dimensions stay aligned (search.md §3)', () => {
+  it('repeated params read as one dimension with several values', () => {
+    expect(readHash('#/all?host=a.example&host=b.example&tag=x&tag=y&color=blue&color=pink')).toMatchObject({
+      hosts: ['a.example', 'b.example'],
+      tags: ['x', 'y'],
+      colors: ['blue', 'pink'],
+    })
+  })
+
+  it('conditions keep their prop/op/val/val2 pairing across round trips', () => {
+    const conditions = [
+      { prop: 'rating', op: 'between', val: '1', val2: '5' },
+      { prop: 'project', op: 'equals', val: '支付', val2: '' },
+    ]
+    const hash = listHash({ view: 'all', ...EMPTY_FILTERS, conditions })
+    expect(readHash(hash).conditions).toEqual(conditions)
+  })
+
+  it('a one-condition URL from before the multi-select UI still reads', () => {
+    expect(readHash('#/all?prop=project&op=contains&val=x')).toMatchObject({
+      conditions: [{ prop: 'project', op: 'contains', val: 'x', val2: '' }],
+    })
+  })
+})
+
 describe('which views list, and when a filter is on (extension.md §2.3, §5)', () => {
   it('only the four list views carry the search and filter bar', () => {
     for (const view of ['all', 'clips', 'highlights', 'screenshots'] as const) expect(isListView(view), view).toBe(true)
@@ -94,8 +117,15 @@ describe('which views list, and when a filter is on (extension.md §2.3, §5)', 
   })
 
   it('each of search, source, tag, property and time turns it on', () => {
-    const on = { search: 'x', host: 'a.example', tag: 't', prop: 'title', from: '2026-01-01', to: '2026-02-01' }
-    for (const [field, value] of Object.entries(on)) expect(hasActiveFilter({ view: 'clips', ...EMPTY_FILTERS, [field]: value }), field).toBe(true)
+    const on: [string, Partial<Parameters<typeof hasActiveFilter>[0]>][] = [
+      ['search', { search: 'x' }],
+      ['host', { hosts: ['a.example'] }],
+      ['tag', { tags: ['t'] }],
+      ['prop', { conditions: [{ prop: 'title', op: 'contains', val: '', val2: '' }] }],
+      ['from', { from: '2026-01-01' }],
+      ['to', { to: '2026-02-01' }],
+    ]
+    for (const [field, patch] of on) expect(hasActiveFilter({ view: 'clips', ...EMPTY_FILTERS, ...patch }), field).toBe(true)
   })
 
   it('the type is a filter of the all view only: the other views are one type already', () => {
@@ -105,12 +135,12 @@ describe('which views list, and when a filter is on (extension.md §2.3, §5)', 
   })
 
   it('the colour is a filter of the highlights view only', () => {
-    expect(hasActiveFilter({ view: 'highlights', ...EMPTY_FILTERS, color: 'blue' })).toBe(true)
-    expect(hasActiveFilter({ view: 'clips', ...EMPTY_FILTERS, color: 'blue' })).toBe(false)
+    expect(hasActiveFilter({ view: 'highlights', ...EMPTY_FILTERS, colors: ['blue'] })).toBe(true)
+    expect(hasActiveFilter({ view: 'clips', ...EMPTY_FILTERS, colors: ['blue'] })).toBe(false)
   })
 
   it('an operator or value without a property filters nothing', () => {
-    expect(hasActiveFilter({ view: 'all', ...EMPTY_FILTERS, op: 'contains', val: 'x', val2: 'y' })).toBe(false)
+    expect(hasActiveFilter({ view: 'all', ...EMPTY_FILTERS, conditions: [{ prop: '', op: 'contains', val: 'x', val2: 'y' }] })).toBe(false)
   })
 
   it('clearing the filters turns every one of them off, the colour included', () => {
