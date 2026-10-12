@@ -57,7 +57,7 @@ export default function Problem({ copy }: { copy: LandingCopy }) {
           <ol className="border-y border-line">
             {problem.items.map((item, i) => (
               <li key={item.title} className="grid grid-cols-[40px_minmax(0,1fr)] gap-x-4 border-b border-line py-8 last:border-b-0 sm:grid-cols-[56px_minmax(0,1fr)]">
-                <span className="pt-1.5 font-mono text-[13px] text-fg-4">0{i + 1}</span>
+                <span className="pt-1.5 font-mono text-[13px] text-fg-3">0{i + 1}</span>
                 <div>
                   <h3 className="text-[21px] font-semibold leading-snug text-fg sm:text-[24px]">{item.title}</h3>
                   <p className="mt-2 max-w-[520px] text-[16px] leading-7 text-fg-3">{item.body}</p>
