@@ -8,9 +8,8 @@ export const en: LandingCopy = {
   meta: {
     title: 'AnnHub — Keep what’s worth keeping from the web in one local library',
     description: 'A local-first browser extension that keeps clips, highlights and screenshots with their source in one library, sorted by properties and exportable as Markdown.',
-    ogTitle: 'AnnHub — A local-first library for clips, highlights and screenshots',
-    ogDescription: 'Saving is easy. Finding it again, and telling it apart, is the hard part.',
-    updated: '2026-10-09',
+    ogImageAlt: 'Interface illustration based on the v2 design, using sample data',
+    updated: '2026-10-12',
   },
   header: {
     nav: [

@@ -41,13 +41,18 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       apple: '/icon.png',
     },
     openGraph: {
-      title: meta.ogTitle,
-      description: meta.ogDescription,
+      // Same words as the page's own title and description (docs/v2/seo-geo.md §1 原则 3): no second version of the copy.
+      title: meta.title,
+      description: meta.description,
       type: 'website',
       siteName: 'AnnHub',
       url: `/${lang}`,
       locale: lang === 'zh-CN' ? 'zh_CN' : 'en_US',
       alternateLocale: lang === 'zh-CN' ? ['en_US'] : ['zh_CN'],
+      images: [{ url: `/og/${lang}.png`, width: 1200, height: 630, alt: meta.ogImageAlt }],
+    },
+    twitter: {
+      card: 'summary_large_image',
     },
   }
 }

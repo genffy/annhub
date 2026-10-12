@@ -42,10 +42,10 @@
 
 ### 3.3 标题、描述与社交卡片
 
-- 每个语言页有自己的标题和描述。标题以 AnnHub 开头，后接 [website.md §4](website.md) 的第一句；描述按第 4.1 节从产品定义压缩而来。
+- 每个语言页有自己的标题和描述。标题以 AnnHub 开头，后接 [website.md §4](website.md) 的第一句；描述按第 4.1 节从产品定义压缩而来。社交卡片的标题与描述用同一份，不另写。
 - 品牌名在标题、`og:site_name` 与 H1 里写法一致。Google 的站点名称结构化数据只认域名根地址，而根路径只做跳转，所以不依赖它（[market.md §4.6](market.md)）。
 - 社交卡片：`og:title`、`og:description`、`og:url`（规范地址）、`og:type`、`og:site_name`、`og:locale` 与 `og:locale:alternate`、`og:image` 与 `og:image:alt`；`twitter:card` 为 `summary_large_image`，标题、描述与图片沿用 OG。
-- 社交卡片图：中英文各一张，1200×630 像素、300KB 以内，使用绝对地址；画面是产品窗口示意、品牌名与一句定位，使用示例数据并标注为示意（[website.md §10](website.md)）。
+- 社交卡片图：中英文各一张，1200×630 像素、300KB 以内，使用绝对地址；画面是产品窗口示意、品牌名与一句定位，使用示例数据并标注为示意，附社交账号（x.com/genffy、小红书 genffy，中文卡两者、英文卡只留 x）。（[website.md §10](website.md)）图片在 `website/public/og/`，由 `website/scripts/og-cards/` 的模板生成，改文案或设计后重新截图。
 
 ### 3.4 `robots.txt`
 
