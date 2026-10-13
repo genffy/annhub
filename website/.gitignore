@@ -10,5 +10,6 @@
 # vercel
 .vercel
 
-# next-env.d.ts
+# Next.js generates declarations for the active dev/build output directory.
+/next-env.d.ts
 *.tsbuildinfo

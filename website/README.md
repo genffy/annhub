@@ -35,6 +35,8 @@ npm run dev
 
 开发时直接访问 `http://localhost:3001/en` 或 `/zh-CN`。技术栈是 Next.js 16、React 19 和 next-intl 4，Node.js 版本以仓库根目录 `.node-version` 为准。`npm run lint` 直接运行 ESLint。页面在构建时导出成静态文件；本地快速开发用 Next.js，验收路由用下面的静态预览。
 
+`next-env.d.ts` 由 Next.js 自动生成并被 Git 忽略；开发与构建会分别引用 `.next/dev/types` 和 `.next/types`，不手改或提交这个文件。`npm run typecheck` 先运行 `next typegen` 再运行 TypeScript，干净检出也能检查。
+
 `npm run dev` 会即时编译，并在每次请求时重新渲染这个包含大量产品界面元素的页面，因此首访和刷新都比生产构建慢；开发模式的 React 还会为元素记录调用栈。走查区只挂载当前步骤的场景，减少浏览器首次加载的 DOM 和观察器数量。检查访客实际得到的版式、滚动和交互流畅度时，用 `npm run build && npm run start` 看导出的页面。CPU 被别的进程占满时（先看 `uptime` 的负载和活动监视器），开发模式会被放大得更明显。
 
 ## 构建
@@ -97,4 +99,4 @@ components/product/sample.ts      示例数据，取自 docs/v2/examples.md 的�
 
 **渲染方式**：两个语言的页面在构建时预渲染成静态 HTML。`app/[locale]/layout.tsx` 和 `page.tsx` 里的 `setRequestLocale(locale)` 就是为此而写：去掉它，next-intl 会去读请求头，页面退回按请求渲染。客户端组件只有这几个：`Fit`（把像素定位的场景缩到容器宽度）、`StoryStepper`（走查的步骤切换，只挂载当前场景）、`LibraryTour`（可操作的资料库，数据只在内存里，刷新即重置）、`AnalyticsConsent`（同意卡片，要读 Cookie 和本地存储，所以服务器上不渲染任何东西）和 `AnalyticsSettings`（页脚的「统计设置」）。
 
-**验证**：`npm run lint`、`npx tsc --noEmit`、`npm run build`；官网的单测在仓库根目录的 `utils/__tests__/website*.test.ts`，随根目录的 `npm test` 运行。涉及版式的改动，用真实浏览器在 390、820、1024、1280、1440 和 1920 宽度各看一遍，中英文都看；只看一个宽度会漏掉场景缩放和英文长文案带来的问题。
+**验证**：`npm run lint`、`npm run typecheck`、`npm run build`；官网的单测在仓库根目录的 `utils/__tests__/website*.test.ts`，随根目录的 `npm test` 运行。涉及版式的改动，用真实浏览器在 390、820、1024、1280、1440 和 1920 宽度各看一遍，中英文都看；只看一个宽度会漏掉场景缩放和英文长文案带来的问题。
