@@ -1,6 +1,4 @@
 import { describe, expect, it } from 'vitest'
-// Next.js is installed in website/ only.
-import { NextRequest } from '../../website/node_modules/next/server.js'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
@@ -33,22 +31,10 @@ describe('robots.txt', () => {
 })
 
 describe('language versions', () => {
-  const redirect = async (languages?: string) => {
-    const { default: proxy } = await import('../../website/proxy')
-    const response = proxy(new NextRequest('https://annhub.org/', { headers: languages ? { 'accept-language': languages } : {} }))
-    return new URL(response.headers.get('location') ?? '', 'https://annhub.org').pathname
-  }
-
-  it('send a browser language that is neither Chinese nor English to the English page', async () => {
-    expect(await redirect('de-DE')).toBe('/en')
-    expect(await redirect('ja,en;q=0.5')).toBe('/en')
-    expect(await redirect()).toBe('/en')
-    expect(await redirect('zh-TW,zh;q=0.9')).toBe('/zh-CN')
-    expect(read('website/app/[locale]/layout.tsx')).toMatch(/'x-default': '\/en'/)
-  })
-
-  it('are declared once, in the HTML: the proxy adds no Link header', async () => {
-    const { default: proxy } = await import('../../website/proxy')
-    expect(proxy(new NextRequest('https://annhub.org/en')).headers.get('link')).toBeNull()
+  it('declares both languages and an English fallback in the HTML', () => {
+    const layout = read('website/app/[locale]/layout.tsx')
+    expect(layout).toMatch(/'x-default': '\/en'/)
+    expect(layout).toContain("'zh-CN': '/zh-CN'")
+    expect(layout).toContain("'en': '/en'")
   })
 })

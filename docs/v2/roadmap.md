@@ -2,7 +2,7 @@
 
 > 层级：vision
 > 状态：当前计划；交付状态的唯一入口
-> 更新：2026-10-12
+> 更新：2026-10-13
 
 本文是阶段顺序、发布范围、交付状态和发布门禁的唯一真源。页面体验见 [扩展](extension.md)，字段见 [条目契约](entry.md) 和 [存储](storage.md)。尚未验证的假设与待确认的路线调整见 [validation.md](validation.md)。代码按本目录的契约实现；与契约不符的代码、消息、设置、测试入口和文案，在实现时一并删除。
 
@@ -162,7 +162,8 @@ R1 与 R2 先补齐第 5 节的真机走查项并准备内测分发，然后进�
 - [x] `robots.txt`（含内容信号）与 `sitemap.xml`（§3.4、§3.5）。
 - [x] Cloudflare 的三类 AI 爬虫策略都是 Allow（§6）：在 Cloudflare 后台设置，仓库里核对不到。
 - [x] 访问统计按访客的选择加载，Cloudflare 判断在欧洲或判断不出国家的访客先看到同意卡片，隐私政策第 9 节写明（§7.1、[permissions.md §8](permissions.md)、[website.md §19](website.md)）；站点令牌写进生产构建的环境。
-- [x] Cloudflare 侧开启访问统计：Web Analytics 只用手动嵌入、关掉自动注入，Network 里的 IP Geolocation 开启（[部署说明](../../website/README.md)的“访问统计”）。
+- [x] Cloudflare 侧开启访问统计：Web Analytics 只用手动嵌入、关掉自动注入（[部署说明](../../website/README.md)）。
+- [ ] 静态托管上线验收：候选站点、生产域名切换、部署提交标识、语言跳转与真实欧洲/非欧洲的统计同意行为全部通过（[上线步骤](../../cloudflare/README.md)）。
 - [x] `FAQPage` 结构化数据（§5.1）：文字取自页面 FAQ，竞品答案带核对日期。
 - [x] 一周走查每一步的正文都在构建生成的 HTML 标记里（§4.3）：非激活步骤的正文渲染后用 `hidden` 隐藏；资料库演示窗口随滚动懒挂载，提示与要点作为服务端内容留在标记里。
 - [x] 实验室性能验收（§3.6）：Lighthouse 移动端配置，两个语言页各测三次取中位数。2026-10-12 生产源实测全部过门槛：`/en` LCP 1739ms、CLS 0、TBT 102ms（性能分 98），`/zh-CN` LCP 2468ms、CLS 0、TBT 52ms（性能分 91）；部署前旧版 `/en` 基线为 LCP 2556ms、TBT 154ms（性能分 90）。

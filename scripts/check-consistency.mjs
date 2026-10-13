@@ -2,7 +2,7 @@
 // Checks that settings which have to agree across files still agree.
 //
 // Environment, dependency, build and deploy settings live in several files at once: the Node.js
-// version in `.node-version`, `netlify.toml` and the README; the Next.js major in
+// version in `.node-version`, the CI setup and the README; the Next.js major in
 // `website/package.json` and the docs; the package directories in Dependabot and the audit
 // workflow. Changing one place and missing the others is a recurring failure that neither the type
 // checker nor the unit tests see, so every coupling that can be read mechanically is an assertion
@@ -12,12 +12,13 @@
 //   node scripts/check-consistency.mjs --root <dir>   check another tree (the tests do)
 //
 // A failure means a related place was missed: update it. Do not delete the assertion, loosen its
-// pattern or add an exception to get green. A new coupling gets a new assertion. No dependencies.
+// pattern or add an exception to get green. A new coupling gets a new assertion.
 
 import { execFileSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parse as parseYaml } from 'yaml'
 
 const rootFlag = process.argv.indexOf('--root')
 const root = rootFlag === -1 ? resolve(dirname(fileURLToPath(import.meta.url)), '..') : resolve(process.argv[rootFlag + 1] ?? '.')
@@ -73,9 +74,8 @@ const manifests = files
   .map(file => ({ file, directory: file === 'package.json' ? '' : file.slice(0, -'/package.json'.length), json: readJson(file) ?? {} }))
 const dependenciesOf = ({ json }) => ({ ...json.dependencies, ...json.devDependencies })
 const nextApps = manifests.filter(manifest => dependenciesOf(manifest).next !== undefined)
-const NEXT_RUNTIME = '@netlify/plugin-nextjs'
 
-/** `/` for the repository root, `/website` for a subdirectory: how Dependabot and Netlify write them. */
+/** `/` for the repository root, `/website` for a subdirectory: how Dependabot writes them. */
 const normalizeDirectory = directory => {
   const clean = directory.replace(/^\.?\/*|\/+$/g, '')
   return clean === '' ? '/' : `/${clean}`
@@ -95,87 +95,6 @@ function allows(range, major) {
   const pinned = /^[\^~]?\s*v?(\d+)(\.(\d+|x|\*))*$/.exec(text)
   if (pinned) return major === Number(pinned[1])
   return null
-}
-
-/** The subset of TOML that netlify.toml uses: tables, arrays of tables and scalar values. */
-function parseToml(text) {
-  const tables = {}
-  const arrays = {}
-  let current = {}
-  text.split('\n').forEach((raw, index) => {
-    const line = raw.trim()
-    if (!line || line.startsWith('#')) return
-    const at = `netlify.toml:${index + 1}`
-    const arrayHeader = /^\[\[([^\]]+)\]\]$/.exec(line)
-    if (arrayHeader) {
-      current = {}
-      ;(arrays[arrayHeader[1].trim()] ??= []).push(current)
-      return
-    }
-    const header = /^\[([^\]]+)\]$/.exec(line)
-    if (header) {
-      current = tables[header[1].trim()] ??= {}
-      return
-    }
-    const pair = /^([A-Za-z0-9_-]+|"[^"]*")\s*=\s*(.*)$/.exec(line)
-    if (!pair) throw new Error(`${at}: cannot read this line; the check understands tables, arrays of tables and scalar values. Extend parseToml before using more of TOML`)
-    current[pair[1].replace(/^"|"$/g, '')] = parseValue(pair[2].trim(), at)
-  })
-  return { tables, arrays }
-}
-
-/** Whether a bracketed value ends on the line it starts on; brackets inside strings do not count. */
-function closesOnThisLine(value) {
-  let depth = 0
-  let quote = null
-  for (let index = 0; index < value.length; index++) {
-    const char = value[index]
-    if (quote) {
-      if (quote === '"' && char === '\\') index++
-      else if (char === quote) quote = null
-    } else if (char === '"' || char === "'") {
-      quote = char
-    } else if (char === '#') {
-      break
-    } else if (char === '[' || char === '{') {
-      depth++
-    } else if (char === ']' || char === '}') {
-      depth--
-    }
-  }
-  return depth === 0 && quote === null
-}
-
-function parseValue(value, at) {
-  if (value.startsWith('"""') || value.startsWith("'''")) throw new Error(`${at}: multi-line strings are not supported by this check`)
-  if (value.startsWith('"')) {
-    const escapes = { n: '\n', t: '\t' }
-    let text = ''
-    for (let index = 1; index < value.length; index++) {
-      const char = value[index]
-      if (char === '"') return text
-      if (char === '\\') {
-        index++
-        text += escapes[value[index]] ?? value[index]
-      } else {
-        text += char
-      }
-    }
-    throw new Error(`${at}: unterminated string`)
-  }
-  if (value.startsWith("'")) {
-    const end = value.indexOf("'", 1)
-    if (end === -1) throw new Error(`${at}: unterminated string`)
-    return value.slice(1, end)
-  }
-  if (value.startsWith('[') || value.startsWith('{')) {
-    // Kept raw, nothing here reads them; but one that goes on over the next lines would be mistaken for more keys.
-    if (!closesOnThisLine(value)) throw new Error(`${at}: arrays and inline tables that span several lines are not supported by this check`)
-    return value
-  }
-  const scalar = value.replace(/\s+#.*$/, '')
-  if (scalar === 'true' || scalar === 'false') return scalar === 'true'
-  return /^-?\d+$/.test(scalar) ? Number(scalar) : scalar
 }
 
 // --- Node.js: `.node-version` is the one source. -------------------------------------------------
@@ -265,111 +184,80 @@ function checkTailwind() {
   }
 }
 
-// --- Netlify: the site config has to describe the app that is really there. ----------------------
+// --- Static website: build output, edge routing and the artifact deployed by CI agree. -----------
 
-function checkNetlify() {
-  const text = read('netlify.toml')
-  if (text === null) return
-  let parsed
+function checkCloudflare() {
+  if (nextApps.length === 0) return
+  const app = nextApps[0]
+  const prefix = `${app.directory}/`
+  const configFile = `${prefix}wrangler.json`
+  const config = readJson(configFile)
+  if (!config) return fail(configFile, 'is required for the static website')
+  if (exists('netlify.toml') || dependenciesOf(app)['@netlify/plugin-nextjs']) fail(configFile, 'the static website must not retain the Netlify runtime or deployment config')
+  if (!/output:\s*['"]export['"]/.test(read(`${prefix}next.config.js`) ?? '')) fail(`${prefix}next.config.js`, 'must export static files with output: export')
+  if (exists(`${prefix}proxy.ts`) || exists(`${prefix}middleware.ts`)) fail(prefix, 'a static export cannot depend on a Next.js proxy or middleware')
+  if (config.main !== undefined || config.assets?.run_worker_first) fail(configFile, 'must serve assets without a Worker script or run_worker_first')
+  if (config.assets?.directory !== './out') fail(configFile, 'assets.directory must be ./out, the Next.js export directory')
+  if (config.assets?.html_handling !== 'none' || config.assets?.not_found_handling !== '404-page') fail(configFile, 'must retain explicit HTML aliases and real 404 responses')
+  const cli = dependenciesOf(app).wrangler
+  if (!/^\d+\.\d+\.\d+$/.test(cli ?? '')) fail(app.file, 'pin wrangler to an exact version; the deployment job reads this same value')
+  const origin = /export const SITE_ORIGIN = ['"]([^'"]+)['"]/.exec(read(`${prefix}lib/site.ts`) ?? '')?.[1]
+  if (!origin) fail(`${prefix}lib/site.ts`, 'must declare the canonical production origin')
+  else {
+    const hostname = new URL(origin).hostname
+    const actual = (config.routes ?? [])
+      .filter(route => route.custom_domain === true)
+      .map(route => route.pattern)
+      .sort()
+    if (JSON.stringify(actual) !== JSON.stringify([hostname, `www.${hostname}`].sort())) fail(configFile, 'custom domains must match SITE_ORIGIN and its www alias')
+  }
+
+  // The build wrapper reads this file only for production. The public values are not Worker runtime variables.
+  const productionFile = 'cloudflare/production.json'
+  const production = readJson(productionFile)
+  if (!production) fail(productionFile, 'is required for production build variables')
+  const reads = new Map()
+  for (const file of files.filter(file => file.startsWith(prefix) && /\.[cm]?[jt]sx?$/.test(file))) {
+    for (const [, name] of read(file).matchAll(/process\.env\.(NEXT_PUBLIC_\w+)/g)) if (!reads.has(name)) reads.set(name, file)
+  }
+  for (const [name, file] of reads) {
+    if (!(name in (production ?? {}))) fail(file, `reads ${name}, which ${productionFile} does not declare`)
+  }
+  for (const [name, value] of Object.entries(production ?? {})) {
+    if (!name.startsWith('NEXT_PUBLIC_') || typeof value !== 'string') fail(productionFile, 'may contain only public string build variables')
+    else if (!reads.has(name)) fail(productionFile, `sets ${name}, but the website does not read process.env.${name}`)
+  }
+
+  const ciFile = '.github/workflows/ci.yml'
+  let ci
   try {
-    parsed = parseToml(text)
-  } catch (error) {
-    return fail('netlify.toml', error.message)
+    ci = parseYaml(read(ciFile) ?? '')
+  } catch {
+    return fail(ciFile, 'cannot parse the website deployment workflow')
   }
-  const { tables, arrays } = parsed
-  const build = tables.build ?? {}
-  const base = String(build.base ?? '').replace(/^\/+|\/+$/g, '')
-  const app = nextApps.find(({ directory }) => directory === base)
-
-  if (nextApps.length > 0 && !app) {
-    const where = nextApps.map(({ directory }) => normalizeDirectory(directory)).join(', ')
-    fail(
-      'netlify.toml',
-      `[build] base is "${base || '/'}", but the Next.js app is in ${where}. Netlify installs dependencies, and looks for the Next.js runtime plugin, in the base directory; anywhere else it installs a copy of its own choosing, the legacy v4 for Next.js before 13.5`,
-    )
+  const website = ci?.jobs?.website
+  const deploy = ci?.jobs?.['deploy-website']
+  const upload = website?.steps?.find(step => step.uses?.startsWith('actions/upload-artifact@'))
+  const download = deploy?.steps?.find(step => step.uses?.startsWith('actions/download-artifact@'))
+  if (!upload || upload.with?.path !== `${prefix}out/` || upload.with?.['retention-days'] !== 1) fail(ciFile, 'upload the website/out/ artifact with one-day retention')
+  if (!upload?.with?.name?.includes('github.sha') || download?.with?.name !== upload?.with?.name || download?.with?.path !== `${prefix}out/`)
+    fail(ciFile, 'download the artifact for the same commit into website/out/')
+  const productionBuild = website?.steps?.find(step => step.run?.includes('npm run build -- --production'))
+  if (!productionBuild?.env?.BUILD_PRODUCTION?.includes("github.ref == 'refs/heads/main'") || !productionBuild.env.BUILD_PRODUCTION.includes("github.event_name == 'push'"))
+    fail(ciFile, 'production build settings must be limited to pushes on main')
+  const condition = deploy?.if ?? ''
+  if (!["github.event_name == 'push'", "github.ref == 'refs/heads/main'", "vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'"].every(part => condition.includes(part)))
+    fail(ciFile, 'deploy only enabled production pushes on main')
+  if (!Array.isArray(deploy?.needs) || !['ci-pass', 'website'].every(job => deploy.needs.includes(job)))
+    fail(ciFile, 'website deployment must wait for ci-pass and the website artifact')
+  if (deploy?.['runs-on'] !== 'ubuntu-24.04' || deploy?.concurrency?.['cancel-in-progress'] !== false)
+    fail(ciFile, 'deploy on the standard Linux runner and serialize production deployments')
+  const commands = (deploy?.steps ?? []).map(step => step.run ?? '').join('\n')
+  if (/\bnpm run (build|website:build|verify)\b/.test(commands)) fail(ciFile, 'deployment must reuse the verified artifact, not rebuild it')
+  for (const command of ['node scripts/check-website-export.mjs', 'node scripts/cloudflare-rules.mjs --apply', 'node scripts/smoke-website.mjs']) {
+    if (!commands.includes(command)) fail(ciFile, `deployment must run ${command}`)
   }
-
-  if (app) {
-    // Netlify only loads a runtime automatically when it is installed in the site settings. Declared here and installed in the
-    // app, the lockfile decides the version; declared only, Netlify installs its own pinned copy (v4); not declared, there is none.
-    const declared = (arrays.plugins ?? []).some(plugin => plugin.package === NEXT_RUNTIME)
-    const installed = dependenciesOf(app)[NEXT_RUNTIME]
-    if (!declared) {
-      fail(
-        'netlify.toml',
-        `[[plugins]] does not declare ${NEXT_RUNTIME}. Netlify only loads the Next.js runtime by itself for sites that have it in their settings; without it the build has no runtime and deploys only the .next directory`,
-      )
-    } else if (installed === undefined) {
-      fail(
-        'netlify.toml',
-        `[[plugins]] declares ${NEXT_RUNTIME}, but ${app.file} does not depend on it, so Netlify installs a copy of its own choosing: the legacy v4 for Next.js before 13.5. Install it in the app so the lockfile decides the version`,
-      )
-    } else if (majorOf(installed) < 5) {
-      fail(app.file, `${NEXT_RUNTIME} ${installed} is the legacy runtime for Next.js before 13.5; the app is on Next.js ${majorOf(dependenciesOf(app).next)}`)
-    }
-  }
-
-  if (app) {
-    if (build.publish !== '.next') {
-      fail(
-        'netlify.toml',
-        `[build] publish is ${build.publish === undefined ? 'not set' : `"${build.publish}"`}; set it to ".next" (relative to base). That also overrides an older value in the Netlify dashboard`,
-      )
-    }
-    if (base && String(build.command ?? '').includes(`cd ${base}`)) fail('netlify.toml', `[build] command changes into "${base}", but base already is "${base}"`)
-  }
-
-  const ignore = String(build.ignore ?? '')
-  if (ignore === '') {
-    fail('netlify.toml', '[build] ignore is not set; without it every push to the production branch builds, and a change outside the base directory (this file) is never seen')
-  } else {
-    if (base && !ignore.includes(`:/${base}`))
-      fail(
-        'netlify.toml',
-        `[build] ignore must name the base as ":/${base}": it runs inside the base directory, so a plain "${base}" points at "${base}/${base}", never differs and skips every build`,
-      )
-    if (!ignore.includes('netlify.toml')) fail('netlify.toml', '[build] ignore must cover netlify.toml too, or a change to this file alone is never deployed')
-  }
-
-  const nodeVersion = tables['build.environment']?.NODE_VERSION
-  if (nodeMajor !== null) {
-    if (nodeVersion === undefined) fail('netlify.toml', '[build.environment] NODE_VERSION is not set; Netlify only reads .node-version inside the base directory')
-    else if (majorOf(nodeVersion) !== nodeMajor) fail('netlify.toml', `NODE_VERSION "${nodeVersion}" does not match .node-version (${nodeMajor})`)
-  }
-
-  // Next.js writes process.env.NEXT_PUBLIC_* into the page when it builds. A variable production is not given, or one set
-  // under a name the code no longer reads, leaves the feature behind it off without a single error.
-  if (app) {
-    const reads = new Map()
-    const prefix = app.directory ? `${app.directory}/` : ''
-    for (const file of files.filter(file => file.startsWith(prefix) && /\.[cm]?[jt]sx?$/.test(file))) {
-      for (const [, name] of read(file).matchAll(/process\.env\.(NEXT_PUBLIC_\w+)/g)) if (!reads.has(name)) reads.set(name, file)
-    }
-    const production = { ...tables['build.environment'], ...tables['context.production.environment'] }
-    for (const [name, file] of reads) {
-      if (!(name in production))
-        fail(
-          file,
-          `reads ${name}, which netlify.toml sets neither in [build.environment] nor in [context.production.environment], so production builds without it. Declare it there, empty while the feature is off`,
-        )
-    }
-    const set = Object.entries(tables)
-      .filter(([table]) => table === 'build.environment' || /^context\.[^.]+\.environment$/.test(table))
-      .flatMap(([, values]) => Object.keys(values))
-    for (const name of new Set(set)) {
-      if (name.startsWith('NEXT_PUBLIC_') && !reads.has(name))
-        fail('netlify.toml', `sets ${name}, but nothing in ${normalizeDirectory(app.directory)} reads process.env.${name}: the value never reaches the site`)
-    }
-  }
-
-  // Static files are served from the app's public/ directory, wherever base points.
-  const siteDirectory = (app ?? nextApps[0])?.directory ?? base
-  for (const redirect of arrays.redirects ?? []) {
-    const target = redirect.to
-    if (typeof target !== 'string' || !target.startsWith('/') || !target.endsWith('.html')) continue
-    const file = `${siteDirectory ? `${siteDirectory}/` : ''}public${target}`
-    if (!exists(file)) fail('netlify.toml', `the redirect ${redirect.from} -> ${target} has no file at ${file}`)
-  }
+  if (!commands.includes('devDependencies.wrangler')) fail(ciFile, 'deployment must read the pinned Wrangler version from website/package.json')
 }
 
 // --- Package directories: every one needs updates and an audit. ----------------------------------
@@ -487,7 +375,7 @@ function checkGate() {
 checkNode()
 checkNext()
 checkTailwind()
-checkNetlify()
+checkCloudflare()
 checkPackageDirectories()
 checkGate()
 

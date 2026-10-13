@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { MetadataRoute } from 'next'
+
+export const dynamic = 'force-static'
 import { PRIVACY_URL, TERMS_URL } from '@/components/landing/links'
 import { i18n } from '@/i18n/config'
 import { getLandingCopy } from '@/lib/copy'

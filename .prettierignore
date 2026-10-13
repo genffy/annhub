@@ -3,6 +3,8 @@
 .wxt
 .next
 **/.next
+website/out
+**/.wrangler
 coverage
 test-results
 playwright-report

@@ -4,13 +4,12 @@ const withNextIntl = require('next-intl/plugin')(
 )
 
 module.exports = withNextIntl({
+  output: 'export',
   // The repository root has its own lockfile; keep Turbopack from picking it as the workspace root.
   turbopack: { root: __dirname },
   images: {
-    // 在 Netlify 上禁用图片优化以避免 _next/image 404 错误
-    // Netlify 插件对图片优化的支持可能不稳定，禁用后直接使用原始图片
+    // Static hosting serves the original assets; there is no image optimization server.
     unoptimized: true,
-    // 允许所有域名（或者可以指定具体域名）
     remotePatterns: [],
   },
 })

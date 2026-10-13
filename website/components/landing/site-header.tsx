@@ -24,16 +24,15 @@ export default function SiteHeader({ copy }: { copy: LandingCopy }) {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link
+          <a
             href={header.language.href}
-            prefetch={false}
             hrefLang={header.language.href === '/en' ? 'en' : 'zh-CN'}
             lang={header.language.href === '/en' ? 'en' : 'zh-CN'}
             aria-label={header.language.aria}
             className="flex h-9 min-w-9 items-center justify-center rounded-md border border-line-2 px-2.5 text-[12px] font-semibold text-fg-2 transition-colors hover:border-brand hover:text-brand-text"
           >
             {header.language.label}
-          </Link>
+          </a>
           <a
             href={LIBRARY_URL}
             className="hidden h-9 items-center gap-1.5 rounded-md bg-brand px-3.5 text-[13px] font-semibold text-brand-fg transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_86%,#000)] sm:inline-flex"

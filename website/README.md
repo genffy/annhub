@@ -33,9 +33,9 @@ npm ci
 npm run dev
 ```
 
-默认开发地址为 `http://localhost:3001`，具体端口以 Next.js 启动输出为准。技术栈是 Next.js 16、React 19 和 next-intl 4，需要 Node.js 20.9 以上（仓库根目录 `.node-version`）。`npm run lint` 直接运行 ESLint（Next 16 已移除 `next lint`）；语言前缀路由和统计的地区 Cookie 在 `proxy.ts`（Next 16 对 `middleware` 的新称呼）。
+开发时直接访问 `http://localhost:3001/en` 或 `/zh-CN`。技术栈是 Next.js 16、React 19 和 next-intl 4，Node.js 版本以仓库根目录 `.node-version` 为准。`npm run lint` 直接运行 ESLint。页面在构建时导出成静态文件；本地快速开发用 Next.js，验收路由用下面的静态预览。
 
-`npm run dev` 会即时编译，并在每次请求时重新渲染这个包含大量产品界面元素的页面，因此首访和刷新都比生产构建慢；开发模式的 React 还会为元素记录调用栈。走查区只挂载当前步骤的场景，减少浏览器首次加载的 DOM 和观察器数量。检查访客实际得到的版式、滚动和交互流畅度时，用 `npm run build && npm run start` 看预渲染的生产页面。CPU 被别的进程占满时（先看 `uptime` 的负载和活动监视器），开发模式会被放大得更明显。
+`npm run dev` 会即时编译，并在每次请求时重新渲染这个包含大量产品界面元素的页面，因此首访和刷新都比生产构建慢；开发模式的 React 还会为元素记录调用栈。走查区只挂载当前步骤的场景，减少浏览器首次加载的 DOM 和观察器数量。检查访客实际得到的版式、滚动和交互流畅度时，用 `npm run build && npm run start` 看导出的页面。CPU 被别的进程占满时（先看 `uptime` 的负载和活动监视器），开发模式会被放大得更明显。
 
 ## 构建
 
@@ -45,27 +45,27 @@ npm run build
 npm run start
 ```
 
+构建产物在 `out/`，`npm run start` 用 Wrangler 本地服务这些文件；它不是 Next.js 服务端。两种语言、法律页的别名、静态导航数据和 404 都通过同一份产物验证。`/` 在本地回退到 `/en`；生产的浏览器语言和地区规则需要在真实 Cloudflare zone 验证，本地不能通过伪造请求头模拟 Cloudflare 国家判断。
+
 ## 部署
 
-站点由 Netlify 按仓库根目录的 [netlify.toml](../netlify.toml) 构建，只有生产分支（main）会部署。这几条互相牵连，改其中一条前先读 [AGENTS.md「联动一致性」](../AGENTS.md#联动一致性强制)；`npm run check:consistency` 会核对其中能机器检查的部分。
+官网由 GitHub Actions 构建，Cloudflare Workers Static Assets 托管。配置、首次上线、凭证权限和回滚见 [cloudflare/README.md](../cloudflare/README.md)。改配置前先读 [AGENTS.md「联动一致性」](../AGENTS.md#联动一致性强制)。
 
-- **`base = "website"`**。Netlify 在 base 目录里安装依赖、读 `.node-version`，也从 base 的 `node_modules` 里找插件。base 留在仓库根目录时插件不在那里，Netlify 会另装一份它自己选的：按站点第一次成功构建时钉住的主版本，早先用旧版 Next 部署过的站点拿到的是 v4（面向 Next 13.5 之前）。v4 不认 Next 16 的 `proxy.ts`（产物里没有中间件函数，语言前缀路由不会运行），在 Netlify 上也曾在函数打包一步失败。
-- **Next.js 运行时在 `netlify.toml` 里声明，并装在 `website/package.json` 里**（`@netlify/plugin-nextjs`，版本由 lockfile 决定，Dependabot 每月升级）。Netlify 只会自动加载装在站点设置里的运行时，这个站点没有：不声明，构建里就没有运行时（日志里没有 `Using Next.js Runtime`），部署出去的只是 `.next` 目录；只声明、不装，Netlify 会自己装一份 v4。装在 `package.json` 里的插件被直接使用，不再经过 Netlify 的版本钉住。构建命令里不用 `npm ci`：Netlify 在 base 里装依赖。
-- **工具链的大版本是迁移，不是升级**。`tailwindcss` 的主版本决定 `postcss.config.js` 怎么写（4 用 `@tailwindcss/postcss`，3 用 `tailwindcss` 插件）和样式入口怎么写；`typescript`、`eslint` 的新主版本要先被 `typescript-eslint`、`eslint-config-next` 内置插件的 peer 范围接受，否则 `npm run lint` 崩溃。Tailwind 4、ESLint 10、TypeScript 7 曾在 CI 是红的时被合进 main，生产构建因此失败。现在是 Tailwind 3.4、ESLint 9、TypeScript 6.0（`typescript-eslint` 接受的最新主版本）；ESLint 10 会让 `eslint-config-next` 自带的 `eslint-plugin-react` 崩溃（它调用了 ESLint 10 移除的 `context.getFilename()`）。Dependabot 对 `tailwindcss`、`typescript`、`eslint` 忽略主版本。
-- **`publish = ".next"`**，相对 base。写进文件是为了覆盖 Netlify 后台里可能留着的旧值（例如 `website/.next`），那个值在新 base 下会指向不存在的目录。后台的 Package directory 不需要设置（它只能在后台设置，`netlify.toml` 管不到），留空。
-- **Node 版本**。Netlify 在 `website/` 里找不到仓库根目录的 `.node-version`，所以 `netlify.toml` 的 `NODE_VERSION` 要写一份，并与它一致。
-- **什么时候构建**。`ignore` 命令只在 `website/` 或 `netlify.toml` 有变化时才构建；Deploy Preview 和分支部署一律跳过，看板上显示 Canceled，并没有真的构建。`ignore` 在 base 目录里运行，路径要写成 `:/website`，从仓库根起算；写成 `website` 会指向 `website/website`，永远没有差异，等于永远跳过。`CACHED_COMMIT_REF` 不能直接信：Netlify 文档写明没有缓存的构建里它等于 `COMMIT_REF`，diff 恒为空；PR 预览被取消后，它也可能是 rebase 或 squash 合并前的头提交，内容和合并结果相同、却不在 `main` 的历史里。所以命令在这两种情形（以及取不到提交时）一律构建，只有它确实是祖先且监视的路径没有差异才跳过；`scripts/__tests__/netlify-ignore.test.ts` 用真实的 git 仓库执行这条命令。Netlify 对任何 `ignore` 取消都报 “Canceled build due to no content change”，所以部署页的报错分辨不出原因。想让看板上也不出现这些条目，在后台关掉：Project configuration > Developer settings > Continuous deployment > Branches and deploy contexts > Configure，Branch deploys 选 None，并禁用 Deploy Previews（站点设置，仓库里改不了）。
-- **语言前缀路由与法律页**。`proxy.ts` 的 matcher 放过 `privacy-policy`、`terms-of-service`、`api`、`_next` 和带扩展名的路径；前两个由 `netlify.toml` 的重写交给 `public/` 里的静态页。改其中一边，另一边一起改。两个静态页互相的链接、回首页的链接都写成站内路径（`/privacy-policy.html`、`/terms-of-service.html`、`/`），不写域名：写了域名，在本机、预览和分支部署里点一下就跳到线上，看到的是线上还没更新的旧页面。只有给爬虫读的地址写域名：两个静态页的 `rel="canonical"`、`lib/site.ts` 的 `SITE_ORIGIN`（`metadataBase` 和站点地图用它）、`public/robots.txt` 的 `Sitemap` 行；`utils/__tests__/website.test.ts` 核对这一点。
-- **Cloudflare 代理**。域名服务器在 Cloudflare，站点的记录开着代理（橙云）：访客的请求先到 Cloudflare，再到 Netlify。Netlify 的支持指南建议不要这样代理（[market.md §4.6](../docs/v2/market.md)）。[seo-geo.md](../docs/v2/seo-geo.md) 第 6 节的 AI 爬虫策略在这一层生效，AI 爬虫的请求记录也在这里，访客所在的国家也由它给出（见下一条）。暂停代理排查 Netlify 的部署或证书问题时，这些都暂时没有：拿不到国家，所有访客都先看到同意卡片，统计到的访问骤降，但不会违规。AI 爬虫策略（Security Settings 里的 AI bot policies）三类都保持 Allow：Block 会连 Googlebot、Bingbot 一起拦下，Disallow AI Training 会拦下训练类爬虫，都与第 6 节相反；对爬虫的偏好只写在站点自己的 `robots.txt` 里。这些设置都在 Cloudflare 后台，仓库里看不出来（[RK-15](../docs/v2/validation.md)）。
-- **访问统计**。Cloudflare Web Analytics 由页面自己按访客的选择加载，规则在 [permissions.md §8](../docs/v2/permissions.md)，卡片在 [蓝图 §19](../docs/v2/website.md)。不能用代理的自动注入：注入的脚本不经访客的选择就运行，同意卡片形同虚设。谁先被问由 `proxy.ts` 按 Cloudflare 的 `CF-IPCountry` 请求头判断：不在要先问的国家，就写会话 Cookie `annhub-region=outside`，页面见到它才不问直接统计；没有这个头（代理关着、本机）一律先问。国家列表在 `lib/consent.ts`。站点令牌是 `netlify.toml` 里 `[context.production.environment]` 的 `NEXT_PUBLIC_CF_BEACON_TOKEN`，构建时写进页面，是公开值；留空就不加载统计脚本、不写 Cookie，也不显示同意卡片和页脚的「统计设置」，所以本地构建和预览不统计。改变量名时 `lib/site.ts` 与 `netlify.toml` 一起改，`npm run check:consistency` 核对两边一致。Cloudflare 后台要这样设：
-  1. Web Analytics 里，annhub.org 选 “Enable with JS Snippet installation”（手动嵌入），确认没有开着自动注入。
-  2. Network 里的 IP Geolocation 开启。关着就没有 `CF-IPCountry`，所有访客都先看到同意卡片。
+- **一次构建**：CI 的 website 任务检查类型、Lint，生成静态文件并在 Wrangler 中检查路由；main 的生产产物以提交 SHA 命名、保留一天。`ci-pass` 成功后，部署任务下载同一次运行的产物，核对 SHA，上传并检查线上版本，不重新构建。
+- **部署开关**：仓库变量 `CLOUDFLARE_DEPLOY_ENABLED=true` 才启用自动发布。PR、合并队列、手动 CI 和扩展发布标签都只验证，不发布官网。部署使用标准 Linux runner，并串行执行；轮到发布时已被 main 新提交取代的任务会跳过。
+- **纯静态边界**：`next.config.js` 的 `output: 'export'`、`wrangler.json` 的 `assets.directory` 与 CI 上传目录一致。Wrangler 没有 `main` 脚本、不使用 `run_worker_first`，没有 Next.js 运行时、图片处理或请求函数。
+- **路径**：静态别名和响应头由 [scripts/website-static.mjs](../scripts/website-static.mjs) 在构建后写入产物。`/en`、`/zh-CN`、两种法律页地址可直接访问，未知路径返回 404。`html_handling` 为 `none`，避免平台自动去掉法律页规范地址的 `.html`。站内链接始终用路径；生产地址的内容真源是 `lib/site.ts`，法律页 canonical 和 robots 的 Sitemap 同步核对。
+- **语言选择**：生产根路径先读有效的 `NEXT_LOCALE` 会话 Cookie，否则按 Cloudflare 已按权重排序的浏览器首选语言选择：`zh` 和 `zh-*` 到中文，其余与未知语言到英文。最高优先级是不支持的语言时回退英文，不扫描较低优先级的语言。中文根请求由 URL Transform Rule 改写到内部跳转路径，再由静态重定向发出 302，保留查询参数；跳转响应不缓存。语言切换用完整页面导航，以便响应规则更新会话 Cookie。
+- **统计**：`cloudflare/production.json` 是生产 `NEXT_PUBLIC_*` 构建变量的唯一来源。普通 `npm run build` 不读取它；main 使用 `npm run build -- --production`。站点令牌是公开值，密钥不得写进这个文件。没有令牌就不加载统计、不写地区 Cookie、不显示同意卡片；本地可显式传入测试令牌。
+- **地区与缓存**：页面 HTML 对所有人相同。带统计的静态响应先清除地区标记，Cloudflare 响应头规则在无需先询问的国家覆盖为 `annhub-region=outside`；没有国家规则的主机默认先问。国家集合直接来自 `lib/consent.ts`，不维护第二份清单。地区规则先执行，语言 Cookie 规则追加执行，避免互相覆盖。Cloudflare Web Analytics 使用手动嵌入，禁止代理自动注入；AI 爬虫策略仍按 [seo-geo.md §6](../docs/v2/seo-geo.md) 配置。
 
-  部署后核对：`curl -s https://annhub.org/en | grep -c cloudflareinsights` 输出 0，HTML 里没有代理注入的脚本；在欧洲以外运行 `curl -sI https://annhub.org/en`，响应里有 `set-cookie: annhub-region=outside`，说明拿到了国家。本机要看两种情形，用带任意令牌的构建（`NEXT_PUBLIC_CF_BEACON_TOKEN=任意值 npm run build && npm run start`），请求时自己带上 `cf-ipcountry: DE` 或 `CN`（curl 的 `-H`，Playwright 的 `extraHTTPHeaders`）。
+本地路由验收（先启动静态预览）：
 
-部署后看日志：应有 `Using Next.js Runtime - v5.x`。没有这一行，说明运行时没被加载：查 `netlify.toml` 的 `[[plugins]]` 和 `website/package.json`。是 v4.x，说明 Netlify 没有从 `website/node_modules` 里找到插件：先查后台 Build settings 里的 Base directory 与 Package directory。
+```sh
+WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node ../scripts/smoke-website.mjs --local
+```
 
-再核对路由：`/` 按浏览器语言跳到 `/zh-CN` 或 `/en`，中文以外的语言都跳到 `/en`，响应头里没有 `Link`；`/en` 返回 200；`/privacy-policy` 与 `/terms-of-service` 返回静态页；`/robots.txt` 与 `/sitemap.xml` 符合 [seo-geo.md](../docs/v2/seo-geo.md) 第 3.4、3.5 节。本机的 `netlify serve` 在子目录 base 下所有路由都返回 500（它重打包的函数副本里没有 `.next`，部署用的 zip 里有），验证不了路由，要在真实的生产部署上看；`ignore` 取消过的部署不算（部署页写 “Canceled build due to no content change”）。
+修改静态部署链路时同时更新一致性断言及测试。`npm run verify`、官网构建和上述路由验收是最低验证；首次生产上线还需确认地区 Cookie、语言协商、www 跳转和生产 SHA。
 
 ## 设计与代码结构
 

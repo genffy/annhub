@@ -1,59 +1,89 @@
-# Cloudflare 边缘缓存
+# Cloudflare 静态官网
 
-> 依据：[docs/v2/seo-geo.md §3.7](../docs/v2/seo-geo.md)。本目录是控制台配置的仓库侧真源：`edge-cache.js` 是要粘贴的 Worker 脚本，本文件是部署与核对步骤。
+官网使用 Workers Static Assets。访问只读取静态文件；语言和地区差异由 zone 规则处理，没有请求 Worker、Next.js 服务端或付费构建服务。产品契约见 [seo-geo.md](../docs/v2/seo-geo.md) 与 [permissions.md §8](../docs/v2/permissions.md)。
 
-语言页的 HTML 每次访问都从 Cloudflare 回源到 Netlify，是 TTFB 的大头（离两边都远的访客尤其明显）。Worker 在 Cloudflare 边缘按 POP 缓存 HTML 副本，逐请求补写同意 Cookie（规则与 `website/lib/consent.ts` 一致，`utils/__tests__/website-consent.test.ts` 核对两边不漂移）。
+## 配置真源
 
-## 部署（约 5 分钟）
+| 内容                           | 文件                                                        |
+| ------------------------------ | ----------------------------------------------------------- |
+| 静态目录、域名与 Wrangler 配置 | [website/wrangler.json](../website/wrangler.json)           |
+| 生产公开构建变量               | [production.json](production.json)                          |
+| 语言、地区与 www 规则          | [site-rules.mjs](site-rules.mjs)                            |
+| 国家集合、地区 Cookie          | [website/lib/consent.ts](../website/lib/consent.ts)         |
+| HTML 别名、缓存头、发布版本    | [scripts/website-static.mjs](../scripts/website-static.mjs) |
+| 构建、产物传递与生产发布       | [.github/workflows/ci.yml](../.github/workflows/ci.yml)     |
 
-导航按 2026-10 版控制台写；旧版把第 1 步的入口叫「Workers & Pages」，现在在 **Compute** 分组下。
+Wrangler 的精确版本只写在官网的 `package.json`，本地预览与部署任务读取同一个版本。`production.json` 只能放 `NEXT_PUBLIC_*` 字符串，不能放密钥。`npm run check:consistency` 防止这些位置漂移。
 
-1. **Worker**：Cloudflare 控制台 → 侧边栏 **Compute** → Workers & Pages → Create → Worker → 名字 `annhub-edge` → Edit code → 粘贴 `edge-cache.js` 全文 → Deploy。
-2. **路由**：该 Worker → Settings → Domains & Routes → Add → Route：`annhub.org/en*`（zone 选 annhub.org）→ 再加一条 `annhub.org/zh-CN*`。必须带 `*`：精确模式不匹配带 `?utm_*` 查询串的分享链接，实测会绕过 Worker。通配符可能误伤的路径（例如将来的 `/entries`）由脚本开头的守卫放行，只有 `/en` 与 `/zh-CN` 两个精确页面被缓存；其余流量（`/_next`、`/og`、法律页、根路径跳转）不经 Worker。
-3. **法律页的 Cache Rule**：域名 annhub.org → **Caching → Cache Rules** → Create rule：
-   - 名字 `legal-pages`；When incoming requests match：Hostname equals `annhub.org` AND（URI Path starts with `/privacy-policy` OR URI Path starts with `/terms-of-service`）；
-   - Then：Eligible for cache；Edge TTL：Ignore cache-control and set this TTL → 1 hour。
-     法律页没有每访客差异，不需要 Worker。
+## 首次上线
 
-## 部署后核对（在本机，即非欧洲出口）
+1. Cloudflare 账户保持 Workers Free。域名 `annhub.org` 的 zone 必须属于同一账户。
+2. 创建限制到该账户和 zone 的 API Token：账户 **Workers Scripts: Edit**；zone **Workers Routes: Edit**、**Zone: Read**、**DNS: Edit**、**Transform Rules: Edit**、**Dynamic URL Redirects: Edit**。部署负责上传静态资源和绑定自定义域名，规则脚本负责 URL 改写、响应头与 www 跳转。不要使用 Global API Key。
+3. GitHub 仓库创建 `website-production` environment，可将部署分支限制为 main；要无人值守发布，不设置人工 reviewer。配置：
+
+   | 类型                    | 名称                        | 用途                                                                                        |
+   | ----------------------- | --------------------------- | ------------------------------------------------------------------------------------------- |
+   | Environment secret      | `CLOUDFLARE_API_TOKEN`      | 上面的部署 Token                                                                            |
+   | Environment variable    | `CLOUDFLARE_ACCOUNT_ID`     | Cloudflare 账户 ID                                                                          |
+   | Environment variable    | `CLOUDFLARE_ZONE_ID`        | annhub.org 的 zone ID                                                                       |
+   | **Repository variable** | `CLOUDFLARE_DEPLOY_ENABLED` | 首次准备完成后设为 `true`；job 条件求值发生在 environment 加载之前，不能只放 environment 中 |
+
+4. 合并前先验证候选站点。在已通过本地检查的分支上，用单独的 preview 环境部署，不绑定生产域名：
+
+   ```sh
+   cd website
+   npm run build
+   npx wrangler deploy --env preview
+   ```
+
+   在 Wrangler 给出的 workers.dev 地址检查页面和静态路由。预览构建不读取生产统计令牌；zone 上的地区和语言规则也不作用于 workers.dev。生产规则可先在仓库根输出成 JSON 供审阅：
+
+   ```sh
+   node scripts/cloudflare-rules.mjs --print
+   ```
+
+5. 域名切换只做一次：记录当前 DNS 和 Worker 路由；停用 Netlify 的 Git 自动发布，避免合并时触发原站构建；删除 `annhub-edge` 在 `annhub.org/en*` 与 `annhub.org/zh-CN*` 的两条旧路由，停用原来的法律页 Cache Rule。旧 Worker 路由会优先接管请求，不能留在新站前面。
+6. 检查生产域名已有的 DNS/自定义域名绑定。Wrangler 可以创建自定义域名，但有冲突的既有 CNAME 需要先解除；在维护窗口完成这一步，再启用部署开关并合并分支。首次部署会按配置创建/更新 `annhub.org` 与 `www.annhub.org` 的绑定。保留原站用于必要的 DNS 回退，验证完成后停止其服务。
+7. 自动发布结束后检查生产 SHA、根路径中英文协商、www 跳转、法律页、未知路径 404、地区 Cookie。真实欧洲出口与非欧洲出口分别核对一次；发送伪造的 `CF-IPCountry` 请求头不能替代这个验证。没有完成这些线上检查前，不能把迁移标记为生产已验收。
+
+API 凭证只放 GitHub Secrets 或本机进程环境，不要提交到仓库或贴到日志。首次账户授权、既有域名冲突和旧路由清理不由普通代码构建自动完成。
+
+## 日常发布
+
+main 的 website job 构建生产静态文件、启动本地 Wrangler 检查路由，然后上传 `website-static-<SHA>`，保留一天。`ci-pass` 通过才执行部署；部署 job 下载本次运行的同名产物，检查版本和文件完整性，同步 zone 规则、上传文件，并访问生产站点验收。它只安装精确版本的 Wrangler CLI，不安装整套网站依赖，也不重复构建。
+
+部署串行执行，进入队列后已经落后于 main 的提交会跳过。失败后可在产物仍有效时重跑失败 job；超过一天，重跑整个 CI 重新产生同一提交的产物。只有 main 当前提交可发布。
+
+`ci-pass` 不依赖发布 job：未启用部署、缺少凭证或 Cloudflare 发布失败不会把通过的代码检查改成失败。发布失败仍会让这一轮 workflow 报红，并保留失败步骤。上线检查失败不会自动回滚，避免把别的已完成配置改动一并撤销。
+
+## 边缘规则
+
+- **www**：Single Redirect Rule 保留路径与查询串，301 到主域名。
+- **根路径语言**：读取有效语言 Cookie；否则读取按权重排序的首选浏览器语言。该字段只在 Transform Rules 中可用，因此中文根请求先 URL 改写到 `/__annhub/language/zh-CN`，再由静态 `_redirects` 发出 302；其他根请求静态跳到 `/en`。根跳转设置 `private, no-store`。
+- **统计同意**：静态语言页先清除地区 Cookie，防止缺少 zone 规则时沿用旧标记；无需先询问的国家由响应头规则设置 `outside`。其余地区与未知国家保留清除行为。HTML 始终相同。
+- **语言 Cookie**：手动语言选择与浏览器默认不同、或需要更新已有选择时，在完整页面响应中追加 Cookie。地区规则先执行、语言规则后执行，使用 `add` 保留地区 Cookie。
+- 规则只匹配生产主机。`cloudflare-rules.mjs` 只维护 `annhub_static_` 前缀的规则，不改写或删除同一 zone 的其他规则；不带参数只读并显示计划，`--apply` 才写入。权限错误会中止，不会被当作空 ruleset。
+
+Cloudflare Web Analytics 保持手动嵌入，关闭自动注入。AI 爬虫策略按产品文档保持允许；这些账户设置不在规则同步脚本的管理范围内。
+
+## 验证与回退
 
 ```sh
-curl -sI https://annhub.org/en | grep -i 'x-annhub-edge\|set-cookie'   # 第一次 miss，第二次起 hit；应有 annhub-region=outside
-curl -sI https://annhub.org/zh-CN | grep -i 'x-annhub-edge'             # hit
-curl -sI https://annhub.org/en -H 'rsc: 1' | grep -i 'x-annhub-edge'    # 无此头（绕过缓存，直接回源）
-curl -sI "https://annhub.org/en?utm_source=verify" | grep -i 'x-annhub-edge'  # 也应是 hit（查询串共享副本）
-curl -s https://annhub.org/en | grep -c 'FAQPage'                       # 页面内容完整（缓存的是真页面）
+# 仓库根：代码、文档与配置
+npm run verify
+
+# 官网目录：构建与本地静态预览
+cd website
+npm run build
+npm run start
+
+# 另一个终端，仓库根：真实静态资源与路由
+WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node scripts/smoke-website.mjs --local
+
+# 生产上线后：包括边缘语言规则
+node scripts/smoke-website.mjs
 ```
 
-月度检查见 seo-geo.md §7.3 第 4 条。
+`--local` 验证页面、资源、导航数据、别名、默认跳转和 404；它不声称验证 Cloudflare zone 规则。单测覆盖规则生成、国家集合、规则同步对其他规则的保留和错误处理。线上脚本还检查语言 Cookie 优先级与查询串，CI 额外核对部署的 SHA。
 
-## 行为与边界
-
-- 缓存键是路径，`?utm_*` 等查询串不另占副本；副本 TTL 1 小时（`s-maxage`），浏览器仍按源站的 `max-age=0` 每次向边缘校验，ETag 匹配返回 304。只有 200 响应入缓存，源站偶发错误不会污染副本。
-- 带数据头（`RSC`、`x-nextjs-data`、`next-router-prefetch`）的请求绕过缓存，直接回源（同 zone 子请求直达源站，不会再进这个 Worker）。
-- 副本不带任何 `Set-Cookie`；同意 Cookie 由 Worker 按请求国家逐次补写，欧洲访客不写、带着 Cookie 到欧洲会被删。HTML 先整体缓冲再存与发（页面 gzip 后约 60KB）：流式 `clone()` 的 tee 在本地运行时会截断副本，不值得为一个这么小的页面冒险。
-- 内容更新后各 POP 最多 1 小时过期；要立即生效就在控制台 Caching → Configuration → Purge Everything（或按 URL 清除）。
-- 免费 Workers 额度 10 万请求/天；该站流量远低于此。
-
-## 本地试跑
-
-```sh
-# 起一个本地源站（先 cd website && npm run build）
-npx next start -p 3210 &
-# 做一份指向本地源站的副本，再交给 wrangler 跑（在仓库根执行）
-sed -e "s|await fetch(url.toString(), { headers, redirect: 'manual' })|await fetch('http://127.0.0.1:3210' + url.pathname, { headers, redirect: 'manual' })|" \
-    cloudflare/edge-cache.js > /tmp/edge-cache-test.js
-npx wrangler dev /tmp/edge-cache-test.js --port 8799 --ip 127.0.0.1
-# 另开终端：curl -sD - -o /dev/null -H 'x-test-country: CN' http://127.0.0.1:8799/en
-```
-
-本地与线上的两处已知差异：wrangler 会剥掉入站的 `cf-*` 头（上面用 `x-test-country` 代替国家来源），且不模拟「同 zone 子请求直达源站」（`RSC: 1` 的绕过请求在本地会自环报 500，属预期）。
-
-## 回滚
-
-删掉 Worker 的两条路由即可——流量立刻回到不经 Worker 的现状（Cache Rule 也一并关掉）。仓库里的文件不部署就不生效。
-
-## 暂不做（记录取舍）
-
-- **根路径 `/` 的语言跳转**仍在源站（Next 代理）：把它挪进 Worker 能省一次回源，等边缘缓存验证稳定后再考虑。
-- **发布后自动清缓存**（GitHub Actions 调 Cloudflare API）：1 小时的陈旧窗口对营销页可接受，需要时再加。
+需要暂停发布时将仓库变量 `CLOUDFLARE_DEPLOY_ENABLED` 设为 `false`。日常回退通过撤销问题提交并合入 main，重新经过同一套检查与发布；首次迁移需要退回原托管平台时，按切换前记录恢复 DNS 和路由。Cloudflare 版本回退不自动恢复 zone 规则，不能只回退静态文件就假定配置也一起恢复。
