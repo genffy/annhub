@@ -23,10 +23,12 @@ const GOOD_FILES: Record<string, string> = {
   }),
   'postcss.config.cjs': 'module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }\n',
   'website/package.json': json({
+    scripts: { typecheck: 'next typegen && tsc --noEmit' },
     dependencies: { 'next': '^16.3.8', 'react': '^19.3.0', 'next-intl': '^4.14.9' },
     devDependencies: { 'eslint-config-next': '^16.3.8', '@types/node': '^24.19.1', 'wrangler': '4.150.0', 'tailwindcss': '^3.4.19' },
   }),
   'website/postcss.config.js': 'module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }\n',
+  'website/.gitignore': '/next-env.d.ts\n',
   'website/README.md': 'Built with Next.js 16, React 19 and next-intl 4.\n',
   'website/public/privacy-policy.html': '<html></html>\n',
   'website/lib/site.ts': "export const SITE_ORIGIN = 'https://annhub.org'\nexport const ANALYTICS_TOKEN = process.env.NEXT_PUBLIC_CF_BEACON_TOKEN ?? ''\n",
@@ -64,6 +66,7 @@ jobs:
       - run: echo done
   website:
     steps:
+      - run: npm run typecheck
       - run: npm run build -- --production
         env:
           BUILD_PRODUCTION: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -213,6 +216,15 @@ describe('check-consistency', () => {
   })
 
   describe('Cloudflare static deployment', () => {
+    it('generates ignored Next.js declarations before type checking a clean checkout', () => {
+      expectFailure({ 'website/next-env.d.ts': '/// <reference types="next" />\n' }, 'must not be tracked')
+      expectFailure({ 'website/.gitignore': '' }, 'must ignore /next-env.d.ts')
+      expectFailure(
+        { 'website/package.json': manifestWith('website/package.json', m => (m.scripts.typecheck = 'tsc --noEmit')) },
+        'generate Next.js declarations before running tsc',
+      )
+      expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', 'run: npm run typecheck', 'run: npx tsc --noEmit') }, 'must use npm run typecheck')
+    })
     it('requires static export and the publish directory', () => {
       expectFailure({ 'website/next.config.js': 'module.exports = {}' }, 'must export static files')
       expectFailure({ 'website/wrangler.json': null }, 'is required for the static website')

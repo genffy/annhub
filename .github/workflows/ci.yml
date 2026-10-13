@@ -126,7 +126,7 @@ jobs:
         run: npm ci
 
       - name: Type check
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Lint
         run: npm run lint
@@ -151,6 +151,7 @@ jobs:
           preview_pid=$!
           trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
           for attempt in $(seq 1 30); do
+            echo "Waiting for the static preview ($attempt/30)"
             if curl --fail --silent "$WEBSITE_SMOKE_ORIGIN/__deployment.json" > /dev/null; then
               node ../scripts/smoke-website.mjs --local
               exit 0
