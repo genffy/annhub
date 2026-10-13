@@ -16,6 +16,8 @@ export async function generateStaticParams() {
   return i18n.locales.map(locale => ({ locale }))
 }
 
+export const dynamicParams = false
+
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -31,7 +33,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     description: meta.description,
     alternates: {
       canonical: `/${lang}`,
-      // Declared here only: the proxy sends no Link header and the sitemap no alternates (docs/v2/seo-geo.md §3.2).
+      // Declared here only: neither response headers nor the sitemap repeat the alternates (docs/v2/seo-geo.md §3.2).
       // x-default is English, the same page the root path gives a browser language that is neither Chinese nor English.
       languages: { 'zh-CN': '/zh-CN', 'en': '/en', 'x-default': '/en' },
     },

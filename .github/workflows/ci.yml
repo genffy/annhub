@@ -47,8 +47,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # utils/__tests__/website-*.test.ts resolve the real Next.js from website/node_modules
-      # ("Next.js is installed in website/ only"), and tsc follows them into website/proxy.ts.
+      # The consistency checks inspect both installed toolchains.
       - name: Install website dependencies
         working-directory: website
         run: npm ci
@@ -71,7 +70,7 @@ jobs:
       - name: Lockfiles use the public registry
         run: npm run check:lockfiles
 
-      - name: Related settings agree (Node.js, Next.js, Netlify, package directories)
+      - name: Related settings agree (Node.js, Next.js, Cloudflare, package directories)
         run: npm run check:consistency
 
       - name: Build
@@ -105,6 +104,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
+      artifact-metadata: write
       contents: read
     defaults:
       run:
@@ -132,7 +132,42 @@ jobs:
         run: npm run lint
 
       - name: Build
-        run: npm run build
+        env:
+          BUILD_PRODUCTION: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          if [ "$BUILD_PRODUCTION" = true ]; then
+            npm run build -- --production
+          else
+            npm run build
+          fi
+
+      - name: Verify the actual static routes
+        env:
+          WEBSITE_SMOKE_ORIGIN: http://localhost:3001
+          WRANGLER_SEND_METRICS: 'false'
+        run: |
+          set -euo pipefail
+          npm run start > "$RUNNER_TEMP/website-preview.log" 2>&1 &
+          preview_pid=$!
+          trap 'kill "$preview_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "$WEBSITE_SMOKE_ORIGIN/__deployment.json" > /dev/null; then
+              node ../scripts/smoke-website.mjs --local
+              exit 0
+            fi
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/website-preview.log"
+          exit 1
+
+      - name: Keep the production website for deployment
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: website-static-${{ github.sha }}
+          path: website/out/
+          retention-days: 1
+          if-no-files-found: error
 
   ci-pass:
     name: ci-pass
@@ -151,3 +186,78 @@ jobs:
             echo "A required job did not succeed." >&2
             exit 1
           fi
+
+  deploy-website:
+    name: Deploy website
+    needs: [ci-pass, website]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: website-production
+    permissions:
+      contents: read
+    concurrency:
+      group: website-production
+      cancel-in-progress: false
+    steps:
+      - name: Check out the verified commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+
+      - name: Skip a commit superseded on main
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/main" --jq .object.sha)"
+          if [ "$current_sha" = "$GITHUB_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "A newer commit is on main; keeping its place in the deployment queue."
+          fi
+
+      - name: Download the artifact from this run
+        if: steps.current.outputs.deploy == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: website-static-${{ github.sha }}
+          path: website/out/
+
+      - name: Verify the artifact and deployment settings
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          test -n "$CLOUDFLARE_ZONE_ID"
+          node scripts/check-website-export.mjs
+          node -e 'const v=require("./website/package.json").devDependencies.wrangler; if(!/^\d+\.\d+\.\d+$/.test(v)) throw new Error("Pin the Wrangler version"); require("node:fs").appendFileSync(process.env.GITHUB_ENV, "WRANGLER_VERSION="+v+"\n")'
+
+      - name: Apply the website edge rules
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+        run: node scripts/cloudflare-rules.mjs --apply
+
+      - name: Deploy the verified static files
+        if: steps.current.outputs.deploy == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm exec --yes --package="wrangler@$WRANGLER_VERSION" -- wrangler deploy --config website/wrangler.json
+
+      - name: Verify the production routes and revision
+        if: steps.current.outputs.deploy == 'true'
+        run: node scripts/smoke-website.mjs

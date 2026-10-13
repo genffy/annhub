@@ -38,7 +38,7 @@ function store(choice: ConsentChoice) {
   window.dispatchEvent(new Event(CHOICE_EVENT))
 }
 
-/** What analytics does on this page: from the visitor's choice, the proxy's region cookie and Global Privacy Control. */
+/** What analytics does on this page: from the visitor's choice, the edge rule's region cookie and Global Privacy Control. */
 function readState(): AnalyticsState {
   return analyticsState({
     choice: pageChoice ?? readChoice(readStored(), today()),
@@ -76,7 +76,7 @@ export default function AnalyticsConsent(props: Props) {
 }
 
 /**
- * Nothing renders on the server: the state needs the cookie the proxy sets from the visitor's country, and the
+ * Nothing renders on the server: the state needs the cookie the edge rule sets from the visitor's country, and the
  * browser's storage. The card is fixed to the bottom of the viewport, so it never moves the page; it comes first in the
  * DOM, so keyboard and screen-reader users reach it before the page. It stays until the visitor chooses.
  */

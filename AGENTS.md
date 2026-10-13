@@ -1,7 +1,7 @@
 # AnnHub 工程约定
 
 > 本文件只放跨目录通用规则。当前代码的局部维护提示见下表的 `AGENTS.md`。
-> 更新：2026-10-11。
+> 更新：2026-10-13。
 
 ## 项目与真源
 
@@ -25,7 +25,7 @@
 | `e2e/`                 | [Playwright 与浏览器实测](e2e/AGENTS.md)                                  |
 | `docs/v2/`             | [已确认产品文档维护](docs/v2/AGENTS.md)                                   |
 
-`website/` 是独立 Next.js 应用，运行方式和 Netlify 部署的注意事项见 [website/README.md](website/README.md)。其他扩展入口的事实以相邻源码为准。
+`website/` 是独立 Next.js 应用，运行方式和 Cloudflare 静态部署的注意事项见 [website/README.md](website/README.md)。其他扩展入口的事实以相邻源码为准。
 
 ## 跨目录规则
 
@@ -38,31 +38,32 @@
 
 ## 联动一致性（强制）
 
-环境、依赖、构建和部署的值同时写在多个文件里。只改其中一处、漏掉其余，是反复出现的错误（Node 版本、Next.js 版本、Netlify 配置都出现过），类型检查和单测发现不了。
+环境、依赖、构建和部署的值同时写在多个文件里。只改其中一处、漏掉其余，是反复出现的错误（运行环境、框架与部署配置都出现过），类型检查和单测发现不了。
 
-1. **先找全，再动手。** 改任何版本号、包名、目录名、命令或 CI / 部署配置之前，先 `git grep` 这个值，列出全部出现处，范围至少含 `.github/`、`netlify.toml`、各 `package.json`、`README.md` 和 `docs/`。改完再搜一遍，确认没有残留。
+1. **先找全，再动手。** 改任何版本号、包名、目录名、命令或 CI / 部署配置之前，先 `git grep` 这个值，列出全部出现处，范围至少含 `.github/`、`cloudflare/`、`website/wrangler.json`、各 `package.json`、`README.md` 和 `docs/`。改完再搜一遍，确认没有残留。
 2. **一个值一个真源。** 其余位置引用它或与它一致；不新增第二份真源，文档和本文件不抄版本号（抄了就会过期）。
 3. **按下表联动。** 改左列，右列在同一个提交里一起改。表里没有的联动，按第 1 条自己找，并补进表和 `scripts/check-consistency.mjs`。
 4. **断言兜底，不许绕。** `npm run check:consistency`（在 `verify` 和 CI 里）把能机器核对的联动写成断言。它失败说明漏改了某处：去改那一处，不要删断言、放宽匹配或加豁免来求绿。新增联动点时同步加断言和测试。
 5. **主版本升级是迁移，不是改 `package.json`。** Node、Next.js、React、Tailwind、ESLint、TypeScript 的主版本变化，按下表逐项核对，并在本地跑对应的构建（website：`cd website && npm run build`）。Dependabot 开的主版本 PR 只是起点，要在它的分支上补齐联动改动；CI 是红的就不要合并。
 6. **PR 描述写明核对过的位置**：列出搜过的命令和命中的文件，不要只写“已核对”。
 
-| 改这里                                    | 同一个提交里核对                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.node-version`（Node 的唯一真源）        | `netlify.toml` 的 `NODE_VERSION`；各 `package.json` 的 `engines.node` 和 `@types/node` 主版本；根 `README.md` 的运行环境；workflow 只用 `node-version-file`，不写死版本                                                                                                                                                                                                                                                                                                                                       |
-| `website/package.json` 的 `next`、`react` | `eslint-config-next` 同主版本；`website/README.md` 的技术栈；`proxy.ts`、`next.config.js` 等约定文件；`netlify.toml`（见下一行）；`cd website && npm run build`                                                                                                                                                                                                                                                                                                                                               |
-| `netlify.toml`                            | `base` 是含 `next` 的应用目录（Netlify 在 base 里装依赖、找插件）；声明 `@netlify/plugin-nextjs`，并装在 `website/package.json` 里（Netlify 只自动加载装在站点设置里的运行时，这个站点没有）；`publish = ".next"`；`ignore` 在 base 里运行，路径用 `:/` 从仓库根写，并覆盖 `netlify.toml`，没有缓存、`CACHED_COMMIT_REF` 不是祖先时一律构建（改它先跑 `scripts/__tests__/netlify-ignore.test.ts`）；`NODE_VERSION`；`[[redirects]]` 指向的文件在 `public/`；[website/README.md](website/README.md) 的「部署」 |
-| `website/` 读取的 `NEXT_PUBLIC_*` 变量    | `netlify.toml` 的 `[context.production.environment]` 用同一个名字声明（Next.js 构建时把它写进页面，没声明或名字对不上，功能就静默关闭）；[website/README.md](website/README.md) 的「部署」                                                                                                                                                                                                                                                                                                                    |
-| `tailwindcss` 的主版本                    | `postcss.config.*`（4 用 `@tailwindcss/postcss`，3 用 `tailwindcss` 插件）；样式入口与配置的写法；`.github/dependabot.yml` 里对它的 `ignore`；目视对比页面                                                                                                                                                                                                                                                                                                                                                    |
-| `typescript`、`eslint` 的主版本           | `typescript-eslint`、`eslint-config-next` 内置插件的 peer 范围必须接受新版本，否则 `npm run lint` 崩溃；`.github/dependabot.yml` 里对它们的 `ignore`；本地跑 `npm run lint`                                                                                                                                                                                                                                                                                                                                   |
-| 新增、移动含 `package.json` 的目录        | `.github/dependabot.yml`；`scheduled-audit.yml` 的矩阵；CI 里的安装与构建步骤；`scripts/check-lockfiles.mjs` 的列表；`netlify.toml`                                                                                                                                                                                                                                                                                                                                                                           |
-| `package.json` 的 `scripts`、CI 任务      | `verify` 与 CI 运行同样的命令；`.github/rulesets/main.json` 的必需检查名；本文件「验证入口」                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| `wxt.config.ts` 的权限与最低版本          | [docs/v2/permissions.md](docs/v2/permissions.md)；隐私政策页 `website/public/privacy-policy.html` 里的权限表（`utils/__tests__/legal-pages.test.ts` 核对它，不核对文档）；商店的权限说明                                                                                                                                                                                                                                                                                                                      |
+| 改这里                                    | 同一个提交里核对                                                                                                                                                                                                                                                       |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.node-version`（Node 的唯一真源）        | 各 `package.json` 的 `engines.node` 和 `@types/node` 主版本；根 `README.md` 的运行环境；workflow 只用 `node-version-file`，不写死版本                                                                                                                                  |
+| `website/package.json` 的 `next`、`react` | `eslint-config-next` 同主版本；`website/README.md` 的技术栈；`next.config.js` 的静态导出；`website/wrangler.json`；`cd website && npm run build`                                                                                                                       |
+| `website/wrangler.json`、静态部署配置     | `next.config.js` 的 `output: export`；`assets.directory` 与 CI 上传、下载目录；禁止 Worker 脚本与 `run_worker_first`；HTML 别名和 404；`lib/site.ts` 的域名；边缘规则与国家清单；CI 只发布同次运行且通过检查的 main 产物；[cloudflare/README.md](cloudflare/README.md) |
+| `website/` 读取的 `NEXT_PUBLIC_*` 变量    | `cloudflare/production.json` 用同名字符串声明，只有生产构建读取；部署时的统计规则与是否有令牌一致；[website/README.md](website/README.md) 的「部署」                                                                                                                   |
+| `tailwindcss` 的主版本                    | `postcss.config.*`（4 用 `@tailwindcss/postcss`，3 用 `tailwindcss` 插件）；样式入口与配置的写法；`.github/dependabot.yml` 里对它的 `ignore`；目视对比页面                                                                                                             |
+| `typescript`、`eslint` 的主版本           | `typescript-eslint`、`eslint-config-next` 内置插件的 peer 范围必须接受新版本，否则 `npm run lint` 崩溃；`.github/dependabot.yml` 里对它们的 `ignore`；本地跑 `npm run lint`                                                                                            |
+| 新增、移动含 `package.json` 的目录        | `.github/dependabot.yml`；`scheduled-audit.yml` 的矩阵；CI 里的安装与构建步骤；`scripts/check-lockfiles.mjs` 的列表；`website/wrangler.json`                                                                                                                           |
+| `package.json` 的 `scripts`、CI 任务      | `verify` 与 CI 运行同样的命令；`.github/rulesets/main.json` 的必需检查名；本文件「验证入口」                                                                                                                                                                           |
+| `wxt.config.ts` 的权限与最低版本          | [docs/v2/permissions.md](docs/v2/permissions.md)；隐私政策页 `website/public/privacy-policy.html` 里的权限表（`utils/__tests__/legal-pages.test.ts` 核对它，不核对文档）；商店的权限说明                                                                               |
 
 ## 验证入口
 
 - 提交前跑 `npm run verify`（format:check → lint → compile → vitest → check:docs → check:lockfiles → check:consistency）。格式由 Prettier 负责，`npm run format` 一次修复；ESLint 只管正确性。
 - 扩展构建：`npm run build`。浏览器 E2E：先构建，再 `npx playwright test <spec>`；现有 `.output` 不会因源码变化自动重建。手工 Chrome 实测见 [e2e/README.md](e2e/README.md)。
+- 官网静态部署：`cd website && npm run build && npm run start`；另一个终端在仓库根运行 `WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node scripts/smoke-website.mjs --local`。
 - 按改动范围运行相关测试；消息协议和截图链路的最低验证见对应目录约定。
 - CI（`.github/workflows/`）运行同样的命令，并加上 CodeQL 和依赖审查；合并以 CI 为准。CI 失败先在本地用上面的命令复现，不要跳过、禁用或隔离测试来求绿。
 - CI 的任务不按路径过滤：有测试会读其他目录的文件（法律页测试读 `website/public/`），一份“不影响该任务的路径”清单就是又一处隐藏联动。要少跑，靠 Dependabot 分组和取消过期运行，不要加 `paths`。必需检查所在的工作流更不能加：被跳过的必需检查会一直 pending，阻塞合并（`check:consistency` 会拦）。

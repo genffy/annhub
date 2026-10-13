@@ -5,7 +5,7 @@
 export const SITE_ORIGIN = 'https://annhub.org'
 
 /**
- * The Cloudflare Web Analytics site token, from netlify.toml's [context.production.environment]; Next.js writes it into
+ * The Cloudflare Web Analytics site token, from cloudflare/production.json in production builds; Next.js writes it into
  * the page at build time. Without it the page loads no analytics script, shows no consent card and no "Analytics
  * settings" button, so local builds and previews never count (docs/v2/permissions.md §8).
  */

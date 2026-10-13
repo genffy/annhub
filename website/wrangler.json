@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "annhub-website",
+  "compatibility_date": "2026-10-13",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./out",
+    "html_handling": "none",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    { "pattern": "annhub.org", "custom_domain": true },
+    { "pattern": "www.annhub.org", "custom_domain": true }
+  ],
+  "env": {
+    "preview": {
+      "name": "annhub-website-preview",
+      "routes": []
+    }
+  }
+}

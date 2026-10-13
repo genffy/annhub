@@ -24,32 +24,22 @@ const GOOD_FILES: Record<string, string> = {
   'postcss.config.cjs': 'module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }\n',
   'website/package.json': json({
     dependencies: { 'next': '^16.3.8', 'react': '^19.3.0', 'next-intl': '^4.14.9' },
-    devDependencies: { 'eslint-config-next': '^16.3.8', '@types/node': '^24.19.1', '@netlify/plugin-nextjs': '^5.16.1', 'tailwindcss': '^3.4.19' },
+    devDependencies: { 'eslint-config-next': '^16.3.8', '@types/node': '^24.19.1', 'wrangler': '4.150.0', 'tailwindcss': '^3.4.19' },
   }),
   'website/postcss.config.js': 'module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }\n',
   'website/README.md': 'Built with Next.js 16, React 19 and next-intl 4.\n',
   'website/public/privacy-policy.html': '<html></html>\n',
-  'website/lib/site.ts': "export const ANALYTICS_TOKEN = process.env.NEXT_PUBLIC_CF_BEACON_TOKEN ?? ''\n",
-  'netlify.toml': `[build]
-  base = "website"
-  command = "npm run build"
-  publish = ".next"
-  ignore = "test -n \\"$CACHED_COMMIT_REF\\" && git diff --quiet \\"$CACHED_COMMIT_REF\\" \\"$COMMIT_REF\\" -- ':/website' ':/netlify.toml'"
-
-[build.environment]
-  NODE_VERSION = "24"
-
-[[redirects]]
-  from = "/privacy-policy"
-  to = "/privacy-policy.html"
-  status = 200
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-
-[context.production.environment]
-  NEXT_PUBLIC_CF_BEACON_TOKEN = ""
-`,
+  'website/lib/site.ts': "export const SITE_ORIGIN = 'https://annhub.org'\nexport const ANALYTICS_TOKEN = process.env.NEXT_PUBLIC_CF_BEACON_TOKEN ?? ''\n",
+  'website/next.config.js': "module.exports = { output: 'export' }\n",
+  'website/wrangler.json': json({
+    name: 'annhub-website',
+    assets: { directory: './out', html_handling: 'none', not_found_handling: '404-page' },
+    routes: [
+      { pattern: 'annhub.org', custom_domain: true },
+      { pattern: 'www.annhub.org', custom_domain: true },
+    ],
+  }),
+  'cloudflare/production.json': json({ NEXT_PUBLIC_CF_BEACON_TOKEN: '' }),
   '.github/dependabot.yml': `version: 2
 updates:
   - package-ecosystem: npm
@@ -72,6 +62,31 @@ jobs:
     name: ci-pass
     steps:
       - run: echo done
+  website:
+    steps:
+      - run: npm run build -- --production
+        env:
+          BUILD_PRODUCTION: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - uses: actions/upload-artifact@pinned
+        with:
+          name: website-static-\${{ github.sha }}
+          path: website/out/
+          retention-days: 1
+  deploy-website:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
+    needs: [ci-pass, website]
+    runs-on: ubuntu-24.04
+    concurrency:
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@pinned
+        with:
+          name: website-static-\${{ github.sha }}
+          path: website/out/
+      - run: node scripts/check-website-export.mjs
+      - run: node scripts/cloudflare-rules.mjs --apply
+      - run: node scripts/smoke-website.mjs
+      - run: node -p 'require("./website/package.json").devDependencies.wrangler'
 `,
   '.github/workflows/scheduled-audit.yml': `jobs:
   npm-audit:
@@ -134,13 +149,8 @@ describe('check-consistency', () => {
   })
 
   describe('Node.js', () => {
-    it('catches a new Node.js version that netlify.toml, @types/node and the README have not followed', () => {
-      expectFailure(
-        { '.node-version': '26\n' },
-        'NODE_VERSION "24" does not match .node-version (26)',
-        '@types/node ^24.0.3 is not Node.js 26',
-        'README.md: says Node.js 24.x, but .node-version is 26',
-      )
+    it('catches a new Node.js version that @types/node and the README have not followed', () => {
+      expectFailure({ '.node-version': '26\n' }, '@types/node ^24.0.3 is not Node.js 26', 'README.md: says Node.js 24.x, but .node-version is 26')
     })
 
     it('catches engines.node that excludes the version in .node-version', () => {
@@ -202,91 +212,53 @@ describe('check-consistency', () => {
     })
   })
 
-  describe('netlify.toml', () => {
-    it('catches a base that is not the Next.js app (Netlify installs the legacy v4 runtime then)', () => {
-      expectFailure(
-        { 'netlify.toml': edit('netlify.toml', 'base = "website"', 'base = "/"') },
-        '[build] base is "/", but the Next.js app is in /website',
-        'the legacy v4 for Next.js before 13.5',
-      )
+  describe('Cloudflare static deployment', () => {
+    it('requires static export and the publish directory', () => {
+      expectFailure({ 'website/next.config.js': 'module.exports = {}' }, 'must export static files')
+      expectFailure({ 'website/wrangler.json': null }, 'is required for the static website')
+      expectFailure({ 'website/wrangler.json': manifestWith('website/wrangler.json', m => (m.assets.directory = './.next')) }, 'assets.directory must be ./out')
     })
 
-    it('catches a Next.js app that is deployed without the runtime declared', () => {
-      expectFailure(
-        { 'netlify.toml': edit('netlify.toml', '\n[[plugins]]\n  package = "@netlify/plugin-nextjs"\n', '') },
-        '[[plugins]] does not declare @netlify/plugin-nextjs',
-        'deploys only the .next directory',
-      )
+    it('rejects request-time code and SPA fallbacks', () => {
+      expectFailure({ 'website/proxy.ts': 'export default () => {}' }, 'cannot depend on a Next.js proxy')
+      expectFailure({ 'website/wrangler.json': manifestWith('website/wrangler.json', m => (m.main = 'worker.js')) }, 'without a Worker script')
+      expectFailure({ 'website/wrangler.json': manifestWith('website/wrangler.json', m => (m.assets.run_worker_first = true)) }, 'without a Worker script')
+      expectFailure({ 'website/wrangler.json': manifestWith('website/wrangler.json', m => (m.assets.not_found_handling = 'single-page-application')) }, 'real 404 responses')
     })
 
-    it('catches a runtime that is declared but not installed in the app (Netlify then picks its own, v4)', () => {
-      expectFailure(
-        { 'website/package.json': manifestWith('website/package.json', manifest => delete manifest.devDependencies['@netlify/plugin-nextjs']) },
-        '[[plugins]] declares @netlify/plugin-nextjs, but website/package.json does not depend on it',
-      )
+    it('rejects a retained legacy deployment and mismatched domains', () => {
+      expectFailure({ 'netlify.toml': '[build]\n' }, 'must not retain the Netlify runtime')
+      expectFailure({ 'website/wrangler.json': manifestWith('website/wrangler.json', m => (m.routes[0].pattern = 'wrong.example')) }, 'custom domains must match SITE_ORIGIN')
     })
 
-    it('catches the legacy runtime major for a current Next.js', () => {
-      expectFailure(
-        { 'website/package.json': manifestWith('website/package.json', manifest => (manifest.devDependencies['@netlify/plugin-nextjs'] = '^4.41.6')) },
-        '@netlify/plugin-nextjs ^4.41.6 is the legacy runtime for Next.js before 13.5',
-      )
+    it('pins the CLI used by local previews and production', () => {
+      expectFailure({ 'website/package.json': manifestWith('website/package.json', m => (m.devDependencies.wrangler = '^4.150.0')) }, 'pin wrangler to an exact version')
     })
 
-    it('catches a publish directory that is not .next, or is left to the dashboard', () => {
-      expectFailure({ 'netlify.toml': edit('netlify.toml', 'publish = ".next"', 'publish = "website/.next"') }, '[build] publish is "website/.next"')
-      expectFailure({ 'netlify.toml': edit('netlify.toml', '  publish = ".next"\n', '') }, '[build] publish is not set')
-    })
-
-    it('catches a command that changes into the base it already runs in', () => {
-      expectFailure({ 'netlify.toml': edit('netlify.toml', 'command = "npm run build"', 'command = "cd website && npm run build"') }, 'command changes into "website"')
-    })
-
-    it('catches an ignore command that names the base without :/ (it would skip every build)', () => {
-      expectFailure({ 'netlify.toml': edit('netlify.toml', "':/website'", 'website') }, 'must name the base as ":/website"')
-    })
-
-    it('catches an ignore command that does not watch netlify.toml', () => {
-      expectFailure({ 'netlify.toml': edit('netlify.toml', " ':/netlify.toml'", '') }, 'must cover netlify.toml too')
-    })
-
-    it('catches a NODE_VERSION that is missing or differs from .node-version', () => {
-      expectFailure({ 'netlify.toml': edit('netlify.toml', 'NODE_VERSION = "24"', 'NODE_VERSION = "22"') }, 'NODE_VERSION "22" does not match .node-version (24)')
-      expectFailure({ 'netlify.toml': edit('netlify.toml', '[build.environment]\n  NODE_VERSION = "24"\n', '') }, 'NODE_VERSION is not set')
-    })
-
-    it('catches a NEXT_PUBLIC_ variable the site reads but production is not given', () => {
-      expectFailure(
-        { 'netlify.toml': edit('netlify.toml', '\n[context.production.environment]\n  NEXT_PUBLIC_CF_BEACON_TOKEN = ""\n', '') },
-        'website/lib/site.ts: reads NEXT_PUBLIC_CF_BEACON_TOKEN, which netlify.toml sets neither',
-      )
-    })
-
-    it('catches a NEXT_PUBLIC_ variable renamed on one side only', () => {
+    it('catches missing and renamed production build variables', () => {
+      expectFailure({ 'cloudflare/production.json': null }, 'is required for production build variables')
+      expectFailure({ 'cloudflare/production.json': json({}) }, 'reads NEXT_PUBLIC_CF_BEACON_TOKEN, which cloudflare/production.json does not declare')
       expectFailure(
         { 'website/lib/site.ts': edit('website/lib/site.ts', 'NEXT_PUBLIC_CF_BEACON_TOKEN', 'NEXT_PUBLIC_ANALYTICS_TOKEN') },
-        'reads NEXT_PUBLIC_ANALYTICS_TOKEN, which netlify.toml sets neither',
-        'sets NEXT_PUBLIC_CF_BEACON_TOKEN, but nothing in /website reads process.env.NEXT_PUBLIC_CF_BEACON_TOKEN',
+        'reads NEXT_PUBLIC_ANALYTICS_TOKEN',
+        'sets NEXT_PUBLIC_CF_BEACON_TOKEN, but the website does not read',
       )
+      expectFailure({ 'cloudflare/production.json': json({ NEXT_PUBLIC_CF_BEACON_TOKEN: '', API_SECRET: 'private' }) }, 'only public string build variables')
     })
 
-    it('accepts a NEXT_PUBLIC_ variable from [build.environment]', () => {
-      const { status, output } = check({
-        'netlify.toml': edit('netlify.toml', '\n[context.production.environment]\n  NEXT_PUBLIC_CF_BEACON_TOKEN = ""\n', '').replace(
-          'NODE_VERSION = "24"',
-          'NODE_VERSION = "24"\n  NEXT_PUBLIC_CF_BEACON_TOKEN = ""',
-        ),
-      })
-      expect(status, output).toBe(0)
+    it('keeps deployment behind CI and the production opt-in', () => {
+      expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', 'needs: [ci-pass, website]', 'needs: [website]') }, 'must wait for ci-pass')
+      expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', " && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'", '') }, 'deploy only enabled production pushes')
     })
 
-    it('catches a redirect to a static page that does not exist', () => {
-      expectFailure({ 'website/public/privacy-policy.html': null }, 'the redirect /privacy-policy -> /privacy-policy.html has no file at website/public/privacy-policy.html')
-    })
-
-    it('says so when it meets TOML it cannot read, instead of passing', () => {
-      expectFailure({ 'netlify.toml': `${GOOD_FILES['netlify.toml']}\n[[headers]]\n  values = {\n    X = "1" }\n` }, 'span several lines')
-      expectFailure({ 'netlify.toml': `${GOOD_FILES['netlify.toml']}\nodd line\n` }, 'cannot read this line')
+    it('reuses the exact commit artifact without another build', () => {
+      expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', 'retention-days: 1', 'retention-days: 30') }, 'one-day retention')
+      expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', 'website-static-${{ github.sha }}', 'website-static-latest') }, 'same commit')
+      expectFailure(
+        { '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', '      - run: node scripts/smoke-website.mjs', '      - run: npm run build') },
+        'must reuse the verified artifact',
+        'must run node scripts/smoke-website.mjs',
+      )
     })
   })
 

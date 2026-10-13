@@ -1,7 +1,7 @@
 /**
  * When the site may load its analytics script (docs/v2/permissions.md §8). Pure functions over the country Cloudflare
  * gives the visitor's IP address, the stored choice and the Global Privacy Control signal, so the rules are tested
- * without a page or a proxy.
+ * without a running website.
  */
 
 export type ConsentChoice = 'granted' | 'denied'
@@ -19,7 +19,7 @@ export const OPEN_CONSENT_EVENT = 'annhub:analytics-settings'
 export const GRANT_DAYS = 365
 
 /**
- * The session cookie the proxy sets for a visitor outside the asked countries, so the static page knows it may count
+ * The session cookie the edge response rule sets for a visitor outside the asked countries, so the static page knows it may count
  * without asking. It holds no country. A visitor in an asked country never gets it: no cookie means "ask first".
  */
 export const REGION_COOKIE = 'annhub-region'
@@ -30,7 +30,7 @@ export const REGION_OUTSIDE = 'outside'
  * the rest of the EEA, the United Kingdom and Switzerland; the EU's regions that have a code of their own; and `EU`,
  * which some address ranges are given when only the continent is known.
  *
- * The edge worker repeats this list (cloudflare/edge-cache.js); the consent test fails when the two drift apart.
+ * Cloudflare response rules import this list when the deployment generates the country expression.
  */
 export const ASKED_COUNTRIES = new Set([
   ...['AT', 'BE', 'BG', 'CY', 'CZ', 'DE', 'DK', 'EE', 'ES', 'FI', 'FR', 'GR', 'HR', 'HU', 'IE', 'IT', 'LT', 'LU', 'LV', 'MT', 'NL', 'PL', 'PT', 'RO', 'SE', 'SI', 'SK'],
@@ -49,13 +49,7 @@ export function asksFirst(country: string | null | undefined): boolean {
   return !/^[A-Z]{2}$/.test(code) || code === 'XX' || ASKED_COUNTRIES.has(code)
 }
 
-/** What the proxy does with the region cookie, given the visitor's country and the cookie the request carries. */
-export function regionCookie(country: string | null | undefined, current: string | undefined): 'set' | 'delete' | 'keep' {
-  if (asksFirst(country)) return current === undefined ? 'keep' : 'delete'
-  return current === REGION_OUTSIDE ? 'keep' : 'set'
-}
-
-/** Whether the page asks first, from `document.cookie`: only the proxy's mark lets it count without asking. */
+/** Whether the page asks first, from `document.cookie`: only the edge rule's mark lets it count without asking. */
 export function asksFromCookies(cookies: string): boolean {
   return !cookies.split(';').some(pair => pair.trim() === `${REGION_COOKIE}=${REGION_OUTSIDE}`)
 }
