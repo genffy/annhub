@@ -13,6 +13,7 @@ import { entryById, getSample } from '../product/sample'
 import { ShotScene } from '../product/shot-scene'
 import { Container, SectionTitle } from './shared'
 import StoryStepper from './story-stepper'
+import StoryFocus from './story-focus'
 
 /** One week, six moments (docs/v2/examples.md §2): read and clip, organise, find, take away. */
 export default function Story({ copy }: { copy: LandingCopy }) {
@@ -86,13 +87,18 @@ export default function Story({ copy }: { copy: LandingCopy }) {
   }
 
   return (
-    <section id="story" aria-labelledby="story-title" className="anchor-target bg-white py-20 sm:py-28">
+    <section id="story" aria-labelledby="story-title" className="anchor-target bg-white py-14 sm:py-20">
       <Container>
         <SectionTitle id="story-title" className="max-w-[820px]">
           {story.title}
         </SectionTitle>
         <p className="mt-5 max-w-[720px] text-[16px] leading-7 text-fg-3 sm:text-[17px]">{story.intro}</p>
-        <StoryStepper steps={story.steps} scenes={scenes} labels={{ stepOf: story.stepOf, prev: story.prev, next: story.next }} />
+        <StoryStepper
+          steps={story.steps}
+          scenes={scenes}
+          focusedScenes={Object.fromEntries(story.steps.map(step => [step.id, <StoryFocus key={step.id} step={step.id} copy={copy} />]))}
+          labels={{ title: story.title, stepOf: story.stepOf, prev: story.prev, next: story.next }}
+        />
         <p className="mt-8 border-t border-line pt-6 text-[15px] font-medium text-fg-2">{story.outro}</p>
       </Container>
     </section>

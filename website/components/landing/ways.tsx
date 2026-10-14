@@ -3,7 +3,7 @@ import type { LandingCopy } from '@/lib/copy'
 import { HighlightBar, markdownLabels } from '../product/detail'
 import Fit from '../product/fit'
 import { Markdown } from '../product/markdown'
-import { Anchored, FeedPost, SelectionMenu } from '../product/page-scenes'
+import { Anchored, SelectionMenu } from '../product/page-scenes'
 import { Ic, TypeChip, TypeTile } from '../product/parts'
 import { entryById, getSample } from '../product/sample'
 import { ShotMini } from '../product/shot-scene'
@@ -24,14 +24,6 @@ function ClipMini({ copy }: { copy: LandingCopy }) {
         </span>{' '}
         so the producer slows down, pauses, or drops work it cannot deliver.
       </p>
-      <div className="mt-9">
-        <FeedPost
-          ui={ui}
-          hovered
-          text="Retries without a budget are just a slower way to take your dependency down. A short thread on what we changed ↓"
-          link="example.com/retry-budgets"
-        />
-      </div>
     </div>
   )
 }
@@ -42,7 +34,7 @@ function HighlightMini({ copy }: { copy: LandingCopy }) {
   const entry = entryById(sample, 'storm')
   return (
     <div className="ah overflow-hidden rounded-md border border-line bg-surface">
-      <div className="px-5 pb-4 pt-[62px]">
+      <div className="px-5 pb-4 pt-5">
         <div className="mb-14 flex items-center gap-2">
           <TypeChip type="clip" label={ui.types.clip} small />
           <span className="ah-muted ah-truncate text-[12px]">
@@ -136,15 +128,15 @@ function Unified({ copy }: { copy: LandingCopy }) {
 export default function Ways({ copy }: { copy: LandingCopy }) {
   const { ways } = copy
   return (
-    <section id="ways" aria-labelledby="ways-title" className="anchor-target bg-canvas py-20 sm:py-28">
+    <section id="ways" aria-labelledby="ways-title" className="anchor-target bg-canvas py-14 sm:py-20">
       <Container>
         <SectionTitle id="ways-title" className="max-w-[860px]">
           {ways.title}
         </SectionTitle>
-        <div className="mt-12 grid gap-5 lg:grid-cols-3">
+        <div className="mt-8 grid gap-5 lg:grid-cols-3">
           {ways.kinds.map(kind => (
             <article key={kind.id} className="flex flex-col overflow-hidden rounded-lg border border-line bg-white shadow-card">
-              <div className="p-6 sm:p-7">
+              <div className="p-5 sm:p-6">
                 <div className="flex items-center gap-3">
                   <TypeTile type={kind.id} />
                   <h3 className="text-[24px] font-bold leading-none" style={{ color: `color-mix(in oklab, var(--t-${kind.id}) 78%, var(--fg))` }}>
@@ -153,8 +145,10 @@ export default function Ways({ copy }: { copy: LandingCopy }) {
                 </div>
                 <p className="mt-4 text-[16px] leading-7 text-fg-2">{kind.body}</p>
               </div>
-              <div className="mt-auto flex flex-1 flex-col justify-center border-t border-line bg-canvas p-4 sm:p-5 lg:min-h-[390px]" role="img" aria-label={kind.caption}>
-                <Scene kind={kind.id} copy={copy} />
+              <div className="mt-auto flex flex-1 flex-col justify-center border-t border-line bg-canvas p-4 sm:p-5" role="img" aria-label={kind.caption}>
+                <div aria-hidden="true" inert>
+                  <Scene kind={kind.id} copy={copy} />
+                </div>
               </div>
             </article>
           ))}

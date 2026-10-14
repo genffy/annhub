@@ -14,8 +14,8 @@ const FACT_ICONS = [WifiOff, Lock, FileText]
 /** On a phone a scaled-down window is unreadable, so the first picture is the page itself at natural size. */
 function HeroPhone({ copy }: { copy: LandingCopy }) {
   return (
-    <div className="mt-9 sm:hidden" role="img" aria-label={copy.hero.captions.page}>
-      <div aria-hidden="true" className="ah ah-pg ah-win">
+    <div className="mt-7 sm:hidden" role="img" aria-label={copy.hero.captions.page}>
+      <div aria-hidden="true" inert className="ah ah-pg ah-win">
         <div className="flex items-center gap-2 border-b border-[#ececec] px-4 py-2.5 text-[12px] text-[#6b6965]" style={{ fontFamily: 'var(--font-ui)' }}>
           <Lock size={12} aria-hidden="true" />
           engineering.example.com
@@ -25,11 +25,11 @@ function HeroPhone({ copy }: { copy: LandingCopy }) {
           <p className="mt-1 text-[12px] text-[#77736d]" style={{ fontFamily: 'var(--font-ui)' }}>
             Platform Engineering · Updated Sep 28 · 9 min read
           </p>
-          <p className="mt-[100px] text-[16px] leading-[1.7] text-[#26241f]">
+          <p className="mt-[88px] text-[16px] leading-[1.7] text-[#26241f]">
             <span className="ah-sel ah-anchor">
               <b>Backpressure</b> is how a system pushes that pain back where it belongs.
               <Anchored place="above">
-                <SelectionMenu ui={copy.ui} hover={0} tip="clip" />
+                <SelectionMenu ui={copy.ui} hover={0} />
               </Anchored>
             </span>{' '}
             Instead of letting buffers absorb the mismatch indefinitely, the consumer signals demand upstream so the producer slows down.
@@ -49,25 +49,23 @@ export default function Hero({ copy }: { copy: LandingCopy }) {
 
   return (
     <section aria-labelledby="hero-title" className="relative overflow-hidden bg-canvas">
-      <Container className="relative pb-10 pt-28 sm:pt-32 lg:min-h-[820px] lg:pb-24 lg:pt-36">
-        <div className="relative z-10 max-w-[500px]">
+      <Container className="hero-layout relative pb-10 pt-28 sm:pt-32 lg:pb-16">
+        <div className="hero-copy relative z-10 max-w-[500px]">
           <p className="inline-flex items-center gap-2 rounded-md border border-line-2 bg-white px-3 py-1.5 text-[12.5px] font-semibold text-fg-2">
             <Puzzle size={14} className="text-brand" aria-hidden="true" />
             {hero.chip}
           </p>
-          <h1 id="hero-title" className="display mt-5 text-[60px] font-bold leading-[0.95] text-brand sm:text-[76px] lg:text-[92px]">
+          <h1 id="hero-title" className="display mt-5 text-[48px] font-bold leading-none text-brand sm:text-[64px] lg:text-[72px]">
             AnnHub
           </h1>
-          <p className="display mt-6 max-w-[640px] text-[24px] font-semibold leading-[1.28] text-fg sm:text-[30px]">
+          <p className="display mt-5 text-[26px] font-semibold leading-[1.28] text-fg sm:text-[32px] xl:text-[34px]">
             <Clauses text={hero.lead} />
           </p>
           <p className="mt-4 max-w-[440px] text-[16px] leading-[1.75] text-fg-3 sm:max-w-[500px] sm:text-[17px] lg:max-w-[440px]">
             <Clauses text={hero.body} />
-            {copy.locale === 'en' ? ' ' : null}
-            <strong className="font-semibold text-brand-text">{hero.local}</strong>
           </p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-3">
+          <div className="mt-6 flex flex-wrap items-center gap-3">
             <a
               href={LIBRARY_URL}
               className="inline-flex h-12 items-center gap-2 rounded-lg bg-brand px-5 text-[15px] font-semibold text-brand-fg shadow-[0_8px_20px_-8px_rgba(103,58,184,0.7)] transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_86%,#000)]"
@@ -83,7 +81,8 @@ export default function Hero({ copy }: { copy: LandingCopy }) {
             </a>
           </div>
 
-          <ul className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-fg-3">
+          <p className="mt-2.5 text-[12px] text-fg-3">{hero.demo}</p>
+          <ul className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-[12px] text-fg-3">
             {hero.facts.map((fact, i) => {
               const Icon = FACT_ICONS[i]!
               return (
@@ -95,14 +94,13 @@ export default function Hero({ copy }: { copy: LandingCopy }) {
             })}
           </ul>
           <p className="mt-3 text-[12.5px] text-fg-3">{hero.audience}</p>
-          <p className="mt-6 max-w-[420px] border-l-2 border-line-2 pl-3 text-[12px] leading-5 text-fg-3">{hero.sketch}</p>
         </div>
 
         <HeroPhone copy={copy} />
 
         {/* The product board: one large selection scene in front, the reading view and the library behind it. */}
         <div className="hb" role="img" aria-label={`${hero.captions.page}; ${hero.captions.reader}; ${hero.captions.library}`}>
-          <div className="hb-in" aria-hidden="true">
+          <div className="hb-in" aria-hidden="true" inert>
             <span className="hb-label hb-label-b">{hero.captions.reader}</span>
             <span className="hb-label hb-label-a">{hero.captions.page}</span>
 
@@ -132,6 +130,7 @@ export default function Hero({ copy }: { copy: LandingCopy }) {
             </div>
           </div>
         </div>
+        <p className="mt-3 text-[11.5px] text-fg-3 lg:absolute lg:bottom-5 lg:left-10">{hero.sketch}</p>
       </Container>
     </section>
   )

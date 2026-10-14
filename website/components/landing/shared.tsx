@@ -45,7 +45,7 @@ export function Clauses({ text }: { text: string }) {
 /** Section headline: large, tight, never preceded by a pill or an eyebrow unless the section really needs one. */
 export function SectionTitle({ id, children, className = '' }: { id?: string; children: ReactNode; className?: string }) {
   return (
-    <h2 id={id} className={`display text-[30px] font-bold leading-[1.12] text-fg sm:text-[38px] lg:text-[46px] ${className}`}>
+    <h2 id={id} className={`display text-[28px] font-bold leading-[1.2] text-fg sm:text-[34px] lg:text-[40px] ${className}`}>
       {typeof children === 'string' ? <Clauses text={children} /> : children}
     </h2>
   )

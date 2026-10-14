@@ -6,7 +6,7 @@ import { Container, RichText, SectionTitle } from './shared'
 export default function Faq({ copy }: { copy: LandingCopy }) {
   const { faq } = copy
   return (
-    <section id="faq" aria-labelledby="faq-title" className="anchor-target bg-canvas py-20 sm:py-28">
+    <section id="faq" aria-labelledby="faq-title" className="anchor-target bg-canvas py-14 sm:py-20">
       <Container>
         <div className="grid gap-10 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-16">
           <div className="lg:sticky lg:top-28 lg:self-start">

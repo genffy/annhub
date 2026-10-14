@@ -94,6 +94,14 @@
 }
 
 @media (min-width: 1024px) {
+  .hero-layout {
+    min-height: 720px;
+  }
+
+  .hero-copy {
+    max-width: min(460px, 46%);
+  }
+
   .hb {
     --s: 0.5;
     position: absolute;
@@ -116,6 +124,10 @@
 }
 
 @media (min-width: 1440px) {
+  .hero-layout {
+    min-height: 760px;
+  }
+
   .hb {
     --s: 0.78;
   }
@@ -129,11 +141,40 @@
 
 /* the interactive library window: a fixed stage height, the content scrolls inside it */
 .tour-window {
-  height: 600px;
+  height: 520px;
 }
 
-@media (min-width: 1024px) {
+@media (min-width: 640px) {
   .tour-window {
-    height: 680px;
+    height: 600px;
   }
+}
+
+.story-focus {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.story-focus .ah-search {
+  width: 100%;
+}
+
+.story-file {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.story-file .ah-file {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.story-file .ah-file-tree {
+  display: none;
+}
+
+.tour-controls button:focus-visible {
+  outline-offset: -3px;
 }

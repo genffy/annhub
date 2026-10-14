@@ -8,22 +8,23 @@ import { fill } from '@/lib/copy'
 import { RichText } from './shared'
 
 /**
- * Six moments of one week, one picture each. Keep inactive panels for the tab relationship, but only mount the active
+ * Six moments of one week, one picture each. Keep inactive explanations in the HTML, but only mount the active
  * scene; the hidden browser windows otherwise add hundreds of DOM nodes and several ResizeObservers on first load.
  */
 export default function StoryStepper({
   steps,
   scenes,
+  focusedScenes,
   labels,
 }: {
   steps: StoryStep[]
   scenes: Record<StoryStep['id'], ReactNode>
-  labels: { stepOf: string; prev: string; next: string }
+  focusedScenes: Record<string, ReactNode>
+  labels: { title: string; stepOf: string; prev: string; next: string }
 }) {
   const [active, setActive] = useState(0)
   const uid = useId()
   const tabs = useRef<(HTMLButtonElement | null)[]>([])
-  const step = steps[active]!
 
   const go = (i: number, focus = false) => {
     const next = (i + steps.length) % steps.length
@@ -32,12 +33,14 @@ export default function StoryStepper({
   }
 
   const onKey = (e: KeyboardEvent) => {
+    const focused = tabs.current.indexOf(e.target as HTMLButtonElement)
+    const current = focused < 0 ? active : focused
     if (e.key === 'ArrowDown' || e.key === 'ArrowRight') {
       e.preventDefault()
-      go(active + 1, true)
+      go(current + 1, true)
     } else if (e.key === 'ArrowUp' || e.key === 'ArrowLeft') {
       e.preventDefault()
-      go(active - 1, true)
+      go(current - 1, true)
     } else if (e.key === 'Home') {
       e.preventDefault()
       go(0, true)
@@ -48,63 +51,53 @@ export default function StoryStepper({
   }
 
   return (
-    <div className="mt-12 grid gap-8 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-12">
-      <div>
-        {/* below lg: numbers to jump between steps; the active step's text follows */}
-        <div className="flex gap-2 lg:hidden" role="presentation">
-          {steps.map((s, i) => (
-            <button
-              key={s.id}
-              type="button"
-              tabIndex={-1}
-              aria-hidden="true"
-              onClick={() => go(i)}
-              className={`h-9 min-w-9 flex-1 rounded-md border text-[13px] font-semibold tabular-nums transition-colors ${i === active ? 'border-brand bg-brand text-brand-fg' : 'border-line-2 bg-white text-fg-3'}`}
-            >
+    <div className="mt-8 grid items-start gap-6 lg:grid-cols-[minmax(0,4fr)_minmax(0,8fr)] lg:gap-10">
+      <div role="group" aria-label={labels.title} onKeyDown={onKey} className="grid grid-cols-6 gap-2 lg:grid-cols-1 lg:gap-0">
+        {steps.map((s, i) => (
+          <button
+            key={s.id}
+            ref={el => {
+              tabs.current[i] = el
+            }}
+            type="button"
+            aria-pressed={i === active}
+            aria-controls={`${uid}-panel-${s.id}`}
+            onClick={() => go(i)}
+            className={`min-h-11 rounded-md border px-2 py-2.5 text-left transition-colors lg:rounded-none lg:border-0 lg:border-l-2 lg:px-5 lg:py-3 ${i === active ? 'border-brand bg-brand text-brand-fg lg:bg-surface-2 lg:text-fg' : 'border-line-2 text-fg-3 hover:border-brand hover:text-brand-text'}`}
+          >
+            <span className="block text-center font-mono text-[13px] lg:hidden" aria-hidden="true">
               {i + 1}
-            </button>
-          ))}
-        </div>
+            </span>
+            <span className="hidden font-mono text-[12px] lg:block">{s.when}</span>
+            <span className="sr-only lg:not-sr-only lg:mt-1 lg:block lg:text-[16px] lg:font-semibold lg:leading-6">{s.title}</span>
+          </button>
+        ))}
+      </div>
 
-        <div role="tablist" aria-orientation="vertical" aria-label={steps[0]!.title} onKeyDown={onKey} className="mt-6 lg:mt-0">
-          {steps.map((s, i) => {
-            const on = i === active
-            return (
-              <button
-                key={s.id}
-                ref={el => {
-                  tabs.current[i] = el
-                }}
-                type="button"
-                role="tab"
-                id={`${uid}-tab-${s.id}`}
-                aria-selected={on}
-                aria-controls={`${uid}-panel-${s.id}`}
-                tabIndex={on ? 0 : -1}
-                onClick={() => go(i)}
-                className={`group relative w-full border-l-2 py-4 pl-6 text-left transition-colors ${on ? 'block border-brand' : 'hidden border-line-2 hover:border-fg-4 lg:block'}`}
-              >
-                <span
-                  className={`absolute -left-[7px] top-[22px] h-3 w-3 rounded-full border-2 bg-white ${on ? 'border-brand' : 'border-line-2 group-hover:border-fg-4'}`}
-                  aria-hidden="true"
-                />
-                <span className="font-mono text-[12px] text-fg-3">{s.when}</span>
-                <span className={`mt-1 block text-[18px] font-semibold leading-snug sm:text-[19px] ${on ? 'text-fg' : 'text-fg-3 group-hover:text-fg-2'}`}>{s.title}</span>
-                {/* Every step's body is rendered, the inactive ones only hidden: the build output must carry the whole
-                    walk-through, not just the first step (docs/v2/seo-geo.md §4.3). */}
-                <span className={`mt-2 block max-w-[460px] text-[15px] leading-7 text-fg-3 ${on ? '' : 'hidden'}`}>
-                  <RichText text={s.body} />
-                </span>
-              </button>
-            )
-          })}
-        </div>
-
-        <div className="mt-6 flex items-center gap-3 lg:mt-8">
+      <div className="min-w-0">
+        {steps.map((s, i) => (
+          <div key={s.id} id={`${uid}-panel-${s.id}`} role="region" aria-label={s.title} hidden={i !== active}>
+            <p className="mb-1 font-mono text-[12px] text-fg-3 lg:hidden">{s.when}</p>
+            <h3 className="mb-4 text-[20px] font-semibold leading-7 text-fg lg:hidden">{s.title}</h3>
+            <div className="rounded-lg border border-line bg-canvas p-3 sm:p-5" role="img" aria-label={s.caption}>
+              {i === active ? (
+                <div aria-hidden="true" inert>
+                  <div className="mx-auto max-w-[560px] xl:hidden">{focusedScenes[s.id]}</div>
+                  <div className="hidden xl:block">{scenes[s.id]}</div>
+                </div>
+              ) : null}
+            </div>
+            {/* All six explanations remain in the static HTML; the selected scene is the only one mounted. */}
+            <p className="mt-4 text-[15px] leading-7 text-fg-2">
+              <RichText text={s.body} />
+            </p>
+          </div>
+        ))}
+        <div className="mt-5 flex items-center gap-3">
           <button
             type="button"
             onClick={() => go(active - 1)}
-            className="inline-flex h-10 items-center gap-1.5 rounded-md border border-line-2 bg-white px-3.5 text-[13.5px] font-semibold text-fg-2 transition-colors hover:border-brand hover:text-brand-text"
+            className="inline-flex h-11 items-center gap-1.5 rounded-md border border-line-2 bg-white px-3.5 text-[13.5px] font-semibold text-fg-2 transition-colors hover:border-brand hover:text-brand-text"
           >
             <ArrowLeft size={15} aria-hidden="true" />
             {labels.prev}
@@ -112,27 +105,14 @@ export default function StoryStepper({
           <button
             type="button"
             onClick={() => go(active + 1)}
-            className="inline-flex h-10 items-center gap-1.5 rounded-md border border-line-2 bg-white px-3.5 text-[13.5px] font-semibold text-fg-2 transition-colors hover:border-brand hover:text-brand-text"
+            className="inline-flex h-11 items-center gap-1.5 rounded-md border border-line-2 bg-white px-3.5 text-[13.5px] font-semibold text-fg-2 transition-colors hover:border-brand hover:text-brand-text"
           >
             {labels.next}
             <ArrowRight size={15} aria-hidden="true" />
           </button>
-          <span className="ml-1 font-mono text-[12.5px] tabular-nums text-fg-3" aria-live="polite">
+          <span className="ml-auto font-mono text-[12.5px] tabular-nums text-fg-3" aria-live="polite">
             {fill(labels.stepOf, { n: active + 1, total: steps.length })}
           </span>
-        </div>
-      </div>
-
-      <div className="lg:sticky lg:top-24 lg:self-start">
-        <div className="rounded-lg border border-line bg-canvas p-3 sm:p-6">
-          {steps.map((s, i) => (
-            <div key={s.id} role="tabpanel" id={`${uid}-panel-${s.id}`} aria-labelledby={`${uid}-tab-${s.id}`} hidden={i !== active}>
-              <div role="img" aria-label={s.caption}>
-                {i === active ? scenes[s.id] : null}
-              </div>
-            </div>
-          ))}
-          <p className="mt-4 text-[12.5px] leading-5 text-fg-3">{step.caption}</p>
         </div>
       </div>
     </div>
