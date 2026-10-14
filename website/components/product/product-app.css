@@ -1536,6 +1536,57 @@ button.ah-dotb {
 }
 
 /* ── interactive pieces: a real search field, the export button, the export dialog ── */
+/* The website's live sample offers reading and highlighting; static extension-only actions stay out of its UI. */
+.ah-preview .ah-nav-fold,
+.ah-preview .ah-meter,
+.ah-preview .hide-rail,
+.ah-preview .ah-erow .acts,
+.ah-preview .ah-hg-h > .ah-link,
+.ah-preview .ah-rd-bar > span.ah-btn,
+.ah-preview .ah-dh > span.ah-btn,
+.ah-preview .ah-dfoot,
+.ah-preview .ah-prow-add,
+.ah-preview .ah-prow .px,
+.ah-preview .ah-vtag > .ah-i,
+.ah-preview .ah-prow .pv > .ah-muted-2 {
+  display: none;
+}
+
+.ah-preview .ah-prow .ah-link {
+  color: var(--fg-3);
+  cursor: default;
+}
+
+.ah-preview .ah-prow {
+  grid-template-columns: minmax(88px, 0.8fr) minmax(0, 1.2fr);
+}
+
+.ah-preview .ah-textarea {
+  border: 0;
+  background: transparent;
+}
+
+.ah-preview .ah-ptab-h,
+.ah-preview .ah-ptab-r {
+  grid-template-columns: minmax(0, 1fr) 64px 32px;
+  gap: 8px;
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.ah-preview .ah-ptab-h > :nth-child(2),
+.ah-preview .ah-ptab-r > :nth-child(2) {
+  display: block;
+}
+
+.ah-preview .ah-ptab-h > :nth-child(3),
+.ah-preview .ah-ptab-r > :nth-child(3),
+.ah-preview .ah-ptab-h > :nth-child(n + 5),
+.ah-preview .ah-ptab-r > :nth-child(n + 5),
+.ah-preview .ah-ptab .nm .ah-chip {
+  display: none;
+}
+
 .ah-search input {
   flex: 1;
   min-width: 0;

@@ -9,7 +9,7 @@ export const en: LandingCopy = {
     title: 'AnnHub — Keep what’s worth keeping from the web in one local library',
     description: 'A local-first browser extension that keeps clips, highlights and screenshots with their source in one library, sorted by properties and exportable as Markdown.',
     ogImageAlt: 'Interface illustration based on the v2 design, using sample data',
-    updated: '2026-10-12',
+    updated: '2026-10-14',
   },
   header: {
     nav: [
@@ -28,14 +28,14 @@ export const en: LandingCopy = {
   hero: {
     chip: 'Browser extension · Local-first',
     lead: 'Keep what’s worth keeping from the web in one local library.',
-    body: 'Clips, highlights and screenshots — with their source and properties — found again when you need them, and ready to take to Obsidian.',
-    local: 'Local-first.',
+    body: 'Keep clips and screenshots with their source. Read, highlight and find them when you write. Export to Obsidian when you need to.',
+    demo: 'No installation · Sample data',
     audience: 'Built for senior engineers, architects and tech leads',
     cta: 'Try the library',
     secondary: 'See the workflow',
-    facts: ['Capture and export work offline', 'Data stays in your browser', 'Export Markdown; properties become frontmatter'],
+    facts: ['Capture and export offline', 'Data stays in your browser', 'Markdown export'],
     captions: { page: 'On the web · select a passage', reader: 'In the library · read, highlight, properties', library: 'In the library · clips and screenshots together' },
-    sketch: 'Interface illustration based on the v2 design, using sample data',
+    sketch: 'Interface illustration · Sample data',
   },
   problem: {
     title: 'Saving is easy. Finding it again, and telling it apart, is the hard part.',
@@ -43,17 +43,14 @@ export const en: LandingCopy = {
       {
         title: 'Scattered everywhere',
         body: 'Bookmarks, highlights and screenshots live in different tools and folders.',
-        evidence: ['Bookmarks bar', 'Highlighter add-on', 'Screenshots folder'],
       },
       {
         title: 'Cut off from the source',
         body: 'All that’s left is a passage or an image. Which page was it from, and where on that page?',
-        evidence: ['“Without a budget, every client retries at once.”', 'Which page?'],
       },
       {
         title: 'Hard to sort',
         body: 'With no shared tags or properties, finding anything depends on memory.',
-        evidence: ['Screenshot 2026-09-14 10.40.png', 'retry notes (final) v2.md', 'Untitled (3)'],
       },
     ],
   },
@@ -64,7 +61,7 @@ export const en: LandingCopy = {
         id: 'clip',
         name: 'Clip',
         body: 'Select a passage, or point at a whole article or post, and save it in one click.',
-        caption: 'The selection menu, and the clip capsule that appears when you point at a whole block',
+        caption: 'The clip menu above a selected passage',
       },
       {
         id: 'screenshot',
@@ -138,23 +135,28 @@ export const en: LandingCopy = {
   },
   tour: {
     title: 'Read, organise and find it again in the library',
-    intro:
-      'Every extension page is a left navigation with content on the right. However narrow the window gets, the navigation only folds into an icon rail; it never becomes a top bar.',
-    hint: 'Try it: click the navigation, open an entry, press “Read”, then select text in the article to highlight it. Selecting with the keyboard and pressing H works too.',
+    intro: 'Keep clips and screenshots together. Search by keyword, open a clip and pick up where you left off.',
+    hint: 'Try searching “idempotency”, open a clip, then choose “Read”.',
+    tasksLabel: 'Choose a task to try',
+    scope: 'Try search, reading and highlighting. Sources and properties are for viewing; export shows a Markdown example.',
+    loading: 'Loading the sample library…',
+    exportTitle: 'Export preview',
+    exportHint: 'A sample Markdown file: properties become frontmatter and highlights stay in the text. This is a preview; no file is downloaded.',
+    empty: 'No matching examples. Try another keyword or clear the search.',
     pins: [
-      { title: 'Left navigation, content on the right', body: 'All, Clips, Highlights, Screenshots, Properties, Settings: every page shares one shell.' },
-      { title: 'Every entry keeps its source', body: 'Type, title, source host, time, tags and properties sit in the row; a clip with highlights shows how many.' },
+      { title: 'Browse', body: 'Search by keyword, or switch between clips and screenshots in the navigation. Open an entry to see its details.' },
+      { title: 'Source', body: 'This clip keeps its text, source and properties together. Choose “Read” to continue; the sample source is for viewing only.' },
       {
-        title: 'Highlights grouped by clip',
-        body: 'Everything you marked lives in the Highlights view with its colour and note; click one to return to its place in the reading view.',
+        title: 'Highlight',
+        body: 'Open a highlight to read the clip. Select text and pick a colour, or make a keyboard selection and press H to mark it.',
       },
       {
-        title: 'Small, explicit properties',
-        body: 'A property has a type, and one name means one type. Add it in the entry’s detail, manage it on the Properties page; on export it is the frontmatter.',
+        title: 'Properties',
+        body: 'View the sample property names, types and usage. In the extension, use them to organise entries; they become frontmatter on export.',
       },
-      { title: 'One export command', body: '“Export content” packs the entries and their saved images into one ZIP for other tools to read.' },
+      { title: 'Export', body: 'See the same material as Markdown, with properties, source and highlights in the file.' },
     ],
-    sketch: 'Interface sketch drawn from the v2 design; sample data',
+    sketch: 'Interface illustration · Sample data resets on refresh',
   },
   diff: {
     title: 'A few deliberate choices',
@@ -168,8 +170,6 @@ export const en: LandingCopy = {
       { visual: 'properties', title: 'Properties stay small and explicit', body: 'They are typed, one name means one type, and long text goes in the note.' },
       { visual: 'offline', title: 'Local-first, and readable', body: 'The core loop works offline; entries and saved images export as a Markdown ZIP.' },
     ],
-    offline: { label: 'Offline', steps: ['Capture', 'Read & highlight', 'Search & filter', 'Export Markdown'] },
-    flow: { library: 'The library in your browser', zip: 'Markdown + original images ZIP', tool: 'Obsidian, or any tool that reads Markdown' },
   },
   trust: {
     eyebrow: 'Local-first',

@@ -58,7 +58,7 @@ function Boundary({ copy }: { copy: LandingCopy }) {
 export default function Trust({ copy }: { copy: LandingCopy }) {
   const { trust } = copy
   return (
-    <section id="local" aria-labelledby="local-title" className="theme-dark anchor-target bg-[#0d1017] py-20 text-fg sm:py-28">
+    <section id="local" aria-labelledby="local-title" className="theme-dark anchor-target bg-[#0d1017] py-14 text-fg sm:py-20">
       <Container>
         <div className="grid gap-12 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)] lg:gap-16">
           <div>

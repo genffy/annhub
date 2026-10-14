@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import type { LandingCopy } from '@/lib/copy'
+import TourControls from './tour-controls'
 
 type LibraryTour = (typeof import('./library-tour'))['default']
 
@@ -52,14 +53,20 @@ export default function TourWindow({ copy }: { copy: LandingCopy }) {
   return Tour ? (
     <Tour copy={copy} />
   ) : (
-    <div ref={stage} className="tour-window overflow-hidden rounded-lg border border-line bg-white" role="img" aria-label={copy.tour.title}>
-      <div className="flex h-10 items-center gap-3.5 border-b border-line bg-surface-2 px-4">
-        <span className="flex gap-1.5" aria-hidden="true">
-          <i className="h-2.5 w-2.5 rounded-full bg-line-2" />
-          <i className="h-2.5 w-2.5 rounded-full bg-line-2" />
-          <i className="h-2.5 w-2.5 rounded-full bg-line-2" />
-        </span>
-        <span className="h-5 flex-1 rounded bg-surface" />
+    <div ref={stage} className="anchor-target">
+      <TourControls copy={copy} />
+      <div id="library-demo-window" className="tour-window mt-3 overflow-hidden rounded-lg border border-line bg-white" aria-busy="true">
+        <div className="flex h-10 items-center gap-3.5 border-b border-line bg-surface-2 px-4">
+          <span className="flex gap-1.5" aria-hidden="true">
+            <i className="h-2.5 w-2.5 rounded-full bg-line-2" />
+            <i className="h-2.5 w-2.5 rounded-full bg-line-2" />
+            <i className="h-2.5 w-2.5 rounded-full bg-line-2" />
+          </span>
+          <span className="h-5 flex-1 rounded bg-surface" />
+        </div>
+        <p role="status" className="px-6 py-10 text-[14px] text-fg-3">
+          {copy.tour.loading}
+        </p>
       </div>
     </div>
   )

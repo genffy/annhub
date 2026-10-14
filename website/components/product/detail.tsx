@@ -209,6 +209,7 @@ export function HighlightBar({
   current,
   onPick,
   onDelete,
+  preview = false,
   style,
   className = '',
 }: {
@@ -219,6 +220,7 @@ export function HighlightBar({
   current?: (typeof HIGHLIGHT_COLORS)[number]
   onPick?: (color: (typeof HIGHLIGHT_COLORS)[number]) => void
   onDelete?: () => void
+  preview?: boolean
   style?: CSSProperties
   className?: string
 }) {
@@ -237,18 +239,18 @@ export function HighlightBar({
           ),
         )}
       </span>
-      <i className="sepd" />
+      {!preview || onDelete ? <i className="sepd" /> : null}
       {onDelete ? (
         <button type="button" className="act" onMouseDown={e => e.preventDefault()} onClick={onDelete} style={{ cursor: 'pointer' }}>
           <Ic icon={Trash2} />
           {ui.reader.delete}
         </button>
-      ) : (
+      ) : !preview ? (
         <span className="act">
           <Ic icon={MessageSquareText} />
           {ui.reader.note}
         </span>
-      )}
+      ) : null}
       {kbd ? (
         <>
           <i className="sepd" />

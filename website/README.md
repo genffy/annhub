@@ -23,7 +23,7 @@ AnnHub 的公开网站与产品展示页。网站代码位于独立 Next.js 应�
 
 网站是稳定的产品介绍页，围绕问题、完整工作流、资料库体验和本地数据边界组织内容。主 CTA「体验资料库」指向站内可交互示例（`#library`），次要 CTA「查看工作流」指向页内的一周走查（`#story`）。页面不展示交付进度；功能表述仍以源码和[路线图](../docs/v2/roadmap.md)核对。公开构建可用之前没有下载入口。参见[网站蓝图 §14](../docs/v2/website.md)。
 
-资料库示例使用内存中的示例数据，刷新后重置。产品窗口保持“界面示意”标注，不能暗示访客已经安装扩展。
+资料库示例使用内存中的示例数据，刷新后重置。任务入口在窗口上方，点击后让说明与结果保持在视口内。可体验导航、搜索、阅读和高亮；来源与属性供查看，“导出预览”显示 Markdown 示例，不模拟下载成功。未提供交互的筛选、设置、删除与属性编辑不显示成可点击入口。产品窗口保持“界面示意”标注，不能暗示访客已经安装扩展。
 
 ## 开发
 
@@ -94,9 +94,13 @@ components/product/sample.ts      示例数据，取自 docs/v2/examples.md 的�
 - **页内锚点平滑滚动，换页不滚动画**。`globals.css` 给 `html` 设了 `scroll-behavior: smooth`，所以 `layout.tsx` 的 `<html>` 要带 `data-scroll-behavior="smooth"`。有它，Next 在换页（语言切换）时临时关掉平滑滚动，新页面直接停在顶部；没有它，新页面会用约 1 秒的动画从原来的位置滑回顶部，开发时控制台还会警告。同一个测试核对两处一致。
 - 产品窗口圆角不超过 8px；不用渐变球、发光背景和玻璃拟态；紫色只作品牌与操作强调（[蓝图 §5](../docs/v2/website.md)）。
 - 页面主 CTA 统一为“体验资料库”，各入口都指向站内示例。
+- 手机顶栏保留主 CTA。走查在窄屏用 `StoryFocus` 展示原尺寸的关键局部，在宽屏展示完整窗口；两者复用同一份示例数据与产品零件。静态场景的内部内容设置 `inert`，替代文字留在外层，键盘只进入真正可操作的控件。
+- 问题区与取舍区采用紧凑条目，功能区每项只展示一个主要动作。资料库文案按“搜索、阅读、找回”等用户任务组织。
 - 不展示未经验证的评价和使用人数，不写“完全准确”“永不丢失”这类无法证明的承诺。
 - 对其他产品的对比只写在 FAQ 里，并带 [market.md](../docs/v2/market.md) 的核对日期。
 
-**渲染方式**：两个语言的页面在构建时预渲染成静态 HTML。`app/[locale]/layout.tsx` 和 `page.tsx` 里的 `setRequestLocale(locale)` 就是为此而写：去掉它，next-intl 会去读请求头，页面退回按请求渲染。客户端组件只有这几个：`Fit`（把像素定位的场景缩到容器宽度）、`StoryStepper`（走查的步骤切换，只挂载当前场景）、`LibraryTour`（可操作的资料库，数据只在内存里，刷新即重置）、`AnalyticsConsent`（同意卡片，要读 Cookie 和本地存储，所以服务器上不渲染任何东西）和 `AnalyticsSettings`（页脚的「统计设置」）。
+**渲染方式**：两个语言的页面在构建时预渲染成静态 HTML。`app/[locale]/layout.tsx` 和 `page.tsx` 里的 `setRequestLocale(locale)` 就是为此而写：去掉它，next-intl 会去读请求头，页面退回按请求渲染。客户端边界包括 `Fit`（缩放像素定位的场景）、`StoryStepper`（步骤切换，只挂载当前画面）、`TourWindow`（接近视口时加载 `LibraryTour`，加载前后复用 `TourControls` 保持说明可读）、`LibraryTour`（操作只影响内存中的示例）、`AnalyticsConsent`（需读取 Cookie 和本地存储）和 `AnalyticsSettings`（页脚的统计设置）。
 
 **验证**：`npm run lint`、`npm run typecheck`、`npm run build`；官网的单测在仓库根目录的 `utils/__tests__/website*.test.ts`，随根目录的 `npm test` 运行。涉及版式的改动，用真实浏览器在 390、820、1024、1280、1440 和 1920 宽度各看一遍，中英文都看；只看一个宽度会漏掉场景缩放和英文长文案带来的问题。
+
+交互回归：构建并启动静态预览后，在仓库根运行 `WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node scripts/check-website-ui.mjs`。它用 Playwright 检查中英文六种宽度的任务结果是否在视口内、手机工作流是否保留原尺寸文字，以及搜索、高亮、导出预览和键盘焦点；截图目视检查仍需另做。

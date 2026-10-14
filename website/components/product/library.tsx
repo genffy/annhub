@@ -59,6 +59,8 @@ export function AppShell({
   className = '',
   style,
   pins,
+  preview = false,
+  exportLabel,
 }: {
   ui: ProductUi
   active: LibraryView | 'settings'
@@ -71,6 +73,8 @@ export function AppShell({
   className?: string
   style?: CSSProperties
   pins?: { nav?: number; export?: number }
+  preview?: boolean
+  exportLabel?: string
 }) {
   const item = (id: LibraryView | 'settings', icon: typeof Library, label: string, count?: number, type?: EntryType | 'highlight') => {
     const cls = `ah-nav-i${type ? ` ah-t-${type}` : ''}${id === active ? ' on' : ''}`
@@ -95,7 +99,7 @@ export function AppShell({
     )
   }
   return (
-    <div className={`ah ah-app${rail ? ' is-rail' : ''} ${className}`} style={style}>
+    <div className={`ah ah-app${rail ? ' is-rail' : ''}${preview ? ' ah-preview' : ''} ${className}`} style={style}>
       <div className="ah-app-in">
         <nav className="ah-nav" aria-label={ui.nav.library} style={{ position: 'relative' }}>
           {pins?.nav ? <Pin n={pins.nav} style={{ top: 8, right: 8 }} /> : null}
@@ -112,7 +116,7 @@ export function AppShell({
           {NAV.map(n => item(n.id, n.icon, ui.nav[n.key], counts[n.count], n.type))}
           <div className="ah-nav-label">{ui.nav.manage}</div>
           {item('properties', Tags, ui.nav.properties, counts.props)}
-          {item('settings', Settings, ui.nav.settings)}
+          {preview ? null : item('settings', Settings, ui.nav.settings)}
           <div className="ah-nav-foot">
             <div className="ah-meter">
               <div className="ah-meter-row">
@@ -126,9 +130,9 @@ export function AppShell({
             <div style={{ position: 'relative' }}>
               {pins?.export ? <Pin n={pins.export} style={{ top: -9, right: -6, left: 'auto' }} /> : null}
               {onExport ? (
-                <button type="button" className="ah-btn ah-btn-block ah-btn-export" onClick={onExport} aria-label={ui.nav.export}>
+                <button type="button" className="ah-btn ah-btn-block ah-btn-export" onClick={onExport} aria-label={exportLabel ?? ui.nav.export}>
                   <Ic icon={Download} />
-                  <span>{ui.nav.export}</span>
+                  <span>{exportLabel ?? ui.nav.export}</span>
                 </button>
               ) : (
                 <span className="ah-btn ah-btn-block ah-btn-export">
@@ -176,7 +180,7 @@ export function SearchBox({ ui, query, focus, onChange }: { ui: ProductUi; query
       ) : (
         <span className="ah-truncate">{query || ui.list.search}</span>
       )}
-      {query ? null : (
+      {query || onChange ? null : (
         <>
           {onChange ? null : <span className="ah-grow" />}
           <Kbd>/</Kbd>

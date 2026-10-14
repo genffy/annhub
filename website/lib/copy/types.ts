@@ -44,7 +44,7 @@ export interface LandingCopy {
     chip: string
     lead: string
     body: string
-    local: string
+    demo: string
     audience: string
     cta: string
     secondary: string
@@ -52,7 +52,7 @@ export interface LandingCopy {
     captions: { page: string; reader: string; library: string }
     sketch: string
   }
-  problem: { title: string; items: { title: string; body: string; evidence: string[] }[] }
+  problem: { title: string; items: { title: string; body: string }[] }
   ways: {
     title: string
     kinds: { id: EntryKind; name: string; body: string; caption: string }[]
@@ -71,14 +71,18 @@ export interface LandingCopy {
     title: string
     intro: string
     hint: string
+    tasksLabel: string
+    scope: string
+    loading: string
+    exportTitle: string
+    exportHint: string
+    empty: string
     pins: { title: string; body: string }[]
     sketch: string
   }
   diff: {
     title: string
     items: { visual: DifferenceVisual; title: string; body: string }[]
-    offline: { label: string; steps: string[] }
-    flow: { library: string; zip: string; tool: string }
   }
   trust: {
     eyebrow: string

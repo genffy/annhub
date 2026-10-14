@@ -2,20 +2,19 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { CircleCheck, Download } from 'lucide-react'
 import type { LandingCopy } from '@/lib/copy'
-import { fill } from '@/lib/copy'
 import { BrowserFrame } from '../product/browser'
+import ExportFile from '../product/export-file'
 import { Drawer, HighlightBar, Reader } from '../product/detail'
 import { addHighlight, recolor, removeHighlight, selectionOffsets } from '../product/highlight-ops'
-import { AppShell, EntryList, FilterBar, HighlightGroups, PageHead, PropertyTable, ScreenshotGallery, SearchBox } from '../product/library'
+import { AppShell, EntryList, HighlightGroups, PageHead, PropertyTable, ScreenshotGallery, SearchBox } from '../product/library'
 import type { LibraryView } from '../product/library'
 import { plainText } from '../product/markdown'
-import { Ic, plural } from '../product/parts'
+import { plural } from '../product/parts'
 import { getSample } from '../product/sample'
-import type { Entry, HighlightColor, ProductUi } from '../product/types'
+import type { Entry, HighlightColor } from '../product/types'
+import TourControls from './tour-controls'
 
-type ExportState = null | 'exporting' | 'done'
 type Bar = { kind: 'create'; start: number; end: number; left: number; top: number } | { kind: 'edit'; id: string; left: number; top: number }
 
 const ROUTE: Record<LibraryView, string> = { all: 'all', clip: 'clips', highlight: 'highlights', screenshot: 'screenshots', properties: 'properties' }
@@ -29,32 +28,18 @@ function matches(entry: Entry, query: string): boolean {
   return haystack.includes(q)
 }
 
-function ExportNotice({ ui, state, totals }: { ui: ProductUi; state: 'exporting' | 'done'; totals: { clips: number; screenshots: number } }) {
-  // one click exports, the notice line is the whole flow — no dialog, like the product (真机走查 P2-10)
-  return (
-    <div className="ah-banner" role="status" style={{ margin: '0 0 12px' }}>
-      <Ic icon={state === 'done' ? CircleCheck : Download} />
-      <div>
-        {state === 'done' ? (
-          <>
-            <b>{ui.export.done}</b> · {fill(ui.export.summary, { clips: totals.clips, screenshots: totals.screenshots, missing: 0 })} · {ui.export.file}
-          </>
-        ) : (
-          ui.export.running
-        )}
-      </div>
-    </div>
-  )
-}
-
 /**
  * The library as a working window: the navigation, search, the detail drawer, the reading view with highlights you can
- * create, recolour and delete, the property registry and the one-click export notice. State lives in memory only; a reload resets
- * it, and nothing is stored or sent anywhere. The hint and the pins beside it are server-rendered (see library.tsx).
+ * create, recolour and delete, read-only properties and a Markdown export preview. State lives in memory only; a reload resets
+ * it, and nothing is stored or sent anywhere. Task controls also render in the static loading state.
  */
 export default function LibraryTour({ copy }: { copy: LandingCopy }) {
   const { ui, tour } = copy
   const sample = useMemo(() => getSample(copy.locale), [copy.locale])
+  const registry = sample.registry.map(property => ({
+    ...property,
+    used: sample.entries.filter(entry => property.name === 'title' || (property.name === 'tags' ? entry.tags.length > 0 : entry.props[property.name] !== undefined)).length,
+  }))
   const [entries, setEntries] = useState<Entry[]>(sample.entries)
   const [view, setView] = useState<LibraryView>('all')
   const [query, setQuery] = useState('')
@@ -63,12 +48,10 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
   const [tab, setTab] = useState<'highlights' | 'properties'>('highlights')
   const [activeHl, setActiveHl] = useState<string | null>(null)
   const [bar, setBar] = useState<Bar | null>(null)
-  const [exportState, setExportState] = useState<ExportState>(null)
+  const [exportPreview, setExportPreview] = useState(false)
+  const tourRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
   const seq = useRef(0)
-  const timers = useRef<number[]>([])
-
-  useEffect(() => () => timers.current.forEach(window.clearTimeout), [])
 
   const reading = readId ? entries.find(e => e.id === readId) : undefined
   const opened = openId ? entries.find(e => e.id === openId) : undefined
@@ -79,6 +62,7 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
   }, [])
 
   const navigate = (next: LibraryView) => {
+    setExportPreview(false)
     setView(next)
     setReadId(null)
     setOpenId(null)
@@ -175,17 +159,19 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
     clearBar()
   }
 
-  const openExport = useCallback(() => {
-    setExportState('exporting')
-    timers.current.push(window.setTimeout(() => setExportState('done'), 900))
-    timers.current.push(window.setTimeout(() => setExportState(null), 4600))
-  }, [])
+  const openExport = () => {
+    setReadId(null)
+    setOpenId(null)
+    clearBar()
+    setExportPreview(true)
+  }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (e.key !== 'Escape') return
     if (bar) clearBar()
     else if (opened) setOpenId(null)
     else if (reading) setReadId(null)
+    else if (exportPreview) setExportPreview(false)
   }
 
   // ── what the right-hand side shows ────────────────────────────────────────────────────────────
@@ -209,7 +195,15 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
   const title = ui.nav[({ all: 'all', clip: 'clips', highlight: 'highlights', screenshot: 'screenshots', properties: 'properties' } as const)[view]]
   const searchBox = <SearchBox ui={ui} query={query} onChange={setQuery} />
 
-  const content = reading ? (
+  const content = exportPreview ? (
+    <>
+      <PageHead title={tour.exportTitle} />
+      <div className="ah-pbody scroll">
+        <p className="mb-5 text-[14px] leading-6 text-fg-3">{tour.exportHint}</p>
+        <ExportFile file={sample.exportFile} ui={ui} />
+      </div>
+    </>
+  ) : reading ? (
     <Reader
       entry={reading}
       registry={sample.registry}
@@ -226,6 +220,7 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
       overlay={
         bar ? (
           <HighlightBar
+            preview
             ui={ui}
             current={bar.kind === 'edit' ? reading.highlights.find(h => h.id === bar.id)?.color : undefined}
             onPick={pickColor}
@@ -239,14 +234,18 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
     <>
       <PageHead title={title} sub={plural(sample.registry.length, ui.list.count, ui.list.countOne)} />
       <div className="ah-pbody scroll">
-        <PropertyTable registry={sample.registry} ui={ui} />
+        <PropertyTable registry={registry} ui={ui} />
       </div>
     </>
   ) : (
     <>
       <PageHead title={title} sub={plural(shown, ui.list.count, ui.list.countOne)} right={searchBox} />
       <div className={`ah-pbody scroll${view === 'all' || view === 'clip' ? ' cap' : ''}`}>
-        <FilterBar ui={ui} showType={view === 'all'} count={shown} />
+        {shown === 0 ? (
+          <p role="status" className="py-8 text-[14px] leading-6 text-fg-3">
+            {tour.empty}
+          </p>
+        ) : null}
         {view === 'all' ? <EntryList entries={visible} ui={ui} selectedId={openId ?? undefined} onOpen={setOpenId} /> : null}
         {view === 'clip' ? <EntryList entries={clips} ui={ui} selectedId={openId ?? undefined} onOpen={setOpenId} /> : null}
         {view === 'highlight' ? <HighlightGroups entries={visible} ui={ui} onOpen={startReading} /> : null}
@@ -255,39 +254,23 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
     </>
   )
 
-  const activeLegend = exportState ? 4 : view === 'properties' ? 3 : view === 'highlight' ? 2 : opened ? 1 : 0
-  const applyLegend = useCallback(
-    (i: number) => {
-      setReadId(null)
-      clearBar()
-      setQuery('')
-      setExportState(null)
-      setOpenId(i === 1 ? 'storm' : null)
-      setView(i === 2 ? 'highlight' : i === 3 ? 'properties' : 'all')
-      if (i === 4) openExport()
-    },
-    [clearBar, openExport],
-  )
-
-  // The pins are server-rendered outside this chunk (library.tsx). Once the window has mounted they drive it, and the
-  // window marks the pin it is showing — across the server/client border, straight through the DOM.
-  useEffect(() => {
-    const section = document.getElementById('library')
-    if (!section) return
-    const sync = () => section.querySelectorAll<HTMLButtonElement>('[data-tour-pin]').forEach((pin, i) => pin.setAttribute('aria-pressed', String(i === activeLegend)))
-    sync()
-    const onClick = (event: MouseEvent) => {
-      const pin = (event.target as HTMLElement).closest<HTMLElement>('[data-tour-pin]')
-      if (pin) applyLegend(Number(pin.dataset.tourPin))
-    }
-    section.addEventListener('click', onClick)
-    return () => section.removeEventListener('click', onClick)
-  }, [activeLegend, applyLegend])
+  const activeLegend = exportPreview ? 4 : view === 'properties' ? 3 : reading || view === 'highlight' ? 2 : opened ? 1 : 0
+  const applyLegend = (i: number) => {
+    setReadId(null)
+    clearBar()
+    setQuery('')
+    setExportPreview(i === 4)
+    setOpenId(i === 1 ? 'storm' : null)
+    setView(i === 2 ? 'highlight' : i === 3 ? 'properties' : 'all')
+    tourRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' })
+  }
 
   return (
-    <div onKeyDown={onKeyDown}>
+    <div ref={tourRef} className="anchor-target" onKeyDown={onKeyDown}>
+      <TourControls copy={copy} active={activeLegend} onSelect={applyLegend} />
       <div
-        className="tour-window"
+        id="library-demo-window"
+        className="tour-window mt-3"
         role="region"
         aria-label={tour.title}
         onMouseDown={e => {
@@ -297,12 +280,14 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
         onKeyUp={reading ? e => e.shiftKey && window.setTimeout(onSelect, 0) : undefined}
       >
         <BrowserFrame
-          title={`${reading ? reading.title : title} · AnnHub`}
-          url={`chrome-extension://annhub/app.html#/${reading ? `read/${reading.id}` : ROUTE[view]}`}
+          title={`${exportPreview ? tour.exportTitle : reading ? reading.title : title} · AnnHub`}
+          url={exportPreview ? sample.exportFile.name : `chrome-extension://annhub/app.html#/${reading ? `read/${reading.id}` : ROUTE[view]}`}
           className="h-full w-full"
           style={{ height: '100%' }}
         >
           <AppShell
+            preview
+            exportLabel={tour.exportTitle}
             ui={ui}
             active={reading ? 'clip' : view}
             counts={counts}
@@ -320,7 +305,6 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
               ) : null
             }
           >
-            {exportState ? <ExportNotice ui={ui} state={exportState} totals={{ clips: counts.clip, screenshots: counts.screenshot }} /> : null}
             {content}
           </AppShell>
         </BrowserFrame>

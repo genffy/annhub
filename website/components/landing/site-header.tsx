@@ -12,7 +12,7 @@ export default function SiteHeader({ copy }: { copy: LandingCopy }) {
       <div className="mx-auto flex h-14 max-w-page items-center justify-between gap-3 rounded-lg border border-line bg-white/95 px-3 shadow-[0_14px_40px_-12px_rgba(48,41,70,0.22)] backdrop-blur-md sm:px-4">
         <Link href={`/${copy.locale}`} prefetch={false} aria-label={header.home} className="flex items-center gap-2.5 rounded-md py-1 pr-2 font-bold text-fg">
           <Logo className="h-7 w-7 text-brand" />
-          <span className="text-[16px] tracking-[-0.01em]">AnnHub</span>
+          <span className="text-[15px] tracking-[-0.01em] sm:text-[16px]">AnnHub</span>
         </Link>
 
         <nav aria-label={header.navLabel} className="hidden items-center gap-1 lg:flex">
@@ -35,10 +35,10 @@ export default function SiteHeader({ copy }: { copy: LandingCopy }) {
           </a>
           <a
             href={LIBRARY_URL}
-            className="hidden h-9 items-center gap-1.5 rounded-md bg-brand px-3.5 text-[13px] font-semibold text-brand-fg transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_86%,#000)] sm:inline-flex"
+            className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md bg-brand px-2.5 text-[12px] font-semibold text-brand-fg transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_86%,#000)] sm:px-3.5 sm:text-[13px]"
           >
             {header.cta}
-            <ArrowRight size={15} aria-hidden="true" />
+            <ArrowRight size={15} aria-hidden="true" className="hidden sm:block" />
           </a>
         </div>
       </div>
