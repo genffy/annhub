@@ -99,7 +99,97 @@ describe('the screenshot session and input made up by the page', () => {
     expect(isScreenshotSessionActive()).toBe(false)
     expect(session()).toBeNull()
   })
+
+  it('keeps a confirming frame when a click inside it misses Confirm (issue #108)', async () => {
+    const post = document.getElementById('post')!
+    const capsule = document.createElement('div')
+    capsule.setAttribute('data-ann-ui', 'block-capsule')
+    const outline = document.createElement('div')
+    outline.setAttribute('data-ann-ui', 'block-outline')
+    document.documentElement.append(capsule, outline)
+    let pageHits = 0
+    post.addEventListener('pointerdown', () => {
+      pageHits += 1
+    })
+    post.addEventListener('click', () => {
+      pageHits += 1
+    })
+
+    dragToConfirm()
+    await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
+    const root = session() as HTMLElement
+    expect(root.classList.contains('ann-shot-modal')).toBe(true)
+    expect(root.style.pointerEvents).toBe('auto')
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+    expect(document.querySelector('[data-ann-ui="block-outline"]')).toBeNull()
+
+    // The hit target before the shield was the page element under the frame.
+    const down = pointer('pointerdown', 80, 80)
+    post.dispatchEvent(down)
+    document.body.dispatchEvent(pointer('pointerup', 80, 80))
+    expect(down.defaultPrevented).toBe(true)
+    expect(pageHits).toBe(0)
+    expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull()
+    expect(session()!.querySelectorAll('.ann-shot-rect')).toHaveLength(1)
+    expect((session()!.querySelector('.ann-shot-rect') as HTMLElement).isConnected).toBe(true)
+    expect(root.classList.contains('ann-shot-modal')).toBe(true)
+
+    // The rect itself is the hit target once the shield is up.
+    session()!
+      .querySelector('.ann-shot-rect')!
+      .dispatchEvent(pointer('pointerdown', 120, 90))
+    document.body.dispatchEvent(pointer('pointerup', 120, 90))
+    expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull()
+    expect(captures()).toHaveLength(0)
+
+    session()!
+      .querySelector('[data-ann-ui="shot-handle-se"]')!
+      .dispatchEvent(pointer('pointerdown', 300, 200))
+    document.body.dispatchEvent(pointer('pointerup', 300, 200))
+    expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull()
+    expect(root.classList.contains('ann-shot-modal')).toBe(true)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(isScreenshotSessionActive()).toBe(false)
+  })
+
+  it('still leaves confirming through Cancel or Confirm, and a press outside the frame starts a new selection', async () => {
+    dragToConfirm()
+    await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-btn"]')).not.toBeNull())
+    session()!
+      .querySelector('[data-ann-ui="shot-confirm-btn"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await vi.waitFor(() => expect(captures()).toHaveLength(1))
+    expect((session() as HTMLElement).style.pointerEvents).toBe('')
+
+    exitScreenshotMode()
+    dragToConfirm()
+    await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-cancel"]')).not.toBeNull())
+    session()!
+      .querySelector('[data-ann-ui="shot-confirm-cancel"]')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(isScreenshotSessionActive()).toBe(false)
+
+    dragToConfirm()
+    await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
+    session()!
+      .querySelector('.ann-shot-overlay')!
+      .dispatchEvent(pointer('pointerdown', 4, 4))
+    expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).toBeNull()
+    expect(session()!.classList.contains('ann-shot-modal')).toBe(false)
+    document.body.dispatchEvent(pointer('pointerup', 4, 4))
+    expect(session()!.querySelectorAll('.ann-shot-rect')).toHaveLength(0)
+    expect(captures()).toHaveLength(1)
+  })
 })
+
+function dragToConfirm(): void {
+  enterScreenshotMode()
+  aPerson = true
+  document.body.dispatchEvent(pointer('pointerdown', 10, 10))
+  document.body.dispatchEvent(pointer('pointermove', 300, 200))
+  document.body.dispatchEvent(pointer('pointerup', 300, 200))
+}
 
 /** Only the privileged calls: GET_SETTINGS noise from session bootstrap is fine. */
 function captures(): unknown[] {

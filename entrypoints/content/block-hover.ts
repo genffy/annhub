@@ -70,6 +70,10 @@ export class BlockEntries {
     const onPointerMove = (event: PointerEvent): void => {
       if (!isUserInput(event)) return
       if (this.modeActive) return
+      if (this.screenshotConfirming()) {
+        this.hideNow()
+        return
+      }
       this.lastPoint = { x: event.clientX, y: event.clientY }
       if (this.insideOwnUi(event)) {
         // the pointer is on the capsule itself: keep it alive so the click lands
@@ -95,12 +99,21 @@ export class BlockEntries {
     // pointermove that armed it (hover-with-scroll), and a resting pointer
     // stays eligible after the page settles.
     const onScroll = (): void => {
+      if (this.screenshotConfirming()) {
+        this.hideNow()
+        return
+      }
       if (this.capsuleEl || this.outlineEl) this.hideNow()
       else if (this.dwellTimer !== null) this.scheduleDwell()
     }
     const onDragSelect = (event: PointerEvent): void => {
+      if (!isUserInput(event)) return
+      if (this.screenshotConfirming()) {
+        this.hideNow()
+        return
+      }
       // pressing our own capsule is operating the entry, not starting a drag
-      if (!isUserInput(event) || this.insideOwnUi(event)) return
+      if (this.insideOwnUi(event)) return
       if (event.buttons === 1) this.hideNow()
     }
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -178,9 +191,26 @@ export class BlockEntries {
   private hoverChain: BlockCandidate[] = []
   private hoverDepth = 0
 
+  /** Screenshot confirm mode owns the pointer; the clip capsule must not sit on the frame (issue #108). */
+  private screenshotConfirming(): boolean {
+    return Boolean(this.doc.querySelector('[data-ann-ui="screenshot-session"].ann-shot-modal'))
+  }
+
   private async reveal(x: number, y: number): Promise<void> {
+    if (this.screenshotConfirming()) {
+      this.hideNow()
+      return
+    }
     if (!(await this.gate.enabled())) return
+    if (this.screenshotConfirming()) {
+      this.hideNow()
+      return
+    }
     if (await this.gate.siteDisabled(this.doc.defaultView!.location.hostname)) return
+    if (this.screenshotConfirming()) {
+      this.hideNow()
+      return
+    }
     const chain = candidatesAtPoint(x, y, this.doc)
     if (chain.length === 0) return
     // innermost first; a hover that repeats the same element keeps its depth
