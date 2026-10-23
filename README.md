@@ -4,6 +4,8 @@
 
 AnnHub 是一个本地优先的浏览器扩展：选中网页内容或指一下整块内容，一步剪藏；或框选画面截图。它们连同来源保存为统一的条目，之后在资料库里阅读、划出高亮，用可扩展的属性分类，需要时检索、回到原页面，或导出为 Markdown。
 
+从 [Chrome 应用商店](https://chromewebstore.google.com/detail/jpooljigbeplpgciohfjklgbfdfnnmfn) 安装。
+
 ## 核心能力
 
 以下按 [docs/v2](./docs/v2/README.md) 的契约描述当前实现；交付到哪一步见 [路线图](./docs/v2/roadmap.md)。
@@ -28,7 +30,7 @@ AnnHub 只解决一条主链路：
   -> 之后检索、回到来源或导出
 ```
 
-浏览器扩展承担采集、整理和查询。碎片与主动加工、复习调度、桌面客户端、输出工坊与知识关系、AI 功能都不在产品范围内，见 [docs/v2/product.md §2.3](./docs/v2/product.md)。
+浏览器扩展承担采集、整理和查询。团队协作、手机端与独立的桌面应用、AI 摘要与问答、通用笔记与白板、稍后读收件箱与整页阅读器、网页上的高亮标记、整页剪藏与模板系统都不在产品范围内，完整清单见 [docs/v2/product.md §2.3](./docs/v2/product.md)。
 
 ## 架构总览
 
@@ -113,7 +115,7 @@ npm run build && npx playwright test
 
 ### 发布与仓库设置
 
-- 发布：给提交打标签 `v<package.json 的 version>`。`release.yml` 先跑完整门禁，再构建、核对清单版本与标签一致、生成构建来源证明并创建 GitHub Release；上传到商店是手工步骤，素材与披露要求见 [权限与数据边界](./docs/v2/permissions.md)。
+- 发布：给提交打标签 `v<package.json 的 version>`。`release.yml` 先跑完整门禁，再构建、核对清单版本与标签一致、生成构建来源证明并创建 GitHub Release。这个标签已有 Release（包括草稿）时，它只替换附件，不改发布状态，草稿要手工发布。上传到商店是手工步骤，素材与披露要求见 [权限与数据边界](./docs/v2/permissions.md)。
 - 仓库管理员的一次性设置，工作流文件替代不了：导入 `.github/rulesets/main.json`（Settings → Rules → Rulesets → Import；导入前先让必需检查在一个 PR 上各跑一次，否则 GitHub 找不到检查名）；Actions 里把默认令牌设为只读、要求 action 固定到完整 commit SHA、fork PR 的工作流需要批准；Code security 里开启 secret scanning 与 push protection、Dependabot alerts 与 security updates、private vulnerability reporting。
 
 ## 数据原则

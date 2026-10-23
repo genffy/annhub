@@ -377,7 +377,7 @@ export class BlockEntries {
     }
     this.hideNow()
     // The first target comes from where the user is — the focused element, else the first unit on
-    // screen (D-27) — and is found before the overlay exists, so hit-testing sees the page.
+    // screen (capture.md §6.2) — and is found before the overlay exists, so hit-testing sees the page.
     const initial = this.initialModeChain()
     this.modeActive = true
     this.modeLevelChanged = false

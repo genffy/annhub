@@ -128,12 +128,12 @@ test('open shadow root selection offers and saves a clip (RV-CAP-04)', async ({ 
   expect((await getEntries(page.context()))[0]!.content).toContain('shadow paragraph')
 })
 
-test.describe('child frames (capture.md §3, D-25, D-29)', () => {
+test.describe('child frames (capture.md §3)', () => {
   test.beforeEach(async ({ context }) => {
     await clearLibrary(context)
   })
 
-  test('a same-origin iframe offers clipping only: the screenshot belongs to the top frame (D-29)', async ({ page }) => {
+  test('a same-origin iframe offers clipping only: the screenshot belongs to the top frame', async ({ page }) => {
     await page.goto('http://localhost:8173/iframe-host.html')
     const frame = page.frameLocator('iframe[name="same"]')
     const box = (await frame.locator('#frame-text').boundingBox())!
@@ -148,7 +148,7 @@ test.describe('child frames (capture.md §3, D-25, D-29)', () => {
     await expect(menu.locator('.ann-menu-shot')).toHaveCount(0)
   })
 
-  test('the shortcuts start one session, in the top frame, and Esc ends it (D-29)', async ({ page }) => {
+  test('the shortcuts start one session, in the top frame, and Esc ends it', async ({ page }) => {
     await page.goto('http://localhost:8173/iframe-host.html')
     const frame = page.frameLocator('iframe[name="same"]')
     await expect(frame.locator('#frame-text')).toBeVisible()

@@ -441,7 +441,10 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await library.close()
   })
 
-  test('load more moves the keyboard to the first card it added, on the last page too; a list that changes by itself leaves it alone (D-28)', async ({ page, extensionId }) => {
+  test('load more moves the keyboard to the first card it added, on the last page too; a list that changes by itself leaves it alone (extension.md §2.3)', async ({
+    page,
+    extensionId,
+  }) => {
     await seedRealisticLibrary(page.context(), 120)
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/all`)

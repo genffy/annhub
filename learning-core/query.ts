@@ -350,7 +350,7 @@ export function queryHighlights(entries: EntryRecord[], registry: { name: string
   }
 
   // groups by the clip's newest highlight overall — search only decides which
-  // highlights stay, never the group order (search.md §5, D-24)
+  // highlights stay, never the group order (search.md §5)
   const latestOf = (clip: EntryRecord): number => Math.max(0, ...(clip.highlights ?? []).map(item => item.createdAt))
   groups.sort((a, b) => latestOf(b.clip) - latestOf(a.clip) || (a.clip.id < b.clip.id ? -1 : 1))
   return { groups, total: groups.reduce((sum, group) => sum + group.rows.length, 0) }

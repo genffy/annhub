@@ -31,7 +31,7 @@ async function recorders() {
   return { ...record, QuotaError, EntryValidationError }
 }
 
-describe('capture.saved (D-22)', () => {
+describe('capture.saved (metrics.md §9)', () => {
   it('records the click-to-write time in the fine buckets', async () => {
     const { recordCaptureSaved, metricsSnapshot } = await recorders()
     await recordCaptureSaved({ type: 'clip', via: 'menu', durationMs: 120 })

@@ -197,7 +197,7 @@ describe('highlight query time and order (search.md §5, RV-CORE-05)', () => {
     expect(early.groups[0]!.rows[0]!.highlight.createdAt).toBe(1 * day)
   })
 
-  it("group order follows the clip's newest highlight even when search keeps only older ones (D-24)", () => {
+  it("group order follows the clip's newest highlight even when search keeps only older ones (search.md §5)", () => {
     const a = clipAt(1, [{ at: 100 }, { at: 900 }])
     const b = clipAt(2, [{ at: 500 }])
     const result = queryHighlights([a, b], [], { search: 'xxxx' })

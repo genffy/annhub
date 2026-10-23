@@ -273,7 +273,7 @@ describe('flat documents: headings and paragraphs as siblings (RV-CAP-01)', () =
   })
 })
 
-describe('keyboard mode helpers (capture.md §6.2, D-27)', () => {
+describe('keyboard mode helpers (capture.md §6.2)', () => {
   it('detecting from a unit reproduces it: a flat section is found again from its heading, not from its container', () => {
     document.body.innerHTML = FLAT_DOC
     const section = candidatesFor(doc.querySelector('#flat-b-p')!, doc).find(candidate => candidate.kind === 'section')!
@@ -296,7 +296,7 @@ describe('keyboard mode helpers (capture.md §6.2, D-27)', () => {
     expect(peers.some(peer => sameCandidate(peer, section))).toBe(true)
   })
 
-  it('Tab moves within a tier: from a code block to the table and the quote after it, in document order (D-27)', () => {
+  it('Tab moves within a tier: from a code block to the table and the quote after it, in document order', () => {
     const peers = peersOf(candidatesFor(doc.querySelector('#code')!, doc)[0]!, doc)
     expect(peers.map(peer => peer.element.id)).toEqual(['code', 'table', 'figure', 'quote', 'post'])
   })

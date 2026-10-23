@@ -1374,7 +1374,7 @@ class ScreenshotSession {
   private async confirmSave(): Promise<void> {
     const canvas = this.croppedCanvas
     if (!canvas || this.busy) return
-    // `capture.saved` times the click to the committed write (D-22), not the editing that came before it
+    // `capture.saved` times the click to the committed write (metrics.md §9), not the editing that came before it
     const clickedAt = Date.now()
     this.busy = true
     this.updateToolbar()

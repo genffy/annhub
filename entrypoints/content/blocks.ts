@@ -334,7 +334,7 @@ export function candidateRect(candidate: BlockCandidate): DOMRect {
   return new DOMRect(left, top, right - left, bottom - top)
 }
 
-// ── Keyboard block mode helpers (capture.md §6.2, D-27) ───────────────────
+// ── Keyboard block mode helpers (capture.md §6.2) ─────────────────────────
 
 /**
  * The node a unit is anchored at: a heading-run section starts at its
@@ -376,8 +376,8 @@ const PEER_SCAN_LIMIT = 3_000
 
 /**
  * The units of the same tier as `current` — posts, code, tables, figures and
- * quotes are one tier, sections the next, articles the last (capture.md §6.2,
- * D-27) — in document order: Tab / Shift+Tab move between them. A small unit
+ * quotes are one tier, sections the next, articles the last (capture.md §6.2)
+ * — in document order: Tab / Shift+Tab move between them. A small unit
  * inside another small unit (a picture in a post, code in a figure) is a level
  * below it, reached with ↓. Runs only when the user presses Tab — never while
  * the pointer moves — and looks inside the shadow root `current` lives in.
@@ -412,7 +412,7 @@ export function peersOf(current: BlockCandidate, doc: Document): BlockCandidate[
 /**
  * The chain of the first unit on screen: scans down the middle of the window
  * and then the quarter lines, so a keyboard user who never moved the mouse
- * still starts on something (D-27).
+ * still starts on something (capture.md §6.2).
  */
 export function firstVisibleChain(doc: Document): BlockCandidate[] {
   const view = doc.defaultView
