@@ -256,6 +256,38 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
     entries.dispose()
   })
 
+  it('drops the clip capsule while a screenshot is waiting for confirmation', async () => {
+    vi.useFakeTimers()
+    document.body.innerHTML = NESTED
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    const entries = new BlockEntries(document, hooksFor(true), gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
+    await vi.advanceTimersByTimeAsync(450)
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).not.toBeNull()
+
+    const modal = document.createElement('div')
+    modal.setAttribute('data-ann-ui', 'screenshot-session')
+    modal.className = 'ann-shot-modal'
+    document.documentElement.appendChild(modal)
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 40, clientY: 40 }))
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+    expect(document.querySelector('[data-ann-ui="block-outline"]')).toBeNull()
+
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 8, clientY: 8 }))
+    await vi.advanceTimersByTimeAsync(450)
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+
+    // a dwell armed before confirm must not paint once the frame is modal
+    modal.remove()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 6, clientY: 6 }))
+    document.documentElement.appendChild(modal)
+    await vi.advanceTimersByTimeAsync(450)
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+    entries.dispose()
+  })
+
   it('with the hook the capsule keeps clip, screenshot, up and more', async () => {
     vi.useFakeTimers()
     document.body.innerHTML = NESTED

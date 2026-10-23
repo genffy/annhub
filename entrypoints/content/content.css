@@ -665,6 +665,7 @@
   border: 1px solid #4c91ff;
   border-radius: 2px;
   background: #fff;
+  pointer-events: auto;
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-handle-nw {

@@ -284,6 +284,7 @@ class ScreenshotSession {
     const style = this.doc.createElement('style')
     style.textContent = `
       [${ROOT_ATTR}="${ROOT_VALUE}"] { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"].ann-shot-modal { pointer-events: auto; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-overlay { position: absolute; inset: 0; background: rgba(22, 26, 31, 0.58); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-hint { position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
         background: #252b31; color: #fff; padding: 7px 12px; border-radius: 4px; font: 13px/1.4 -apple-system, sans-serif; pointer-events: none; white-space: nowrap; }
@@ -329,8 +330,9 @@ class ScreenshotSession {
 
     this.doc.documentElement.appendChild(this.host)
     this.doc.addEventListener('keydown', this.onKeydown, true)
-    // The host is pointer-events:none so pointer events keep hitting real page
-    // elements — that is how the click-to-capture-element mode knows its target.
+    // Selecting leaves the host pointer-events:none so a click still hits the
+    // page element the element path wants. Confirming adds ann-shot-modal,
+    // which takes the pointer so the page underneath cannot (issue #108).
     this.doc.addEventListener('pointerdown', this.onPointerDown, true)
     this.doc.addEventListener('pointermove', this.onHoverMove, true)
     // Cancelling pointerdown does not stop the click that follows it: without
@@ -480,16 +482,69 @@ class ScreenshotSession {
     this.trackHover(e.clientX, e.clientY)
   }
 
+  /**
+   * Confirming is modal (issue #108). Selecting stays click-through so the
+   * element path can see the page; the class is what the stylesheet and the
+   * block capsule both read. Inline pointer-events wins over that rule while
+   * a hit-test momentarily looks through the shield.
+   */
+  private setConfirmShield(on: boolean): void {
+    this.host.classList.toggle('ann-shot-modal', on)
+    this.host.style.pointerEvents = on ? 'auto' : ''
+    if (!on) return
+    // A clip capsule armed during the drag would sit in the selection hole.
+    for (const node of this.doc.querySelectorAll('[data-ann-ui="block-capsule"], [data-ann-ui="block-outline"]')) node.remove()
+  }
+
+  /** Confirm, cancel, handles, and the ratio / margin bars own their pointer events. */
+  private isShotChrome(target: EventTarget | null): boolean {
+    if (!(target instanceof Element) || !this.host.contains(target)) return false
+    return Boolean(target.closest('.ann-shot-confirm-bar, .ann-shot-handle, [data-ann-ui="screenshot-ratio-bar"], .ann-shot-margin-bar, .ann-shot-toolbar, .ann-shot-preview'))
+  }
+
+  private pointerInSelection(x: number, y: number): boolean {
+    const box = this.selection
+    if (!box) return false
+    return x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height
+  }
+
+  /** elementsFromPoint through the confirm shield, without leaving it down. */
+  private pageElementsFromPoint(x: number, y: number): Element[] {
+    if (typeof this.doc.elementsFromPoint !== 'function') return []
+    const shielded = this.host.classList.contains('ann-shot-modal')
+    if (shielded) this.host.style.pointerEvents = 'none'
+    try {
+      return this.doc.elementsFromPoint(x, y)
+    } finally {
+      if (shielded) this.host.style.pointerEvents = 'auto'
+    }
+  }
+
   private onPointerDown = (e: PointerEvent) => {
     if (this.state !== 'selecting' && this.state !== 'confirming') return
     if (!isUserInput(e)) return
-    if (e.target instanceof Node && this.host.contains(e.target)) return
-    if (e.button !== 0) return
+    if (this.isShotChrome(e.target)) return
+    // Inside the pending frame: not a new selection, and not a click for the page.
+    if (this.state === 'confirming' && this.pointerInSelection(e.clientX, e.clientY)) {
+      e.preventDefault()
+      e.stopPropagation()
+      return
+    }
+    if (e.button !== 0) {
+      if (this.state === 'confirming') {
+        e.preventDefault()
+        e.stopPropagation()
+      }
+      return
+    }
     e.preventDefault()
     e.stopPropagation()
 
     // any drag replaces a pending selection (and the remembered frame)
+    this.setConfirmShield(false)
     this.clearConfirmUi()
+    this.selectionEl?.remove()
+    this.selectionEl = null
     this.state = 'selecting'
     const origin = { x: e.clientX, y: e.clientY }
     const rect = this.doc.createElement('div')
@@ -543,6 +598,7 @@ class ScreenshotSession {
       if (width < 4 && height < 4) {
         // A click, not a drag → element path with the hovered element and margin.
         rect.remove()
+        if (this.selectionEl && this.selectionEl !== rect) this.selectionEl.remove()
         this.selectionEl = null
         this.selection = null
         if (this.overlayEl) this.overlayEl.style.background = ''
@@ -551,6 +607,7 @@ class ScreenshotSession {
       }
       if (!this.selection || this.selection.width < 4 || this.selection.height < 4) {
         rect.remove()
+        if (this.selectionEl && this.selectionEl !== rect) this.selectionEl.remove()
         this.selectionEl = null
         this.selection = null
         if (this.overlayEl) this.overlayEl.style.background = ''
@@ -571,8 +628,7 @@ class ScreenshotSession {
 
   /** Element boxes under a point, for drag snapping. */
   private edgeRectsUnder(x: number, y: number): Array<{ left: number; top: number; right: number; bottom: number }> {
-    if (typeof this.doc.elementsFromPoint !== 'function') return []
-    const stack = this.doc.elementsFromPoint(x, y)
+    const stack = this.pageElementsFromPoint(x, y)
     const rects: Array<{ left: number; top: number; right: number; bottom: number }> = []
     for (const el of stack.slice(0, 6)) {
       if (el.closest?.('[data-ann-ui]')) continue
@@ -670,6 +726,7 @@ class ScreenshotSession {
     this.confirmBarEl = bar
     this.positionConfirmBar()
     this.paintSelection()
+    this.setConfirmShield(true)
   }
 
   private positionConfirmBar(): void {
@@ -754,7 +811,7 @@ class ScreenshotSession {
     if (this.state !== 'selecting' && this.state !== 'confirming') return
     if (this.state === 'selecting' && this.selectionEl) return
     if (typeof this.doc.elementsFromPoint !== 'function') return
-    const stack = this.doc.elementsFromPoint(x, y)
+    const stack = this.pageElementsFromPoint(x, y)
     // the pointer on our own chrome (margin chips, bars) keeps the hover alive
     const top = stack[0]
     if (top?.closest?.('[data-ann-ui]')) return
@@ -910,6 +967,7 @@ class ScreenshotSession {
     const selection = this.selection
     if (!selection) return
     this.state = 'capturing'
+    this.setConfirmShield(false)
     await this.settingsLoaded
     if (this.exited) return
 
@@ -1035,6 +1093,7 @@ class ScreenshotSession {
 
   private async captureElementMode(target: HTMLElement): Promise<void> {
     this.state = 'capturing'
+    this.setConfirmShield(false)
     await this.settingsLoaded
     if (this.exited) return
     const element = this.resolveCaptureTarget(target)
