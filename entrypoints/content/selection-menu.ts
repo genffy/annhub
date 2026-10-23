@@ -12,7 +12,94 @@ import { uiText } from '../../utils/ui-text'
 
 const ROOT_ATTR = 'data-ann-ui'
 const HINT_DELAY_MS = 300
+const VIEWPORT_MARGIN = 8
+const SELECTION_GAP = 8
+/** A box this close to the viewport width is the page, not a column beside a sidebar. */
+const PAGE_GUTTER = 48
 const plainSelectionText = new WeakMap<Range, string>()
+
+export interface Box {
+  left: number
+  top: number
+  right: number
+  bottom: number
+  width: number
+  height: number
+}
+
+/**
+ * The first line of a selection. Inline fragments on that line (a post splits
+ * one line into spans and links) become one box; later lines do not, so a tall
+ * selection still anchors where it starts. Zero-size caret rects are ignored.
+ */
+export function anchorLineBox(rects: readonly Box[], fallback: Box): Box {
+  const visible = rects.filter(rect => rect.width >= 1 && rect.height >= 1)
+  if (visible.length === 0) return fallback
+  const topmost = visible.reduce((best, rect) => (rect.top < best.top ? rect : best))
+  const line = visible.filter(rect => rect.bottom > topmost.top + 0.5 && rect.top < topmost.bottom - 0.5)
+  const rows = line.length > 0 ? line : [topmost]
+  const left = Math.min(...rows.map(rect => rect.left))
+  const right = Math.max(...rows.map(rect => rect.right))
+  const top = Math.min(...rows.map(rect => rect.top))
+  const bottom = Math.max(...rows.map(rect => rect.bottom))
+  return { left, top, right, bottom, width: right - left, height: bottom - top }
+}
+
+/**
+ * Center the menu on the selection's first line, above that line when it fits
+ * and below it otherwise. Keep it inside `column` when that box is a content
+ * column rather than the page.
+ *
+ * Every box is viewport CSS pixels — the same space as `getClientRects` and
+ * `position: fixed`. Do not add a scroll offset or an iframe's position in
+ * the parent page: an inner scroller (the column x.com actually scrolls) is
+ * already in the rect, and a child frame positions its menu in its own viewport.
+ * Placing at the selection's right edge whenever the viewport has room parks
+ * the menu on the next column (x.com Home's Premium / search sidebar).
+ */
+export function placeSelectionMenu(
+  anchor: Box,
+  menu: { width: number; height: number },
+  viewport: { width: number; height: number },
+  column: Box | null,
+): { left: number; top: number } {
+  const limits = horizontalLimits(column, menu.width, viewport.width)
+  let left = anchor.left + anchor.width / 2 - menu.width / 2
+  if (left + menu.width > limits.right) left = limits.right - menu.width
+  if (left < limits.left) left = limits.left
+  const minLeft = VIEWPORT_MARGIN
+  const maxLeft = Math.max(minLeft, viewport.width - menu.width - VIEWPORT_MARGIN)
+  left = Math.min(Math.max(minLeft, left), maxLeft)
+
+  const above = anchor.top - SELECTION_GAP - menu.height
+  const below = anchor.bottom + SELECTION_GAP
+  const top = above >= VIEWPORT_MARGIN ? above : Math.min(Math.max(VIEWPORT_MARGIN, below), Math.max(VIEWPORT_MARGIN, viewport.height - menu.height - VIEWPORT_MARGIN))
+  return { left, top }
+}
+
+function horizontalLimits(column: Box | null, menuWidth: number, viewportWidth: number): { left: number; right: number } {
+  const page = { left: VIEWPORT_MARGIN, right: viewportWidth - VIEWPORT_MARGIN }
+  if (!column || column.width < menuWidth || column.width > viewportWidth - PAGE_GUTTER) return page
+  return { left: Math.max(page.left, column.left), right: Math.min(page.right, column.right) }
+}
+
+/** Nearest ancestor box that can hold the menu and is not the page itself. */
+export function contentColumnRect(range: Range, menuWidth: number, viewportWidth: number): DOMRect | null {
+  const doc = range.commonAncestorContainer.ownerDocument
+  const view = doc?.defaultView
+  if (!doc || !view) return null
+  let el: Element | null = range.commonAncestorContainer instanceof Element ? range.commonAncestorContainer : range.commonAncestorContainer.parentElement
+  while (el && el !== doc.documentElement && el !== doc.body) {
+    const display = view.getComputedStyle(el).display
+    if (display !== 'inline' && display !== 'contents' && display !== 'none') {
+      const box = el.getBoundingClientRect()
+      if (box.width >= menuWidth && box.height >= 1 && box.width <= viewportWidth - PAGE_GUTTER) return box
+    }
+    const root = el.getRootNode()
+    el = el.parentElement ?? (root instanceof ShadowRoot ? root.host : null)
+  }
+  return null
+}
 
 export function plainTextForSelection(range: Range): string | undefined {
   return plainSelectionText.get(range)
@@ -131,20 +218,19 @@ export class SelectionMenu {
 
   private position(range: Range): void {
     if (!this.host) return
-    const rect = range.getBoundingClientRect()
-    const view = this.doc.defaultView!
+    const view = this.doc.defaultView
+    if (!view) return
     const box = this.host
     // measure without layout thrash: place, then clamp
     box.style.visibility = 'hidden'
     box.style.left = '0px'
     box.style.top = '0px'
-    const size = { width: box.offsetWidth || 240, height: box.offsetHeight || 72 }
-    let x = Math.min(Math.max(8, rect.left), Math.max(8, view.innerWidth - size.width - 8))
-    if (rect.right + 8 + size.width <= view.innerWidth - 8) x = rect.right + 8
-    const above = rect.top - 8 - size.height >= 8
-    const y = above ? rect.top - 8 - size.height : Math.min(rect.bottom + 8, view.innerHeight - size.height - 8)
-    box.style.left = `${x}px`
-    box.style.top = `${Math.max(8, y)}px`
+    const menu = { width: box.offsetWidth || 240, height: box.offsetHeight || 40 }
+    const anchor = anchorLineBox(clientRectsOf(range), range.getBoundingClientRect())
+    const column = contentColumnRect(range, menu.width, view.innerWidth)
+    const placed = placeSelectionMenu(anchor, menu, { width: view.innerWidth, height: view.innerHeight }, column)
+    box.style.left = `${placed.left}px`
+    box.style.top = `${placed.top}px`
     box.style.visibility = ''
   }
 
@@ -218,6 +304,11 @@ export function selectableRange(doc: Document, shadowRoot?: ShadowRoot): Range |
 /** True when either end of the selection sits in an editing host. */
 function selectionIsEditable(range: Range): boolean {
   return editableHostOf(range.startContainer) !== null || editableHostOf(range.endContainer) !== null
+}
+
+function clientRectsOf(range: Range): Box[] {
+  if (typeof range.getClientRects !== 'function') return []
+  return [...range.getClientRects()]
 }
 
 function editableHostOf(node: Node | null): Element | null {

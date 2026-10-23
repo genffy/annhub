@@ -182,6 +182,41 @@ test.describe('selection clip (capture.md §6.1, extension.md §2.1)', () => {
     await expect.poll(async () => (await durations()).some(bucket => bucket === '<150ms' || bucket === '150-300ms' || bucket === '300-600ms')).toBe(true)
   })
 
+  test('the menu hugs the selection inside a narrow column, including after that column scrolls', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('http://localhost:8173/columns.html')
+    await page.locator('#tweet-text').evaluate(element => element.scrollIntoView({ block: 'center' }))
+    const scrolled = await page.evaluate(() => ({ column: document.querySelector('#column')!.scrollTop, window: window.scrollY }))
+    expect(scrolled.column).toBeGreaterThan(400)
+    expect(scrolled.window).toBe(0)
+
+    const hugs = async (selector: string) => {
+      const menu = await selectUntilMenu(page, selector)
+      await page.waitForTimeout(150)
+      const boxes = await page.evaluate(sel => {
+        const menuBox = document.querySelector('[data-ann-ui="selection-menu"]')!.getBoundingClientRect()
+        const textBox = document.querySelector(sel)!.getBoundingClientRect()
+        const columnBox = document.querySelector('#column')!.getBoundingClientRect()
+        const sideBox = document.querySelector('#sidebar')!.getBoundingClientRect()
+        return { menu: menuBox, text: textBox, column: columnBox, side: sideBox }
+      }, selector)
+      expect(boxes.menu.left, selector).toBeLessThan(boxes.text.right)
+      expect(boxes.menu.right, selector).toBeGreaterThan(boxes.text.left)
+      const above = boxes.menu.bottom <= boxes.text.top + 8
+      const below = boxes.menu.top >= boxes.text.bottom - 8
+      expect(above || below, selector).toBe(true)
+      expect(boxes.menu.left, selector).toBeGreaterThanOrEqual(boxes.column.left - 1)
+      expect(boxes.menu.right, selector).toBeLessThanOrEqual(boxes.column.right + 1)
+      expect(boxes.menu.right, selector).toBeLessThanOrEqual(boxes.side.left + 1)
+      await menu.locator('.ann-menu-action').first().click({ trial: true })
+    }
+
+    await hugs('#tweet-text')
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-ann-ui="selection-menu"]')).toHaveCount(0)
+    await hugs('#end-line')
+  })
+
   test('a whitespace-only selection never shows the menu', async ({ page }) => {
     await page.goto(getCapturePageUrl())
     await page.waitForLoadState('networkidle')
