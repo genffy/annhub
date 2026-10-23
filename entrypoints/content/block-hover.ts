@@ -1,8 +1,9 @@
 /**
  * The block-clip entries (docs/product/capture.md §6.2): the hover capsule
  * (mouse) and block mode (keyboard). Both point at the same detection and
- * produce the same save; the capsule never covers the page's own controls
- * and stays inside the window for tall blocks.
+ * produce the same save; the capsule never covers the page's own controls,
+ * stays inside the block's left and right edges, and stays inside the
+ * window for tall blocks.
  */
 import {
   candidateAnchor,
@@ -25,6 +26,8 @@ import { uiText } from '../../utils/ui-text'
 const ROOT_ATTR = 'data-ann-ui'
 const DWELL_MS = 400
 const LEAVE_MS = 150
+/** How far the capsule sits inside the block's left and right edges. */
+const CAPSULE_EDGE_INSET = 6
 
 export interface BlockHoverHooks {
   onClip(candidate: BlockCandidate, levelChanged: boolean): void
@@ -333,21 +336,30 @@ export class BlockEntries {
   }
 
   /**
-   * Capsule placement (capture.md §6.2): straddles the block's edge at the
-   * right-top corner; a block taller than the window clamps to the visible
-   * top; occupied corners yield to left-top, right-bottom, left-bottom, and
-   * finally the pointer side. Occupation is probed across the whole capsule
-   * box, not one point — a small button inside the area still counts.
+   * Capsule placement (capture.md §6.2): prefers the block's right-top corner.
+   * The top edge is straddled so a tall block can pin to the visible top of
+   * the window; the left and right edges stay inside the block. Centering on
+   * the corner (`right - width/2`) hangs half the capsule off the side — on a
+   * timeline that half covers the sidebar (about 82px at 110% zoom). Occupied
+   * corners yield to left-top, right-bottom, left-bottom, then a slide along
+   * the top edge. Occupation is probed across the whole capsule box, not one
+   * point — a small button inside the area still counts.
    */
   private positionCapsule(capsule: HTMLElement, rect: DOMRect): void {
     const view = this.doc.defaultView!
     const box = { width: capsule.offsetWidth || 260, height: capsule.offsetHeight || 36 }
     const visibleTop = Math.max(rect.top, 0)
+    const yTop = visibleTop - box.height / 2
+    const yBottom = Math.min(rect.bottom, view.innerHeight) - box.height / 2
+    // 6px inside the block, same inset as the hover-capsule mock. The right
+    // edge of the capsule is `rect.right - 6`, never `rect.right + width/2`.
+    const xRight = rect.right - box.width - CAPSULE_EDGE_INSET
+    const xLeft = rect.left + CAPSULE_EDGE_INSET
     const corners: [number, number][] = [
-      [rect.right - box.width / 2, visibleTop - box.height / 2], // right-top, straddling the edge
-      [rect.left - box.width / 2, visibleTop - box.height / 2], // left-top
-      [rect.right - box.width / 2, Math.min(rect.bottom, view.innerHeight) - box.height / 2], // right-bottom
-      [rect.left - box.width / 2, Math.min(rect.bottom, view.innerHeight) - box.height / 2], // left-bottom
+      [xRight, yTop],
+      [xLeft, yTop],
+      [xRight, yBottom],
+      [xLeft, yBottom],
     ]
     let [x, y] = corners[0]!
     for (const [cx, cy] of corners) {
@@ -361,7 +373,8 @@ export class BlockEntries {
       // all four corners taken (an X post's are): slide along the top edge
       // instead of sitting on the corner's controls (真机走查 P2-4)
       const topY = corners[0]![1]
-      for (let cx = corners[0]![0] - 24; cx >= rect.left - box.width / 2 && cx >= 0; cx -= 24) {
+      const minX = Math.max(0, rect.left)
+      for (let cx = corners[0]![0] - 24; cx >= minX; cx -= 24) {
         if (!this.capsuleAreaOccupied(cx, topY, box, capsule)) {
           x = cx
           y = topY
@@ -369,8 +382,15 @@ export class BlockEntries {
         }
       }
     }
-    capsule.style.left = `${Math.max(0, Math.min(view.innerWidth - box.width, x))}px`
-    capsule.style.top = `${Math.max(0, Math.min(view.innerHeight - box.height, y))}px`
+    let left = Math.max(0, Math.min(view.innerWidth - box.width, x))
+    const top = Math.max(0, Math.min(view.innerHeight - box.height, y))
+    // A viewport clamp must not push the capsule back out over the sidebar
+    // when the block itself fits on screen.
+    if (box.width <= rect.width && rect.left >= 0 && rect.right <= view.innerWidth) {
+      left = Math.min(Math.max(left, rect.left), rect.right - box.width)
+    }
+    capsule.style.left = `${left}px`
+    capsule.style.top = `${top}px`
   }
 
   /** Sample points across the would-be capsule box for page controls under it. */

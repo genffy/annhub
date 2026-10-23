@@ -58,7 +58,7 @@ const miniView = (inner, h = 380) => `<div class="mv" style="height:${h}px">${in
 
 // ── 区块剪藏：指针在区块上停下，旁边出现胶囊（剪藏 | 截图 | 上一级 | 更多）──────────
 // 入口只是扩展自己的浮层：描边 + 一枚深色胶囊，不改网页，也不在页面上留记号。
-// o.cls 是位置：默认右上角；at-tl 左上角、at-br 右下角、at-bl 左下角；pin-top 贴着窗口里可见部分的上沿（区块比窗口高时）。
+// o.cls 是位置：默认右上角（左右缘在区块内，上沿跨出一小段）；at-tl 左上角、at-br 右下角、at-bl 左下角；pin-top 贴着窗口里可见部分的上沿（区块比窗口高时）。
 const BLK_LABELS = { zh: { clip: '剪藏', shot: '截图', up: '上一级', more: '更多' }, en: { clip: 'Clip', shot: 'Screenshot', up: 'Select parent', more: 'More' } }
 
 const blkPill = (o = {}) => {

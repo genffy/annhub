@@ -74,6 +74,38 @@ test.describe('block clip (capture.md §6.2)', () => {
     expect(overlap).toBe(false)
   })
 
+  test('the capsule stays inside a timeline post and off the sidebar, at 100% and 110% zoom', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.goto('http://localhost:8173/timeline.html')
+
+    const overlaps = async (a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) =>
+      a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
+
+    const expectInside = async (hoverSelector: string, boundsSelector: string) => {
+      await page.mouse.move(2, 2)
+      await page.waitForTimeout(200)
+      const capsule = await hoverForCapsule(page, hoverSelector)
+      const capsuleBox = (await capsule.boundingBox())!
+      const bounds = (await page.locator(boundsSelector).boundingBox())!
+      const sidebar = (await page.locator('#sidebar').boundingBox())!
+      const caret = (await page.locator('#caret').boundingBox())!
+      const overflow = capsuleBox.x + capsuleBox.width - (bounds.x + bounds.width)
+      expect(overflow).toBeLessThanOrEqual(1)
+      expect(capsuleBox.x).toBeGreaterThanOrEqual(bounds.x - 1)
+      expect(await overlaps(capsuleBox, sidebar)).toBe(false)
+      expect(await overlaps(capsuleBox, caret)).toBe(false)
+    }
+
+    await expectInside('#body', '#post')
+    await expectInside('#media', '#media')
+
+    await page.evaluate(() => {
+      document.documentElement.style.zoom = '1.1'
+    })
+    await expectInside('#body', '#post')
+    await expectInside('#media', '#media')
+  })
+
   test('an X post clips with its own status permalink', async ({ page }) => {
     await page.goto(getCapturePageUrl())
     const capsule = await hoverForCapsule(page, '[data-testid="tweet"] p')
