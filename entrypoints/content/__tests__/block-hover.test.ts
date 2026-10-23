@@ -346,7 +346,7 @@ describe('capsule placement stays inside the block (capture.md §6.2)', () => {
     expect(left).toBeGreaterThanOrEqual(280)
   })
 
-  it('moves off a top-right control and keeps the capsule inside the post’s right edge', async () => {
+  it('moves off a top-right control and keeps the capsule inside the post right edge', async () => {
     vi.useFakeTimers()
     mockCapsuleBox()
     document.body.innerHTML = `<article data-testid="tweet" id="post"><p id="body">${LONG}</p><button id="caret" type="button">More</button></article>`
