@@ -29,7 +29,7 @@ describe('bucketing (metrics.md §9)', () => {
     expect(bucketCount(11)).toBe('>10')
   })
 
-  it('buckets the click-to-write time finely enough to see the 300 ms guard (D-22)', () => {
+  it('buckets the click-to-write time finely enough to see the 300 ms guard (metrics.md §9)', () => {
     expect(bucketCaptureDuration(0)).toBe('<150ms')
     expect(bucketCaptureDuration(149)).toBe('<150ms')
     expect(bucketCaptureDuration(150)).toBe('150-300ms')

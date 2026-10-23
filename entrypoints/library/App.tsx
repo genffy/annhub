@@ -278,7 +278,7 @@ export default function App() {
   /** A page of the list is on its way: a second click on 显示更多 would ask for the same page again and add it twice. */
   const loadingMoreRef = useRef(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  /** The card the keyboard goes on from once 显示更多 has added its page (D-28): set by `loadMore` only, so a reload or a filter never moves the focus. */
+  /** The card the keyboard goes on from once 显示更多 has added its page (extension.md §2.3): set by `loadMore` only, so a reload or a filter never moves the focus. */
   const focusAfterLoadRef = useRef<string | null>(null)
   const loadMoreButtonRef = useRef<HTMLButtonElement>(null)
   const entryGridRef = useRef<HTMLUListElement>(null)

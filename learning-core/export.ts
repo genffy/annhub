@@ -40,7 +40,6 @@ export interface ExportSummary {
 
 const LABELS: Record<ExportLanguage, Record<string, string>> = {
   zh: {
-    original: '原文',
     context: '语境',
     highlightNotes: '高亮备注',
     note: '备注',
@@ -58,7 +57,6 @@ const LABELS: Record<ExportLanguage, Record<string, string>> = {
     excludes: '不包含：未提交的编辑、界面偏好、属性注册表和可重建缓存。',
   },
   en: {
-    original: 'Original text',
     context: 'Context',
     highlightNotes: 'Highlight notes',
     note: 'Note',

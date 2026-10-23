@@ -54,7 +54,7 @@ function wireSelectionMenu(): void {
   selectionMenu = new SelectionMenu(document, {
     onClip: () => void triggerSelectionClip({ via: 'menu' }),
     // The screenshot session, its coordinates and the captured tab all belong to the top frame's
-    // viewport; a same-origin child frame offers clipping only (D-29).
+    // viewport; a same-origin child frame offers clipping only (capture.md §3).
     ...(isTopFrame()
       ? {
           onScreenshot: () => {

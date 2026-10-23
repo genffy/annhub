@@ -7,7 +7,7 @@ import type { BlockCandidate } from '../blocks'
 import { uiText } from '../../../utils/ui-text'
 
 /**
- * Keyboard block mode (capture.md §6.2, D-27) over fixture DOM. The chain of the current target is
+ * Keyboard block mode (capture.md §6.2) over fixture DOM. The chain of the current target is
  * only ever replaced by a new target: ↓ walks back down what ↑ climbed, and a heading-run section on a
  * flat page is saved as that run — not as the container it shares with its neighbours.
  */
@@ -207,7 +207,7 @@ describe('scrolling and focus', () => {
     expect(document.activeElement).toBe(code)
   })
 
-  it('starts on the first unit in view when nothing is focused (D-27)', () => {
+  it('starts on the first unit in view when nothing is focused (capture.md §6.2)', () => {
     document.body.innerHTML = FLAT
     const target = document.getElementById('h-intro')!
     document.elementFromPoint = vi.fn((_x: number, y: number) => (y > 40 ? target : null))
@@ -216,7 +216,7 @@ describe('scrolling and focus', () => {
   })
 })
 
-describe('a child frame offers clipping only (D-29)', () => {
+describe('a child frame offers clipping only (capture.md §3)', () => {
   it('S does nothing and the hint does not promise a screenshot', () => {
     document.body.innerHTML = NESTED
     document.getElementById('code')!.focus()

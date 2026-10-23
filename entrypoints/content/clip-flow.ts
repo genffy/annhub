@@ -61,7 +61,7 @@ export async function saveSelectionClip(range: Range, origin: ClipOrigin, id = n
   })
 }
 
-/** Older Chromium can expose shadow text but not its composed Range (D-25). */
+/** Older Chromium can expose shadow text but not its composed Range (capture.md §3). */
 export async function savePlainTextSelection(text: string, origin: ClipOrigin, id = newEntryId()): Promise<ClipResult> {
   const startedAt = Date.now()
   const content = escapeText(text).trim()

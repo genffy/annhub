@@ -2,7 +2,7 @@
 
 > 层级：core
 > 状态：存储设计真源
-> 更新：2026-10-12
+> 更新：2026-10-23
 > 适用端：浏览器扩展
 
 本文定义条目（含剪藏里的高亮）与截图资产的本地存储和 Markdown ZIP 导出。条目字段形状见 [条目契约](entry.md)。
@@ -115,7 +115,7 @@ AnnHub-export-YYYY-MM-DD.zip   # 导出当天的本地日期，与 README 里的
 
 每份 Markdown 以稳定 ID 作文件名。**属性即 frontmatter**：条目的系统字段与属性写成 YAML frontmatter，键名对齐 Obsidian Web Clipper 的默认模板（`title`、`source`、`author`、`published`、`created`、`description`、`tags`），AnnHub 自己的键加 `annhub_` 前缀，避免撞用户库里已有的键。系统字段的映射见 [entry.md §5.5](entry.md)；值按类型写成 YAML：文本为带引号的字符串，列表为序列，数字为数字，复选框为 `true` / `false`，日期与日期时间保持 [entry.md §5.2](entry.md) 的格式。键的顺序：`annhub_id`、`annhub_type`、`title`、`source`、`created`，然后是注册表里的内置属性，最后是自定义属性按名称排序；未设置的属性不写。
 
-正文用可阅读的章节保存内容，章节标题随导出时的界面语言：`clip` 依次是原文（`content` 的 Markdown，高亮写成 `==…==`）、语境（选区剪藏才有）、高亮备注（有备注的高亮：引文加备注）、备注；`screenshot` 是图片（相对路径 `../assets/<assetId>.png`）和备注。高亮的范围按 [entry.md §4](entry.md) 写回源文本；一条高亮跨越段落或其他块时，`==…==` 按块拆开，不让它跨块，也不拆开 Markdown 的语法记号。剪藏里的远程图片按原地址导出，不下载（[capture.md §3.1](capture.md)）。
+正文用可阅读的章节保存内容，章节标题随导出时的界面语言：`clip` 先是原文（`content` 的 Markdown，高亮写成 `==…==`），不加章节标题，原文自己的标题级别不变；其后依次是二级标题的语境（选区剪藏才有）、高亮备注（有备注的高亮：引文加备注）、备注；`screenshot` 是图片（相对路径 `../assets/<assetId>.png`）和备注。高亮的范围按 [entry.md §4](entry.md) 写回源文本；一条高亮跨越段落或其他块时，`==…==` 按块拆开，不让它跨块，也不拆开 Markdown 的语法记号。剪藏里的远程图片按原地址导出，不下载（[capture.md §3.1](capture.md)）。
 
 示例（`clips/<id>.md`，YAML 通过序列化器生成，不手工拼接）：
 

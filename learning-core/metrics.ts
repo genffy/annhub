@@ -27,7 +27,7 @@ export type MetricEventName =
 /**
  * Bucketing (metrics.md §9): durations and counts never travel as raw numbers.
  *
- * `capture.saved` measures from the user's click to the committed write (D-22, default A) and so needs
+ * `capture.saved` measures from the user's click to the committed write (the exception in metrics.md §9) and so needs
  * steps fine enough to see the 300 ms write guard of M-03; the coarse minute-scale buckets of the general
  * rule cannot, with everything under 15 s in one bucket.
  */

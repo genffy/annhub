@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { plainTextForSelection, selectableRange } from '../selection-menu'
 
-describe('shadow selection fallback (D-25)', () => {
+describe('shadow selection fallback (capture.md §3)', () => {
   it('keeps a pure-text capture when composed ranges are unavailable', () => {
     document.body.innerHTML = '<div id="host"></div>'
     const host = document.getElementById('host')!

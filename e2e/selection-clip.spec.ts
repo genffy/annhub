@@ -151,7 +151,7 @@ test.describe('selection clip (capture.md §6.1, extension.md §2.1)', () => {
     await page.close()
   })
 
-  test('capture duration runs from the user trigger to the committed write, in fine buckets (RV-CAP-10, D-22)', async ({ page, extensionId }) => {
+  test('capture duration runs from the user trigger to the committed write, in fine buckets (RV-CAP-10, metrics.md §9)', async ({ page, extensionId }) => {
     await page.goto(`chrome-extension://${extensionId}/sample.html`)
     const save = (id: string, startedAt: number) =>
       page.evaluate(

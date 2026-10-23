@@ -186,7 +186,7 @@ export function validatePropertyValue(type: PropertyType, value: PropertyValue):
       if (typeof value !== 'string' || !DATE_RE.test(value) || !isRealDate(value)) throw fail()
       return
     case 'datetime': {
-      // a real date and a real time of day (entry.md §5.2, D-26)
+      // a real date and a real time of day (entry.md §5.2)
       if (typeof value !== 'string' || !DATETIME_RE.test(value)) throw fail()
       const [date, time] = value.split('T')
       const [hours, minutes, seconds] = time!.split(':').map(Number)

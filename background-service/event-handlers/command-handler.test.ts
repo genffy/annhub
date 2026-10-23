@@ -5,7 +5,7 @@ import { CommandHandler } from './command-handler'
 /**
  * The two shortcuts (extension.md §7.1) tell the top frame's content script and nothing else: the
  * script also runs in same-origin child frames, and a broadcast would start a screenshot session or
- * block mode in every one of them (D-29).
+ * block mode in every one of them (capture.md §3).
  */
 
 function setup(tabs: { id?: number }[] = [{ id: 7 }]) {
