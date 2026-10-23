@@ -1,6 +1,6 @@
 /**
  * The selection menu — exactly two actions, clip and screenshot, in that
- * order, icon plus short text (docs/v2/extension.md §2.1). It appears for
+ * order, icon plus short text (docs/product/extension.md §2.1). It appears for
  * mouse drags and keyboard selections alike (no minimum length; an
  * all-whitespace selection never shows it), keyboard users drive it with
  * Tab and Enter, and hovering or focusing an action for ~300ms reveals its

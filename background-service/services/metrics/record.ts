@@ -1,6 +1,6 @@
 /**
  * Event recording helpers — the only writers of the local metrics store
- * (docs/v2/metrics.md §9). Props are enums/booleans/bucketed numbers only.
+ * (docs/product/metrics.md §9). Props are enums/booleans/bucketed numbers only.
  */
 import {
   bucketCaptureDuration,

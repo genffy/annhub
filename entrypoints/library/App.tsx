@@ -1,10 +1,10 @@
 /**
  * The library page — the extension's application page (extension.md §2.2,
- * §2.3, §4.1). R1 scope: the unified list (all / clips / screenshots),
- * search and filters per search.md, the detail drawer with editing, and the
- * single "Export content" Markdown ZIP command. The full left-nav shell
- * with highlight and properties views is R2; filters already live in the
- * URL hash so refresh restores the view.
+ * §2.3, §4.1): the left-nav shell with the all / clips / highlights /
+ * screenshots / properties / settings views, search and filters per
+ * search.md, the detail drawer with editing, and the single "Export
+ * content" Markdown ZIP command. Routes and filters live in the URL hash so
+ * refresh restores the view.
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'

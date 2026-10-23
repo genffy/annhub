@@ -1,5 +1,5 @@
 /**
- * The single user-facing export: Markdown + saved image ZIP — docs/v2/storage.md §6.
+ * The single user-facing export: Markdown + saved image ZIP — docs/product/storage.md §6.
  *
  * Readable by tools like Obsidian; NOT a lossless AnnHub database restore.
  * Environment-neutral: the host passes entries + an asset reader; this

@@ -2,9 +2,9 @@
  * Entry data contract — single source of truth shapes for everything the
  * extension captures and stores locally.
  *
- * Contract owners (docs/v2):
- *   - EntryRecord / EntryType / Highlight / properties: docs/v2/entry.md
- *   - ImageAsset and persistence: docs/v2/storage.md
+ * Contract owners (docs/product):
+ *   - EntryRecord / EntryType / Highlight / properties: docs/product/entry.md
+ *   - ImageAsset and persistence: docs/product/storage.md
  *
  * This module must stay environment-neutral: no chrome.*, no DOM, no React.
  */

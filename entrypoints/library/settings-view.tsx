@@ -518,7 +518,7 @@ export function SettingsView() {
 }
 
 /**
- * The local-metrics readout (metrics.md §5, §10): the roadmap's V-prep coverage of M-03, M-11 and M-19–M-25,
+ * The local-metrics readout (metrics.md §5, §10): M-03, M-11 and M-19–M-25,
  * every number an aggregate. Share-of-users metrics show this install's standing — the panel cannot see other
  * installs — next to the event counts that support it.
  */

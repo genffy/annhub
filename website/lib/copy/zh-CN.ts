@@ -1,13 +1,13 @@
 import type { LandingCopy } from './types'
 
-// 中文文案。内容以 docs/v2/website.md 为准；产品术语以 docs/v2/README.md §4 为准；界面里的字符串与扩展的
+// 中文文案。内容以 docs/product/website.md 为准；产品术语以 docs/product/README.md §4 为准；界面里的字符串与扩展的
 // utils/ui-text.ts 一致。页面不得自行发明功能、用户数或评价（website.md §12、§14）。
 export const zhCN: LandingCopy = {
   locale: 'zh-CN',
   meta: {
     title: 'AnnHub — 把网页里值得留下的内容，存进同一个本地库',
     description: 'AnnHub 是本地优先的浏览器扩展：把剪藏、高亮和截图连同来源存进同一个本地库，用属性分类、随时找回，并导出为 Obsidian 读得懂的 Markdown。',
-    ogImageAlt: '界面示意：依据 v2 设计稿绘制，使用示例数据',
+    ogImageAlt: '界面示意，使用示例数据',
     updated: '2026-10-14',
   },
   header: {

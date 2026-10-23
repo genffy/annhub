@@ -13,7 +13,7 @@ import Story from './story'
 import Trust from './trust'
 import Ways from './ways'
 
-/** Order follows docs/v2/website.md §3: hero, problem, the three ways, one real story, the product, differences, trust, FAQ, closing. */
+/** Order follows docs/product/website.md §3: hero, problem, the three ways, one real story, the product, differences, trust, FAQ, closing. */
 export default function LandingPage({ copy }: { copy: LandingCopy }) {
   return (
     <>

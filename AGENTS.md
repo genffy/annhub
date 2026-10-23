@@ -1,16 +1,16 @@
 # AnnHub 工程约定
 
 > 本文件只放跨目录通用规则。当前代码的局部维护提示见下表的 `AGENTS.md`。
-> 更新：2026-10-13。
+> 更新：2026-10-24。
 
 ## 项目与真源
 
 当前仓库包含 Chrome MV3 扩展、TypeScript 领域核心和官网。目标会演进为 monorepo；现有目录只是当前代码位置，不代表最终 package 划分。
 
-- 产品边界、目标契约与阶段验收以 [docs/v2/README.md](docs/v2/README.md) 为入口；当前代码行为以源码和测试为准。目标文档不代表功能已经实现。
-- 不在 v2 文档里的能力不进入仓库；发现这样的代码、文案或配置时删除，而不是兼容或隔离。
-- 本文件不复制数据结构、消息清单、目标包结构或产品决策。当前字段与消息看源码，已确认但仍在迭代的产品结论看 `docs/v2/`。
-- 待确认的产品决策（`D-`）连同各自的默认在 [validation.md 第 5 节](docs/v2/validation.md)：实现不等回复，先按默认走，确认的结果与默认不同再调整。只有真机才能验收的项在 [roadmap.md 第 5 节](docs/v2/roadmap.md)。
+- 产品边界、契约与验收以 [docs/product/README.md](docs/product/README.md) 为入口；当前代码行为以源码和测试为准，发布了什么、正在做什么见 [roadmap.md](docs/product/roadmap.md)。
+- 新功能的规格与代码在同一个 PR 里进入仓库，流程见 [docs/product/AGENTS.md](docs/product/AGENTS.md)。没有产品文档依据的代码、文案或配置，发现时删除，而不是兼容或隔离。
+- 本文件不复制数据结构、消息清单、目标包结构或产品决策。当前字段与消息看源码，已确认但仍在迭代的产品结论看 `docs/product/`。
+- 待确认的产品决策（`D-`）连同各自的默认在 [validation.md 第 2 节](docs/product/validation.md)：实现不等回复，先按默认走，确认的结果与默认不同再调整。只有真机才能验收的项在 [roadmap.md 第 5 节](docs/product/roadmap.md)。
 
 ## 按目录读取
 
@@ -23,7 +23,7 @@
 | `background-service/`  | [消息门面与浏览器服务](background-service/AGENTS.md)                      |
 | `learning-core/`       | [TypeScript 领域规则与 IndexedDB](learning-core/AGENTS.md)                |
 | `e2e/`                 | [Playwright 与浏览器实测](e2e/AGENTS.md)                                  |
-| `docs/v2/`             | [已确认产品文档维护](docs/v2/AGENTS.md)                                   |
+| `docs/product/`        | [产品文档维护与新功能流程](docs/product/AGENTS.md)                        |
 
 `website/` 是独立 Next.js 应用，运行方式和 Cloudflare 静态部署的注意事项见 [website/README.md](website/README.md)。其他扩展入口的事实以相邻源码为准。
 
@@ -31,7 +31,7 @@
 
 1. 优先复用现有服务、领域函数和 UI 模式；不要在入口层复制归一化、校验或调度规则。
 2. 当前扩展消息联合类型在 `types/messages.ts`；协议修改时同步定义、handler、调用方和相关测试。写操作沿用 sender 权限校验；敏感配置 GET 不回传密钥。
-3. 共享契约改变时，以 `docs/v2/` 的最新结论为准，同步受影响的 TypeScript、IndexedDB 和文档；迁移策略按实际用户数据决定。
+3. 共享契约改变时，以 `docs/product/` 的最新结论为准，同步受影响的 TypeScript、IndexedDB 和文档；迁移策略按实际用户数据决定。
 4. 日志与指标事件不包含密钥、用户内容、完整页面或附件二进制。
 5. 保存失败、返回或关闭流程不得丢失用户已输入的内容。不回退与当前任务无关的工作区改动。
 6. 模块、消息、快捷键或数据契约变化时，更新受影响的 `README.md` 与 `docs/`；只在全局规则或目录导航变化时修改本文件。
@@ -58,7 +58,7 @@
 | `typescript`、`eslint` 的主版本           | `typescript-eslint`、`eslint-config-next` 内置插件的 peer 范围必须接受新版本，否则 `npm run lint` 崩溃；`.github/dependabot.yml` 里对它们的 `ignore`；本地跑 `npm run lint`                                                                                            |
 | 新增、移动含 `package.json` 的目录        | `.github/dependabot.yml`；`scheduled-audit.yml` 的矩阵；CI 里的安装与构建步骤；`scripts/check-lockfiles.mjs` 的列表；`website/wrangler.json`                                                                                                                           |
 | `package.json` 的 `scripts`、CI 任务      | `verify` 与 CI 运行同样的命令；`.github/rulesets/main.json` 的必需检查名；本文件「验证入口」                                                                                                                                                                           |
-| `wxt.config.ts` 的权限与最低版本          | [docs/v2/permissions.md](docs/v2/permissions.md)；隐私政策页 `website/public/privacy-policy.html` 里的权限表（`utils/__tests__/legal-pages.test.ts` 核对它，不核对文档）；商店的权限说明                                                                               |
+| `wxt.config.ts` 的权限与最低版本          | [docs/product/permissions.md](docs/product/permissions.md)；隐私政策页 `website/public/privacy-policy.html` 里的权限表（`utils/__tests__/legal-pages.test.ts` 核对它，不核对文档）；商店的权限说明                                                                     |
 
 ## 验证入口
 

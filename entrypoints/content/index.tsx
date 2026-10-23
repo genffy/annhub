@@ -1,5 +1,5 @@
 /**
- * Content script entry — the page-side capture surface (docs/v2/capture.md,
+ * Content script entry — the page-side capture surface (docs/product/capture.md,
  * extension.md §2.1, §3). Everything it renders is an overlay of the
  * extension's own; the page itself is never modified and keeps no mark.
  *

@@ -138,7 +138,7 @@ const STRINGS = {
   'shot.anonymizePlaceholder': { zh: '已匿名', en: 'Anonymized' },
   'shot.error.emptySelection': { zh: '选区面积为零', en: 'The selection has zero area' },
   'shot.error.edit': { zh: '标注失败', en: 'Annotation failed' },
-  // library page (extension.md §2.2-2.3) — R1 subset
+  // library page (extension.md §2.2-2.3)
   'library.searchPlaceholder': { zh: '搜索条目…', en: 'Search entries…' },
   'library.all': { zh: '全部', en: 'All' },
   'library.clips': { zh: '剪藏', en: 'Clips' },
@@ -249,7 +249,7 @@ const STRINGS = {
     zh: '选中网页文字即可保存 · {keys} 截图',
     en: 'Select text on a page to save it · {keys} to screenshot',
   },
-  // settings page (extension.md §2.5) — R1 subset
+  // settings page (extension.md §2.5)
   'settings.title': { zh: '设置', en: 'Settings' },
   'settings.blockEntry': { zh: '区块剪藏入口', en: 'Block clip entry' },
   'settings.blockEntryHint': {
@@ -315,7 +315,7 @@ const STRINGS = {
   'metrics.m19.exports': { zh: '导出', en: 'Exports' },
   'metrics.m19.retrieved': { zh: '找回合计', en: 'Retrieved' },
   'metrics.queried': { zh: '搜索与筛选', en: 'Searches & filters' },
-  'metrics.m19.sought': { zh: '找回路径（H-16）', en: 'Sought back (H-16)' },
+  'metrics.m19.sought': { zh: '找回路径', en: 'Sought back' },
   'metrics.yes': { zh: '是', en: 'Yes' },
   'metrics.no': { zh: '否', en: 'No' },
   'metrics.none': { zh: '暂无数据', en: 'No data yet' },

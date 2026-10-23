@@ -1,5 +1,5 @@
 /* Product UI replicas, part 2: the library window (left navigation + right content), reading view, highlights, property
-   panel and the export file. Ported from docs/design/v2/css/ext.css.
+   panel and the export file. Ported from docs/design/css/ext.css.
 
    The shell adapts to its own width, not the viewport, with the breakpoints from the design's shell spec: wide above
    1100, collapsible 720-1099, an icon rail below 720. It never turns into a top bar. `.is-rail` forces the rail. */

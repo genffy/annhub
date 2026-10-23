@@ -1,5 +1,5 @@
 /**
- * What the service worker will fetch for an element capture (docs/v2/screenshot.md §2).
+ * What the service worker will fetch for an element capture (docs/product/screenshot.md §2).
  *
  * The worker holds the `<all_urls>` host permission, so a fetch from it ignores the page's CORS rules
  * and is made from this machine's network position. Asked for any URL it would be an open proxy to

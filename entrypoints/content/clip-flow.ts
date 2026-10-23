@@ -1,6 +1,6 @@
 /**
  * The clip flow — one click saves, a ~3s toast offers undo and edit
- * (docs/v2/capture.md §3, §6.1, §7; extension.md §3). Failures keep the
+ * (docs/product/capture.md §3, §6.1, §7; extension.md §3). Failures keep the
  * selection and everything already typed; nothing shows success that was
  * not persisted.
  */

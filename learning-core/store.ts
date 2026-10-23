@@ -1,7 +1,7 @@
 /**
  * Entry store — IndexedDB persistence for entries (with their embedded
  * highlights), image assets and the property registry.
- * Target contract: docs/v2/storage.md.
+ * Target contract: docs/product/storage.md.
  *
  * Environment-neutral (runs in the extension service worker and in tests
  * via fake-indexeddb). Every write reads what it depends on, validates and

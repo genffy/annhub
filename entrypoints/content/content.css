@@ -637,7 +637,7 @@
   border-radius: 2px;
 }
 
-/* ── R3: snap guides, handles, confirm bar, margin bar, hover outline ── */
+/* ── precise selection: snap guides, handles, confirm bar, margin bar, hover outline ── */
 
 [data-ann-ui='screenshot-session'] .ann-shot-snap-line {
   position: absolute;

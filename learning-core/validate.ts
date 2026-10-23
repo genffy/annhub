@@ -1,5 +1,5 @@
 /**
- * Entry validation pipeline with stable error codes — docs/v2/entry.md §6.
+ * Entry validation pipeline with stable error codes — docs/product/entry.md §6.
  *
  * Order: type → base fields → type-required fields → source → highlights →
  * properties. Every throw carries an EntryErrorCode; the UI never shows raw

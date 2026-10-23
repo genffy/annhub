@@ -1,6 +1,6 @@
 /**
  * Source URL cleaning — the only place token-shaped query/hash parameters
- * are stripped before a URL is recorded (docs/v2/capture.md §5).
+ * are stripped before a URL is recorded (docs/product/capture.md §5).
  *
  * Everything else in the URL is preserved, including section anchors used
  * by block clips. After cleaning the URL must still be an absolute http(s)

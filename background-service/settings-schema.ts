@@ -26,10 +26,10 @@ export interface ExtensionSettings {
   anonymizeNames: boolean
   /** Default highlight color for new marks in the reading view (entry.md §4.3). */
   defaultHighlightColor: HighlightColor
-  /** Screenshot download format + quality (screenshot.md §4.2; R2). */
+  /** Screenshot download format + quality (screenshot.md §4.2). */
   downloadFormat: 'png' | 'jpeg' | 'webp'
   downloadQuality: number
-  /** Brand watermark on copy/download only (screenshot.md §4.3; R2). */
+  /** Brand watermark on copy/download only (screenshot.md §4.3). */
   watermark: {
     enabled: boolean
     text: string
@@ -38,9 +38,9 @@ export interface ExtensionSettings {
     size: 'small' | 'medium' | 'large'
     opacity: number
   }
-  /** Ratio presets shown on the selection bar (screenshot.md §1.3; R2). */
+  /** Ratio presets shown on the selection bar (screenshot.md §1.3). */
   ratioPresets: string[]
-  /** Beautify defaults for copy/download (screenshot.md §4.4; R2). */
+  /** Beautify defaults for copy/download (screenshot.md §4.4). */
   beautify: {
     enabled: boolean
     background: BeautifyBackground

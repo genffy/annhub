@@ -166,7 +166,7 @@ describe('metricSummaries (metrics.md §5)', () => {
     expect(nothing.activation).toMatchObject({ firstSaveDay: null, firstReopenDay: null, activated: false })
   })
 
-  it('M-19 sums reopens and exports per Monday-start week and reads H-16 from the same week', () => {
+  it('M-19 sums reopens and exports per Monday-start week and marks the weeks that searched and reopened, or exported', () => {
     const shape = shapeOf({
       // week of 2026-09-28: searched but never came back
       '2026-09-29': [['library.queried', { has_text: true, filters: '0', results: '1-2' }]],

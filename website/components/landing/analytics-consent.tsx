@@ -69,7 +69,7 @@ type Props = { copy: LandingCopy['consent']; policyHref: string }
 
 /**
  * Loads Cloudflare Web Analytics only when the visitor's choice allows it, and asks first where the law wants consent
- * (docs/v2/website.md §19, permissions.md §8). Without a token there is nothing to load and nothing to ask.
+ * (docs/product/website.md §19, permissions.md §8). Without a token there is nothing to load and nothing to ask.
  */
 export default function AnalyticsConsent(props: Props) {
   return ANALYTICS_TOKEN ? <ConsentCard {...props} /> : null

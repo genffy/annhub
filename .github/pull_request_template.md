@@ -8,11 +8,12 @@
 
 - [ ] `npm run verify`
 - [ ] `npm run build` and the relevant `npx playwright test <spec>` (browser-visible changes)
-- [ ] Shared contracts changed: TypeScript and `docs/v2/` are updated together
+- [ ] Shared contracts changed: TypeScript and `docs/product/` are updated together
+- [ ] New or changed behaviour: the owning docs in `docs/product/` (contract, user story and acceptance, metrics) change in this PR; a feature that crosses the not-doing list in `product.md` §2.3 changes that row here
 - [ ] Environment, dependency, build, deploy or CI settings changed: every related place was searched for and updated in this PR (AGENTS.md「联动一致性」); list the `git grep` commands and the files they hit
 
 ## Checklist
 
 - [ ] No secrets, page content or attachment bytes in logs, fixtures or screenshots
 - [ ] No test was skipped, disabled or loosened to get green
-- [ ] Docs describe the target contract; delivery status is only in `docs/v2/roadmap.md`
+- [ ] Docs describe what the code in this PR does; delivery status is only in `docs/product/roadmap.md`

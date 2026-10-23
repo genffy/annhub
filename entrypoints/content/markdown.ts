@@ -1,6 +1,6 @@
 /**
  * Selection / element → Markdown conversion — the one implementation shared
- * by selection clips and block clips (docs/v2/capture.md §3.1).
+ * by selection clips and block clips (docs/product/capture.md §3.1).
  *
  * Keeps heading levels, paragraphs and line breaks, ordered and unordered
  * lists (nested to the parent's content column), quotes, inline and fenced

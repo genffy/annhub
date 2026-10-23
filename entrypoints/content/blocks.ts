@@ -1,5 +1,5 @@
 /**
- * Block detection (docs/v2/capture.md §6.2). The pointer's innermost
+ * Block detection (docs/product/capture.md §6.2). The pointer's innermost
  * qualifying unit is the target; smaller kinds outrank bigger ones:
  * post/code/table/figure/quote → section → article.
  *

@@ -1,5 +1,5 @@
 /**
- * Background service for the screenshot chain (docs/v2/screenshot.md §2, §4):
+ * Background service for the screenshot chain (docs/product/screenshot.md §2, §4):
  * viewport capture of the asking tab only, cross-origin image proxying under
  * the fetch policy, PNG download, and library persistence as a screenshot
  * entry whose asset commits in the same transaction.

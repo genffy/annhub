@@ -1,7 +1,7 @@
 /* Product UI replicas, part 1: primitives, the mock browser, and everything that appears on a web page (selection menu,
    clip toast, block capsule, screenshot overlay).
 
-   Ported from docs/design/v2/css/ui.css and ext.css, which are the source of truth for every value here. Classes carry
+   Ported from docs/design/css/ui.css and ext.css, which are the source of truth for every value here. Classes carry
    an `ah-` prefix so they cannot collide with Tailwind utilities. Tokens come from globals.css. */
 
 .ah {
@@ -164,7 +164,7 @@
   font-size: 11.5px;
 }
 
-/* entry type: icon + word + hue, the hue is only a hint (docs/v2/visual.md §3) */
+/* entry type: icon + word + hue, the hue is only a hint (docs/product/visual.md §3) */
 .ah-t-clip {
   --k: var(--t-clip);
 }

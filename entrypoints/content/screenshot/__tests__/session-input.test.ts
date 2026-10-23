@@ -63,7 +63,7 @@ describe('the screenshot session and input made up by the page', () => {
     expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).toBeNull() // the script's up did not confirm
     expect((session()!.querySelector('.ann-shot-rect') as HTMLElement).style.width).toBe('290px') // the script's move did not stretch it
 
-    // the user's up enters R3's pending confirmation; Enter captures
+    // the user's up enters the pending confirmation; Enter captures
     aPerson = true
     document.body.dispatchEvent(pointer('pointerup', 300, 200))
     await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())

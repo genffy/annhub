@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens. The product values come from docs/design/v2/css/tokens.css so the website and the extension share one
+/* Design tokens. The product values come from docs/design/css/tokens.css so the website and the extension share one
    visual system; the --site-* and --ink tokens only exist for the marketing page around the product windows. */
 :root {
   color-scheme: light;
@@ -68,7 +68,7 @@
   --chrome-fg: #3c4350;
   --chrome-line: #c9cfd9;
 
-  /* annotation pins on the product tour (docs/design/v2 uses the same amber) */
+  /* annotation pins on the product tour (docs/design uses the same amber) */
   --pin: #ffb020;
   --pin-fg: #231600;
 
@@ -155,7 +155,7 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* keyboard focus is always visible (docs/v2/extension.md §7.2) */
+  /* keyboard focus is always visible (docs/product/extension.md §7.2) */
   :where(a, button, summary, [tabindex]):focus-visible {
     outline: 2px solid var(--brand);
     outline-offset: 3px;

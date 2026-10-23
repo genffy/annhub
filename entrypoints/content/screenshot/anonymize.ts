@@ -1,5 +1,5 @@
 /**
- * DOM-placeholder anonymization — docs/v2/screenshot.md, the twitterclip
+ * DOM-placeholder anonymization — docs/product/screenshot.md, the twitterclip
  * approach: cover identity elements with clean gray placeholders instead of
  * pixelating them. Two paths:
  *

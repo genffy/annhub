@@ -9,7 +9,7 @@ const cssVar = (name: string, value: string): CSSProperties => ({ [name]: value 
 
 // ── overlays the extension draws on a page ───────────────────────────────────────────────────────
 
-/** Selection menu: exactly two items, Clip then Screenshot, icon + word (docs/v2/extension.md §2.1). */
+/** Selection menu: exactly two items, Clip then Screenshot, icon + word (docs/product/extension.md §2.1). */
 export function SelectionMenu({
   ui,
   hover,
