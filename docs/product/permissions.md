@@ -46,7 +46,7 @@
 - 商店的权限说明取自第 2 至 4 节，隐私披露取自第 1 节。
 - 隐私政策与服务条款是两个对外页面（中英双语，商店填写它们的公开地址，见 [website.md §17](website.md)）。政策里的权限表必须与扩展清单一致（有自动检查），数据流的描述必须与第 1 节和第 8 节一致；任何一边变化，同步另一边并更新页面日期。
 - 商店的名称与描述有长度上限（有自动检查）；截图与宣传图从真实扩展截取，中英文各一套，英文商店页配英文截图。
-- 商店条目：扩展 ID `jpooljigbeplpgciohfjklgbfdfnnmfn`，公开发布（[商店页](https://chromewebstore.google.com/detail/jpooljigbeplpgciohfjklgbfdfnnmfn)）。它也是 1.x 的条目，v2 作为同一条目的更新发布；不迁移 1.x 的数据。
+- 商店条目：扩展 ID `jpooljigbeplpgciohfjklgbfdfnnmfn`，公开发布（[商店页](https://chromewebstore.google.com/detail/jpooljigbeplpgciohfjklgbfdfnnmfn)）。它也是 1.x 的条目，2.0 作为同一条目的更新发布；不迁移 1.x 的数据。
 
 ## 7. 改动清单
 
