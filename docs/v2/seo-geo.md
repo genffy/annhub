@@ -2,7 +2,7 @@
 
 > 层级：website
 > 状态：官网被搜索引擎与 AI 搜索发现、理解和引用的目标契约
-> 更新：2026-10-13
+> 更新：2026-10-23
 
 本文规定官网在传统搜索（SEO）与生成式 AI 搜索（GEO）里的技术契约、内容写法和衡量方式。页面的信息架构与文案以 [website.md](website.md) 为准，产品定义以 [product.md §1](product.md) 为准，官网收集的访问数据以 [permissions.md §8](permissions.md) 为准，指标口径以 [metrics.md §11](metrics.md) 为准，搜索与 AI 平台的外部事实见 [market.md §4.6](market.md)。交付状态只看 [roadmap.md](roadmap.md)；待定的决策、假设与问题在 [validation.md](validation.md)。
 
@@ -17,10 +17,10 @@
 
 ## 2. 阶段
 
-| 阶段 | 开始条件                                                                              | 范围                                                                                     |
-| ---- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| 基础 | 随时，随新版官网上线                                                                  | 第 3、4、6 节；第 5.1 节的 `FAQPage`；第 7.1 节的访问统计                                |
-| 增长 | 扩展可从商店公开安装（[roadmap.md §6](roadmap.md)；商店条目见 [Q-14](validation.md)） | 第 5.2 节的 `SoftwareApplication`、第 5.4 节的 `llms.txt`；第 7 节的站长平台、探针与迭代 |
+| 阶段 | 开始条件                                                                                            | 范围                                                                                     |
+| ---- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 基础 | 随时，随新版官网上线                                                                                | 第 3、4、6 节；第 5.1 节的 `FAQPage`；第 7.1 节的访问统计                                |
+| 增长 | 扩展可从商店公开安装（[roadmap.md §6](roadmap.md)；商店条目见 [permissions.md §6](permissions.md)） | 第 5.2 节的 `SoftwareApplication`、第 5.4 节的 `llms.txt`；第 7 节的站长平台、探针与迭代 |
 
 公开安装之前，页面可以被收录，但不主动提交、不跑探针：访客来了也无处安装。单页之外是否建对比页、用例页和指南页见 Q-18。
 
@@ -114,7 +114,7 @@
 | `description`         | 页面的描述（第 3.3 节）                                                                                  |
 | `applicationCategory` | `BrowserApplication`                                                                                     |
 | `operatingSystem`     | 桌面版 Chromium 内核浏览器，最低版本取自 [permissions.md §5](permissions.md)；不逐个列出浏览器或操作系统 |
-| `url`、`installUrl`   | 商店条目页（Q-14）                                                                                       |
+| `url`、`installUrl`   | 商店条目页（[permissions.md §6](permissions.md)）                                                        |
 | `sameAs`              | 商店条目页与 GitHub 仓库                                                                                 |
 
 不写 `offers`（商业化见 [Q-07](validation.md)），不写 `aggregateRating` 与 `review`（没有真实评价，[website.md §12](website.md)）。Google 的软件应用富结果要求这些属性（[market.md §4.6](market.md)），所以这段标记只作语义层；Search Console 里相应的缺字段提示在预期之内。

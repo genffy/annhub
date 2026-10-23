@@ -284,7 +284,7 @@ function extSettingsGroup() {
         main: `${pageHead({ title: '设置', sub: '偏好只保存在本机' })}
           <div class="pbody" style="overflow:hidden"><div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;max-width:1080px;align-items:start">
             <div class="vs g16">${settingsCard('偏好', '每一项都用一句话说清后果。', prefs, { pin: 2 })}${settingsCard('截图', '输出的格式、比例和默认匿名。', shotPrefs, { pin: 3 })}${settingsCard('品牌水印', '署名用的水印。', wmCard, { pin: 4 })}${settingsCard('美化', '复制与下载的图片的背景、留白、圆角和阴影。', bzCard, { pin: 5 })}</div>
-            <div class="vs g16">${settingsCard('快捷键', '只显示当前绑定。', sc, { pin: 6 })}${settingsCard('数据', '', data, { pin: 7 })}${settingsCard('本地指标 · 阶段 V', '', metrics, { pin: 8 })}</div>
+            <div class="vs g16">${settingsCard('快捷键', '只显示当前绑定。', sc, { pin: 6 })}${settingsCard('数据', '', data, { pin: 7 })}${settingsCard('本地指标', '', metrics, { pin: 8 })}</div>
           </div></div>`,
       }),
       { active: 'settings', h: 2120 },
@@ -297,12 +297,12 @@ function extSettingsGroup() {
       '<b>美化</b>：默认是否开启（默认关）与面板的初始样式——背景 8 款、内边距、圆角、阴影，带预览；面板里的改动只影响本次截图。美化只加在复制与下载的图片上，入库的图片保持原样。',
       '<b>快捷键</b>只展示文档定义的几组，浏览器级冲突去浏览器的快捷键设置页处理。',
       '<b>数据</b>：存储用量以“已用 / 可用”呈现；异常残留只有在出现异常时才会有数字。',
-      '<b>本地指标</b>只在阶段 V 内测期间需要，只显示聚合数字，覆盖 M-03、M-11、M-19 至 M-25（metrics §5）。',
+      '<b>本地指标</b>只在本机计算、只显示聚合数字，覆盖 M-03、M-11、M-19 至 M-25（metrics §5）。',
     ],
   })
 
   return group(
-    { id: 'ext-settings', title: '设置', small: 'extension §2.5', desc: '设置页只放三类东西：偏好（含截图的下载格式、水印与比例预设）、本机有什么数据、阶段 V 的本地指标。' },
+    { id: 'ext-settings', title: '设置', small: 'extension §2.5', desc: '设置页只放三类东西：偏好（含截图的下载格式、水印与比例预设）、本机有什么数据、本地指标。' },
     row(page),
   )
 }
