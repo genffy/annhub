@@ -1,6 +1,6 @@
 /**
  * Context extraction, page metadata and permalink resolution
- * (docs/v2/capture.md §4, §5). Every automatic step degrades instead of
+ * (docs/product/capture.md §4, §5). Every automatic step degrades instead of
  * blocking the save.
  */
 import { CONTEXT_MAX_CHARS } from '../../learning-core/validate'

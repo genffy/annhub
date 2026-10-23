@@ -17,9 +17,9 @@ package-lock.json
 scripts/data
 
 # Design prototype (hand-written HTML/JS, not part of the product build)
-docs/design/v2/js
-docs/design/v2/css
-docs/design/v2/index.html
+docs/design/js
+docs/design/css
+docs/design/index.html
 
 # Static pages and test pages: whitespace is content here
 **/*.html

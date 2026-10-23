@@ -1,4 +1,4 @@
-// Shapes of the product replicas. They mirror docs/v2/entry.md (types, highlights, properties) closely enough that the
+// Shapes of the product replicas. They mirror docs/product/entry.md (types, highlights, properties) closely enough that the
 // scenes read like the real library, but only the fields the marketing page draws are present.
 
 export type EntryType = 'clip' | 'screenshot'
@@ -48,7 +48,7 @@ export interface PropertyDef {
 
 /**
  * Every string a product window draws. The Chinese and English values follow utils/ui-text.ts of the extension so the
- * replicas say what the real build says; the rest follows docs/design/v2. Strings with a count use `{n}`.
+ * replicas say what the real build says; the rest follows docs/design. Strings with a count use `{n}`.
  */
 export interface ProductUi {
   types: { clip: string; screenshot: string; highlight: string }

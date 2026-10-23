@@ -7,7 +7,7 @@ import TourControls from './tour-controls'
 type LibraryTour = (typeof import('./library-tour'))['default']
 
 /**
- * The interactive library window is a demonstration, not page content (docs/v2/seo-geo.md §4.3): the static HTML keeps
+ * The interactive library window is a demonstration, not page content (docs/product/seo-geo.md §4.3): the static HTML keeps
  * only what carries words, and the window mounts from its own chunk only once its section is about to scroll into view,
  * so the product replicas stay out of the initial bundle and out of the first busy period. The placeholder holds the
  * stage's fixed height (.tour-window in landing.css), so nothing shifts when the real window takes over.

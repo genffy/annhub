@@ -3,7 +3,7 @@ import { Check, ClipboardCopy, Crosshair, Download, EyeOff, Grid3x3, MoveUpRight
 import { Ic } from './parts'
 import type { ProductUi } from './types'
 
-// The screenshot session of docs/design/v2 (screenshot.md §1): the page dims, the selection stays bright with its pixel
+// The screenshot session of docs/design (screenshot.md §1): the page dims, the selection stays bright with its pixel
 // size, and the toolbar sits at the selection's corner. Everything is positioned in a 760 x 470 canvas.
 export const SHOT_WIDTH = 760
 export const SHOT_HEIGHT = 470

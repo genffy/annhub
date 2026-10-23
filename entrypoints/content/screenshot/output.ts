@@ -1,7 +1,7 @@
 /**
  * Screenshot output geometry — pure functions for the ratio-locked
  * selection, the watermark layout, the beautify composition and the JPEG
- * matte (docs/v2/screenshot.md §1.3, §4.2-4.4). Block-average mosaics and
+ * matte (docs/product/screenshot.md §1.3, §4.2-4.4). Block-average mosaics and
  * cropping live next to the session; these are the pieces the settings and
  * the copy/download pipeline share, so they are tested against the numbers
  * in the contract.

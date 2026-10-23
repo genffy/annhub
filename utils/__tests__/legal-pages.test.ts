@@ -54,7 +54,7 @@ describe('legal pages', () => {
     ['privacy policy', privacy],
     ['terms of service', terms],
   ])('%s has no removed feature and ships both languages', (_name, page) => {
-    // None of these is in docs/v2; a policy that mentions one describes a product that no longer exists.
+    // None of these is in docs/product; a policy that mentions one describes a product that no longer exists.
     expect(page).not.toMatch(
       /logseq|eudic|欧路|vocabulary|词汇|词表|side panel|sidepanel|侧边栏|Mode [AB]\b|macOS|Mac app|Mac 应用|Desktop|127\.0\.0\.1|pairing code|配对码|knowledge fragment|知识碎片|language-model|语言模型|API key|API 密钥/i,
     )

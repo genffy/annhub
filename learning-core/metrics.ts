@@ -1,5 +1,5 @@
 /**
- * Local metrics — the event dictionary and its counters (docs/v2/metrics.md §9).
+ * Local metrics — the event dictionary and its counters (docs/product/metrics.md §9).
  *
  * Events are only accumulated locally and shown as aggregate numbers in the
  * settings page; no upload path exists. Event properties may only be enums,
@@ -226,7 +226,7 @@ export interface WeekSummary {
   retrieved: number
   /** The same week's searches and filters, shown alongside (metrics.md §5). */
   queried: number
-  /** H-16's weekly reading: searched or filtered and reopened, or exported. */
+  /** M-19's weekly path: searched or filtered and reopened in the same week, or exported (metrics.md §5). */
   soughtBack: boolean
 }
 

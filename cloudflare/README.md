@@ -1,6 +1,6 @@
 # Cloudflare 静态官网
 
-官网使用 Workers Static Assets。访问只读取静态文件；语言和地区差异由 zone 规则处理，没有请求 Worker、Next.js 服务端或付费构建服务。产品契约见 [seo-geo.md](../docs/v2/seo-geo.md) 与 [permissions.md §8](../docs/v2/permissions.md)。
+官网使用 Workers Static Assets。访问只读取静态文件；语言和地区差异由 zone 规则处理，没有请求 Worker、Next.js 服务端或付费构建服务。产品契约见 [seo-geo.md](../docs/product/seo-geo.md) 与 [permissions.md §8](../docs/product/permissions.md)。
 
 ## 配置真源
 

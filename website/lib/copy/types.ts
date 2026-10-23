@@ -19,7 +19,7 @@ export interface StoryStep {
 export type DifferenceVisual = 'entry' | 'obsidian' | 'properties' | 'offline'
 
 /**
- * Every word of the landing page. Content follows docs/v2/website.md; product terms follow docs/v2/README.md §4
+ * Every word of the landing page. Content follows docs/product/website.md; product terms follow docs/product/README.md §4
  * (Entry, Library, Clip, Highlight, Screenshot, Property). Text may use `code` between backticks.
  */
 export interface LandingCopy {
@@ -27,9 +27,9 @@ export interface LandingCopy {
   meta: {
     title: string
     description: string
-    /** The social card image's alt text, shared by `og:image:alt` (docs/v2/seo-geo.md §3.3). */
+    /** The social card image's alt text, shared by `og:image:alt` (docs/product/seo-geo.md §3.3). */
     ogImageAlt: string
-    /** The day the page's text last changed in substance, YYYY-MM-DD: the sitemap's lastmod (docs/v2/seo-geo.md §3.5). */
+    /** The day the page's text last changed in substance, YYYY-MM-DD: the sitemap's lastmod (docs/product/seo-geo.md §3.5). */
     updated: string
   }
   header: {
@@ -101,7 +101,7 @@ export interface LandingCopy {
     secondary: string
   }
   footer: { line: string; library: string; github: string; privacy: string; terms: string; analytics: string; copyright: string; navLabel: string }
-  /** The analytics consent card (docs/v2/website.md §19); the footer's `analytics` button reopens it. */
+  /** The analytics consent card (docs/product/website.md §19); the footer's `analytics` button reopens it. */
   consent: {
     label: string
     settingsLabel: string

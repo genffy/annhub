@@ -1,5 +1,5 @@
 /**
- * The block-clip entries (docs/v2/capture.md §6.2): the hover capsule
+ * The block-clip entries (docs/product/capture.md §6.2): the hover capsule
  * (mouse) and block mode (keyboard). Both point at the same detection and
  * produce the same save; the capsule never covers the page's own controls
  * and stays inside the window for tall blocks.

@@ -1,7 +1,7 @@
 import { plainText } from './markdown'
 import type { Entry, Highlight, HighlightColor } from './types'
 
-// The rules of a highlight (docs/v2/entry.md §4), as the interactive library demo applies them. A highlight is a range
+// The rules of a highlight (docs/product/entry.md §4), as the interactive library demo applies them. A highlight is a range
 // in the clip's Markdown source, so a browser selection is converted back to source offsets before it is stored.
 
 export const HIGHLIGHT_LIMITS = { perClip: 200, quote: 2000, note: 1000 }

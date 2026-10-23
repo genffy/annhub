@@ -1,5 +1,5 @@
 /**
- * Entry service — the message facade over the domain store (docs/v2/entry.md,
+ * Entry service — the message facade over the domain store (docs/product/entry.md,
  * storage.md, search.md). Every write validates in the domain layer and
  * commits dependents in one transaction; senders are checked per message.
  */

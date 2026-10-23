@@ -4,7 +4,7 @@ import Logo from '../logo'
 import type { LandingCopy } from '@/lib/copy'
 import { LIBRARY_URL } from './links'
 
-/** A floating white bar (docs/v2/website.md §5). Anchors are in-page, so there is no script and no hidden menu to reach. */
+/** A floating white bar (docs/product/website.md §5). Anchors are in-page, so there is no script and no hidden menu to reach. */
 export default function SiteHeader({ copy }: { copy: LandingCopy }) {
   const { header } = copy
   return (

@@ -1,5 +1,5 @@
 /**
- * When the site may load its analytics script (docs/v2/permissions.md §8). Pure functions over the country Cloudflare
+ * When the site may load its analytics script (docs/product/permissions.md §8). Pure functions over the country Cloudflare
  * gives the visitor's IP address, the stored choice and the Global Privacy Control signal, so the rules are tested
  * without a running website.
  */

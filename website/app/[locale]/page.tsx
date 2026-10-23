@@ -2,7 +2,7 @@ import LandingPage from '@/components/landing/landing-page'
 import { getLandingCopy } from '@/lib/copy'
 import { setRequestLocale } from 'next-intl/server'
 
-/** The semantic layer for other search engines and AI tools (docs/v2/seo-geo.md §5.1): the words are the page's own FAQ,
+/** The semantic layer for other search engines and AI tools (docs/product/seo-geo.md §5.1): the words are the page's own FAQ,
  * including the date a competitor description was checked; backticks are RichText markup, not visible characters. */
 function faqJsonLd(copy: ReturnType<typeof getLandingCopy>) {
   return {

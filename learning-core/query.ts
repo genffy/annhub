@@ -1,5 +1,5 @@
 /**
- * Entry search / filter / sort / pagination — docs/v2/search.md.
+ * Entry search / filter / sort / pagination — docs/product/search.md.
  *
  * Pure functions over the loaded entries; the store may narrow candidates
  * by index first, but results must always pass through these rules. Pages

@@ -4,7 +4,7 @@ import type { Sample } from './sample'
 import type { ProductUi } from './types'
 
 /**
- * What "Export content" produces (docs/v2/storage.md §6): one Markdown file per entry, properties as frontmatter,
+ * What "Export content" produces (docs/product/storage.md §6): one Markdown file per entry, properties as frontmatter,
  * highlights written as ==…==, images stored once. It reads in Obsidian and anything else that reads Markdown.
  */
 export default function ExportFile({ file, ui, className = '' }: { file: Sample['exportFile']; ui: ProductUi; className?: string }) {

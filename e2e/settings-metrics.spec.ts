@@ -2,7 +2,7 @@ import { test, expect } from './fixtures'
 import { ensureServiceWorker } from './helpers'
 
 /**
- * The local-metrics panel (metrics.md §5, §10; roadmap V-prep): the settings
+ * The local-metrics panel (metrics.md §5, §10): the settings
  * page answers M-03, M-11 and M-19–M-25 as aggregate numbers computed from the
  * event store. The store is seeded across a Sunday/Monday boundary in the browser's local
  * calendar, then both weeks are checked. Adjacent days do not always share a week.
@@ -44,7 +44,7 @@ test('the settings panel covers M-03, M-11 and M-19–M-25 from the event store'
     add('entry.reopened', dayKey(0), { type: 'clip' })
     add('highlight.created', dayKey(0), { has_note: false, via: 'toolbar' })
     add('entry.property_edited', dayKey(0), { scope: 'custom', property_type: 'text' })
-    // A query in the reopen week satisfies H-16 there; Sunday's queries must stay in the previous week.
+    // A query in the reopen week completes the sought-back path there; Sunday's queries must stay in the previous week.
     add('library.queried', dayKey(0), { has_text: true, filters: '0', results: '1-2' })
     await chrome.storage.local.set({ 'annhub.metrics': shape })
     return { firstSaveDay: dayKey(-1), captureWeek: dayKey(-7), reopenWeek: dayKey(0) }
@@ -78,7 +78,7 @@ test('the settings panel covers M-03, M-11 and M-19–M-25 from the event store'
   const currentWeek = weeks.locator('tbody tr').filter({ hasText: reopenWeek })
   await expect(currentWeek.locator('td').nth(1)).toHaveText('1')
   await expect(currentWeek.locator('td').nth(4)).toHaveText('1')
-  await expect(currentWeek.locator('td').nth(5)).toHaveText('是') // H-16 requires a query and a reopen in the same week
+  await expect(currentWeek.locator('td').nth(5)).toHaveText('是') // sought back: a query and a reopen in the same week
 
   const events = page.getByTestId('metrics-table')
   await expect(events.locator('tr').filter({ hasText: 'capture.saved' }).locator('td').nth(1)).toHaveText('9')

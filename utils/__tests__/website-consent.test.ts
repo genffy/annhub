@@ -4,7 +4,7 @@ import { resolve } from 'node:path'
 import { analyticsState, asksFirst, asksFromCookies, GRANT_DAYS, readChoice, REGION_COOKIE, REGION_OUTSIDE, storedChoice } from '../../website/lib/consent'
 import { PRIVACY_WEBSITE_URL } from '../../website/components/landing/links'
 
-/** When the website may load its analytics script (docs/v2/permissions.md §8). */
+/** When the website may load its analytics script (docs/product/permissions.md §8). */
 
 describe('asksFirst', () => {
   it.each(['DE', 'FR', 'IE', 'GR', 'CY', 'MT', 'NO', 'IS', 'LI', 'GB', 'CH', 'RE', 'GF', 'AX', 'EU', 'de'])('asks a visitor Cloudflare places in %s', country => {

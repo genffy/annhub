@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 const defaultTheme = require('tailwindcss/defaultTheme')
 
-// Colours are the design tokens in app/[locale]/globals.css (docs/design/v2/css/tokens.css). They are CSS variables so a
+// Colours are the design tokens in app/[locale]/globals.css (docs/design/css/tokens.css). They are CSS variables so a
 // `.theme-dark` ancestor switches a whole section, including the product windows inside it, without a second class set.
 module.exports = {
   content: ['./pages/**/*.{js,ts,jsx,tsx,mdx}', './components/**/*.{js,ts,jsx,tsx,mdx}', './app/**/*.{js,ts,jsx,tsx,mdx}', './lib/**/*.{js,ts,jsx,tsx,mdx}'],
@@ -28,7 +28,7 @@ module.exports = {
         card: 'var(--sh-1)',
       },
       borderRadius: {
-        // Product windows never exceed 8px (docs/v2/website.md §5).
+        // Product windows never exceed 8px (docs/product/website.md §5).
         window: '8px',
       },
       maxWidth: {

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 /**
- * What search engines and AI crawlers read from the website (docs/v2/seo-geo.md §3, §6). None of it shows on the page,
+ * What search engines and AI crawlers read from the website (docs/product/seo-geo.md §3, §6). None of it shows on the page,
  * so neither a type check nor a look at the site catches a regression.
  */
 

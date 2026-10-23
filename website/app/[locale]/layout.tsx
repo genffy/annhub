@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     description: meta.description,
     alternates: {
       canonical: `/${lang}`,
-      // Declared here only: neither response headers nor the sitemap repeat the alternates (docs/v2/seo-geo.md §3.2).
+      // Declared here only: neither response headers nor the sitemap repeat the alternates (docs/product/seo-geo.md §3.2).
       // x-default is English, the same page the root path gives a browser language that is neither Chinese nor English.
       languages: { 'zh-CN': '/zh-CN', 'en': '/en', 'x-default': '/en' },
     },
@@ -43,7 +43,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
       apple: '/icon.png',
     },
     openGraph: {
-      // Same words as the page's own title and description (docs/v2/seo-geo.md §1 原则 3): no second version of the copy.
+      // Same words as the page's own title and description (docs/product/seo-geo.md §1 原则 3): no second version of the copy.
       title: meta.title,
       description: meta.description,
       type: 'website',
@@ -60,7 +60,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 }
 
 // The product windows use the interface font plus a serif for "the user's web page": the serif tells a page of ours
-// apart from a page of theirs (docs/design/v2/README.md).
+// apart from a page of theirs (docs/design/README.md).
 const inter = Inter({
   weight: ['400', '500', '600', '700'],
   display: 'swap',

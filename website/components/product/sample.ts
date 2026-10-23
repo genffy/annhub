@@ -1,7 +1,7 @@
 import type { Entry, Highlight, HighlightColor, PropertyDef, ThumbKind } from './types'
 
-// Sample content for the product windows. The story is docs/v2/examples.md §2: someone writing a design document for a
-// payment retry strategy. Sources are neutral example domains, never a real site (docs/v2/AGENTS.md).
+// Sample content for the product windows. The story is docs/product/examples.md §2: someone writing a design document for a
+// payment retry strategy. Sources are neutral example domains, never a real site (docs/product/AGENTS.md).
 
 export type SampleLocale = 'zh-CN' | 'en'
 

@@ -1,5 +1,5 @@
 /**
- * Crop math for the screenshot chain (docs/v2/screenshot.md).
+ * Crop math for the screenshot chain (docs/product/screenshot.md).
  * Selection rects come from a fixed-position overlay, so they are already in
  * viewport CSS coordinates; the captured PNG's pixels are device pixels.
  */

@@ -1,6 +1,6 @@
 /**
  * Shared normalization — implemented exactly once and used by validation,
- * search matching and context comparison (docs/v2/entry.md §6).
+ * search matching and context comparison (docs/product/entry.md §6).
  *
  * Order matters and must not be changed: NFKC first, surrounding
  * punctuation trim last.

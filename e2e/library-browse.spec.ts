@@ -560,7 +560,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await library.close()
   })
 
-  test('10,000 realistic clips answer first-page and search queries within the R1 budget (RV-BG-04)', async ({ page, extensionId }) => {
+  test('10,000 realistic clips answer first-page and search queries within the search.md §6 budget (RV-BG-04)', async ({ page, extensionId }) => {
     test.setTimeout(180_000)
     await seedRealisticLibrary(page.context())
     const extensionPage = await page.context().newPage()

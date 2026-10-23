@@ -86,7 +86,7 @@ export function Pin({ n, style }: { n: number; style?: CSSProperties }) {
   )
 }
 
-// ── thumbnails of a saved screenshot (docs/design/v2/js/app-parts.js) ────────────────────────────
+// ── thumbnails of a saved screenshot (docs/design/js/app-parts.js) ────────────────────────────
 function Chart() {
   return (
     <svg viewBox="0 0 168 112" preserveAspectRatio="xMidYMid slice" aria-hidden="true">

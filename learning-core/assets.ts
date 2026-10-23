@@ -1,6 +1,6 @@
 /**
  * ID and digest helpers for entries, highlights and image assets
- * (docs/v2/entry.md §3, storage.md §4).
+ * (docs/product/entry.md §3, storage.md §4).
  */
 import { nanoid } from 'nanoid'
 

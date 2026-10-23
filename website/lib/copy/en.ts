@@ -1,14 +1,13 @@
 import type { LandingCopy } from './types'
 
 // English copy. It mirrors the Chinese page key for key (the type enforces it). Product terms follow
-// docs/v2/README.md §4; strings inside the product windows follow utils/ui-text.ts of the extension. English is a
-// preview until a native speaker has reviewed it (docs/v2/roadmap.md §6).
+// docs/product/README.md §4; strings inside the product windows follow utils/ui-text.ts of the extension.
 export const en: LandingCopy = {
   locale: 'en',
   meta: {
     title: 'AnnHub — Keep what’s worth keeping from the web in one local library',
     description: 'A local-first browser extension that keeps clips, highlights and screenshots with their source in one library, sorted by properties and exportable as Markdown.',
-    ogImageAlt: 'Interface illustration based on the v2 design, using sample data',
+    ogImageAlt: 'Interface illustration with sample data',
     updated: '2026-10-14',
   },
   header: {

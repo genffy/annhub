@@ -4,7 +4,7 @@ import { ImageIcon } from 'lucide-react'
 import type { Highlight } from './types'
 import { Ic } from './parts'
 
-// A tiny Markdown renderer for the product windows (docs/design/v2/js/md.js). Every run of text carries `data-s`, its
+// A tiny Markdown renderer for the product windows (docs/design/js/md.js). Every run of text carries `data-s`, its
 // offset in the Markdown source, because a highlight is a range in the source (entry.md §4) and a browser selection
 // has to be converted back to one. Raw HTML is never parsed.
 
@@ -247,7 +247,7 @@ export function rangeOf(source: string, quote: string): { start: number; end: nu
   return { start, end: start + quote.length }
 }
 
-/** Markdown without its syntax: the one-line summary a list row shows (docs/v2/search.md §1). */
+/** Markdown without its syntax: the one-line summary a list row shows (docs/product/search.md §1). */
 export function plainText(markdown: string): string {
   return markdown
     .replace(/^```\S*\s*$/gm, '')

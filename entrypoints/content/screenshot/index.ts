@@ -1,5 +1,5 @@
 /**
- * Screenshot capture UI chain — docs/v2/screenshot.md.
+ * Screenshot capture UI chain — docs/product/screenshot.md.
  * Plain DOM (no React) for the session shell; the toolbar is a small React
  * island. One session element per trigger (idempotent enter()).
  *
@@ -169,7 +169,7 @@ class ScreenshotSession {
   private contentOrigin: Point = { x: 0, y: 0 }
   /** the preview on screen as last laid out */
   private previewNow: ViewportRect | null = null
-  // R3 precise selection (screenshot.md §1.2, §1.4)
+  // precise selection and repeatable frames (screenshot.md §1.2, §1.4)
   private hoverEl: HTMLElement | null = null
   private hoverChain: Element[] = []
   private hoverIndex = 0
@@ -211,8 +211,8 @@ class ScreenshotSession {
       void this.copyCurrent()
       return
     }
-    // `A` works until the shot is taken: a pending frame (R3, the selection
-    // menu, the last frame) has not been captured yet
+    // `A` works until the shot is taken: a pending frame (a released drag, the
+    // selection menu, the last frame) has not been captured yet
     if ((this.state === 'selecting' || this.state === 'confirming') && (e.key === 'a' || e.key === 'A') && this.anonymizeAvailable()) {
       e.preventDefault()
       this.anonymizeOn = !this.anonymizeOn
@@ -556,7 +556,7 @@ class ScreenshotSession {
         if (this.overlayEl) this.overlayEl.style.background = ''
         return
       }
-      // R3: the released selection stays adjustable before capture (screenshot.md §1.2)
+      // the released selection stays adjustable before capture (screenshot.md §1.2)
       this.enterConfirming()
     }
     const detach = () => {
@@ -1443,7 +1443,7 @@ class ScreenshotSession {
     }
   }
 
-  /** Download keeps the editing session; R1 always downloads PNG (formats are R2). */
+  /** Download keeps the editing session, in the format chosen in settings (screenshot.md §4.2). */
   private async downloadOnly(): Promise<void> {
     const canvas = this.displayCanvas ?? this.croppedCanvas
     if (!canvas || this.busy) return

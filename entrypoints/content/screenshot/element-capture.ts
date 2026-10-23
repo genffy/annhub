@@ -1,5 +1,5 @@
 /**
- * Element capture — docs/v2/screenshot.md: clone the
+ * Element capture — docs/product/screenshot.md: clone the
  * element into an offscreen capture surface and rasterize it with
  * html-to-image. Unlike viewport capture this can exceed the visible area.
  * Cross-origin images are inlined first via the background FETCH_IMAGE

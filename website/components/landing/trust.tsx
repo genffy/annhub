@@ -54,7 +54,7 @@ function Boundary({ copy }: { copy: LandingCopy }) {
   )
 }
 
-/** Privacy and ownership, the one dark band of the page: the product's own dark tokens (docs/design/v2 tokens.css). */
+/** Privacy and ownership, the one dark band of the page: the product's own dark tokens (docs/design tokens.css). */
 export default function Trust({ copy }: { copy: LandingCopy }) {
   const { trust } = copy
   return (

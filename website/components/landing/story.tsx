@@ -15,7 +15,7 @@ import { Container, SectionTitle } from './shared'
 import StoryStepper from './story-stepper'
 import StoryFocus from './story-focus'
 
-/** One week, six moments (docs/v2/examples.md §2): read and clip, organise, find, take away. */
+/** One week, six moments (docs/product/examples.md §2): read and clip, organise, find, take away. */
 export default function Story({ copy }: { copy: LandingCopy }) {
   const { story, ui } = copy
   const sample = getSample(copy.locale)

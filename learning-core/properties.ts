@@ -1,6 +1,6 @@
 /**
  * Property registry rules — name/type binding, reserved names, built-in
- * definitions and per-type value validation (docs/v2/entry.md §5).
+ * definitions and per-type value validation (docs/product/entry.md §5).
  */
 import { EntryValidationError, PROPERTY_TYPES, type EntryType, type PropertyDefinition, type PropertyType, type PropertyValue } from './types'
 

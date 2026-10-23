@@ -1,5 +1,5 @@
 /**
- * Pixelate ("mosaic") masking over raw pixel buffers — docs/v2/screenshot.md.
+ * Pixelate ("mosaic") masking over raw pixel buffers — docs/product/screenshot.md.
  * Operates on an ImageData-like structure so it is testable in
  * jsdom without a canvas 2D context; the UI layer only provides
  * getImageData/putImageData.

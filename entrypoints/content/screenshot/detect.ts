@@ -1,6 +1,6 @@
 /**
  * Auto-detection of identity elements to pre-fill mosaic boxes —
- * docs/v2/screenshot.md. Detection only suggests boxes; the preview lets the
+ * docs/product/screenshot.md. Detection only suggests boxes; the preview lets the
  * user remove them when pixel masking is used instead of DOM anonymization.
  */
 

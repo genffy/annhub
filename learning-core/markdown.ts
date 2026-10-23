@@ -1,6 +1,6 @@
 /**
  * Markdown helpers shared by search and export — one implementation, never
- * duplicated per surface (docs/v2/search.md §1, storage.md §6).
+ * duplicated per surface (docs/product/search.md §1, storage.md §6).
  */
 
 // ── Code, shared by every reader of the Markdown the converter writes ──────

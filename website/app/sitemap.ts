@@ -9,7 +9,7 @@ import { getLandingCopy } from '@/lib/copy'
 import { SITE_ORIGIN } from '@/lib/site'
 
 /**
- * The four canonical addresses: both language pages and both legal pages (docs/v2/seo-geo.md §3.5). lastmod is the day
+ * The four canonical addresses: both language pages and both legal pages (docs/product/seo-geo.md §3.5). lastmod is the day
  * the content last changed, never the build time; no alternates, no priority, no changefreq.
  */
 export default function sitemap(): MetadataRoute.Sitemap {
