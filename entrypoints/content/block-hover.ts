@@ -95,6 +95,13 @@ export class BlockEntries {
         this.scheduleLeave()
         return
       }
+      // Leaving the outlined block hides it; a rest on whatever is under the
+      // pointer can still reveal the next unit (capture.md §6.2).
+      if (this.pointerOutsideHover(event.clientX, event.clientY)) {
+        this.armLeave()
+        this.scheduleDwell()
+        return
+      }
       this.clearLeave()
       this.scheduleDwell()
     }
@@ -123,8 +130,11 @@ export class BlockEntries {
     }
     const onKeyDown = (event: KeyboardEvent): void => {
       if (!isUserInput(event) || this.modeActive) return
-      if (this.insideOwnUi(event)) return
-      if (event.key !== 'Escape') this.hideNow()
+      // Any key dismisses the hover outline. Escape still does when Parent
+      // left focus on the capsule button — that click is our own UI, and
+      // ignoring Escape there is what stuck the timeline outline (issue #107).
+      if (event.key !== 'Escape' && this.insideOwnUi(event)) return
+      this.hideNow()
     }
 
     this.doc.addEventListener('pointermove', onPointerMove, true)
@@ -155,10 +165,15 @@ export class BlockEntries {
 
   private scheduleDwell(): void {
     if (this.dwellTimer !== null) window.clearTimeout(this.dwellTimer)
+    const generation = ++this.revealGeneration
     const { x, y } = this.lastPoint
-    this.dwellTimer = window.setTimeout(() => void this.reveal(x, y), DWELL_MS)
+    this.dwellTimer = window.setTimeout(() => {
+      this.dwellTimer = null
+      void this.reveal(x, y, generation)
+    }, DWELL_MS)
   }
 
+  /** Selection, an editable field, or the pointer leaving the window: drop the hover and don't reveal again. */
   private scheduleLeave(): void {
     if (this.dwellTimer !== null) {
       window.clearTimeout(this.dwellTimer)
@@ -166,6 +181,15 @@ export class BlockEntries {
     }
     if (this.leaveTimer !== null) window.clearTimeout(this.leaveTimer)
     this.leaveTimer = window.setTimeout(() => this.hideNow(), LEAVE_MS)
+  }
+
+  /** The pointer left the outlined block. Hide that outline, but let a pending dwell reveal whatever it rests on. */
+  private armLeave(): void {
+    if (this.leaveTimer !== null) window.clearTimeout(this.leaveTimer)
+    this.leaveTimer = window.setTimeout(() => {
+      this.leaveTimer = null
+      this.dismissHover()
+    }, LEAVE_MS)
   }
 
   private clearLeave(): void {
@@ -180,15 +204,22 @@ export class BlockEntries {
   }
 
   private hideNow(): void {
+    this.revealGeneration++
     if (this.dwellTimer !== null) window.clearTimeout(this.dwellTimer)
     if (this.leaveTimer !== null) window.clearTimeout(this.leaveTimer)
     this.dwellTimer = null
     this.leaveTimer = null
+    this.dismissHover()
+  }
+
+  private dismissHover(): void {
     this.outlineEl?.remove()
     this.outlineEl = null
     this.capsuleEl?.remove()
     this.capsuleEl = null
+    this.doc.querySelector(`[${ROOT_ATTR}="block-more"]`)?.remove()
     this.hoverCandidate = null
+    this.hoverChain = []
     this.hoverDepth = 0
   }
 
@@ -212,35 +243,73 @@ export class BlockEntries {
     this.hooks.onClip(candidate, levelChanged)
   }
 
+  /** Bumped when a newer dwell or a hard dismiss invalidates an in-flight reveal. */
+  private revealGeneration = 0
+
+  /** A positive border box that does not contain the point. A zero box (no layout) is not "outside". */
+  private pointerOutsideHover(x: number, y: number): boolean {
+    const candidate = this.hoverCandidate
+    if (!candidate || !this.outlineEl) return false
+    const rect = candidateRect(candidate)
+    if (rect.width <= 0 || rect.height <= 0) return false
+    return x < rect.left || x > rect.right || y < rect.top || y > rect.bottom
+  }
+
+  private boxContainsPoint(candidate: BlockCandidate, x: number, y: number): boolean {
+    const rect = candidateRect(candidate)
+    if (rect.width <= 0 || rect.height <= 0) return true
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+  }
+
   /** Screenshot confirm mode owns the pointer; the clip capsule must not sit on the frame (issue #108). */
   private screenshotConfirming(): boolean {
     return Boolean(this.doc.querySelector('[data-ann-ui="screenshot-session"].ann-shot-modal'))
   }
 
-  private async reveal(x: number, y: number): Promise<void> {
+  private async reveal(x: number, y: number, generation: number): Promise<void> {
+    if (generation !== this.revealGeneration) return
     if (this.screenshotConfirming()) {
       this.hideNow()
       return
     }
     if (!(await this.gate.enabled())) return
+    if (generation !== this.revealGeneration) return
     if (this.screenshotConfirming()) {
       this.hideNow()
       return
     }
     if (await this.gate.siteDisabled(this.doc.defaultView!.location.hostname)) return
+    if (generation !== this.revealGeneration) return
     if (this.screenshotConfirming()) {
       this.hideNow()
       return
     }
     const chain = candidatesAtPoint(x, y, this.doc)
-    if (chain.length === 0) return
-    // innermost first; a hover that repeats the same element keeps its depth
+    if (generation !== this.revealGeneration) return
+    // Nothing under the pointer, or only a block the pointer has already left:
+    // drop the previous outline instead of leaving it stuck (issue #107).
+    if (chain.length === 0) {
+      this.dismissHover()
+      return
+    }
     const previous = this.hoverCandidate
     this.hoverChain = chain
     const sameIndex = previous ? chain.findIndex(c => c.element === previous.element) : 0
-    this.hoverDepth = sameIndex >= 0 ? Math.min(this.hoverDepth, sameIndex) : 0
-    this.hoverCandidate = chain[this.hoverDepth] ?? chain[0]!
-    this.hoverDepth = chain.indexOf(this.hoverCandidate)
+    let depth = sameIndex >= 0 ? Math.min(this.hoverDepth, sameIndex) : 0
+    let candidate = chain[depth] ?? chain[0]!
+    if (!this.boxContainsPoint(candidate, x, y)) {
+      const inner = chain[0]!
+      if (!this.boxContainsPoint(inner, x, y)) {
+        this.dismissHover()
+        return
+      }
+      candidate = inner
+      depth = 0
+    }
+    this.clearLeave()
+    this.hoverCandidate = candidate
+    this.hoverDepth = chain.indexOf(candidate)
+    if (this.hoverDepth < 0) this.hoverDepth = depth
     this.paintHover()
   }
 

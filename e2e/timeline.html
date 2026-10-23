@@ -63,6 +63,24 @@
       .card p {
         margin: 0;
       }
+      #feed h2 {
+        font-size: 20px;
+        margin: 24px 0 12px;
+      }
+      #feed article {
+        margin: 12px 0;
+        padding: 12px 16px;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+      }
+      #feed blockquote {
+        margin: 8px 0;
+        padding: 8px 12px;
+        border-left: 3px solid #d4d4d8;
+      }
+      .spacer {
+        height: 8000px;
+      }
     </style>
   </head>
   <body>
@@ -77,6 +95,25 @@
           </p>
           <img id="media" alt="latency curve" width="560" height="220" />
         </article>
+        <section id="feed" role="region" aria-label="Timeline">
+          <h2>Explore</h2>
+          <article data-testid="tweet" id="a">
+            <p id="a-body">First tweet body with a quote below it.</p>
+            <blockquote id="a-quote">
+              <p id="a-quote-p">A quoted passage inside the tweet that is long enough.</p>
+            </blockquote>
+          </article>
+          <article data-testid="tweet" id="b">
+            <p id="b-body">Second tweet, which quotes another post.</p>
+            <article data-testid="tweet" id="b-inner">
+              <p id="b-inner-body">Nested quoted tweet body.</p>
+            </article>
+          </article>
+          <article data-testid="tweet" id="c">
+            <p id="c-body">Third tweet so this column is a feed.</p>
+          </article>
+          <div class="spacer"></div>
+        </section>
       </div>
       <aside class="sidebar" id="sidebar">
         <div class="card">
