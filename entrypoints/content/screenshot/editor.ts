@@ -3,14 +3,37 @@ import type { ViewportRect } from './crop'
 import { mosaicBlockSize, pixelateRegion } from './mosaic'
 
 export type Point = { x: number; y: number }
-export type DrawTool = 'rectangle' | 'ellipse' | 'arrow' | 'pen' | 'mosaic'
+/** The tools whose line the user picks the width of (screenshot.md §1.1). */
+export type LineTool = 'pen' | 'line' | 'highlighter'
+export type DrawTool = 'rectangle' | 'ellipse' | 'arrow' | 'mosaic' | LineTool
 export type ScreenshotTool = DrawTool | 'text' | 'step' | null
+/** 细, 中 and 粗: what each is in pixels depends on the tool. */
+export type LineWidth = 'thin' | 'medium' | 'thick'
+export const LINE_WIDTHS: readonly LineWidth[] = ['thin', 'medium', 'thick']
 /**
  * A numbered badge (screenshot.md §1.1). Its number is not stored: it is the badge's place among the badges of its
  * sequence, in the order they were put down, so deleting one closes the gap. 重置计数 starts the next sequence.
  */
 export type StepAnnotation = { tool: 'step'; at: Point; color: string; sequence: number }
-export type Annotation = { tool: DrawTool; start: Point; end: Point; points: Point[]; color: string } | { tool: 'text'; start: Point; text: string; color: string } | StepAnnotation
+export type Annotation =
+  | { tool: Exclude<DrawTool, LineTool>; start: Point; end: Point; points: Point[]; color: string }
+  | { tool: LineTool; start: Point; end: Point; points: Point[]; color: string; width: LineWidth }
+  | { tool: 'text'; start: Point; text: string; color: string }
+  | StepAnnotation
+
+/** The shapes' lines, in CSS pixels; the pen's and the line's middle width is the same. */
+const SHAPE_WIDTH = 3
+/** Each width in CSS pixels. The highlighter's are wide enough to lay over a line of text. */
+const LINE_WIDTH_PX: Record<LineTool, Record<LineWidth, number>> = {
+  pen: { thin: 2, medium: SHAPE_WIDTH, thick: 6 },
+  line: { thin: 2, medium: SHAPE_WIDTH, thick: 6 },
+  highlighter: { thin: 12, medium: 20, thick: 32 },
+}
+/**
+ * How much of its colour a highlighter stroke lays over the picture. What it covers keeps the rest: the difference
+ * between the text and the background under it shrinks to 60%, whatever the colour, so the text still reads.
+ */
+export const HIGHLIGHTER_ALPHA = 0.4
 
 /** A badge is 28 CSS pixels across, rim included, and grows with the capture's pixel ratio as the strokes and the text do. */
 const STEP_RADIUS = 14
@@ -46,7 +69,7 @@ export function renderScreenshot(target: HTMLCanvasElement, source: HTMLCanvasEl
     }
     ctx.strokeStyle = annotation.color
     ctx.fillStyle = annotation.color
-    ctx.lineWidth = Math.max(2, 3 * scale)
+    ctx.lineWidth = 'width' in annotation ? lineWidth(annotation.tool, annotation.width, scale) : Math.max(2, SHAPE_WIDTH * scale)
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     if (annotation.tool === 'text') {
@@ -76,13 +99,46 @@ export function renderScreenshot(target: HTMLCanvasElement, source: HTMLCanvasEl
       ctx.lineTo(end.x, end.y)
       ctx.lineTo(end.x - head * Math.cos(angle + Math.PI / 6), end.y - head * Math.sin(angle + Math.PI / 6))
       ctx.stroke()
-    } else if (annotation.tool === 'pen' && annotation.points.length > 1) {
+    } else if (annotation.tool === 'line') {
+      ctx.beginPath()
+      ctx.moveTo(start.x, start.y)
+      ctx.lineTo(end.x, end.y)
+      ctx.stroke()
+    } else if ((annotation.tool === 'pen' || annotation.tool === 'highlighter') && annotation.points.length > 1) {
+      // one path stroked once: where a highlighter stroke runs over itself, it is no deeper than anywhere else
+      ctx.save()
+      if (annotation.tool === 'highlighter') ctx.globalAlpha = HIGHLIGHTER_ALPHA
       ctx.beginPath()
       ctx.moveTo(annotation.points[0].x, annotation.points[0].y)
       annotation.points.slice(1).forEach(point => ctx.lineTo(point.x, point.y))
       ctx.stroke()
+      ctx.restore()
     }
   }
+}
+
+export function isLineTool(tool: ScreenshotTool): tool is LineTool {
+  return tool === 'pen' || tool === 'line' || tool === 'highlighter'
+}
+
+/** A line's width on the capture: its CSS pixels grown with the capture's pixel ratio, as every annotation is, and never under 2. */
+export function lineWidth(tool: LineTool, width: LineWidth, scale: number): number {
+  return Math.max(2, LINE_WIDTH_PX[tool][width] * scale)
+}
+
+/**
+ * Where a line drawn with Shift held ends: the pointer, moved onto the nearest of the horizontal, the vertical and the
+ * two 45° diagonals through the line's start.
+ */
+export function snapLine(start: Point, end: Point): Point {
+  const dx = end.x - start.x
+  const dy = end.y - start.y
+  // eighths of a turn from the horizontal: 0 and ±4 are horizontal, ±2 vertical, the odd ones diagonal
+  const eighths = Math.round(Math.atan2(dy, dx) / (Math.PI / 4))
+  if (eighths % 4 === 0) return { x: end.x, y: start.y }
+  if (eighths % 2 === 0) return { x: start.x, y: end.y }
+  const along = (Math.abs(dx) + Math.abs(dy)) / 2
+  return { x: start.x + Math.sign(dx) * along, y: start.y + Math.sign(dy) * along }
 }
 
 /** A badge's radius on the capture, rim included. */

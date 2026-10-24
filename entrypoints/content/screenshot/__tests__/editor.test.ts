@@ -1,10 +1,31 @@
 import { describe, expect, it } from 'vitest'
-import { clampStep, nextStepNumber, relativeLuminance, renderScreenshot, stepAt, stepInk, stepNumbers, stepRadius, type Annotation, type StepAnnotation } from '../editor'
+import {
+  clampStep,
+  HIGHLIGHTER_ALPHA,
+  isLineTool,
+  LINE_WIDTHS,
+  lineWidth,
+  nextStepNumber,
+  relativeLuminance,
+  renderScreenshot,
+  snapLine,
+  stepAt,
+  stepInk,
+  stepNumbers,
+  stepRadius,
+  type Annotation,
+  type LineTool,
+  type LineWidth,
+  type Point,
+  type StepAnnotation,
+} from '../editor'
 import { ANNOTATION_COLORS } from '../toolbar'
 
 /**
  * The step badges of the screenshot editor (screenshot.md §1.1): how they are numbered, which one a press lands on,
  * how they stay inside the picture, the ink their number is written in, and what drawing one leaves on the canvas.
+ * And the lines of the pen, the straight line and the highlighter: their widths, the highlighter's translucency and
+ * where a line drawn with Shift held ends.
  */
 
 const RED = '#e5484d'
@@ -136,6 +157,7 @@ function recordingCanvas(width = 300, height = 200) {
   const fresh = () => ({
     fillStyle: '#000000',
     strokeStyle: '#000000',
+    globalAlpha: 1,
     lineWidth: 1,
     font: '10px sans-serif',
     textAlign: 'start',
@@ -152,13 +174,13 @@ function recordingCanvas(width = 300, height = 200) {
     clearRect: () => calls.push('clearRect'),
     drawImage: () => calls.push('drawImage'),
     beginPath: () => {},
-    moveTo: () => {},
-    lineTo: () => {},
+    moveTo: (x: number, y: number) => calls.push(`moveTo ${x},${y}`),
+    lineTo: (x: number, y: number) => calls.push(`lineTo ${x},${y}`),
     ellipse: () => {},
-    strokeRect: () => calls.push(`strokeRect ${ctx.strokeStyle}`),
+    strokeRect: () => calls.push(`strokeRect ${ctx.strokeStyle} w${ctx.lineWidth}`),
     arc: (x: number, y: number, radius: number) => calls.push(`arc ${x},${y} r${radius}`),
     fill: () => calls.push(`fill ${ctx.fillStyle}`),
-    stroke: () => calls.push(`stroke ${ctx.strokeStyle} w${ctx.lineWidth}`),
+    stroke: () => calls.push(`stroke ${ctx.strokeStyle} w${ctx.lineWidth}${ctx.globalAlpha === 1 ? '' : ` a${ctx.globalAlpha}`}`),
     // digits are 0.6em wide and 0.7em tall, standing on the baseline
     measureText: (text: string) => ({ width: text.length * fontSize(ctx.font) * 0.6, actualBoundingBoxAscent: fontSize(ctx.font) * 0.7, actualBoundingBoxDescent: 0 }),
     fillText: (text: string, x: number, y: number) => {
@@ -167,8 +189,8 @@ function recordingCanvas(width = 300, height = 200) {
     },
   }
   function pick() {
-    const { fillStyle, strokeStyle, lineWidth, font, textAlign, textBaseline, lineCap, lineJoin } = ctx
-    return { fillStyle, strokeStyle, lineWidth, font, textAlign, textBaseline, lineCap, lineJoin }
+    const { fillStyle, strokeStyle, globalAlpha, lineWidth, font, textAlign, textBaseline, lineCap, lineJoin } = ctx
+    return { fillStyle, strokeStyle, globalAlpha, lineWidth, font, textAlign, textBaseline, lineCap, lineJoin }
   }
   const target = { width, height, getContext: () => ctx } as unknown as HTMLCanvasElement
   return { target, calls, texts, fontSize }
@@ -230,5 +252,108 @@ describe('drawing a badge', () => {
     const { target, texts } = recordingCanvas()
     renderScreenshot(target, source, [], [step(60, 40), { tool: 'text', start: { x: 10, y: 80 }, text: 'Retries', color: RED }], 1)
     expect(texts[1]).toMatchObject({ text: 'Retries', x: 10, textAlign: 'start', fillStyle: RED })
+  })
+})
+
+const line = (tool: LineTool, points: Point[], width: LineWidth = 'medium', color = RED): Extract<Annotation, { tool: LineTool }> => ({
+  tool,
+  start: points[0]!,
+  end: points[points.length - 1]!,
+  points,
+  color,
+  width,
+})
+const strokes = (calls: string[]) => calls.filter(call => call.startsWith('stroke'))
+
+describe('line widths (screenshot.md §1.1)', () => {
+  it('are thin, medium and thick, for the pen, the line and the highlighter only', () => {
+    expect(LINE_WIDTHS).toEqual(['thin', 'medium', 'thick'])
+    expect((['pen', 'line', 'highlighter'] as const).every(isLineTool)).toBe(true)
+    expect((['rectangle', 'ellipse', 'arrow', 'mosaic', 'text', 'step', null] as const).some(isLineTool), 'the shapes keep their width').toBe(false)
+  })
+
+  it('are 2, 3 and 6 CSS pixels for the pen and the line: the middle one is the shapes’ width', () => {
+    for (const tool of ['pen', 'line'] as const) expect(LINE_WIDTHS.map(width => lineWidth(tool, width, 1))).toEqual([2, 3, 6])
+    const pen = [
+      { x: 10, y: 10 },
+      { x: 60, y: 30 },
+    ]
+    const { target, calls } = recordingCanvas()
+    renderScreenshot(target, {} as HTMLCanvasElement, [], [rectangle, line('pen', pen)], 1)
+    expect(strokes(calls), 'the rectangle and the pen drawn at their middle width').toEqual([`strokeRect ${RED} w3`, `stroke ${RED} w3`])
+  })
+
+  it('are 12, 20 and 32 CSS pixels for the highlighter, wide enough to lay over a line of text', () => {
+    expect(LINE_WIDTHS.map(width => lineWidth('highlighter', width, 1))).toEqual([12, 20, 32])
+  })
+
+  it('grow with the capture’s pixel ratio, as the other annotations do, and none goes under 2 pixels', () => {
+    expect(LINE_WIDTHS.map(width => lineWidth('pen', width, 2))).toEqual([4, 6, 12])
+    expect(LINE_WIDTHS.map(width => lineWidth('highlighter', width, 2))).toEqual([24, 40, 64])
+    expect(lineWidth('line', 'thin', 0.5), 'a page zoomed out').toBe(2)
+    expect(lineWidth('highlighter', 'thin', 0.5)).toBe(6)
+  })
+})
+
+describe('drawing a line', () => {
+  const source = {} as HTMLCanvasElement
+
+  it('goes straight from where it was pressed to where it was let go, at its width', () => {
+    const { target, calls } = recordingCanvas()
+    // a line keeps only its press in `points`: its ends are `start` and `end`
+    renderScreenshot(target, source, [], [{ ...line('line', [{ x: 10, y: 20 }], 'thick'), end: { x: 110, y: 70 } }], 1)
+    expect(calls).toEqual(['clearRect', 'drawImage', 'moveTo 10,20', 'lineTo 110,70', `stroke ${RED} w6`])
+  })
+
+  it('ends, with Shift held, on the nearest horizontal, vertical or 45° diagonal through its start', () => {
+    const start = { x: 100, y: 100 }
+    const to = (dx: number, dy: number) => snapLine(start, { x: 100 + dx, y: 100 + dy })
+    expect(to(100, 12), 'nearly level').toEqual({ x: 200, y: 100 })
+    expect(to(-100, -30), 'leftwards').toEqual({ x: 0, y: 100 })
+    expect(to(10, -100), 'nearly upright').toEqual({ x: 100, y: 0 })
+    expect(to(-20, 100)).toEqual({ x: 100, y: 200 })
+    // on a diagonal the end is where the pointer is along it: half of across plus down
+    expect(to(100, 80)).toEqual({ x: 190, y: 190 })
+    expect(to(100, -80)).toEqual({ x: 190, y: 10 })
+    expect(to(-60, 100)).toEqual({ x: 20, y: 180 })
+    expect(to(-80, -100)).toEqual({ x: 10, y: 10 })
+    // 22.5° is the turn between level and diagonal
+    expect(to(100, 41)).toEqual({ x: 200, y: 100 })
+    expect(to(100, 42)).toEqual({ x: 171, y: 171 })
+    expect(to(0, 0), 'not moved').toEqual(start)
+  })
+})
+
+describe('drawing with the highlighter', () => {
+  const source = {} as HTMLCanvasElement
+  const scribble = [
+    { x: 10, y: 50 },
+    { x: 200, y: 50 },
+    { x: 20, y: 52 },
+    { x: 120, y: 10 },
+    { x: 120, y: 90 },
+  ]
+
+  it('lays its colour over the picture at 40%, in one stroke: where it runs over itself it is no deeper', () => {
+    const { target, calls } = recordingCanvas()
+    renderScreenshot(target, source, [], [line('highlighter', scribble, 'medium', '#f6c453')], 1)
+    expect(strokes(calls)).toEqual(['stroke #f6c453 w20 a0.4'])
+    expect(calls.filter(call => call.startsWith('lineTo'))).toHaveLength(scribble.length - 1)
+  })
+
+  it('keeps 60% of the difference between the text and the background under it, whatever the colour', () => {
+    const over = (under: number, colour: number) => under * (1 - HIGHLIGHTER_ALPHA) + colour * HIGHLIGHTER_ALPHA
+    for (const { value } of ANNOTATION_COLORS) {
+      for (const offset of [1, 3, 5]) {
+        const channel = parseInt(value.slice(offset, offset + 2), 16)
+        expect(over(255, channel) - over(0, channel), `${value}: white paper against black text`).toBeCloseTo(255 * 0.6, 9)
+      }
+    }
+  })
+
+  it('leaves the context as it found it: the pen line after it is opaque', () => {
+    const { target, calls } = recordingCanvas()
+    renderScreenshot(target, source, [], [line('highlighter', scribble, 'thick'), line('pen', scribble, 'thin')], 2)
+    expect(strokes(calls)).toEqual([`stroke ${RED} w64 a0.4`, `stroke ${RED} w4`])
   })
 })

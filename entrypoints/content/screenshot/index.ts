@@ -36,7 +36,21 @@ import { createElement } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
 import { ScreenshotToolbar } from './toolbar'
-import { clampStep, nextStepNumber, renderScreenshot, stepAt, stepNumbers, stepRadius, type Annotation, type Point, type ScreenshotTool, type StepAnnotation } from './editor'
+import {
+  clampStep,
+  isLineTool,
+  nextStepNumber,
+  renderScreenshot,
+  snapLine,
+  stepAt,
+  stepNumbers,
+  stepRadius,
+  type Annotation,
+  type LineWidth,
+  type Point,
+  type ScreenshotTool,
+  type StepAnnotation,
+} from './editor'
 import {
   applyBeautifyChange,
   BEAUTIFY_BACKGROUNDS,
@@ -147,6 +161,8 @@ class ScreenshotSession {
   private stepRingEl: HTMLDivElement | null = null
   private tool: ScreenshotTool = null
   private color = '#e5484d'
+  /** What the pen, the line and the highlighter draw at; like the colour, every screenshot starts from the default. */
+  private lineWidth: LineWidth = 'medium'
   private busy = false
   private exited = false
   private notice: { message: string; error: boolean } | undefined
@@ -333,6 +349,11 @@ class ScreenshotSession {
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 1px solid var(--annov-input-border, #aeb6bd); border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button:hover:not(:disabled) { background: var(--annov-tool-hover-bg, #e7f1f0); color: var(--annov-tool-hover-text, #126f65); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button:disabled { opacity: .45; cursor: default; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths { display: flex; align-items: center; gap: 2px; padding: 5px 2px 1px; font: 12px/1.3 -apple-system, sans-serif; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths span { margin-right: 6px; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths button { display: grid; place-items: center; width: 26px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths button:hover, [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths button.ann-shot-active { background: var(--annov-tool-hover-bg, #e7f1f0); color: var(--annov-tool-hover-text, #126f65); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths i { display: block; border-radius: 50%; background: currentColor; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-step-ring { position: absolute; z-index: 1; box-sizing: border-box; border: 2px solid #4c91ff; border-radius: 50%; pointer-events: none; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-step-ring button { position: absolute; top: -10px; right: -10px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: #4c91ff; color: #fff; font: 600 15px/1 -apple-system, sans-serif; cursor: pointer; pointer-events: auto; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100vw - 32px)); min-height: 70px; padding: 18px; border: 0; border-radius: 5px; box-shadow: 0 8px 28px rgba(0,0,0,.28); font: 14px/1.5 -apple-system, sans-serif; }
@@ -1324,6 +1345,7 @@ class ScreenshotSession {
       createElement(ScreenshotToolbar, {
         tool: this.tool,
         color: this.color,
+        lineWidth: this.lineWidth,
         maskCount: this.maskBoxes.length,
         canUndo: this.history.length > 0,
         nextStep: nextStepNumber(this.annotations, this.stepSequence),
@@ -1340,6 +1362,10 @@ class ScreenshotSession {
         },
         onColor: color => {
           this.color = color
+          this.updateToolbar()
+        },
+        onLineWidth: width => {
+          this.lineWidth = width
           this.updateToolbar()
         },
         onRemoveMask: index => {
@@ -1432,16 +1458,24 @@ class ScreenshotSession {
       return
     }
     const start = this.canvasPoint(e)
-    const draft: Annotation = { tool: this.tool, start, end: start, points: [start], color: this.color }
+    const tool = this.tool
+    const draft: Annotation = isLineTool(tool)
+      ? { tool, start, end: start, points: [start], color: this.color, width: this.lineWidth }
+      : { tool, start, end: start, points: [start], color: this.color }
+    // the pen and the highlighter go where the pointer goes; the line goes straight to it, or with Shift held to the
+    // nearest horizontal, vertical or 45° diagonal (screenshot.md §1.1)
+    const follow = (ev: PointerEvent) => {
+      const point = this.canvasPoint(ev)
+      draft.end = draft.tool === 'line' && ev.shiftKey ? snapLine(start, point) : point
+      if (draft.tool === 'pen' || draft.tool === 'highlighter') draft.points.push(draft.end)
+    }
     const move = (ev: PointerEvent) => {
-      draft.end = this.canvasPoint(ev)
-      if (draft.tool === 'pen') draft.points.push(draft.end)
+      follow(ev)
       this.renderEditor([...this.annotations, draft])
     }
     const up = (ev: PointerEvent) => {
       cleanup()
-      draft.end = this.canvasPoint(ev)
-      if (draft.tool === 'pen') draft.points.push(draft.end)
+      follow(ev)
       if (Math.hypot(draft.end.x - start.x, draft.end.y - start.y) < 3 && draft.points.length < 3) {
         this.renderEditor()
         return
