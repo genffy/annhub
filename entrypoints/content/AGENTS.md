@@ -23,7 +23,7 @@
 ## 截图
 
 - 区域截图从视口 CSS 坐标按 dpr 裁剪，调用 `captureVisibleTab` 前隐藏扩展 UI 等两帧；后台回 `CAPTURE_RATE_LIMITED`（浏览器每秒只给两次截取）时，`requestCapture` 隔 400 ms 再要、最多三次，等待中被取消就不再要。等待放在页面里，因为 worker 的定时器可能晚几秒；元素截图经离屏克隆栅格化，跨域图片由 background 代取内联（`FETCH_IMAGE`）。
-- 拖拽松开后选区进入待确认态（`Enter` 确认、`Esc` 取消），单击元素路径不变。待确认时会话根加上 `ann-shot-modal` 接住指针，点在选区里不会穿透到页面，也不会拆掉确认条；选区外的拖拽或单击仍换成新取景框，这时再把指针还给页面。吸附、八向手柄、方向键微调、`Shift` 临时锁比、层级 `↑↓` 与元素+边距的几何换算都是 `screenshot/selection.ts` 的纯函数，会话只做接线（screenshot.md §1.2、§1.4）。
+- 拖拽松开后选区进入待确认态（`Enter` 确认、`Esc` 取消），单击元素路径不变。待确认时会话根加上 `ann-shot-modal` 接住指针，点在选区里不会穿透到页面，也不会拆掉确认条（悬停选元素的单击除外：那走单击元素路径，换成该元素）；选区外的拖拽或单击仍换成新取景框，这时再把指针还给页面。吸附、八向手柄、方向键微调、`Shift` 临时锁比、层级 `↑↓` 与元素+边距的几何换算都是 `screenshot/selection.ts` 的纯函数，会话只做接线（screenshot.md §1.2、§1.4）。
 - 上次取景框归后台：会话经 `screenshot/frame-memory.ts` 的 `REMEMBER_FRAME`、`READ_FRAME` 交给 worker，每个标签页一份，只对来源 + 路径相同的网页有效，导航到别的页面、关闭标签页、重启浏览器即清除（screenshot.md §1.4）。内容脚本不直接读写 `chrome.storage.session`，也不为此放开它的访问级别：`sender.ts` 信任的最近保存记录也在那里。元素锚点带 10% 容差；找不到元素时滚回记录位置沿用，取景框超窗只提示不强截。恢复经后台往返、晚于会话开场：指针已开始悬停时这次不恢复，不抢已画的悬停选区。
 - 区域截取前用透明 sweeper 清扫悬停样式并等 `pageStable`（连续两帧布局不变，最长 500ms），元素 + 边距能放进视口时走区域截取，放不下提示而不是截不全。
 - 选区内本地标注与马赛克只把处理后的 PNG 交后台入库；确认/复制/下载三个去处互相独立，复制与下载保留会话；`http:` 页面复制提示下载（screenshot.md §4）。JPEG 下载一律先铺白（`matteOnWhite`），透明处不会变黑。入库的 `startedAt` 是点击“保存”的时刻（metrics.md §9），不含此前的编辑时间；失败文案经 `screenshotFailureText`/`screenshotSaveErrorText` 由稳定错误码生成，不显示后台的原始信息。
