@@ -1,10 +1,13 @@
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import Logo from '../logo'
 import type { LandingCopy } from '@/lib/copy'
-import { LIBRARY_URL } from './links'
+import { LIBRARY_URL, STORE_URL } from './links'
 
-/** A floating white bar (docs/product/website.md §5). Anchors are in-page, so there is no script and no hidden menu to reach. */
+/**
+ * A floating white bar (docs/product/website.md §5). Plain links, so there is no script and no hidden menu to reach. The install
+ * entry appears from 640px up: a phone cannot install the extension (§4).
+ */
 export default function SiteHeader({ copy }: { copy: LandingCopy }) {
   const { header } = copy
   return (
@@ -32,6 +35,13 @@ export default function SiteHeader({ copy }: { copy: LandingCopy }) {
             className="flex h-9 min-w-9 items-center justify-center rounded-md border border-line-2 px-2.5 text-[12px] font-semibold text-fg-2 transition-colors hover:border-brand hover:text-brand-text"
           >
             {header.language.label}
+          </a>
+          <a
+            href={STORE_URL}
+            className="hidden h-9 items-center gap-1.5 whitespace-nowrap rounded-md border border-line-2 bg-white px-3.5 text-[13px] font-semibold text-fg-2 transition-colors hover:border-brand hover:text-brand-text sm:inline-flex"
+          >
+            {header.install}
+            <ArrowUpRight size={15} aria-hidden="true" />
           </a>
           <a
             href={LIBRARY_URL}

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { chromium } from '@playwright/test'
+import { STORE_URL } from '../website/components/landing/links.ts'
 
 // Run against a freshly built static preview. Geometry checks guard the interaction regressions from the design review.
 const origin = process.env.WEBSITE_SMOKE_ORIGIN ?? 'http://localhost:3001'
@@ -16,6 +17,18 @@ try {
       const height = width === 390 ? 844 : 900
       await page.setViewportSize({ width, height })
       await page.goto(`${origin}/${locale}`, { waitUntil: 'networkidle' })
+      // A phone cannot install the extension: its bar keeps only the library entry; hero, closing and footer always link
+      // to the store (docs/product/website.md §4). The wider bar must still fit its links side by side.
+      const install = page.locator('header').getByRole('link', { name: locale === 'zh-CN' ? '添加到 Chrome' : 'Add to Chrome', exact: true })
+      assert.equal(await install.isVisible(), width >= 640, `Header install entry at ${locale}/${width}`)
+      assert.equal(await page.locator(`a[href="${STORE_URL}"]:visible`).count(), width >= 640 ? 4 : 3, `Install entries at ${locale}/${width}`)
+      const bar = await page.locator('header > div').evaluate(element => {
+        const outer = element.getBoundingClientRect()
+        const boxes = [...element.children].map(child => child.getBoundingClientRect()).filter(box => box.width > 0)
+        return { fits: boxes.every(box => box.left >= outer.left && box.right <= outer.right), apart: boxes.every((box, i) => i === 0 || boxes[i - 1].right <= box.left) }
+      })
+      assert.ok(bar.fits && bar.apart, `Header links overlap or overflow at ${locale}/${width}`)
+      assert.ok(await page.evaluate(() => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth), `Horizontal scroll at ${locale}/${width}`)
       const cta = page.locator('header').getByRole('link', { name: locale === 'zh-CN' ? '体验资料库' : 'Try the library', exact: true })
       assert.ok(await cta.isVisible(), `No persistent library entry at ${locale}/${width}`)
       await cta.click()

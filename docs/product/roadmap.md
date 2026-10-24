@@ -28,7 +28,7 @@
 | 导出       | 唯一的“导出内容”：每条条目一份带 frontmatter 的 Markdown（高亮写成 `==…==`），加已保存的原图，打成一个 ZIP；断网可用                                                  | [storage.md §6](storage.md)                              |
 | 弹窗与引导 | 工具栏弹窗是紧凑左右壳；首次使用引导卡与各视图的空状态；中英文界面，亮暗外观                                                                                          | [extension.md](extension.md)                             |
 | 本地指标   | 设置页的本地指标面板，只在本机计数事件，不记录正文                                                                                                                    | [metrics.md §10](metrics.md)                             |
-| 官网       | 中英文静态页面、隐私政策与服务条款；访问统计按访客的选择加载                                                                                                          | [website.md](website.md)、[seo-geo.md](seo-geo.md)       |
+| 官网       | 中英文静态页面、隐私政策与服务条款；指向 Chrome 应用商店条目页的安装入口；访问统计按访客的选择加载                                                                    | [website.md](website.md)、[seo-geo.md](seo-geo.md)       |
 
 ## 3. 进行中
 

@@ -4,7 +4,7 @@ import { fill } from '@/lib/copy'
 import Logo from '../logo'
 import AnalyticsSettings from './analytics-settings'
 import { Container } from './shared'
-import { LIBRARY_URL, PRIVACY_URL, REPO_URL, TERMS_URL } from './links'
+import { LIBRARY_URL, PRIVACY_URL, REPO_URL, STORE_URL, TERMS_URL } from './links'
 
 export default function SiteFooter({ copy }: { copy: LandingCopy }) {
   const { footer } = copy
@@ -24,6 +24,9 @@ export default function SiteFooter({ copy }: { copy: LandingCopy }) {
             <a href={LIBRARY_URL} className={`${link} inline-flex items-center gap-1.5`}>
               <LibraryBig size={14} aria-hidden="true" />
               {footer.library}
+            </a>
+            <a href={STORE_URL} className={link}>
+              {footer.store}
             </a>
             <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className={link}>
               {footer.github}

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { STORE_URL } from '../website/components/landing/links.ts'
 import { SITE_ORIGIN } from '../website/lib/site.ts'
 
 export async function smokeWebsite({ origin = SITE_ORIGIN, revision, edgeRules = true, fetcher = fetch } = {}) {
@@ -22,6 +23,7 @@ export async function smokeWebsite({ origin = SITE_ORIGIN, revision, edgeRules =
     assert.equal(response.status, 200, `Language page failed: ${locale}`)
     const html = await response.text()
     assert.ok(html.includes(`<html lang="${locale}"`) && html.includes('FAQPage'), `Incomplete page: ${locale}`)
+    assert.ok(html.includes(`href="${STORE_URL}"`), `No install entry pointing at the store listing: ${locale}`)
     assert.equal(response.headers.get('link'), null, 'Language alternates must only appear in HTML')
     for (const extension of ['js', 'css']) {
       const asset = html.match(new RegExp(`(?:src|href)="(/_next/[^"?]+\\.${extension})(?:\\?[^" ]*)?"`))?.[1]

@@ -3,8 +3,9 @@ import type { Locale } from '../../i18n/config'
 
 // Shared destinations for the product tour and site links.
 export const REPO_URL = 'https://github.com/genffy/annhub'
+/** The Chrome Web Store listing (docs/product/permissions.md §6), the page's only install entry: no tracking parameters (website.md §4). */
+export const STORE_URL = 'https://chromewebstore.google.com/detail/jpooljigbeplpgciohfjklgbfdfnnmfn'
 export const LIBRARY_URL = '#library'
-export const WORKFLOW_URL = '#story'
 export const PRIVACY_URL = '/privacy-policy.html'
 export const TERMS_URL = '/terms-of-service.html'
 

@@ -1,4 +1,4 @@
-import { ArrowRight, FileText, Lock, Puzzle, WifiOff } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, FileText, Lock, Puzzle, WifiOff } from 'lucide-react'
 import type { LandingCopy } from '@/lib/copy'
 import { BrowserFrame } from '../product/browser'
 import { Reader } from '../product/detail'
@@ -7,7 +7,7 @@ import { Anchored, HeroArticle, SelectionMenu } from '../product/page-scenes'
 import { plural } from '../product/parts'
 import { entryById, getSample } from '../product/sample'
 import { Clauses, Container } from './shared'
-import { LIBRARY_URL, WORKFLOW_URL } from './links'
+import { LIBRARY_URL, STORE_URL } from './links'
 
 const FACT_ICONS = [WifiOff, Lock, FileText]
 
@@ -65,23 +65,26 @@ export default function Hero({ copy }: { copy: LandingCopy }) {
             <Clauses text={hero.body} />
           </p>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          {/* The note belongs to the library button: it stays under it when the install button wraps to its own line (§4). */}
+          <div className="mt-6 flex flex-wrap items-start gap-3">
+            <div>
+              <a
+                href={LIBRARY_URL}
+                className="inline-flex h-12 items-center gap-2 rounded-lg bg-brand px-5 text-[15px] font-semibold text-brand-fg shadow-[0_8px_20px_-8px_rgba(103,58,184,0.7)] transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_86%,#000)]"
+              >
+                {hero.cta}
+                <ArrowRight size={17} aria-hidden="true" />
+              </a>
+              <p className="mt-2.5 text-[12px] text-fg-3">{hero.demo}</p>
+            </div>
             <a
-              href={LIBRARY_URL}
-              className="inline-flex h-12 items-center gap-2 rounded-lg bg-brand px-5 text-[15px] font-semibold text-brand-fg shadow-[0_8px_20px_-8px_rgba(103,58,184,0.7)] transition-colors hover:bg-[color-mix(in_oklab,var(--brand)_86%,#000)]"
+              href={STORE_URL}
+              className="inline-flex h-12 items-center gap-2 rounded-lg border border-line-2 bg-white px-5 text-[15px] font-semibold text-fg-2 transition-colors hover:border-brand hover:text-brand-text"
             >
-              {hero.cta}
-              <ArrowRight size={17} aria-hidden="true" />
-            </a>
-            <a
-              href={WORKFLOW_URL}
-              className="inline-flex h-12 items-center rounded-lg border border-line-2 bg-white px-5 text-[15px] font-semibold text-fg-2 transition-colors hover:border-brand hover:text-brand-text"
-            >
-              {hero.secondary}
+              {hero.install}
+              <ArrowUpRight size={17} aria-hidden="true" />
             </a>
           </div>
-
-          <p className="mt-2.5 text-[12px] text-fg-3">{hero.demo}</p>
           <ul className="mt-5 flex flex-wrap gap-x-4 gap-y-2 text-[12px] text-fg-3">
             {hero.facts.map((fact, i) => {
               const Icon = FACT_ICONS[i]!
