@@ -28,6 +28,8 @@ const DWELL_MS = 400
 const LEAVE_MS = 150
 /** How far the capsule sits inside the block's left and right edges. */
 const CAPSULE_EDGE_INSET = 6
+/** A repeat clip for the same block inside this window is a replay of one gesture, not a second save (issue #105). */
+const CLIP_REPEAT_MS = 1500
 
 export interface BlockHoverHooks {
   onClip(candidate: BlockCandidate, levelChanged: boolean): void
@@ -193,6 +195,22 @@ export class BlockEntries {
   private hoverCandidate: BlockCandidate | null = null
   private hoverChain: BlockCandidate[] = []
   private hoverDepth = 0
+  /** The last clip this page started, to drop a replay of the same gesture (issue #105). */
+  private lastClip: { element: Element; at: number } | null = null
+
+  /**
+   * One gesture clips one block once: a second fire for the same block moments
+   * after the first — whatever re-delivered the click — is dropped instead of
+   * saved as a second entry with a fresh id (issue #105). A deliberate clip of
+   * the same block again has to re-hover it, which already takes longer than
+   * the window.
+   */
+  private offerClip(candidate: BlockCandidate, levelChanged: boolean): void {
+    const now = Date.now()
+    if (this.lastClip && this.lastClip.element === candidate.element && now - this.lastClip.at < CLIP_REPEAT_MS) return
+    this.lastClip = { element: candidate.element, at: now }
+    this.hooks.onClip(candidate, levelChanged)
+  }
 
   /** Screenshot confirm mode owns the pointer; the clip capsule must not sit on the frame (issue #108). */
   private screenshotConfirming(): boolean {
@@ -259,7 +277,7 @@ export class BlockEntries {
     clip.textContent = uiText('block.clip')
     clip.addEventListener('click', event => {
       if (!isUserInput(event)) return
-      this.hooks.onClip(candidate, this.hoverDepth > 0 || this.modeLevelChanged)
+      this.offerClip(candidate, this.hoverDepth > 0 || this.modeLevelChanged)
       if (!keyboard) this.hideNow()
     })
 
@@ -509,7 +527,7 @@ export class BlockEntries {
       if (event.key === 'Enter') {
         const candidate = this.modeChain[this.modeDepth]
         if (candidate) {
-          this.hooks.onClip(candidate, this.modeLevelChanged)
+          this.offerClip(candidate, this.modeLevelChanged)
           this.exitBlockMode()
         }
         return

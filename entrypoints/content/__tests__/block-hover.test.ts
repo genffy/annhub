@@ -239,6 +239,29 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
     expect((hooks.onScreenshot as ReturnType<typeof vi.fn>).mock.calls[0]![0].kind).toBe('code')
   })
 
+  it('drops a replayed clip click for the same block; the next deliberate clip works (issue #105)', async () => {
+    vi.useFakeTimers()
+    document.body.innerHTML = NESTED
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    const hooks = hooksFor(false)
+    const entries = new BlockEntries(document, hooks, gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
+    await vi.advanceTimersByTimeAsync(450)
+    const button = document.querySelector<HTMLButtonElement>('[data-ann-ui="block-capsule"] button')!
+
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    // a replay of the same gesture reaches the same button again, detached or not
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(hooks.onClip).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1600)
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(hooks.onClip).toHaveBeenCalledTimes(2)
+    entries.dispose()
+  })
+
   it('the hover capsule has no screenshot button without the hook', async () => {
     vi.useFakeTimers()
     document.body.innerHTML = NESTED
