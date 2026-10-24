@@ -1,12 +1,31 @@
-import { ArrowUpRight, Check, Circle, ClipboardCopy, Download, Grid2X2, ListOrdered, ListRestart, Palette, Pencil, RectangleHorizontal, RotateCcw, Type, X } from 'lucide-react'
+import {
+  ArrowUpRight,
+  Check,
+  Circle,
+  ClipboardCopy,
+  Download,
+  Grid2X2,
+  Highlighter,
+  ListOrdered,
+  ListRestart,
+  Palette,
+  Pencil,
+  RectangleHorizontal,
+  RotateCcw,
+  Slash,
+  Type,
+  X,
+} from 'lucide-react'
 import { uiText } from '../../../utils/ui-text'
-import type { ScreenshotTool } from './editor'
+import { isLineTool, LINE_WIDTHS, type LineWidth, type ScreenshotTool } from './editor'
 
 const tools = [
   { id: 'rectangle', labelKey: 'shot.tool.rect', Icon: RectangleHorizontal },
   { id: 'ellipse', labelKey: 'shot.tool.ellipse', Icon: Circle },
   { id: 'arrow', labelKey: 'shot.tool.arrow', Icon: ArrowUpRight },
+  { id: 'line', labelKey: 'shot.tool.line', Icon: Slash },
   { id: 'pen', labelKey: 'shot.tool.pen', Icon: Pencil },
+  { id: 'highlighter', labelKey: 'shot.tool.highlighter', Icon: Highlighter },
   { id: 'mosaic', labelKey: 'shot.tool.mosaic', Icon: Grid2X2 },
   { id: 'text', labelKey: 'shot.tool.text', Icon: Type },
   { id: 'step', labelKey: 'shot.tool.step', Icon: ListOrdered },
@@ -21,9 +40,14 @@ export const ANNOTATION_COLORS = [
   { value: '#20252b', name: 'black' },
 ] as const
 
+/** The dot each width button shows, in CSS pixels across: the same three sizes whichever tool is on. */
+const WIDTH_DOTS: Record<LineWidth, number> = { thin: 4, medium: 7, thick: 11 }
+
 interface Props {
   tool: ScreenshotTool
   color: string
+  /** the width the pen, the line and the highlighter draw at */
+  lineWidth: LineWidth
   maskCount: number
   canUndo: boolean
   /** the number the step tool puts down next */
@@ -34,6 +58,7 @@ interface Props {
   notice?: { message: string; error: boolean }
   onTool: (tool: ScreenshotTool) => void
   onColor: (color: string) => void
+  onLineWidth: (width: LineWidth) => void
   onRemoveMask: (index: number) => void
   onUndo: () => void
   onResetSteps: () => void
@@ -145,6 +170,28 @@ export function ScreenshotToolbar(props: Props) {
           </button>
         </div>
       </div>
+      {isLineTool(props.tool) && (
+        <div className="ann-shot-widths" role="group" aria-label={uiText('shot.lineWidth')} data-ann-ui="screenshot-line-widths">
+          <span aria-hidden="true">{uiText('shot.lineWidth')}</span>
+          {LINE_WIDTHS.map(width => {
+            const label = uiText(`shot.lineWidth.${width}`)
+            return (
+              <button
+                key={width}
+                type="button"
+                title={label}
+                aria-label={label}
+                aria-pressed={props.lineWidth === width}
+                className={props.lineWidth === width ? 'ann-shot-active' : ''}
+                data-ann-ui={`screenshot-line-width-${width}`}
+                onClick={() => props.onLineWidth(width)}
+              >
+                <i style={{ width: WIDTH_DOTS[width], height: WIDTH_DOTS[width] }} />
+              </button>
+            )
+          })}
+        </div>
+      )}
       {props.tool === 'step' && (
         <div className="ann-shot-steps" data-ann-ui="screenshot-steps">
           <span data-ann-ui="screenshot-step-next">{uiText('shot.step.next', { number: props.nextStep })}</span>

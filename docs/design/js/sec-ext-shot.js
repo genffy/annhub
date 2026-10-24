@@ -43,11 +43,11 @@ const shotScene = () => `
   <i class="bar" style="left:60px;top:410px;width:560px"></i><i class="bar" style="left:60px;top:428px;width:420px"></i>`
 
 const shotToolbar = (o = {}) => `<div class="shot-tb" style="${o.style || 'right:48px;top:398px'}">
-  <span class="tb-b ${o.tool === 'rect' ? 'on' : ''}" title="矩形">${I('square')}</span><span class="tb-b" title="椭圆">${I('circle')}</span><span class="tb-b" title="箭头">${I('move-up-right')}</span><span class="tb-b" title="画笔">${I('pencil-line')}</span>
+  <span class="tb-b ${o.tool === 'rect' ? 'on' : ''}" title="矩形">${I('square')}</span><span class="tb-b" title="椭圆">${I('circle')}</span><span class="tb-b" title="箭头">${I('move-up-right')}</span><span class="tb-b ${o.tool === 'line' ? 'on' : ''}" title="直线">${I('slash')}</span><span class="tb-b" title="画笔">${I('pencil-line')}</span><span class="tb-b ${o.tool === 'highlighter' ? 'on' : ''}" title="荧光笔">${I('highlighter')}</span>
   <i class="tb-sep"></i>
   <span class="tb-b ${o.tool === 'mosaic' ? 'on' : ''}" title="马赛克">${I('grid-3x3')}</span><span class="tb-b" title="文字">${I('type')}</span><span class="tb-b ${o.tool === 'step' ? 'on' : ''}" title="序号">${I('list-ordered')}</span>
   <i class="tb-sep"></i>
-  <span class="tb-dots"><i class="on" style="background:#e5484d"></i><i style="background:#ffd84d"></i><i style="background:#22c4d6"></i><i style="background:#fff"></i><i style="background:#111"></i></span>
+  <span class="tb-dots">${['#e5484d', '#ffd84d', '#22c4d6', '#fff', '#111'].map((c, i) => `<i class="${i === (o.color || 0) ? 'on' : ''}" style="background:${c}"></i>`).join('')}</span>
   <i class="tb-sep"></i>
   <span class="tb-b" title="撤销">${I('undo-2')}</span>
   <i class="tb-sep"></i>
@@ -81,6 +81,13 @@ const STEP_COLORS = [
 const stepBadge = (n, x, y, c = STEP_COLORS[0], extra = '') => `<span class="step-b" style="left:${x}px;top:${y}px;--fill:${c.fill};--ink:${c.ink}">${n}${extra}</span>`
 const stepRing = (x, y, extra = '') => `<span class="step-ring" style="left:${x}px;top:${y}px">${extra}<span class="x">${I('x')}</span></span>`
 
+// 荧光笔叠在字上，直线画在字下方，颜色取自五色（screenshot §1.1）
+const hlMark = (text, color, extra = '') => `<mark class="hl-mark" style="--c:${color}">${text}${extra}</mark>`
+const underLine = (text, color, extra = '') => `<span class="ann-under" style="--c:${color}">${text}${extra}</span>`
+// 线宽一行：细、中、粗三档的圆点，和扩展里的大小一致
+const widthRow = (on = 'medium', extra = '') =>
+  `<span class="lb">线宽</span>${[['thin', 4], ['medium', 7], ['thick', 11]].map(([w, d]) => `<span class="wd ${w === on ? 'on' : ''}"><i style="width:${d}px;height:${d}px"></i></span>`).join('')}${extra}`
+
 function extShotGroup() {
   const selection = `<div class="shot-sel" style="left:52px;top:62px;width:656px;height:332px"><span class="shot-size">656 × 332</span></div>`
   const hint = `<div class="shot-hint">拖拽框选区域 <span class="muted-2">·</span> 单击选择元素 <span class="muted-2">·</span> <kbd>A</kbd> 匿名 开 <span class="muted-2">·</span> <kbd>Esc</kbd> 取消</div>`
@@ -109,7 +116,7 @@ function extShotGroup() {
     notes: [
       '<b>图片直接占据选区</b>，不跳到居中的预览卡片；原位编辑，页面其余部分保持压暗。',
       '<b>匿名默认开启</b>：身份元素（头像、名字、@账号）被自动覆盖成马赛克候选，虚线框 + × 表示可以移除；用户也可以再手工加框。关闭自动匿名不等于关闭手工马赛克。',
-      '<b>浮动工具栏贴近选区右下角</b>，空间不足时移到上方并约束在视口内；窄视口可横向滚动，不遮住“确认 / 取消”。工具：矩形、椭圆、箭头、画笔、马赛克、文字、序号，五色，撤销（只撤销人工标注）、<b>复制</b>、下载、取消、确认。',
+      '<b>浮动工具栏贴近选区右下角</b>，空间不足时移到上方并约束在视口内；窄视口可横向滚动，不遮住“确认 / 取消”。工具：矩形、椭圆、箭头、直线、画笔、荧光笔、马赛克、文字、序号，五色，撤销（只撤销人工标注）、<b>复制</b>、下载、取消、确认。',
       '“确认”把图片保存为一条 <code>screenshot</code> 条目，出现在资料库的“截图”视图；“复制”“下载”和“入库”是三个独立动作，复制或下载后会话继续保留。',
     ],
   })
@@ -163,7 +170,7 @@ function extShotGroup() {
     ],
   })
 
-  const stepPic = (inner, h = 112) => `<div class="step-pic" style="height:${h}px">${inner}</div>`
+  const rulePic = (inner, h = 112) => `<div class="rule-pic" style="height:${h}px">${inner}</div>`
   const stepRules = board({
     title: '序号 · 颜色、删除与重置',
     ref: 'screenshot §1.1',
@@ -171,15 +178,15 @@ function extShotGroup() {
     w: 760,
     body: `<div style="padding:18px;background:var(--surface-2);display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
       <div class="vs g8"><b class="t-sm">五种颜色，放在同色背景上</b>
-        ${stepPic(`<div class="step-swatches">${STEP_COLORS.map((c, i) => `<i style="background:${c.fill}">${stepBadge(i + 1, 20, 20, c)}</i>`).join('')}</div>`)}
+        ${rulePic(`<div class="step-swatches">${STEP_COLORS.map((c, i) => `<i style="background:${c.fill}">${stepBadge(i + 1, 20, 20, c)}</i>`).join('')}</div>`)}
         <div class="help">红、青、黑色的序号用白色，黄、白色的用深色，放在浅色、深色或同色的背景上都读得清。</div></div>
       <div class="vs g8"><b class="t-sm">删除 2，后面的依次减一</b>
-        ${stepPic(`${stepBadge(1, 30, 30)}${stepBadge(2, 80, 30)}${stepRing(80, 30)}${stepBadge(3, 130, 30)}${stepBadge(4, 180, 30)}
+        ${rulePic(`${stepBadge(1, 30, 30)}${stepBadge(2, 80, 30)}${stepRing(80, 30)}${stepBadge(3, 130, 30)}${stepBadge(4, 180, 30)}
           <span class="step-to" style="left:105px;top:56px">${I('chevron-down')}</span>
           ${stepBadge(1, 30, 88)}<span class="step-gone" style="left:80px;top:88px"></span>${stepBadge(2, 130, 88)}${stepBadge(3, 180, 88)}`)}
         <div class="help">同一组里排在它后面的序号依次减一，不留空号。</div></div>
       <div class="vs g8"><b class="t-sm">重置计数，另成一组</b>
-        ${stepPic(`${stepBadge(1, 30, 30)}${stepBadge(2, 80, 30)}${stepBadge(3, 130, 30)}
+        ${rulePic(`${stepBadge(1, 30, 30)}${stepBadge(2, 80, 30)}${stepBadge(3, 130, 30)}
           <span class="step-reset" style="left:30px;top:59px">${I('list-restart')}重置计数</span>
           ${stepBadge(1, 30, 88)}${stepBadge(2, 80, 88)}`)}
         <div class="help">重置后下一个序号从 1 开始，之后放下的另成一组，已经放下的不变；下一个已经是 1 时不能重置。</div></div>
@@ -190,11 +197,64 @@ function extShotGroup() {
     ],
   })
 
+  const strokes = board({
+    title: '荧光笔与直线 · 标出重点',
+    ref: 'screenshot §1.1',
+    proposal: '#88',
+    w: 760,
+    body: `<div class="shot" style="height:486px">${shotScene()
+      .replace('Retries amplified the outage', hlMark('Retries amplified the outage', STEP_COLORS[1].fill, pin(1, 'pin-l')))
+      .replace('during the retry storm', underLine('during the retry storm', STEP_COLORS[0].fill, pin(2, 'pin-fr')))}
+      ${selection}
+      ${shotToolbar({ tool: 'highlighter', color: 1 })}
+      <div class="shot-widths" style="right:48px;top:442px">${pin(3, 'pin-l')}${widthRow()}</div></div>`,
+    notes: [
+      '<b>荧光笔</b>随指针涂出宽笔迹，颜色的不透明度是 40%，盖住的正文仍读得清。它只画在截图上，和资料库里读剪藏时划的高亮无关。',
+      '<b>直线</b>从按下处画到松开处，两端是圆头。按住 <kbd>Shift</kbd> 拖动时，直线落在经过起点的水平、竖直或 45° 斜线中最近的一条上。',
+      '画笔、直线或荧光笔开着时，工具栏下方显示“线宽”的<b>细、中、粗</b>三档，默认中档。三种工具共用一个档位，换工具不变；和颜色一样，每次截图从默认开始。',
+      '涂一笔荧光笔、画一条直线各算一步，撤销逐步退回；换线宽、换颜色不算。荧光笔与直线和其他标注一样画进入库、复制与下载的图片，美化与水印照常加在复制与下载的图片上；它们和线宽都没有单键切换的快捷键。',
+    ],
+  })
+
+  // 五色荧光笔分别涂在浅色与深色页面的一行字上
+  const hlLines = ['Retries', 'amplified', 'the outage:', 'p99 went', 'to 2s.']
+  const hlPage = dark => `<div class="hl-page ${dark ? 'dark' : ''}">${STEP_COLORS.map((c, i) => `<div>${hlMark(hlLines[i], c.fill)}</div>`).join('')}</div>`
+  // 按住 Shift：起点 (28, 112)，指针 (122, 38) 离 45° 斜线最近，终点是指针在斜线上的投影 (112, 28)
+  const snapPic = `<svg class="snap-svg" viewBox="0 0 232 136" aria-hidden="true" fill="none">
+      <path d="M28 112H212M28 112V22M28 112L118 22" stroke="#c9ced9" stroke-width="1.2" stroke-dasharray="2 4"/>
+      <path d="M28 112L122 38" stroke="#9aa1b2" stroke-width="1.2" stroke-dasharray="5 4"/><path d="M122 38L112 28" stroke="#9aa1b2" stroke-width="1.2" stroke-dasharray="2 2"/>
+      <path d="M28 112L112 28" stroke="#e5484d" stroke-width="3" stroke-linecap="round"/>
+    </svg><span class="snap-cur" style="left:122px;top:38px">${I('crosshair')}</span><span class="snap-key">${keys('Shift')}</span>`
+  const widthPic = `<div class="width-demo"><span></span><span>画笔、直线</span><span>荧光笔</span>
+      ${[['细', 2, 12], ['中', 3, 20], ['粗', 6, 32]].map(([name, pen, hl]) => `<b>${name}</b><i style="height:${pen}px"></i><i class="hl" style="height:${hl}px"></i>`).join('')}</div>`
+  const strokeRules = board({
+    title: '荧光笔、直线与线宽 · 颜色、吸附与三档',
+    ref: 'screenshot §1.1',
+    proposal: '#88',
+    w: 760,
+    body: `<div style="padding:18px;background:var(--surface-2);display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+      <div class="vs g8"><b class="t-sm">五种颜色，浅色与深色页面</b>
+        ${rulePic(`<div class="hl-pages">${hlPage(false)}${hlPage(true)}</div>`, 136)}
+        <div class="help">颜色的不透明度是 40%：盖住的文字与底色之间的反差保留六成，浅色与深色页面上都读得清。</div></div>
+      <div class="vs g8"><b class="t-sm">直线 · 按住 Shift</b>
+        ${rulePic(snapPic, 136)}
+        <div class="help">直线落在经过起点的水平、竖直或 45° 斜线中最近的一条上，终点是指针在这条线上的位置。</div></div>
+      <div class="vs g8"><b class="t-sm">线宽 · 细、中、粗</b>
+        ${rulePic(widthPic, 136)}
+        <div class="help">画笔与直线 2、3、6 CSS 像素，中档和矩形、椭圆、箭头的线一样粗；荧光笔 12、20、32 CSS 像素，中档盖得住一行常见的正文。</div></div>
+    </div>`,
+    notes: [
+      '荧光笔一笔之内来回涂、交叉的地方颜色不加深，两笔重叠的地方加深。',
+      '三档都和其他标注的线宽、字号一样随设备像素比放大。三种工具共用一个档位，换工具不变；矩形、椭圆、箭头的线宽固定。',
+    ],
+  })
+
   return group(
     { id: 'ext-shot', title: '截图', small: 'screenshot', desc: '区域或元素截图，直接在原页面上标注、匿名，再保存为 screenshot 条目。它和剪藏、高亮是同一种条目，只是保存的是图片。' },
     row(region, edit),
     row(element, states),
     row(steps, stepRules),
+    row(strokes, strokeRules),
   )
 }
 
