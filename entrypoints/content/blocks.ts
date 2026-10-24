@@ -63,11 +63,11 @@ function headingLevel(el: Element): number {
  * chains share the same large ancestors (the page's `main`, the article, the
  * Markdown container); the page does not change while they are measured.
  */
-let scan: { texts: Map<Element, number>; holdsArticle: Map<Element, boolean> } | null = null
+let scan: { texts: Map<Element, number>; holdsArticle: Map<Element, boolean>; feeds: Map<Element, boolean> } | null = null
 
 function inOneScan<T>(run: () => T): T {
   if (scan) return run()
-  scan = { texts: new Map(), holdsArticle: new Map() }
+  scan = { texts: new Map(), holdsArticle: new Map(), feeds: new Map() }
   try {
     return run()
   } finally {
@@ -100,6 +100,47 @@ function visible(el: Element, win: Window): boolean {
 function classifyPost(el: Element): boolean {
   // Platform rule: an X timeline or status page post (capture.md §6.2)
   return el.tagName.toLowerCase() === 'article' && el.getAttribute('data-testid') === 'tweet'
+}
+
+const POST_SELECTOR = 'article[data-testid="tweet"]'
+
+/** Posts in `el` that are not a quote nested inside another post. */
+function topLevelPosts(el: Element): Element[] {
+  const posts: Element[] = []
+  for (const post of Array.from(el.querySelectorAll(POST_SELECTOR))) {
+    const outer = post.parentElement?.closest(POST_SELECTOR)
+    if (outer && el.contains(outer)) continue
+    posts.push(post)
+  }
+  return posts
+}
+
+/**
+ * A column of posts — an X timeline or a status thread — is not one section
+ * or article. Parent must stop at the quote or the enclosing post: the column
+ * box is the virtualized timeline (many screens tall), the pointer never
+ * leaves it, and the outline sticks until the page scrolls (issue #107).
+ * A write-up that embeds posts still qualifies as an article when the prose
+ * outside those posts is its own.
+ */
+function feedColumn(el: Element): boolean {
+  const known = scan?.feeds.get(el)
+  if (known !== undefined) return known
+  const posts = topLevelPosts(el)
+  let result = false
+  if (posts.length >= 2) {
+    let prose = textLength(el)
+    for (const post of posts) prose -= textLength(post)
+    if (prose < 120) result = true
+    else {
+      const viewH = el.ownerDocument?.defaultView?.innerHeight ?? 0
+      const height = el.getBoundingClientRect().height
+      // Chrome around the posts (a topic blurb) must not reattach the column.
+      if (viewH > 0 && height > viewH * 6 && prose < 600) result = true
+    }
+  }
+  scan?.feeds.set(el, result)
+  return result
 }
 
 function classifyTable(el: Element): boolean {
@@ -284,6 +325,9 @@ function classify(el: Element, target: Element): BlockCandidate[] {
   if (classifyTable(el)) return [{ kind: 'table', element }]
   if (classifyFigure(el)) return [{ kind: 'figure', element }]
   if (classifyQuote(el)) return [{ kind: 'quote', element }]
+  // Clamp the parent walk before section/article: only containers that would
+  // become that next level can be the timeline column (issue #107).
+  if ((classifyArticle(el) || el.tagName.toLowerCase() === 'section') && feedColumn(el)) return []
   if (classifyArticle(el)) {
     if (textLength(el) < 120) return []
     // headings that are the article's own children (danluu, the Rust book) still divide it: the target sits in

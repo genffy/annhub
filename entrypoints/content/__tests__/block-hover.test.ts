@@ -441,3 +441,130 @@ describe('↓ at the innermost level enters the unit, one level at a time (真�
     expect(clipped(hooks).candidate.element.id).toBe('code')
   })
 })
+
+const tweet = (id: string, inner = ''): string => `<article data-testid="tweet" id="${id}"><p id="${id}-body">${id} tweet body.</p>${inner}</article>`
+
+const TIMELINE = `<main id="col"><section id="feed" role="region"><h2>Explore</h2>
+  ${tweet('a', '<blockquote id="a-quote"><p id="a-quote-p">A quoted passage inside the tweet that is long enough.</p></blockquote>')}
+  ${tweet('b', tweet('b-inner'))}
+  ${tweet('c')}
+</section></main>`
+
+function box(id: string, height: number): void {
+  document.getElementById(id)!.getBoundingClientRect = () => new DOMRect(0, 0, 520, height)
+}
+
+async function restOn(target: Element, x = 16, y = 16): Promise<void> {
+  for (const entries of created.splice(0)) entries.dispose()
+  vi.useFakeTimers()
+  document.elementFromPoint = vi.fn(() => target)
+  const entries = new BlockEntries(document, hooksFor(true), gate)
+  created.push(entries)
+  entries.install()
+  document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: x, clientY: y }))
+  await vi.advanceTimersByTimeAsync(450)
+}
+
+const outline = (): HTMLElement | null => document.querySelector('[data-ann-ui="block-outline"]')
+const parentButton = (): HTMLButtonElement => document.querySelector(`[aria-label="${uiText('block.up')}"]`) as HTMLButtonElement
+
+describe('Parent on a timeline, and leaving it (issue #107)', () => {
+  it('climbs from a quote to its post, not the column', async () => {
+    document.body.innerHTML = TIMELINE
+    box('a-quote', 80)
+    box('a', 280)
+    box('feed', 11578)
+    box('col', 11578)
+    await restOn(document.getElementById('a-quote-p')!)
+    expect(outline()!.style.height).toBe('80px')
+    expect(parentButton().disabled).toBe(false)
+    parentButton().click()
+    expect(outline()!.style.height).toBe('280px')
+    expect(parentButton().disabled).toBe(true)
+  })
+
+  it('climbs from a nested post to the enclosing post', async () => {
+    document.body.innerHTML = TIMELINE
+    box('b-inner', 120)
+    box('b', 360)
+    box('feed', 11578)
+    await restOn(document.getElementById('b-inner-body')!)
+    expect(outline()!.style.height).toBe('120px')
+    parentButton().click()
+    expect(outline()!.style.height).toBe('360px')
+    expect(parentButton().disabled).toBe(true)
+  })
+
+  it('↑ in block mode stays on the post', () => {
+    document.body.innerHTML = TIMELINE
+    const body = document.getElementById('a-body')!
+    body.setAttribute('tabindex', '0')
+    body.focus()
+    start()
+    expect(kindText()).toContain(uiText('block.kind.post'))
+    press('ArrowUp')
+    expect(kindText()).toContain(uiText('block.kind.post'))
+    expect(kindText()).not.toContain(uiText('block.kind.section'))
+    expect(kindText()).not.toContain(uiText('block.kind.article'))
+  })
+
+  it('Escape clears the outline when focus is on the capsule button', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    const up = parentButton()
+    up.focus()
+    up.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }))
+    expect(outline()).not.toBeNull()
+    up.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(outline()).toBeNull()
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+  })
+
+  it('Escape and any other key clear the outline when focus is on the page', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(outline()).toBeNull()
+    await restOn(document.getElementById('code')!)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }))
+    expect(outline()).toBeNull()
+  })
+
+  it('moving the pointer off the block clears it, and moving back in time keeps it', async () => {
+    document.body.innerHTML = NESTED
+    box('code', 40)
+    await restOn(document.getElementById('code')!, 10, 10)
+    expect(outline()).not.toBeNull()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 400 }))
+    await vi.advanceTimersByTimeAsync(80)
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(200)
+    expect(outline()).not.toBeNull()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 400 }))
+    await vi.advanceTimersByTimeAsync(180)
+    expect(outline()).toBeNull()
+    await vi.advanceTimersByTimeAsync(400)
+    expect(outline()).toBeNull()
+  })
+
+  it('resting where nothing qualifies clears the previous outline', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    document.elementFromPoint = vi.fn(() => null)
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 16, clientY: 16 }))
+    await vi.advanceTimersByTimeAsync(450)
+    expect(outline()).toBeNull()
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+  })
+
+  it('scroll and leaving the window clear the outline', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    document.dispatchEvent(new Event('scroll'))
+    expect(outline()).toBeNull()
+    await restOn(document.getElementById('code')!)
+    document.dispatchEvent(new Event('pointerleave'))
+    await vi.advanceTimersByTimeAsync(180)
+    expect(outline()).toBeNull()
+  })
+})

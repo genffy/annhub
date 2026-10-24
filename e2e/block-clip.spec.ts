@@ -203,4 +203,36 @@ test.describe('block clip (capture.md §6.2)', () => {
     // the page script asks once when it first needs the answer and listens for changes after that
     expect(asked).toBeLessThanOrEqual(2)
   })
+
+  test('Parent on a timeline climbs one post, and leave or Escape clears the outline (issue #107)', async ({ page }) => {
+    await page.goto('http://localhost:8173/timeline.html')
+    const heightOf = (selector: string) => page.locator(selector).evaluate(el => el.getBoundingClientRect().height)
+    const columnHeight = await heightOf('#feed')
+    expect(columnHeight).toBeGreaterThan(5000)
+
+    const quoteCapsule = await hoverForCapsule(page, '#a-quote-p')
+    const quoteHeight = await heightOf('[data-ann-ui="block-outline"]')
+    expect(quoteHeight).toBeLessThan(400)
+    await quoteCapsule.getByRole('button', { name: /上一级|⌃/ }).click()
+    const postHeight = await heightOf('[data-ann-ui="block-outline"]')
+    const tweetHeight = await heightOf('#a')
+    expect(postHeight).toBeGreaterThan(quoteHeight)
+    expect(Math.abs(postHeight - tweetHeight)).toBeLessThan(8)
+    expect(postHeight).toBeLessThan(columnHeight / 4)
+
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-ann-ui="block-outline"]')).toHaveCount(0)
+    await expect(page.locator('[data-ann-ui="block-capsule"]')).toHaveCount(0)
+
+    const nested = await hoverForCapsule(page, '#b-inner-body')
+    await nested.getByRole('button', { name: /上一级|⌃/ }).click()
+    expect(Math.abs((await heightOf('[data-ann-ui="block-outline"]')) - (await heightOf('#b')))).toBeLessThan(8)
+    await page.keyboard.press('Escape')
+
+    const top = await hoverForCapsule(page, '#c-body')
+    await expect(top.getByRole('button', { name: /上一级|⌃/ })).toBeDisabled()
+    const rail = (await page.locator('#sidebar').boundingBox())!
+    await page.mouse.move(rail.x + 24, rail.y + 40)
+    await expect(page.locator('[data-ann-ui="block-outline"]')).toHaveCount(0)
+  })
 })
