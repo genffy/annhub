@@ -45,7 +45,7 @@ const shotScene = () => `
 const shotToolbar = (o = {}) => `<div class="shot-tb" style="${o.style || 'right:48px;top:398px'}">
   <span class="tb-b ${o.tool === 'rect' ? 'on' : ''}" title="矩形">${I('square')}</span><span class="tb-b" title="椭圆">${I('circle')}</span><span class="tb-b" title="箭头">${I('move-up-right')}</span><span class="tb-b" title="画笔">${I('pencil-line')}</span>
   <i class="tb-sep"></i>
-  <span class="tb-b ${o.tool === 'mosaic' ? 'on' : ''}" title="马赛克">${I('grid-3x3')}</span><span class="tb-b" title="文字">${I('type')}</span>
+  <span class="tb-b ${o.tool === 'mosaic' ? 'on' : ''}" title="马赛克">${I('grid-3x3')}</span><span class="tb-b" title="文字">${I('type')}</span><span class="tb-b ${o.tool === 'step' ? 'on' : ''}" title="序号">${I('list-ordered')}</span>
   <i class="tb-sep"></i>
   <span class="tb-dots"><i class="on" style="background:#e5484d"></i><i style="background:#ffd84d"></i><i style="background:#22c4d6"></i><i style="background:#fff"></i><i style="background:#111"></i></span>
   <i class="tb-sep"></i>
@@ -69,6 +69,17 @@ const ratioChip = (label, w, h, o = {}) => {
   const glyph = w ? `<i class="rg" style="width:${Math.round(w * k)}px;height:${Math.round(h * k)}px"></i>` : I('move')
   return `<span class="rchip ${o.on ? 'on' : ''}">${glyph}${label}${o.on ? I('lock-keyhole') : ''}</span>`
 }
+
+// 序号：圆心落在 (x, y)，28px；描边与数字取与填充对比强的颜色（screenshot §1.1）
+const STEP_COLORS = [
+  { name: '红', fill: '#e5484d', ink: '#fff' },
+  { name: '黄', fill: '#f6c453', ink: '#20252b' },
+  { name: '青', fill: '#147d72', ink: '#fff' },
+  { name: '白', fill: '#fff', ink: '#20252b' },
+  { name: '黑', fill: '#20252b', ink: '#fff' },
+]
+const stepBadge = (n, x, y, c = STEP_COLORS[0], extra = '') => `<span class="step-b" style="left:${x}px;top:${y}px;--fill:${c.fill};--ink:${c.ink}">${n}${extra}</span>`
+const stepRing = (x, y, extra = '') => `<span class="step-ring" style="left:${x}px;top:${y}px">${extra}<span class="x">${I('x')}</span></span>`
 
 function extShotGroup() {
   const selection = `<div class="shot-sel" style="left:52px;top:62px;width:656px;height:332px"><span class="shot-size">656 × 332</span></div>`
@@ -98,7 +109,7 @@ function extShotGroup() {
     notes: [
       '<b>图片直接占据选区</b>，不跳到居中的预览卡片；原位编辑，页面其余部分保持压暗。',
       '<b>匿名默认开启</b>：身份元素（头像、名字、@账号）被自动覆盖成马赛克候选，虚线框 + × 表示可以移除；用户也可以再手工加框。关闭自动匿名不等于关闭手工马赛克。',
-      '<b>浮动工具栏贴近选区右下角</b>，空间不足时移到上方并约束在视口内；窄视口可横向滚动，不遮住“确认 / 取消”。工具：矩形、椭圆、箭头、画笔、马赛克、文字，五色，撤销（只撤销人工标注）、<b>复制</b>、下载、取消、确认。',
+      '<b>浮动工具栏贴近选区右下角</b>，空间不足时移到上方并约束在视口内；窄视口可横向滚动，不遮住“确认 / 取消”。工具：矩形、椭圆、箭头、画笔、马赛克、文字、序号，五色，撤销（只撤销人工标注）、<b>复制</b>、下载、取消、确认。',
       '“确认”把图片保存为一条 <code>screenshot</code> 条目，出现在资料库的“截图”视图；“复制”“下载”和“入库”是三个独立动作，复制或下载后会话继续保留。',
     ],
   })
@@ -132,10 +143,58 @@ function extShotGroup() {
     notes: ['保存前先做配额校验；IndexedDB 写入或校验失败时不显示成功，也不因下载成功就声称已入库（storage §5、screenshot §4）。', '退出会话时清理遮罩、离屏 surface、临时样式和监听器；重复触发会先结束旧会话。'],
   })
 
+  const steps = board({
+    title: '序号 · 依次标出步骤',
+    ref: 'screenshot §1.1',
+    proposal: '#81',
+    w: 760,
+    body: `<div class="shot" style="height:486px">${shotScene()}
+      ${selection}
+      ${stepBadge(1, 330, 96, undefined, pin(1, 'pin-r'))}
+      ${stepBadge(2, 412, 226)}${stepRing(412, 226, pin(2, 'pin-l'))}
+      ${stepBadge(3, 504, 214)}
+      ${shotToolbar({ tool: 'step' })}
+      <div class="shot-steps" style="right:48px;top:442px">${pin(3, 'pin-l')}下一个：4<span class="rs">${I('list-restart')}重置计数</span></div></div>`,
+    notes: [
+      '工具栏的“序号”开着时，在图片上按下，下一个序号出现在指针处，按住可以挪动，松开处就是它的位置。序号整个落在图内，贴着边缘放时停在边上。',
+      '按住已有的序号可以拖动，拖动不改变它的数字。单击或拖动过的序号被选中，编辑界面用<b>蓝色圆圈和“×”</b>标出它；点“×”，或按 <kbd>Delete</kbd>、<kbd>Backspace</kbd>，删除选中的序号。在图片上别处按下或换工具时选中取消；选中不是单独的一层，<kbd>Esc</kbd> 照常取消截图。蓝色圆圈和“×”不进入图片。',
+      '工具栏下方显示下一个序号的数字和“重置计数”。放下、拖动、删除一个序号和重置计数各算一步，撤销逐步退回。',
+      '序号和其他标注一样画进入库、复制与下载的图片，美化与水印照常加在复制与下载的图片上。标注工具都没有单键切换的快捷键，序号也没有。',
+    ],
+  })
+
+  const stepPic = (inner, h = 112) => `<div class="step-pic" style="height:${h}px">${inner}</div>`
+  const stepRules = board({
+    title: '序号 · 颜色、删除与重置',
+    ref: 'screenshot §1.1',
+    proposal: '#81',
+    w: 760,
+    body: `<div style="padding:18px;background:var(--surface-2);display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+      <div class="vs g8"><b class="t-sm">五种颜色，放在同色背景上</b>
+        ${stepPic(`<div class="step-swatches">${STEP_COLORS.map((c, i) => `<i style="background:${c.fill}">${stepBadge(i + 1, 20, 20, c)}</i>`).join('')}</div>`)}
+        <div class="help">红、青、黑色的序号用白色，黄、白色的用深色，放在浅色、深色或同色的背景上都读得清。</div></div>
+      <div class="vs g8"><b class="t-sm">删除 2，后面的依次减一</b>
+        ${stepPic(`${stepBadge(1, 30, 30)}${stepBadge(2, 80, 30)}${stepRing(80, 30)}${stepBadge(3, 130, 30)}${stepBadge(4, 180, 30)}
+          <span class="step-to" style="left:105px;top:56px">${I('chevron-down')}</span>
+          ${stepBadge(1, 30, 88)}<span class="step-gone" style="left:80px;top:88px"></span>${stepBadge(2, 130, 88)}${stepBadge(3, 180, 88)}`)}
+        <div class="help">同一组里排在它后面的序号依次减一，不留空号。</div></div>
+      <div class="vs g8"><b class="t-sm">重置计数，另成一组</b>
+        ${stepPic(`${stepBadge(1, 30, 30)}${stepBadge(2, 80, 30)}${stepBadge(3, 130, 30)}
+          <span class="step-reset" style="left:30px;top:59px">${I('list-restart')}重置计数</span>
+          ${stepBadge(1, 30, 88)}${stepBadge(2, 80, 88)}`)}
+        <div class="help">重置后下一个序号从 1 开始，之后放下的另成一组，已经放下的不变；下一个已经是 1 时不能重置。</div></div>
+    </div>`,
+    notes: [
+      '实心圆里写着数字。圆是所选的颜色，数字和圆的一圈描边用与它对比强的颜色，放在浅色、深色或同色的背景上都读得清。',
+      '直径 <b>28 CSS 像素</b>，和其他标注的线宽、字号一样随设备像素比放大，不随图片大小变化；三位数时字号缩小，数字仍在圆内。',
+    ],
+  })
+
   return group(
     { id: 'ext-shot', title: '截图', small: 'screenshot', desc: '区域或元素截图，直接在原页面上标注、匿名，再保存为 screenshot 条目。它和剪藏、高亮是同一种条目，只是保存的是图片。' },
     row(region, edit),
     row(element, states),
+    row(steps, stepRules),
   )
 }
 
@@ -341,7 +400,7 @@ function extShotOutGroup() {
       ${selection}
       <div class="wm" style="left:526px;top:358px">${pin(1, 'pin-l')}<span class="wm-logo">${I('logo')}</span>@annhub_demo</div>
       ${shotToolbar({ tool: 'rect', pins: 2, beautify: 'off', style: 'right:20px;top:392px' })}
-      <div class="shot-hint" style="top:auto;bottom:12px;left:24px;transform:none;z-index:8"><span class="st">${I('eye-off')}匿名 开 <kbd>A</kbd></span><span class="muted-2">·</span><span class="st">${I('stamp')}水印 开 <kbd>W</kbd></span>${pin(3, 'pin-b')}</div></div>`,
+      <div class="shot-hint" style="top:auto;bottom:8px;left:24px;transform:none;z-index:8"><span class="st">${I('eye-off')}匿名 开 <kbd>A</kbd></span><span class="muted-2">·</span><span class="st">${I('stamp')}水印 开 <kbd>W</kbd></span>${pin(3, 'pin-b')}</div></div>`,
     notes: [
       '设置里启用水印后，编辑界面里就能看到它（默认右下角，四角可选）。位置不可拖动；位置、大小、透明度都在设置里调（见“设置”画板）。',
       '工具栏里的<b>复制、下载</b>输出的图片带水印；<b>入库的图片不带</b>（见右侧）。',

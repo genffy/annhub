@@ -40,6 +40,7 @@
 | 官网上线验收收尾：真实欧洲与非欧洲出口的统计同意，板块段落与 FAQ 复核（第 6 节剩下的两项） | 进行中 | [#99](https://github.com/genffy/annhub/issues/99) |
 | GitHub 仓库简介与 [seo-geo.md §4.1](seo-geo.md) 一致                                       | 未开始 | —                                                 |
 | 官网增长阶段：站长平台、月度检查与 AI 搜索探针（[seo-geo.md §7](seo-geo.md)）              | 进行中 | [#98](https://github.com/genffy/annhub/issues/98) |
+| 截图编辑器的序号工具：单击放下递增的数字徽章，可拖动、删除、重置计数                       | 进行中 | [#81](https://github.com/genffy/annhub/issues/81) |
 
 ## 4. 发布门禁
 

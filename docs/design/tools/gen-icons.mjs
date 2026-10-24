@@ -107,6 +107,8 @@ const ICONS = [
   'pencil-line',
   'grid-3x3',
   'type',
+  'list-ordered',
+  'list-restart',
   'crosshair',
   'magnet',
   'ratio',
