@@ -1,8 +1,9 @@
 /**
  * The block-clip entries (docs/product/capture.md §6.2): the hover capsule
  * (mouse) and block mode (keyboard). Both point at the same detection and
- * produce the same save; the capsule never covers the page's own controls
- * and stays inside the window for tall blocks.
+ * produce the same save; the capsule never covers the page's own controls,
+ * stays inside the block's left and right edges, and stays inside the
+ * window for tall blocks.
  */
 import {
   candidateAnchor,
@@ -25,6 +26,10 @@ import { uiText } from '../../utils/ui-text'
 const ROOT_ATTR = 'data-ann-ui'
 const DWELL_MS = 400
 const LEAVE_MS = 150
+/** How far the capsule sits inside the block's left and right edges. */
+const CAPSULE_EDGE_INSET = 6
+/** A repeat clip for the same block inside this window is a replay of one gesture, not a second save (issue #105). */
+const CLIP_REPEAT_MS = 1500
 
 export interface BlockHoverHooks {
   onClip(candidate: BlockCandidate, levelChanged: boolean): void
@@ -90,6 +95,13 @@ export class BlockEntries {
         this.scheduleLeave()
         return
       }
+      // Leaving the outlined block hides it; a rest on whatever is under the
+      // pointer can still reveal the next unit (capture.md §6.2).
+      if (this.pointerOutsideHover(event.clientX, event.clientY)) {
+        this.armLeave()
+        this.scheduleDwell()
+        return
+      }
       this.clearLeave()
       this.scheduleDwell()
     }
@@ -118,8 +130,11 @@ export class BlockEntries {
     }
     const onKeyDown = (event: KeyboardEvent): void => {
       if (!isUserInput(event) || this.modeActive) return
-      if (this.insideOwnUi(event)) return
-      if (event.key !== 'Escape') this.hideNow()
+      // Any key dismisses the hover outline. Escape still does when Parent
+      // left focus on the capsule button — that click is our own UI, and
+      // ignoring Escape there is what stuck the timeline outline (issue #107).
+      if (event.key !== 'Escape' && this.insideOwnUi(event)) return
+      this.hideNow()
     }
 
     this.doc.addEventListener('pointermove', onPointerMove, true)
@@ -150,10 +165,15 @@ export class BlockEntries {
 
   private scheduleDwell(): void {
     if (this.dwellTimer !== null) window.clearTimeout(this.dwellTimer)
+    const generation = ++this.revealGeneration
     const { x, y } = this.lastPoint
-    this.dwellTimer = window.setTimeout(() => void this.reveal(x, y), DWELL_MS)
+    this.dwellTimer = window.setTimeout(() => {
+      this.dwellTimer = null
+      void this.reveal(x, y, generation)
+    }, DWELL_MS)
   }
 
+  /** Selection, an editable field, or the pointer leaving the window: drop the hover and don't reveal again. */
   private scheduleLeave(): void {
     if (this.dwellTimer !== null) {
       window.clearTimeout(this.dwellTimer)
@@ -161,6 +181,15 @@ export class BlockEntries {
     }
     if (this.leaveTimer !== null) window.clearTimeout(this.leaveTimer)
     this.leaveTimer = window.setTimeout(() => this.hideNow(), LEAVE_MS)
+  }
+
+  /** The pointer left the outlined block. Hide that outline, but let a pending dwell reveal whatever it rests on. */
+  private armLeave(): void {
+    if (this.leaveTimer !== null) window.clearTimeout(this.leaveTimer)
+    this.leaveTimer = window.setTimeout(() => {
+      this.leaveTimer = null
+      this.dismissHover()
+    }, LEAVE_MS)
   }
 
   private clearLeave(): void {
@@ -175,51 +204,112 @@ export class BlockEntries {
   }
 
   private hideNow(): void {
+    this.revealGeneration++
     if (this.dwellTimer !== null) window.clearTimeout(this.dwellTimer)
     if (this.leaveTimer !== null) window.clearTimeout(this.leaveTimer)
     this.dwellTimer = null
     this.leaveTimer = null
+    this.dismissHover()
+  }
+
+  private dismissHover(): void {
     this.outlineEl?.remove()
     this.outlineEl = null
     this.capsuleEl?.remove()
     this.capsuleEl = null
+    this.doc.querySelector(`[${ROOT_ATTR}="block-more"]`)?.remove()
     this.hoverCandidate = null
+    this.hoverChain = []
     this.hoverDepth = 0
   }
 
   private hoverCandidate: BlockCandidate | null = null
   private hoverChain: BlockCandidate[] = []
   private hoverDepth = 0
+  /** The last clip this page started, to drop a replay of the same gesture (issue #105). */
+  private lastClip: { element: Element; at: number } | null = null
+
+  /**
+   * One gesture clips one block once: a second fire for the same block moments
+   * after the first — whatever re-delivered the click — is dropped instead of
+   * saved as a second entry with a fresh id (issue #105). A deliberate clip of
+   * the same block again has to re-hover it, which already takes longer than
+   * the window.
+   */
+  private offerClip(candidate: BlockCandidate, levelChanged: boolean): void {
+    const now = Date.now()
+    if (this.lastClip && this.lastClip.element === candidate.element && now - this.lastClip.at < CLIP_REPEAT_MS) return
+    this.lastClip = { element: candidate.element, at: now }
+    this.hooks.onClip(candidate, levelChanged)
+  }
+
+  /** Bumped when a newer dwell or a hard dismiss invalidates an in-flight reveal. */
+  private revealGeneration = 0
+
+  /** A positive border box that does not contain the point. A zero box (no layout) is not "outside". */
+  private pointerOutsideHover(x: number, y: number): boolean {
+    const candidate = this.hoverCandidate
+    if (!candidate || !this.outlineEl) return false
+    const rect = candidateRect(candidate)
+    if (rect.width <= 0 || rect.height <= 0) return false
+    return x < rect.left || x > rect.right || y < rect.top || y > rect.bottom
+  }
+
+  private boxContainsPoint(candidate: BlockCandidate, x: number, y: number): boolean {
+    const rect = candidateRect(candidate)
+    if (rect.width <= 0 || rect.height <= 0) return true
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
+  }
 
   /** Screenshot confirm mode owns the pointer; the clip capsule must not sit on the frame (issue #108). */
   private screenshotConfirming(): boolean {
     return Boolean(this.doc.querySelector('[data-ann-ui="screenshot-session"].ann-shot-modal'))
   }
 
-  private async reveal(x: number, y: number): Promise<void> {
+  private async reveal(x: number, y: number, generation: number): Promise<void> {
+    if (generation !== this.revealGeneration) return
     if (this.screenshotConfirming()) {
       this.hideNow()
       return
     }
     if (!(await this.gate.enabled())) return
+    if (generation !== this.revealGeneration) return
     if (this.screenshotConfirming()) {
       this.hideNow()
       return
     }
     if (await this.gate.siteDisabled(this.doc.defaultView!.location.hostname)) return
+    if (generation !== this.revealGeneration) return
     if (this.screenshotConfirming()) {
       this.hideNow()
       return
     }
     const chain = candidatesAtPoint(x, y, this.doc)
-    if (chain.length === 0) return
-    // innermost first; a hover that repeats the same element keeps its depth
+    if (generation !== this.revealGeneration) return
+    // Nothing under the pointer, or only a block the pointer has already left:
+    // drop the previous outline instead of leaving it stuck (issue #107).
+    if (chain.length === 0) {
+      this.dismissHover()
+      return
+    }
     const previous = this.hoverCandidate
     this.hoverChain = chain
     const sameIndex = previous ? chain.findIndex(c => c.element === previous.element) : 0
-    this.hoverDepth = sameIndex >= 0 ? Math.min(this.hoverDepth, sameIndex) : 0
-    this.hoverCandidate = chain[this.hoverDepth] ?? chain[0]!
-    this.hoverDepth = chain.indexOf(this.hoverCandidate)
+    let depth = sameIndex >= 0 ? Math.min(this.hoverDepth, sameIndex) : 0
+    let candidate = chain[depth] ?? chain[0]!
+    if (!this.boxContainsPoint(candidate, x, y)) {
+      const inner = chain[0]!
+      if (!this.boxContainsPoint(inner, x, y)) {
+        this.dismissHover()
+        return
+      }
+      candidate = inner
+      depth = 0
+    }
+    this.clearLeave()
+    this.hoverCandidate = candidate
+    this.hoverDepth = chain.indexOf(candidate)
+    if (this.hoverDepth < 0) this.hoverDepth = depth
     this.paintHover()
   }
 
@@ -256,7 +346,7 @@ export class BlockEntries {
     clip.textContent = uiText('block.clip')
     clip.addEventListener('click', event => {
       if (!isUserInput(event)) return
-      this.hooks.onClip(candidate, this.hoverDepth > 0 || this.modeLevelChanged)
+      this.offerClip(candidate, this.hoverDepth > 0 || this.modeLevelChanged)
       if (!keyboard) this.hideNow()
     })
 
@@ -333,21 +423,30 @@ export class BlockEntries {
   }
 
   /**
-   * Capsule placement (capture.md §6.2): straddles the block's edge at the
-   * right-top corner; a block taller than the window clamps to the visible
-   * top; occupied corners yield to left-top, right-bottom, left-bottom, and
-   * finally the pointer side. Occupation is probed across the whole capsule
-   * box, not one point — a small button inside the area still counts.
+   * Capsule placement (capture.md §6.2): prefers the block's right-top corner.
+   * The top edge is straddled so a tall block can pin to the visible top of
+   * the window; the left and right edges stay inside the block. Centering on
+   * the corner (`right - width/2`) hangs half the capsule off the side — on a
+   * timeline that half covers the sidebar (about 82px at 110% zoom). Occupied
+   * corners yield to left-top, right-bottom, left-bottom, then a slide along
+   * the top edge. Occupation is probed across the whole capsule box, not one
+   * point — a small button inside the area still counts.
    */
   private positionCapsule(capsule: HTMLElement, rect: DOMRect): void {
     const view = this.doc.defaultView!
     const box = { width: capsule.offsetWidth || 260, height: capsule.offsetHeight || 36 }
     const visibleTop = Math.max(rect.top, 0)
+    const yTop = visibleTop - box.height / 2
+    const yBottom = Math.min(rect.bottom, view.innerHeight) - box.height / 2
+    // 6px inside the block, same inset as the hover-capsule mock. The right
+    // edge of the capsule is `rect.right - 6`, never `rect.right + width/2`.
+    const xRight = rect.right - box.width - CAPSULE_EDGE_INSET
+    const xLeft = rect.left + CAPSULE_EDGE_INSET
     const corners: [number, number][] = [
-      [rect.right - box.width / 2, visibleTop - box.height / 2], // right-top, straddling the edge
-      [rect.left - box.width / 2, visibleTop - box.height / 2], // left-top
-      [rect.right - box.width / 2, Math.min(rect.bottom, view.innerHeight) - box.height / 2], // right-bottom
-      [rect.left - box.width / 2, Math.min(rect.bottom, view.innerHeight) - box.height / 2], // left-bottom
+      [xRight, yTop],
+      [xLeft, yTop],
+      [xRight, yBottom],
+      [xLeft, yBottom],
     ]
     let [x, y] = corners[0]!
     for (const [cx, cy] of corners) {
@@ -361,7 +460,8 @@ export class BlockEntries {
       // all four corners taken (an X post's are): slide along the top edge
       // instead of sitting on the corner's controls (真机走查 P2-4)
       const topY = corners[0]![1]
-      for (let cx = corners[0]![0] - 24; cx >= rect.left - box.width / 2 && cx >= 0; cx -= 24) {
+      const minX = Math.max(0, rect.left)
+      for (let cx = corners[0]![0] - 24; cx >= minX; cx -= 24) {
         if (!this.capsuleAreaOccupied(cx, topY, box, capsule)) {
           x = cx
           y = topY
@@ -369,8 +469,15 @@ export class BlockEntries {
         }
       }
     }
-    capsule.style.left = `${Math.max(0, Math.min(view.innerWidth - box.width, x))}px`
-    capsule.style.top = `${Math.max(0, Math.min(view.innerHeight - box.height, y))}px`
+    let left = Math.max(0, Math.min(view.innerWidth - box.width, x))
+    const top = Math.max(0, Math.min(view.innerHeight - box.height, y))
+    // A viewport clamp must not push the capsule back out over the sidebar
+    // when the block itself fits on screen.
+    if (box.width <= rect.width && rect.left >= 0 && rect.right <= view.innerWidth) {
+      left = Math.min(Math.max(left, rect.left), rect.right - box.width)
+    }
+    capsule.style.left = `${left}px`
+    capsule.style.top = `${top}px`
   }
 
   /** Sample points across the would-be capsule box for page controls under it. */
@@ -489,7 +596,7 @@ export class BlockEntries {
       if (event.key === 'Enter') {
         const candidate = this.modeChain[this.modeDepth]
         if (candidate) {
-          this.hooks.onClip(candidate, this.modeLevelChanged)
+          this.offerClip(candidate, this.modeLevelChanged)
           this.exitBlockMode()
         }
         return

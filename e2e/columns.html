@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Three columns</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        display: flex;
+        font: 16px/1.45 sans-serif;
+      }
+      nav {
+        width: 240px;
+        flex: none;
+      }
+      #column {
+        width: 560px;
+        flex: none;
+        height: 100vh;
+        overflow-y: auto;
+      }
+      #sidebar {
+        width: 320px;
+        flex: none;
+      }
+      article {
+        padding: 16px 20px;
+      }
+      #spacer {
+        height: 1600px;
+      }
+      #tweet-text,
+      #end-line {
+        margin: 0 0 12px;
+      }
+      #end-line {
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <nav>Home</nav>
+    <main id="column">
+      <div id="spacer">Above the fold.</div>
+      <article>
+        <p id="tweet-text">Grok <a href="https://example.com/bot">@Bot</a> like hiring a super smart and fun employee for the timeline column today, with enough words that the line fills the center column.</p>
+        <p id="end-line">words at the end</p>
+      </article>
+    </main>
+    <aside id="sidebar">Premium subscription and search.</aside>
+  </body>
+</html>

@@ -481,3 +481,60 @@ describe('candidatesFor crosses open shadow roots (MDN, 真机走查 P2-3)', () 
     expect(chain.some(candidate => candidate.element === document.querySelector('main'))).toBe(true)
   })
 })
+
+const tweet = (id: string, inner = ''): string => `<article data-testid="tweet" id="${id}"><p id="${id}-body">${id} tweet body.</p>${inner}</article>`
+
+const TIMELINE = `<main id="col"><section id="feed" role="region"><h2>Explore</h2>
+  ${tweet('a', '<blockquote id="a-quote"><p id="a-quote-p">A quoted passage inside the tweet that is long enough.</p></blockquote>')}
+  ${tweet('b', tweet('b-inner'))}
+  ${tweet('c')}
+</section></main>`
+
+describe('a column of posts is not a parent level (issue #107)', () => {
+  it('keeps a single embedded post inside its article', () => {
+    const chain = candidatesFor(doc.querySelector('#post-body')!, doc)
+    expect(kinds(chain)).toEqual(['post', 'article'])
+  })
+
+  it('stops the chain at the post: the timeline section and main are not a section or an article', () => {
+    document.body.innerHTML = TIMELINE
+    expect(kinds(candidatesFor(doc.getElementById('a-body')!, doc))).toEqual(['post'])
+    expect(candidatesFor(doc.getElementById('a-body')!, doc)[0]!.element.id).toBe('a')
+    // a quote climbs to its post, not the column
+    const quote = candidatesFor(doc.getElementById('a-quote-p')!, doc)
+    expect(kinds(quote)).toEqual(['quote', 'post'])
+    expect(quote[1]!.element.id).toBe('a')
+    // a nested post climbs one level, to the enclosing post
+    const nested = candidatesFor(doc.getElementById('b-inner-body')!, doc)
+    expect(kinds(nested)).toEqual(['post', 'post'])
+    expect(nested.map(candidate => candidate.element.id)).toEqual(['b-inner', 'b'])
+  })
+
+  it('still treats a write-up that embeds two posts as an article', () => {
+    document.body.innerHTML = `<article id="story"><h1>Roundup</h1><p id="lead">${'A real paragraph outside the posts. '.repeat(8)}</p>${tweet('t1')}${tweet('t2')}</article>`
+    expect(kinds(candidatesFor(doc.getElementById('lead')!, doc))).toEqual(['article'])
+    expect(kinds(candidatesFor(doc.getElementById('t1-body')!, doc))).toEqual(['post', 'article'])
+    expect(candidatesFor(doc.getElementById('t1-body')!, doc)[1]!.element.id).toBe('story')
+  })
+
+  it('drops a tall column even when a blurb outside the posts clears 120 characters', () => {
+    document.body.innerHTML = `<main id="col"><section id="feed"><h2>Explore</h2><p>${'x'.repeat(200)}</p>${tweet('a')}${tweet('b')}${tweet('c')}</section></main>`
+    const restoreHeight = Object.getOwnPropertyDescriptor(window, 'innerHeight')
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 800 })
+    for (const id of ['feed', 'col']) {
+      doc.getElementById(id)!.getBoundingClientRect = () => new DOMRect(0, 0, 600, 11578)
+    }
+    try {
+      expect(kinds(candidatesFor(doc.getElementById('a-body')!, doc))).toEqual(['post'])
+    } finally {
+      if (restoreHeight) Object.defineProperty(window, 'innerHeight', restoreHeight)
+      else Reflect.deleteProperty(window, 'innerHeight')
+    }
+  })
+
+  it('Tab peers of a timeline post are the other posts, not the column', () => {
+    document.body.innerHTML = TIMELINE
+    const post = candidatesFor(doc.getElementById('a')!, doc)[0]!
+    expect(peersOf(post, doc).map(peer => peer.element.id)).toEqual(['a', 'b', 'c'])
+  })
+})

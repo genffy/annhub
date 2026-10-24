@@ -31,7 +31,9 @@ const GOOD_FILES: Record<string, string> = {
   'website/.gitignore': '/next-env.d.ts\n',
   'website/README.md': 'Built with Next.js 16, React 19 and next-intl 4.\n',
   'website/public/privacy-policy.html': '<html></html>\n',
-  'website/lib/site.ts': "export const SITE_ORIGIN = 'https://annhub.org'\nexport const ANALYTICS_TOKEN = process.env.NEXT_PUBLIC_CF_BEACON_TOKEN ?? ''\n",
+  'website/lib/site.ts':
+    "export const SITE_ORIGIN = 'https://annhub.org'\nexport const MIN_CHROME_VERSION = 114\nexport const ANALYTICS_TOKEN = process.env.NEXT_PUBLIC_CF_BEACON_TOKEN ?? ''\n",
+  'wxt.config.ts': "export default defineConfig({ manifest: { minimum_chrome_version: '114' } })\n",
   'website/next.config.js': "module.exports = { output: 'export' }\n",
   'website/wrangler.json': json({
     name: 'annhub-website',
@@ -271,6 +273,19 @@ describe('check-consistency', () => {
         'must reuse the verified artifact',
         'must run node scripts/smoke-website.mjs',
       )
+    })
+  })
+
+  describe('minimum Chrome version', () => {
+    it('catches a new minimum in the manifest that the website has not followed', () => {
+      expectFailure(
+        { 'wxt.config.ts': edit('wxt.config.ts', "minimum_chrome_version: '114'", "minimum_chrome_version: '120'") },
+        'MIN_CHROME_VERSION is 114, but wxt.config.ts sets minimum_chrome_version to 120',
+      )
+    })
+
+    it('catches a website that no longer states the minimum', () => {
+      expectFailure({ 'website/lib/site.ts': edit('website/lib/site.ts', 'export const MIN_CHROME_VERSION = 114\n', '') }, 'MIN_CHROME_VERSION is missing')
     })
   })
 

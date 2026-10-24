@@ -18,6 +18,7 @@ export function checkWebsiteExport({ directory = websiteOutput, revision, produc
     'terms-of-service.html',
     'robots.txt',
     'sitemap.xml',
+    'llms.txt',
     'og/en.png',
     'og/zh-CN.png',
   ]) {
@@ -27,11 +28,15 @@ export function checkWebsiteExport({ directory = websiteOutput, revision, produc
     const html = read(`${locale}.html`)
     assert.ok(html.includes(`<html lang="${locale}"`), `Wrong document language: ${locale}`)
     assert.match(html, /<h1\b/, `No prerendered heading: ${locale}`)
-    assert.ok(html.includes('FAQPage') && html.includes(`${SITE_ORIGIN}/${locale}`), `Missing SEO content: ${locale}`)
+    assert.ok(
+      ['FAQPage', 'SoftwareApplication', `${SITE_ORIGIN}/${locale}`].every(text => html.includes(text)),
+      `Missing SEO content: ${locale}`,
+    )
     const assets = [...html.matchAll(/(?:src|href)="(\/_next\/[^"?]+)(?:\?[^" ]*)?"/g)].map(match => match[1])
     assert.ok(assets.some(path => path.endsWith('.js')) && assets.some(path => path.endsWith('.css')), `No local scripts/styles: ${locale}`)
     for (const asset of assets) assert.ok(existsSync(resolve(directory, `.${asset}`)), `Broken static asset: ${asset}`)
   }
+  assert.ok(read('llms.txt').startsWith('# AnnHub\n'), 'llms.txt does not open with the product name')
   assert.equal(read('_redirects'), staticRedirects(), 'The artifact has stale redirects')
   const deployed = JSON.parse(read('__deployment.json'))
   assert.equal(read('_headers'), staticHeaders({ analytics: deployed.analytics }), 'The artifact has stale response headers')

@@ -8,6 +8,7 @@ export const zhCN: LandingCopy = {
     title: 'AnnHub — 把网页里值得留下的内容，存进同一个本地库',
     description: 'AnnHub 是本地优先的浏览器扩展：把剪藏、高亮和截图连同来源存进同一个本地库，用属性分类、随时找回，并导出为 Obsidian 读得懂的 Markdown。',
     ogImageAlt: '界面示意，使用示例数据',
+    operatingSystem: 'Chromium {version} 及以上内核的桌面浏览器',
     updated: '2026-10-24',
   },
   header: {

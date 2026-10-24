@@ -71,6 +71,7 @@ export class InstallationHandler {
 
     try {
       await this.removeDesktopLeftovers()
+      await this.removeV1Credentials()
       if (previousVersion.startsWith('1.')) {
         Logger.info('[InstallationHandler] Performing migration from version 1.x to 2.x')
         await this.migrateFromV1ToV2()
@@ -86,6 +87,17 @@ export class InstallationHandler {
   /** The Desktop connection is gone; builds that had it left its settings behind, including the pairing code. */
   private async removeDesktopLeftovers(): Promise<void> {
     await chrome.storage.local.remove(['desktopDirectConnect', 'fragmentDeliveryState', 'annhubDeliveryFailures', 'fragmentDeviceId', 'annhubConnectHintDismissed'])
+  }
+
+  /**
+   * 1.x keys that hold credentials for services 2.0.0 no longer talks to:
+   * an LLM API key, a Eudic token and a Logseq auth token (issue #96). Removal
+   * runs on every update regardless of previousVersion — installs that already
+   * passed through 2.0.0 report it as `2.0.0`, and `remove()` is a no-op for
+   * absent keys, so existence, not version history, decides.
+   */
+  private async removeV1Credentials(): Promise<void> {
+    await chrome.storage.local.remove(['llmConfig', 'vocabConfig', 'annhub-logseq-config'])
   }
 
   private async migrateFromV1ToV2(): Promise<void> {

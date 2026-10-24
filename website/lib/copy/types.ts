@@ -1,4 +1,5 @@
-import type { ProductUi } from '@/components/product/types'
+// Relative, not '@/': the root tests import the copy, and their '@' is the repository root.
+import type { ProductUi } from '../../components/product/types'
 
 export type Locale = 'zh-CN' | 'en'
 
@@ -29,6 +30,8 @@ export interface LandingCopy {
     description: string
     /** The social card image's alt text, shared by `og:image:alt` (docs/product/seo-geo.md §3.3). */
     ogImageAlt: string
+    /** The browsers AnnHub runs in, for the SoftwareApplication markup (docs/product/seo-geo.md §5.2); `{version}` is the minimum. */
+    operatingSystem: string
     /** The day the page's text last changed in substance, YYYY-MM-DD: the sitemap's lastmod (docs/product/seo-geo.md §3.5). */
     updated: string
   }

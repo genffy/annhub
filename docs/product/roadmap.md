@@ -28,7 +28,7 @@
 | 导出       | 唯一的“导出内容”：每条条目一份带 frontmatter 的 Markdown（高亮写成 `==…==`），加已保存的原图，打成一个 ZIP；断网可用                                                  | [storage.md §6](storage.md)                              |
 | 弹窗与引导 | 工具栏弹窗是紧凑左右壳；首次使用引导卡与各视图的空状态；中英文界面，亮暗外观                                                                                          | [extension.md](extension.md)                             |
 | 本地指标   | 设置页的本地指标面板，只在本机计数事件，不记录正文                                                                                                                    | [metrics.md §10](metrics.md)                             |
-| 官网       | 中英文静态页面、隐私政策与服务条款；指向 Chrome 应用商店条目页的安装入口；访问统计按访客的选择加载                                                                    | [website.md](website.md)、[seo-geo.md](seo-geo.md)       |
+| 官网       | 中英文静态页面、隐私政策与服务条款；指向 Chrome 应用商店条目页的安装入口；给搜索引擎与 AI 工具读的结构化数据（FAQ 与软件应用）和 `llms.txt`；访问统计按访客的选择加载 | [website.md](website.md)、[seo-geo.md](seo-geo.md)       |
 
 ## 3. 进行中
 
@@ -39,6 +39,7 @@
 | 1.x 升级的安装里遗留的本地数据与凭据                                                       | 未开始 | [#96](https://github.com/genffy/annhub/issues/96) |
 | 官网上线验收收尾：真实欧洲与非欧洲出口的统计同意，板块段落与 FAQ 复核（第 6 节剩下的两项） | 进行中 | [#99](https://github.com/genffy/annhub/issues/99) |
 | GitHub 仓库简介与 [seo-geo.md §4.1](seo-geo.md) 一致                                       | 未开始 | —                                                 |
+| 官网增长阶段：站长平台、月度检查与 AI 搜索探针（[seo-geo.md §7](seo-geo.md)）              | 进行中 | [#98](https://github.com/genffy/annhub/issues/98) |
 | 截图编辑器的序号工具：单击放下递增的数字徽章，可拖动、删除、重置计数                       | 进行中 | [#81](https://github.com/genffy/annhub/issues/81) |
 
 ## 4. 发布门禁

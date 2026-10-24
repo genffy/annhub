@@ -239,6 +239,29 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
     expect((hooks.onScreenshot as ReturnType<typeof vi.fn>).mock.calls[0]![0].kind).toBe('code')
   })
 
+  it('drops a replayed clip click for the same block; the next deliberate clip works (issue #105)', async () => {
+    vi.useFakeTimers()
+    document.body.innerHTML = NESTED
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    const hooks = hooksFor(false)
+    const entries = new BlockEntries(document, hooks, gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
+    await vi.advanceTimersByTimeAsync(450)
+    const button = document.querySelector<HTMLButtonElement>('[data-ann-ui="block-capsule"] button')!
+
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    // a replay of the same gesture reaches the same button again, detached or not
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(hooks.onClip).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1600)
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(hooks.onClip).toHaveBeenCalledTimes(2)
+    entries.dispose()
+  })
+
   it('the hover capsule has no screenshot button without the hook', async () => {
     vi.useFakeTimers()
     document.body.innerHTML = NESTED
@@ -303,6 +326,74 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
   })
 })
 
+describe('capsule placement stays inside the block (capture.md §6.2)', () => {
+  const CAPSULE_WIDTH = 164 // half of this, 82px, is the overflow measured at 110% zoom
+  const CAPSULE_HEIGHT = 36
+
+  function mockCapsuleBox(): void {
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute('data-ann-ui') === 'block-capsule' ? CAPSULE_WIDTH : 0
+    })
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute('data-ann-ui') === 'block-capsule' ? CAPSULE_HEIGHT : 0
+    })
+  }
+
+  async function showCapsule(clientX: number, clientY: number): Promise<HTMLElement> {
+    const entries = new BlockEntries(document, hooksFor(true), gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX, clientY }))
+    await vi.advanceTimersByTimeAsync(450)
+    const capsule = document.querySelector('[data-ann-ui="block-capsule"]')
+    expect(capsule).toBeInstanceOf(HTMLElement)
+    return capsule as HTMLElement
+  }
+
+  it('keeps a 164px capsule inside the post, including the 82px that used to hang off at 110% zoom', async () => {
+    vi.useFakeTimers()
+    mockCapsuleBox()
+    document.body.innerHTML = `<article data-testid="tweet" id="post"><p id="body">${LONG}</p></article><div id="sidebar"><h2>Today's News</h2></div>`
+    const post = document.getElementById('post')!
+    // right edge 840, directly beside the sidebar
+    post.getBoundingClientRect = () => new DOMRect(280, 120, 560, 320)
+    const body = document.getElementById('body')!
+    document.elementFromPoint = vi.fn(() => body)
+    const capsule = await showCapsule(400, 200)
+    const left = Number.parseFloat(capsule.style.left)
+    const right = left + CAPSULE_WIDTH
+    expect(right).toBeLessThanOrEqual(840)
+    expect(right).toBeGreaterThan(840 - 16)
+    // the old corner-centered placement ended at 840 + 82
+    expect(right).toBeLessThan(840 + 82)
+    expect(left).toBeGreaterThanOrEqual(280)
+  })
+
+  it('moves off a top-right control and keeps the capsule inside the post right edge', async () => {
+    vi.useFakeTimers()
+    mockCapsuleBox()
+    document.body.innerHTML = `<article data-testid="tweet" id="post"><p id="body">${LONG}</p><button id="caret" type="button">More</button></article>`
+    const post = document.getElementById('post')!
+    post.getBoundingClientRect = () => new DOMRect(280, 120, 560, 320)
+    const body = document.getElementById('body')!
+    const caret = document.getElementById('caret')!
+    caret.getBoundingClientRect = () => new DOMRect(800, 124, 34, 32)
+    document.elementFromPoint = vi.fn((x: number, y: number) => {
+      const overCaret = x >= 800 && x <= 834 && y >= 124 && y <= 156
+      return overCaret ? caret : body
+    })
+    const capsule = await showCapsule(400, 200)
+    const left = Number.parseFloat(capsule.style.left)
+    const top = Number.parseFloat(capsule.style.top)
+    const right = left + CAPSULE_WIDTH
+    const bottom = top + CAPSULE_HEIGHT
+    expect(right).toBeLessThanOrEqual(840)
+    expect(left).toBeGreaterThanOrEqual(280)
+    const overlapsCaret = right > 800 && left < 834 && bottom > 124 && top < 156
+    expect(overlapsCaret).toBe(false)
+  })
+})
+
 describe('↓ at the innermost level enters the unit, one level at a time (真机走查 P2-1)', () => {
   it('goes to the section inside the article before the code inside the section, and ↑ walks back out the same way', () => {
     document.body.innerHTML = NESTED
@@ -348,5 +439,132 @@ describe('↓ at the innermost level enters the unit, one level at a time (真�
     expect(kindText()).toContain(uiText('block.kind.code'))
     press('Enter')
     expect(clipped(hooks).candidate.element.id).toBe('code')
+  })
+})
+
+const tweet = (id: string, inner = ''): string => `<article data-testid="tweet" id="${id}"><p id="${id}-body">${id} tweet body.</p>${inner}</article>`
+
+const TIMELINE = `<main id="col"><section id="feed" role="region"><h2>Explore</h2>
+  ${tweet('a', '<blockquote id="a-quote"><p id="a-quote-p">A quoted passage inside the tweet that is long enough.</p></blockquote>')}
+  ${tweet('b', tweet('b-inner'))}
+  ${tweet('c')}
+</section></main>`
+
+function box(id: string, height: number): void {
+  document.getElementById(id)!.getBoundingClientRect = () => new DOMRect(0, 0, 520, height)
+}
+
+async function restOn(target: Element, x = 16, y = 16): Promise<void> {
+  for (const entries of created.splice(0)) entries.dispose()
+  vi.useFakeTimers()
+  document.elementFromPoint = vi.fn(() => target)
+  const entries = new BlockEntries(document, hooksFor(true), gate)
+  created.push(entries)
+  entries.install()
+  document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: x, clientY: y }))
+  await vi.advanceTimersByTimeAsync(450)
+}
+
+const outline = (): HTMLElement | null => document.querySelector('[data-ann-ui="block-outline"]')
+const parentButton = (): HTMLButtonElement => document.querySelector(`[aria-label="${uiText('block.up')}"]`) as HTMLButtonElement
+
+describe('Parent on a timeline, and leaving it (issue #107)', () => {
+  it('climbs from a quote to its post, not the column', async () => {
+    document.body.innerHTML = TIMELINE
+    box('a-quote', 80)
+    box('a', 280)
+    box('feed', 11578)
+    box('col', 11578)
+    await restOn(document.getElementById('a-quote-p')!)
+    expect(outline()!.style.height).toBe('80px')
+    expect(parentButton().disabled).toBe(false)
+    parentButton().click()
+    expect(outline()!.style.height).toBe('280px')
+    expect(parentButton().disabled).toBe(true)
+  })
+
+  it('climbs from a nested post to the enclosing post', async () => {
+    document.body.innerHTML = TIMELINE
+    box('b-inner', 120)
+    box('b', 360)
+    box('feed', 11578)
+    await restOn(document.getElementById('b-inner-body')!)
+    expect(outline()!.style.height).toBe('120px')
+    parentButton().click()
+    expect(outline()!.style.height).toBe('360px')
+    expect(parentButton().disabled).toBe(true)
+  })
+
+  it('↑ in block mode stays on the post', () => {
+    document.body.innerHTML = TIMELINE
+    const body = document.getElementById('a-body')!
+    body.setAttribute('tabindex', '0')
+    body.focus()
+    start()
+    expect(kindText()).toContain(uiText('block.kind.post'))
+    press('ArrowUp')
+    expect(kindText()).toContain(uiText('block.kind.post'))
+    expect(kindText()).not.toContain(uiText('block.kind.section'))
+    expect(kindText()).not.toContain(uiText('block.kind.article'))
+  })
+
+  it('Escape clears the outline when focus is on the capsule button', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    const up = parentButton()
+    up.focus()
+    up.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }))
+    expect(outline()).not.toBeNull()
+    up.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(outline()).toBeNull()
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+  })
+
+  it('Escape and any other key clear the outline when focus is on the page', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(outline()).toBeNull()
+    await restOn(document.getElementById('code')!)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }))
+    expect(outline()).toBeNull()
+  })
+
+  it('moving the pointer off the block clears it, and moving back in time keeps it', async () => {
+    document.body.innerHTML = NESTED
+    box('code', 40)
+    await restOn(document.getElementById('code')!, 10, 10)
+    expect(outline()).not.toBeNull()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 400 }))
+    await vi.advanceTimersByTimeAsync(80)
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(200)
+    expect(outline()).not.toBeNull()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 400 }))
+    await vi.advanceTimersByTimeAsync(180)
+    expect(outline()).toBeNull()
+    await vi.advanceTimersByTimeAsync(400)
+    expect(outline()).toBeNull()
+  })
+
+  it('resting where nothing qualifies clears the previous outline', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    document.elementFromPoint = vi.fn(() => null)
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 16, clientY: 16 }))
+    await vi.advanceTimersByTimeAsync(450)
+    expect(outline()).toBeNull()
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+  })
+
+  it('scroll and leaving the window clear the outline', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    document.dispatchEvent(new Event('scroll'))
+    expect(outline()).toBeNull()
+    await restOn(document.getElementById('code')!)
+    document.dispatchEvent(new Event('pointerleave'))
+    await vi.advanceTimersByTimeAsync(180)
+    expect(outline()).toBeNull()
   })
 })

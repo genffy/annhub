@@ -31,10 +31,11 @@ function fixture() {
   ]) {
     writeFileSync(join(directory, file), 'test asset')
   }
+  writeFileSync(join(directory, 'llms.txt'), '# AnnHub\n')
   for (const locale of ['en', 'zh-CN']) {
     writeFileSync(
       join(directory, `${locale}.html`),
-      `<html lang="${locale}"><h1>AnnHub</h1><script src="/_next/app.js"></script><link href="/_next/app.css"><link rel="canonical" href="https://annhub.org/${locale}">FAQPage</html>`,
+      `<html lang="${locale}"><h1>AnnHub</h1><script src="/_next/app.js"></script><link href="/_next/app.css"><link rel="canonical" href="https://annhub.org/${locale}">FAQPage SoftwareApplication</html>`,
     )
   }
   prepareStatic({ directory, revision: 'a'.repeat(40), production: true, analytics: true })
@@ -55,6 +56,14 @@ describe('the deployed static artifact', () => {
     expect(() => checkWebsiteExport({ directory })).toThrow('Broken static asset')
     rmSync(join(directory, 'en.txt'))
     expect(() => checkWebsiteExport({ directory })).toThrow('Missing static asset: en.txt')
+  })
+
+  it('rejects pages without their structured data and an llms.txt that is not one', () => {
+    const directory = fixture()
+    writeFileSync(join(directory, 'llms.txt'), '<!DOCTYPE html>')
+    expect(() => checkWebsiteExport({ directory })).toThrow('llms.txt does not open with the product name')
+    writeFileSync(join(directory, 'zh-CN.html'), readFileSync(join(directory, 'zh-CN.html'), 'utf8').replace(' SoftwareApplication', ''))
+    expect(() => checkWebsiteExport({ directory })).toThrow('Missing SEO content: zh-CN')
   })
 
   it('rejects stale aliases and untrusted revision strings', () => {

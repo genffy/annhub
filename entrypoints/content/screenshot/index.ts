@@ -24,7 +24,7 @@ import MessageUtils from '../../../utils/message'
 import { screenshotFailureText, screenshotSaveErrorText, uiText } from '../../../utils/ui-text'
 import { newEntryId } from '../../../learning-core/assets'
 import { normalizeHost } from '../../../learning-core/normalize'
-import { extractPageMeta } from '../page-meta'
+import { extractPageMeta, resolvePermalink } from '../page-meta'
 import { isUserInput } from '../user-input'
 import type { CaptureVia, ResponseMessage } from '../../../types/messages'
 import type { ViewportRect } from './crop'
@@ -77,6 +77,7 @@ import {
   type HandleId,
 } from './selection'
 import { readFrame, rememberFrame, type FrameRecord } from './frame-memory'
+import { permalinkForRegion } from './permalink'
 import type { ExtensionSettings } from '../../../background-service/settings-schema'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -131,6 +132,8 @@ class ScreenshotSession {
   private toolbarResizeObserver: ResizeObserver | null = null
   private sourceCanvas: HTMLCanvasElement | null = null
   private elementRect: ViewportRect | null = null
+  /** Permalink of what the frame covered, resolved when the shot was taken. A live timeline can recycle the post while the user annotates. */
+  private capturedSourceUrl: string | null = null
   private maskBoxes: ViewportRect[] = []
   private annotations: Annotation[] = []
   /** What undo goes back to, one entry per editing step: the annotations, and the sequence badges counted in, before it (screenshot.md §1.1). */
@@ -526,6 +529,32 @@ class ScreenshotSession {
     const box = this.selection
     if (!box) return false
     return x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height
+  }
+
+  private pageUrl(): string {
+    return this.doc.defaultView?.location.href ?? ''
+  }
+
+  /**
+   * Permalink for a dragged (or element-via-region) frame. Resolved before the
+   * shot, while the post is still the one on screen (capture.md §5).
+   */
+  private rememberRegionPermalink(rect: ViewportRect): void {
+    this.capturedSourceUrl = permalinkForRegion(rect, this.pageUrl(), (x, y) => this.elementsAt(x, y))
+  }
+
+  /** Permalink for an element shot: the block itself, same rule as a block clip. */
+  private rememberElementPermalink(node: Node): void {
+    this.capturedSourceUrl = resolvePermalink(node, this.pageUrl())
+  }
+
+  /** Page elements under a viewport point, clamped, through the confirm shield. */
+  private elementsAt(x: number, y: number): Element[] {
+    const view = this.doc.defaultView
+    if (!view) return []
+    const maxX = Math.max(0, view.innerWidth - 1)
+    const maxY = Math.max(0, view.innerHeight - 1)
+    return this.pageElementsFromPoint(Math.min(Math.max(0, x), maxX), Math.min(Math.max(0, y), maxY))
   }
 
   /** elementsFromPoint through the confirm shield, without leaving it down. */
@@ -988,6 +1017,7 @@ class ScreenshotSession {
   private async captureRegionMode(): Promise<void> {
     const selection = this.selection
     if (!selection) return
+    this.rememberRegionPermalink(selection)
     this.state = 'capturing'
     this.setConfirmShield(false)
     await this.settingsLoaded
@@ -1116,9 +1146,10 @@ class ScreenshotSession {
   private async captureElementMode(target: HTMLElement): Promise<void> {
     this.state = 'capturing'
     this.setConfirmShield(false)
+    const element = this.resolveCaptureTarget(target)
+    this.rememberElementPermalink(element)
     await this.settingsLoaded
     if (this.exited) return
-    const element = this.resolveCaptureTarget(target)
     try {
       this.croppedCanvas = await captureElement(element, this.anonymizeOn ? { anonymize: this.anonymizeParts } : {})
     } catch {
@@ -1623,7 +1654,7 @@ class ScreenshotSession {
           dataUrl,
           width: canvas.width,
           height: canvas.height,
-          sourceUrl: this.doc.defaultView!.location.href,
+          sourceUrl: this.capturedSourceUrl ?? this.pageUrl(),
           title: meta.title,
           ...(meta.author ? { author: meta.author } : {}),
           ...(meta.published ? { published: meta.published } : {}),

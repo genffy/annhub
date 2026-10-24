@@ -76,9 +76,11 @@ WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node ../scripts/smoke-website.mjs --l
 ```text
 app/[locale]/globals.css          设计令牌（亮色；.theme-dark 为暗色）与基础样式，令牌取自设计稿 css/tokens.css
 lib/copy/                         中英文文案。types.ts 是唯一的结构，zh-CN.ts 与 en.ts 逐项对应，缺一项就编译失败
-lib/site.ts                       生产域名（只给爬虫读的地址用）与统计令牌
+lib/site.ts                       生产域名（只给爬虫读的地址用）、统计令牌与扩展支持的最低 Chrome 版本
 lib/consent.ts                    什么时候加载统计、哪些国家先问：纯函数，utils/__tests__/website-consent.test.ts 覆盖
 app/sitemap.ts                    站点地图：两个语言页与两个法律页
+app/llms.txt/route.ts             构建时写出 /llms.txt，内容由 lib/llms-txt.ts 从英文文案生成
+lib/structured-data.ts            语言页的结构化数据：FAQPage 与 SoftwareApplication
 public/robots.txt                 全部放行、内容信号与站点地图的地址
 components/landing/               页面的各个区块（hero、问题、三种方式、走查、资料库、取舍、隐私、FAQ、收束）与统计同意卡片
 components/product/               扩展界面的复刻：选区菜单、剪藏提示、区块胶囊、截图、资料库、阅读视图与高亮、属性、导出
@@ -88,6 +90,7 @@ components/product/sample.ts      示例数据，取自 docs/product/examples.md
 
 - **界面复刻不是截图**。设计稿里的界面用 React 和 CSS 重画，页面上标注“界面示意”。真实构建的截图（[蓝图 §16](../docs/product/website.md)）就绪后再替换；替换前不要把它们描述成公开构建的截图。
 - **站点地图的日期跟着内容走**：语言页的 `lastmod` 取 `lib/copy/*` 里的 `meta.updated`，文案或结构化数据有实质改动时改成当天；法律页取页面上写明的更新日期（[seo-geo.md §3.5](../docs/product/seo-geo.md)）。
+- **结构化数据与 `llms.txt` 不另写文字**：两者都从 `lib/copy/*` 取页面的描述与正文，链接取 `components/landing/links.ts` 与 `lib/site.ts`（[seo-geo.md §1、§5](../docs/product/seo-geo.md)）。`lib/site.ts` 的 `MIN_CHROME_VERSION` 与扩展 `wxt.config.ts` 的 `minimum_chrome_version` 一致，`npm run check:consistency` 核对；内容由 `utils/__tests__/website-search.test.ts` 核对，构建产物和线上版本由导出检查与冒烟检查核对。
 - **界面里的字符串跟扩展一致**：`lib/copy/*` 里的 `ui` 取自扩展的 `utils/ui-text.ts`，设计稿或扩展改了文案，这里同步。
 - **设计稿变了，先改移植的那份 CSS 和组件**，再看页面。选区菜单、剪藏胶囊这类浮层锚定在被选中的文字或区块上，不写死像素，字体回退或换行变了也不会错位；必须按像素摆放的场景（整个截图会话、整张浏览器窗口）用 `Fit` 缩放。
 - **悬停和聚焦只改外观，不改尺寸**。设计稿用固定的 `.hov` 类画“悬停中”的静态状态，移植成真正的 `:hover` 时，如果靠 `display` 让操作按钮出现，就多出一列、文字重新换行，那一行和它下面所有行的高度都会在指针下变化。条目行的操作区始终占位，隐藏时只改 `visibility`；`:hover`、`:focus` 规则只能改背景、颜色、阴影这类绘制属性，`utils/__tests__/website.test.ts` 核对这一点。
