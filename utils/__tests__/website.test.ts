@@ -60,6 +60,8 @@ describe('links inside the site', () => {
 describe('the install entry', () => {
   // The site, the README and the product docs send people to one store listing. A second address, or one with tracking
   // parameters, is a link the docs did not ask for (docs/product/website.md §4).
+  const storeAddresses = (file: string) => readFileSync(file, 'utf8').match(/https:\/\/chromewebstore\.google\.com[^\s)"'`]*/g) ?? []
+
   it('is the listing in the product docs, with no parameters', () => {
     const id = /扩展 ID `([a-p]{32})`/.exec(read('docs/product/permissions.md'))?.[1]
     expect(STORE_URL).toBe(`https://chromewebstore.google.com/detail/${id}`)
@@ -69,13 +71,12 @@ describe('the install entry', () => {
 
   it('is the only store address in the site, the README and the product docs', () => {
     const files = [...sources, join(root, 'README.md'), join(root, 'docs/product/permissions.md')]
-    const addresses = new Set(files.flatMap(file => readFileSync(file, 'utf8').match(/https:\/\/chromewebstore\.google\.com[^\s)"'`]*/g) ?? []))
-    expect([...addresses]).toEqual([STORE_URL])
+    expect([...new Set(files.flatMap(storeAddresses))]).toEqual([STORE_URL])
   })
 
-  it('is written in one place in the site', () => {
-    const writers = sources.filter(file => readFileSync(file, 'utf8').includes('chromewebstore.google.com')).map(file => relative(root, file))
-    expect(writers).toEqual(['website/components/landing/links.ts'])
+  it('is written once in the site', () => {
+    const writes = sources.flatMap(file => storeAddresses(file).map(() => relative(root, file)))
+    expect(writes).toEqual(['website/components/landing/links.ts'])
   })
 })
 
