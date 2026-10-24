@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Media Post — capture fixture</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: sans-serif;
+        background: #fff;
+        color: #20252b;
+      }
+      article.post {
+        max-width: 640px;
+        margin: 16px auto;
+        padding: 12px;
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+      }
+      .meta {
+        color: #536471;
+        font-size: 14px;
+      }
+      video {
+        display: block;
+        width: 616px;
+        height: 346px;
+        background: #000;
+        border-radius: 12px;
+      }
+      /* a scroll-snap carousel like X's photo strip: the visible slide is
+         chosen by scrollLeft, which a style-copying rasterizer loses */
+      .carousel {
+        margin-top: 12px;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-behavior: auto;
+        scrollbar-width: none;
+        border-radius: 12px;
+      }
+      .carousel::-webkit-scrollbar {
+        display: none;
+      }
+      .strip {
+        display: flex;
+        width: max-content;
+      }
+      .slide {
+        flex: none;
+        width: 640px;
+        height: 400px;
+      }
+      .spacer {
+        height: 80px;
+        margin-top: 12px;
+        background: #f3f4f6;
+      }
+    </style>
+  </head>
+  <body>
+    <article class="post" data-testid="tweet">
+      <div class="meta">@fieldnotes · 3h</div>
+      <p>Frame-checking the capture path against a live video and a scrolled carousel.</p>
+      <video id="stream-video" muted playsinline></video>
+      <div class="carousel" id="carousel">
+        <div class="strip">
+          <div class="slide" id="slide-1" style="background: #e11d48"></div>
+          <div class="slide" id="slide-2" style="background: #16a34a"></div>
+          <div class="slide" id="slide-3" style="background: #2563eb"></div>
+        </div>
+      </div>
+      <div class="spacer">below the media</div>
+      <a href="/status/1748113900123456789" data-testid="post-permalink"><time datetime="2026-10-07T09:30:00Z">9:30</time></a>
+    </article>
+    <script>
+      // A video whose frames the page fully controls: an amber canvas stream.
+      // drawImage can read it (no taint), and a serialized <video> in the
+      // rasterizer has no frame at all — the black-box shape of issue #102.
+      const canvas = document.createElement('canvas')
+      canvas.width = 1232
+      canvas.height = 692
+      const ctx = canvas.getContext('2d')
+      ctx.fillStyle = '#f59e0b'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+      ctx.fillStyle = '#111827'
+      ctx.fillRect(80, 80, 200, 200)
+      const video = document.getElementById('stream-video')
+      video.srcObject = canvas.captureStream(2)
+      video.play()
+      // the carousel rests on its second slide, like a post seen after Next
+      document.getElementById('carousel').scrollLeft = 640
+    </script>
+  </body>
+</html>
