@@ -554,7 +554,9 @@ class ScreenshotSession {
     if (!isUserInput(e)) return
     if (this.isShotChrome(e.target)) return
     // Inside the pending frame: not a new selection, and not a click for the page.
-    if (this.state === 'confirming' && this.pointerInSelection(e.clientX, e.clientY)) {
+    // An armed element pick is the click-element path — it keeps working even
+    // inside the frame and replaces it (screenshot.md §1.2「单击元素的路径不变」).
+    if (this.state === 'confirming' && this.pointerInSelection(e.clientX, e.clientY) && !this.hoverOutlineEl) {
       e.preventDefault()
       e.stopPropagation()
       return
