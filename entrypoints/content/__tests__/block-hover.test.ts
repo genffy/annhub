@@ -303,6 +303,74 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
   })
 })
 
+describe('capsule placement stays inside the block (capture.md §6.2)', () => {
+  const CAPSULE_WIDTH = 164 // half of this, 82px, is the overflow measured at 110% zoom
+  const CAPSULE_HEIGHT = 36
+
+  function mockCapsuleBox(): void {
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute('data-ann-ui') === 'block-capsule' ? CAPSULE_WIDTH : 0
+    })
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute('data-ann-ui') === 'block-capsule' ? CAPSULE_HEIGHT : 0
+    })
+  }
+
+  async function showCapsule(clientX: number, clientY: number): Promise<HTMLElement> {
+    const entries = new BlockEntries(document, hooksFor(true), gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX, clientY }))
+    await vi.advanceTimersByTimeAsync(450)
+    const capsule = document.querySelector('[data-ann-ui="block-capsule"]')
+    expect(capsule).toBeInstanceOf(HTMLElement)
+    return capsule as HTMLElement
+  }
+
+  it('keeps a 164px capsule inside the post, including the 82px that used to hang off at 110% zoom', async () => {
+    vi.useFakeTimers()
+    mockCapsuleBox()
+    document.body.innerHTML = `<article data-testid="tweet" id="post"><p id="body">${LONG}</p></article><div id="sidebar"><h2>Today's News</h2></div>`
+    const post = document.getElementById('post')!
+    // right edge 840, directly beside the sidebar
+    post.getBoundingClientRect = () => new DOMRect(280, 120, 560, 320)
+    const body = document.getElementById('body')!
+    document.elementFromPoint = vi.fn(() => body)
+    const capsule = await showCapsule(400, 200)
+    const left = Number.parseFloat(capsule.style.left)
+    const right = left + CAPSULE_WIDTH
+    expect(right).toBeLessThanOrEqual(840)
+    expect(right).toBeGreaterThan(840 - 16)
+    // the old corner-centered placement ended at 840 + 82
+    expect(right).toBeLessThan(840 + 82)
+    expect(left).toBeGreaterThanOrEqual(280)
+  })
+
+  it('moves off a top-right control and keeps the capsule inside the post right edge', async () => {
+    vi.useFakeTimers()
+    mockCapsuleBox()
+    document.body.innerHTML = `<article data-testid="tweet" id="post"><p id="body">${LONG}</p><button id="caret" type="button">More</button></article>`
+    const post = document.getElementById('post')!
+    post.getBoundingClientRect = () => new DOMRect(280, 120, 560, 320)
+    const body = document.getElementById('body')!
+    const caret = document.getElementById('caret')!
+    caret.getBoundingClientRect = () => new DOMRect(800, 124, 34, 32)
+    document.elementFromPoint = vi.fn((x: number, y: number) => {
+      const overCaret = x >= 800 && x <= 834 && y >= 124 && y <= 156
+      return overCaret ? caret : body
+    })
+    const capsule = await showCapsule(400, 200)
+    const left = Number.parseFloat(capsule.style.left)
+    const top = Number.parseFloat(capsule.style.top)
+    const right = left + CAPSULE_WIDTH
+    const bottom = top + CAPSULE_HEIGHT
+    expect(right).toBeLessThanOrEqual(840)
+    expect(left).toBeGreaterThanOrEqual(280)
+    const overlapsCaret = right > 800 && left < 834 && bottom > 124 && top < 156
+    expect(overlapsCaret).toBe(false)
+  })
+})
+
 describe('↓ at the innermost level enters the unit, one level at a time (真机走查 P2-1)', () => {
   it('goes to the section inside the article before the code inside the section, and ↑ walks back out the same way', () => {
     document.body.innerHTML = NESTED

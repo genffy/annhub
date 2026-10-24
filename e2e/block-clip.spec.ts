@@ -74,6 +74,43 @@ test.describe('block clip (capture.md §6.2)', () => {
     expect(overlap).toBe(false)
   })
 
+  test('the capsule stays inside a timeline post and off the sidebar', async ({ page }) => {
+    // Browser zoom keeps the capsule and the post in the same CSS pixels, so 110%
+    // does not change this geometry. A 164px capsule (the width whose half is the
+    // reported 82px) is covered in the unit test. The narrower viewport is the
+    // layout a 1280px window has at 110% zoom.
+    const overlaps = (a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }) =>
+      a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
+
+    const expectInside = async (hoverSelector: string, boundsSelector: string) => {
+      // A capsule already on screen satisfies hoverForCapsule immediately, before the
+      // 400ms dwell repaints it for the new target. Rest, then measure.
+      await page.locator(hoverSelector).hover()
+      await page.waitForTimeout(500)
+      const capsule = page.locator('[data-ann-ui="block-capsule"]')
+      await expect(capsule).toBeVisible()
+      const capsuleBox = (await capsule.boundingBox())!
+      const bounds = (await page.locator(boundsSelector).boundingBox())!
+      const sidebar = (await page.locator('#sidebar').boundingBox())!
+      const caret = (await page.locator('#caret').boundingBox())!
+      const overflow = capsuleBox.x + capsuleBox.width - (bounds.x + bounds.width)
+      expect(overflow).toBeLessThanOrEqual(1)
+      expect(capsuleBox.x).toBeGreaterThanOrEqual(bounds.x - 1)
+      expect(overlaps(capsuleBox, sidebar)).toBe(false)
+      expect(overlaps(capsuleBox, caret)).toBe(false)
+    }
+
+    for (const viewport of [
+      { width: 1280, height: 800 },
+      { width: 1164, height: 727 },
+    ]) {
+      await page.setViewportSize(viewport)
+      await page.goto('http://localhost:8173/timeline.html')
+      await expectInside('#body', '#post')
+      await expectInside('#media', '#media')
+    }
+  })
+
   test('an X post clips with its own status permalink', async ({ page }) => {
     await page.goto(getCapturePageUrl())
     const capsule = await hoverForCapsule(page, '[data-testid="tweet"] p')
