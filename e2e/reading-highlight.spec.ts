@@ -349,7 +349,7 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/read/ent_escape_rv_lib_14`)
     const reading = library.getByTestId('reading-view')
-    for (const word of ['gamma', 'epsilon', 'theta']) {
+    for (const [index, word] of ['gamma', 'epsilon', 'theta'].entries()) {
       // the middle of the word itself, not of the run that holds it: a run's middle can fall on a neighbour
       const center = await reading.locator('.md-view').evaluate((view, text) => {
         const walker = document.createTreeWalker(view, NodeFilter.SHOW_TEXT)
@@ -367,7 +367,10 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
       expect(center, `"${word}" is on screen`).not.toBeNull()
       await library.mouse.dblclick(center!.x, center!.y)
       await library.getByTestId('hl-toolbar').locator('.hl-dot-yellow').click()
-      await expect.poll(async () => (await getEntries(library.context()))[0]?.highlights?.length).toBe(['gamma', 'epsilon', 'theta'].indexOf(word) + 1)
+      // the store commits before the page has its reply, and the reply is what draws the mark and drops the selection:
+      // a double-click on the next word before it lands loses its selection and toolbar to it
+      await expect(reading.locator('.md-hl')).toHaveCount(index + 1)
+      await expect.poll(async () => (await getEntries(library.context()))[0]?.highlights?.length).toBe(index + 1)
       const highlights = (await getEntries(library.context()))[0]!.highlights as Array<{ start: number; end: number; quote: string }>
       const highlight = highlights.find(item => item.quote === word)!
       expect(content.slice(highlight.start, highlight.end)).toBe(word)
@@ -484,6 +487,10 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     await expect
       .poll(async () => ((await getEntries(library.context())).find(entry => entry.id === 'ent_keys')?.highlights as Array<{ quote: string }> | undefined)?.[0]?.quote)
       .toBe('Alpha beta')
+    // the store commits before the page has its reply, and the reply is what draws the mark and closes the toolbar:
+    // an Escape before it lands closes the toolbar (innermost first), not the view
+    await expect(reading.locator('.md-hl')).toHaveText('Alpha beta')
+    await expect(library.getByTestId('hl-toolbar')).toHaveCount(0)
     // and the next Escape leaves the view
     await library.keyboard.press('Escape')
     await expect(reading).toHaveCount(0)
