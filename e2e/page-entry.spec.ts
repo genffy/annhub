@@ -143,6 +143,15 @@ test.describe('child frames (capture.md §3)', () => {
     await page.mouse.up()
     const menu = frame.locator('[data-ann-ui="selection-menu"]')
     await expect(menu).toBeVisible()
+    const textBox = (await frame.locator('#frame-text').boundingBox())!
+    const menuBox = (await menu.boundingBox())!
+    // Both boxes are in the top page's coordinates. The menu is positioned in the
+    // frame's own viewport, so it stays next to the text instead of shifting by the iframe's page offset.
+    expect(menuBox.x).toBeLessThan(textBox.x + textBox.width)
+    expect(menuBox.x + menuBox.width).toBeGreaterThan(textBox.x)
+    const above = menuBox.y + menuBox.height <= textBox.y + 8
+    const below = menuBox.y >= textBox.y + textBox.height - 8
+    expect(above || below).toBe(true)
     await expect(menu.locator('.ann-menu-action')).toHaveCount(1)
     await expect(menu.locator('.ann-menu-clip')).toBeVisible()
     await expect(menu.locator('.ann-menu-shot')).toHaveCount(0)
