@@ -737,6 +737,146 @@
   border-radius: 4px;
 }
 
+/* 序号：28px 实心圆，圆心落在 left / top；描边与数字取与填充对比强的颜色（screenshot §1.1）。示意图和网页模拟一样始终是亮色 */
+.step-b {
+  position: absolute;
+  z-index: 6;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  box-sizing: border-box;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--fill);
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  font: 700 15px/1 var(--font-ui);
+}
+
+/* 选中：蓝色圆圈与“×”只在编辑界面上，不进入图片 */
+.step-ring {
+  position: absolute;
+  z-index: 7;
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  box-sizing: border-box;
+  border: 2px solid #4c91ff;
+  border-radius: 50%;
+}
+
+.step-ring .x {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4c91ff;
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+
+.step-ring .x .i {
+  width: 12px;
+  height: 12px;
+  stroke-width: 3;
+}
+
+/* 工具栏下方：下一个序号与“重置计数” */
+.shot-steps {
+  position: absolute;
+  z-index: 9;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 4px 4px 12px;
+  border-radius: 10px;
+  background: #1b1f2a;
+  color: #d5d9e6;
+  font-size: 12px;
+}
+
+.shot-steps .rs,
+.step-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.shot-steps .rs {
+  border: 1px solid rgb(255 255 255 / 0.22);
+  color: #e6e9f2;
+}
+
+.shot-steps .rs .i,
+.step-reset .i {
+  width: 13px;
+  height: 13px;
+}
+
+.step-pic {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px #e3e6ee;
+}
+
+.step-swatches {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.step-swatches i {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 6px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08);
+}
+
+.step-to {
+  position: absolute;
+  margin-left: -8px;
+  color: #9aa1b2;
+}
+
+.step-to .i {
+  width: 16px;
+  height: 16px;
+}
+
+.step-gone {
+  position: absolute;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  box-sizing: border-box;
+  border: 1.5px dashed #9aa1b2;
+  border-radius: 50%;
+}
+
+.step-reset {
+  position: absolute;
+  margin-top: -12px;
+  margin-left: -14px;
+  border: 1px solid #d9dde6;
+  background: #f3f4f8;
+  color: #4b5563;
+}
+
 .elhi {
   position: absolute;
   z-index: 6;

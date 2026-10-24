@@ -1,4 +1,4 @@
-import { ArrowUpRight, Check, Circle, ClipboardCopy, Download, Grid2X2, Palette, Pencil, RectangleHorizontal, RotateCcw, Type, X } from 'lucide-react'
+import { ArrowUpRight, Check, Circle, ClipboardCopy, Download, Grid2X2, ListOrdered, ListRestart, Palette, Pencil, RectangleHorizontal, RotateCcw, Type, X } from 'lucide-react'
 import { uiText } from '../../../utils/ui-text'
 import type { ScreenshotTool } from './editor'
 
@@ -9,9 +9,11 @@ const tools = [
   { id: 'pen', labelKey: 'shot.tool.pen', Icon: Pencil },
   { id: 'mosaic', labelKey: 'shot.tool.mosaic', Icon: Grid2X2 },
   { id: 'text', labelKey: 'shot.tool.text', Icon: Type },
+  { id: 'step', labelKey: 'shot.tool.step', Icon: ListOrdered },
 ] as const
 
-const colors = [
+/** The five annotation colours (screenshot.md §1.1); every tool, the step badges included, draws in one of them. */
+export const ANNOTATION_COLORS = [
   { value: '#e5484d', name: 'red' },
   { value: '#f6c453', name: 'yellow' },
   { value: '#147d72', name: 'teal' },
@@ -24,6 +26,8 @@ interface Props {
   color: string
   maskCount: number
   canUndo: boolean
+  /** the number the step tool puts down next */
+  nextStep: number
   /** whether the beautify panel is open */
   beautifyOpen: boolean
   busy: boolean
@@ -32,6 +36,7 @@ interface Props {
   onColor: (color: string) => void
   onRemoveMask: (index: number) => void
   onUndo: () => void
+  onResetSteps: () => void
   onBeautify: () => void
   onCopy: () => void
   onDownload: () => void
@@ -63,7 +68,7 @@ export function ScreenshotToolbar(props: Props) {
           })}
           <span className="ann-shot-divider" />
           <div className="ann-shot-colors" aria-label={uiText('shot.colors')}>
-            {colors.map(({ value, name }) => {
+            {ANNOTATION_COLORS.map(({ value, name }) => {
               const label = uiText(`shot.color.${name}`)
               return (
                 <button
@@ -140,6 +145,15 @@ export function ScreenshotToolbar(props: Props) {
           </button>
         </div>
       </div>
+      {props.tool === 'step' && (
+        <div className="ann-shot-steps" data-ann-ui="screenshot-steps">
+          <span data-ann-ui="screenshot-step-next">{uiText('shot.step.next', { number: props.nextStep })}</span>
+          <button type="button" data-ann-ui="screenshot-step-reset" disabled={props.nextStep === 1 || props.busy} onClick={props.onResetSteps}>
+            <ListRestart size={14} aria-hidden="true" />
+            {uiText('shot.step.reset')}
+          </button>
+        </div>
+      )}
       {props.maskCount > 0 && (
         <div className="ann-shot-masks" aria-label={uiText('shot.masks')}>
           {Array.from({ length: props.maskCount }, (_, index) => (

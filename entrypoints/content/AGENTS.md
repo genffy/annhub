@@ -1,7 +1,7 @@
 # Content Script 约定
 
 > 适用于当前 `entrypoints/content/` 实现；不是未来 monorepo 的目标划分。全局规则见根目录 `AGENTS.md`。
-> 更新：2026-10-23。
+> 更新：2026-10-24。
 
 ## 职责与入口
 
@@ -31,10 +31,11 @@
 - 美化面板的摆放由 `placePanel` 算：预览旁边（先右后左），放不下再放工具栏下方、预览上方；原位仍然清爽就不挪，不盖住预览与工具栏，不出窗口。预览按 `previewBox` 在选区周围长大，超出视口时缩小，工具栏跟着挪；复制与下载仍是完整像素。尺寸标签由 `placeSizeLabel` 放：预览左上角外侧，上方放不下或被工具栏占着就放下方，再不行放进左上角内侧（`SIZE_LABEL_ROOM` 是它在上方要的地方，也是预览离窗口顶的最小距离，两处必须是同一个数）；它 `pointer-events: none`，放进图里也不挡画标注。面板打开时键盘落在它的第一个控件上，`Esc` 先关面板（焦点回美化按钮），再次按下才取消会话。预览出现时键盘落在工具栏的第一个按钮上：工具栏是 React 根，第一次渲染用 `flushSync` 同步提交——React 19 的 `createRoot().render()` 可能晚于下一帧才提交，找按钮的那一帧就扑空，焦点留在页面上（`e2e/screenshot-capture.spec.ts` 连开 6 次预览守着）。
 - 水印（screenshot.md §4.3、§5）的排版与绘制也只有一份实现，在 `screenshot/output.ts`：`watermarkLayout` 排版（图片在前、文字在后，整行贴着所选的角；只有文字时保持原来的锚点，不量字宽），`paintWatermark` 绘制，设置页的预览与它共用 `watermarkBox`。`enabled` 是唯一的开关，图片和文字只是内容：关着时不解码、不画，`W` 也不出现；`W` 同时开关图片与文字，只影响这一次。图片在会话拿到设置时解码一次（`decodeWatermarkImage`，用 `HTMLImageElement.decode()`：设置校验只看 PNG 签名和大小，“头是对的、内容坏了”的文件要靠解码才发现），之后 `refreshDisplay` 同步地画。解码在拖拽选区期间就结束了；预览已经出来时才结束，就补画一次。读不出来是 `null`：只画文字，不抛错也不写日志（§5）。文字的墨色随背景明暗换（`onDark`），图片按原样画、不换色；两者共用同一个 `globalAlpha`，画完复位。水印只画在 `displayCanvas` 上，入库存的 `croppedCanvas` 从不带水印，所以预览、复制与下载是同一份像素。设置页预览同样调用 `paintWatermark` 画图片与文字，改画法时只改这一份，不在设置页另抄一份。
 - 文字标注框的所有关闭路径——`Enter`、`Esc`、点别处、开下一个框——都走 `commitText`：已输入的文字变成标注，空框不留标注。它先清 `textInput` 再 `remove()`：Chrome 在移除有焦点的元素时同步触发 `blur`，顺序反了会重入，外层的 `remove()` 抛“节点已不是子节点”的 DOMException（`e2e/screenshot-beautify.spec.ts` 守着，页面抛错会让用例失败）。
+- 序号（screenshot.md §1.1）是标注的一种（`StepAnnotation`），和其他标注在同一个数组里、由同一个 `renderScreenshot` 画，不另开绘制路径。数字不存：`stepNumbers` 按放下的顺序在同一组（`sequence`）里现数，所以删掉一个，后面的自动前移；“重置计数”只把会话的 `stepSequence` 加一。撤销栈存快照（标注数组加 `stepSequence`），画上、写下、放下、拖动、删除与重置都经 `commit` 进栈，`undo` 整体还原；按住拖动时只重画，松开才 `commit`。选中只是会话的 `selectedStep` 加一个 DOM 圆圈（`screenshot-step-selection`，里面是“×”），不画进任何画布；`shownStep` 只在工具是序号、没有按住、徽章还在标注里时才算选中，撤销拿走的徽章不会留下圆圈。大小、命中、贴边与墨色都在 `editor.ts`（`stepRadius`、`stepAt`、`clampStep`、`stepInk`），随 `capturedDpr` 缩放，会话只接线。
 - 会话期间在 capture 阶段吞掉可信的 `click`/`dblclick`/`auxclick`/`contextmenu`/`submit`（扩展自己的界面内除外，进入预览后恢复）：取消 `pointerdown` 挡不住随后的 `click`，不吞的话单击选取链接会真的跳转（`e2e/page-entry.spec.ts` 守着）。
 - 匿名默认值与范围（头像、名字与账号，screenshot.md §3）来自设置（`GET_SETTINGS`）。区块胶囊的截图与会话同时开始、选区菜单交来的取景框可以立刻确认，所以每条截取路径都先等设置到达（`settingsLoaded`），状态在等待之前就置为 `capturing`，防止重复确认截两次。`A` 在截取之前（`selecting`、`confirming`）切换；用户按过 `A`，迟到的设置不再覆盖；两种都关时不显示也不响应 `A`。身份元素的种类只由 `detect.ts` 的 `identityPartOf` 判定，区域覆盖、克隆匿名与马赛克预填都经 `identityElements` 取元素，不各自筛选。`Esc` 先关最里面的一层：文字输入框，其次美化面板，最后才取消会话。
 
 ## 验证
 
 - 改转换、识别、菜单或胶囊：跑 `npx vitest run`（相关单测）并构建后跑对应 E2E（`e2e/selection-clip.spec.ts`、`e2e/block-clip.spec.ts`、`e2e/screenshot-capture.spec.ts`、`e2e/page-entry.spec.ts`、`e2e/page-shapes.spec.ts`）。`page-shapes` 用平铺文档、div 汤、Docusaurus、长文（标题直接在 `main` 里、引言占满窗口、图里有代码）、带 meta 的文章、各类内容形状和页面界面类名的夹具，在真实浏览器里验识别与转换；转换器的转义约定还要跑 `learning-core/__tests__/fixtures/page-text.ts` 的共享夹具（`__tests__/markdown.test.ts` 里）。
-- 改截图链路先跑 `entrypoints/content/screenshot/__tests__`；改美化、标注或预览布局后跑 `e2e/screenshot-beautify.spec.ts`（在预览、剪贴板和入库图片的像素上断言）；改水印的排版、解码或 `W` 后跑 `e2e/screenshot-watermark.spec.ts`（同样读像素，再加下载的 data URL；水印图片是测试里现编的 PNG，经 `setSettings` 播种，读不出来的那张是“PNG 签名 + 垃圾”，能通过设置校验却解码失败）；改选区确认、吸附、手柄、层级或取景框记忆后跑 `e2e/screenshot-frame.spec.ts`（改源码必须 `rm -rf .output/chrome-mv3 && npm run build` 再测，`.output` 不随源码变化重建）。
+- 改截图链路先跑 `entrypoints/content/screenshot/__tests__`；改美化、标注或预览布局后跑 `e2e/screenshot-beautify.spec.ts`（在预览、剪贴板和入库图片的像素上断言）；改水印的排版、解码或 `W` 后跑 `e2e/screenshot-watermark.spec.ts`（同样读像素，再加下载的 data URL；水印图片是测试里现编的 PNG，经 `setSettings` 播种，读不出来的那张是“PNG 签名 + 垃圾”，能通过设置校验却解码失败）；改序号后跑 `e2e/screenshot-steps.spec.ts`（读预览、三种格式的下载、剪贴板与入库图片的像素，并造下载与保存的失败）；改选区确认、吸附、手柄、层级或取景框记忆后跑 `e2e/screenshot-frame.spec.ts`（改源码必须 `rm -rf .output/chrome-mv3 && npm run build` 再测，`.output` 不随源码变化重建）。

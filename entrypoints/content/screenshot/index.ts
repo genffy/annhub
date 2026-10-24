@@ -36,7 +36,7 @@ import { createElement } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
 import { ScreenshotToolbar } from './toolbar'
-import { renderScreenshot, type Annotation, type Point, type ScreenshotTool } from './editor'
+import { clampStep, nextStepNumber, renderScreenshot, stepAt, stepNumbers, stepRadius, type Annotation, type Point, type ScreenshotTool, type StepAnnotation } from './editor'
 import {
   applyBeautifyChange,
   BEAUTIFY_BACKGROUNDS,
@@ -133,6 +133,15 @@ class ScreenshotSession {
   private elementRect: ViewportRect | null = null
   private maskBoxes: ViewportRect[] = []
   private annotations: Annotation[] = []
+  /** What undo goes back to, one entry per editing step: the annotations, and the sequence badges counted in, before it (screenshot.md §1.1). */
+  private history: Array<{ annotations: Annotation[]; stepSequence: number }> = []
+  /** The sequence the next badge counts in; 重置计数 starts the next one. */
+  private stepSequence = 0
+  /** The badge the step tool last pressed: the ring and its × mark it, and Delete or Backspace removes it. */
+  private selectedStep: StepAnnotation | null = null
+  /** A badge is under the pointer, being put down or dragged; the ring waits until it is let go. */
+  private stepHeld = false
+  private stepRingEl: HTMLDivElement | null = null
   private tool: ScreenshotTool = null
   private color = '#e5484d'
   private busy = false
@@ -209,6 +218,11 @@ class ScreenshotSession {
     if (this.state === 'preview' && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c' && !this.textInput) {
       e.preventDefault()
       void this.copyCurrent()
+      return
+    }
+    if (this.state === 'preview' && (e.key === 'Delete' || e.key === 'Backspace') && !this.textInput && this.shownStep()) {
+      e.preventDefault()
+      this.deleteSelectedStep()
       return
     }
     // `A` works until the shot is taken: a pending frame (a released drag, the
@@ -312,6 +326,12 @@ class ScreenshotSession {
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks span { display: flex; align-items: center; gap: 3px; padding: 2px 5px; background: var(--annov-chip-bg, #edf0f2); border-radius: 3px; font: 11px/1.2 -apple-system, sans-serif; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks button { display: grid; place-items: center; padding: 0; border: 0; background: none; cursor: pointer; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-notice { padding: 4px 6px 2px; font: 12px/1.3 -apple-system, sans-serif; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps { display: flex; align-items: center; gap: 8px; padding: 5px 2px 1px; font: 12px/1.3 -apple-system, sans-serif; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 1px solid var(--annov-input-border, #aeb6bd); border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button:hover:not(:disabled) { background: var(--annov-tool-hover-bg, #e7f1f0); color: var(--annov-tool-hover-text, #126f65); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button:disabled { opacity: .45; cursor: default; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-step-ring { position: absolute; z-index: 1; box-sizing: border-box; border: 2px solid #4c91ff; border-radius: 50%; pointer-events: none; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-step-ring button { position: absolute; top: -10px; right: -10px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: #4c91ff; color: #fff; font: 600 15px/1 -apple-system, sans-serif; cursor: pointer; pointer-events: auto; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100vw - 32px)); min-height: 70px; padding: 18px; border: 0; border-radius: 5px; box-shadow: 0 8px 28px rgba(0,0,0,.28); font: 14px/1.5 -apple-system, sans-serif; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel button { margin-top: 12px; padding: 5px 12px; border: 1px solid var(--annov-input-border, #cbd5e1); border-radius: 4px; background: var(--annov-surface, #fff); cursor: pointer; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error { color: var(--annov-danger, #b91c1c); }
@@ -1150,6 +1170,9 @@ class ScreenshotSession {
     // itself, which saving takes and every redraw starts over from
     this.displayCanvas = this.doc.createElement('canvas')
     this.annotations = []
+    this.history = []
+    this.stepSequence = 0
+    this.selectedStep = null
     this.renderEditor()
   }
 
@@ -1193,8 +1216,9 @@ class ScreenshotSession {
     panel.setAttribute(ROOT_ATTR, 'screenshot-preview')
     const size = this.doc.createElement('span')
     size.className = 'ann-shot-size'
-    panel.append(size, display)
+    panel.append(size, display, this.createStepRing())
     display.addEventListener('pointerdown', this.onCanvasPointerDown)
+    display.addEventListener('pointermove', this.onCanvasHover)
     this.host.appendChild(panel)
     this.previewEl = panel
 
@@ -1235,6 +1259,7 @@ class ScreenshotSession {
     this.positionToolbar()
     this.positionSizeLabel()
     this.positionBeautifyPanel()
+    this.positionStepRing()
   }
 
   /** The size label goes where the toolbar is not: above the picture, else below it, else inside its corner. */
@@ -1269,12 +1294,17 @@ class ScreenshotSession {
         tool: this.tool,
         color: this.color,
         maskCount: this.maskBoxes.length,
-        canUndo: this.annotations.length > 0,
+        canUndo: this.history.length > 0,
+        nextStep: nextStepNumber(this.annotations, this.stepSequence),
         beautifyOpen: this.beautifyPanel !== null,
         busy: this.busy,
         notice: this.notice,
         onTool: tool => {
           this.tool = tool
+          // the selection belongs to the step tool: another tool, or none, lets it go
+          if (tool !== 'step') this.selectedStep = null
+          if (this.displayCanvas) this.displayCanvas.style.cursor = ''
+          this.positionStepRing()
           this.updateToolbar()
         },
         onColor: color => {
@@ -1287,6 +1317,7 @@ class ScreenshotSession {
           this.updateToolbar()
         },
         onUndo: () => this.undo(),
+        onResetSteps: () => this.resetSteps(),
         onBeautify: () => this.toggleBeautifyPanel(),
         onCopy: () => void this.copyCurrent(),
         onDownload: () => void this.downloadOnly(),
@@ -1296,16 +1327,29 @@ class ScreenshotSession {
     )
   }
 
-  private undo(): void {
-    if (this.annotations.pop()) {
-      this.renderEditor()
-      this.updateToolbar()
-    }
+  /** One editing step: what undo goes back to is kept, and the picture is drawn anew. */
+  private commit(annotations: Annotation[], stepSequence = this.stepSequence): void {
+    this.history.push({ annotations: this.annotations, stepSequence: this.stepSequence })
+    this.annotations = annotations
+    this.stepSequence = stepSequence
+    this.renderEditor()
+    this.updateToolbar()
   }
 
-  private renderEditor(draft?: Annotation): void {
+  /** Steps back one editing step: an annotation drawn or written, a badge put down, dragged or deleted, the count reset. */
+  private undo(): void {
+    const previous = this.history.pop()
+    if (!previous) return
+    this.annotations = previous.annotations
+    this.stepSequence = previous.stepSequence
+    this.renderEditor()
+    this.updateToolbar()
+  }
+
+  /** Draws the capture with its annotations — or with a draft of them while the pointer is still drawing. */
+  private renderEditor(annotations: Annotation[] = this.annotations): void {
     if (!this.croppedCanvas || !this.sourceCanvas) return
-    renderScreenshot(this.croppedCanvas, this.sourceCanvas, this.maskBoxes, draft ? [...this.annotations, draft] : this.annotations, this.capturedDpr)
+    renderScreenshot(this.croppedCanvas, this.sourceCanvas, this.maskBoxes, annotations, this.capturedDpr)
     this.refreshDisplay()
   }
 
@@ -1352,12 +1396,16 @@ class ScreenshotSession {
       this.openTextInput(this.canvasPoint(e), localPoint(this.displayCanvas!, e))
       return
     }
+    if (this.tool === 'step') {
+      this.pressStep(e)
+      return
+    }
     const start = this.canvasPoint(e)
     const draft: Annotation = { tool: this.tool, start, end: start, points: [start], color: this.color }
     const move = (ev: PointerEvent) => {
       draft.end = this.canvasPoint(ev)
       if (draft.tool === 'pen') draft.points.push(draft.end)
-      this.renderEditor(draft)
+      this.renderEditor([...this.annotations, draft])
     }
     const up = (ev: PointerEvent) => {
       cleanup()
@@ -1367,9 +1415,7 @@ class ScreenshotSession {
         this.renderEditor()
         return
       }
-      this.annotations.push(draft)
-      this.renderEditor()
-      this.updateToolbar()
+      this.commit([...this.annotations, draft])
     }
     const cleanup = () => {
       this.doc.removeEventListener('pointermove', move)
@@ -1424,9 +1470,133 @@ class ScreenshotSession {
     const value = input.value.trim()
     input.remove()
     if (!value) return
-    this.annotations.push({ tool: 'text', start: this.textAt, text: value, color: this.color })
-    this.renderEditor()
-    this.updateToolbar()
+    this.commit([...this.annotations, { tool: 'text', start: this.textAt, text: value, color: this.color }])
+  }
+
+  // ── step badges (screenshot.md §1.1) ──────────────────────────────
+
+  /**
+   * The step tool on the picture: a press on a badge selects it and drags it, anywhere else the next badge follows the
+   * pointer and is put down where it is let go. Each is one step for undo; a click that only selects is none.
+   */
+  private pressStep(e: PointerEvent): void {
+    const scale = this.capturedDpr
+    const size = { width: this.croppedCanvas!.width, height: this.croppedCanvas!.height }
+    const start = this.canvasPoint(e)
+    const pressed = stepAt(this.annotations, start, scale)
+    const badge: StepAnnotation = pressed ?? { tool: 'step', at: clampStep(start, size, scale), color: this.color, sequence: this.stepSequence }
+    // a pressed badge moves as far as the pointer does; a new one stays under the pointer
+    const grab = pressed ? { x: start.x - pressed.at.x, y: start.y - pressed.at.y } : { x: 0, y: 0 }
+    let placed = badge
+    const draft = (): Annotation[] => (pressed ? this.annotations.map(annotation => (annotation === pressed ? placed : annotation)) : [...this.annotations, placed])
+    const follow = (ev: PointerEvent) => {
+      const point = this.canvasPoint(ev)
+      placed = { ...badge, at: clampStep({ x: point.x - grab.x, y: point.y - grab.y }, size, scale) }
+    }
+    this.selectedStep = pressed
+    this.stepHeld = true
+    this.renderEditor(draft())
+    const move = (ev: PointerEvent) => {
+      follow(ev)
+      this.renderEditor(draft())
+    }
+    const up = (ev: PointerEvent) => {
+      cleanup()
+      follow(ev)
+      // a click on a badge only selects it, and a badge undo took away while it was held stays away
+      if (pressed && (Math.hypot(placed.at.x - pressed.at.x, placed.at.y - pressed.at.y) < 3 || !this.annotations.includes(pressed))) {
+        this.renderEditor()
+        return
+      }
+      if (pressed) this.selectedStep = placed
+      this.commit(draft())
+    }
+    const cancel = () => {
+      cleanup()
+      this.renderEditor()
+    }
+    const cleanup = () => {
+      this.stepHeld = false
+      this.doc.removeEventListener('pointermove', move)
+      this.doc.removeEventListener('pointerup', up)
+      this.doc.removeEventListener('pointercancel', cancel)
+      this.drawingCleanup = null
+    }
+    this.drawingCleanup = cleanup
+    this.doc.addEventListener('pointermove', move)
+    this.doc.addEventListener('pointerup', up)
+    this.doc.addEventListener('pointercancel', cancel)
+  }
+
+  /** Over a badge the step tool can drag, the pointer says so. */
+  private onCanvasHover = (e: PointerEvent): void => {
+    const display = this.displayCanvas
+    if (!display || !this.croppedCanvas || this.stepHeld || this.state !== 'preview') return
+    display.style.cursor = this.tool === 'step' && stepAt(this.annotations, this.canvasPoint(e), this.capturedDpr) ? 'move' : ''
+  }
+
+  /** The selected badge, while the step tool can act on it: on the picture, and not under the pointer. */
+  private shownStep(): StepAnnotation | null {
+    const step = this.selectedStep
+    return this.tool === 'step' && step && !this.stepHeld && this.annotations.includes(step) ? step : null
+  }
+
+  /** The ring that marks the selected badge, with the × that deletes it. It sits over the picture, never on it. */
+  private createStepRing(): HTMLDivElement {
+    const ring = this.doc.createElement('div')
+    ring.className = 'ann-shot-step-ring'
+    ring.setAttribute(ROOT_ATTR, 'screenshot-step-selection')
+    ring.style.display = 'none'
+    const remove = this.doc.createElement('button')
+    remove.type = 'button'
+    remove.textContent = '×'
+    remove.setAttribute(ROOT_ATTR, 'screenshot-step-delete')
+    remove.addEventListener('click', event => {
+      if (!isUserInput(event)) return
+      this.deleteSelectedStep()
+      // the button goes with its badge; the keyboard stays with the tool
+      this.toolbarEl?.querySelector<HTMLElement>('[data-ann-ui="screenshot-tool-step"]')?.focus()
+    })
+    ring.append(remove)
+    this.stepRingEl = ring
+    return ring
+  }
+
+  /** Puts the ring where the selected badge is on screen: the preview may pad the capture and scale it down. */
+  private positionStepRing(): void {
+    const ring = this.stepRingEl
+    const display = this.displayCanvas
+    const step = this.shownStep()
+    if (!ring) return
+    if (!step || !display || this.state !== 'preview') {
+      ring.style.display = 'none'
+      return
+    }
+    const box = display.getBoundingClientRect()
+    const kx = box.width / (display.width || 1)
+    const ky = box.height / (display.height || 1)
+    const radius = stepRadius(this.capturedDpr) * Math.max(kx, ky) + 4
+    const x = (step.at.x + this.contentOrigin.x) * kx
+    const y = (step.at.y + this.contentOrigin.y) * ky
+    Object.assign(ring.style, { display: 'block', left: `${x - radius}px`, top: `${y - radius}px`, width: `${radius * 2}px`, height: `${radius * 2}px` })
+    const label = uiText('shot.step.delete', { number: stepNumbers(this.annotations).get(step) ?? 1 })
+    const remove = ring.querySelector('button')!
+    remove.title = label
+    remove.setAttribute('aria-label', label)
+  }
+
+  /** Delete, Backspace or the ring's ×: the selected badge goes, and the badges after it in its sequence move up one. */
+  private deleteSelectedStep(): void {
+    const step = this.shownStep()
+    if (!step || this.busy) return
+    this.selectedStep = null
+    this.commit(this.annotations.filter(annotation => annotation !== step))
+  }
+
+  /** 重置计数: the next badge is 1, in a sequence of its own; the badges already down keep their numbers. */
+  private resetSteps(): void {
+    if (this.busy || nextStepNumber(this.annotations, this.stepSequence) === 1) return
+    this.commit(this.annotations, this.stepSequence + 1)
   }
 
   // ── the three destinations (screenshot.md §4) ─────────────────────
