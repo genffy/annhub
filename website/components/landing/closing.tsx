@@ -1,6 +1,6 @@
-import { ArrowRight } from 'lucide-react'
+import { ArrowRight, ArrowUpRight } from 'lucide-react'
 import type { LandingCopy } from '@/lib/copy'
-import { LIBRARY_URL, WORKFLOW_URL } from './links'
+import { LIBRARY_URL, STORE_URL } from './links'
 import { Container, SectionTitle } from './shared'
 
 export default function Closing({ copy }: { copy: LandingCopy }) {
@@ -24,10 +24,11 @@ export default function Closing({ copy }: { copy: LandingCopy }) {
               <ArrowRight size={17} aria-hidden="true" />
             </a>
             <a
-              href={WORKFLOW_URL}
-              className="inline-flex h-12 items-center whitespace-nowrap rounded-lg border border-line-2 px-5 text-[15px] font-semibold text-fg-2 transition-colors hover:border-brand hover:text-brand-text"
+              href={STORE_URL}
+              className="inline-flex h-12 items-center gap-2 whitespace-nowrap rounded-lg border border-line-2 px-5 text-[15px] font-semibold text-fg-2 transition-colors hover:border-brand hover:text-brand-text"
             >
-              {closing.secondary}
+              {closing.install}
+              <ArrowUpRight size={17} aria-hidden="true" />
             </a>
           </div>
         </div>

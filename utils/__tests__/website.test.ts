@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join, relative, resolve } from 'node:path'
+import { STORE_URL } from '../../website/components/landing/links'
 
 /**
  * Things about the website that only show up in a browser, and that came back more than once. A type check and the
@@ -19,13 +20,14 @@ function walk(dir: string, extensions: string[]): string[] {
   })
 }
 
+/** Everything the site is built from: code, styles, copy and the static pages. */
+const sources = ['app', 'components', 'i18n', 'lib', 'public'].flatMap(dir => walk(join(site, dir), ['.css', '.html', '.json', '.ts', '.tsx', '.txt']))
+
 describe('links inside the site', () => {
   // A production origin written into a link sends a visitor on localhost, a deploy preview or a branch to the live site,
   // which may still serve an older page: the terms of service looked "not updated" because the privacy page linked to
   // it by absolute URL. Links are paths. What crawlers read is the only place an origin belongs: the canonical links,
   // the one constant behind metadataBase and the sitemap, and the Sitemap line of robots.txt.
-  const sources = ['app', 'components', 'i18n', 'lib', 'public'].flatMap(dir => walk(join(site, dir), ['.css', '.html', '.json', '.ts', '.tsx', '.txt']))
-
   it('never hard-codes the production origin, except where crawlers read it', () => {
     const offenders = sources.flatMap(file =>
       readFileSync(file, 'utf8')
@@ -52,6 +54,28 @@ describe('links inside the site', () => {
     expect(read('website/public/terms-of-service.html')).toContain('<link rel="canonical" href="https://annhub.org/terms-of-service.html">')
     expect(read('website/lib/site.ts')).toContain("export const SITE_ORIGIN = 'https://annhub.org'")
     expect(read('website/app/[locale]/layout.tsx')).toContain('metadataBase: new URL(SITE_ORIGIN)')
+  })
+})
+
+describe('the install entry', () => {
+  // The site, the README and the product docs send people to one store listing. A second address, or one with tracking
+  // parameters, is a link the docs did not ask for (docs/product/website.md §4).
+  it('is the listing in the product docs, with no parameters', () => {
+    const id = /扩展 ID `([a-p]{32})`/.exec(read('docs/product/permissions.md'))?.[1]
+    expect(STORE_URL).toBe(`https://chromewebstore.google.com/detail/${id}`)
+    const url = new URL(STORE_URL)
+    expect(url.search + url.hash).toBe('')
+  })
+
+  it('is the only store address in the site, the README and the product docs', () => {
+    const files = [...sources, join(root, 'README.md'), join(root, 'docs/product/permissions.md')]
+    const addresses = new Set(files.flatMap(file => readFileSync(file, 'utf8').match(/https:\/\/chromewebstore\.google\.com[^\s)"'`]*/g) ?? []))
+    expect([...addresses]).toEqual([STORE_URL])
+  })
+
+  it('is written in one place in the site', () => {
+    const writers = sources.filter(file => readFileSync(file, 'utf8').includes('chromewebstore.google.com')).map(file => relative(root, file))
+    expect(writers).toEqual(['website/components/landing/links.ts'])
   })
 })
 

@@ -35,6 +35,8 @@ export interface LandingCopy {
   header: {
     nav: { id: SectionId; label: string }[]
     language: { label: string; href: string; aria: string }
+    /** The install entry, shown before `cta` from tablet width up (docs/product/website.md §4). */
+    install: string
     cta: string
     home: string
     skip: string
@@ -47,7 +49,7 @@ export interface LandingCopy {
     demo: string
     audience: string
     cta: string
-    secondary: string
+    install: string
     facts: string[]
     captions: { page: string; reader: string; library: string }
     sketch: string
@@ -98,9 +100,9 @@ export interface LandingCopy {
     title: string
     body: string
     primary: string
-    secondary: string
+    install: string
   }
-  footer: { line: string; library: string; github: string; privacy: string; terms: string; analytics: string; copyright: string; navLabel: string }
+  footer: { line: string; library: string; store: string; github: string; privacy: string; terms: string; analytics: string; copyright: string; navLabel: string }
   /** The analytics consent card (docs/product/website.md §19); the footer's `analytics` button reopens it. */
   consent: {
     label: string
