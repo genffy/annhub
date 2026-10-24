@@ -104,6 +104,7 @@ const ICONS = [
   'square',
   'circle',
   'move-up-right',
+  'slash',
   'pencil-line',
   'grid-3x3',
   'type',
