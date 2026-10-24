@@ -1,11 +1,43 @@
 import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
+import { setTimeout as delay } from 'node:timers/promises'
 import { pathToFileURL } from 'node:url'
 import { STORE_URL } from '../website/components/landing/links.ts'
 import { SITE_ORIGIN } from '../website/lib/site.ts'
 
-export async function smokeWebsite({ origin = SITE_ORIGIN, revision, edgeRules = true, fetcher = fetch } = {}) {
-  const get = (path, headers = {}) => fetcher(new URL(path, origin), { redirect: 'manual', headers, signal: AbortSignal.timeout(20_000) })
+const request = (fetcher, origin, path, headers = {}) => fetcher(new URL(path, origin), { redirect: 'manual', headers, signal: AbortSignal.timeout(20_000) })
+
+/**
+ * For a few seconds after `wrangler deploy` returns, Cloudflare is still switching versions: a page and the assets it names can
+ * come from different versions, so the page asks for a file the version serving it lacks. Wait until `/__deployment.json`
+ * reports `revision` on `reads` requests in a row, `interval` ms apart, and fail if that has not happened within `timeout` ms.
+ */
+export async function waitForRevision({ origin = SITE_ORIGIN, revision, fetcher = fetch, reads = 5, interval = 3_000, timeout = 120_000, sleep = delay, now = Date.now } = {}) {
+  const deadline = now() + timeout
+  let streak = 0
+  while (true) {
+    const reported = await reportedRevision(fetcher, origin)
+    streak = reported === revision ? streak + 1 : 0
+    if (streak === reads) return
+    if (now() + interval > deadline) throw new Error(`The live site did not settle on ${revision} within ${timeout / 1000} s; it last reported ${reported}`)
+    await sleep(interval)
+  }
+}
+
+/** The revision `/__deployment.json` reports, or what went wrong reading it. */
+async function reportedRevision(fetcher, origin) {
+  try {
+    const response = await request(fetcher, origin, '/__deployment.json')
+    return response.status === 200 ? String((await response.json()).revision) : `HTTP ${response.status}`
+  } catch (error) {
+    return String(error)
+  }
+}
+
+/** Every check runs once, after the live site has settled on `revision` (when one is given and `settle` is not false). */
+export async function smokeWebsite({ origin = SITE_ORIGIN, revision, edgeRules = true, fetcher = fetch, settle = {} } = {}) {
+  if (revision && settle) await waitForRevision({ origin, revision, fetcher, ...settle })
+  const get = (path, headers = {}) => request(fetcher, origin, path, headers)
   const checkRedirect = async (path, target, headers = {}, status) => {
     const response = await get(path, headers)
     if (status) assert.equal(response.status, status, `Unexpected redirect status: ${path}`)
@@ -57,6 +89,8 @@ export async function smokeWebsite({ origin = SITE_ORIGIN, revision, edgeRules =
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   const origin = process.env.WEBSITE_SMOKE_ORIGIN ?? SITE_ORIGIN
-  const result = await smokeWebsite({ origin, revision: process.env.GITHUB_SHA, edgeRules: !process.argv.includes('--local') })
+  const local = process.argv.includes('--local')
+  // A local preview serves one version from the start, so there is no rollout to wait for.
+  const result = await smokeWebsite({ origin, revision: process.env.GITHUB_SHA, edgeRules: !local, settle: local ? false : {} })
   console.log(`Website routes and assets verified (${result.revision}).`)
 }

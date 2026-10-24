@@ -84,6 +84,6 @@ WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node scripts/smoke-website.mjs --loca
 node scripts/smoke-website.mjs
 ```
 
-`--local` 验证页面、资源、导航数据、别名、默认跳转和 404；它不声称验证 Cloudflare zone 规则。单测覆盖规则生成、国家集合、规则同步对其他规则的保留和错误处理。线上脚本还检查语言 Cookie 优先级与查询串，CI 额外核对部署的 SHA。
+`--local` 验证页面、资源、导航数据、别名、默认跳转和 404；它不声称验证 Cloudflare zone 规则。单测覆盖规则生成、国家集合、规则同步对其他规则的保留和错误处理。线上脚本还检查语言 Cookie 优先级与查询串，CI 额外核对部署的 SHA。部署刚完成的几秒内 Cloudflare 仍在切换版本，页面和它引用的资源可能来自不同版本，所以 CI 先等 `/__deployment.json` 连续多次返回这个 SHA 再断言，限时内等不到就算失败；断言只跑一次，`--local` 不等待。
 
 需要暂停发布时将仓库变量 `CLOUDFLARE_DEPLOY_ENABLED` 设为 `false`。日常回退通过撤销问题提交并合入 main，重新经过同一套检查与发布；首次迁移需要退回原托管平台时，按切换前记录恢复 DNS 和路由。Cloudflare 版本回退不自动恢复 zone 规则，不能只回退静态文件就假定配置也一起恢复。
