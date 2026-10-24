@@ -53,7 +53,7 @@ npm run start
 
 官网由 GitHub Actions 构建，Cloudflare Workers Static Assets 托管。配置、首次上线、凭证权限和回滚见 [cloudflare/README.md](../cloudflare/README.md)。改配置前先读 [AGENTS.md「联动一致性」](../AGENTS.md#联动一致性强制)。
 
-- **一次构建**：CI 的 website 任务检查类型、Lint，生成静态文件并在 Wrangler 中检查路由；main 的生产产物以提交 SHA 命名、保留一天。`ci-pass` 成功后，部署任务下载同一次运行的产物，核对 SHA，上传并检查线上版本，不重新构建。
+- **一次构建**：CI 的 website 任务检查类型、Lint，生成静态文件并在 Wrangler 中检查路由；main 的生产产物以提交 SHA 命名、保留一天。`ci-pass` 成功后，部署任务下载同一次运行的产物，核对 SHA，上传，等线上稳定在这个 SHA 后再检查，不重新构建。
 - **部署开关**：仓库变量 `CLOUDFLARE_DEPLOY_ENABLED=true` 才启用自动发布。PR、合并队列、手动 CI 和扩展发布标签都只验证，不发布官网。部署使用标准 Linux runner，并串行执行；轮到发布时已被 main 新提交取代的任务会跳过。
 - **纯静态边界**：`next.config.js` 的 `output: 'export'`、`wrangler.json` 的 `assets.directory` 与 CI 上传目录一致。Wrangler 没有 `main` 脚本、不使用 `run_worker_first`，没有 Next.js 运行时、图片处理或请求函数。
 - **路径**：静态别名和响应头由 [scripts/website-static.mjs](../scripts/website-static.mjs) 在构建后写入产物。`/en`、`/zh-CN`、两种法律页地址可直接访问，未知路径返回 404。`html_handling` 为 `none`，避免平台自动去掉法律页规范地址的 `.html`。站内链接始终用路径；生产地址的内容真源是 `lib/site.ts`，法律页 canonical 和 robots 的 Sitemap 同步核对。
