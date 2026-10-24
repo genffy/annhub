@@ -153,6 +153,42 @@ describe('the screenshot session and input made up by the page', () => {
     expect(isScreenshotSessionActive()).toBe(false)
   })
 
+  it('captures the armed element pick for a click inside a pending frame (screenshot.md §1.2)', async () => {
+    const post = document.getElementById('post')!
+    let pageHits = 0
+    post.addEventListener('pointerdown', () => {
+      pageHits += 1
+    })
+    post.addEventListener('click', () => {
+      pageHits += 1
+    })
+
+    dragToConfirm()
+    await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
+
+    // jsdom has no hit test; lend it one so the resting pointer arms the element path
+    const realElementsFromPoint = document.elementsFromPoint?.bind(document)
+    document.elementsFromPoint = () => [post]
+    try {
+      aPerson = true
+      document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: 80, clientY: 80 }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).not.toBeNull()
+
+      // the click lands inside the pending frame, on the armed element: element path, not a dead click
+      const down = pointer('pointerdown', 80, 80)
+      post.dispatchEvent(down)
+      document.body.dispatchEvent(pointer('pointerup', 80, 80))
+      expect(down.defaultPrevented).toBe(true)
+      expect(pageHits).toBe(0) // the page still never sees it
+      await vi.waitFor(() => expect(captures()).toHaveLength(1))
+      expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).toBeNull()
+    } finally {
+      if (realElementsFromPoint) document.elementsFromPoint = realElementsFromPoint
+      else Reflect.deleteProperty(document, 'elementsFromPoint')
+    }
+  })
+
   it('still leaves confirming through Cancel or Confirm, and a press outside the frame starts a new selection', async () => {
     dragToConfirm()
     await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-btn"]')).not.toBeNull())
