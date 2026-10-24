@@ -8,6 +8,7 @@ export const en: LandingCopy = {
     title: 'AnnHub — Keep what’s worth keeping from the web in one local library',
     description: 'A local-first browser extension that keeps clips, highlights and screenshots with their source in one library, sorted by properties and exportable as Markdown.',
     ogImageAlt: 'Interface illustration with sample data',
+    operatingSystem: 'Desktop browsers based on Chromium {version} or later',
     updated: '2026-10-24',
   },
   header: {
