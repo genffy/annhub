@@ -88,7 +88,7 @@ DOM 匿名默认开启。区域截图在真实页面的身份元素上临时覆�
 
 确认入库时，在扩展 IndexedDB 的 `assets` 与 `entries` object store 中同事务保存处理后的 `Blob`、图片元数据和 `screenshot` 条目。保存失败不能显示成功，也不能仅因下载或复制成功就声称已入库；单独下载或复制失败不回滚已经成功的本地入库。入库统一使用 PNG 保持文字与图表细节，**入库的图片不带水印**：水印是对外分享时的署名，不是资料的一部分。从资料库重新下载得到的就是入库的图片。
 
-`screenshot` 条目：`content` 为空串，`assetId` 指向刚保存的图片，`sourceUrl` 是采集页面；`title` 默认取页面标题，用户可以补标题、标签、备注与属性（字段见 [entry.md §3](entry.md)）。
+`screenshot` 条目：`content` 为空串，`assetId` 指向刚保存的图片，`sourceUrl` 取所截内容自己的永久链接，解析不到时用采集页面的地址（[capture.md §5](capture.md)）；`title` 默认取页面标题，用户可以补标题、标签、备注与属性（字段见 [entry.md §3](entry.md)）。
 
 ### 4.2 复制与下载
 

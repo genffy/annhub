@@ -1,5 +1,15 @@
 import { test, expect } from './fixtures'
-import { clearLibrary, ensureServiceWorker, getAssetMetadata, getEntries, getScreenshotPageUrl, setSettings, triggerScreenshot } from './helpers'
+import {
+  clearLibrary,
+  ensureServiceWorker,
+  getAssetMetadata,
+  getCapturePageUrl,
+  getEntries,
+  getScreenshotPageUrl,
+  hoverForCapsule,
+  setSettings,
+  triggerScreenshot,
+} from './helpers'
 
 test.describe('screenshot capture (screenshot.md §1, §2)', () => {
   test.beforeEach(async ({ context }) => {
@@ -28,7 +38,7 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
 
     const entries = await getEntries(page.context())
     expect(entries).toHaveLength(1)
-    expect(entries[0]).toMatchObject({ type: 'screenshot', content: '', sourceHost: 'localhost' })
+    expect(entries[0]).toMatchObject({ type: 'screenshot', content: '', sourceHost: 'localhost', sourceUrl: page.url() })
     expect(String(entries[0]!.properties['title'])).toContain('Screenshot Capture Fixture')
 
     const assets = await getAssetMetadata(page.context())
@@ -213,6 +223,45 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
     })
     await page.waitForTimeout(400)
     await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
+  })
+
+  test('Shot of an X post records that post’s status permalink', async ({ page }) => {
+    await page.goto(getCapturePageUrl())
+    const post = page.locator('[data-testid="tweet"]')
+    await post.scrollIntoViewIfNeeded()
+    const capsule = await hoverForCapsule(page, '[data-testid="tweet"] p')
+    await capsule.getByRole('button', { name: '截图' }).click()
+    await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible()
+    await page.locator('[data-ann-ui="screenshot-save"]').click()
+    await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
+
+    const entries = await getEntries(page.context())
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.sourceUrl).toBe('http://localhost:8173/status/1748113923456')
+    expect(entries[0]!.properties['title']).toBe('Backoff and retry — capture fixture')
+  })
+
+  test('a region screenshot of an X post records that post’s status permalink', async ({ page }) => {
+    await page.goto(getCapturePageUrl())
+    const post = page.locator('[data-testid="tweet"]')
+    await post.scrollIntoViewIfNeeded()
+    await triggerScreenshot(page)
+    await expect(page.locator('[data-ann-ui="screenshot-session"]')).toBeVisible()
+
+    const box = (await post.boundingBox())!
+    await page.mouse.move(box.x + 8, box.y + 8)
+    await page.mouse.down()
+    await page.mouse.move(box.x + box.width - 8, box.y + box.height - 8, { steps: 6 })
+    await page.mouse.up()
+    await expect(page.locator('[data-ann-ui="shot-confirm-bar"]')).toBeVisible()
+    await page.keyboard.press('Enter')
+    await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible()
+    await page.locator('[data-ann-ui="screenshot-save"]').click()
+    await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
+
+    const entries = await getEntries(page.context())
+    expect(entries).toHaveLength(1)
+    expect(entries[0]!.sourceUrl).toBe('http://localhost:8173/status/1748113923456')
   })
 })
 

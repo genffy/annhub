@@ -169,15 +169,18 @@ function isValidDate(date: string): boolean {
 
 // ── Permalinks (capture.md §5) ──────────────────────────────────────────
 
+type PermalinkKind = 'post' | 'code' | 'table' | 'figure' | 'quote' | 'section' | 'article'
+
 /**
- * The source URL a clip records: the block's own permalink when there is
- * one, otherwise the page address. Platform rules (X posts, Medium
+ * The block's own permalink when a platform rule matches, otherwise
+ * undefined. Clips and screenshots both record this, falling back to the
+ * page address (`resolvePermalink`). Platform rules (X posts, Medium
  * articles) live here and nowhere else — new sites are added by appending
  * a rule, not by scattering hostname checks (capture.md §5).
  */
-export function resolvePermalink(node: Node | null, pageUrl: string, kind?: 'post' | 'code' | 'table' | 'figure' | 'quote' | 'section' | 'article'): string {
+export function ownPermalink(node: Node | null, pageUrl: string, kind?: PermalinkKind): string | undefined {
   const doc = node?.ownerDocument
-  if (!doc) return pageUrl
+  if (!doc) return undefined
 
   // X post: the permalink is the post's own status link
   const post = (node instanceof Element ? node : node?.parentElement)?.closest?.('article[data-testid="tweet"]')
@@ -208,7 +211,12 @@ export function resolvePermalink(node: Node | null, pageUrl: string, kind?: 'pos
     }
   }
 
-  return pageUrl
+  return undefined
+}
+
+/** `ownPermalink`, or the page address when no rule matches (capture.md §5). */
+export function resolvePermalink(node: Node | null, pageUrl: string, kind?: PermalinkKind): string {
+  return ownPermalink(node, pageUrl, kind) ?? pageUrl
 }
 
 /** Medium's own address for the article, when this page is a Medium article. */
