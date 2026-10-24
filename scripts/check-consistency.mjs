@@ -264,6 +264,22 @@ function checkCloudflare() {
   if (!commands.includes('devDependencies.wrangler')) fail(ciFile, 'deployment must read the pinned Wrangler version from website/package.json')
 }
 
+// --- Minimum Chrome version: the extension's manifest is the one source. -------------------------
+
+const minimumChrome = /minimum_chrome_version:\s*['"](\d+)['"]/.exec(read('wxt.config.ts') ?? '')?.[1]
+
+function checkMinimumChrome() {
+  if (nextApps.length === 0 || !exists('wxt.config.ts')) return
+  // The website's SoftwareApplication markup names the oldest Chrome the extension installs in (docs/product/seo-geo.md §5.2).
+  const file = `${nextApps[0].directory}/lib/site.ts`
+  const stated = /export const MIN_CHROME_VERSION = (\d+)\b/.exec(read(file) ?? '')?.[1]
+  if (stated !== minimumChrome)
+    fail(
+      file,
+      `MIN_CHROME_VERSION is ${stated ?? 'missing'}, but wxt.config.ts sets minimum_chrome_version to ${minimumChrome ?? 'nothing'}; the website states what the extension requires`,
+    )
+}
+
 // --- Package directories: every one needs updates and an audit. ----------------------------------
 
 /** The directories of the `npm` entries in a Dependabot config. */
@@ -380,6 +396,7 @@ checkNode()
 checkNext()
 checkTailwind()
 checkCloudflare()
+checkMinimumChrome()
 checkPackageDirectories()
 checkGate()
 
@@ -393,5 +410,5 @@ if (problems.length > 0) {
 
 const apps = nextApps.map(({ directory, json }) => `Next.js ${majorOf(dependenciesOf({ json }).next)} in ${normalizeDirectory(directory)}`)
 console.log(
-  `Settings agree: Node.js ${nodeMajor}; ${apps.join(', ') || 'no Next.js app'}; package directories ${manifests.map(({ directory }) => normalizeDirectory(directory)).join(', ')}.`,
+  `Settings agree: Node.js ${nodeMajor}; ${apps.join(', ') || 'no Next.js app'}; minimum Chrome ${minimumChrome ?? 'unset'}; package directories ${manifests.map(({ directory }) => normalizeDirectory(directory)).join(', ')}.`,
 )

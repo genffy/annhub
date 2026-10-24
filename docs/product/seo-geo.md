@@ -108,14 +108,14 @@
 
 ### 5.2 `SoftwareApplication`（增长阶段）
 
-| 属性                  | 取值                                                                                                     |
-| --------------------- | -------------------------------------------------------------------------------------------------------- |
-| `name`                | AnnHub                                                                                                   |
-| `description`         | 页面的描述（第 3.3 节）                                                                                  |
-| `applicationCategory` | `BrowserApplication`                                                                                     |
-| `operatingSystem`     | 桌面版 Chromium 内核浏览器，最低版本取自 [permissions.md §5](permissions.md)；不逐个列出浏览器或操作系统 |
-| `url`、`installUrl`   | 商店条目页（[permissions.md §6](permissions.md)）                                                        |
-| `sameAs`              | 商店条目页与 GitHub 仓库                                                                                 |
+| 属性                  | 取值                                                                                                                     |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `name`                | AnnHub                                                                                                                   |
+| `description`         | 页面的描述（第 3.3 节）                                                                                                  |
+| `applicationCategory` | `BrowserApplication`                                                                                                     |
+| `operatingSystem`     | 桌面版 Chromium 内核浏览器，最低版本取自 [permissions.md §5](permissions.md)，用页面的语言写；不逐个列出浏览器或操作系统 |
+| `url`、`installUrl`   | 商店条目页（[permissions.md §6](permissions.md)）                                                                        |
+| `sameAs`              | 商店条目页与 GitHub 仓库                                                                                                 |
 
 不写 `offers`（商业化见 [Q-07](validation.md)），不写 `aggregateRating` 与 `review`（没有真实评价，[website.md §12](website.md)）。Google 的软件应用富结果要求这些属性（[market.md §4.6](market.md)），所以这段标记只作语义层；Search Console 里相应的缺字段提示在预期之内。
 
@@ -129,8 +129,8 @@
 
 `llms.txt` 是社区提案，不是标准；Google 说明它对 Google 搜索不需要，也不影响排名（[market.md §4.6](market.md)）。它维护成本低，供愿意读取它的 AI 工具使用：
 
-- 位置 `/llms.txt`，英文，格式按提案：H1 写 AnnHub；摘要引用块写英文页的描述；正文写适用人群与核心取舍（本地优先、不改动原网页、类型化属性、Markdown 导出），文字取自英文页；再按二级标题分组列出链接。
-- 链接：两个语言页、两个法律页、GitHub 仓库。条目字段、导出格式等契约只给链接，不在这里另写一份。
+- 位置 `/llms.txt`，英文，格式按提案：H1 写 AnnHub；摘要引用块写英文页的描述；正文写适用人群、数据存放与核心取舍（本地优先、不改动原网页、类型化属性、Markdown 导出），文字取自英文页的 Hero、信任区与差异化区（[website.md](website.md) 第 4、11、9 节）；再按二级标题分组列出链接。
+- 链接：两个语言页、商店条目页、GitHub 仓库、两个法律页，都写绝对地址。条目字段、导出格式等契约只给链接，不在这里另写一份。
 
 ## 6. AI 爬虫
 

@@ -58,7 +58,7 @@
 | `typescript`、`eslint` 的主版本           | `typescript-eslint`、`eslint-config-next` 内置插件的 peer 范围必须接受新版本，否则 `npm run lint` 崩溃；`.github/dependabot.yml` 里对它们的 `ignore`；本地跑 `npm run lint`                                                                                            |
 | 新增、移动含 `package.json` 的目录        | `.github/dependabot.yml`；`scheduled-audit.yml` 的矩阵；CI 里的安装与构建步骤；`scripts/check-lockfiles.mjs` 的列表；`website/wrangler.json`                                                                                                                           |
 | `package.json` 的 `scripts`、CI 任务      | `verify` 与 CI 运行同样的命令；`.github/rulesets/main.json` 的必需检查名；本文件「验证入口」                                                                                                                                                                           |
-| `wxt.config.ts` 的权限与最低版本          | [docs/product/permissions.md](docs/product/permissions.md)；隐私政策页 `website/public/privacy-policy.html` 里的权限表（`utils/__tests__/legal-pages.test.ts` 核对它，不核对文档）；商店的权限说明                                                                     |
+| `wxt.config.ts` 的权限与最低版本          | [docs/product/permissions.md](docs/product/permissions.md)；隐私政策页 `website/public/privacy-policy.html` 里的权限表（`utils/__tests__/legal-pages.test.ts` 核对它，不核对文档）；商店的权限说明；官网 `lib/site.ts` 的 `MIN_CHROME_VERSION`                         |
 
 ## 验证入口
 

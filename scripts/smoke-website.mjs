@@ -22,7 +22,10 @@ export async function smokeWebsite({ origin = SITE_ORIGIN, revision, edgeRules =
     const response = await get(`/${locale}`)
     assert.equal(response.status, 200, `Language page failed: ${locale}`)
     const html = await response.text()
-    assert.ok(html.includes(`<html lang="${locale}"`) && html.includes('FAQPage'), `Incomplete page: ${locale}`)
+    assert.ok(
+      [`<html lang="${locale}"`, 'FAQPage', 'SoftwareApplication'].every(text => html.includes(text)),
+      `Incomplete page: ${locale}`,
+    )
     assert.ok(html.includes(`href="${STORE_URL}"`), `No install entry pointing at the store listing: ${locale}`)
     assert.equal(response.headers.get('link'), null, 'Language alternates must only appear in HTML')
     for (const extension of ['js', 'css']) {
@@ -37,6 +40,10 @@ export async function smokeWebsite({ origin = SITE_ORIGIN, revision, edgeRules =
   for (const path of ['/privacy-policy', '/privacy-policy.html', '/terms-of-service', '/terms-of-service.html', '/robots.txt', '/sitemap.xml']) {
     assert.equal((await get(path)).status, 200, `Missing public route: ${path}`)
   }
+  const llms = await get('/llms.txt')
+  assert.equal(llms.status, 200, 'Missing public route: /llms.txt')
+  assert.match(llms.headers.get('content-type') ?? '', /^text\/plain\b/, 'llms.txt must be served as plain text')
+  assert.ok((await llms.text()).startsWith('# AnnHub\n'), 'llms.txt does not open with the product name')
   assert.equal((await get('/this-page-does-not-exist')).status, 404, 'Unknown routes must return 404')
   await checkRedirect('/', '/en', { 'accept-language': 'ja,en;q=0.5' }, 302)
   if (edgeRules) {
