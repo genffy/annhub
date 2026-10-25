@@ -1,7 +1,7 @@
 # E2E 约定
 
 > 适用于当前 `e2e/` 实现；测试目录随未来 monorepo 包结构调整。全局规则见根目录 `AGENTS.md`。
-> 更新：2026-10-24。
+> 更新：2026-10-25。
 
 - Playwright specs、fixture HTML 和 helpers 放在本目录；单元测试仍与源码同级放 `__tests__/`。
 - `e2e/fixtures.ts` 加载 `.output/chrome-mv3`。全局 setup 只在构建目录不存在或 `BUILD_FORCE=1` 时重建；源码变化后必须先 `npm run build`，再跑 `npx playwright test <spec>`。
@@ -13,7 +13,7 @@
 - 断言下载用 service worker 里的 `chrome.downloads.search`：后台发起的下载不会触发 Playwright 的页面 download 事件。
 - 清库用 `clearLibrary`，它清 entries、assets 和两个派生检索 store，保留 properties store：内置属性注册表被清掉后，service worker 不会重新播种，之后每次保存都会校验失败。
 - 要让条目像用户编辑那样变化，用 `helpers.ts` 的 `updateEntry`（走 `UPDATE_ENTRY`）。直接写 IndexedDB 会绕过与条目同事务更新的派生检索文档，之后按标签、来源等筛选查询就看不到这次改动；直写只用来播种大量条目（第一次查询会按条目数发现派生文档对不上而整体重建）。
-- 用 fixture 验证浏览器可观察行为和持久化结果。采集、截图、检索或消息协议变化时选择相应调用链测试；断线、重启、失败和取消属于相关流程的必要边界。写操作之后既断言库，也断言界面（列表的卡片数、总数、导航计数、徽章）：只查库发现不了“库里改了、界面没变”（`library-browse.spec.ts` 的删除用例是范例）。
+- 用 fixture 验证浏览器可观察行为和持久化结果。采集、截图、检索或消息协议变化时选择相应调用链测试；断线、重启、失败和取消属于相关流程的必要边界。写操作之后既断言库，也断言界面（列表的卡片数、总数、导航计数、徽章）：只查库发现不了“库里改了、界面没变”（`library-browse.spec.ts` 的删除用例是范例）。下一步操作之前等的也是界面，不是库：service worker 先提交、再回复，页面收到回复才画出标记、清掉选区、关掉工具条。库里刚有、回复未到时按 `Esc`，关掉的是还开着的工具条而不是阅读视图；这时双击下一处，新的选区和工具条会被迟到的回复清掉（`reading-highlight.spec.ts` 的两个用例因此偶发失败过）。
 - `fixtures.ts` 有一个自动的 `pageErrors` 守卫：用例里任何页面（含扩展页面、内容脚本在页面里的浮层）抛出未捕获错误，或打印 `console.error`，该用例就失败。唯一放行的是“资源加载失败”（夹具页引用了不存在的主机，浏览器还会要 `/favicon.ico`）；新增放行项要写明理由，不要为了求绿放宽。
   `keyboard-blocks`、`timeline.html`（X 式时间线：帖子列紧挨侧栏，Parent 停在帖子、离开与 Esc 收起描边，胶囊的左右缘留在帖子内）、`media`（视频帖与滚到第二张的多图轮播：`screenshot-media.spec.ts` 读预览画布像素，断言当前视频帧与当前幻灯在元素截图里）、`columns`（三栏页：内栏自滚、窗口 scrollY 为 0 时，划词菜单仍贴内栏的选区）。`page-shapes.spec.ts` 在真实浏览器里验识别与转换，`page-entry.spec.ts` 验入口的边界。
 - 版式不做截图比对，用 `getBoundingClientRect` 和 `getComputedStyle` 断言几何与对比度（弹窗列表的宽度、暗色下文字对背景的对比度不低于 4.5、筛选条不溢出也不互相覆盖；列表视图的卡片填满内容区、同一行等高、预览等高、摘要只露整行，设置页的标签与控件分列且等高、表格有边框与内边距、窄窗口图标栏容得下品牌且当前项的徽章可读，见 `library-layout.spec.ts`）。看页面实际长什么样时，另写一次性的截图脚本，看完删除，不提交。临时的 Playwright 配置不要放进 `test-results/`：它是默认的 `outputDir`，每次运行都会被清空（同目录里没有提交的审阅图也一起没了）。新断言先对着坏样式验一遍：把构建出的 CSS 改回出过错的样子（`.output/chrome-mv3/assets/library-*.css`），确认它红，再重建。

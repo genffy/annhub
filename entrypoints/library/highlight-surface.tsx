@@ -88,18 +88,20 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
     }
   }, [entry.content])
 
-  // Escape dismisses the toolbar first; the next one leaves the view (extension.md §7.1: innermost first)
+  // Escape dismisses the toolbar first; the next one leaves the view (extension.md §7.1: innermost first).
+  // Subscribed once and asking the ref (set during render) whether a toolbar is up. A listener subscribed per toolbar is
+  // removed by a passive effect, after an async render (a highlight's reply) has already taken the toolbar away: an
+  // Escape in that gap closes nothing and still never reaches the view.
   useEffect(() => {
-    if (!toolbar) return
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape' || event.isComposing || event.keyCode === 229) return
+      if (event.key !== 'Escape' || event.isComposing || event.keyCode === 229 || !toolbarRef.current) return
       event.preventDefault()
       event.stopPropagation()
       setToolbar(null)
     }
     document.addEventListener('keydown', onKey, true)
     return () => document.removeEventListener('keydown', onKey, true)
-  }, [toolbar])
+  }, [])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
