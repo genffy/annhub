@@ -19,7 +19,7 @@ import { PropertyPanel, type PropertyPanelHandle } from './property-panel'
 import { PropertiesView } from './properties-view'
 import { SettingsView } from './settings-view'
 import { ReadingView } from './reading-view'
-import type { HighlightQueryResult } from '../../learning-core/query'
+import type { HighlightQuery, HighlightQueryResult } from '../../learning-core/query'
 import type { HighlightColor } from '../../learning-core/types'
 import { formatBytes } from '../../utils/format-bytes'
 import { relativeTime } from '../../utils/relative-time'
@@ -242,6 +242,8 @@ export default function App() {
   const [hosts, setHosts] = useState<string[]>([])
   const [tags, setTags] = useState<string[]>([])
   const [registry, setRegistry] = useState<PropertyDefinition[]>([])
+  /** Set once the registry has answered, or failed to: until then a property condition in the URL has no type to query by. */
+  const [registryLoaded, setRegistryLoaded] = useState(false)
   // Only a list view has a first answer to wait for. Properties and settings run no query, so nothing would ever clear a flag they started with.
   const [loading, setLoading] = useState(() => isListView(route.view))
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null)
@@ -369,7 +371,28 @@ export default function App() {
     [registry],
   )
 
-  // The list query (first page) — re-runs when the route, the registry or an
+  /**
+   * Whether a route's query has to wait for the registry: only it gives a property condition its type. Queried
+   * before that, the condition would be dropped — the unfiltered list on screen — and the query sent again.
+   */
+  const awaitsRegistry = (filters: FilterState) => !registryLoaded && filters.conditions.some(condition => condition.prop && condition.op)
+
+  // Each list view's query as text (`null` while it waits for the registry). The effects below re-run when it
+  // changes, not whenever the registry does: sending an unchanged query again puts "加载中" back over an empty
+  // answer already on screen until the second reply (extension.md §5).
+  const entryQueryJson = awaitsRegistry(listRoute) ? null : JSON.stringify(queryFor(listRoute))
+  const highlightQueryJson = awaitsRegistry(route)
+    ? null
+    : JSON.stringify({
+        search: route.search || undefined,
+        hosts: route.hosts.length > 0 ? route.hosts : undefined,
+        tags: route.tags.length > 0 ? route.tags : undefined,
+        conditions: queryFor(route).conditions,
+        colors: route.colors.length > 0 ? (route.colors as HighlightColor[]) : undefined,
+        ...localDayRange(route.from, route.to),
+      } satisfies HighlightQuery)
+
+  // The list query (first page) — re-runs when the route, its query or an
   // explicit reload changes (RV-LIB-03: writes refresh the list).
   useEffect(() => {
     if (listRoute.view === 'settings' || listRoute.view === 'properties' || listRoute.view === 'highlights') return
@@ -379,7 +402,8 @@ export default function App() {
     }
     const seq = ++querySeq.current
     setLoading(true)
-    const query = queryFor(listRoute)
+    if (entryQueryJson === null) return
+    const query = JSON.parse(entryQueryJson) as EntryQuery
     void (async () => {
       const response = await MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: { ...query, limit: loadedCountRef.current } })
       if (seq !== querySeq.current) return
@@ -395,26 +419,17 @@ export default function App() {
         recordQueried(listRoute, response.data!.result.total)
       }
     })()
-  }, [listQueryKey, listRoute, registry, reloadKey, queryFor])
+  }, [listQueryKey, listRoute, entryQueryJson, reloadKey])
 
   // The highlights view runs its own query with the same filters (RV-LIB-04).
   useEffect(() => {
     if (route.view !== 'highlights') return
     const seq = ++querySeq.current
     setLoading(true)
-    const { conditions } = queryFor(route)
+    if (highlightQueryJson === null) return
+    const query = JSON.parse(highlightQueryJson) as HighlightQuery
     void (async () => {
-      const response = await MessageUtils.sendMessage<{ result: HighlightQueryResult }>({
-        type: 'QUERY_HIGHLIGHTS',
-        query: {
-          search: route.search || undefined,
-          hosts: route.hosts.length > 0 ? route.hosts : undefined,
-          tags: route.tags.length > 0 ? route.tags : undefined,
-          conditions,
-          colors: route.colors.length > 0 ? (route.colors as HighlightColor[]) : undefined,
-          ...localDayRange(route.from, route.to),
-        },
-      })
+      const response = await MessageUtils.sendMessage<{ result: HighlightQueryResult }>({ type: 'QUERY_HIGHLIGHTS', query })
       if (seq !== querySeq.current) return
       if (response.success) setHighlightResult(response.data!.result)
       setLoading(false)
@@ -423,7 +438,7 @@ export default function App() {
         recordQueried(route, response.data!.result.total)
       }
     })()
-  }, [route, reloadKey, queryFor])
+  }, [route, reloadKey, highlightQueryJson])
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMoreRef.current) return
@@ -495,6 +510,8 @@ export default function App() {
     void refreshCounts()
     void MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'LIST_PROPERTIES' }).then(response => {
       if (response.success) setRegistry(response.data!.definitions)
+      // a registry that cannot be read leaves its conditions out, as an unknown property does: the list still answers
+      setRegistryLoaded(true)
     })
     void MessageUtils.sendMessage<{ defaultHighlightColor?: HighlightColor }>({ type: 'GET_SETTINGS' }).then(response => {
       if (response.success && response.data?.defaultHighlightColor) setDefaultColor(response.data.defaultHighlightColor)
