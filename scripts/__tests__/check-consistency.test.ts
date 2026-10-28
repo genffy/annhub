@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 
@@ -107,14 +107,18 @@ afterAll(() => {
   for (const directory of directories) rmSync(directory, { recursive: true, force: true })
 })
 
-/** Runs the script on the good tree with some files replaced (a string) or removed (null). */
-function check(overrides: Record<string, string | null> = {}) {
+/** Runs the script on the good tree with some files replaced (a string) or removed (null), plus symlinks (path → target). */
+function check(overrides: Record<string, string | null> = {}, links: Record<string, string> = {}) {
   const root = mkdtempSync(join(tmpdir(), 'check-consistency-'))
   directories.push(root)
   for (const [file, content] of Object.entries({ ...GOOD_FILES, ...overrides })) {
     if (content === null) continue
     mkdirSync(dirname(join(root, file)), { recursive: true })
     writeFileSync(join(root, file), content)
+  }
+  for (const [link, target] of Object.entries(links)) {
+    mkdirSync(dirname(join(root, link)), { recursive: true })
+    symlinkSync(target, join(root, link))
   }
   const result = spawnSync(process.execPath, [script, '--root', root], { encoding: 'utf8' })
   return { status: result.status, output: `${result.stdout}${result.stderr}` }
@@ -357,6 +361,35 @@ describe('check-consistency', () => {
         }),
       })
       expect(status, output).toBe(0)
+    })
+  })
+
+  describe('skills', () => {
+    const skill = (name: string) => `---\nname: ${name}\ndescription: test\n---\n`
+    const linked = { '.claude/skills/verify': '../../.agents/skills/verify' }
+
+    it('accepts a skill in .agents/skills that .claude/skills links to, and the reverse', () => {
+      expect(check({ '.agents/skills/verify/SKILL.md': skill('verify') }, linked).status).toBe(0)
+      const reverse = check({ '.claude/skills/babysit/SKILL.md': skill('babysit') }, { '.agents/skills/babysit': '../../.claude/skills/babysit' })
+      expect(reverse.status, reverse.output).toBe(0)
+    })
+
+    it('catches a skill that only one agent can see', () => {
+      expectFailure({ '.agents/skills/verify/SKILL.md': skill('verify') }, '.claude/skills/verify: is missing')
+      expectFailure({ '.claude/skills/verify/SKILL.md': skill('verify') }, '.agents/skills/verify: is missing')
+    })
+
+    it('catches two copies where one should link to the other', () => {
+      expectFailure(
+        { '.agents/skills/verify/SKILL.md': skill('verify'), '.claude/skills/verify/SKILL.md': skill('verify') },
+        '.claude/skills/verify: and .agents/skills/verify are two separate copies',
+      )
+    })
+
+    it('catches a skill without a SKILL.md', () => {
+      const { status, output } = check({ '.agents/skills/verify/notes.md': 'notes' }, linked)
+      expect(status, output).toBe(1)
+      expect(output).toContain('.agents/skills/verify: has no SKILL.md')
     })
   })
 })

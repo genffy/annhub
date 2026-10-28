@@ -15,7 +15,7 @@
 // pattern or add an exception to get green. A new coupling gets a new assertion.
 
 import { execFileSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse as parseYaml } from 'yaml'
@@ -392,6 +392,28 @@ function checkGate() {
   }
 }
 
+/**
+ * Skills live once, in `.agents/skills/` (Codex reads it), and Claude Code reads only `.claude/skills/`, so every skill
+ * appears under both names as one directory: one entry is a symlink to the other (AGENTS.md「Agent skills」). A skill
+ * found under one name only is invisible to the other agent; two real directories drift apart.
+ */
+function checkSkills() {
+  const homes = ['.agents/skills', '.claude/skills']
+  const entries = home => (exists(home) ? readdirSync(join(root, home)).filter(name => !name.startsWith('.')) : [])
+  const names = new Set(homes.flatMap(entries))
+  for (const name of names) {
+    const [agents, claude] = homes.map(home => `${home}/${name}`)
+    const missing = [agents, claude].filter(path => !exists(path))
+    if (missing.length > 0) {
+      for (const path of missing) fail(path, `is missing: the skill ${name} has to be under both .agents/skills and .claude/skills, one a symlink to the other`)
+      continue
+    }
+    if (realpathSync(join(root, agents)) !== realpathSync(join(root, claude)))
+      fail(claude, `and ${agents} are two separate copies of the skill ${name}; make one a symlink to the other`)
+    if (!exists(`${agents}/SKILL.md`)) fail(agents, `has no SKILL.md, so no agent loads the skill ${name}`)
+  }
+}
+
 checkNode()
 checkNext()
 checkTailwind()
@@ -399,6 +421,7 @@ checkCloudflare()
 checkMinimumChrome()
 checkPackageDirectories()
 checkGate()
+checkSkills()
 
 if (problems.length > 0) {
   console.error(problems.join('\n'))

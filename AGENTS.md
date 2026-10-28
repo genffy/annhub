@@ -1,7 +1,7 @@
 # AnnHub 工程约定
 
 > 本文件只放跨目录通用规则。当前代码的局部维护提示见下表的 `AGENTS.md`。
-> 更新：2026-10-24。
+> 更新：2026-10-28。
 
 ## 项目与真源
 
@@ -26,6 +26,14 @@
 | `docs/product/`        | [产品文档维护与新功能流程](docs/product/AGENTS.md)                        |
 
 `website/` 是独立 Next.js 应用，运行方式和 Cloudflare 静态部署的注意事项见 [website/README.md](website/README.md)。其他扩展入口的事实以相邻源码为准。
+
+## Agent skills
+
+- skill 用开放的 SKILL.md 格式（agentskills.io），正本放在 `.agents/skills/<name>/`：Codex 读这里。Claude Code 只读 `.claude/skills/`，那里放同名软链接 `../../.agents/skills/<name>`。两边始终是同一个目录，不放两份。
+- 例外是 `babysit`：正本在 `.claude/skills/babysit/`，`.agents/skills/babysit` 链接过去。Claude 的远程执行环境按这个路径到 PR 分支上读它，经过软链接的路径读不出来。
+- pstack 的 skill（`create-verification-skill`、`create-formal-verification-skill`）用 Cursor 的叫法：Claude Code 先读 `.agents/docs/harness/claude-code.md`，Codex 先读 `.agents/docs/harness/codex.md`。它们生成的新 skill 同样放进 `.agents/skills/`，再在 `.claude/skills/` 建链接。
+- 只允许用户手动调用的 skill，两边各写一处：Claude Code 在 frontmatter 写 `disable-model-invocation: true`，Codex 在 skill 目录的 `agents/openai.yaml` 写 `policy.allow_implicit_invocation: false`。
+- 在 Windows 上检出需要打开 Git 的软链接支持（`core.symlinks`）。
 
 ## 跨目录规则
 
@@ -58,6 +66,7 @@
 | `typescript`、`eslint` 的主版本           | `typescript-eslint`、`eslint-config-next` 内置插件的 peer 范围必须接受新版本，否则 `npm run lint` 崩溃；`.github/dependabot.yml` 里对它们的 `ignore`；本地跑 `npm run lint`                                                                                            |
 | 新增、移动含 `package.json` 的目录        | `.github/dependabot.yml`；`scheduled-audit.yml` 的矩阵；CI 里的安装与构建步骤；`scripts/check-lockfiles.mjs` 的列表；`website/wrangler.json`                                                                                                                           |
 | `package.json` 的 `scripts`、CI 任务      | `verify` 与 CI 运行同样的命令；`.github/rulesets/main.json` 的必需检查名；本文件「验证入口」                                                                                                                                                                           |
+| 新增、移动或删除 skill                    | `.agents/skills/<name>` 与 `.claude/skills/<name>` 同时存在且是同一个目录（一个是另一个的软链接）；只想手动调用时两边的开关都写上；`check:consistency` 核对目录                                                                                                        |
 | `wxt.config.ts` 的权限与最低版本          | [docs/product/permissions.md](docs/product/permissions.md)；隐私政策页 `website/public/privacy-policy.html` 里的权限表（`utils/__tests__/legal-pages.test.ts` 核对它，不核对文档）；商店的权限说明；官网 `lib/site.ts` 的 `MIN_CHROME_VERSION`                         |
 
 ## 验证入口
