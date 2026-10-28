@@ -54,17 +54,17 @@ AnnHub 是一个本地优先的浏览器扩展：把网页中值得留下的内�
 
 ### 第二层：定规格
 
-| 需要回答的问题                                                             | 唯一真源                         |
-| -------------------------------------------------------------------------- | -------------------------------- |
-| 条目字段、类型、属性与校验                                                 | [entry.md](entry.md)             |
-| 剪藏、截图怎样采集；区块的识别；来源与语境；内容转换                       | [capture.md](capture.md)         |
-| 区域/元素截图、匿名、比例预设与取景框、复制与下载、水印、美化、入库        | [screenshot.md](screenshot.md)   |
-| 在当前标签页上临时批注、截进截图编辑器；把当前标签页录成本地视频           | [annotate.md](annotate.md)       |
-| IndexedDB、图片资产、删除清理和 Markdown ZIP 导出                          | [storage.md](storage.md)         |
-| 申请哪些权限、用户的数据会不会离开浏览器；官网统计什么、什么时候先征得同意 | [permissions.md](permissions.md) |
-| 搜索、筛选、排序与分页                                                     | [search.md](search.md)           |
-| 扩展的页面体验与布局                                                       | [extension.md](extension.md)     |
-| 品牌色、外观与版式原则                                                     | [visual.md](visual.md)           |
+| 需要回答的问题                                                                | 唯一真源                         |
+| ----------------------------------------------------------------------------- | -------------------------------- |
+| 条目字段、类型、属性与校验                                                    | [entry.md](entry.md)             |
+| 剪藏、截图怎样采集；区块的识别；来源与语境；内容转换                          | [capture.md](capture.md)         |
+| 区域/元素截图与滚动长图、匿名、比例预设与取景框、复制与下载、水印、美化、入库 | [screenshot.md](screenshot.md)   |
+| 在当前标签页上临时批注、截进截图编辑器；把当前标签页录成本地视频              | [annotate.md](annotate.md)       |
+| IndexedDB、图片资产、删除清理和 Markdown ZIP 导出                             | [storage.md](storage.md)         |
+| 申请哪些权限、用户的数据会不会离开浏览器；官网统计什么、什么时候先征得同意    | [permissions.md](permissions.md) |
+| 搜索、筛选、排序与分页                                                        | [search.md](search.md)           |
+| 扩展的页面体验与布局                                                          | [extension.md](extension.md)     |
+| 品牌色、外观与版式原则                                                        | [visual.md](visual.md)           |
 
 ### 第三层：验收、待决与对外
 
