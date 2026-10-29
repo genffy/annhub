@@ -599,10 +599,12 @@ export class AnnotationLayer {
     const badge: InkStroke = pressedStroke ?? {
       id: this.newStrokeId(),
       tool: 'step',
-      points: [{ x: event.clientX, y: event.clientY }],
+      // page coordinates, like every stroke; a badge on a pinned element keeps viewport coordinates
+      points: [this.canvasPoint(event)],
       color: this.color,
       sequence: this.stepSequence,
     }
+    if (!pressedStroke && this.isPinnedPoint(event.clientX, event.clientY)) badge.pinned = true
     // a pressed badge moves as far as the pointer does; a new one stays under the pointer.
     // the grab offset works in screen space: page ink moves with the scroll, pinned ink does not
     const pressedOnScreen = pressedStroke ? inkToViewport([pressedStroke], view.scrollX, view.scrollY)[0]!.points[0]! : null
@@ -611,7 +613,11 @@ export class AnnotationLayer {
     const draft = (): InkStroke[] => (pressedStroke ? this.strokes.map(stroke => (stroke === pressedStroke ? placed : stroke)) : [...this.strokes, placed])
     const follow = (ev: PointerEvent): void => {
       const at = clampStep({ x: ev.clientX * scale - grab.x, y: ev.clientY * scale - grab.y }, size, scale)
-      placed = { ...badge, points: [{ x: at.x / scale, y: at.y / scale }] }
+      // the clamped position is on the screen; storage is page coordinates, unless the badge is pinned
+      placed = {
+        ...badge,
+        points: [{ x: at.x / scale + (badge.pinned ? 0 : view.scrollX), y: at.y / scale + (badge.pinned ? 0 : view.scrollY) }],
+      }
     }
     this.selectedStep = pressedStroke
     this.paint()

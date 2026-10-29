@@ -289,6 +289,33 @@ test.describe('page annotation layer', () => {
     await page.keyboard.press('Escape')
   })
 
+  test('a step badge follows the page like the strokes do, and one on the sticky nav stays put (annotate.md §1.2)', async ({ page }) => {
+    await page.goto('http://localhost:8173/longpage.html')
+    await triggerAnnotation(page)
+    await page.locator(LAYER).waitFor()
+    // a badge over the first section, then scroll: it moves with its content
+    await page.locator(`${TOOLBAR} [data-ann-ui="annotation-tool-step"]`).click()
+    await page.mouse.click(340, 170)
+    await page.waitForTimeout(120)
+    expect(isRed(await pixelAt(page, CANVAS, 330, 164))).toBe(true)
+    // a second badge on the sticky nav: pinned to the screen
+    await page.mouse.click(700, 28)
+    await page.waitForTimeout(120)
+    const navBadgeOnScreen = await pixelAt(page, CANVAS, 690, 22)
+
+    await page.mouse.wheel(0, 700)
+    await page.waitForTimeout(250)
+    // the section badge left this screen with its content; the nav badge did not move
+    expect(await pixelAt(page, CANVAS, 330, 164)).toEqual([0, 0, 0])
+    expect(await pixelAt(page, CANVAS, 690, 22)).toEqual(navBadgeOnScreen)
+
+    // scroll back: the section badge is on its words again
+    await page.mouse.wheel(0, -700)
+    await page.waitForTimeout(250)
+    expect(isRed(await pixelAt(page, CANVAS, 330, 164))).toBe(true)
+    await page.keyboard.press('Escape')
+  })
+
   test('a screenshot session points at itself when the annotation trigger arrives', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
     // start a screenshot session first
