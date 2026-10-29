@@ -1,5 +1,5 @@
 import { defineConfig } from 'wxt'
-import { ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from './constants'
+import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from './constants'
 import packageJson from './package.json'
 
 const extensionVersion = packageJson.version
@@ -49,6 +49,12 @@ export default defineConfig({
           mac: 'Command+Shift+E',
         },
         description: '__MSG_commandBlockMode__',
+        global: false,
+      },
+      // No suggested key on purpose (annotate.md §1.1, D-37): the user binds it in
+      // the browser's shortcut settings; the toolbar popup is the primary entry.
+      [ANN_ANNOTATE_COMMAND]: {
+        description: '__MSG_commandAnnotate__',
         global: false,
       },
     },

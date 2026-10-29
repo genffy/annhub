@@ -8,7 +8,7 @@
  */
 import { ENTRY_ERROR_CODES, PROPERTY_TYPES } from './types'
 
-export type CaptureVia = 'menu' | 'block' | 'shortcut'
+export type CaptureVia = 'menu' | 'block' | 'shortcut' | 'ink'
 export type BlockKind = 'post' | 'code' | 'table' | 'figure' | 'quote' | 'section' | 'article'
 export type ScreenshotFrame = 'drag' | 'element' | 'reused'
 
@@ -63,7 +63,7 @@ const oneOf =
 const countBucket = oneOf(['0', '1-2', '3-5', '6-10', '>10'])
 const captureDuration = oneOf(CAPTURE_DURATION_BUCKETS)
 const entryType = oneOf(['clip', 'screenshot'])
-const via = oneOf(['menu', 'block', 'shortcut'])
+const via = oneOf(['menu', 'block', 'shortcut', 'ink'])
 
 const EVENT_FIELDS: Record<MetricEventName, Record<string, PropertyCheck>> = {
   'capture.saved': {

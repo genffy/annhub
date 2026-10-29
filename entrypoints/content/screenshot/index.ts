@@ -92,6 +92,7 @@ import {
 } from './selection'
 import { readFrame, rememberFrame, type FrameRecord } from './frame-memory'
 import { permalinkForRegion } from './permalink'
+import { inkToEditorAnnotations, type InkStroke } from '../annotation/ink'
 import type { ExtensionSettings } from '../../../background-service/settings-schema'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -108,12 +109,18 @@ export interface EnterScreenshotOptions {
   element?: HTMLElement
   /** A pending frame to confirm (Enter) or adjust, e.g. the selection menu's screenshot path (真机走查 P2-5). */
   initialRect?: ViewportRect
+  /** Page-annotation ink at capture time (annotate.md §1.3): drawn back onto the capture as ordinary annotations. */
+  ink?: InkStroke[]
+  /** The annotation layer waits for the session to end so it can come back with its ink. */
+  onExit?: () => void
 }
 
 export function enterScreenshotMode(options: EnterScreenshotOptions = {}): void {
   // Idempotent: a second trigger replaces the pending session.
   activeSession?.exit()
   activeSession = new ScreenshotSession(document, options.via ?? 'shortcut')
+  activeSession.pendingInk = options.ink ?? null
+  activeSession.onSessionExit = options.onExit ?? null
   activeSession.begin()
   if (options.element) void activeSession.captureElementTarget(options.element)
   else if (options.initialRect) activeSession.beginWithInitialRect(options.initialRect)
@@ -126,6 +133,18 @@ export function exitScreenshotMode(): void {
 
 export function isScreenshotSessionActive(): boolean {
   return activeSession !== null
+}
+
+/**
+ * A notice for a session that is already open, from a trigger that must not
+ * disturb it (annotate.md §1.1: an annotation request during a screenshot
+ * session points at the session instead of opening anything). True when a
+ * session was there to hear it.
+ */
+export function notifyScreenshotSession(message: string): boolean {
+  if (!activeSession) return false
+  activeSession.showExternalNotice(message)
+  return true
 }
 
 /** Page actions killed during the capture phase (RV-CAP-05). */
@@ -213,6 +232,10 @@ class ScreenshotSession {
   private shiftRatio: number | null = null
   private pendingFrameRecord: FrameRecord | null = null
   private reusedFrame = false
+  /** Page-annotation ink handed over with the trigger (annotate.md §1.3); consumed when the capture is in. */
+  pendingInk: InkStroke[] | null = null
+  /** The annotation layer's callback, run once when this session ends for any reason. */
+  onSessionExit: (() => void) | null = null
   private readonly onKeydown = (e: KeyboardEvent) => {
     if (!isUserInput(e)) return
     if (e.key === 'Escape') {
@@ -516,7 +539,11 @@ class ScreenshotSession {
     this.croppedCanvas = null
     this.sourceCanvas = null
     this.state = 'done'
+    const notifyExit = this.onSessionExit
+    this.onSessionExit = null
     if (activeSession === this) activeSession = null
+    // the annotation layer comes back with its ink once the session is over (annotate.md §1.3)
+    notifyExit?.()
   }
 
   // ── region selection / element pick (document-level) ─────────────
@@ -1108,9 +1135,21 @@ class ScreenshotSession {
           width: r.width * scaleX,
           height: r.height * scaleY,
         }))
-    this.prepareEditor()
+    this.prepareEditor(this.consumeInk(selection))
     this.state = 'preview'
     this.showPreview()
+  }
+
+  /**
+   * The handed-over ink as editor annotations over the frame that was just
+   * captured, in one group for undo (annotate.md §1.3, D-38): strokes fully
+   * outside the frame are out, strokes crossing its boundary are cut at it.
+   */
+  private consumeInk(frame: ViewportRect): Annotation[] {
+    const ink = this.pendingInk
+    this.pendingInk = null
+    if (!ink || ink.length === 0) return []
+    return inkToEditorAnnotations(ink, frame, this.capturedDpr || 1)
   }
 
   // ── element mode (DOM clone rasterization) ────────────────────────
@@ -1183,7 +1222,7 @@ class ScreenshotSession {
     const bounds = element.getBoundingClientRect()
     this.elementRect = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
     this.capturedDpr = this.croppedCanvas.width / Math.max(1, element.getBoundingClientRect().width)
-    this.prepareEditor()
+    this.prepareEditor(this.consumeInk({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }))
     this.state = 'preview'
     this.showPreview()
   }
@@ -1212,7 +1251,7 @@ class ScreenshotSession {
 
   // ── in-place preview and non-destructive annotations ──────────────
 
-  private prepareEditor(): void {
+  private prepareEditor(inkAnnotations: Annotation[] = []): void {
     this.sourceCanvas = this.croppedCanvas
     const canvas = this.doc.createElement('canvas')
     canvas.width = this.sourceCanvas!.width
@@ -1225,6 +1264,8 @@ class ScreenshotSession {
     this.history = []
     this.stepSequence = 0
     this.selectedStep = null
+    // the page's ink arrives as one step of its own: one undo takes it all off again (annotate.md §1.3, D-38)
+    if (inkAnnotations.length > 0) this.commit(inkAnnotations)
     this.renderEditor()
   }
 
@@ -1952,7 +1993,23 @@ class ScreenshotSession {
     if (this.hintEl) this.hintEl.style.display = 'none'
   }
 
-  private showNotice(message: string, error = false): void {
+  /**
+   * A notice from outside the session — the annotation trigger pointing at
+   * the session instead of opening (annotate.md §1.1). The toolbar's notice
+   * only exists in the preview, so this is its own hint-style bar, in every
+   * state, that leaves on its own.
+   */
+  showExternalNotice(message: string): void {
+    this.host.querySelector(`[${ROOT_ATTR}="screenshot-external-notice"]`)?.remove()
+    const el = this.doc.createElement('div')
+    el.className = 'ann-shot-hint'
+    el.setAttribute(ROOT_ATTR, 'screenshot-external-notice')
+    el.textContent = message
+    this.host.appendChild(el)
+    window.setTimeout(() => el.remove(), 2600)
+  }
+
+  showNotice(message: string, error = false): void {
     this.notice = { message, error }
     this.updateToolbar()
   }

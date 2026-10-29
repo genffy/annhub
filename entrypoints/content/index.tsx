@@ -9,10 +9,13 @@
  */
 import { BlockEntries } from './block-hover'
 import type { BlockCandidate } from './blocks'
+import { enterAnnotationLayer, exitAnnotationLayer, getActiveAnnotationLayer, isAnnotationLayerActive, notifyAnnotationLayer } from './annotation/layer'
+import type { InkStroke } from './annotation/ink'
 import { isClipFailure, saveBlockClip, savePlainTextSelection, saveSelectionClip, showClipToast, showFailureToast, type ClipOrigin } from './clip-flow'
 import { SelectionMenu, plainTextForSelection, selectableRange } from './selection-menu'
-import { enterScreenshotMode } from './screenshot'
+import { enterScreenshotMode, isScreenshotSessionActive, notifyScreenshotSession } from './screenshot'
 import { isUserInput } from './user-input'
+import { uiText } from '../../utils/ui-text'
 import { normalizeHost } from '../../learning-core/normalize'
 import MessageUtils from '../../utils/message'
 import { Logger } from '../../utils/logger'
@@ -74,8 +77,11 @@ function wireSelectionMenu(): void {
   const onPointerUp = (event: PointerEvent): void => {
     if (!isUserInput(event)) return
     if (insideOwnUi(event)) return
+    // the annotation layer keeps the selection menu off the page while it is open (annotate.md §1.1)
+    if (isAnnotationLayerActive()) return
     // let the selection settle before reading it
     window.setTimeout(() => {
+      if (isAnnotationLayerActive()) return
       const path = event.composedPath()
       const shadowRoot =
         (path.find(node => node instanceof ShadowRoot) as ShadowRoot | undefined) ??
@@ -102,6 +108,7 @@ function wireSelectionMenu(): void {
     selectionSettleTimer = window.setTimeout(() => {
       selectionSettleTimer = null
       if (blockEntries?.isBlockModeActive()) return
+      if (isAnnotationLayerActive()) return
       const selection = document.getSelection()
       if (!selection || !selection.toString().trim()) {
         if (!selectionMenu?.isShowing()) return
@@ -151,6 +158,7 @@ function wireBlockEntries(): void {
   })
   const gate = {
     enabled: async () => {
+      if (isAnnotationLayerActive()) return false
       return (await settings()).blockEntryEnabled !== false
     },
     siteDisabled: async (host: string) => {
@@ -198,6 +206,40 @@ function wireBlockEntries(): void {
   blockEntries.install()
 }
 
+/** The open annotation layer, kept so the screenshot session can hand the stage back to it. */
+function enterScreenshotWithInk(ink: InkStroke[]): void {
+  // the ink rides into the editor (annotate.md §1.3); the layer is hidden for the
+  // session and comes back — ink included — when the session ends for any reason
+  const layer = getActiveAnnotationLayer()
+  enterScreenshotMode({
+    via: 'ink',
+    ink,
+    onExit: () => layer?.restoreAfterScreenshot(),
+  })
+}
+
+function startAnnotationLayer(): void {
+  // 区块模式进行中时，打开批注会先退出区块模式 (annotate.md §1.1)
+  if (blockEntries?.isBlockModeActive()) blockEntries.exitBlockMode()
+  blockEntries?.hide()
+  enterAnnotationLayer({
+    onScreenshot: ink => enterScreenshotWithInk(ink),
+  })
+}
+
+function toggleAnnotationLayer(): void {
+  // 截图会话进行中时不打开批注，由截图界面提示先完成或取消 (annotate.md §1.1)
+  if (isScreenshotSessionActive()) {
+    notifyScreenshotSession(uiText('annotate.notice.screenshotBusy'))
+    return
+  }
+  if (isAnnotationLayerActive()) {
+    exitAnnotationLayer()
+    return
+  }
+  startAnnotationLayer()
+}
+
 export default defineContentScript({
   matches: ['<all_urls>'],
   allFrames: true,
@@ -221,8 +263,24 @@ export default defineContentScript({
     chrome.runtime.onMessage.addListener(message => {
       // the shortcut belongs to the top frame; a child frame that still hears it stays out of it
       if (!isTopFrame()) return
-      if (message?.type === 'TRIGGER_SCREENSHOT') enterScreenshotMode({ via: 'shortcut' })
-      if (message?.type === 'TRIGGER_BLOCK_MODE') blockEntries?.enterBlockMode()
+      if (message?.type === 'TRIGGER_SCREENSHOT') {
+        // the screenshot shortcut carries the ink, like the layer's own button (annotate.md §1.1)
+        const layer = getActiveAnnotationLayer()
+        if (layer && !isScreenshotSessionActive()) {
+          layer.startScreenshot()
+          return
+        }
+        enterScreenshotMode({ via: 'shortcut' })
+      }
+      if (message?.type === 'TRIGGER_BLOCK_MODE') {
+        // 区块模式的快捷键不响应，页面上提示先退出批注 (annotate.md §1.1)
+        if (isAnnotationLayerActive()) {
+          notifyAnnotationLayer(uiText('annotate.notice.blockShortcut'))
+          return
+        }
+        blockEntries?.enterBlockMode()
+      }
+      if (message?.type === 'TRIGGER_ANNOTATE') toggleAnnotationLayer()
     })
 
     Logger.info('[AnnHub] Content script ready')

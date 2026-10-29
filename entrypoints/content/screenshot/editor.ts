@@ -15,11 +15,27 @@ export const LINE_WIDTHS: readonly LineWidth[] = ['thin', 'medium', 'thick']
  * sequence, in the order they were put down, so deleting one closes the gap. 重置计数 starts the next sequence.
  */
 export type StepAnnotation = { tool: 'step'; at: Point; color: string; sequence: number }
+/**
+ * A stroke already cut to the picture's bounds (annotate.md §1.3): page ink that crossed the frame arrives here as
+ * plain paths with their widths in pixels, because a clipped rectangle is no longer a rectangle. The editor's own
+ * tools never make one; the annotation layer's ink does, through inkToEditorAnnotations.
+ */
+export type PolylineAnnotation = { tool: 'polyline'; points: Point[]; color: string; pixelWidth: number }
 export type Annotation =
   | { tool: Exclude<DrawTool, LineTool>; start: Point; end: Point; points: Point[]; color: string }
   | { tool: LineTool; start: Point; end: Point; points: Point[]; color: string; width: LineWidth }
   | { tool: 'text'; start: Point; text: string; color: string }
   | StepAnnotation
+  | PolylineAnnotation
+
+/** The five annotation colours (screenshot.md §1.1); every tool, the step badges included, draws in one of them. */
+export const ANNOTATION_COLORS: ReadonlyArray<{ value: string; name: string }> = [
+  { value: '#e5484d', name: 'red' },
+  { value: '#f6c453', name: 'yellow' },
+  { value: '#147d72', name: 'teal' },
+  { value: '#ffffff', name: 'white' },
+  { value: '#20252b', name: 'black' },
+]
 
 /** The shapes' lines, in CSS pixels; the pen's and the line's middle width is the same. */
 const SHAPE_WIDTH = 3
@@ -57,63 +73,84 @@ export function renderScreenshot(target: HTMLCanvasElement, source: HTMLCanvasEl
   }
   masks.forEach(pixelate)
 
-  const numbers = stepNumbers(annotations)
   for (const annotation of annotations) {
     if (annotation.tool === 'mosaic') {
       pixelate(toRect(annotation.start, annotation.end))
       continue
     }
-    if (annotation.tool === 'step') {
-      paintStep(ctx, annotation, numbers.get(annotation) ?? 1, scale)
-      continue
-    }
+    drawAnnotation(ctx, annotation, scale, stepNumbers(annotations), target.width)
+  }
+}
+
+/**
+ * One annotation onto the context, in the context's own pixel coordinates, at `scale` (the capture's device pixel
+ * ratio). The screenshot editor and the page annotation layer paint through this one function, so a stroke looks the
+ * same in both. `numbers` supplies the step badges' labels; `textBounds` is the canvas width a text annotation is
+ * fitted into, as renderScreenshot always gave it.
+ */
+export function drawAnnotation(ctx: CanvasRenderingContext2D, annotation: Annotation, scale: number, numbers?: Map<StepAnnotation, number>, textBounds?: number): void {
+  if (annotation.tool === 'step') {
+    paintStep(ctx, annotation, numbers?.get(annotation) ?? 1, scale)
+    return
+  }
+  if (annotation.tool === 'polyline') {
+    if (annotation.points.length < 2) return
     ctx.strokeStyle = annotation.color
-    ctx.fillStyle = annotation.color
-    ctx.lineWidth = 'width' in annotation ? lineWidth(annotation.tool, annotation.width, scale) : Math.max(2, SHAPE_WIDTH * scale)
+    ctx.lineWidth = annotation.pixelWidth
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    if (annotation.tool === 'text') {
-      const fontSize = Math.max(18, 18 * scale)
-      ctx.font = `600 ${fontSize}px sans-serif`
-      annotation.text.split('\n').forEach((line, index) => {
-        ctx.fillText(line, annotation.start.x, annotation.start.y + fontSize * (index + 1), target.width - annotation.start.x)
-      })
-      continue
-    }
-    const { start, end } = annotation
-    if (annotation.tool === 'rectangle') {
-      const rect = toRect(start, end)
-      ctx.strokeRect(rect.x, rect.y, rect.width, rect.height)
-    } else if (annotation.tool === 'ellipse') {
-      const rect = toRect(start, end)
-      ctx.beginPath()
-      ctx.ellipse(rect.x + rect.width / 2, rect.y + rect.height / 2, rect.width / 2, rect.height / 2, 0, 0, Math.PI * 2)
-      ctx.stroke()
-    } else if (annotation.tool === 'arrow') {
-      const angle = Math.atan2(end.y - start.y, end.x - start.x)
-      const head = Math.max(10, 12 * scale)
-      ctx.beginPath()
-      ctx.moveTo(start.x, start.y)
-      ctx.lineTo(end.x, end.y)
-      ctx.moveTo(end.x - head * Math.cos(angle - Math.PI / 6), end.y - head * Math.sin(angle - Math.PI / 6))
-      ctx.lineTo(end.x, end.y)
-      ctx.lineTo(end.x - head * Math.cos(angle + Math.PI / 6), end.y - head * Math.sin(angle + Math.PI / 6))
-      ctx.stroke()
-    } else if (annotation.tool === 'line') {
-      ctx.beginPath()
-      ctx.moveTo(start.x, start.y)
-      ctx.lineTo(end.x, end.y)
-      ctx.stroke()
-    } else if ((annotation.tool === 'pen' || annotation.tool === 'highlighter') && annotation.points.length > 1) {
-      // one path stroked once: where a highlighter stroke runs over itself, it is no deeper than anywhere else
-      ctx.save()
-      if (annotation.tool === 'highlighter') ctx.globalAlpha = HIGHLIGHTER_ALPHA
-      ctx.beginPath()
-      ctx.moveTo(annotation.points[0].x, annotation.points[0].y)
-      annotation.points.slice(1).forEach(point => ctx.lineTo(point.x, point.y))
-      ctx.stroke()
-      ctx.restore()
-    }
+    ctx.beginPath()
+    ctx.moveTo(annotation.points[0].x, annotation.points[0].y)
+    annotation.points.slice(1).forEach(point => ctx.lineTo(point.x, point.y))
+    ctx.stroke()
+    return
+  }
+  ctx.strokeStyle = annotation.color
+  ctx.fillStyle = annotation.color
+  ctx.lineWidth = 'width' in annotation ? lineWidth(annotation.tool, annotation.width, scale) : Math.max(2, SHAPE_WIDTH * scale)
+  ctx.lineCap = 'round'
+  ctx.lineJoin = 'round'
+  if (annotation.tool === 'text') {
+    const fontSize = Math.max(18, 18 * scale)
+    ctx.font = `600 ${fontSize}px sans-serif`
+    annotation.text.split('\n').forEach((line, index) => {
+      ctx.fillText(line, annotation.start.x, annotation.start.y + fontSize * (index + 1), textBounds === undefined ? undefined : Math.max(1, textBounds - annotation.start.x))
+    })
+    return
+  }
+  const { start, end } = annotation
+  if (annotation.tool === 'rectangle') {
+    const rect = toRect(start, end)
+    ctx.strokeRect(rect.x, rect.y, rect.width, rect.height)
+  } else if (annotation.tool === 'ellipse') {
+    const rect = toRect(start, end)
+    ctx.beginPath()
+    ctx.ellipse(rect.x + rect.width / 2, rect.y + rect.height / 2, rect.width / 2, rect.height / 2, 0, 0, Math.PI * 2)
+    ctx.stroke()
+  } else if (annotation.tool === 'arrow') {
+    const angle = Math.atan2(end.y - start.y, end.x - start.x)
+    const head = Math.max(10, 12 * scale)
+    ctx.beginPath()
+    ctx.moveTo(start.x, start.y)
+    ctx.lineTo(end.x, end.y)
+    ctx.moveTo(end.x - head * Math.cos(angle - Math.PI / 6), end.y - head * Math.sin(angle - Math.PI / 6))
+    ctx.lineTo(end.x, end.y)
+    ctx.lineTo(end.x - head * Math.cos(angle + Math.PI / 6), end.y - head * Math.sin(angle + Math.PI / 6))
+    ctx.stroke()
+  } else if (annotation.tool === 'line') {
+    ctx.beginPath()
+    ctx.moveTo(start.x, start.y)
+    ctx.lineTo(end.x, end.y)
+    ctx.stroke()
+  } else if ((annotation.tool === 'pen' || annotation.tool === 'highlighter') && annotation.points.length > 1) {
+    // one path stroked once: where a highlighter stroke runs over itself, it is no deeper than anywhere else
+    ctx.save()
+    if (annotation.tool === 'highlighter') ctx.globalAlpha = HIGHLIGHTER_ALPHA
+    ctx.beginPath()
+    ctx.moveTo(annotation.points[0].x, annotation.points[0].y)
+    annotation.points.slice(1).forEach(point => ctx.lineTo(point.x, point.y))
+    ctx.stroke()
+    ctx.restore()
   }
 }
 

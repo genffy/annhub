@@ -164,3 +164,33 @@ test('the popup buttons draw in the popup font, not the browser one (visual.md �
   expect(strangers.strangers, 'controls in a font of their own').toEqual([])
   await popup.close()
 })
+
+test('the popup annotation entry opens the layer on the page and stays off on restricted pages (annotate.md §1.1)', async ({ page, extensionId }) => {
+  await page.goto(getCapturePageUrl())
+  const popup = await page.context().newPage()
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`)
+  // an http page: the button is live, and clicking it opens the layer there.
+  // the popup runs as a tab here, so the fixture page has to be the active tab
+  // for the popup's tab query to see it
+  const button = popup.locator('[data-ann-ui="popup-annotate"]')
+  await page.bringToFront()
+  // the entry's availability is read once on mount; remount now that the
+  // fixture page is the window's active tab
+  await popup.reload()
+  await expect(button).toBeEnabled()
+  await button.click()
+  await expect(page.locator('[data-ann-ui="annotation-layer"]')).toBeVisible()
+
+  // the annotate click closed the popup (it dismisses itself): open it again
+  // on a restricted page, where the entry is off and the reason is named
+  const restricted = await page.context().newPage()
+  await restricted.goto(`chrome-extension://${extensionId}/library.html#/settings`)
+  await restricted.bringToFront()
+  const popup2 = await page.context().newPage()
+  await popup2.goto(`chrome-extension://${extensionId}/popup.html`)
+  const button2 = popup2.locator('[data-ann-ui="popup-annotate"]')
+  await expect(button2).toBeDisabled()
+  await expect(button2).toHaveAttribute('title', /不能批注/)
+  await popup2.close()
+  await restricted.close()
+})

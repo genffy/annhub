@@ -7,6 +7,7 @@
  * editing here.
  */
 import { useCallback, useEffect, useState } from 'react'
+import { PenLine } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import MessageUtils from '../../utils/message'
 import type { EntryQueryResult, HighlightQueryResult } from '../../learning-core/query'
@@ -33,12 +34,30 @@ export default function App() {
   const [counts, setCounts] = useState<Record<Tab, number>>({ all: 0, clips: 0, highlights: 0, screenshots: 0 })
   // starts from the default binding and follows the browser's own assignment (extension.md §7.1)
   const [shortcutHint, setShortcutHint] = useState(() => uiText('library.shortcutHint', { keys: 'Cmd/Ctrl+Shift+S' }))
+  // The annotation entry works on the pages the content script covers; chrome:// and friends get the reason instead
+  // (annotate.md §1.1, extension.md §2.6 — the popup is the fallback where page surfaces cannot run).
+  const [canAnnotate, setCanAnnotate] = useState(false)
 
   useEffect(() => {
     void chrome.commands.getAll().then(commands => {
       const binding = commands.find(command => command.name === ANN_SCREENSHOT_COMMAND)?.shortcut
       if (binding) setShortcutHint(uiText('library.shortcutHint', { keys: binding }))
     })
+    void chrome.tabs.query({ active: true, currentWindow: true }).then(([active]) => {
+      try {
+        const url = active?.url ? new URL(active.url) : null
+        setCanAnnotate(Boolean(url && ['http:', 'https:', 'file:'].includes(url.protocol)))
+      } catch {
+        setCanAnnotate(false)
+      }
+    })
+  }, [])
+
+  const annotateThisPage = useCallback(async () => {
+    const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (!active?.id) return
+    await chrome.tabs.sendMessage(active.id, { type: 'TRIGGER_ANNOTATE' }, { frameId: 0 }).catch(() => undefined)
+    window.close()
   }, [])
 
   const load = useCallback(async () => {
@@ -128,6 +147,19 @@ export default function App() {
             {entries.length === 0 && <li className="popup-empty">{uiText('library.empty')}</li>}
           </ul>
         )}
+
+        <div className="popup-actions">
+          <button
+            type="button"
+            data-ann-ui="popup-annotate"
+            disabled={!canAnnotate}
+            title={canAnnotate ? uiText('popup.annotate') : uiText('popup.annotate.restricted')}
+            onClick={() => void annotateThisPage()}
+          >
+            <PenLine size={14} aria-hidden />
+            {uiText('popup.annotate')}
+          </button>
+        </div>
 
         <footer className="popup-foot">{shortcutHint}</footer>
       </section>

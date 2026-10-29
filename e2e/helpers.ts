@@ -280,6 +280,10 @@ export function triggerBlockMode(page: Page): Promise<void> {
   return sendTabMessage(page, { type: 'TRIGGER_BLOCK_MODE' })
 }
 
+export function triggerAnnotation(page: Page): Promise<void> {
+  return sendTabMessage(page, { type: 'TRIGGER_ANNOTATE' })
+}
+
 /** Waits for the clip toast (已剪藏 · 撤销 · 编辑); tolerant of a cold service worker. */
 export async function waitForClipToast(page: Page, timeout = 12_000): Promise<Locator> {
   const toast = page.locator('[data-ann-ui="clip-toast"]')

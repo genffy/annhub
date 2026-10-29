@@ -28,7 +28,7 @@ export interface ResponseMessage<T = any> {
 
 /** `via` and block attribution for capture.saved / capture.undone (metrics.md §9). */
 export interface CaptureAttribution {
-  via: 'menu' | 'block' | 'shortcut'
+  via: 'menu' | 'block' | 'shortcut' | 'ink'
   blockKind?: 'post' | 'code' | 'table' | 'figure' | 'quote' | 'section' | 'article'
   levelChanged?: boolean
   truncated?: boolean
