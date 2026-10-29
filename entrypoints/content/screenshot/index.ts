@@ -21,7 +21,7 @@
  */
 
 import MessageUtils from '../../../utils/message'
-import { screenshotFailureText, screenshotSaveErrorText, uiText } from '../../../utils/ui-text'
+import { screenshotFailureText, screenshotSaveErrorText, uiText, type UiTextKey } from '../../../utils/ui-text'
 import { newEntryId } from '../../../learning-core/assets'
 import { normalizeHost } from '../../../learning-core/normalize'
 import { extractPageMeta, resolvePermalink } from '../page-meta'
@@ -92,6 +92,7 @@ import {
 } from './selection'
 import { readFrame, rememberFrame, type FrameRecord } from './frame-memory'
 import { permalinkForRegion } from './permalink'
+import { Stitcher, type StitchFailure } from './stitcher'
 import { inkToEditorAnnotations, type InkStroke } from '../annotation/ink'
 import type { ExtensionSettings } from '../../../background-service/settings-schema'
 
@@ -232,6 +233,9 @@ class ScreenshotSession {
   private shiftRatio: number | null = null
   private pendingFrameRecord: FrameRecord | null = null
   private reusedFrame = false
+  /** The capture came out of the scroll stitcher (screenshot.md §1.5): the frame is stitched, not dragged or picked. */
+  private stitched = false
+  private stitcher: Stitcher | null = null
   /** Page-annotation ink handed over with the trigger (annotate.md §1.3); consumed when the capture is in. */
   pendingInk: InkStroke[] | null = null
   /** The annotation layer's callback, run once when this session ends for any reason. */
@@ -247,6 +251,10 @@ class ScreenshotSession {
       }
       if (this.beautifyPanel) {
         this.closeBeautifyPanel()
+        return
+      }
+      if (this.stitching) {
+        this.stitcher?.cancel()
         return
       }
       exitScreenshotMode()
@@ -500,8 +508,109 @@ class ScreenshotSession {
     }
     bar.append(chip('free', uiText('shot.ratio.free')))
     for (const id of this.settings.ratioPresets) bar.append(chip(id, id))
+    const stitched = this.doc.createElement('button')
+    stitched.type = 'button'
+    stitched.textContent = uiText('shot.stitch.button')
+    stitched.setAttribute('data-ann-ui', 'shot-stitch-button')
+    stitched.setAttribute('aria-label', uiText('shot.stitch.button'))
+    stitched.addEventListener('click', event => {
+      if (!isUserInput(event)) return
+      void this.beginStitching()
+    })
+    bar.appendChild(stitched)
     this.host.appendChild(bar)
     this.ratioBarEl = bar
+  }
+
+  // ── scrolling long screenshot (screenshot.md §1.5) ────────────────
+
+  private stitching = false
+
+  private async beginStitching(): Promise<void> {
+    if (this.stitching || (this.state !== 'selecting' && this.state !== 'confirming')) return
+    const view = this.doc.defaultView!
+    // a transparent catcher holds the pointer off the page's hover styles for the whole run
+    const sweeper = this.doc.createElement('div')
+    sweeper.setAttribute(ROOT_ATTR, 'screenshot-hover-sweeper')
+    Object.assign(sweeper.style, { position: 'fixed', inset: '0', pointerEvents: 'auto', background: 'transparent', zIndex: '2147483646' })
+    this.doc.documentElement.appendChild(sweeper)
+    const stitcher = new Stitcher({
+      doc: this.doc,
+      capture: async () => {
+        // the shot photographs the screen: the session's overlay and UI hide
+        // for the moment, and the cursor highlight of a recording with them
+        this.host.style.display = 'none'
+        this.doc.dispatchEvent(new CustomEvent('annhub:capture-hide'))
+        try {
+          await doubleRaf()
+          // the same rate-limit-aware path the region capture takes
+          const response = await this.requestCapture()
+          if (!response.success || !response.data?.dataUrl) throw new Error(response.error ?? 'capture failed')
+          return response.data.dataUrl
+        } finally {
+          this.host.style.display = ''
+          this.doc.dispatchEvent(new CustomEvent('annhub:capture-restore'))
+        }
+      },
+    })
+    this.stitcher = stitcher
+    this.stitching = true
+    // every ending — stitched, stalled, cancelled or discarded — scrolls the page back to here
+    const startTop = this.doc.scrollingElement?.scrollTop ?? 0
+    const startLeft = this.doc.scrollingElement?.scrollLeft ?? 0
+    this.setConfirmShield(false)
+    this.clearConfirmUi()
+    this.clearHoverUi()
+    this.selectionEl?.remove()
+    this.selectionEl = null
+    this.ratioBarEl?.remove()
+    this.ratioBarEl = null
+    this.hintEl?.style.setProperty('display', 'none')
+    let failure: StitchFailure | null = null
+    let result: Awaited<ReturnType<Stitcher['run']>> | undefined
+    try {
+      result = await stitcher.run()
+    } catch (error) {
+      failure = (error as StitchFailure) ?? null
+    }
+    this.stitching = false
+    this.stitcher = null
+    sweeper.remove()
+    const restoreScroll = (): void => {
+      const scroller = this.doc.scrollingElement
+      if (scroller) {
+        scroller.scrollTop = startTop
+        scroller.scrollLeft = startLeft
+      }
+    }
+    if (!result) {
+      // nothing was stitched, or the run was discarded: back to selecting, the page scrolls home
+      restoreScroll()
+      this.state = 'selecting'
+      this.showRatioBar()
+      this.syncHint()
+      const code: StitchFailure = failure ?? 'scripted'
+      if (code === 'zoomed') this.showExternalNotice(uiText('shot.stitch.zoom'))
+      else if (code !== 'cancel') this.showExternalNotice(uiText(`shot.stitch.${code}` as UiTextKey))
+      return
+    }
+    restoreScroll()
+    if (result.stop !== 'bottom') this.showNotice(uiText('shot.stitch.capped'), false)
+    this.state = 'capturing'
+    await this.settingsLoaded
+    if (this.exited) return
+    // the ink on the page is screen-fixed at this point: it lands on the first
+    // segment, where it was drawn (annotate.md §1.3, screenshot.md §1.5)
+    this.selection = { x: 0, y: 0, width: result.widthCss, height: result.heightCss }
+    this.croppedCanvas = result.canvas
+    this.capturedDpr = result.dpr
+    this.stitched = true
+    this.pendingFrameRecord = null
+    this.capturedSourceUrl = this.pageUrl()
+    this.maskBoxes = []
+    this.prepareEditor(this.consumeInk({ x: 0, y: 0, width: view.innerWidth, height: view.innerHeight }))
+    this.state = 'preview'
+    this.showPreview()
   }
   private textNode(t: string): Text {
     return this.doc.createTextNode(t)
@@ -1738,7 +1847,7 @@ class ScreenshotSession {
           ...(meta.published ? { published: meta.published } : {}),
           ...(meta.description ? { description: meta.description } : {}),
           via: this.via,
-          frame: this.reusedFrame ? 'reused' : this.elementRect ? 'element' : 'drag',
+          frame: this.stitched ? 'stitched' : this.reusedFrame ? 'reused' : this.elementRect ? 'element' : 'drag',
           startedAt: clickedAt,
         },
       })

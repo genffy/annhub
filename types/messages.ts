@@ -34,7 +34,7 @@ export interface CaptureAttribution {
   truncated?: boolean
   durationMs?: number
   startedAt?: number
-  frame?: 'drag' | 'element' | 'reused'
+  frame?: 'drag' | 'element' | 'reused' | 'stitched'
 }
 
 export type CaptureVia = CaptureAttribution['via']

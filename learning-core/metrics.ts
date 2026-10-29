@@ -10,7 +10,7 @@ import { ENTRY_ERROR_CODES, PROPERTY_TYPES } from './types'
 
 export type CaptureVia = 'menu' | 'block' | 'shortcut' | 'ink'
 export type BlockKind = 'post' | 'code' | 'table' | 'figure' | 'quote' | 'section' | 'article'
-export type ScreenshotFrame = 'drag' | 'element' | 'reused'
+export type ScreenshotFrame = 'drag' | 'element' | 'reused' | 'stitched'
 
 export type MetricEventName =
   | 'capture.saved'
@@ -91,7 +91,7 @@ const EVENT_FIELDS: Record<MetricEventName, Record<string, PropertyCheck>> = {
     block_kind: oneOf(['post', 'code', 'table', 'figure', 'quote', 'section', 'article']),
     level_changed: isBoolean,
     truncated: isBoolean,
-    frame: oneOf(['drag', 'element', 'reused']),
+    frame: oneOf(['drag', 'element', 'reused', 'stitched']),
   },
   'capture.undone': { type: entryType, via },
   'capture.save_failed': { type: entryType, error_code: oneOf(ENTRY_ERROR_CODES) },

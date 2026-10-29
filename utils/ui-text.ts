@@ -116,6 +116,21 @@ const STRINGS = {
   'shot.step.next': { zh: '下一个：{number}', en: 'Next: {number}' },
   'shot.step.reset': { zh: '重置计数', en: 'Reset count' },
   'shot.step.delete': { zh: '删除序号 {number}', en: 'Delete step {number}' },
+  // scrolling long screenshot (screenshot.md §1.5)
+  'shot.stitch.button': { zh: '滚动长图', en: 'Scrolling capture' },
+  'shot.stitch.progress': { zh: '拼长图 {done} / {total}', en: 'Stitching {done} / {total}' },
+  'shot.stitch.esc': { zh: 'Esc 取消', en: 'Esc to cancel' },
+  'shot.stitch.capped': { zh: '已到上限，长图到这里为止，后面没有拼', en: 'A cap was reached; the capture ends here' },
+  'shot.stitch.zoom': { zh: '页面缩放在拼接过程中变了，长图已丢弃；恢复缩放后重新开始', en: 'The page zoom changed mid-capture — discarded; restore the zoom and start again' },
+  'shot.stitch.inner-scroll': {
+    zh: '这个页面的内容在页面里的另一个滚动区域中，拼不了长图；可以改用区域或元素截图',
+    en: 'This page scrolls inside its own area — a scrolling capture cannot; use a region or element capture instead',
+  },
+  'shot.stitch.scripted': {
+    zh: '页面接管了滚动，拼不了长图；可以改用区域或元素截图',
+    en: 'This page took over the scrolling — a scrolling capture cannot; use a region or element capture instead',
+  },
+  'shot.stitch.pinched': { zh: '页面已被双指放大，先恢复原大小再拼长图', en: 'The page is pinch-zoomed — restore its size before a scrolling capture' },
   // page-annotation layer (annotate.md §1)
   'annotate.toolbar': { zh: '批注工具栏', en: 'Annotation toolbar' },
   'annotate.tool.pointer': { zh: '指针：页面照常可点', en: 'Pointer: the page stays clickable' },
