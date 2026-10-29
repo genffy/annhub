@@ -131,6 +131,7 @@ const STRINGS = {
     en: 'This page took over the scrolling — a scrolling capture cannot; use a region or element capture instead',
   },
   'shot.stitch.pinched': { zh: '页面已被双指放大，先恢复原大小再拼长图', en: 'The page is pinch-zoomed — restore its size before a scrolling capture' },
+  'shot.stitch.pinnedInk': { zh: '固定在屏幕上的笔画不进长图', en: 'Strokes pinned to the screen are not part of the scrolling capture' },
   // page-annotation layer (annotate.md §1)
   'annotate.toolbar': { zh: '批注工具栏', en: 'Annotation toolbar' },
   'annotate.tool.pointer': { zh: '指针：页面照常可点', en: 'Pointer: the page stays clickable' },

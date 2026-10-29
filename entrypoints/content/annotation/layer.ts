@@ -32,7 +32,7 @@ import {
   type ScreenshotTool,
 } from '../screenshot/editor'
 import type { UiTextKey } from '../../../utils/ui-text'
-import { inkToEditorAnnotations, type InkStroke } from './ink'
+import { inkToEditorAnnotations, inkToViewport, type InkStroke } from './ink'
 
 const ROOT_ATTR = 'data-ann-ui'
 const ROOT_VALUE = 'annotation-layer'
@@ -199,6 +199,17 @@ export class AnnotationLayer {
     this.ensureStepRing()
 
     this.add(window, 'resize', () => this.syncCanvasSize())
+    // the ink follows the page's scroll: it is stored where the content is, and
+    // the canvas repaints at the new offset (annotate.md §1.2)
+    let scrollPaintQueued = false
+    this.add(window, 'scroll', () => {
+      if (scrollPaintQueued || this.exited) return
+      scrollPaintQueued = true
+      requestAnimationFrame(() => {
+        scrollPaintQueued = false
+        this.paint()
+      })
+    })
     // Entering the top layer again puts the layer above a fullscreen element
     // that came later; the browser stacks the top layer by entry order.
     this.add(this.doc, 'fullscreenchange', () => {
@@ -268,10 +279,11 @@ export class AnnotationLayer {
     return this.doc.defaultView?.devicePixelRatio || 1
   }
 
-  /** The strokes as editor annotations in this canvas's pixel coordinates (the viewport is the frame). */
+  /** The strokes as editor annotations in this canvas's pixel coordinates: page ink moves with the scroll, pinned ink stays. */
   private asAnnotations(strokes: readonly InkStroke[]): Annotation[] {
     const view = this.doc.defaultView!
-    return inkToEditorAnnotations(strokes, { x: 0, y: 0, width: view.innerWidth, height: view.innerHeight }, this.scale())
+    const onScreen = inkToViewport(strokes, view.scrollX, view.scrollY)
+    return inkToEditorAnnotations(onScreen, { x: 0, y: 0, width: view.innerWidth, height: view.innerHeight }, this.scale())
   }
 
   private paint(): void {
@@ -495,8 +507,29 @@ export class AnnotationLayer {
     }
   }
 
+  /** Where the stroke is stored: the PAGE's position, so scrolling moves the ink with the content (annotate.md §1.2). */
   private canvasPoint(event: PointerEvent): Point {
-    return { x: event.clientX, y: event.clientY }
+    const view = this.doc.defaultView!
+    return { x: event.clientX + view.scrollX, y: event.clientY + view.scrollY }
+  }
+
+  /**
+   * Whether a stroke starting here is pinned to the window (annotate.md
+   * §1.2): the element under the pointer — or an ancestor — is fixed, or a
+   * sticky bar currently stuck to the top. Pinned ink keeps viewport
+   * coordinates and stays out of a scrolling capture.
+   */
+  private isPinnedPoint(clientX: number, clientY: number): boolean {
+    const view = this.doc.defaultView!
+    const stack = this.doc.elementsFromPoint(clientX, clientY)
+    const target = stack.find(element => !element.closest('[data-ann-ui]'))
+    if (!target) return false
+    for (let node: Element | null = target; node && node !== this.doc.body; node = node.parentElement) {
+      const style = view.getComputedStyle(node)
+      if (style.position === 'fixed') return true
+      if (style.position === 'sticky' && node.getBoundingClientRect().top <= 1) return true
+    }
+    return false
   }
 
   private readonly onPointerDown = (rawEvent: Event): void => {
@@ -517,6 +550,7 @@ export class AnnotationLayer {
     const id = this.newStrokeId()
     const draft: InkStroke = { id, tool: this.tool as InkStroke['tool'], points: [start, start], color: this.color }
     if (isLineTool(this.tool)) draft.width = this.lineWidth
+    if (this.isPinnedPoint(event.clientX, event.clientY)) draft.pinned = true
     this.draft = draft
     const follow = (ev: PointerEvent): void => {
       const point = this.canvasPoint(ev)
@@ -569,8 +603,10 @@ export class AnnotationLayer {
       color: this.color,
       sequence: this.stepSequence,
     }
-    // a pressed badge moves as far as the pointer does; a new one stays under the pointer
-    const grab = pressedStroke ? { x: startCanvas.x - pressedStroke.points[0]!.x * scale, y: startCanvas.y - pressedStroke.points[0]!.y * scale } : { x: 0, y: 0 }
+    // a pressed badge moves as far as the pointer does; a new one stays under the pointer.
+    // the grab offset works in screen space: page ink moves with the scroll, pinned ink does not
+    const pressedOnScreen = pressedStroke ? inkToViewport([pressedStroke], view.scrollX, view.scrollY)[0]!.points[0]! : null
+    const grab = pressedOnScreen ? { x: startCanvas.x - pressedOnScreen.x * scale, y: startCanvas.y - pressedOnScreen.y * scale } : { x: 0, y: 0 }
     let placed = badge
     const draft = (): InkStroke[] => (pressedStroke ? this.strokes.map(stroke => (stroke === pressedStroke ? placed : stroke)) : [...this.strokes, placed])
     const follow = (ev: PointerEvent): void => {
@@ -702,7 +738,11 @@ export class AnnotationLayer {
     const value = input.value.trim()
     input.remove()
     if (!value) return
-    this.commit([...this.strokes, { id: this.newStrokeId(), tool: 'text', points: [this.textAt], text: value, color: this.color }])
+    const view = this.doc.defaultView!
+    this.commit([
+      ...this.strokes,
+      { id: this.newStrokeId(), tool: 'text', points: [{ x: this.textAt.x + view.scrollX, y: this.textAt.y + view.scrollY }], text: value, color: this.color },
+    ])
   }
 
   // ── steps, undo, clear, auto-erase ────────────────────────────────
@@ -818,9 +858,10 @@ export class AnnotationLayer {
       return
     }
     const scale = this.scale()
+    const view = this.doc.defaultView!
     const radius = stepRadius(scale)
-    const x = step.points[0]!.x * scale
-    const y = step.points[0]!.y * scale
+    const x = (step.points[0]!.x - view.scrollX) * scale
+    const y = (step.points[0]!.y - view.scrollY) * scale
     Object.assign(ring.style, { display: 'block', left: `${x - radius}px`, top: `${y - radius}px`, width: `${radius * 2}px`, height: `${radius * 2}px` })
     const sameGroup = this.strokes.filter(stroke => stroke.tool === 'step' && stroke.sequence === step.sequence)
     const number = sameGroup.indexOf(step) + 1

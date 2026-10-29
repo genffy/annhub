@@ -126,13 +126,14 @@ export class Stitcher {
     return { scroller, scrollable: scroller.scrollHeight > view.innerHeight + 1 }
   }
 
-  private showProgress(): void {
+  private showProgress(totalEstimate: number): void {
     const el = this.doc.createElement('div')
     el.className = 'ann-shot-hint'
     el.setAttribute('data-ann-ui', 'stitch-progress')
     el.style.zIndex = '10'
     this.doc.documentElement.appendChild(el)
     this.progressEl = el
+    this.syncProgress(1, totalEstimate)
   }
 
   private syncProgress(done: number, total: number): void {
@@ -167,7 +168,7 @@ export class Stitcher {
     let bytesPerPixel = 0.35
     let stop: StitchStop | 'stalled' | null
 
-    this.showProgress()
+    this.showProgress(expectedSegmentCount(scroller.scrollHeight - scroller.scrollTop - view.innerHeight, step) + 1)
     try {
       for (let index = 0; ; index++) {
         // the pinned elements ride the first screen only; afterwards they are

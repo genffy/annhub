@@ -32,6 +32,18 @@ async function pixelAt(page: Page, x: number, y: number): Promise<number[]> {
   )
 }
 
+/** Reads one pixel of the preview canvas in its own device coordinates (the stitched image is scaled in the preview). */
+async function devicePixelAt(page: Page, x: number, y: number): Promise<number[]> {
+  return page.evaluate(
+    ({ x, y }: { x: number; y: number }) => {
+      const canvas = document.querySelector('[data-ann-ui="screenshot-preview"] canvas') as HTMLCanvasElement
+      const data = canvas.getContext('2d')!.getImageData(Math.round(x), Math.round(y), 1, 1).data
+      return [data[0], data[1], data[2]]
+    },
+    { x, y },
+  )
+}
+
 const near = (rgb: readonly number[], expected: readonly number[], tol = 30): boolean =>
   Math.abs(rgb[0] - expected[0]) <= tol && Math.abs(rgb[1] - expected[1]) <= tol && Math.abs(rgb[2] - expected[2]) <= tol
 
@@ -83,11 +95,37 @@ test.describe('scrolling long screenshot (screenshot.md §1.5)', () => {
     expect(saved).toContain('stitched')
   })
 
+  test('page ink enters the long image at its page position; ink pinned to the screen stays out with a notice', async ({ page }) => {
+    const { triggerAnnotation } = await import('./helpers')
+    await page.goto('http://localhost:8173/longpage.html')
+    await triggerAnnotation(page)
+    await page.locator('[data-ann-ui="annotation-layer"]').waitFor()
+    // a stroke over the first section (page ink) and one over the sticky nav (screen-pinned)
+    await drawInk(page, [300, 170], [420, 170])
+    await drawInk(page, [620, 24], [760, 24])
+    // the screenshot shortcut carries the ink into the session; stitch from there
+    const { triggerScreenshot } = await import('./helpers')
+    await triggerScreenshot(page)
+    await page.locator('[data-ann-ui="screenshot-session"]').waitFor()
+    await page.locator('[data-ann-ui="shot-stitch-button"]').click()
+    await page.locator(PREVIEW).waitFor({ timeout: 60_000 })
+
+    // the page ink sits where it lives on the page, not where the window was
+    expect(near(await devicePixelAt(page, 340, 170), [229, 72, 77], 40)).toBe(true)
+    // the pinned stroke is out, and the editor says one sentence about it
+    expect(near(await devicePixelAt(page, 690, 24), [47, 111, 222], 30)).toBe(true)
+    const notice = page.locator('.ann-shot-notice')
+    await expect(notice).toContainText(/固定在屏幕|不进长图/)
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+  })
+
   test('Esc during the stitching discards everything and scrolls the page back', async ({ page }) => {
     await page.goto('http://localhost:8173/longpage.html')
     await triggerStitch(page)
-    // cancel while the first screens are being taken
-    await page.locator('[data-ann-ui="stitch-progress"]').waitFor()
+    // cancel while the first screens are being taken. The progress line hides
+    // for the moment of every shot, so the wait is for it to exist at all.
+    await page.locator('[data-ann-ui="stitch-progress"]').waitFor({ state: 'attached' })
     await page.keyboard.press('Escape')
     // back to selecting, nothing entered the library, the page is where it was
     await expect(page.locator('[data-ann-ui="stitch-progress"]')).toHaveCount(0)
@@ -106,6 +144,15 @@ test.describe('scrolling long screenshot (screenshot.md §1.5)', () => {
     await expect(page.locator(SESSION)).toBeVisible()
   })
 })
+
+/** Draws a red pen stroke with the annotation layer's toolbar pen. */
+async function drawInk(page: Page, from: [number, number], to: [number, number]): Promise<void> {
+  await page.locator('[data-ann-ui="annotation-tool-pen"]').click()
+  await page.mouse.move(from[0], from[1])
+  await page.mouse.down()
+  await page.mouse.move(to[0], to[1], { steps: 6 })
+  await page.mouse.up()
+}
 
 /** Opens the region selection and clicks the chip on the selection bar. */
 async function triggerStitch(page: Page): Promise<void> {

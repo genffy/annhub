@@ -1,13 +1,17 @@
 /**
  * Page-annotation ink model — docs/product/annotate.md §1.
  *
- * Strokes live in viewport CSS coordinates at draw time (annotate.md §1.2:
- * ink stays where it was drawn on screen). The conversions here are the one
- * place that turns ink into editor annotations (annotate.md §1.3): strokes
- * fully inside the frame keep their native editor shape, strokes fully
- * outside are dropped, and strokes crossing the boundary are cut at it — a
- * cut rectangle is no longer a rectangle, so cut strokes travel as plain
- * polylines with their widths in pixels.
+ * Strokes live in the PAGE's CSS coordinates at draw time (annotate.md
+ * §1.2: the ink follows the page's scroll, so it is stored where the content
+ * is, not where the window showed it), except a stroke started on an element
+ * pinned to the window — a fixed widget or a stuck sticky bar — which keeps
+ * viewport coordinates and its `pinned` flag: it stays on the screen and
+ * stays out of a scrolling capture. The conversions here are the one place
+ * that turns ink into editor annotations (annotate.md §1.3): strokes fully
+ * inside the frame keep their native editor shape, strokes fully outside are
+ * dropped, and strokes crossing the boundary are cut at it — a cut rectangle
+ * is no longer a rectangle, so cut strokes travel as plain polylines with
+ * their widths in pixels.
  */
 import type { Annotation, LineWidth, Point, StepAnnotation } from '../screenshot/editor'
 
@@ -16,8 +20,13 @@ export type InkTool = 'pen' | 'highlighter' | 'line' | 'arrow' | 'rectangle' | '
 export interface InkStroke {
   id: string
   tool: InkTool
-  /** pen/highlighter: the trace; shapes: [start, end]; text and step: the anchor. Viewport CSS px at draw time. */
+  /**
+   * pen/highlighter: the trace; shapes: [start, end]; text and step: the anchor.
+   * Page CSS px at draw time — viewport px for a `pinned` stroke.
+   */
   points: Point[]
+  /** Started on an element pinned to the window: the stroke stays on screen and out of a scrolling capture. */
+  pinned?: boolean
   color: string
   /** What the pen, the line and the highlighter draw at (screenshot.md §1.1). */
   width?: LineWidth
@@ -235,4 +244,13 @@ export function inkToEditorAnnotations(strokes: readonly InkStroke[], frame: Rec
 /** Ink for the wire (a message payload): a copy the sender can keep mutating without touching the session's strokes. */
 export function snapshotInk(strokes: readonly InkStroke[]): InkStroke[] {
   return strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))
+}
+
+/**
+ * Where the ink shows right now (annotate.md §1.2): page coordinates move
+ * with the scroll, pinned strokes stay where they are. The viewport is the
+ * frame every capture converts from.
+ */
+export function inkToViewport(strokes: readonly InkStroke[], scrollX: number, scrollY: number): InkStroke[] {
+  return strokes.map(stroke => (stroke.pinned ? stroke : { ...stroke, points: stroke.points.map(point => ({ x: point.x - scrollX, y: point.y - scrollY })) }))
 }

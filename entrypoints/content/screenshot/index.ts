@@ -93,7 +93,7 @@ import {
 import { readFrame, rememberFrame, type FrameRecord } from './frame-memory'
 import { permalinkForRegion } from './permalink'
 import { Stitcher, type StitchFailure } from './stitcher'
-import { inkToEditorAnnotations, type InkStroke } from '../annotation/ink'
+import { inkToEditorAnnotations, inkToViewport, type InkStroke } from '../annotation/ink'
 import type { ExtensionSettings } from '../../../background-service/settings-schema'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -528,7 +528,6 @@ class ScreenshotSession {
 
   private async beginStitching(): Promise<void> {
     if (this.stitching || (this.state !== 'selecting' && this.state !== 'confirming')) return
-    const view = this.doc.defaultView!
     // a transparent catcher holds the pointer off the page's hover styles for the whole run
     const sweeper = this.doc.createElement('div')
     sweeper.setAttribute(ROOT_ATTR, 'screenshot-hover-sweeper')
@@ -608,7 +607,7 @@ class ScreenshotSession {
     this.pendingFrameRecord = null
     this.capturedSourceUrl = this.pageUrl()
     this.maskBoxes = []
-    this.prepareEditor(this.consumeInk({ x: 0, y: 0, width: view.innerWidth, height: view.innerHeight }))
+    this.prepareEditor(this.consumeInkStitched(startLeft, startTop, result.widthCss, result.heightCss))
     this.state = 'preview'
     this.showPreview()
   }
@@ -1254,14 +1253,34 @@ class ScreenshotSession {
 
   /**
    * The handed-over ink as editor annotations over the frame that was just
-   * captured, in one group for undo (annotate.md §1.3, D-38): strokes fully
-   * outside the frame are out, strokes crossing its boundary are cut at it.
+   * captured, in one group for undo (annotate.md §1.3, D-38): the ink is
+   * stored on the page, so it lands where it shows at the capture moment
+   * (annotate.md §1.2, §1.3); pinned ink already sits in viewport
+   * coordinates. Strokes fully outside the frame are out, strokes crossing
+   * its boundary are cut at it.
    */
   private consumeInk(frame: ViewportRect): Annotation[] {
     const ink = this.pendingInk
     this.pendingInk = null
     if (!ink || ink.length === 0) return []
-    return inkToEditorAnnotations(ink, frame, this.capturedDpr || 1)
+    const view = this.doc.defaultView!
+    return inkToEditorAnnotations(inkToViewport(ink, view.scrollX, view.scrollY), frame, this.capturedDpr || 1)
+  }
+
+  /**
+   * 拼长图的墨迹 (annotate.md §1.3): the page's ink enters at its page
+   * position, wherever the window was when it was drawn; ink pinned to the
+   * screen has no place in the long image — no single segment would line it
+   * up — so it stays out and the editor says one sentence about it.
+   */
+  private consumeInkStitched(startLeft: number, startTop: number, widthCss: number, heightCss: number): Annotation[] {
+    const ink = this.pendingInk
+    this.pendingInk = null
+    if (!ink || ink.length === 0) return []
+    const onPage = ink.filter(stroke => !stroke.pinned)
+    if (onPage.length !== ink.length) this.showNotice(uiText('shot.stitch.pinnedInk'), false)
+    if (onPage.length === 0) return []
+    return inkToEditorAnnotations(onPage, { x: startLeft, y: startTop, width: widthCss, height: heightCss }, this.capturedDpr || 1)
   }
 
   // ── element mode (DOM clone rasterization) ────────────────────────

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { clipPolyline, clipSegment, inkToEditorAnnotations, snapshotInk, type InkStroke } from '../ink'
+import { clipPolyline, clipSegment, inkToEditorAnnotations, inkToViewport, snapshotInk, type InkStroke } from '../ink'
 
 /**
  * annotate.md §1.3: the page's ink becomes editor annotations over the frame
@@ -335,6 +335,38 @@ describe('inkToEditorAnnotations', () => {
   })
 })
 
+describe('inkToViewport', () => {
+  it('moves page ink by the scroll; pinned ink stays where it is', () => {
+    const strokes: InkStroke[] = [
+      { id: 'a', tool: 'pen', points: [{ x: 900, y: 500 }], color: '#e5484d' },
+      { id: 'b', tool: 'pen', points: [{ x: 30, y: 20 }], color: '#e5484d', pinned: true },
+    ]
+    const onScreen = inkToViewport(strokes, 400, 300)
+    expect(onScreen[0]!.points).toEqual([{ x: 500, y: 200 }])
+    expect(onScreen[1]!.points).toEqual([{ x: 30, y: 20 }])
+    // the stored ink is untouched: the conversion is a view, not a move
+    expect(strokes[0]!.points).toEqual([{ x: 900, y: 500 }])
+  })
+
+  it('round-trips: scrolling back puts the ink where it was', () => {
+    const strokes: InkStroke[] = [
+      {
+        id: 'a',
+        tool: 'line',
+        points: [
+          { x: 600, y: 800 },
+          { x: 700, y: 900 },
+        ],
+        color: '#e5484d',
+        width: 'thin',
+      },
+    ]
+    const moved = inkToViewport(strokes, 100, 200)
+    const back = inkToViewport(moved, -100, -200)
+    expect(back[0]!.points).toEqual(strokes[0]!.points)
+  })
+})
+
 describe('snapshotInk', () => {
   it('hands out a copy the sender can mutate freely', () => {
     const strokes = [
@@ -343,9 +375,11 @@ describe('snapshotInk', () => {
         [2, 2],
       ]),
     ]
+    strokes[0]!.pinned = true
     const copy = snapshotInk(strokes)
     copy[0]!.points[0]!.x = 99
     copy[0]!.color = '#ffffff'
+    expect(copy[0]!.pinned).toBe(true)
     expect(strokes[0]!.points[0]!.x).toBe(1)
     expect(strokes[0]!.color).toBe('#e5484d')
   })

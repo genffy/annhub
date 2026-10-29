@@ -211,6 +211,84 @@ test.describe('page annotation layer', () => {
     await expect(page.locator(BLOCK_OVERLAY)).toHaveCount(0)
   })
 
+  test('the ink follows the page scroll: away and back lands on the same words (annotate.md §1.2)', async ({ page }) => {
+    await page.goto('http://localhost:8173/longpage.html')
+    await triggerAnnotation(page)
+    await page.locator(LAYER).waitFor()
+    // a stroke over the first section, near the top of the page
+    await drawPenStroke(page, [300, 170], [420, 170])
+    expect(isRed(await pixelAt(page, CANVAS, 340, 170))).toBe(true)
+
+    // scroll a screen down: the ink moved with the content, off this screen
+    await page.mouse.wheel(0, 700)
+    await page.waitForTimeout(250)
+    expect(await pixelAt(page, CANVAS, 340, 170)).toEqual([0, 0, 0])
+    // the stroke sits at page y 170 — on screen at -530, above this screen; a stroke drawn now sits lower
+    await drawPenStroke(page, [300, 400], [420, 400])
+    expect(isRed(await pixelAt(page, CANVAS, 340, 400))).toBe(true)
+
+    // scroll back: the first stroke is on its words again, the second on its own
+    await page.mouse.wheel(0, -700)
+    await page.waitForTimeout(250)
+    expect(isRed(await pixelAt(page, CANVAS, 340, 170))).toBe(true)
+    expect(await pixelAt(page, CANVAS, 340, 400)).toEqual([0, 0, 0])
+  })
+
+  test('a screenshot after scrolling takes the ink where it shows at that moment (annotate.md §1.3)', async ({ page }) => {
+    await page.goto('http://localhost:8173/longpage.html')
+    await triggerAnnotation(page)
+    await page.locator(LAYER).waitFor()
+    await drawPenStroke(page, [300, 170], [420, 170])
+
+    // scroll so the stroke sits at viewport y 70, then take a region shot of the top band
+    await page.mouse.wheel(0, 100)
+    await page.waitForTimeout(250)
+    await page.locator(`${TOOLBAR} [data-ann-ui="annotation-screenshot"]`).click()
+    await page.locator(SESSION).waitFor()
+    await page.mouse.move(100, 20)
+    await page.mouse.down()
+    await page.mouse.move(500, 120, { steps: 5 })
+    await page.mouse.up()
+    await page.keyboard.press('Enter')
+    await page.locator(PREVIEW).waitFor()
+    // the stroke was drawn at page y 170, on screen at 70 → in the picture at 70 - 20 = 50
+    expect(isRed(await pixelAt(page, PREVIEW_CANVAS, 200, 50))).toBe(true)
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+  })
+
+  test('ink over an inner scrolling area ignores that area but follows the page (annotate.md §1.2)', async ({ page }) => {
+    await page.goto('http://localhost:8173/longpage.html')
+    await triggerAnnotation(page)
+    await page.locator(LAYER).waitFor()
+    // a scrollable box in the page: the stroke over it must not follow its own scrolling
+    await page.evaluate(() => {
+      const box = document.createElement('div')
+      box.setAttribute('data-testid', 'inner-scroll')
+      box.style.cssText = 'position:absolute;left:280px;top:120px;width:200px;height:100px;overflow-y:scroll;background:#fff;border:1px solid #ddd'
+      box.innerHTML = `<div style="height:400px;background:linear-gradient(#fff,#eee)">line<br/>line<br/>line</div>`
+      document.body.appendChild(box)
+    })
+    await drawPenStroke(page, [300, 140], [460, 140])
+    expect(isRed(await pixelAt(page, CANVAS, 340, 140))).toBe(true)
+
+    // the box scrolls itself: the ink stays on screen where it was drawn
+    await page.evaluate(() => {
+      ;(document.querySelector('[data-testid="inner-scroll"]') as HTMLElement).scrollTop = 60
+    })
+    await page.waitForTimeout(200)
+    expect(isRed(await pixelAt(page, CANVAS, 340, 140))).toBe(true)
+
+    // the page scrolls: the ink follows the page (the pointer leaves the box first,
+    // so the wheel scrolls the page)
+    await page.mouse.move(700, 600)
+    await page.mouse.wheel(0, 80)
+    await page.waitForTimeout(250)
+    expect(await pixelAt(page, CANVAS, 340, 140)).toEqual([0, 0, 0])
+    expect(isRed(await pixelAt(page, CANVAS, 340, 60))).toBe(true)
+    await page.keyboard.press('Escape')
+  })
+
   test('a screenshot session points at itself when the annotation trigger arrives', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
     // start a screenshot session first
