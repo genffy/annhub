@@ -181,16 +181,30 @@ test('the popup annotation entry opens the layer on the page and stays off on re
   await button.click()
   await expect(page.locator('[data-ann-ui="annotation-layer"]')).toBeVisible()
 
-  // the annotate click closed the popup (it dismisses itself): open it again
-  // on a restricted page, where the entry is off and the reason is named
+  // the annotate click closed the popup (it dismisses itself); a fresh one shows the recording
+  // entry in the same row — enabled on the page, with its microphone choice
+  const popup2 = await page.context().newPage()
+  await popup2.goto(`chrome-extension://${extensionId}/popup.html`)
+  // opening the popup tab made it the active tab; hand the role back to the
+  // fixture page and remount, so the entries read the right tab
+  await page.bringToFront()
+  await popup2.reload()
+  const record = popup2.locator('[data-ann-ui="popup-record"]')
+  await expect(record).toBeEnabled()
+  const mic = popup2.locator('[data-ann-ui="popup-mic"] input[type="checkbox"]')
+  await expect(mic).toBeVisible()
+  await mic.check()
+  // the restricted page has both entries off, each naming its reason
   const restricted = await page.context().newPage()
   await restricted.goto(`chrome-extension://${extensionId}/library.html#/settings`)
   await restricted.bringToFront()
-  const popup2 = await page.context().newPage()
-  await popup2.goto(`chrome-extension://${extensionId}/popup.html`)
-  const button2 = popup2.locator('[data-ann-ui="popup-annotate"]')
-  await expect(button2).toBeDisabled()
-  await expect(button2).toHaveAttribute('title', /不能批注/)
+  const popup3 = await page.context().newPage()
+  await popup3.goto(`chrome-extension://${extensionId}/popup.html`)
+  await expect(popup3.locator('[data-ann-ui="popup-record"]')).toBeDisabled()
+  await expect(popup3.locator('[data-ann-ui="popup-record"]')).toHaveAttribute('title', /不能录制/)
+  await expect(popup3.locator('[data-ann-ui="popup-annotate"]')).toBeDisabled()
+  await expect(popup3.locator('[data-ann-ui="popup-annotate"]')).toHaveAttribute('title', /不能批注/)
+  await popup3.close()
   await popup2.close()
   await restricted.close()
 })

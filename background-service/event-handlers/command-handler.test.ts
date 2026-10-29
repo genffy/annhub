@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
+import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
 import { CommandHandler } from './command-handler'
 
 /**
@@ -40,6 +40,13 @@ describe('browser commands', () => {
     const { fire, sendMessage } = setup()
     await fire(ANN_ANNOTATE_COMMAND)
     expect(sendMessage).toHaveBeenCalledWith(7, { type: 'TRIGGER_ANNOTATE' }, { frameId: 0 })
+  })
+
+  it('hands the recording command to the recording service, not to a tab message', async () => {
+    const { fire, sendMessage } = setup()
+    // chrome is not stubbed here: the service's start probe finds no tab it could record and returns
+    await expect(fire(ANN_RECORD_COMMAND)).resolves.toBeUndefined()
+    expect(sendMessage).not.toHaveBeenCalled()
   })
 
   it('do nothing for an unknown command or a window without a tab', async () => {

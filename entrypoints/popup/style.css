@@ -201,6 +201,54 @@ textarea {
   cursor: default;
 }
 
+.popup-recording-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 11px;
+}
+
+.popup-recording-line .popup-rec {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c4271e;
+}
+
+.popup-recording-buttons {
+  display: inline-flex;
+  flex: none;
+  gap: 6px;
+}
+
+.popup-recording-buttons button {
+  padding: 4px 8px;
+}
+
+.popup-recording-mic {
+  flex: none;
+  font-size: 10px;
+  color: var(--ann-muted);
+}
+
+.popup-mic {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.popup-recording-outcome {
+  padding: 0 10px 7px;
+  margin: 0;
+  font-size: 10.5px;
+  color: var(--ann-muted);
+}
+
 .popup-foot {
   padding: 7px 10px;
   border-top: 1px solid var(--ann-border);

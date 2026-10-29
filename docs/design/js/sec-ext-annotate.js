@@ -108,3 +108,77 @@ function extAnnotateGroup() {
     row(editor, stack),
   )
 }
+
+// ── 标签页录制（annotate §2，#92）：弹窗的录制入口、录制中与失败；设置页的“录制”一节 ──
+const popupRecordingScene = (o = {}) => `<div class="popup-mock">
+  <div class="popup-head-row"><span>剪藏 · 4</span><a>在资料库中打开</a></div>
+  ${o.recording
+    ? `<div class="popup-rec-row"><i class="rec-dot"></i><b>正在录制：Retries can amplify an outage…</b><span class="popup-time">03:12</span><button class="popup-btn danger">停止录制</button></div>`
+    : `<div class="popup-actions-row">
+        <button class="popup-btn">${I('pencil-line')} 在页面上批注</button>
+        <button class="popup-btn">${I('scan')} 录制此标签页</button>
+        <label class="popup-mic"><input type="checkbox" ${o.mic ? 'checked' : ''}/> 带麦克风</label>
+      </div>
+      ${o.mic ? '<div class="popup-note">带麦克风录制时建议戴耳机：扬声器里的页面声音会被麦克风收进视频</div><div class="popup-note">视频在停止之后才会保存成文件</div>' : '<div class="popup-note">视频在停止之后才会保存成文件</div>'}`}
+  <div class="popup-foot-row">选中网页文字即可保存 · ⌘⇧S 截图</div>
+</div>`
+
+const settingsRecordingScene = o => `<div class="settings-mock">
+  <h3>录制</h3>
+  <p class="sm-muted">勾选“带麦克风”录旁白时，浏览器在这里询问授权；拒绝之后浏览器不再询问，可以在这里再次请求。</p>
+  <div class="settings-row"><span>麦克风授权</span><b class="${o.grant === 'granted' ? 'ok' : 'warn'}">${{ granted: '已允许', denied: '已拒绝', prompt: '没有授权' }[o.grant]}</b></div>
+  ${o.grant === 'granted' && o.backToTab ? '<button class="popup-btn">回到录制的标签页</button>' : ''}
+  ${o.grant !== 'granted' ? '<button class="popup-btn">请求麦克风授权</button>' : ''}
+  ${o.grant === 'denied' ? '<p class="sm-muted">已在浏览器里拒绝。要改回允许，打开浏览器的扩展设置里 AnnHub 的权限页，把麦克风改回“允许”。</p>' : ''}
+  <div class="settings-row"><span>光标高亮</span><label class="popup-mic"><input type="checkbox"/> 开</label></div>
+</div>`
+
+function extRecordGroup() {
+  const popupIdle = board({
+    title: '弹窗 · 录制此标签页（空闲）',
+    ref: 'annotate §2.1 · §2.4',
+    w: 380,
+    body: `<div style="padding:18px">${popupRecordingScene({ mic: true })}</div>`,
+    notes: [
+      '“录制此标签页”与“带麦克风”都在弹窗底部；勾选下次录制沿用。受限页面（<code>chrome://</code>、商店）上不可用并写明原因，页面里没有开始录制的按钮——录制只能从浏览器的界面上开始。',
+      '勾着“带麦克风”开始而扩展还没有麦克风授权时，先在新标签页打开设置页的“录制”一节，由浏览器在那里询问，这一次不开始录制；允许后设置页给出“回到录制的标签页”。',
+      '开始前弹窗写明<b>视频在停止之后才会保存成文件</b>（浏览器或扩展中途被关，已录的部分丢失）；勾选“带麦克风”时提示戴耳机。',
+    ],
+  })
+
+  const popupLive = board({
+    title: '弹窗 · 录制中与下载失败',
+    ref: 'annotate §2.1 · §2.4',
+    w: 380,
+    body: `<div style="padding:18px;display:flex;flex-direction:column;gap:14px">
+      ${popupRecordingScene({ recording: true })}
+      <div class="popup-mock"><div class="popup-rec-row"><i class="rec-dot off"></i><b>视频下载失败，已保留在内存里</b></div>
+      <div class="popup-actions-row"><button class="popup-btn">重新下载</button><button class="popup-btn">放弃</button></div></div>
+    </div>`,
+    notes: [
+      '录制中图标上有红色 <b>REC</b> 角标；弹窗显示正在录的标签页标题、已录时长和“停止录制”，一次只录一个标签页。页面里不放录制按钮或指示灯——它们会被录进视频。',
+      '停止（按钮、快捷键、关闭被录的标签页）后自动下载为 <code>AnnHub/recording-<本地时间>.webm</code>，与截图同一目录；扩展不弹另存为，浏览器设置了“下载前询问”时由浏览器询问。',
+      '到达上限（15 分钟或约 500 MB，先到为准）自动停止并下载，弹窗写明到了哪一个上限；下载失败时角标换成 <b>!</b>，给出“重新下载”与“放弃”——视频保留到重下成功或放弃，之前不能开始新的录制。',
+    ],
+  })
+
+  const settingsGrant = board({
+    title: '设置 · 录制一节（麦克风授权）',
+    ref: 'annotate §2.1 · extension §2.5',
+    w: 380,
+    body: `<div style="padding:18px;display:flex;gap:14px;flex-wrap:wrap">
+      ${settingsRecordingScene({ grant: 'prompt' })}
+      ${settingsRecordingScene({ grant: 'granted', backToTab: true })}
+    </div>`,
+    notes: [
+      '浏览器只在看得见的扩展页面上询问麦克风授权，设置页负责请求：第一次用（或上次只允许了这一次）时由弹窗把用户带到这里，允许后给出“回到录制的标签页”。',
+      '拒绝以后浏览器不再询问：设置页写明已拒绝，并说明怎样在浏览器的扩展设置里改回允许。关掉询问、没有作选择时按没有授权处理。',
+    ],
+  })
+
+  return group(
+    { id: 'ext-record', title: '标签页录制：讲解一段操作，录成本地视频', small: 'annotate §2', desc: '从弹窗或自己绑定的快捷键开始，把当前标签页连同批注录成本地 WebM；不入库、不上传，停止后自动下载。' },
+    row(popupIdle, settingsGrant),
+    row(popupLive),
+  )
+}

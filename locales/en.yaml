@@ -6,3 +6,4 @@ extDescription: 'Save clips and screenshots with their source into one local lib
 commandScreenshot: 'Take a screenshot of the page'
 commandBlockMode: 'Pick and clip a whole block'
 commandAnnotate: 'Annotate the current page'
+commandRecordTab: 'Record the current tab'

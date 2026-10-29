@@ -4,3 +4,4 @@ extDescription: '把剪藏与截图连同来源存进同一个本地资料库；
 commandScreenshot: '截取网页截图'
 commandBlockMode: '选择并剪藏整个区块'
 commandAnnotate: '在当前页面上批注'
+commandRecordTab: '录制当前标签页'

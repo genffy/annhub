@@ -23,6 +23,7 @@ export type MetricEventName =
   | 'export.completed'
   | 'screenshot.copied'
   | 'screenshot.downloaded'
+  | 'recording.downloaded'
 
 /**
  * Bucketing (metrics.md §9): durations and counts never travel as raw numbers.
@@ -42,6 +43,23 @@ export function bucketCaptureDuration(ms: number): CaptureDurationBucket {
   if (ms < 1_500) return '600-1500ms'
   if (ms < 5_000) return '1.5-5s'
   return '>=5s'
+}
+
+/**
+ * `recording.downloaded`'s duration is the recorded video's own length, in coarse minute buckets — the general rule
+ * cannot show whether the recording limits of D-46 hold (metrics.md §9).
+ */
+export type RecordingDurationBucket = '<1min' | '1-3min' | '3-5min' | '5-10min' | '>=10min'
+
+export const RECORDING_DURATION_BUCKETS: readonly RecordingDurationBucket[] = ['<1min', '1-3min', '3-5min', '5-10min', '>=10min']
+
+export function bucketRecordingDuration(ms: number): RecordingDurationBucket {
+  const minutes = ms / 60_000
+  if (minutes < 1) return '<1min'
+  if (minutes < 3) return '1-3min'
+  if (minutes < 5) return '3-5min'
+  if (minutes < 10) return '5-10min'
+  return '>=10min'
 }
 
 export function bucketCount(n: number): '0' | '1-2' | '3-5' | '6-10' | '>10' {
@@ -84,6 +102,7 @@ const EVENT_FIELDS: Record<MetricEventName, Record<string, PropertyCheck>> = {
   'export.completed': { result: oneOf(['full', 'partial']), missing_assets: countBucket },
   'screenshot.copied': { watermark: isBoolean, beautify: isBoolean },
   'screenshot.downloaded': { format: oneOf(['png', 'jpeg', 'webp']), watermark: isBoolean, beautify: isBoolean },
+  'recording.downloaded': { duration: oneOf(RECORDING_DURATION_BUCKETS), mic: isBoolean, stopped_by: oneOf(['user', 'tab_closed', 'limit']) },
 }
 
 export function validateMetricEvent(event: unknown, props: unknown): void {
@@ -266,6 +285,8 @@ export interface MetricSummaries {
   beautifyUse: HabitSummary
   /** M-25: reused frames among screenshots, over the retained window (the denominator counts every page's first shot). */
   frameReuse: RateSummary
+  /** M-31: recordings downloaded in the last 14 days, with their microphone share and stop reasons. */
+  recordingUse: { downloads: number; withMic: number; stoppedBy: { user: number; tab_closed: number; limit: number } }
 }
 
 /** What `GET_METRICS` answers: the per-event totals and the §5 summaries in one read. */
@@ -418,5 +439,14 @@ export function metricSummaries(shape: MetricsStoreShape, now = Date.now()): Met
       countEvents(shape, 'capture.saved', withProps({ type: 'screenshot', frame: 'reused' })),
       countEvents(shape, 'capture.saved', withProps({ type: 'screenshot' })),
     ),
+    recordingUse: {
+      downloads: countEvents(shape, 'recording.downloaded', undefined, since14d),
+      withMic: countEvents(shape, 'recording.downloaded', withProps({ mic: true }), since14d),
+      stoppedBy: {
+        user: countEvents(shape, 'recording.downloaded', withProps({ stopped_by: 'user' }), since14d),
+        tab_closed: countEvents(shape, 'recording.downloaded', withProps({ stopped_by: 'tab_closed' }), since14d),
+        limit: countEvents(shape, 'recording.downloaded', withProps({ stopped_by: 'limit' }), since14d),
+      },
+    },
   }
 }

@@ -1,5 +1,6 @@
 import { Logger } from '../../utils/logger'
-import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
+import { RecordingService } from '../services/recording'
+import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
 
 /**
  * The browser commands (extension.md §7.1): region screenshot, block mode and
@@ -22,6 +23,11 @@ export class CommandHandler {
           await this.sendToActiveTab({ type: 'TRIGGER_BLOCK_MODE' })
         } else if (command === ANN_ANNOTATE_COMMAND) {
           await this.sendToActiveTab({ type: 'TRIGGER_ANNOTATE' })
+        } else if (command === ANN_RECORD_COMMAND) {
+          // the shortcut toggles: start, or stop what is being recorded (annotate.md §2.1)
+          const recording = RecordingService.getInstance()
+          if (recording.currentState().status === 'recording') await recording.stopFromCommand()
+          else await recording.startFromCommand()
         } else {
           Logger.warn('[CommandHandler] Unknown command:', command)
         }

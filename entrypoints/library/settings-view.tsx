@@ -26,10 +26,70 @@ import {
 import { formatBytes } from '../../utils/format-bytes'
 import { uiText, type UiTextKey } from '../../utils/ui-text'
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../../learning-core/types'
-import { ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
+import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
 
-/** The two browser commands the shortcut hint speaks of; the browser also lists the toolbar button's own command. */
-const SHORTCUT_COMMANDS: readonly string[] = [ANN_SCREENSHOT_COMMAND, ANN_BLOCK_MODE_COMMAND]
+/** The browser commands the shortcut hint speaks of; the browser also lists the toolbar button's own command. */
+const SHORTCUT_COMMANDS: readonly string[] = [ANN_SCREENSHOT_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_ANNOTATE_COMMAND]
+
+function shortcutLabel(command: string): UiTextKey {
+  if (command === ANN_SCREENSHOT_COMMAND) return 'settings.shortcut.screenshot'
+  if (command === ANN_ANNOTATE_COMMAND) return 'settings.shortcut.annotate'
+  return 'settings.shortcut.block'
+}
+
+/** The 录制 section (extension.md §2.5): microphone grant status and the request, per annotate.md §2.1 (D-43). */
+function RecordingSection() {
+  const [grant, setGrant] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
+  const [requesting, setRequesting] = useState(false)
+  // the tab that wanted the microphone when the popup routed here (annotate.md §2.1)
+  const [recordTabId, setRecordTabId] = useState<number | null>(null)
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const tabId = Number(params.get('recordTab'))
+    if (Number.isInteger(tabId) && tabId > 0) setRecordTabId(tabId)
+    void navigator.permissions
+      .query({ name: 'microphone' as PermissionName })
+      .then(status => setGrant(status.state as 'granted' | 'denied' | 'prompt'))
+      .catch(() => setGrant('unknown'))
+  }, [])
+
+  const request = async () => {
+    setRequesting(true)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach(track => track.stop())
+      setGrant('granted')
+    } catch {
+      // the browser never asks again once denied (market.md §4.7): say how to come back
+      setGrant('denied')
+    } finally {
+      setRequesting(false)
+    }
+  }
+
+  return (
+    <section data-testid="recording-section">
+      <h2>{uiText('settings.recording')}</h2>
+      <p className="hint">{uiText('settings.recordingMicHint')}</p>
+      <p className="keys" data-testid="mic-status">
+        <span>{uiText('settings.recordingMicStatus')}</span>
+        <span className={grant === 'denied' ? 'keys-unassigned' : ''}>{uiText(`settings.recordingMic.${grant}`)}</span>
+      </p>
+      {grant !== 'granted' && (
+        <button type="button" onClick={() => void request()} disabled={requesting} data-testid="mic-request">
+          {uiText('settings.recordingMicRequest')}
+        </button>
+      )}
+      {grant === 'denied' && <p className="hint">{uiText('settings.recordingMicDenied')}</p>}
+      {grant === 'granted' && recordTabId !== null && (
+        <button type="button" onClick={() => void chrome.tabs.update(recordTabId, { active: true }).then(() => window.close())} data-testid="mic-back-to-tab">
+          {uiText('settings.recordingBackToTab')}
+        </button>
+      )}
+    </section>
+  )
+}
 
 function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
   const imageInputId = useId()
@@ -433,6 +493,8 @@ export function SettingsView() {
 
       <ScreenshotSection settings={settings} patch={patch} />
 
+      <RecordingSection />
+
       <section>
         <h2>{uiText('settings.defaultHighlightColor')}</h2>
         <div className="hl-colors" role="group" aria-label={uiText('settings.defaultHighlightColor')}>
@@ -454,7 +516,7 @@ export function SettingsView() {
         <p className="hint">{uiText('settings.shortcutsHint')}</p>
         {shortcuts.map(command => (
           <p className="keys" key={command.name}>
-            <span>{command.name === ANN_SCREENSHOT_COMMAND ? uiText('settings.shortcut.screenshot') : uiText('settings.shortcut.block')}</span>
+            <span>{uiText(shortcutLabel(command.name ?? ''))}</span>
             {command.shortcut ? <kbd>{command.shortcut}</kbd> : <span className="keys-unassigned">{uiText('settings.shortcut.unassigned')}</span>}
           </p>
         ))}
@@ -587,6 +649,20 @@ function MetricsPanel({ panel }: { panel: MetricsPanelData }) {
           )}
           {habitRow('metrics.m24', summaries.beautifyUse, uiText('metrics.m24.support', { n: summaries.beautifyUse.numerator, m: summaries.beautifyUse.denominator }))}
           {rateRow('metrics.m25', summaries.frameReuse, uiText('metrics.m25.support', { n: summaries.frameReuse.numerator, d: summaries.frameReuse.denominator }))}
+          <tr>
+            <th scope="row">{uiText('metrics.m31')}</th>
+            <td data-testid="metrics-m31">
+              {summaries.recordingUse.downloads === 0
+                ? uiText('metrics.m31.none')
+                : uiText('metrics.m31.value', {
+                    n: summaries.recordingUse.downloads,
+                    mic: summaries.recordingUse.withMic,
+                    user: summaries.recordingUse.stoppedBy.user,
+                    tab: summaries.recordingUse.stoppedBy.tab_closed,
+                    limit: summaries.recordingUse.stoppedBy.limit,
+                  })}
+            </td>
+          </tr>
         </tbody>
       </table>
 

@@ -40,6 +40,10 @@ export interface ExtensionSettings {
   }
   /** Ratio presets shown on the selection bar (screenshot.md §1.3). */
   ratioPresets: string[]
+  /** Recording preferences (annotate.md §2): the popup's last microphone choice. */
+  recording: {
+    withMic: boolean
+  }
   /** Beautify defaults for copy/download (screenshot.md §4.4). */
   beautify: {
     enabled: boolean
@@ -67,6 +71,9 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
     opacity: 0.7,
   },
   ratioPresets: [...DEFAULT_RATIO_PRESETS],
+  recording: {
+    withMic: false,
+  },
   beautify: {
     enabled: DEFAULT_BEAUTIFY.enabled,
     background: DEFAULT_BEAUTIFY.background,
@@ -110,6 +117,10 @@ const pngWatermark: Check = value => {
   } catch {
     return false
   }
+}
+
+const recordingChecks: Record<string, Check> = {
+  withMic: boolean,
 }
 
 const rootChecks: Record<string, Check> = {
@@ -164,6 +175,7 @@ function applySettings(base: ExtensionSettings, input: unknown, strict: boolean)
     ...root,
     watermark: patch.watermark === undefined ? { ...base.watermark } : applyFields(base.watermark, patch.watermark, watermarkChecks, strict),
     beautify: patch.beautify === undefined ? { ...base.beautify } : applyFields(base.beautify, patch.beautify, beautifyChecks, strict),
+    recording: patch.recording === undefined ? { ...base.recording } : applyFields(base.recording, patch.recording, recordingChecks, strict),
   }
 }
 
