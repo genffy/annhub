@@ -163,6 +163,7 @@ const STRINGS = {
   },
   'settings.recordingBackToTab': { zh: '回到录制的标签页', en: 'Back to the recording tab' },
   'settings.shortcut.annotate': { zh: '页面批注', en: 'Page annotation' },
+  'settings.shortcut.record': { zh: '录屏', en: 'Tab recording' },
   // recording-time annotation and cursor highlight (annotate.md §3)
   'annotate.cursorHighlight': { zh: '光标高亮', en: 'Cursor highlight' },
   'settings.cursorHighlight': { zh: '光标高亮', en: 'Cursor highlight' },
