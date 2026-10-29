@@ -46,11 +46,13 @@ function pickMimeType(): string {
   return candidates.find(candidate => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(candidate)) ?? ''
 }
 
-function stopRecording(): void {
+function stopRecording(stoppedBy?: 'user' | 'tab_closed'): void {
   const current = recording
   if (!current) return
   window.clearTimeout(current.timer)
   recording = null
+  // the worker knows whether the user stopped it or the tab closed; the timer path set 'limit' already
+  if (stoppedBy && current.stoppedBy !== 'limit') current.stoppedBy = stoppedBy
   current.recorder.stop()
 }
 
@@ -148,7 +150,7 @@ function cleanupVideo(): void {
 
 chrome.runtime.onMessage.addListener((message: RecordingCommandMessage) => {
   if (message.type === 'RECORDING_START') void beginRecording({ ...message, type: 'RECORDING_START' })
-  if (message.type === 'RECORDING_STOP') stopRecording()
+  if (message.type === 'RECORDING_STOP') stopRecording(message.stoppedBy)
   // the download landed or the user gave up: the video's bytes can go
   if (message.type === 'RECORDING_CLEANUP') cleanupVideo()
 })

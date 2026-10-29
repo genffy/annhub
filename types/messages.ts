@@ -271,6 +271,8 @@ export interface RecordingCommandMessage extends BaseMessage {
   streamId?: string
   withMic?: boolean
   keepVideo?: boolean
+  /** For RECORDING_STOP: why the worker stopped it — user button or the recorded tab closing. */
+  stoppedBy?: 'user' | 'tab_closed'
 }
 
 // ── Settings, metrics, housekeeping ─────────────────────────────────────

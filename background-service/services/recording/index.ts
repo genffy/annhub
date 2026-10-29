@@ -174,9 +174,9 @@ export class RecordingService implements IService {
     return MessageUtils.createResponse(true, this.state)
   }
 
-  private async stopRecording(_stoppedBy: 'user' | 'tab_closed' | 'limit'): Promise<void> {
-    // the offscreen document reports the stop with its own reason and length
-    await this.tellOffscreen({ type: 'RECORDING_STOP' })
+  private async stopRecording(stoppedBy: 'user' | 'tab_closed'): Promise<void> {
+    // the offscreen document reports the stop with this reason and its own length
+    await this.tellOffscreen({ type: 'RECORDING_STOP', stoppedBy })
   }
 
   private async handleEvent(message: RecordingEventMessage): Promise<void> {
@@ -203,6 +203,8 @@ export class RecordingService implements IService {
           status: 'idle',
           withMic: false,
           ...(message.stoppedBy === 'limit' ? { limitNotice: message.limit ?? 'time' } : {}),
+          // the reason the microphone is missing outlives the recording, so the popup can still say it
+          ...(this.state.micNotice ? { micNotice: this.state.micNotice } : {}),
         }
         await this.downloadPending()
         return
