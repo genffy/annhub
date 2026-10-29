@@ -271,6 +271,8 @@ export interface RecordingCommandMessage extends BaseMessage {
   streamId?: string
   withMic?: boolean
   keepVideo?: boolean
+  /** For RECORDING_STOP: why the worker stopped it — user button or the recorded tab closing. */
+  stoppedBy?: 'user' | 'tab_closed'
 }
 
 /** The recorded tab asks whether a recording is live; read-only, no user data (annotate.md §3.2). */
