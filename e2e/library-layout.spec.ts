@@ -183,7 +183,7 @@ for (const [uiLocale, shortcutLabels] of [
 
           const shortcutNames = await library.locator('.keys > :first-child').allTextContents()
           expect(
-            shortcutNames.filter(name => shortcutLabels.includes(name)),
+            shortcutNames.filter(name => (shortcutLabels as readonly string[]).includes(name)),
             `the bound shortcuts are listed in order (${where})`,
           ).toEqual(shortcutLabels)
 
