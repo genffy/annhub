@@ -575,16 +575,16 @@ class ScreenshotSession {
     this.stitching = false
     this.stitcher = null
     sweeper.remove()
-    const restoreScroll = (): void => {
-      const scroller = this.doc.scrollingElement
-      if (scroller) {
-        scroller.scrollTop = startTop
-        scroller.scrollLeft = startLeft
-      }
+    // every ending — stitched, stalled, cancelled, discarded or the session
+    // replaced mid-run — scrolls the page back to where it started
+    const scroller = this.doc.scrollingElement
+    if (scroller) {
+      scroller.scrollTop = startTop
+      scroller.scrollLeft = startLeft
     }
+    if (this.exited) return
     if (!result) {
-      // nothing was stitched, or the run was discarded: back to selecting, the page scrolls home
-      restoreScroll()
+      // nothing was stitched, or the run was discarded: back to selecting, with the reason when there is one
       this.state = 'selecting'
       this.showRatioBar()
       this.syncHint()
@@ -593,7 +593,6 @@ class ScreenshotSession {
       else if (code !== 'cancel') this.showExternalNotice(uiText(`shot.stitch.${code}` as UiTextKey))
       return
     }
-    restoreScroll()
     if (result.stop !== 'bottom') this.showNotice(uiText('shot.stitch.capped'), false)
     this.state = 'capturing'
     await this.settingsLoaded
@@ -636,6 +635,11 @@ class ScreenshotSession {
     }
     this.clearConfirmUi()
     this.clearHoverUi()
+    // a session replaced while its scrolling capture runs stops the stitcher:
+    // otherwise it keeps scrolling and photographing an orphaned page
+    this.stitcher?.cancel()
+    this.stitcher = null
+    this.stitching = false
     this.host.remove()
     this.selectionEl = null
     this.previewEl = null
