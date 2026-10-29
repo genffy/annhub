@@ -1546,6 +1546,20 @@ body {
 }
 
 .settings-view .sites li,
+.settings-view .mic-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--ann-border);
+  font-size: 13px;
+}
+
+.settings-view .mic-status-denied {
+  color: var(--ann-warn, #8a6116);
+}
+
 .settings-view .keys {
   display: flex;
   align-items: center;
