@@ -147,6 +147,7 @@ const STRINGS = {
   },
   'settings.recordingBackToTab': { zh: '回到录制的标签页', en: 'Back to the recording tab' },
   'settings.shortcut.annotate': { zh: '页面批注', en: 'Page annotation' },
+  'settings.shortcut.record': { zh: '录屏', en: 'Tab recording' },
   // toolbar popup footer (extension.md §2.6)
   'popup.annotate': { zh: '在页面上批注', en: 'Annotate this page' },
   'popup.annotate.restricted': { zh: '此类页面不能批注', en: 'This kind of page cannot be annotated' },

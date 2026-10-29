@@ -26,14 +26,15 @@ import {
 import { formatBytes } from '../../utils/format-bytes'
 import { uiText, type UiTextKey } from '../../utils/ui-text'
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../../learning-core/types'
-import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
+import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
 
 /** The browser commands the shortcut hint speaks of; the browser also lists the toolbar button's own command. */
-const SHORTCUT_COMMANDS: readonly string[] = [ANN_SCREENSHOT_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_ANNOTATE_COMMAND]
+const SHORTCUT_COMMANDS: readonly string[] = [ANN_SCREENSHOT_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_ANNOTATE_COMMAND, ANN_RECORD_COMMAND]
 
 function shortcutLabel(command: string): UiTextKey {
   if (command === ANN_SCREENSHOT_COMMAND) return 'settings.shortcut.screenshot'
   if (command === ANN_ANNOTATE_COMMAND) return 'settings.shortcut.annotate'
+  if (command === ANN_RECORD_COMMAND) return 'settings.shortcut.record'
   return 'settings.shortcut.block'
 }
 
@@ -72,9 +73,9 @@ function RecordingSection() {
     <section data-testid="recording-section">
       <h2>{uiText('settings.recording')}</h2>
       <p className="hint">{uiText('settings.recordingMicHint')}</p>
-      <p className="keys" data-testid="mic-status">
+      <p className="mic-status" data-testid="mic-status">
         <span>{uiText('settings.recordingMicStatus')}</span>
-        <span className={grant === 'denied' ? 'keys-unassigned' : ''}>{uiText(`settings.recordingMic.${grant}`)}</span>
+        <span className={grant === 'denied' ? 'mic-status-denied' : ''}>{uiText(`settings.recordingMic.${grant}`)}</span>
       </p>
       {grant !== 'granted' && (
         <button type="button" onClick={() => void request()} disabled={requesting} data-testid="mic-request">
