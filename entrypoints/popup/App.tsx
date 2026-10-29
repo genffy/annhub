@@ -124,7 +124,7 @@ export default function App() {
 
   const toggleMic = useCallback((checked: boolean) => {
     setWithMic(checked)
-    void MessageUtils.sendMessage({ type: 'SET_SETTINGS', patch: { recording: { withMic: checked, cursorHighlight: undefined } } })
+    void MessageUtils.sendMessage({ type: 'SET_SETTINGS', patch: { recording: { withMic: checked } } })
   }, [])
 
   const annotateThisPage = useCallback(async () => {

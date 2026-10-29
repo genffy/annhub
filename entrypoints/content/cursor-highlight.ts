@@ -10,7 +10,6 @@
  */
 
 import { isUserInput } from './user-input'
-import { uiText, type UiTextKey } from '../../utils/ui-text'
 
 export interface CursorHighlightSettings {
   enabled: boolean
@@ -75,7 +74,6 @@ function ensureHost(doc: Document, settings: CursorHighlightSettings): void {
   const shape = doc.createElement('div')
   shape.setAttribute('data-ann-ui', 'cursor-highlight-shape')
   shape.style.cssText = `${shapeStyle(settings)}left:0;top:0;display:none;`
-  shape.title = uiText('annotate.cursorHighlight' as UiTextKey)
   next.appendChild(shape)
   doc.documentElement.appendChild(next)
   host = next
