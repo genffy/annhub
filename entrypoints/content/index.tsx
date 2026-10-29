@@ -11,6 +11,7 @@ import { BlockEntries } from './block-hover'
 import type { BlockCandidate } from './blocks'
 import { enterAnnotationLayer, exitAnnotationLayer, getActiveAnnotationLayer, isAnnotationLayerActive, notifyAnnotationLayer } from './annotation/layer'
 import type { InkStroke } from './annotation/ink'
+import { setCursorHighlight, type CursorHighlightSettings } from './cursor-highlight'
 import { isClipFailure, saveBlockClip, savePlainTextSelection, saveSelectionClip, showClipToast, showFailureToast, type ClipOrigin } from './clip-flow'
 import { SelectionMenu, plainTextForSelection, selectableRange } from './selection-menu'
 import { enterScreenshotMode, isScreenshotSessionActive, notifyScreenshotSession } from './screenshot'
@@ -206,6 +207,34 @@ function wireBlockEntries(): void {
   blockEntries.install()
 }
 
+/** The recording this tab is in, as far as the page knows: the layer opens toolbar-less and the cursor highlight shows (annotate.md §3). */
+let recordingActive = false
+let cursorHighlightSettings: CursorHighlightSettings | null = null
+/** Once a lifecycle message has arrived it is the newer truth; the startup status read must not roll it back. */
+let lifecycleSeen = false
+
+function applyRecordingState(): void {
+  setCursorHighlight(recordingActive, cursorHighlightSettings ?? undefined)
+  getActiveAnnotationLayer()?.setRecordingMode(recordingActive)
+}
+
+/** The worker tells the recorded tab when a recording starts and stops (annotate.md §3). */
+function wireCursorHighlight(): void {
+  void MessageUtils.sendMessage<{ recording?: boolean; cursorHighlight?: CursorHighlightSettings }>({ type: 'RECORDING_STATUS' }).then(response => {
+    if (!response.success || !response.data || lifecycleSeen) return
+    recordingActive = response.data.recording === true
+    cursorHighlightSettings = response.data.cursorHighlight ?? null
+    applyRecordingState()
+  })
+  chrome.runtime.onMessage.addListener(message => {
+    if (!isTopFrame() || message?.type !== 'RECORDING_LIFECYCLE') return
+    lifecycleSeen = true
+    recordingActive = message.active === true
+    if (message.active) cursorHighlightSettings = message.cursorHighlight ?? null
+    applyRecordingState()
+  })
+}
+
 /** The open annotation layer, kept so the screenshot session can hand the stage back to it. */
 function enterScreenshotWithInk(ink: InkStroke[]): void {
   // the ink rides into the editor (annotate.md §1.3); the layer is hidden for the
@@ -225,6 +254,7 @@ function startAnnotationLayer(): void {
   enterAnnotationLayer({
     onScreenshot: ink => enterScreenshotWithInk(ink),
   })
+  getActiveAnnotationLayer()?.setRecordingMode(recordingActive)
 }
 
 function toggleAnnotationLayer(): void {
@@ -243,9 +273,11 @@ function toggleAnnotationLayer(): void {
 export default defineContentScript({
   matches: ['<all_urls>'],
   allFrames: true,
-  // Overlay CSS rides the manifest content style: the overlays append to the
-  // document (not a shadow root), and every selector is namespaced under
-  // [data-ann-ui] / .ann-* so the page's own styles are untouched.
+  // document_start: the recording-time single keys must be on the window's
+  // capture phase before the page's own scripts register theirs — a site that
+  // listens for the same keys (X's 点赞 L) would otherwise fire first
+  // (annotate.md §3.1, 真机走查). The overlays wait for the DOM below.
+  runAt: 'document_start',
   async main() {
     if (window.top !== window) {
       try {
@@ -254,11 +286,24 @@ export default defineContentScript({
         return
       }
     }
+    // the single keys of the recording-time annotation layer: window, capture
+    // phase, from the first moment of the page (annotate.md §3.1)
+    window.addEventListener(
+      'keydown',
+      event => {
+        if (!isUserInput(event)) return
+        if (!getActiveAnnotationLayer()?.handleRecordingKey(event)) return
+        event.preventDefault()
+        event.stopPropagation()
+      },
+      true,
+    )
     if (document.readyState === 'loading') {
       await new Promise<void>(resolve => document.addEventListener('DOMContentLoaded', () => resolve(), { once: true }))
     }
     wireSelectionMenu()
     wireBlockEntries()
+    wireCursorHighlight()
 
     chrome.runtime.onMessage.addListener(message => {
       // the shortcut belongs to the top frame; a child frame that still hears it stays out of it

@@ -27,6 +27,7 @@ import { formatBytes } from '../../utils/format-bytes'
 import { uiText, type UiTextKey } from '../../utils/ui-text'
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../../learning-core/types'
 import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
+import { ANNOTATION_COLORS } from '../content/screenshot/editor'
 
 /** The browser commands the shortcut hint speaks of; the browser also lists the toolbar button's own command. */
 const SHORTCUT_COMMANDS: readonly string[] = [ANN_SCREENSHOT_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_ANNOTATE_COMMAND]
@@ -38,11 +39,12 @@ function shortcutLabel(command: string): UiTextKey {
 }
 
 /** The 录制 section (extension.md §2.5): microphone grant status and the request, per annotate.md §2.1 (D-43). */
-function RecordingSection() {
+function RecordingSection({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
   const [grant, setGrant] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
   const [requesting, setRequesting] = useState(false)
   // the tab that wanted the microphone when the popup routed here (annotate.md §2.1)
   const [recordTabId, setRecordTabId] = useState<number | null>(null)
+  const cursor = settings.recording.cursorHighlight
 
   useEffect(() => {
     const params = new URLSearchParams(location.search)
@@ -87,6 +89,50 @@ function RecordingSection() {
           {uiText('settings.recordingBackToTab')}
         </button>
       )}
+
+      <div className="settings-group">
+        <h3>{uiText('settings.cursorHighlight')}</h3>
+        <p className="hint">{uiText('settings.cursorHighlightHint')}</p>
+        <label className="switch-row">
+          <input
+            type="checkbox"
+            checked={cursor.enabled}
+            onChange={event => void patch({ recording: { cursorHighlight: { enabled: event.target.checked } } })}
+            data-testid="cursor-highlight-toggle"
+          />
+          <span>{uiText(cursor.enabled ? 'shot.on' : 'shot.off')}</span>
+        </label>
+        {cursor.enabled && (
+          <>
+            <div className="settings-inline" role="group" aria-label={uiText('settings.cursorHighlightShape')}>
+              {(['ring', 'rounded', 'diamond'] as const).map(shape => (
+                <button
+                  key={shape}
+                  type="button"
+                  className={`chip${cursor.shape === shape ? ' chip-active' : ''}`}
+                  aria-pressed={cursor.shape === shape}
+                  onClick={() => void patch({ recording: { cursorHighlight: { shape } } })}
+                >
+                  {uiText(`settings.cursorHighlight.shape.${shape}` as UiTextKey)}
+                </button>
+              ))}
+            </div>
+            <div className="settings-inline" role="group" aria-label={uiText('shot.colors')}>
+              {ANNOTATION_COLORS.map(entry => (
+                <button
+                  key={entry.value}
+                  type="button"
+                  className={`hl-dot${cursor.color === entry.value ? ' hl-dot-active' : ''}`}
+                  style={{ background: entry.value }}
+                  aria-label={uiText(`shot.color.${entry.name}` as UiTextKey)}
+                  aria-pressed={cursor.color === entry.value}
+                  onClick={() => void patch({ recording: { cursorHighlight: { color: entry.value } } })}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
     </section>
   )
 }
@@ -493,7 +539,7 @@ export function SettingsView() {
 
       <ScreenshotSection settings={settings} patch={patch} />
 
-      <RecordingSection />
+      <RecordingSection settings={settings} patch={patch} />
 
       <section>
         <h2>{uiText('settings.defaultHighlightColor')}</h2>

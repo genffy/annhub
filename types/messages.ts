@@ -273,6 +273,18 @@ export interface RecordingCommandMessage extends BaseMessage {
   keepVideo?: boolean
 }
 
+/** The recorded tab asks whether a recording is live; read-only, no user data (annotate.md §3.2). */
+export interface RecordingStatusMessage extends BaseMessage {
+  type: 'RECORDING_STATUS'
+}
+
+/** Worker → the recorded tab's content script: a recording started or stopped (annotate.md §3). */
+export interface RecordingLifecycleMessage extends BaseMessage {
+  type: 'RECORDING_LIFECYCLE'
+  active: boolean
+  cursorHighlight?: SettingsPatch['recording'] extends { cursorHighlight?: infer C } ? C : never
+}
+
 // ── Settings, metrics, housekeeping ─────────────────────────────────────
 
 export interface GetSettingsMessage extends BaseMessage {
@@ -344,6 +356,8 @@ export type ExtensionMessage =
   | DiscardRecordingMessage
   | RecordingEventMessage
   | RecordingCommandMessage
+  | RecordingStatusMessage
+  | RecordingLifecycleMessage
   | GetSettingsMessage
   | SetSettingsMessage
   | DisableBlockEntryMessage

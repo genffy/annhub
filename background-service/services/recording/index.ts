@@ -8,7 +8,8 @@
  */
 import type { IService } from '../../service-manager'
 import type { ResponseMessage, RecordingEventMessage, RecordingState } from '../../../types/messages'
-import { forbiddenResponse, isExtensionPageSender } from '../../sender'
+import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
+import { readSettings } from '../../settings-schema'
 import MessageUtils from '../../../utils/message'
 import { Logger } from '../../../utils/logger'
 import { bucketRecordingDuration, type RecordingDurationBucket } from '../../../learning-core/metrics'
@@ -103,6 +104,13 @@ export class RecordingService implements IService {
         return MessageUtils.createResponse(true, this.state)
       },
 
+      /** The recorded tab asks on load whether a recording is live (annotate.md §3.2): read-only, no user data. */
+      RECORDING_STATUS: async (_message, sender): Promise<ResponseMessage> => {
+        if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
+        const settings = await readSettings()
+        return MessageUtils.createResponse(true, { recording: this.state.status === 'recording', cursorHighlight: settings.recording.cursorHighlight })
+      },
+
       RECORDING_EVENT: async (message, sender): Promise<ResponseMessage> => {
         // the offscreen document is an extension page; a tab sender is not the recorder
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
@@ -171,12 +179,25 @@ export class RecordingService implements IService {
     if (!answer.ok) return MessageUtils.createResponse(false, undefined, 'RECORDING_FAILED')
     this.state = { status: 'recording', withMic, tabId, tabTitle: tab.title, startedAt: Date.now() }
     this.syncBadge()
+    await this.broadcastLifecycle(true)
     return MessageUtils.createResponse(true, this.state)
   }
 
   private async stopRecording(_stoppedBy: 'user' | 'tab_closed' | 'limit'): Promise<void> {
     // the offscreen document reports the stop with its own reason and length
     await this.tellOffscreen({ type: 'RECORDING_STOP' })
+  }
+
+  /** 录制开始与停止告诉被录的标签页：光标高亮只在录制中出现，批注层收起工具栏 (annotate.md §3)。 */
+  private async broadcastLifecycle(active: boolean): Promise<void> {
+    const tabId = this.state.tabId
+    if (!tabId) return
+    try {
+      const settings = active ? await readSettings() : undefined
+      await chrome.tabs.sendMessage(tabId, { type: 'RECORDING_LIFECYCLE', active, ...(settings ? { cursorHighlight: settings.recording.cursorHighlight } : {}) })
+    } catch {
+      // the tab may have closed or not have the content script yet; recording continues
+    }
   }
 
   private async handleEvent(message: RecordingEventMessage): Promise<void> {
@@ -187,7 +208,15 @@ export class RecordingService implements IService {
         await writeMicPreference(false)
         return
       }
+      case 'failed': {
+        // the tab stream never opened: back to idle, the user can try again
+        await this.broadcastLifecycle(false)
+        this.state = { status: 'idle', withMic: false }
+        this.syncBadge()
+        return
+      }
       case 'stopped': {
+        await this.broadcastLifecycle(false)
         if (!message.blobUrl || !message.filename) return
         this.pendingDownload = {
           blobUrl: message.blobUrl,

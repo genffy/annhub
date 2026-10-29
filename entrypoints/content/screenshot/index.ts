@@ -1083,6 +1083,8 @@ class ScreenshotSession {
     // hover-catcher takes the cursor so page hover styles clear before the
     // shot (screenshot.md §1.4).
     this.host.style.display = 'none'
+    // the cursor highlight of a live recording hides with the rest of the UI (annotate.md §3.2)
+    this.doc.dispatchEvent(new CustomEvent('annhub:capture-hide'))
     const sweeper = this.doc.createElement('div')
     sweeper.setAttribute(ROOT_ATTR, 'screenshot-hover-sweeper')
     Object.assign(sweeper.style, { position: 'fixed', inset: '0', pointerEvents: 'auto', background: 'transparent', zIndex: '2147483646' })
@@ -1092,6 +1094,7 @@ class ScreenshotSession {
     const dropSweeper = (): void => {
       sweeper.remove()
       this.host.style.display = ''
+      this.doc.dispatchEvent(new CustomEvent('annhub:capture-restore'))
     }
     if (this.exited) {
       dropSweeper()

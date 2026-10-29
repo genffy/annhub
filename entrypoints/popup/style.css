@@ -233,6 +233,12 @@ textarea {
   color: var(--ann-muted);
 }
 
+.popup-recording-keys {
+  font-size: 10px;
+  color: var(--ann-muted);
+  line-height: 1.5;
+}
+
 .popup-mic {
   display: inline-flex;
   flex: none;

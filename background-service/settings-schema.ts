@@ -2,6 +2,7 @@
  * Preference layer C (storage.md §2): interface and capture preferences in
  * chrome.storage. Entries and images live in IndexedDB and never here.
  */
+import { ANNOTATION_COLORS } from '../entrypoints/content/screenshot/editor'
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../learning-core/types'
 import {
   BEAUTIFY_BACKGROUND_IDS,
@@ -40,9 +41,14 @@ export interface ExtensionSettings {
   }
   /** Ratio presets shown on the selection bar (screenshot.md §1.3). */
   ratioPresets: string[]
-  /** Recording preferences (annotate.md §2): the popup's last microphone choice. */
+  /** Recording preferences (annotate.md §2–3): the popup's last microphone choice and the cursor highlight. */
   recording: {
     withMic: boolean
+    cursorHighlight: {
+      enabled: boolean
+      shape: 'ring' | 'rounded' | 'diamond'
+      color: string
+    }
   }
   /** Beautify defaults for copy/download (screenshot.md §4.4). */
   beautify: {
@@ -73,6 +79,11 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   ratioPresets: [...DEFAULT_RATIO_PRESETS],
   recording: {
     withMic: false,
+    cursorHighlight: {
+      enabled: false,
+      shape: 'ring',
+      color: '#e5484d',
+    },
   },
   beautify: {
     enabled: DEFAULT_BEAUTIFY.enabled,
@@ -84,9 +95,10 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
 }
 
 const STORAGE_KEY = 'annhub.settings'
-export type SettingsPatch = Partial<Omit<ExtensionSettings, 'watermark' | 'beautify'>> & {
+export type SettingsPatch = Partial<Omit<ExtensionSettings, 'watermark' | 'beautify' | 'recording'>> & {
   watermark?: Partial<Omit<ExtensionSettings['watermark'], 'image'>> & { image?: string | null }
   beautify?: Partial<ExtensionSettings['beautify']>
+  recording?: { withMic?: boolean; cursorHighlight?: Partial<ExtensionSettings['recording']['cursorHighlight']> }
 }
 
 type Check = (value: unknown) => boolean
@@ -121,6 +133,11 @@ const pngWatermark: Check = value => {
 
 const recordingChecks: Record<string, Check> = {
   withMic: boolean,
+}
+const cursorHighlightChecks: Record<string, Check> = {
+  enabled: boolean,
+  shape: oneOf(['ring', 'rounded', 'diamond']),
+  color: value => string(value) && ANNOTATION_COLORS.some(entry => entry.value === value),
 }
 
 const rootChecks: Record<string, Check> = {
@@ -168,6 +185,13 @@ function applyFields<T extends object>(base: T, input: unknown, checks: Record<s
   return next as T
 }
 
+function applyRecording(base: ExtensionSettings['recording'], patch: unknown, strict: boolean): ExtensionSettings['recording'] {
+  if (patch === undefined) return { ...base }
+  const next = applyFields(base, patch, recordingChecks, strict)
+  const cursorPatch = (patch as { cursorHighlight?: unknown }).cursorHighlight
+  return { ...next, cursorHighlight: cursorPatch === undefined ? { ...base.cursorHighlight } : applyFields(base.cursorHighlight, cursorPatch, cursorHighlightChecks, strict) }
+}
+
 function applySettings(base: ExtensionSettings, input: unknown, strict: boolean): ExtensionSettings {
   const root = applyFields(base, input, rootChecks, strict)
   const patch = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {}
@@ -175,7 +199,7 @@ function applySettings(base: ExtensionSettings, input: unknown, strict: boolean)
     ...root,
     watermark: patch.watermark === undefined ? { ...base.watermark } : applyFields(base.watermark, patch.watermark, watermarkChecks, strict),
     beautify: patch.beautify === undefined ? { ...base.beautify } : applyFields(base.beautify, patch.beautify, beautifyChecks, strict),
-    recording: patch.recording === undefined ? { ...base.recording } : applyFields(base.recording, patch.recording, recordingChecks, strict),
+    recording: applyRecording(base.recording, patch.recording, strict),
   }
 }
 

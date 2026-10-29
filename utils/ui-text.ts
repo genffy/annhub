@@ -147,6 +147,21 @@ const STRINGS = {
   },
   'settings.recordingBackToTab': { zh: '回到录制的标签页', en: 'Back to the recording tab' },
   'settings.shortcut.annotate': { zh: '页面批注', en: 'Page annotation' },
+  // recording-time annotation and cursor highlight (annotate.md §3)
+  'annotate.cursorHighlight': { zh: '光标高亮', en: 'Cursor highlight' },
+  'settings.cursorHighlight': { zh: '光标高亮', en: 'Cursor highlight' },
+  'settings.cursorHighlightHint': {
+    zh: '只在录制中出现：光标周围显示所选形状，按下左键时扩散一圈涟漪，页面照常可以点击。',
+    en: 'Only during a recording: the chosen shape follows the pointer, a ripple marks each left press, and clicks go through.',
+  },
+  'settings.cursorHighlightShape': { zh: '形状', en: 'Shape' },
+  'settings.cursorHighlight.shape.ring': { zh: '圆环', en: 'Ring' },
+  'settings.cursorHighlight.shape.rounded': { zh: '圆角方', en: 'Rounded square' },
+  'settings.cursorHighlight.shape.diamond': { zh: '菱形', en: 'Diamond' },
+  'popup.recording.keys': {
+    zh: '批注单键：P 画笔 · H 荧光笔 · L 直线 · A 箭头 · R 矩形 · O 椭圆 · T 文字 · N 序号 · V 指针 · 1–5 颜色 · [ ] 线宽 · Z 撤销 · E 清空 · Esc 退出批注',
+    en: 'Annotation keys: P pen · H highlighter · L line · A arrow · R rectangle · O ellipse · T text · N step · V pointer · 1–5 colour · [ ] width · Z undo · E clear · Esc exit',
+  },
   // toolbar popup footer (extension.md §2.6)
   'popup.annotate': { zh: '在页面上批注', en: 'Annotate this page' },
   'popup.annotate.restricted': { zh: '此类页面不能批注', en: 'This kind of page cannot be annotated' },

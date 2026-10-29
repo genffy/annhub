@@ -258,7 +258,7 @@ async function sendTabMessage(page: Page, message: Record<string, unknown>): Pro
         const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === payload.url)
         if (tab?.id === undefined) return `no tab shows ${payload.url}`
         try {
-          await chrome.tabs.sendMessage(tab.id, { type: payload.type }, { frameId: 0 })
+          await chrome.tabs.sendMessage(tab.id, payload, { frameId: 0 })
           return ''
         } catch (failure) {
           return failure instanceof Error ? failure.message : String(failure)

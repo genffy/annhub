@@ -113,7 +113,8 @@ function extAnnotateGroup() {
 const popupRecordingScene = (o = {}) => `<div class="popup-mock">
   <div class="popup-head-row"><span>剪藏 · 4</span><a>在资料库中打开</a></div>
   ${o.recording
-    ? `<div class="popup-rec-row"><i class="rec-dot"></i><b>正在录制：Retries can amplify an outage…</b><span class="popup-time">03:12</span><button class="popup-btn danger">停止录制</button></div>`
+    ? `<div class="popup-rec-row"><i class="rec-dot"></i><b>正在录制：Retries can amplify an outage…</b><span class="popup-time">03:12</span><button class="popup-btn danger">停止录制</button></div>
+       <div class="popup-note">批注单键：P 画笔 · H 荧光笔 · L 直线 · A 箭头 · R 矩形 · O 椭圆 · T 文字 · N 序号 · V 指针 · 1–5 颜色 · [ ] 线宽 · Z 撤销 · E 清空 · Esc 退出批注</div>`
     : `<div class="popup-actions-row">
         <button class="popup-btn">${I('pencil-line')} 在页面上批注</button>
         <button class="popup-btn">${I('scan')} 录制此标签页</button>

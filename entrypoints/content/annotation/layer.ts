@@ -133,6 +133,8 @@ export class AnnotationLayer {
   /** The stroke ids and their erase timers; erased ink leaves the page and the undo history without a step. */
   private eraseTimers = new Map<string, number>()
   private hiddenForScreenshot = false
+  /** 录制中：the toolbar would be filmed, so it is gone and the single keys run the tools (annotate.md §3.1). */
+  private recordingMode = false
   private exited = false
   private observer: MutationObserver | null = null
   private listeners: Array<[EventTarget, string, EventListener]> = []
@@ -327,6 +329,7 @@ export class AnnotationLayer {
         if (!isUserInput(event)) return
         this.color = value
         this.syncToolbar()
+        this.applyToolCursor()
         this.paint()
       })
       bar.appendChild(swatch)
@@ -426,7 +429,28 @@ export class AnnotationLayer {
     this.selectedStep = null
     this.host.classList.toggle('ann-annot-drawing', tool !== 'pointer')
     this.syncToolbar()
+    this.applyToolCursor()
     this.paint()
+  }
+
+  /** 录制中 the toolbar is off the page, so the pointer itself says which tool and colour are on (annotate.md §3.1). */
+  private applyToolCursor(): void {
+    if (!this.canvas) return
+    if (!this.recordingMode || this.tool === 'pointer') {
+      this.canvas.style.cursor = ''
+      return
+    }
+    const color = ANNOTATION_COLORS.find(entry => entry.value === this.color)?.value ?? '#e5484d'
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><path d="M12 3v18M3 12h18" stroke="${color}" stroke-width="2.4" stroke-linecap="round"/></svg>`
+    this.canvas.style.cursor = `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, crosshair`
+  }
+
+  /** 开始录制时工具栏收起，停止后回来；录制中打开的批注层一开始就没有工具栏 (annotate.md §3.1, D-48)。 */
+  setRecordingMode(active: boolean): void {
+    if (this.recordingMode === active) return
+    this.recordingMode = active
+    if (this.toolbarEl) this.toolbarEl.style.display = active ? 'none' : ''
+    this.applyToolCursor()
   }
 
   // ── input ─────────────────────────────────────────────────────────
@@ -584,6 +608,60 @@ export class AnnotationLayer {
     this.doc.addEventListener('pointermove', move, true)
     this.doc.addEventListener('pointerup', up, true)
     this.doc.addEventListener('pointercancel', cleanup, true)
+  }
+
+  /**
+   * The recording-time single keys (annotate.md §3.1): tools, the five colours,
+   * the width steps, undo, clear and Esc. They act only while the layer is open
+   * and the focus is not in an input or editable area — the rest of the time
+   * the key belongs to the page. The listener sits on the window's capture
+   * phase from document_start, ahead of the site's own handlers.
+   */
+  handleRecordingKey(event: KeyboardEvent): boolean {
+    if (this.hiddenForScreenshot) return false
+    const active = this.doc.activeElement
+    if (active instanceof HTMLElement && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return false
+    const key = event.key
+    const lower = key.toLowerCase()
+    const tools: Record<string, InkTool> = { p: 'pen', h: 'highlighter', l: 'line', a: 'arrow', r: 'rectangle', o: 'ellipse', t: 'text', n: 'step', v: 'pointer' }
+    const tool = tools[lower]
+    if (tool) {
+      this.setTool(tool)
+      return true
+    }
+    if (key >= '1' && key <= '5') {
+      const swatch = ANNOTATION_COLORS[Number(key) - 1]
+      if (!swatch) return false
+      this.color = swatch.value
+      this.syncToolbar()
+      this.applyToolCursor()
+      this.paint()
+      return true
+    }
+    if (key === '[' || key === ']') {
+      const widths: LineWidth[] = ['thin', 'medium', 'thick']
+      const index = widths.indexOf(this.lineWidth)
+      this.lineWidth = widths[Math.max(0, Math.min(widths.length - 1, index + (key === ']' ? 1 : -1)))]!
+      this.syncToolbar()
+      return true
+    }
+    if (lower === 'z') {
+      this.undo()
+      return true
+    }
+    if (lower === 'e') {
+      this.clear()
+      return true
+    }
+    if (key === 'Escape') {
+      if (this.textInput) {
+        this.commitText()
+        return true
+      }
+      exitAnnotationLayer()
+      return true
+    }
+    return false
   }
 
   // ── text tool ─────────────────────────────────────────────────────

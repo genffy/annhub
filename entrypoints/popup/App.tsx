@@ -124,7 +124,7 @@ export default function App() {
 
   const toggleMic = useCallback((checked: boolean) => {
     setWithMic(checked)
-    void MessageUtils.sendMessage({ type: 'SET_SETTINGS', patch: { recording: { withMic: checked } } })
+    void MessageUtils.sendMessage({ type: 'SET_SETTINGS', patch: { recording: { withMic: checked, cursorHighlight: undefined } } })
   }, [])
 
   const annotateThisPage = useCallback(async () => {
@@ -244,6 +244,7 @@ export default function App() {
               {uiText('popup.recording.live', { title: recording.tabTitle ?? '', time: elapsed(recording.startedAt, now) })}
             </span>
             {micNotice && <span className="popup-recording-mic">{micNotice}</span>}
+            <span className="popup-recording-keys">{uiText('popup.recording.keys')}</span>
             <span className="popup-recording-buttons">
               <button type="button" data-ann-ui="popup-record-stop" onClick={() => void MessageUtils.sendMessage({ type: 'STOP_RECORDING' })}>
                 {uiText('popup.recording.stop')}
