@@ -285,7 +285,10 @@ export default function App() {
             {uiText(recording.limitNotice === 'time' ? 'popup.recording.limitTime' : 'popup.recording.limitSize')}
           </p>
         )}
-        {recording?.status === 'idle' && !recording.limitNotice && withMic && canAnnotate && <p className="popup-recording-outcome">{uiText('popup.recording.headphones')}</p>}
+        {recording?.status === 'idle' && micNotice && <p className="popup-recording-outcome">{micNotice}</p>}
+        {recording?.status === 'idle' && !recording.limitNotice && !micNotice && withMic && canAnnotate && (
+          <p className="popup-recording-outcome">{uiText('popup.recording.headphones')}</p>
+        )}
 
         <footer className="popup-foot">{shortcutHint}</footer>
       </section>

@@ -195,7 +195,8 @@ describe('recording service (annotate.md §2)', () => {
   it('closing the recorded tab stops the recording', async () => {
     await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
     onTabRemoved(7)
-    expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_STOP' })
+    // the reason travels with the stop: the metric's stopped_by comes from it
+    expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_STOP', stoppedBy: 'tab_closed' })
     await windDown(12, 'AnnHub/recording-t4.webm')
   })
 

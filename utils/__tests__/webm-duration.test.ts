@@ -36,10 +36,22 @@ function infoElement({ timecodeScale = 1_000_000, duration, durationSize = 8 }: 
   return element([0x15, 0x49, 0xa9, 0x66], new Uint8Array(parts.reduce((all, part) => [...all, ...part], [] as number[])))
 }
 
-function segment(info: Uint8Array, trailer: Uint8Array = new Uint8Array()): Uint8Array {
+function segment(info: Uint8Array, trailer: Uint8Array = new Uint8Array(), { seekHead = false } = {}): Uint8Array {
   const payload = new Uint8Array([...info, ...trailer])
   // unknown-size Segment, what MediaRecorder writes: size vint 01 ff×7
-  return new Uint8Array([0x18, 0x53, 0x80, 0x67, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, ...payload])
+  return new Uint8Array([0x18, 0x53, 0x80, 0x67, 0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, ...(seekHead ? seekHeadElement() : []), ...payload])
+}
+
+/** A SeekHead element: absolute offsets that any byte shift after Info invalidates. */
+function seekHeadElement(): Uint8Array {
+  return element([0x11, 0x4d, 0x9b, 0xac], uintPayload(0xabcdef, 4))
+}
+
+function hasSeekHead(bytes: Uint8Array): boolean {
+  for (let at = 0; at < bytes.length - 4; at++) {
+    if (bytes[at] === 0x11 && bytes[at + 1] === 0x4d && bytes[at + 2] === 0x9b && bytes[at + 3] === 0xac) return true
+  }
+  return false
 }
 
 /** An independent reader: walks top level and Info, returns the Duration's ticks and the TimecodeScale. */
@@ -122,6 +134,19 @@ describe('fixWebmDuration', () => {
     const read = durationOf(fixed)
     expect(read?.ticks).toBe(120_000)
     expect(fixed.length).toBe(original.length + 2 + 1 + 8 /* the inserted Duration element: id, size, float64 */)
+  })
+
+  it('drops a stale SeekHead when the rebuild shifts bytes, keeps it when patching in place', () => {
+    // MediaRecorder's Segment opens with a SeekHead whose offsets the insertion would invalidate
+    const withSeekHead = new Uint8Array([...EBML_HEADER, ...segment(infoElement({}), new Uint8Array(), { seekHead: true })])
+    const fixed = fixWebmDuration(withSeekHead, 120_000)
+    expect(durationOf(fixed)?.ticks).toBe(120_000)
+    expect(hasSeekHead(fixed)).toBe(false)
+
+    // the in-place patch keeps every byte where it was, SeekHead included
+    const patched = fixWebmDuration(new Uint8Array([...EBML_HEADER, ...segment(infoElement({ duration: 0 }), new Uint8Array(), { seekHead: true })]), 30_000)
+    expect(hasSeekHead(patched)).toBe(true)
+    expect(durationOf(patched)?.ticks).toBe(30_000)
   })
 
   it('respects a non-default TimecodeScale', () => {

@@ -79,6 +79,7 @@ const ID_SEGMENT = [0x18, 0x53, 0x80, 0x67]
 const ID_INFO = [0x15, 0x49, 0xa9, 0x66]
 const ID_TIMECODE_SCALE = [0x2a, 0xd7, 0xb1]
 const ID_DURATION = [0x44, 0x89]
+const ID_SEEK_HEAD = [0x11, 0x4d, 0x9b, 0xac]
 
 function findUint(buffer: Uint8Array, element: EbmlElement): number {
   let value = 0
@@ -183,18 +184,24 @@ export function fixWebmDuration(input: Uint8Array, durationMs: number): Uint8Arr
     out.set(valueBytes, duration.dataOffset)
     return out
   }
-  if (duration && duration.dataLength === 0) {
-    // a zero-length Duration is a placeholder; widen it to a float64 and shift what follows
+  if (!duration || duration.dataLength === 0) {
+    // the Duration element is missing or a zero-length placeholder: it grows to a
+    // float64 and everything after it shifts. The SeekHead holds absolute offsets
+    // into the segment, which the shift invalidates — and a player that trusts a
+    // stale SeekHead fails to find the Cues. Drop the SeekHead: players find the
+    // top-level elements by scanning anyway.
     const newInfo = rebuildInfo(infoChildren, input, durationTicks)
-    const before = input.subarray(0, info.elementOffset)
-    const after = input.subarray(info.elementOffset + info.totalLength)
-    return concat([before, newInfo, after])
-  }
-  if (!duration) {
-    const newInfo = rebuildInfo(infoChildren, input, durationTicks)
-    const before = input.subarray(0, info.elementOffset)
-    const after = input.subarray(info.elementOffset + info.totalLength)
-    return concat([before, newInfo, after])
+    const parts: Uint8Array[] = []
+    for (const child of segmentChildren) {
+      if (idsEqual(child.id, ID_SEEK_HEAD)) continue
+      if (idsEqual(child.id, ID_INFO)) {
+        parts.push(newInfo)
+        continue
+      }
+      parts.push(input.subarray(child.elementOffset, child.elementOffset + child.totalLength))
+    }
+    const head = input.subarray(0, segment.dataOffset)
+    return concat([head, concat(parts)])
   }
   return input
 }
