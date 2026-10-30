@@ -88,36 +88,6 @@ const underLine = (text, color, extra = '') => `<span class="ann-under" style="-
 const widthRow = (on = 'medium', extra = '') =>
   `<span class="lb">线宽</span>${[['thin', 4], ['medium', 7], ['thick', 11]].map(([w, d]) => `<span class="wd ${w === on ? 'on' : ''}"><i style="width:${d}px;height:${d}px"></i></span>`).join('')}${extra}`
 
-function extStitchGroup() {
-  const longResult = board({
-    title: '滚动长图 · 拼接与原位编辑',
-    ref: 'screenshot §1.5',
-    w: 760,
-    body: `<div class="shot" style="height:400px">
-      <div style="position:absolute;left:60px;top:20px;width:640px;height:300px;border:1px solid #e6e8ee;border-radius:8px;overflow:hidden;background:#fff">
-        <div style="height:28px;background:#2f6fde"></div>
-        <i class="bar" style="left:20px;top:48px;width:300px"></i><i class="bar" style="left:20px;top:64px;width:520px"></i>
-        <div style="position:absolute;left:20px;top:120px;width:280px;height:120px;background:linear-gradient(180deg,#dbeafe,#eff6ff)"></div>
-        <div style="position:absolute;left:0;top:154px;right:0;height:1px;background:#f59e0b;box-shadow:0 0 0 1px rgb(245 158 11 / 0.25)"><span style="position:absolute;right:8px;top:4px;font-size:10px;color:#b45309">拼接处</span></div>
-        <i class="bar" style="left:20px;top:190px;width:480px"></i><i class="bar" style="left:20px;top:206px;width:560px"></i>
-        <i class="bar" style="left:20px;top:246px;width:520px"></i>
-      </div>
-      <div class="shot-hint" style="left:auto;right:14px;transform:none;top:auto;bottom:12px">吸顶导航只在第一屏 · 拼接处没有重复或缺失</div>
-      <div class="shot-hint" style="top:14px">拼长图 <b>3 / 12</b> <span class="muted-2">·</span> <kbd>Esc</kbd> 取消</div>
-    </div>`,
-    notes: [
-      '入口在区域截图的<b>选区条</b>上（比例预设那一行）的“滚动长图”：从当前的滚动位置往下拼，宽度是窗口里页面的可见宽度（不含滚动条）；不先选列，也不套比例预设。',
-      '页面自动往下滚，一屏一屏地拍，相邻两屏有一段重叠，按实际滚到的位置对齐；拍的那一刻进度和扩展的其他界面一起隐藏。<b>吸顶与固定的元素只在第一屏出现</b>，滚动之后才钉住的元素每一屏拍之前重新找一遍，同样隐藏；每一屏拍之前等这一屏还在加载的图片，最多一秒。',
-      '到<b>页面底部</b>，或拍满 30 屏，或长图像素面积到约 4000 万，或高度到浏览器画布单边的 65535 像素，或再拼下去会超过入库上限，或拼到中途页面不再往下动——停下并<b>保留已经拼好的部分</b>进编辑器，提示后面没有拼。<code>Esc</code> 随时取消：已拍的部分丢弃、不入库，页面滚回开始的位置。',
-      '<b>范围</b>：只拼整页的纵向滚动。内容在页面里另一个滚动区域中、页面用脚本接管了滚动、拼的过程中页面缩放变了或被双指放大——各自说明原因；页面缩放不是 100% 也照常拼（拼接处按实际像素对齐）。长图进入同一套原位编辑器，预览按比例缩小、保存完整像素；匿名对每一屏都生效。',
-    ],
-  })
-  return group(
-    { id: 'ext-stitch', title: '滚动长图：整页拼成一张，再进原位编辑器', small: 'screenshot §1.5', desc: '比窗口长的文章页拼成一张图，标注、打码、美化、复制、下载与入库照常。' },
-    row(longResult),
-  )
-}
-
 function extShotGroup() {
   const selection = `<div class="shot-sel" style="left:52px;top:62px;width:656px;height:332px"><span class="shot-size">656 × 332</span></div>`
   const hint = `<div class="shot-hint">拖拽框选区域 <span class="muted-2">·</span> 单击选择元素 <span class="muted-2">·</span> <kbd>A</kbd> 匿名 开 <span class="muted-2">·</span> <kbd>Esc</kbd> 取消</div>`

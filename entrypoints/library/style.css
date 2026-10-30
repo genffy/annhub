@@ -1546,20 +1546,6 @@ body {
 }
 
 .settings-view .sites li,
-.settings-view .mic-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--ann-border);
-  font-size: 13px;
-}
-
-.settings-view .mic-status-denied {
-  color: var(--ann-warn, #8a6116);
-}
-
 .settings-view .keys {
   display: flex;
   align-items: center;
@@ -1864,22 +1850,4 @@ body {
     border-top: 1px solid var(--ann-border);
     overflow: visible;
   }
-}
-
-/* The 录制 section's shape choice (annotate.md §3.2): same look as the settings' other chips. */
-.settings-view .chip {
-  padding: 4px 10px;
-  border: 1px solid var(--ann-input-border, #cbd5e1);
-  border-radius: 5px;
-  background: var(--ann-surface, #fff);
-  color: var(--ann-text, #252b31);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.settings-view .chip-active {
-  border-color: var(--ann-accent, #673ab8);
-  color: var(--ann-accent-text, #673ab8);
-  background: var(--ann-accent-soft, #f0eefb);
 }

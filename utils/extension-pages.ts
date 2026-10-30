@@ -6,14 +6,10 @@ export type ExtensionPage = 'library' | 'settings'
 
 export const EXTENSION_PAGES: readonly ExtensionPage[] = ['library', 'settings']
 
-export type ExtensionPageParams = { entryId?: string; /** The tab a recording wanted the microphone for (annotate.md §2.1). */ recordTabId?: number }
+export type ExtensionPageParams = { entryId?: string }
 
 function extensionPagePath(page: ExtensionPage, params: ExtensionPageParams = {}): string {
-  if (page === 'settings') {
-    const query: string[] = []
-    if (params.recordTabId !== undefined) query.push(`recordTab=${encodeURIComponent(String(params.recordTabId))}`)
-    return query.length > 0 ? `/options.html?${query.join('&')}` : '/options.html'
-  }
+  if (page === 'settings') return '/options.html'
   return params.entryId ? `/library.html#/entry/${encodeURIComponent(params.entryId)}` : '/library.html#/all'
 }
 

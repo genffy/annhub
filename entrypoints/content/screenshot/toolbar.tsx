@@ -17,8 +17,7 @@ import {
   X,
 } from 'lucide-react'
 import { uiText } from '../../../utils/ui-text'
-import { ANNOTATION_COLORS, isLineTool, LINE_WIDTHS, type LineWidth, type ScreenshotTool } from './editor'
-import type { UiTextKey } from '../../../utils/ui-text'
+import { isLineTool, LINE_WIDTHS, type LineWidth, type ScreenshotTool } from './editor'
 
 const tools = [
   { id: 'rectangle', labelKey: 'shot.tool.rect', Icon: RectangleHorizontal },
@@ -30,6 +29,15 @@ const tools = [
   { id: 'mosaic', labelKey: 'shot.tool.mosaic', Icon: Grid2X2 },
   { id: 'text', labelKey: 'shot.tool.text', Icon: Type },
   { id: 'step', labelKey: 'shot.tool.step', Icon: ListOrdered },
+] as const
+
+/** The five annotation colours (screenshot.md §1.1); every tool, the step badges included, draws in one of them. */
+export const ANNOTATION_COLORS = [
+  { value: '#e5484d', name: 'red' },
+  { value: '#f6c453', name: 'yellow' },
+  { value: '#147d72', name: 'teal' },
+  { value: '#ffffff', name: 'white' },
+  { value: '#20252b', name: 'black' },
 ] as const
 
 /** The dot each width button shows, in CSS pixels across: the same three sizes whichever tool is on. */
@@ -86,7 +94,7 @@ export function ScreenshotToolbar(props: Props) {
           <span className="ann-shot-divider" />
           <div className="ann-shot-colors" aria-label={uiText('shot.colors')}>
             {ANNOTATION_COLORS.map(({ value, name }) => {
-              const label = uiText(`shot.color.${name}` as UiTextKey)
+              const label = uiText(`shot.color.${name}`)
               return (
                 <button
                   key={value}

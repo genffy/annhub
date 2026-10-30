@@ -28,13 +28,13 @@ export interface ResponseMessage<T = any> {
 
 /** `via` and block attribution for capture.saved / capture.undone (metrics.md §9). */
 export interface CaptureAttribution {
-  via: 'menu' | 'block' | 'shortcut' | 'ink'
+  via: 'menu' | 'block' | 'shortcut'
   blockKind?: 'post' | 'code' | 'table' | 'figure' | 'quote' | 'section' | 'article'
   levelChanged?: boolean
   truncated?: boolean
   durationMs?: number
   startedAt?: number
-  frame?: 'drag' | 'element' | 'reused' | 'stitched'
+  frame?: 'drag' | 'element' | 'reused'
 }
 
 export type CaptureVia = CaptureAttribution['via']
@@ -203,90 +203,6 @@ export interface ReadFrameMessage extends BaseMessage {
   type: 'READ_FRAME'
 }
 
-// ── Tab recording (annotate.md §2) ──────────────────────────────────────
-
-/**
- * What the popup and the settings page read. Only the extension's own pages
- * may start or stop a recording; the page itself never sees one (annotate.md
- * §2.1). At most one recording and at most one unsaved video exist at a time.
- */
-export interface RecordingState {
-  status: 'idle' | 'recording' | 'download-failed'
-  withMic: boolean
-  /** The tab being recorded, for the popup's 正在录制 line. */
-  tabId?: number
-  tabTitle?: string
-  startedAt?: number
-  /** The limit that stopped the recording (annotate.md §2.1): 15 minutes or about 500 MB. */
-  limitNotice?: 'time' | 'size'
-  /** Why the microphone is not in the video although it was asked for (annotate.md §2.4). */
-  micNotice?: 'denied' | 'missing' | 'busy'
-  /** A download that failed keeps the video until it is retried or discarded (annotate.md §2.4). */
-  failedDownload?: { filename: string }
-}
-
-export interface StartRecordingMessage extends BaseMessage {
-  type: 'START_RECORDING'
-  /** The tab to record (the active one). */
-  tabId: number
-  /** The tab-capture stream id the popup obtained in its own user gesture. */
-  streamId: string
-  withMic: boolean
-}
-
-export interface GetRecordingStateMessage extends BaseMessage {
-  type: 'GET_RECORDING_STATE'
-}
-
-export interface StopRecordingMessage extends BaseMessage {
-  type: 'STOP_RECORDING'
-}
-
-export interface RetryRecordingDownloadMessage extends BaseMessage {
-  type: 'RETRY_RECORDING_DOWNLOAD'
-}
-
-export interface DiscardRecordingMessage extends BaseMessage {
-  type: 'DISCARD_RECORDING'
-}
-
-/** Lifecycle reports from the offscreen document; the worker turns them into state, badge and metrics. */
-export interface RecordingEventMessage extends BaseMessage {
-  type: 'RECORDING_EVENT'
-  event: 'started' | 'mic-unavailable' | 'stopped' | 'failed'
-  /** For `stopped`: the blob URL the offscreen document keeps alive until the download lands. */
-  blobUrl?: string
-  filename?: string
-  durationMs?: number
-  stoppedBy?: 'user' | 'tab_closed' | 'limit'
-  /** Which limit was hit, when stopped_by is limit (annotate.md §2.1). */
-  limit?: 'time' | 'size'
-  withMic?: boolean
-  micNotice?: 'denied' | 'missing' | 'busy'
-}
-
-/** Worker → offscreen document: what the recorder should do. */
-export interface RecordingCommandMessage extends BaseMessage {
-  type: 'RECORDING_START' | 'RECORDING_STOP' | 'RECORDING_CLEANUP'
-  streamId?: string
-  withMic?: boolean
-  keepVideo?: boolean
-  /** For RECORDING_STOP: why the worker stopped it — user button or the recorded tab closing. */
-  stoppedBy?: 'user' | 'tab_closed'
-}
-
-/** The recorded tab asks whether a recording is live; read-only, no user data (annotate.md §3.2). */
-export interface RecordingStatusMessage extends BaseMessage {
-  type: 'RECORDING_STATUS'
-}
-
-/** Worker → the recorded tab's content script: a recording started or stopped (annotate.md §3). */
-export interface RecordingLifecycleMessage extends BaseMessage {
-  type: 'RECORDING_LIFECYCLE'
-  active: boolean
-  cursorHighlight?: SettingsPatch['recording'] extends { cursorHighlight?: infer C } ? C : never
-}
-
 // ── Settings, metrics, housekeeping ─────────────────────────────────────
 
 export interface GetSettingsMessage extends BaseMessage {
@@ -325,7 +241,7 @@ export interface OrphanReportMessage extends BaseMessage {
 export interface OpenExtensionPageMessage extends BaseMessage {
   type: 'OPEN_EXTENSION_PAGE'
   page: 'library' | 'settings'
-  params?: { entryId?: string; /** The tab a recording wanted the microphone for (annotate.md §2.1). */ recordTabId?: number }
+  params?: { entryId?: string }
 }
 
 export type ExtensionMessage =
@@ -351,15 +267,6 @@ export type ExtensionMessage =
   | DownloadImageMessage
   | RememberFrameMessage
   | ReadFrameMessage
-  | StartRecordingMessage
-  | GetRecordingStateMessage
-  | StopRecordingMessage
-  | RetryRecordingDownloadMessage
-  | DiscardRecordingMessage
-  | RecordingEventMessage
-  | RecordingCommandMessage
-  | RecordingStatusMessage
-  | RecordingLifecycleMessage
   | GetSettingsMessage
   | SetSettingsMessage
   | DisableBlockEntryMessage

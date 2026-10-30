@@ -4,7 +4,7 @@ import type { BaseMessage, ResponseMessage } from '../types/messages'
 import { EXTENSION_PAGES, openExtensionPage } from '../utils/extension-pages'
 import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from './sender'
 
-export type SupportedServices = 'entries' | 'screenshot' | 'recording' | 'system'
+export type SupportedServices = 'entries' | 'screenshot' | 'system'
 
 export type MessageHandler = (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>
 

@@ -99,9 +99,7 @@ for (const [uiLocale, shortcutLabels] of [
           await library.goto(`chrome-extension://${extensionId}/library.html#/settings`)
           await library.reload()
           await expect(library.getByTestId('settings-view')).toBeVisible()
-          // chrome.commands.getAll can omit a freshly added unbound command, so the
-          // row count races; the two bound shortcuts are always listed
-          expect(await library.locator('.keys').count()).toBeGreaterThanOrEqual(2)
+          await expect(library.locator('.keys')).toHaveCount(2)
           const where = `${uiLocale}, ${width}px, ${scheme}`
 
           const problems = await library.evaluate(isStacked => {
@@ -183,11 +181,7 @@ for (const [uiLocale, shortcutLabels] of [
           }, stacked)
           expect(problems, `settings layout (${where})`).toEqual([])
 
-          const shortcutNames = await library.locator('.keys > :first-child').allTextContents()
-          expect(
-            shortcutNames.filter(name => (shortcutLabels as readonly string[]).includes(name)),
-            `the bound shortcuts are listed in order (${where})`,
-          ).toEqual(shortcutLabels)
+          expect(await library.locator('.keys > :first-child').allTextContents(), `shortcut names (${where})`).toEqual(shortcutLabels)
 
           // text is readable on whatever it sits on, in both colour schemes
           const readable = library.locator(
