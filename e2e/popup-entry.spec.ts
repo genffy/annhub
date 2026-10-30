@@ -164,3 +164,47 @@ test('the popup buttons draw in the popup font, not the browser one (visual.md �
   expect(strangers.strangers, 'controls in a font of their own').toEqual([])
   await popup.close()
 })
+
+test('the popup annotation entry opens the layer on the page and stays off on restricted pages (annotate.md §1.1)', async ({ page, extensionId }) => {
+  await page.goto(getCapturePageUrl())
+  const popup = await page.context().newPage()
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`)
+  // an http page: the button is live, and clicking it opens the layer there.
+  // the popup runs as a tab here, so the fixture page has to be the active tab
+  // for the popup's tab query to see it
+  const button = popup.locator('[data-ann-ui="popup-annotate"]')
+  await page.bringToFront()
+  // the entry's availability is read once on mount; remount now that the
+  // fixture page is the window's active tab
+  await popup.reload()
+  await expect(button).toBeEnabled()
+  await button.click()
+  await expect(page.locator('[data-ann-ui="annotation-layer"]')).toBeVisible()
+
+  // the annotate click closed the popup (it dismisses itself); a fresh one shows the recording
+  // entry in the same row — enabled on the page, with its microphone choice
+  const popup2 = await page.context().newPage()
+  await popup2.goto(`chrome-extension://${extensionId}/popup.html`)
+  // opening the popup tab made it the active tab; hand the role back to the
+  // fixture page and remount, so the entries read the right tab
+  await page.bringToFront()
+  await popup2.reload()
+  const record = popup2.locator('[data-ann-ui="popup-record"]')
+  await expect(record).toBeEnabled()
+  const mic = popup2.locator('[data-ann-ui="popup-mic"] input[type="checkbox"]')
+  await expect(mic).toBeVisible()
+  await mic.check()
+  // the restricted page has both entries off, each naming its reason
+  const restricted = await page.context().newPage()
+  await restricted.goto(`chrome-extension://${extensionId}/library.html#/settings`)
+  await restricted.bringToFront()
+  const popup3 = await page.context().newPage()
+  await popup3.goto(`chrome-extension://${extensionId}/popup.html`)
+  await expect(popup3.locator('[data-ann-ui="popup-record"]')).toBeDisabled()
+  await expect(popup3.locator('[data-ann-ui="popup-record"]')).toHaveAttribute('title', /不能录制/)
+  await expect(popup3.locator('[data-ann-ui="popup-annotate"]')).toBeDisabled()
+  await expect(popup3.locator('[data-ann-ui="popup-annotate"]')).toHaveAttribute('title', /不能批注/)
+  await popup3.close()
+  await popup2.close()
+  await restricted.close()
+})

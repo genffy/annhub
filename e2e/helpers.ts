@@ -254,17 +254,17 @@ async function sendTabMessage(page: Page, message: Record<string, unknown>): Pro
   const deadline = Date.now() + 10_000
   for (;;) {
     const error = await worker.evaluate(
-      async payload => {
-        const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === payload.url)
-        if (tab?.id === undefined) return `no tab shows ${payload.url}`
+      async ({ url, message }) => {
+        const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === url)
+        if (tab?.id === undefined) return `no tab shows ${url}`
         try {
-          await chrome.tabs.sendMessage(tab.id, { type: payload.type }, { frameId: 0 })
+          await chrome.tabs.sendMessage(tab.id, message, { frameId: 0 })
           return ''
         } catch (failure) {
           return failure instanceof Error ? failure.message : String(failure)
         }
       },
-      { ...message, url } as { type: string; url: string },
+      { url, message },
     )
     if (!error) return
     if (Date.now() > deadline) throw new Error(`The trigger never reached the page: ${error}`)
@@ -278,6 +278,10 @@ export function triggerScreenshot(page: Page): Promise<void> {
 
 export function triggerBlockMode(page: Page): Promise<void> {
   return sendTabMessage(page, { type: 'TRIGGER_BLOCK_MODE' })
+}
+
+export function triggerAnnotation(page: Page): Promise<void> {
+  return sendTabMessage(page, { type: 'TRIGGER_ANNOTATE' })
 }
 
 /** Waits for the clip toast (已剪藏 · 撤销 · 编辑); tolerant of a cold service worker. */

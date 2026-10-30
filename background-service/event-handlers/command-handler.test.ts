@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
+import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
 import { CommandHandler } from './command-handler'
 
 /**
- * The two shortcuts (extension.md §7.1) tell the top frame's content script and nothing else: the
+ * The shortcuts (extension.md §7.1) tell the top frame's content script and nothing else: the
  * script also runs in same-origin child frames, and a broadcast would start a screenshot session or
- * block mode in every one of them (capture.md §3).
+ * block mode in every one of them (capture.md §3). The page-annotation entry is unbound by default
+ * (annotate.md §1.1, D-37) but travels the same road once the user binds it.
  */
 
 function setup(tabs: { id?: number }[] = [{ id: 7 }]) {
@@ -33,6 +34,19 @@ describe('browser commands', () => {
     const { fire, sendMessage } = setup()
     await fire(ANN_BLOCK_MODE_COMMAND)
     expect(sendMessage).toHaveBeenCalledWith(7, { type: 'TRIGGER_BLOCK_MODE' }, { frameId: 0 })
+  })
+
+  it('send the page-annotation trigger to the top frame only', async () => {
+    const { fire, sendMessage } = setup()
+    await fire(ANN_ANNOTATE_COMMAND)
+    expect(sendMessage).toHaveBeenCalledWith(7, { type: 'TRIGGER_ANNOTATE' }, { frameId: 0 })
+  })
+
+  it('hands the recording command to the recording service, not to a tab message', async () => {
+    const { fire, sendMessage } = setup()
+    // chrome is not stubbed here: the service's start probe finds no tab it could record and returns
+    await expect(fire(ANN_RECORD_COMMAND)).resolves.toBeUndefined()
+    expect(sendMessage).not.toHaveBeenCalled()
   })
 
   it('do nothing for an unknown command or a window without a tab', async () => {
