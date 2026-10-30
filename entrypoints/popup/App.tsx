@@ -51,6 +51,8 @@ export default function App() {
   const [recording, setRecording] = useState<RecordingState | null>(null)
   const [withMic, setWithMic] = useState(false)
   const [micNotice, setMicNotice] = useState<string | null>(null)
+  // a start the worker or the browser refused: the popup stays open and says so, instead of closing as if it had begun
+  const [startFailure, setStartFailure] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const activeUrl = useRef<string | null>(null)
 
@@ -111,14 +113,22 @@ export default function App() {
         return
       }
     }
+    setStartFailure(null)
     let streamId: string | undefined
     try {
       streamId = await chrome.tabCapture.getMediaStreamId({ consumerTabId: active.id })
     } catch {
       streamId = undefined
     }
-    if (!streamId) return
-    await MessageUtils.sendMessage({ type: 'START_RECORDING', tabId: active.id, streamId, withMic })
+    if (!streamId) {
+      setStartFailure(uiText('popup.recording.failed'))
+      return
+    }
+    const response = await MessageUtils.sendMessage({ type: 'START_RECORDING', tabId: active.id, streamId, withMic })
+    if (!response.success) {
+      setStartFailure(uiText('popup.recording.failed'))
+      return
+    }
     window.close()
   }, [withMic])
 
@@ -286,6 +296,7 @@ export default function App() {
           </p>
         )}
         {recording?.status === 'idle' && micNotice && <p className="popup-recording-outcome">{micNotice}</p>}
+        {startFailure && <p className="popup-recording-outcome">{startFailure}</p>}
         {recording?.status === 'idle' && !recording.limitNotice && !micNotice && withMic && canAnnotate && (
           <p className="popup-recording-outcome">{uiText('popup.recording.headphones')}</p>
         )}
