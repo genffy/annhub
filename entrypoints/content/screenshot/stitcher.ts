@@ -80,17 +80,28 @@ async function waitForImages(doc: Document, timeoutMs: number): Promise<void> {
   })
   if (pending.length === 0) return
   await new Promise<void>(resolve => {
-    const done = window.setTimeout(resolve, timeoutMs)
     let waiting = pending.length
-    const settle = () => {
+    // whichever comes first — every image settled or the timeout — the listeners come off, so a slow image keeps none
+    const detach = () => {
+      for (const image of pending) {
+        image.removeEventListener('load', settle)
+        image.removeEventListener('error', settle)
+      }
+    }
+    const done = window.setTimeout(() => {
+      detach()
+      resolve()
+    }, timeoutMs)
+    function settle() {
       if (--waiting <= 0) {
         window.clearTimeout(done)
+        detach()
         resolve()
       }
     }
     for (const image of pending) {
-      image.addEventListener('load', settle, { once: true })
-      image.addEventListener('error', settle, { once: true })
+      image.addEventListener('load', settle)
+      image.addEventListener('error', settle)
     }
   })
 }
