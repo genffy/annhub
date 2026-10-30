@@ -192,6 +192,7 @@ const STRINGS = {
   'popup.recording.live': { zh: '正在录制：{title} · {time}', en: 'Recording: {title} · {time}' },
   'popup.recording.mic.denied': { zh: '麦克风未允许，只录了画面与标签页的声音', en: 'Microphone not allowed — recorded the picture and the tab sound only' },
   'popup.recording.mic.missing': { zh: '没有可用的麦克风，只录了画面与标签页的声音', en: 'No microphone available — recorded the picture and the tab sound only' },
+  'popup.recording.failed': { zh: '没有开始录制，请换一个页面或稍后再试', en: 'Recording did not start — try another page or again in a moment' },
   'popup.recording.mic.busy': { zh: '麦克风被占用，只录了画面与标签页的声音', en: 'Microphone busy — recorded the picture and the tab sound only' },
   'popup.recording.downloadFailed': { zh: '视频下载失败，已保留在内存里', en: 'The download failed; the video is kept in memory' },
   'popup.recording.downloadAgain': { zh: '重新下载', en: 'Download again' },
