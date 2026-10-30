@@ -17,6 +17,7 @@
  */
 import { uiText } from '../../../utils/ui-text'
 import {
+  STITCH_CAPS,
   STITCH_OVERLAP_CSS,
   bytesPerPixelFromSegment,
   canvasOffsets,
@@ -243,12 +244,14 @@ export class Stitcher {
       offsets,
       segments.map(segment => segment.height),
     )
+    // the last segment may take the picture past the browser's canvas edge; the stop condition counts it, so the edge is clamped here
+    const height = Math.max(1, Math.min(heightPx, STITCH_CAPS.maxHeightPx))
     const canvas = this.doc.createElement('canvas')
     canvas.width = first.width
-    canvas.height = Math.max(1, heightPx)
+    canvas.height = height
     const ctx = canvas.getContext('2d')!
     segments.forEach((segment, index) => ctx.drawImage(segment, 0, offsets[index]!))
-    return { canvas, dpr, widthCss, heightCss: heightPx / dpr, stop: stop ?? 'stalled', scrollTop, scrollLeft }
+    return { canvas, dpr, widthCss, heightCss: height / dpr, stop: stop ?? 'stalled', scrollTop, scrollLeft }
   }
 
   async pngBytes(canvas: HTMLCanvasElement): Promise<number> {

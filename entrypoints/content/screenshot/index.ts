@@ -571,12 +571,13 @@ class ScreenshotSession {
     this.ratioBarEl?.remove()
     this.ratioBarEl = null
     this.hintEl?.style.setProperty('display', 'none')
-    let failure: StitchFailure | null = null
+    let failure: StitchFailure | 'capture' | null = null
     let result: Awaited<ReturnType<Stitcher['run']>> | undefined
     try {
       result = await stitcher.run()
     } catch (error) {
-      failure = (error as StitchFailure) ?? null
+      // the stitcher throws its own reason as a string; any other error is a shot that did not come back
+      failure = typeof error === 'string' ? (error as StitchFailure) : 'capture'
     }
     this.stitching = false
     this.stitcher = null
@@ -594,8 +595,9 @@ class ScreenshotSession {
       this.state = 'selecting'
       this.showRatioBar()
       this.syncHint()
-      const code: StitchFailure = failure ?? 'scripted'
+      const code = failure ?? 'scripted'
       if (code === 'zoomed') this.showExternalNotice(uiText('shot.stitch.zoom'))
+      else if (code === 'capture') this.showExternalNotice(uiText('shot.error.capture'))
       else if (code !== 'cancel') this.showExternalNotice(uiText(`shot.stitch.${code}` as UiTextKey))
       return
     }
