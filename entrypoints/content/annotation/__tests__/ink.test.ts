@@ -86,6 +86,23 @@ describe('clipPolyline', () => {
       ),
     ).toEqual([])
   })
+
+  it('keeps a segment that crosses the rect between two samples outside it', () => {
+    expect(
+      clipPolyline(
+        [
+          { x: -50, y: 50 },
+          { x: 150, y: 50 },
+        ],
+        rect,
+      ),
+    ).toEqual([
+      [
+        { x: 0, y: 50 },
+        { x: 100, y: 50 },
+      ],
+    ])
+  })
 })
 
 describe('inkToEditorAnnotations', () => {
