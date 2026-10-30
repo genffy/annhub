@@ -19,7 +19,7 @@ import {
   type Point,
   type StepAnnotation,
 } from '../editor'
-import { ANNOTATION_COLORS } from '../toolbar'
+import { ANNOTATION_COLORS } from '../editor'
 
 /**
  * The step badges of the screenshot editor (screenshot.md §1.1): how they are numbered, which one a press lands on,

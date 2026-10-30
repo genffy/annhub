@@ -21,7 +21,7 @@
  */
 
 import MessageUtils from '../../../utils/message'
-import { screenshotFailureText, screenshotSaveErrorText, uiText } from '../../../utils/ui-text'
+import { screenshotFailureText, screenshotSaveErrorText, uiText, type UiTextKey } from '../../../utils/ui-text'
 import { newEntryId } from '../../../learning-core/assets'
 import { normalizeHost } from '../../../learning-core/normalize'
 import { extractPageMeta, resolvePermalink } from '../page-meta'
@@ -92,6 +92,8 @@ import {
 } from './selection'
 import { readFrame, rememberFrame, type FrameRecord } from './frame-memory'
 import { permalinkForRegion } from './permalink'
+import { Stitcher, type StitchFailure } from './stitcher'
+import { inkToEditorAnnotations, inkToViewport, type InkStroke } from '../annotation/ink'
 import type { ExtensionSettings } from '../../../background-service/settings-schema'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -108,12 +110,23 @@ export interface EnterScreenshotOptions {
   element?: HTMLElement
   /** A pending frame to confirm (Enter) or adjust, e.g. the selection menu's screenshot path (真机走查 P2-5). */
   initialRect?: ViewportRect
+  /** Page-annotation ink at capture time (annotate.md §1.3): drawn back onto the capture as ordinary annotations. */
+  ink?: InkStroke[]
+  /** The annotation layer waits for the session to end so it can come back with its ink. */
+  onExit?: () => void
 }
 
 export function enterScreenshotMode(options: EnterScreenshotOptions = {}): void {
-  // Idempotent: a second trigger replaces the pending session.
-  activeSession?.exit()
+  // Idempotent: a second trigger replaces the pending session. The replaced one hands its ink and its exit callback
+  // over, so an annotation layer waiting on this session stays hidden until the session that replaces it ends.
+  const previous = activeSession
+  const ink = options.ink ?? previous?.pendingInk ?? null
+  const onExit = options.onExit ?? previous?.onSessionExit ?? null
+  if (previous) previous.onSessionExit = null
+  previous?.exit()
   activeSession = new ScreenshotSession(document, options.via ?? 'shortcut')
+  activeSession.pendingInk = ink
+  activeSession.onSessionExit = onExit
   activeSession.begin()
   if (options.element) void activeSession.captureElementTarget(options.element)
   else if (options.initialRect) activeSession.beginWithInitialRect(options.initialRect)
@@ -126,6 +139,18 @@ export function exitScreenshotMode(): void {
 
 export function isScreenshotSessionActive(): boolean {
   return activeSession !== null
+}
+
+/**
+ * A notice for a session that is already open, from a trigger that must not
+ * disturb it (annotate.md §1.1: an annotation request during a screenshot
+ * session points at the session instead of opening anything). True when a
+ * session was there to hear it.
+ */
+export function notifyScreenshotSession(message: string): boolean {
+  if (!activeSession) return false
+  activeSession.showExternalNotice(message)
+  return true
 }
 
 /** Page actions killed during the capture phase (RV-CAP-05). */
@@ -213,6 +238,13 @@ class ScreenshotSession {
   private shiftRatio: number | null = null
   private pendingFrameRecord: FrameRecord | null = null
   private reusedFrame = false
+  /** The capture came out of the scroll stitcher (screenshot.md §1.5): the frame is stitched, not dragged or picked. */
+  private stitched = false
+  private stitcher: Stitcher | null = null
+  /** Page-annotation ink handed over with the trigger (annotate.md §1.3); consumed when the capture is in. */
+  pendingInk: InkStroke[] | null = null
+  /** The annotation layer's callback, run once when this session ends for any reason. */
+  onSessionExit: (() => void) | null = null
   private readonly onKeydown = (e: KeyboardEvent) => {
     if (!isUserInput(e)) return
     if (e.key === 'Escape') {
@@ -224,6 +256,10 @@ class ScreenshotSession {
       }
       if (this.beautifyPanel) {
         this.closeBeautifyPanel()
+        return
+      }
+      if (this.stitching) {
+        this.stitcher?.cancel()
         return
       }
       exitScreenshotMode()
@@ -477,8 +513,109 @@ class ScreenshotSession {
     }
     bar.append(chip('free', uiText('shot.ratio.free')))
     for (const id of this.settings.ratioPresets) bar.append(chip(id, id))
+    const stitched = this.doc.createElement('button')
+    stitched.type = 'button'
+    stitched.textContent = uiText('shot.stitch.button')
+    stitched.setAttribute('data-ann-ui', 'shot-stitch-button')
+    stitched.setAttribute('aria-label', uiText('shot.stitch.button'))
+    stitched.addEventListener('click', event => {
+      if (!isUserInput(event)) return
+      void this.beginStitching()
+    })
+    bar.appendChild(stitched)
     this.host.appendChild(bar)
     this.ratioBarEl = bar
+  }
+
+  // ── scrolling long screenshot (screenshot.md §1.5) ────────────────
+
+  private stitching = false
+
+  private async beginStitching(): Promise<void> {
+    if (this.stitching || (this.state !== 'selecting' && this.state !== 'confirming')) return
+    // a transparent catcher holds the pointer off the page's hover styles for the whole run
+    const sweeper = this.doc.createElement('div')
+    sweeper.setAttribute(ROOT_ATTR, 'screenshot-hover-sweeper')
+    Object.assign(sweeper.style, { position: 'fixed', inset: '0', pointerEvents: 'auto', background: 'transparent', zIndex: '2147483646' })
+    this.doc.documentElement.appendChild(sweeper)
+    const stitcher = new Stitcher({
+      doc: this.doc,
+      capture: async () => {
+        // the shot photographs the screen: the session's overlay and UI hide
+        // for the moment, and the cursor highlight of a recording with them
+        this.host.style.display = 'none'
+        this.doc.dispatchEvent(new CustomEvent('annhub:capture-hide'))
+        try {
+          await doubleRaf()
+          // the same rate-limit-aware path the region capture takes
+          const response = await this.requestCapture()
+          if (!response.success || !response.data?.dataUrl) throw new Error(response.error ?? 'capture failed')
+          return response.data.dataUrl
+        } finally {
+          this.host.style.display = ''
+          this.doc.dispatchEvent(new CustomEvent('annhub:capture-restore'))
+        }
+      },
+    })
+    this.stitcher = stitcher
+    this.stitching = true
+    // every ending — stitched, stalled, cancelled or discarded — scrolls the page back to here
+    const startTop = this.doc.scrollingElement?.scrollTop ?? 0
+    const startLeft = this.doc.scrollingElement?.scrollLeft ?? 0
+    this.setConfirmShield(false)
+    this.clearConfirmUi()
+    this.clearHoverUi()
+    this.selectionEl?.remove()
+    this.selectionEl = null
+    this.ratioBarEl?.remove()
+    this.ratioBarEl = null
+    this.hintEl?.style.setProperty('display', 'none')
+    let failure: StitchFailure | 'capture' | null = null
+    let result: Awaited<ReturnType<Stitcher['run']>> | undefined
+    try {
+      result = await stitcher.run()
+    } catch (error) {
+      // the stitcher throws its own reason as a string; any other error is a shot that did not come back
+      failure = typeof error === 'string' ? (error as StitchFailure) : 'capture'
+    }
+    this.stitching = false
+    this.stitcher = null
+    sweeper.remove()
+    // every ending — stitched, stalled, cancelled, discarded or the session
+    // replaced mid-run — scrolls the page back to where it started
+    const scroller = this.doc.scrollingElement
+    if (scroller) {
+      scroller.scrollTop = startTop
+      scroller.scrollLeft = startLeft
+    }
+    if (this.exited) return
+    if (!result) {
+      // nothing was stitched, or the run was discarded: back to selecting, with the reason when there is one
+      this.state = 'selecting'
+      this.showRatioBar()
+      this.syncHint()
+      const code = failure ?? 'scripted'
+      if (code === 'zoomed') this.showExternalNotice(uiText('shot.stitch.zoom'))
+      else if (code === 'capture') this.showExternalNotice(uiText('shot.error.capture'))
+      else if (code !== 'cancel') this.showExternalNotice(uiText(`shot.stitch.${code}` as UiTextKey))
+      return
+    }
+    if (result.stop !== 'bottom') this.showNotice(uiText('shot.stitch.capped'), false)
+    this.state = 'capturing'
+    await this.settingsLoaded
+    if (this.exited) return
+    // the ink on the page is screen-fixed at this point: it lands on the first
+    // segment, where it was drawn (annotate.md §1.3, screenshot.md §1.5)
+    this.selection = { x: 0, y: 0, width: result.widthCss, height: result.heightCss }
+    this.croppedCanvas = result.canvas
+    this.capturedDpr = result.dpr
+    this.stitched = true
+    this.pendingFrameRecord = null
+    this.capturedSourceUrl = this.pageUrl()
+    this.maskBoxes = []
+    this.prepareEditor(this.consumeInkStitched(startLeft, startTop, result.widthCss, result.heightCss))
+    this.state = 'preview'
+    this.showPreview()
   }
   private textNode(t: string): Text {
     return this.doc.createTextNode(t)
@@ -505,6 +642,11 @@ class ScreenshotSession {
     }
     this.clearConfirmUi()
     this.clearHoverUi()
+    // a session replaced while its scrolling capture runs stops the stitcher:
+    // otherwise it keeps scrolling and photographing an orphaned page
+    this.stitcher?.cancel()
+    this.stitcher = null
+    this.stitching = false
     this.host.remove()
     this.selectionEl = null
     this.previewEl = null
@@ -516,7 +658,11 @@ class ScreenshotSession {
     this.croppedCanvas = null
     this.sourceCanvas = null
     this.state = 'done'
+    const notifyExit = this.onSessionExit
+    this.onSessionExit = null
     if (activeSession === this) activeSession = null
+    // the annotation layer comes back with its ink once the session is over (annotate.md §1.3)
+    notifyExit?.()
   }
 
   // ── region selection / element pick (document-level) ─────────────
@@ -1056,6 +1202,8 @@ class ScreenshotSession {
     // hover-catcher takes the cursor so page hover styles clear before the
     // shot (screenshot.md §1.4).
     this.host.style.display = 'none'
+    // the cursor highlight of a live recording hides with the rest of the UI (annotate.md §3.2)
+    this.doc.dispatchEvent(new CustomEvent('annhub:capture-hide'))
     const sweeper = this.doc.createElement('div')
     sweeper.setAttribute(ROOT_ATTR, 'screenshot-hover-sweeper')
     Object.assign(sweeper.style, { position: 'fixed', inset: '0', pointerEvents: 'auto', background: 'transparent', zIndex: '2147483646' })
@@ -1065,6 +1213,7 @@ class ScreenshotSession {
     const dropSweeper = (): void => {
       sweeper.remove()
       this.host.style.display = ''
+      this.doc.dispatchEvent(new CustomEvent('annhub:capture-restore'))
     }
     if (this.exited) {
       dropSweeper()
@@ -1108,9 +1257,41 @@ class ScreenshotSession {
           width: r.width * scaleX,
           height: r.height * scaleY,
         }))
-    this.prepareEditor()
+    this.prepareEditor(this.consumeInk(selection))
     this.state = 'preview'
     this.showPreview()
+  }
+
+  /**
+   * The handed-over ink as editor annotations over the frame that was just
+   * captured, in one group for undo (annotate.md §1.3, D-38): the ink is
+   * stored on the page, so it lands where it shows at the capture moment
+   * (annotate.md §1.2, §1.3); pinned ink already sits in viewport
+   * coordinates. Strokes fully outside the frame are out, strokes crossing
+   * its boundary are cut at it.
+   */
+  private consumeInk(frame: ViewportRect): Annotation[] {
+    const ink = this.pendingInk
+    this.pendingInk = null
+    if (!ink || ink.length === 0) return []
+    const view = this.doc.defaultView!
+    return inkToEditorAnnotations(inkToViewport(ink, view.scrollX, view.scrollY), frame, this.capturedDpr || 1)
+  }
+
+  /**
+   * 拼长图的墨迹 (annotate.md §1.3): the page's ink enters at its page
+   * position, wherever the window was when it was drawn; ink pinned to the
+   * screen has no place in the long image — no single segment would line it
+   * up — so it stays out and the editor says one sentence about it.
+   */
+  private consumeInkStitched(startLeft: number, startTop: number, widthCss: number, heightCss: number): Annotation[] {
+    const ink = this.pendingInk
+    this.pendingInk = null
+    if (!ink || ink.length === 0) return []
+    const onPage = ink.filter(stroke => !stroke.pinned)
+    if (onPage.length !== ink.length) this.showNotice(uiText('shot.stitch.pinnedInk'), false)
+    if (onPage.length === 0) return []
+    return inkToEditorAnnotations(onPage, { x: startLeft, y: startTop, width: widthCss, height: heightCss }, this.capturedDpr || 1)
   }
 
   // ── element mode (DOM clone rasterization) ────────────────────────
@@ -1183,7 +1364,7 @@ class ScreenshotSession {
     const bounds = element.getBoundingClientRect()
     this.elementRect = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
     this.capturedDpr = this.croppedCanvas.width / Math.max(1, element.getBoundingClientRect().width)
-    this.prepareEditor()
+    this.prepareEditor(this.consumeInk({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }))
     this.state = 'preview'
     this.showPreview()
   }
@@ -1212,7 +1393,7 @@ class ScreenshotSession {
 
   // ── in-place preview and non-destructive annotations ──────────────
 
-  private prepareEditor(): void {
+  private prepareEditor(inkAnnotations: Annotation[] = []): void {
     this.sourceCanvas = this.croppedCanvas
     const canvas = this.doc.createElement('canvas')
     canvas.width = this.sourceCanvas!.width
@@ -1225,6 +1406,8 @@ class ScreenshotSession {
     this.history = []
     this.stepSequence = 0
     this.selectedStep = null
+    // the page's ink arrives as one step of its own: one undo takes it all off again (annotate.md §1.3, D-38)
+    if (inkAnnotations.length > 0) this.commit(inkAnnotations)
     this.renderEditor()
   }
 
@@ -1694,7 +1877,7 @@ class ScreenshotSession {
           ...(meta.published ? { published: meta.published } : {}),
           ...(meta.description ? { description: meta.description } : {}),
           via: this.via,
-          frame: this.reusedFrame ? 'reused' : this.elementRect ? 'element' : 'drag',
+          frame: this.stitched ? 'stitched' : this.reusedFrame ? 'reused' : this.elementRect ? 'element' : 'drag',
           startedAt: clickedAt,
         },
       })
@@ -1952,7 +2135,23 @@ class ScreenshotSession {
     if (this.hintEl) this.hintEl.style.display = 'none'
   }
 
-  private showNotice(message: string, error = false): void {
+  /**
+   * A notice from outside the session — the annotation trigger pointing at
+   * the session instead of opening (annotate.md §1.1). The toolbar's notice
+   * only exists in the preview, so this is its own hint-style bar, in every
+   * state, that leaves on its own.
+   */
+  showExternalNotice(message: string): void {
+    this.host.querySelector(`[${ROOT_ATTR}="screenshot-external-notice"]`)?.remove()
+    const el = this.doc.createElement('div')
+    el.className = 'ann-shot-hint'
+    el.setAttribute(ROOT_ATTR, 'screenshot-external-notice')
+    el.textContent = message
+    this.host.appendChild(el)
+    window.setTimeout(() => el.remove(), 2600)
+  }
+
+  showNotice(message: string, error = false): void {
     this.notice = { message, error }
     this.updateToolbar()
   }
