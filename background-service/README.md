@@ -55,7 +55,8 @@ export interface IService {
 
 1. **EntryService** - entries, properties, highlights and queries (`services/entries`); the export ZIP is built in the library page, not here
 2. **ScreenshotService** - capture, image fetch, download, screenshot save (`services/screenshot`)
-3. **SystemService** - settings and local metrics (`services/system`)
+3. **RecordingService** - tab-recording state machine, toolbar badge and the finished video's download (`services/recording`); the video itself is assembled by the offscreen recording document (`entrypoints/offscreen`)
+4. **SystemService** - settings and local metrics (`services/system`)
 
 ## Event Handlers
 
@@ -117,6 +118,7 @@ background-service/
 │   └── installation-handler.ts
 └── services/                   # All services
     ├── entries/
+    ├── recording/
     ├── screenshot/
     └── system/
 ```

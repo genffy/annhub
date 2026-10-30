@@ -19,6 +19,8 @@ AnnHub 是一个本地优先的浏览器扩展：选中网页内容或指一下�
 - **唯一的导出**：一键生成 Markdown + 已保存原图的 ZIP，属性写成 YAML frontmatter，供 Obsidian 等工具阅读
 - **本地优先**：数据保存在浏览器的 IndexedDB；断网可正常运行
 
+开发中、未随 2.0.0 发布：**页面批注**（画在页面上，整页墨迹可截进截图编辑器）、**标签页录制**（可带麦克风，录制时有光标高亮）与**滚动长图**，进度见[路线图第 3 节](./docs/product/roadmap.md)。
+
 ## 产品边界
 
 AnnHub 只解决一条主链路：
@@ -37,12 +39,14 @@ AnnHub 只解决一条主链路：
 ```text
 ┌─────────────────────────────────────────────────────┐
 │ Browser Extension                                   │
-│ Selection Menu / Block Clip / Screenshot Session    │
+│ Selection Menu / Block Clip / Annotation Layer      │
+│ Screenshot Session / Cursor Highlight               │
 └───────────────────────┬─────────────────────────────┘
                         │ chrome.runtime.sendMessage
 ┌───────────────────────▼─────────────────────────────┐
 │ Background Service Worker                           │
-│ Entries / Screenshot / System (settings, metrics)   │
+│ Entries / Screenshot / Recording / System           │
+│ (settings, metrics)                                 │
 └───────────────────────┬─────────────────────────────┘
                         │ domain API
 ┌───────────────────────▼─────────────────────────────┐
@@ -59,16 +63,19 @@ AnnHub 只解决一条主链路：
 ```text
 annhub/
 ├── entrypoints/
-│   ├── content/                 # 页面内采集：选区菜单、区块剪藏、截图会话
+│   ├── content/                 # 页面内采集与批注：选区菜单、区块剪藏、截图会话、批注层
 │   │   ├── markdown.ts          # DOM→Markdown 转换（唯一实现）
 │   │   ├── blocks.ts            # 七种区块识别
-│   │   └── screenshot/          # 区域/元素截图与匿名处理
+│   │   ├── annotation/          # 页面批注层与墨迹
+│   │   └── screenshot/          # 区域/元素/滚动长图截图与匿名处理
 │   ├── library/                 # 资料库页面（浏览、阅读与高亮、属性、设置；导出的 ZIP 在这里构造）
+│   ├── offscreen/               # 录制文档：tabCapture 流在这里收成 WebM
 │   ├── options/                 # 设置页
-│   └── popup/                   # 工具栏弹窗兜底入口
+│   └── popup/                   # 工具栏弹窗兜底入口（批注与录制的入口）
 ├── background-service/
 │   └── services/
 │       ├── entries/             # 条目/属性/高亮/查询消息门面
+│       ├── recording/           # 标签页录制编排与下载
 │       ├── screenshot/          # 截取、跨域代取、下载
 │       └── system/              # 偏好与本地指标
 ├── learning-core/               # 共享领域核心，纯 TypeScript

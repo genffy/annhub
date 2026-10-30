@@ -1,11 +1,11 @@
 # Content Script 约定
 
 > 适用于当前 `entrypoints/content/` 实现；不是未来 monorepo 的目标划分。全局规则见根目录 `AGENTS.md`。
-> 更新：2026-10-24。
+> 更新：2026-10-30。
 
 ## 职责与入口
 
-- 页面里只有两种采集：剪藏（选区/区块）与截图。`index.tsx` 编排选区菜单、区块入口、区块模式和截图会话；高亮不在页面里（资料库读剪藏时才做）。
+- 页面里有两种采集（剪藏：选区/区块；截图）和一层页面批注（录制时的光标高亮也挂在页面上，annotate.md §3）。`index.tsx` 编排选区菜单、区块入口、区块模式、截图会话与批注层的进入/退出；高亮不在页面里（资料库读剪藏时才做）。
 - `selection-menu.ts` 是两项菜单（剪藏、截图，顺序固定）：无最短长度、全空白选区不出现；选区端点在 input、textarea、contenteditable 里不出现；键盘 `Tab` 聚焦某一项后 `Enter` 才触发，没聚焦时回车属于页面；悬停/聚焦约 300ms 显示后果提示（extension.md §2.1）。菜单贴着选区第一行、水平居中，并夹在选区所在的内容列里：宽视口里选区右侧的空当往往是旁边一栏（X 主页的 Premium/搜索栏），窗口放得下不等于该摆到选区右外侧。坐标用视口 CSS 像素（与 `getClientRects`、`position: fixed` 同一套），不加窗口滚动，也不加 iframe 在父页面上的偏移——中栏自己的滚动已经反映在矩形里，子框架的菜单用子框架自己的视口。`onScreenshot` 钩子可缺省：子框架里菜单只有“剪藏”（capture.md §3）。open shadow root 里的选区用 `getComposedRanges` 取范围，没有这个接口的 Chrome 降级为 `selection.toString()` 的纯文本剪藏（`plainTextForSelection`，capture.md §3）。
 - `clip-flow.ts` 一次点击保存 + 约 3 秒「已剪藏 · 撤销 · 编辑」提示 + 快速编辑气泡；失败保留选区与已输入内容并给重试（extension.md §3）。条目 ID 由调用方生成并随重试复用（保存幂等），`startedAt` 在点击时记下随消息发出。三个保存函数返回 `ClipOutcome | ClipFailure`：失败带后台的稳定错误码，`showFailureToast` 按码说明原因（配额不足时提示先导出），不认识的码只说“保存失败”，绝不回显原始信息。气泡只提交用户改动过的字段（`UPDATE_ENTRY` 的 `properties.set`、`note`），等响应成功才关闭，失败时气泡与输入都在、错误按同一套码显示在气泡里；标签超限在提交前就地提示。
 - `markdown.ts` 是唯一的 DOM→Markdown 转换（链接、标题层级、列表、代码块、表格、强调；页面界面与隐藏内容剔除；100k 块边界截断），选区与区块共用，不各自实现。约定：`<br>` 是硬换行（行尾两个空格），表格单元格内折叠为空格；嵌套列表缩进到父项内容列；页面界面按 class/id 的**词**匹配剔除（语义容器不做 class 启发式）；文本节点里的 Markdown 记号按字面转义（`escapeText`），渲染器 `entrypoints/library/markdown-view.tsx` 的 `inlineRuns` 与 `learning-core/markdown.ts` 的纯文本化共用同一个转义约定，改一处要三处一起改。
@@ -15,10 +15,16 @@
 
 ## 输入信任与站点规则
 
-- 会话在页面 DOM 里，页面脚本能派发任何事件：一切会走到特权 API（截取、跨域代取、保存）的入口只认 `user-input.ts` 的 `isUserInput`（`event.isTrusted`）或扩展自己的消息（`TRIGGER_SCREENSHOT`/`TRIGGER_BLOCK_MODE`）。jsdom 的事件都不可信，单测 mock `isUserInput`。
+- 会话在页面 DOM 里，页面脚本能派发任何事件：一切会走到特权 API（截取、跨域代取、保存、起录）的入口只认 `user-input.ts` 的 `isUserInput`（`event.isTrusted`）或扩展自己的消息（`TRIGGER_SCREENSHOT`/`TRIGGER_BLOCK_MODE`/`TRIGGER_ANNOTATE`）。jsdom 的事件都不可信，单测 mock `isUserInput`。
 - 新站点的永久链接规则集中维护（X 帖子在 `page-meta.ts` 的 `resolvePermalink`，Medium 文章规则待补），不要在业务模块散写 hostname 分支。
 - 页面常在 `document` 上监听单键快捷键：扩展自己的输入框（快速编辑、截图文字标注）要把键盘事件留在自己界面里（`stopPropagation`）。
-- 同源 iframe 与 open shadow root 里的选区和区块必须可用；跨源 iframe、可编辑区、受限页不出现入口也不报错（capture.md §3）。内容脚本注册到所有框架（`allFrames`），子框架只在与顶层同源时启用。截图会话、取景坐标和被截取的标签页都属于顶层框架的视口，所以子框架里只提供剪藏：菜单没有“截图”、胶囊没有“截图”、区块模式没有 `S`，两个快捷键只发给顶层框架，子框架收到也不理。
+- 同源 iframe 与 open shadow root 里的选区和区块必须可用；跨源 iframe、可编辑区、受限页不出现入口也不报错（capture.md §3）。内容脚本注册到所有框架（`allFrames`），子框架只在与顶层同源时启用。截图会话、取景坐标和被截取的标签页都属于顶层框架的视口，所以子框架里只提供剪藏：菜单没有“截图”、胶囊没有“截图”、区块模式没有 `S`，发给标签页的三条触发（截图、区块、批注）只发顶层框架（`frameId: 0`），子框架收到也不理；录制开关不进页面，worker 直接处理。
+
+## 页面批注与录制
+
+- 批注层（annotate.md §1）在 `annotation/layer.ts`：透明覆盖层骑浏览器的 top layer（`showPopover`），页面自己的浮层、全屏内容与原生模态对话框盖不住它；原生模态对话框会挡住其余全部指针（包括这层），所以对话框开着时层挪进对话框里住、关闭后挪回（`syncDialogPlacement`，`dialog:modal` 需要 Chrome 105+）。没选工具时页面照常可交互，选了工具后一笔拖画只落在层上。墨迹在层存活期间存在：退出、刷新、导航即清空，不保存任何东西；“截图”按钮（或截图快捷键）把墨迹交给截图会话，层先藏起来，会话结束再把舞台还回来（`index.tsx` 的 `enterScreenshotWithInk`）。工具栏可设自动擦除（关闭/3 秒/8 秒三档，默认关闭，D-39）。
+- 墨迹模型只有一份，在 `annotation/ink.ts`（annotate.md §1.2）：笔画按画下那一刻的**页面** CSS 坐标存储（跟随页面滚动），画在钉住窗口的元素（fixed、当前吸顶的 sticky）上的笔画保持视口坐标并带 `pinned` 标记——滚动长图不带上它。ink 换算成截图编辑器标注的规则也只在这里：整段落在取景框内的保持原生形状，完全在外面的丢弃，跨界的在边界处切断。
+- 录制时（annotate.md §3）被录标签页有光标高亮与点击涟漪（`cursor-highlight.ts`：`pointer-events: none`，指针离开页面时隐藏，截图截取期间也隐藏，免得高亮进了图）：录制状态在脚本启动时经 `RECORDING_STATUS` 读一次，此后以 `RECORDING_LIFECYCLE` 消息为准——生命周期消息到过之后，迟到的启动读数不得回滚它（`lifecycleSeen`）。录制中批注层以无工具栏形态打开（`setRecordingMode`），批注的控件不进画面（annotate.md §3.1）。
 
 ## 截图
 
@@ -26,6 +32,7 @@
 - 拖拽松开后选区进入待确认态（`Enter` 确认、`Esc` 取消），单击元素路径不变。待确认时会话根加上 `ann-shot-modal` 接住指针，点在选区里不会穿透到页面，也不会拆掉确认条（悬停选元素的单击除外：那走单击元素路径，换成该元素）；选区外的拖拽或单击仍换成新取景框，这时再把指针还给页面。吸附、八向手柄、方向键微调、`Shift` 临时锁比、层级 `↑↓` 与元素+边距的几何换算都是 `screenshot/selection.ts` 的纯函数，会话只做接线（screenshot.md §1.2、§1.4）。
 - 上次取景框归后台：会话经 `screenshot/frame-memory.ts` 的 `REMEMBER_FRAME`、`READ_FRAME` 交给 worker，每个标签页一份，只对来源 + 路径相同的网页有效，导航到别的页面、关闭标签页、重启浏览器即清除（screenshot.md §1.4）。内容脚本不直接读写 `chrome.storage.session`，也不为此放开它的访问级别：`sender.ts` 信任的最近保存记录也在那里。元素锚点带 10% 容差；找不到元素时滚回记录位置沿用，取景框超窗只提示不强截。恢复经后台往返、晚于会话开场：指针已开始悬停时这次不恢复，不抢已画的悬停选区。
 - 区域截取前用透明 sweeper 清扫悬停样式并等 `pageStable`（连续两帧布局不变，最长 500ms），元素 + 边距能放进视口时走区域截取，放不下提示而不是截不全。
+- 滚动长图（screenshot.md §1.5）是截图会话里的一个工具（`screenshot/stitcher.ts` 驱动）：页面逐屏滚动、每屏等图，每次截取都隐藏扩展 UI 与录制中的光标高亮；fixed 与当前吸顶的 sticky 元素只在第一屏拍、从第二屏起隐藏、每次截取前重查，收缩成吸顶栏的页头要在它出现的那一刻抓到。数值规则全在 `screenshot/stitch.ts`（分屏数、各屏在成品画布上的落位取整到设备像素，页底、30 屏上限、约 4000 万像素上限（D-49）与画布 65535 像素边谁先到谁停）。
 - 选区内本地标注与马赛克只把处理后的 PNG 交后台入库；确认/复制/下载三个去处互相独立，复制与下载保留会话；`http:` 页面复制提示下载（screenshot.md §4）。JPEG 下载一律先铺白（`matteOnWhite`），透明处不会变黑。入库的 `startedAt` 是点击“保存”的时刻（metrics.md §9），不含此前的编辑时间；失败文案经 `screenshotFailureText`/`screenshotSaveErrorText` 由稳定错误码生成，不显示后台的原始信息。
 - 美化（screenshot.md §4.4）的合成只有一份实现，在 `screenshot/output.ts`（背景、内边距、圆角、阴影、画布比例与水印；预览、复制、下载共用）；`beautify-panel.ts` 是工具栏“美化”打开的面板，纯 DOM、不留状态：显示会话给它的样式，只报告用户改了哪个字段，复原与“改动即开启”的结果由会话 `sync` 回去。会话里有三块画布：`sourceCanvas`（原始截取）、`croppedCanvas`（再加匿名、马赛克与标注，入库存的就是它）、`displayCanvas`（再加美化与水印，预览显示、复制与下载发出去的就是它）。`displayCanvas` 永远是单独的一块：给 `canvas.width` 赋值会清空画布，与 `croppedCanvas` 合成一块时，一画标注整张图就空了。标注坐标是截取画布的坐标，预览上的指针位置要先减去 `contentOrigin`（内容在画布里的偏移）。画布渐变用 `createLinearGradient`，把 CSS 渐变字符串赋给 `fillStyle` 画出来是黑的；阴影的 alpha 与图形自己的 alpha 相乘，所以阴影由画在画布外的不透明图形经 `shadowOffsetX` 投到内容上。背景、内边距、圆角的取值与默认样式只在 `output.ts` 定一次（`BEAUTIFY_BACKGROUND_IDS`、`PADDING_PX`、`BEAUTIFY_RADII`、`DEFAULT_BEAUTIFY`，背景的颜色与明暗在 `BEAUTIFY_BACKGROUNDS`），面板、设置页的选项和 `settings-schema.ts` 的校验与默认值都从它派生；背景的名字是 `ui-text` 里的 `shot.beautify.background.<id>`，不在界面里用字母或数字编号。
 - 美化面板的摆放由 `placePanel` 算：预览旁边（先右后左），放不下再放工具栏下方、预览上方；原位仍然清爽就不挪，不盖住预览与工具栏，不出窗口。预览按 `previewBox` 在选区周围长大，超出视口时缩小，工具栏跟着挪；复制与下载仍是完整像素。尺寸标签由 `placeSizeLabel` 放：预览左上角外侧，上方放不下或被工具栏占着就放下方，再不行放进左上角内侧（`SIZE_LABEL_ROOM` 是它在上方要的地方，也是预览离窗口顶的最小距离，两处必须是同一个数）；它 `pointer-events: none`，放进图里也不挡画标注。面板打开时键盘落在它的第一个控件上，`Esc` 先关面板（焦点回美化按钮），再次按下才取消会话。预览出现时键盘落在工具栏的第一个按钮上：工具栏是 React 根，第一次渲染用 `flushSync` 同步提交——React 19 的 `createRoot().render()` 可能晚于下一帧才提交，找按钮的那一帧就扑空，焦点留在页面上（`e2e/screenshot-capture.spec.ts` 连开 6 次预览守着）。
@@ -39,4 +46,4 @@
 ## 验证
 
 - 改转换、识别、菜单或胶囊：跑 `npx vitest run`（相关单测）并构建后跑对应 E2E（`e2e/selection-clip.spec.ts`、`e2e/block-clip.spec.ts`、`e2e/screenshot-capture.spec.ts`、`e2e/page-entry.spec.ts`、`e2e/page-shapes.spec.ts`）。`page-shapes` 用平铺文档、div 汤、Docusaurus、长文（标题直接在 `main` 里、引言占满窗口、图里有代码）、带 meta 的文章、各类内容形状和页面界面类名的夹具，在真实浏览器里验识别与转换；转换器的转义约定还要跑 `learning-core/__tests__/fixtures/page-text.ts` 的共享夹具（`__tests__/markdown.test.ts` 里）。
-- 改截图链路先跑 `entrypoints/content/screenshot/__tests__`；改美化、标注或预览布局后跑 `e2e/screenshot-beautify.spec.ts`（在预览、剪贴板和入库图片的像素上断言）；改水印的排版、解码或 `W` 后跑 `e2e/screenshot-watermark.spec.ts`（同样读像素，再加下载的 data URL；水印图片是测试里现编的 PNG，经 `setSettings` 播种，读不出来的那张是“PNG 签名 + 垃圾”，能通过设置校验却解码失败）；改序号后跑 `e2e/screenshot-steps.spec.ts`（读预览、三种格式的下载、剪贴板与入库图片的像素，并造下载与保存的失败）；改荧光笔、直线或线宽后跑 `e2e/screenshot-strokes.spec.ts`（同样读这些像素，另量 1x 与 2x 的线宽）；改选区确认、吸附、手柄、层级或取景框记忆后跑 `e2e/screenshot-frame.spec.ts`（改源码必须 `rm -rf .output/chrome-mv3 && npm run build` 再测，`.output` 不随源码变化重建）。
+- 改批注层、墨迹或它的换算：先跑 `entrypoints/content/annotation/__tests__`，再跑 `e2e/page-annotation.spec.ts`；改录制状态接线或光标高亮后跑 `e2e/recording-annotation.spec.ts`。改截图链路先跑 `entrypoints/content/screenshot/__tests__`；改美化、标注或预览布局后跑 `e2e/screenshot-beautify.spec.ts`（在预览、剪贴板和入库图片的像素上断言）；改水印的排版、解码或 `W` 后跑 `e2e/screenshot-watermark.spec.ts`（同样读像素，再加下载的 data URL；水印图片是测试里现编的 PNG，经 `setSettings` 播种，读不出来的那张是“PNG 签名 + 垃圾”，能通过设置校验却解码失败）；改序号后跑 `e2e/screenshot-steps.spec.ts`（读预览、三种格式的下载、剪贴板与入库图片的像素，并造下载与保存的失败）；改荧光笔、直线或线宽后跑 `e2e/screenshot-strokes.spec.ts`（同样读这些像素，另量 1x 与 2x 的线宽）；改滚动长图后跑 `e2e/screenshot-stitch.spec.ts`（`longpage.html` 夹具，读成品画布的接缝与像素）；改选区确认、吸附、手柄、层级或取景框记忆后跑 `e2e/screenshot-frame.spec.ts`（改源码必须 `rm -rf .output/chrome-mv3 && npm run build` 再测，`.output` 不随源码变化重建）。
