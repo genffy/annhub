@@ -6,29 +6,18 @@
  * entry where in-page surfaces cannot run (chrome:// and friends). No
  * editing here.
  */
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { CircleStop, Mic, PenLine, SquarePen } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import MessageUtils from '../../utils/message'
-import type { RecordingState } from '../../types/messages'
 import type { EntryQueryResult, HighlightQueryResult } from '../../learning-core/query'
 import type { EntryRecord } from '../../learning-core/types'
 import { relativeTime } from '../../utils/relative-time'
-import { uiText, type UiTextKey } from '../../utils/ui-text'
+import { uiText } from '../../utils/ui-text'
 import { extensionPageUrl } from '../../utils/extension-pages'
 import { TypeChip, VIEW_ICONS } from '../../utils/entry-icons'
 import { ANN_SCREENSHOT_COMMAND } from '../../constants'
 
 type Tab = 'all' | 'clips' | 'highlights' | 'screenshots'
-
-/** The elapsed time of the live recording, as the popup's 03:12 (extension.md §2.6). */
-function elapsed(startedAt: number | undefined, now: number): string {
-  if (!startedAt) return '00:00'
-  const seconds = Math.max(0, Math.floor((now - startedAt) / 1000))
-  const minutes = Math.floor(seconds / 60)
-  const pad = (value: number): string => String(value).padStart(2, '0')
-  return `${pad(minutes)}:${pad(seconds % 60)}`
-}
 
 const TABS: { tab: Tab; labelKey: 'library.all' | 'library.clips' | 'library.highlights' | 'library.screenshots'; Icon: LucideIcon }[] = [
   { tab: 'all', labelKey: 'library.all', Icon: VIEW_ICONS.all },
@@ -44,104 +33,12 @@ export default function App() {
   const [counts, setCounts] = useState<Record<Tab, number>>({ all: 0, clips: 0, highlights: 0, screenshots: 0 })
   // starts from the default binding and follows the browser's own assignment (extension.md §7.1)
   const [shortcutHint, setShortcutHint] = useState(() => uiText('library.shortcutHint', { keys: 'Cmd/Ctrl+Shift+S' }))
-  // The annotation and recording entries work on the pages the content script covers; chrome:// and
-  // friends get the reason instead (annotate.md §1.1, §2.4 — the popup is the fallback where page
-  // surfaces cannot run).
-  const [canAnnotate, setCanAnnotate] = useState(false)
-  const [recording, setRecording] = useState<RecordingState | null>(null)
-  const [withMic, setWithMic] = useState(false)
-  const [micNotice, setMicNotice] = useState<string | null>(null)
-  // a start the worker or the browser refused: the popup stays open and says so, instead of closing as if it had begun
-  const [startFailure, setStartFailure] = useState<string | null>(null)
-  const [now, setNow] = useState(() => Date.now())
-  const activeUrl = useRef<string | null>(null)
 
   useEffect(() => {
     void chrome.commands.getAll().then(commands => {
       const binding = commands.find(command => command.name === ANN_SCREENSHOT_COMMAND)?.shortcut
       if (binding) setShortcutHint(uiText('library.shortcutHint', { keys: binding }))
     })
-    void chrome.tabs.query({ active: true, currentWindow: true }).then(([active]) => {
-      try {
-        const url = active?.url ? new URL(active.url) : null
-        activeUrl.current = url?.protocol && ['http:', 'https:', 'file:'].includes(url.protocol) ? active!.url! : null
-        setCanAnnotate(Boolean(activeUrl.current))
-      } catch {
-        activeUrl.current = null
-        setCanAnnotate(false)
-      }
-    })
-    void MessageUtils.sendMessage<{ recording?: { withMic?: boolean } }>({ type: 'GET_SETTINGS' }).then(response => {
-      if (response.success) setWithMic(response.data?.recording?.withMic === true)
-    })
-  }, [])
-
-  // the recording state: the popup is open while recordings stop by themselves
-  // (tab closed, limit hit), so it keeps the outcome (annotate.md §2.1)
-  useEffect(() => {
-    const poll = window.setInterval(() => {
-      setNow(Date.now())
-      void MessageUtils.sendMessage<RecordingState>({ type: 'GET_RECORDING_STATE' }).then(response => {
-        if (response.success) {
-          setRecording(response.data ?? { status: 'idle', withMic: false })
-          if (response.data?.micNotice) setMicNotice(uiText(`popup.recording.mic.${response.data.micNotice}` as UiTextKey))
-        }
-      })
-    }, 1000)
-    void MessageUtils.sendMessage<RecordingState>({ type: 'GET_RECORDING_STATE' }).then(response => {
-      if (response.success) setRecording(response.data ?? { status: 'idle', withMic: false })
-    })
-    return () => window.clearInterval(poll)
-  }, [])
-
-  const startRecording = useCallback(async () => {
-    if (!activeUrl.current) return
-    const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
-    if (!active?.id) return
-    if (withMic) {
-      // the browser only asks for the microphone on a visible extension page:
-      // without a live grant the settings page asks, this does not record (annotate.md §2.1, D-43)
-      let granted
-      try {
-        granted = (await navigator.permissions.query({ name: 'microphone' as PermissionName })).state === 'granted'
-      } catch {
-        granted = false
-      }
-      if (!granted) {
-        await MessageUtils.sendMessage({ type: 'OPEN_EXTENSION_PAGE', page: 'settings', params: { recordTabId: active.id } })
-        window.close()
-        return
-      }
-    }
-    setStartFailure(null)
-    let streamId: string | undefined
-    try {
-      streamId = await chrome.tabCapture.getMediaStreamId({ consumerTabId: active.id })
-    } catch {
-      streamId = undefined
-    }
-    if (!streamId) {
-      setStartFailure(uiText('popup.recording.failed'))
-      return
-    }
-    const response = await MessageUtils.sendMessage({ type: 'START_RECORDING', tabId: active.id, streamId, withMic })
-    if (!response.success) {
-      setStartFailure(uiText('popup.recording.failed'))
-      return
-    }
-    window.close()
-  }, [withMic])
-
-  const toggleMic = useCallback((checked: boolean) => {
-    setWithMic(checked)
-    void MessageUtils.sendMessage({ type: 'SET_SETTINGS', patch: { recording: { withMic: checked } } })
-  }, [])
-
-  const annotateThisPage = useCallback(async () => {
-    const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
-    if (!active?.id) return
-    await chrome.tabs.sendMessage(active.id, { type: 'TRIGGER_ANNOTATE' }, { frameId: 0 }).catch(() => undefined)
-    window.close()
   }, [])
 
   const load = useCallback(async () => {
@@ -230,75 +127,6 @@ export default function App() {
             ))}
             {entries.length === 0 && <li className="popup-empty">{uiText('library.empty')}</li>}
           </ul>
-        )}
-
-        {recording?.status === 'download-failed' ? (
-          <div className="popup-actions" data-testid="popup-recording-failed">
-            <span className="popup-recording-line">
-              <CircleStop size={14} aria-hidden />
-              {uiText('popup.recording.downloadFailed')}
-            </span>
-            <span className="popup-recording-buttons">
-              <button type="button" onClick={() => void MessageUtils.sendMessage({ type: 'RETRY_RECORDING_DOWNLOAD' })}>
-                {uiText('popup.recording.downloadAgain')}
-              </button>
-              <button type="button" onClick={() => void MessageUtils.sendMessage({ type: 'DISCARD_RECORDING' })}>
-                {uiText('popup.recording.discard')}
-              </button>
-            </span>
-          </div>
-        ) : recording?.status === 'recording' ? (
-          <div className="popup-actions" data-testid="popup-recording">
-            <span className="popup-recording-line">
-              <span className="popup-rec" aria-hidden />
-              {uiText('popup.recording.live', { title: recording.tabTitle ?? '', time: elapsed(recording.startedAt, now) })}
-            </span>
-            {micNotice && <span className="popup-recording-mic">{micNotice}</span>}
-            <span className="popup-recording-keys">{uiText('popup.recording.keys')}</span>
-            <span className="popup-recording-buttons">
-              <button type="button" data-ann-ui="popup-record-stop" onClick={() => void MessageUtils.sendMessage({ type: 'STOP_RECORDING' })}>
-                {uiText('popup.recording.stop')}
-              </button>
-            </span>
-          </div>
-        ) : (
-          <div className="popup-actions">
-            <button
-              type="button"
-              data-ann-ui="popup-annotate"
-              disabled={!canAnnotate}
-              title={canAnnotate ? uiText('popup.annotate') : uiText('popup.annotate.restricted')}
-              onClick={() => void annotateThisPage()}
-            >
-              <PenLine size={14} aria-hidden />
-              {uiText('popup.annotate')}
-            </button>
-            <button
-              type="button"
-              data-ann-ui="popup-record"
-              disabled={!canAnnotate}
-              title={canAnnotate ? uiText('popup.record') : uiText('popup.record.restricted')}
-              onClick={() => void startRecording()}
-            >
-              <SquarePen size={14} aria-hidden />
-              {uiText('popup.record')}
-            </button>
-            <label className="popup-mic" data-ann-ui="popup-mic">
-              <input type="checkbox" checked={withMic} onChange={event => toggleMic(event.target.checked)} />
-              <Mic size={13} aria-hidden />
-              {uiText('popup.recording.withMic')}
-            </label>
-          </div>
-        )}
-        {recording?.status === 'idle' && recording.limitNotice && (
-          <p className="popup-recording-outcome" data-testid="popup-limit-notice">
-            {uiText(recording.limitNotice === 'time' ? 'popup.recording.limitTime' : 'popup.recording.limitSize')}
-          </p>
-        )}
-        {recording?.status === 'idle' && micNotice && <p className="popup-recording-outcome">{micNotice}</p>}
-        {startFailure && <p className="popup-recording-outcome">{startFailure}</p>}
-        {recording?.status === 'idle' && !recording.limitNotice && !micNotice && withMic && canAnnotate && (
-          <p className="popup-recording-outcome">{uiText('popup.recording.headphones')}</p>
         )}
 
         <footer className="popup-foot">{shortcutHint}</footer>

@@ -1,5 +1,5 @@
 import { defineConfig } from 'wxt'
-import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from './constants'
+import { ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from './constants'
 import packageJson from './package.json'
 
 const extensionVersion = packageJson.version
@@ -23,12 +23,8 @@ export default defineConfig({
     // `tabs`, `activeTab` and `scripting` are omitted on purpose: `<all_urls>` already grants what the
     // first two would (tab URLs and titles, capturing the visible tab), and page scripts are registered
     // statically in the manifest so a shortcut fallback injection has no real receiver (docs/product/permissions.md).
-    // `tabCapture` records the tab the user started recording from; `offscreen` gives the
-    // recording a document (annotate.md §2) — the service worker has no page environment.
-    permissions: ['storage', 'commands', 'downloads', 'tabCapture', 'offscreen'],
-    // Handing a tab stream from the worker to an offscreen document needs Chrome 116
-    // (permissions.md §5, market.md §4.7).
-    minimum_chrome_version: '116',
+    permissions: ['storage', 'commands', 'downloads'],
+    minimum_chrome_version: '114',
     host_permissions: ['<all_urls>'],
     action: {
       default_title: '__MSG_extName__',
@@ -53,17 +49,6 @@ export default defineConfig({
           mac: 'Command+Shift+E',
         },
         description: '__MSG_commandBlockMode__',
-        global: false,
-      },
-      // No suggested key on purpose (annotate.md §1.1, D-37): the user binds it in
-      // the browser's shortcut settings; the toolbar popup is the primary entry.
-      [ANN_ANNOTATE_COMMAND]: {
-        description: '__MSG_commandAnnotate__',
-        global: false,
-      },
-      // Also unbound by default (annotate.md §2.1, D-37): the toolbar popup is the primary entry.
-      [ANN_RECORD_COMMAND]: {
-        description: '__MSG_commandRecordTab__',
         global: false,
       },
     },

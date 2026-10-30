@@ -1,15 +1,13 @@
 import { Logger } from '../../utils/logger'
-import { RecordingService } from '../services/recording'
-import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
+import { ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
 
 /**
- * The browser commands (extension.md §7.1): region screenshot, block mode and
- * the page-annotation entry (unbound by default, D-37). All tell the active
- * tab's content script; there is no injection fallback — page scripts are
- * statically registered, and pages without one refresh or use the toolbar
- * popup (permissions.md §4). The message goes to the top frame only: the
- * content script also runs in same-origin child frames, and a broadcast would
- * start a session in every one of them.
+ * The two browser commands (extension.md §7.1): region screenshot and block
+ * mode. Both tell the active tab's content script; there is no injection
+ * fallback — page scripts are statically registered, and pages without one
+ * refresh or use the toolbar popup (permissions.md §4). The message goes to the
+ * top frame only: the content script also runs in same-origin child frames, and
+ * a broadcast would start a session in every one of them.
  */
 export class CommandHandler {
   private commandListener?: (command: string) => void
@@ -21,13 +19,6 @@ export class CommandHandler {
           await this.sendToActiveTab({ type: 'TRIGGER_SCREENSHOT' })
         } else if (command === ANN_BLOCK_MODE_COMMAND) {
           await this.sendToActiveTab({ type: 'TRIGGER_BLOCK_MODE' })
-        } else if (command === ANN_ANNOTATE_COMMAND) {
-          await this.sendToActiveTab({ type: 'TRIGGER_ANNOTATE' })
-        } else if (command === ANN_RECORD_COMMAND) {
-          // the shortcut toggles: start, or stop what is being recorded (annotate.md §2.1)
-          const recording = RecordingService.getInstance()
-          if (recording.currentState().status === 'recording') await recording.stopFromCommand()
-          else await recording.startFromCommand()
         } else {
           Logger.warn('[CommandHandler] Unknown command:', command)
         }
