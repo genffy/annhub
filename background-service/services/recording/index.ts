@@ -225,6 +225,7 @@ export class RecordingService implements IService {
     } catch {
       // the tab may have closed or not have the content script yet; recording continues
     }
+  }
 
   private async handleEvent(message: RecordingEventMessage): Promise<void> {
     switch (message.event) {

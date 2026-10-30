@@ -624,7 +624,9 @@ export class AnnotationLayer {
    * phase from document_start, ahead of the site's own handlers.
    */
   handleRecordingKey(event: KeyboardEvent): boolean {
-    if (this.hiddenForScreenshot) return false
+    // the keys belong to the recording-time layer only; a chord belongs to the browser (Ctrl+R reloads, Cmd+P prints)
+    if (!this.recordingMode || this.hiddenForScreenshot) return false
+    if (event.ctrlKey || event.metaKey || event.altKey) return false
     const active = this.doc.activeElement
     if (active instanceof HTMLElement && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return false
     const key = event.key
