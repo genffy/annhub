@@ -1,18 +1,18 @@
 # Background Service 约定
 
 > 适用于当前 `background-service/` 实现；不是未来 monorepo 的目标划分。全局规则见根目录 `AGENTS.md`。
-> 更新：2026-10-12。
+> 更新：2026-10-30。
 
 ## 服务边界
 
-- `index.ts` 注册三个服务：`services/entries`（条目/属性的消息门面）、`services/screenshot`（截取、跨域代取、下载、入库）、`services/system`（偏好、本地指标）。`service-manager.ts` 管生命周期与消息分发；`event-handlers/command-handler.ts` 接两条命令（区域截图、区块模式），只发给标签页的顶层框架（`frameId: 0`），没有注入式兜底（`scripting` 已移除）。
+- `index.ts` 注册四个服务：`services/entries`（条目/属性的消息门面）、`services/screenshot`（截取、跨域代取、下载、入库）、`services/recording`（标签页录制：状态机、badge 与下载，视频本身在 `entrypoints/offscreen` 收，annotate.md §2）、`services/system`（偏好、本地指标）。`service-manager.ts` 管生命周期与消息分发；`event-handlers/command-handler.ts` 接四条命令（区域截图、区块模式、批注、录制开关，后两条默认不绑定，D-37），前三条只发给标签页的顶层框架（`frameId: 0`），录制开关在 worker 内直接走 `RecordingService`，没有注入式兜底（`scripting` 已移除）。
 - 共享 IndexedDB 连接走 `store-instance.ts` 的单例；服务不各自开库。
 - 新消息先在 `types/messages.ts` 登记，再同步 handler、调用方和测试。读用户数据、写类消息按 `sender.ts` 校验，不要再复制判断。
 - 发送者分三档，每个 handler 自己校验，`services/entries/sender.test.ts` 遍历所有 handler 守着：
-  - 只有扩展页面：全部查询（`QUERY_ENTRIES`、`QUERY_HIGHLIGHTS`、`QUERY_FACETS`、`GET_ENTRY`、`GET_ASSET_DATA_URL`）、属性注册表（`LIST_PROPERTIES`、`UPSERT_PROPERTY`、`DELETE_PROPERTY`、`DELETE_UNUSED_PROPERTIES`）、四个高亮操作、`USAGE_ESTIMATE`、`ORPHAN_REPORT`、`GET_METRICS`；
-  - 扩展页面与同源内容脚本：`SAVE_CLIP`、`GET_SETTINGS`、`RECORD_EVENT`（按字典校验）、`OPEN_EXTENSION_PAGE`；`SAVE_SCREENSHOT`、`DOWNLOAD_IMAGE`、`CAPTURE_VISIBLE_TAB`、`FETCH_IMAGE` 还要求发送者是顶层框架；`REMEMBER_FRAME`、`READ_FRAME` 只认标签页的顶层框架，记忆按发送者的标签页存；
+  - 只有扩展页面：全部查询（`QUERY_ENTRIES`、`QUERY_HIGHLIGHTS`、`QUERY_FACETS`、`GET_ENTRY`、`GET_ASSET_DATA_URL`）、属性注册表（`LIST_PROPERTIES`、`UPSERT_PROPERTY`、`DELETE_PROPERTY`、`DELETE_UNUSED_PROPERTIES`）、四个高亮操作、`USAGE_ESTIMATE`、`ORPHAN_REPORT`、`GET_METRICS`、`GET_RECORDING_STATE`；录制的启停与善后 `START_RECORDING`、`STOP_RECORDING`、`RETRY_RECORDING_DOWNLOAD`、`DISCARD_RECORDING` 还要求发送者没有标签页上下文（录制只从扩展自己的页面发起，annotate.md §2.1），`RECORDING_EVENT` 只来自 offscreen 录制文档；
+  - 扩展页面与同源内容脚本：`SAVE_CLIP`、`GET_SETTINGS`、`RECORD_EVENT`（按字典校验）、`OPEN_EXTENSION_PAGE`、`RECORDING_STATUS`（任何标签页顶层框架的内容脚本都问得到是否在录制与光标高亮设置，annotate.md §3）；`SAVE_SCREENSHOT`、`DOWNLOAD_IMAGE`、`CAPTURE_VISIBLE_TAB`、`FETCH_IMAGE` 还要求发送者是顶层框架；`REMEMBER_FRAME`、`READ_FRAME` 只认标签页的顶层框架，记忆按发送者的标签页存；
   - 内容脚本只能动它自己刚保存的条目：`DELETE_ENTRY`、`UPDATE_ENTRY`（只开放标题、标签、备注）。依据是 `sender.ts` 的 `rememberCapture` / `isRecentCapture`，记在 `chrome.storage.session`（每个框架最近 20 条、10 分钟），所以 worker 被回收之后，撤销与快速编辑照样成立；不要把它改回只放内存。`SET_SETTINGS` 对内容脚本只开放 `appendDisabledSite`，关闭区块入口是单独的 `DISABLE_BLOCK_ENTRY`。
-- `entrypoints/background/index.ts` 在脚本顶层同步注册 `runtime.onMessage`（MV3 要求：空闲后被消息唤醒时，监听器必须已经存在），处理器先 `await whenReady()`（三个服务初始化完成）再 `dispatchMessage`，未知类型立即返回错误。不要把注册挪到任何异步初始化之后；`e2e/cold-start.spec.ts` 守着这条（用 `helpers.ts` 的 `stopServiceWorker` 真的停掉 worker）。
+- `entrypoints/background/index.ts` 在脚本顶层同步注册 `runtime.onMessage`（MV3 要求：空闲后被消息唤醒时，监听器必须已经存在），处理器先 `await whenReady()`（四个服务初始化完成）再 `dispatchMessage`，未知类型立即返回错误。不要把注册挪到任何异步初始化之后；`e2e/cold-start.spec.ts` 守着这条（用 `helpers.ts` 的 `stopServiceWorker` 真的停掉 worker）。
 - `SAVE_CLIP`、`SAVE_SCREENSHOT` 带 `requestId` 和调用方生成的条目 ID：`service-manager.ts` 缓存执行中的 Promise（键含发送者），并发的同一请求共用一次执行；worker 重启之后的重试靠 `saveEntry` 对同一 ID 返回已存的记录（内容不同则 `ENTRY_CONTENT_INVALID`）。`MessageUtils.sendMessage` 只对“没有接收者 / 端口已关闭”这类连接错误重试（50ms、200ms），处理器已经跑过并失败的不重试。
 - 协议是字段级的：`UPDATE_ENTRY` 的 `note`、`context` 用 `null` 清除（JSON 会丢掉 `undefined`），`properties` 是 `{ set, unset, newDefinitions }`；高亮是 `ADD_HIGHLIGHT`、`UPDATE_HIGHLIGHT`、`REMOVE_HIGHLIGHT`、`RESTORE_HIGHLIGHT` 四个操作，每个在 store 的一个事务里读-改-写并返回最新条目，重叠高亮的合并只在 `learning-core/store.ts` 里一份。
 - 失败一律回稳定错误码，不回原始 message：条目写入沿用 `entry.md §6` 的码，配额不足是 `STORAGE_QUOTA_EXCEEDED`、其余存储错误是 `OPERATION_FAILED`（`services/errors.ts` 的 `storageErrorCode`）；截图链路是 `CaptureError`（`CAPTURE_NOT_VISIBLE`、`CAPTURE_RATE_LIMITED`、`CAPTURE_FAILED`、`DOWNLOAD_FAILED`），代取失败是 `IMAGE_FETCH_FAILED`。细节只进日志，页面按码本地化（`utils/ui-text.ts` 的 `failureReason`）。
@@ -25,7 +25,7 @@
 - `services/screenshot`：`CAPTURE_VISIBLE_TAB` 只拍发送者所在窗口且前后各查一次活动状态，不要用 `WINDOW_ID_CURRENT`；浏览器每秒只给两次截取，第三次被拒（错误里带 `MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`）时回 `CAPTURE_RATE_LIMITED`，由页面里的截图会话等过这一秒再要；worker 里不等待，它的定时器可能晚几秒才触发；`FETCH_IMAGE` 持有 `<all_urls>` 的网络位置，只经 `fetch-policy.ts`（公网 http(s)、不带凭据、只返回不超过 `MAX_IMAGE_BYTES` 的图片、重定向后再查一次）。`DOWNLOAD_IMAGE` 只收 `png`/`jpg`/`webp` 和与扩展名相符的字节；`SAVE_SCREENSHOT` 校验 PNG 签名，宽高以解码结果为准，空字节拒绝。
 - 上次取景框（screenshot.md §1.4）在 `services/screenshot/frame-memory.ts`：`chrome.storage.session` 里每个标签页一份，页面取 `sender.url` 的来源 + 路径，不信消息里的地址；内容脚本交来的记录逐字段重建，形状不对回 `FRAME_INVALID`。标签页导航到别的页面（`tabs.onUpdated` 带来新地址，或地址读不到）、关闭（`onRemoved`）、换成预渲染的页面（`onReplaced`）就清除。这三个监听器只在有记忆时挂着：`entrypoints/background/index.ts` 在脚本顶层同步调用 `listenForFrames()`，让唤醒 worker 的标签事件有人接，查到没有记忆再摘掉；一直挂着的话，任何标签页改一次标题都会唤醒 worker。不要调用 `storage.session.setAccessLevel` 把这个区域放开给内容脚本：`sender.ts` 信任的最近保存记录也在里面，内容脚本能写就能伪造（`e2e/screenshot-frame.spec.ts` 在内容脚本的环境里读它守着）。
 - `services/system`：偏好即 `settings-schema.ts` 的 layer C（chrome.storage，条目绝不放这里）：逐键按 schema 校验、未知键丢弃、写入串行；“追加停用站点”是原子操作。指标经 `services/metrics/record.ts` 的字典与分桶，属性只能是枚举/布尔/分桶数字，违例丢弃。
-- 指标事件在写入成功/失败的路径上就地记录（`capture.saved`、`capture.undone`、`capture.save_failed`、`entry.property_edited`、`screenshot.copied/downloaded`、`export.completed`）；读侧事件（`entry.reopened`、`library.queried`）由页面触发。`entry.property_edited` 在 `UPDATE_ENTRY` 写入成功后按补丁里设置或清除的属性逐个记，作用域与类型取自注册表：编辑气泡与详情抽屉走同一条路，页面不另记，否则同一次编辑记两次（`services/entries/property-edited.test.ts`）。`capture.saved.duration` 是“用户点击到写入成功”：内容脚本在点击时记下 `startedAt` 随消息发出，后台写入成功后计算，用细档（`bucketCaptureDuration`，metrics.md §9 的例外）。
+- 指标事件在写入成功/失败的路径上就地记录（`capture.saved`（`via` 含 `ink`：从批注层把墨迹截进编辑器后的保存，annotate.md §1.3）、`capture.undone`、`capture.save_failed`、`entry.property_edited`、`screenshot.copied/downloaded`、`export.completed`）；录制在视频下载落地后由 `services/recording` 记 `recording.downloaded`（时长按录制成品自己的长度入粗档分桶，`stopped_by` 与麦克风见 metrics.md §9）。读侧事件（`entry.reopened`、`library.queried`）由页面触发。`entry.property_edited` 在 `UPDATE_ENTRY` 写入成功后按补丁里设置或清除的属性逐个记，作用域与类型取自注册表：编辑气泡与详情抽屉走同一条路，页面不另记，否则同一次编辑记两次（`services/entries/property-edited.test.ts`）。`capture.saved.duration` 是“用户点击到写入成功”：内容脚本在点击时记下 `startedAt` 随消息发出，后台写入成功后计算，用细档（`bucketCaptureDuration`，metrics.md §9 的例外）。
 
 ## 验证
 

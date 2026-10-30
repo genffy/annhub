@@ -183,7 +183,6 @@ function extShotGroup() {
   const steps = board({
     title: '序号 · 依次标出步骤',
     ref: 'screenshot §1.1',
-    proposal: '#81',
     w: 760,
     body: `<div class="shot" style="height:486px">${shotScene()}
       ${selection}
@@ -204,7 +203,6 @@ function extShotGroup() {
   const stepRules = board({
     title: '序号 · 颜色、删除与重置',
     ref: 'screenshot §1.1',
-    proposal: '#81',
     w: 760,
     body: `<div style="padding:18px;background:var(--surface-2);display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
       <div class="vs g8"><b class="t-sm">五种颜色，放在同色背景上</b>
@@ -230,7 +228,6 @@ function extShotGroup() {
   const strokes = board({
     title: '荧光笔与直线 · 标出重点',
     ref: 'screenshot §1.1',
-    proposal: '#88',
     w: 760,
     body: `<div class="shot" style="height:486px">${shotScene()
       .replace('Retries amplified the outage', hlMark('Retries amplified the outage', STEP_COLORS[1].fill, pin(1, 'pin-l')))
@@ -260,7 +257,6 @@ function extShotGroup() {
   const strokeRules = board({
     title: '荧光笔、直线与线宽 · 颜色、吸附与三档',
     ref: 'screenshot §1.1',
-    proposal: '#88',
     w: 760,
     body: `<div style="padding:18px;background:var(--surface-2);display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
       <div class="vs g8"><b class="t-sm">五种颜色，浅色与深色页面</b>

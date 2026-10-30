@@ -1,7 +1,7 @@
 # AnnHub 工程约定
 
 > 本文件只放跨目录通用规则。当前代码的局部维护提示见下表的 `AGENTS.md`。
-> 更新：2026-10-28。
+> 更新：2026-10-30。
 
 ## 项目与真源
 
@@ -18,7 +18,7 @@
 
 | 目录                   | 专属约定                                                                  |
 | ---------------------- | ------------------------------------------------------------------------- |
-| `entrypoints/content/` | [选区、高亮、采集与截图](entrypoints/content/AGENTS.md)                   |
+| `entrypoints/content/` | [选区、区块、截图与页面批注（含录制光标）](entrypoints/content/AGENTS.md) |
 | `entrypoints/library/` | [应用页、阅读与高亮、属性与设置（含弹窗）](entrypoints/library/AGENTS.md) |
 | `background-service/`  | [消息门面与浏览器服务](background-service/AGENTS.md)                      |
 | `learning-core/`       | [TypeScript 领域规则与 IndexedDB](learning-core/AGENTS.md)                |

@@ -4,12 +4,14 @@ import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_S
 
 /**
  * The browser commands (extension.md §7.1): region screenshot, block mode and
- * the page-annotation entry (unbound by default, D-37). All tell the active
- * tab's content script; there is no injection fallback — page scripts are
- * statically registered, and pages without one refresh or use the toolbar
- * popup (permissions.md §4). The message goes to the top frame only: the
- * content script also runs in same-origin child frames, and a broadcast would
- * start a session in every one of them.
+ * the page-annotation and recording entries (the latter two unbound by
+ * default, D-37). The first three tell the active tab's content script; the
+ * recording toggle drives the RecordingService in the worker itself. There is
+ * no injection fallback — page scripts are statically registered, and pages
+ * without one refresh or use the toolbar popup (permissions.md §4). The
+ * message goes to the top frame only: the content script also runs in
+ * same-origin child frames, and a broadcast would start a session in every
+ * one of them.
  */
 export class CommandHandler {
   private commandListener?: (command: string) => void
