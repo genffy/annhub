@@ -27,6 +27,8 @@ describe('recording-time single keys (annotate.md §3.1)', () => {
 
   it('switches tools with their keys, and V is the pointer', () => {
     enterAnnotationLayer({ onScreenshot: () => undefined })
+    // the toolbar is off the page while recording (recording mode): the keys work with it hidden
+    getActiveAnnotationLayer()!.setRecordingMode(true)
     expect(press('p')).toBe(true)
     expect(press('h')).toBe(true)
     expect(press('l')).toBe(true)
@@ -36,14 +38,26 @@ describe('recording-time single keys (annotate.md §3.1)', () => {
     expect(press('t')).toBe(true)
     expect(press('n')).toBe(true)
     expect(press('v')).toBe(true)
-    // the toolbar is not part of this: the keys work with it hidden (recording mode)
+  })
+
+  it('belongs to the page outside a recording, even with the layer open', () => {
+    enterAnnotationLayer({ onScreenshot: () => undefined })
+    expect(press('p')).toBe(false)
+    expect(press('Escape')).toBe(false)
+    expect(isAnnotationLayerActive()).toBe(true)
+  })
+
+  it('leaves chords to the browser: Ctrl+R and Cmd+P are not the rectangle or the pen', () => {
+    enterAnnotationLayer({ onScreenshot: () => undefined })
     getActiveAnnotationLayer()!.setRecordingMode(true)
-    expect(press('p')).toBe(true)
-    expect(press('v')).toBe(true)
+    expect(getActiveAnnotationLayer()!.handleRecordingKey(new KeyboardEvent('keydown', { key: 'r', ctrlKey: true }))).toBe(false)
+    expect(getActiveAnnotationLayer()!.handleRecordingKey(new KeyboardEvent('keydown', { key: 'p', metaKey: true }))).toBe(false)
+    expect(getActiveAnnotationLayer()!.handleRecordingKey(new KeyboardEvent('keydown', { key: 'z', altKey: true }))).toBe(false)
   })
 
   it('picks the five colours with 1–5 and steps the width with [ and ]', () => {
     enterAnnotationLayer({ onScreenshot: () => undefined })
+    getActiveAnnotationLayer()!.setRecordingMode(true)
     expect(press('2')).toBe(true)
     expect(press('5')).toBe(true)
     expect(press('6')).toBe(false) // no sixth colour
@@ -64,12 +78,14 @@ describe('recording-time single keys (annotate.md §3.1)', () => {
 
   it('exits with Esc', () => {
     enterAnnotationLayer({ onScreenshot: () => undefined })
+    getActiveAnnotationLayer()!.setRecordingMode(true)
     expect(press('Escape')).toBe(true)
     expect(isAnnotationLayerActive()).toBe(false)
   })
 
   it('leaves the key with the page while the focus is in an input or editable area', () => {
     enterAnnotationLayer({ onScreenshot: () => undefined })
+    getActiveAnnotationLayer()!.setRecordingMode(true)
     const input = document.createElement('input')
     input.setAttribute('data-ann-ui', 'fixture-input')
     document.body.appendChild(input)

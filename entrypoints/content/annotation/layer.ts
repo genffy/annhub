@@ -126,6 +126,8 @@ export class AnnotationLayer {
   /** Which 重置计数 group the next badge counts in; 清空 starts the next one. */
   private stepSequence = 0
   private draft: InkStroke | null = null
+  /** The pointer gesture in progress (a stroke or a badge drag), ended by exit() if the layer closes mid-drag. */
+  private endGesture: (() => void) | null = null
   private selectedStep: InkStroke | null = null
   private stepRingEl: HTMLDivElement | null = null
   private textInput: HTMLTextAreaElement | null = null
@@ -580,7 +582,9 @@ export class AnnotationLayer {
       this.doc.removeEventListener('pointerup', up, true)
       this.doc.removeEventListener('pointercancel', cleanup, true)
       this.draft = null
+      this.endGesture = null
     }
+    this.endGesture = cleanup
     this.doc.addEventListener('pointermove', move, true)
     this.doc.addEventListener('pointerup', up, true)
     this.doc.addEventListener('pointercancel', cleanup, true)
@@ -646,7 +650,9 @@ export class AnnotationLayer {
       this.doc.removeEventListener('pointermove', move, true)
       this.doc.removeEventListener('pointerup', up, true)
       this.doc.removeEventListener('pointercancel', cleanup, true)
+      this.endGesture = null
     }
+    this.endGesture = cleanup
     this.doc.addEventListener('pointermove', move, true)
     this.doc.addEventListener('pointerup', up, true)
     this.doc.addEventListener('pointercancel', cleanup, true)
@@ -660,7 +666,9 @@ export class AnnotationLayer {
    * phase from document_start, ahead of the site's own handlers.
    */
   handleRecordingKey(event: KeyboardEvent): boolean {
-    if (this.hiddenForScreenshot) return false
+    // the keys belong to the recording-time layer only; a chord belongs to the browser (Ctrl+R reloads, Cmd+P prints)
+    if (!this.recordingMode || this.hiddenForScreenshot) return false
+    if (event.ctrlKey || event.metaKey || event.altKey) return false
     const active = this.doc.activeElement
     if (active instanceof HTMLElement && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return false
     const key = event.key
@@ -769,11 +777,17 @@ export class AnnotationLayer {
   private undo(): void {
     const previous = this.history.pop()
     if (!previous) return
-    for (const timer of this.eraseTimers.values()) window.clearTimeout(timer)
-    this.eraseTimers.clear()
+    // the ink that undo brings back keeps its erase running; the ink it takes away stops, and so do its timers
+    const restored = new Set(previous.strokes.map(stroke => stroke.id))
+    for (const [id, timer] of this.eraseTimers) {
+      if (restored.has(id)) continue
+      window.clearTimeout(timer)
+      this.eraseTimers.delete(id)
+    }
     this.strokes = previous.strokes
     this.stepSequence = previous.stepSequence
     this.selectedStep = null
+    this.scheduleAutoErase(this.strokes)
     this.paint()
   }
 
@@ -899,6 +913,7 @@ export class AnnotationLayer {
   exit(): void {
     if (this.exited) return
     this.exited = true
+    this.endGesture?.()
     this.commitText()
     this.observer?.disconnect()
     this.observer = null
