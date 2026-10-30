@@ -832,9 +832,8 @@ export class AnnotationLayer {
   startScreenshot(): void {
     if (this.hiddenForScreenshot) return
     this.commitText()
-    // the session takes the ink in the viewport it is shown in now: page ink is moved back by the scroll, pinned ink is already there
-    const view = this.doc.defaultView!
-    const ink = snapshotInk(inkToViewport(this.strokes, view.scrollX, view.scrollY))
+    // the ink goes over in page coordinates; the screenshot session moves it into the viewport of its capture (consumeInk)
+    const ink = snapshotInk(this.strokes)
     this.hiddenForScreenshot = true
     try {
       if (this.host.matches(':popover-open')) this.host.hidePopover()
