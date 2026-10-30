@@ -169,15 +169,32 @@ export class RecordingService implements IService {
     }
   }
 
+  /** A start between its first await and the state it sets: a second start in that gap must not be taken for a first. */
+  private startInFlight = false
+
   private async startRecording(tabId: number, streamId: string, withMic: boolean): Promise<ResponseMessage> {
-    if (this.state.status !== 'idle') return MessageUtils.createResponse(false, undefined, 'RECORDING_ACTIVE')
+    if (this.state.status !== 'idle' || this.startInFlight) return MessageUtils.createResponse(false, undefined, 'RECORDING_ACTIVE')
+    this.startInFlight = true
+    try {
+      return await this.beginRecording(tabId, streamId, withMic)
+    } finally {
+      this.startInFlight = false
+    }
+  }
+
+  private async beginRecording(tabId: number, streamId: string, withMic: boolean): Promise<ResponseMessage> {
     const tab = await chrome.tabs.get(tabId).catch(() => undefined)
     if (!tab || !recordableUrl(tab.url)) return MessageUtils.createResponse(false, undefined, 'RECORDING_RESTRICTED_PAGE')
 
     await this.ensureOffscreenDocument()
-    const answer = await this.tellOffscreen({ type: 'RECORDING_START', streamId, withMic })
-    if (!answer.ok) return MessageUtils.createResponse(false, undefined, 'RECORDING_FAILED')
+    // the state is set before the offscreen document answers, so a microphone notice it reports on the way is kept
     this.state = { status: 'recording', withMic, tabId, tabTitle: tab.title, startedAt: Date.now() }
+    const answer = await this.tellOffscreen({ type: 'RECORDING_START', streamId, withMic })
+    if (!answer.ok) {
+      this.state = { status: 'idle', withMic: false, ...(this.state.micNotice ? { micNotice: this.state.micNotice } : {}) }
+      this.syncBadge()
+      return MessageUtils.createResponse(false, undefined, 'RECORDING_FAILED')
+    }
     this.syncBadge()
     await this.broadcastLifecycle(true)
     return MessageUtils.createResponse(true, this.state)
@@ -185,7 +202,17 @@ export class RecordingService implements IService {
 
   private async stopRecording(stoppedBy: 'user' | 'tab_closed'): Promise<void> {
     // the offscreen document reports the stop with this reason and its own length
-    await this.tellOffscreen({ type: 'RECORDING_STOP', stoppedBy })
+    const answer = await this.tellOffscreen({ type: 'RECORDING_STOP', stoppedBy })
+    // no recorder is left to report a stop: the state must not wait for one that never comes
+    if (!answer.ok) {
+      await this.broadcastLifecycle(false)
+      this.resetToIdle()
+    }
+  }
+
+  private resetToIdle(): void {
+    this.state = { status: 'idle', withMic: false }
+    this.syncBadge()
   }
 
   /** 录制开始与停止告诉被录的标签页：光标高亮只在录制中出现，批注层收起工具栏 (annotate.md §3)。 */
@@ -198,7 +225,6 @@ export class RecordingService implements IService {
     } catch {
       // the tab may have closed or not have the content script yet; recording continues
     }
-  }
 
   private async handleEvent(message: RecordingEventMessage): Promise<void> {
     switch (message.event) {
@@ -217,7 +243,11 @@ export class RecordingService implements IService {
       }
       case 'stopped': {
         await this.broadcastLifecycle(false)
-        if (!message.blobUrl || !message.filename) return
+        if (!message.blobUrl || !message.filename) {
+          // a stop without a file leaves nothing to download: the state goes back, as a stop that never came would not
+          this.resetToIdle()
+          return
+        }
         this.pendingDownload = {
           blobUrl: message.blobUrl,
           filename: message.filename,
@@ -264,7 +294,6 @@ export class RecordingService implements IService {
 
   private async finishDownload(): Promise<void> {
     const pending = this.pendingDownload
-    console.log('FINISH DOWNLOAD CALLED, pending:', Boolean(pending), pending?.downloadId)
     if (!pending) return
     const { meta } = pending
     await this.tellOffscreen({ type: 'RECORDING_CLEANUP' })
