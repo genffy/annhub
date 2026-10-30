@@ -32,7 +32,7 @@ import {
   type ScreenshotTool,
 } from '../screenshot/editor'
 import type { UiTextKey } from '../../../utils/ui-text'
-import { inkToEditorAnnotations, inkToViewport, type InkStroke } from './ink'
+import { inkToEditorAnnotations, inkToViewport, snapshotInk, type InkStroke } from './ink'
 
 const ROOT_ATTR = 'data-ann-ui'
 const ROOT_VALUE = 'annotation-layer'
@@ -740,7 +740,8 @@ export class AnnotationLayer {
     })
     this.host.appendChild(input)
     this.textInput = input
-    this.textAt = at
+    // the text belongs to the page where its box was opened, like every stroke; the box itself stays on the screen
+    this.textAt = { x: at.x + view.scrollX, y: at.y + view.scrollY }
     input.focus()
   }
 
@@ -752,11 +753,7 @@ export class AnnotationLayer {
     const value = input.value.trim()
     input.remove()
     if (!value) return
-    const view = this.doc.defaultView!
-    this.commit([
-      ...this.strokes,
-      { id: this.newStrokeId(), tool: 'text', points: [{ x: this.textAt.x + view.scrollX, y: this.textAt.y + view.scrollY }], text: value, color: this.color },
-    ])
+    this.commit([...this.strokes, { id: this.newStrokeId(), tool: 'text', points: [this.textAt], text: value, color: this.color }])
   }
 
   // ── steps, undo, clear, auto-erase ────────────────────────────────
@@ -835,7 +832,9 @@ export class AnnotationLayer {
   startScreenshot(): void {
     if (this.hiddenForScreenshot) return
     this.commitText()
-    const ink = this.strokes.map(stroke => ({ ...stroke, points: stroke.points.map(point => ({ ...point })) }))
+    // the session takes the ink in the viewport it is shown in now: page ink is moved back by the scroll, pinned ink is already there
+    const view = this.doc.defaultView!
+    const ink = snapshotInk(inkToViewport(this.strokes, view.scrollX, view.scrollY))
     this.hiddenForScreenshot = true
     try {
       if (this.host.matches(':popover-open')) this.host.hidePopover()
