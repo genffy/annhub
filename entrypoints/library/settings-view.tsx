@@ -26,10 +26,117 @@ import {
 import { formatBytes } from '../../utils/format-bytes'
 import { uiText, type UiTextKey } from '../../utils/ui-text'
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../../learning-core/types'
-import { ANN_BLOCK_MODE_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
+import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
+import { ANNOTATION_COLORS } from '../content/screenshot/editor'
 
-/** The two browser commands the shortcut hint speaks of; the browser also lists the toolbar button's own command. */
-const SHORTCUT_COMMANDS: readonly string[] = [ANN_SCREENSHOT_COMMAND, ANN_BLOCK_MODE_COMMAND]
+/** The browser commands the shortcut hint speaks of; the browser also lists the toolbar button's own command. */
+const SHORTCUT_COMMANDS: readonly string[] = [ANN_SCREENSHOT_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_ANNOTATE_COMMAND, ANN_RECORD_COMMAND]
+
+function shortcutLabel(command: string): UiTextKey {
+  if (command === ANN_SCREENSHOT_COMMAND) return 'settings.shortcut.screenshot'
+  if (command === ANN_ANNOTATE_COMMAND) return 'settings.shortcut.annotate'
+  if (command === ANN_RECORD_COMMAND) return 'settings.shortcut.record'
+  return 'settings.shortcut.block'
+}
+
+/** The 录制 section (extension.md §2.5): microphone grant status and the request, per annotate.md §2.1 (D-43). */
+function RecordingSection({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
+  const [grant, setGrant] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
+  const [requesting, setRequesting] = useState(false)
+  // the tab that wanted the microphone when the popup routed here (annotate.md §2.1)
+  const [recordTabId, setRecordTabId] = useState<number | null>(null)
+  const cursor = settings.recording.cursorHighlight
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const tabId = Number(params.get('recordTab'))
+    if (Number.isInteger(tabId) && tabId > 0) setRecordTabId(tabId)
+    void navigator.permissions
+      .query({ name: 'microphone' as PermissionName })
+      .then(status => setGrant(status.state as 'granted' | 'denied' | 'prompt'))
+      .catch(() => setGrant('unknown'))
+  }, [])
+
+  const request = async () => {
+    setRequesting(true)
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.getTracks().forEach(track => track.stop())
+      setGrant('granted')
+    } catch {
+      // the browser never asks again once denied (market.md §4.7): say how to come back
+      setGrant('denied')
+    } finally {
+      setRequesting(false)
+    }
+  }
+
+  return (
+    <section data-testid="recording-section">
+      <h2>{uiText('settings.recording')}</h2>
+      <p className="hint">{uiText('settings.recordingMicHint')}</p>
+      <p className="mic-status" data-testid="mic-status">
+        <span>{uiText('settings.recordingMicStatus')}</span>
+        <span className={grant === 'denied' ? 'mic-status-denied' : ''}>{uiText(`settings.recordingMic.${grant}`)}</span>
+      </p>
+      {grant !== 'granted' && (
+        <button type="button" onClick={() => void request()} disabled={requesting} data-testid="mic-request">
+          {uiText('settings.recordingMicRequest')}
+        </button>
+      )}
+      {grant === 'denied' && <p className="hint">{uiText('settings.recordingMicDenied')}</p>}
+      {grant === 'granted' && recordTabId !== null && (
+        <button type="button" onClick={() => void chrome.tabs.update(recordTabId, { active: true }).then(() => window.close())} data-testid="mic-back-to-tab">
+          {uiText('settings.recordingBackToTab')}
+        </button>
+      )}
+
+      <div className="settings-group">
+        <h3>{uiText('settings.cursorHighlight')}</h3>
+        <p className="hint">{uiText('settings.cursorHighlightHint')}</p>
+        <label className="switch-row">
+          <input
+            type="checkbox"
+            checked={cursor.enabled}
+            onChange={event => void patch({ recording: { cursorHighlight: { enabled: event.target.checked } } })}
+            data-testid="cursor-highlight-toggle"
+          />
+          <span>{uiText(cursor.enabled ? 'shot.on' : 'shot.off')}</span>
+        </label>
+        {cursor.enabled && (
+          <>
+            <div className="settings-inline" role="group" aria-label={uiText('settings.cursorHighlightShape')}>
+              {(['ring', 'rounded', 'diamond'] as const).map(shape => (
+                <button
+                  key={shape}
+                  type="button"
+                  className={`chip${cursor.shape === shape ? ' chip-active' : ''}`}
+                  aria-pressed={cursor.shape === shape}
+                  onClick={() => void patch({ recording: { cursorHighlight: { shape } } })}
+                >
+                  {uiText(`settings.cursorHighlight.shape.${shape}` as UiTextKey)}
+                </button>
+              ))}
+            </div>
+            <div className="settings-inline" role="group" aria-label={uiText('shot.colors')}>
+              {ANNOTATION_COLORS.map(entry => (
+                <button
+                  key={entry.value}
+                  type="button"
+                  className={`hl-dot${cursor.color === entry.value ? ' hl-dot-active' : ''}`}
+                  style={{ background: entry.value }}
+                  aria-label={uiText(`shot.color.${entry.name}` as UiTextKey)}
+                  aria-pressed={cursor.color === entry.value}
+                  onClick={() => void patch({ recording: { cursorHighlight: { color: entry.value } } })}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </section>
+  )
+}
 
 function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
   const imageInputId = useId()
@@ -433,6 +540,8 @@ export function SettingsView() {
 
       <ScreenshotSection settings={settings} patch={patch} />
 
+      <RecordingSection settings={settings} patch={patch} />
+
       <section>
         <h2>{uiText('settings.defaultHighlightColor')}</h2>
         <div className="hl-colors" role="group" aria-label={uiText('settings.defaultHighlightColor')}>
@@ -454,7 +563,7 @@ export function SettingsView() {
         <p className="hint">{uiText('settings.shortcutsHint')}</p>
         {shortcuts.map(command => (
           <p className="keys" key={command.name}>
-            <span>{command.name === ANN_SCREENSHOT_COMMAND ? uiText('settings.shortcut.screenshot') : uiText('settings.shortcut.block')}</span>
+            <span>{uiText(shortcutLabel(command.name ?? ''))}</span>
             {command.shortcut ? <kbd>{command.shortcut}</kbd> : <span className="keys-unassigned">{uiText('settings.shortcut.unassigned')}</span>}
           </p>
         ))}
@@ -587,6 +696,20 @@ function MetricsPanel({ panel }: { panel: MetricsPanelData }) {
           )}
           {habitRow('metrics.m24', summaries.beautifyUse, uiText('metrics.m24.support', { n: summaries.beautifyUse.numerator, m: summaries.beautifyUse.denominator }))}
           {rateRow('metrics.m25', summaries.frameReuse, uiText('metrics.m25.support', { n: summaries.frameReuse.numerator, d: summaries.frameReuse.denominator }))}
+          <tr>
+            <th scope="row">{uiText('metrics.m31')}</th>
+            <td data-testid="metrics-m31">
+              {summaries.recordingUse.downloads === 0
+                ? uiText('metrics.m31.none')
+                : uiText('metrics.m31.value', {
+                    n: summaries.recordingUse.downloads,
+                    mic: summaries.recordingUse.withMic,
+                    user: summaries.recordingUse.stoppedBy.user,
+                    tab: summaries.recordingUse.stoppedBy.tab_closed,
+                    limit: summaries.recordingUse.stoppedBy.limit,
+                  })}
+            </td>
+          </tr>
         </tbody>
       </table>
 

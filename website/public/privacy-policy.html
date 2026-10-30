@@ -103,6 +103,7 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 <div class="highlight">
 <strong>All of this stays on your device:</strong> in your browser (IndexedDB and the extension's own <code>chrome.storage</code> areas, including a screenshot frame note kept in the session area that page scripts cannot read). The Markdown ZIP you export is an ordinary file that you own and manage.
 </div>
+<p><strong>Tab recordings</strong> — when you start one from the toolbar popup or your own shortcut, the extension records the current tab's picture and sound, plus your microphone when you ticked “with microphone”. The recording exists only in memory until it stops, then it is downloaded straight to your disk as a WebM file. It never becomes a library entry, is never uploaded, and the microphone has no permission of its own: the browser asks you for it the first time it is used, and you can change that in the browser's site settings.</p>
 
 <h2>2. The only outbound request</h2>
 <p>When you capture an element that contains a cross-origin image, the extension's background fetches that one image from the page's own site — the same request your browser makes to display it — so the element screenshot can include it. The fetch carries no credentials, accepts only public <code>http(s)</code> addresses, and returns only images no larger than what the library accepts. Addresses on private networks are refused. Images inside a clipped article are never downloaded; a clip keeps only their original address.</p>
@@ -112,7 +113,7 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 
 <h2>4. What we do not do</h2>
 <ul>
-<li>We do not record the pages you visit or collect your browsing history.</li>
+<li>We do not watch your browsing: nothing runs in the background. A tab recording exists only while you started it yourself, and its video goes only to your disk.</li>
 <li>We do not collect your name, email address or any other personal information.</li>
 <li>We put no analytics, tracking or telemetry in the extension, and we do not serve ads.</li>
 <li>We do not sell or share your data.</li>
@@ -124,8 +125,10 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 <table>
 <tr><th>Permission</th><th>Why</th></tr>
 <tr><td><code>storage</code></td><td>Keep your settings and local counters on your device. Entries and images live in the browser's own database and need no permission.</td></tr>
-<tr><td><code>commands</code></td><td>Keyboard shortcuts for screenshots and block mode.</td></tr>
-<tr><td><code>downloads</code></td><td>Save screenshots and the exported Markdown ZIP as local files.</td></tr>
+<tr><td><code>commands</code></td><td>Keyboard shortcuts for screenshots, block mode, page annotation and tab recording (annotation and recording are unbound by default; the user assigns keys in the browser's shortcut settings).</td></tr>
+<tr><td><code>downloads</code></td><td>Save screenshots, tab recordings and the exported Markdown ZIP as local files.</td></tr>
+<tr><td><code>tabCapture</code></td><td>Record the current tab's picture and sound — but only after you started the recording yourself from the toolbar popup or your own shortcut.</td></tr>
+<tr><td><code>offscreen</code></td><td>The recording runs in the extension's own hidden document, because the background service worker has no page environment to record in.</td></tr>
 <tr><td>Access to all sites (<code>&lt;all_urls&gt;</code>)</td><td>Let you clip text and take screenshots on whichever page you are reading, and fetch a page's own image so an element capture can include it.</td></tr>
 </table>
 
@@ -171,6 +174,7 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 <div class="highlight">
 <strong>以上全部只留在你的设备上：</strong>在浏览器的 IndexedDB 与扩展自己的 <code>chrome.storage</code> 区域里（包括记着上次截图取景框的会话区域，页面脚本读不到它）。你导出的 Markdown ZIP 是普通文件，由你自己保管。
 </div>
+<p><strong>标签页录制</strong>——只有当你从工具栏弹窗或自己绑定的快捷键开始录制时，扩展才会录制当前标签页的画面与声音；勾选了“带麦克风”时加上麦克风。录制在停止之前只存在于内存里，停止后直接下载到你磁盘上的 WebM 文件。它不会成为资料库条目，也永不上传；麦克风没有对应的清单权限，浏览器在第一次使用时询问，之后可以在浏览器的网站设置里更改。</p>
 
 <h2>2. 唯一会产生的出站请求</h2>
 <p>元素截图里如果含跨域图片，扩展后台会从图片所在的站点代取那一张图——与浏览器显示它时发出的请求相同——以便元素截图能包含它。代取不带凭据，只接受公网 <code>http(s)</code> 地址，只返回不超过入库上限的图片，并拒绝私有网络地址。剪藏正文里的图片不会被下载，剪藏只保留它们的原地址。</p>
@@ -180,7 +184,7 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 
 <h2>4. 我们不做什么</h2>
 <ul>
-<li>不记录你访问的页面，不收集浏览历史。</li>
+<li>不盯着你的浏览：后台不做任何事。标签页录制只在你亲自开始时存在，视频只写入你的磁盘。</li>
 <li>不收集姓名、邮箱等任何个人信息。</li>
 <li>扩展里没有分析、追踪或遥测，也不投放广告。</li>
 <li>不出售、不共享你的数据。</li>
@@ -192,8 +196,10 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 <table>
 <tr><th>权限</th><th>用途</th></tr>
 <tr><td><code>storage</code></td><td>在你的设备上保存设置与本地计数。条目和图片放在浏览器自己的数据库里，不需要权限。</td></tr>
-<tr><td><code>commands</code></td><td>截图与区块模式的键盘快捷键。</td></tr>
-<tr><td><code>downloads</code></td><td>把截图和导出的 Markdown ZIP 保存为文件。</td></tr>
+<tr><td><code>commands</code></td><td>截图、区块模式、页面批注与标签页录制的键盘快捷键（批注与录制默认不绑定，用户在浏览器的快捷键设置里自行指定）。</td></tr>
+<tr><td><code>downloads</code></td><td>把截图、标签页录制和导出的 Markdown ZIP 保存为文件。</td></tr>
+<tr><td><code>tabCapture</code></td><td>录制当前标签页的画面与声音——只在你亲自从工具栏弹窗或快捷键开始录制之后。</td></tr>
+<tr><td><code>offscreen</code></td><td>录制在扩展自己的隐藏文档里进行：后台服务没有录制所需的页面环境。</td></tr>
 <tr><td>访问所有网站（<code>&lt;all_urls&gt;</code>）</td><td>让你在正在阅读的任意网页上剪藏文字、截图，并代取页面自己的图片以便元素截图包含它。</td></tr>
 </table>
 
