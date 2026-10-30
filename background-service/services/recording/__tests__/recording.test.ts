@@ -204,4 +204,32 @@ describe('recording service (annotate.md §2)', () => {
     const answer = await dispatch({ type: 'GET_RECORDING_STATE' }, tabSender)
     expect(answer.success).toBe(false)
   })
+
+  it('a start the offscreen document refuses leaves no recording behind', async () => {
+    runtime.sendMessage.mockImplementationOnce(async () => ({ success: false }))
+    const answer = await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 'refused', withMic: false }, extensionSender)
+    expect(answer.error).toBe('RECORDING_FAILED')
+    const state = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string }
+    expect(state.status).toBe('idle')
+    expect(action.setBadgeText).toHaveBeenLastCalledWith({ text: '' })
+  })
+
+  it('a second start while the first is still asking the browser is refused, not taken for a first', async () => {
+    const [first, second] = await Promise.all([
+      dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 'race-1', withMic: false }, extensionSender),
+      dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 'race-2', withMic: false }, extensionSender),
+    ])
+    expect(first.success).toBe(true)
+    expect(second.error).toBe('RECORDING_ACTIVE')
+    await windDown(20, 'AnnHub/recording-race.webm')
+  })
+
+  it('a stop the offscreen document cannot take ends the recording at once', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 'stuck', withMic: false }, extensionSender)
+    runtime.sendMessage.mockRejectedValueOnce(new Error('no offscreen document'))
+    const answer = await dispatch({ type: 'STOP_RECORDING' }, extensionSender)
+    expect(answer.success).toBe(true)
+    expect((answer.data as { status: string }).status).toBe('idle')
+    expect(action.setBadgeText).toHaveBeenLastCalledWith({ text: '' })
+  })
 })

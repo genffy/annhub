@@ -56,8 +56,21 @@ function stopRecording(stoppedBy?: 'user' | 'tab_closed'): void {
   current.recorder.stop()
 }
 
-async function beginRecording(message: RecordingCommandMessage & { type: 'RECORDING_START' }): Promise<void> {
-  if (recording || unsavedVideo) return // the worker refuses a second recording; nothing to report
+/** True while a start is on its way: a double press must not start two recordings in the time the first one awaits. */
+let starting = false
+
+/** Starts a recording; the answer goes back to the worker, which keeps its state only when it is true. */
+async function beginRecording(message: RecordingCommandMessage & { type: 'RECORDING_START' }): Promise<boolean> {
+  if (recording || unsavedVideo || starting) return false
+  starting = true
+  try {
+    return await startCapture(message)
+  } finally {
+    starting = false
+  }
+}
+
+async function startCapture(message: RecordingCommandMessage & { type: 'RECORDING_START' }): Promise<boolean> {
   const mimeType = pickMimeType()
   let tabStream: MediaStream
   try {
@@ -67,7 +80,7 @@ async function beginRecording(message: RecordingCommandMessage & { type: 'RECORD
     } as MediaStreamConstraints)
   } catch {
     report('failed')
-    return
+    return false
   }
 
   let micStream: MediaStream | null = null
@@ -141,6 +154,7 @@ async function beginRecording(message: RecordingCommandMessage & { type: 'RECORD
   }
   recorder.start(1000)
   report('started', {})
+  return true
 }
 
 function cleanupVideo(): void {
@@ -148,8 +162,12 @@ function cleanupVideo(): void {
   unsavedVideo = null
 }
 
-chrome.runtime.onMessage.addListener((message: RecordingCommandMessage) => {
-  if (message.type === 'RECORDING_START') void beginRecording({ ...message, type: 'RECORDING_START' })
+chrome.runtime.onMessage.addListener((message: RecordingCommandMessage, _sender, sendResponse) => {
+  if (message.type === 'RECORDING_START') {
+    // the answer is the only word the worker gets on whether a recording exists, so it waits for it
+    void beginRecording({ ...message, type: 'RECORDING_START' }).then(started => sendResponse({ success: started }))
+    return true
+  }
   if (message.type === 'RECORDING_STOP') stopRecording(message.stoppedBy)
   // the download landed or the user gave up: the video's bytes can go
   if (message.type === 'RECORDING_CLEANUP') cleanupVideo()
