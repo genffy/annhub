@@ -60,33 +60,38 @@ export function clipSegment(a: Point, b: Point, rect: Rect): [Point, Point] | nu
   if (!clip(dx, rect.x + rect.width - a.x)) return null
   if (!clip(-dy, a.y - rect.y)) return null
   if (!clip(dy, rect.y + rect.height - a.y)) return null
-  return [
-    { x: a.x + t0 * dx, y: a.y + t0 * dy },
-    { x: a.x + t1 * dx, y: a.y + t1 * dy },
-  ]
+  // the untouched ends come back as the very points given, so a stroke inside the rect keeps its exact coordinates
+  const at = (t: number): Point => (t === 0 ? a : t === 1 ? b : { x: a.x + t * dx, y: a.y + t * dy })
+  return [at(t0), at(t1)]
 }
 
-/** The runs of a polyline that lie inside the rect; a stroke that never enters comes back empty. */
+/**
+ * The runs of a polyline that lie inside the rect; a stroke that never enters comes back empty. A segment
+ * counts even when both of its ends lie outside: a fast stroke can cross the rect between two samples.
+ */
 export function clipPolyline(points: readonly Point[], rect: Rect): Point[][] {
   const runs: Point[][] = []
   let run: Point[] = []
-  for (let index = 0; index < points.length; index++) {
-    const point = points[index]!
-    const previous = points[index - 1]
-    if (inside(point, rect)) {
-      if (previous && !inside(previous, rect)) {
-        const crossed = clipSegment(previous, point, rect)
-        if (crossed) run.push(crossed[0])
-      }
-      run.push(point)
-    } else if (run.length > 0) {
-      const crossed = previous ? clipSegment(previous, point, rect) : null
-      if (crossed) run.push(crossed[1])
-      if (run.length > 1) runs.push(run)
-      run = []
-    }
+  const flush = (): void => {
+    if (run.length > 1) runs.push(run)
+    run = []
   }
-  if (run.length > 1) runs.push(run)
+  for (let index = 1; index < points.length; index++) {
+    const piece = clipSegment(points[index - 1]!, points[index]!, rect)
+    if (!piece) {
+      flush()
+      continue
+    }
+    const [from, to] = piece
+    const last = run[run.length - 1]
+    // a piece that starts where the run ends continues it; any other starts a new run
+    if (!last || last.x !== from.x || last.y !== from.y) {
+      flush()
+      run.push(from)
+    }
+    run.push(to)
+  }
+  flush()
   return runs
 }
 
