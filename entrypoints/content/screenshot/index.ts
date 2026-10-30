@@ -117,11 +117,16 @@ export interface EnterScreenshotOptions {
 }
 
 export function enterScreenshotMode(options: EnterScreenshotOptions = {}): void {
-  // Idempotent: a second trigger replaces the pending session.
-  activeSession?.exit()
+  // Idempotent: a second trigger replaces the pending session. The replaced one hands its ink and its exit callback
+  // over, so an annotation layer waiting on this session stays hidden until the session that replaces it ends.
+  const previous = activeSession
+  const ink = options.ink ?? previous?.pendingInk ?? null
+  const onExit = options.onExit ?? previous?.onSessionExit ?? null
+  if (previous) previous.onSessionExit = null
+  previous?.exit()
   activeSession = new ScreenshotSession(document, options.via ?? 'shortcut')
-  activeSession.pendingInk = options.ink ?? null
-  activeSession.onSessionExit = options.onExit ?? null
+  activeSession.pendingInk = ink
+  activeSession.onSessionExit = onExit
   activeSession.begin()
   if (options.element) void activeSession.captureElementTarget(options.element)
   else if (options.initialRect) activeSession.beginWithInitialRect(options.initialRect)

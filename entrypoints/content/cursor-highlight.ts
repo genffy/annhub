@@ -24,7 +24,6 @@ let host: HTMLDivElement | null = null
 let shapeEl: HTMLDivElement | null = null
 let currentSettings: CursorHighlightSettings | null = null
 let listeners: Array<[EventTarget, string, EventListener]> = []
-let rippleTimer: number | null = null
 
 function removeListeners(): void {
   for (const [target, type, listener] of listeners) target.removeEventListener(type, listener, true)
@@ -98,7 +97,6 @@ export function setCursorHighlight(active: boolean, settings?: CursorHighlightSe
     host = null
     shapeEl = null
     currentSettings = null
-    if (rippleTimer !== null) window.clearTimeout(rippleTimer)
     return
   }
   const doc = document
@@ -125,8 +123,8 @@ export function setCursorHighlight(active: boolean, settings?: CursorHighlightSe
     ripple.setAttribute('data-ann-ui', 'cursor-highlight-ripple')
     ripple.style.cssText = `${rippleStyle(currentSettings?.color ?? '#e5484d')}left:${press.clientX}px;top:${press.clientY}px;`
     host?.appendChild(ripple)
-    if (rippleTimer !== null) window.clearTimeout(rippleTimer)
-    rippleTimer = window.setTimeout(() => ripple.remove(), 520)
+    // each pulse leaves on its own timer: a press during another pulse must not keep that one on the page
+    window.setTimeout(() => ripple.remove(), 520)
   })
   // the screenshot hides the extension's UI for the shot; the highlight is one of them (annotate.md §3.2)
   add(doc, 'annhub:capture-hide', () => {

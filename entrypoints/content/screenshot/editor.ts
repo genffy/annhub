@@ -73,12 +73,13 @@ export function renderScreenshot(target: HTMLCanvasElement, source: HTMLCanvasEl
   }
   masks.forEach(pixelate)
 
+  const numbers = stepNumbers(annotations)
   for (const annotation of annotations) {
     if (annotation.tool === 'mosaic') {
       pixelate(toRect(annotation.start, annotation.end))
       continue
     }
-    drawAnnotation(ctx, annotation, scale, stepNumbers(annotations), target.width)
+    drawAnnotation(ctx, annotation, scale, numbers, target.width)
   }
 }
 
