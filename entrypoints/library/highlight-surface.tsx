@@ -44,6 +44,8 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
   const toolbarRef = useRef(toolbar)
   toolbarRef.current = toolbar
   const dragging = useRef(false)
+  // when the last Escape closed the toolbar: a selection change from before it must not bring the toolbar back
+  const dismissedAt = useRef(0)
 
   const closePopover = useCallback(() => {
     setPopover(current => {
@@ -56,6 +58,7 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
   // (extension.md §4.2). A drag in progress is left to its own mouseup.
   useEffect(() => {
     let timer: number | null = null
+    let changedAt = 0
     const onDown = (event: MouseEvent): void => {
       dragging.current = Boolean(surface.current?.contains(event.target as Node))
     }
@@ -63,10 +66,13 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
       dragging.current = false
     }
     const onChange = (): void => {
+      changedAt = performance.now()
       if (timer !== null) window.clearTimeout(timer)
       timer = window.setTimeout(() => {
         timer = null
         if (dragging.current || !surface.current) return
+        // the change Escape already answered: the selection stays, but the toolbar Escape closed stays closed
+        if (changedAt <= dismissedAt.current) return
         const selection = window.getSelection()
         if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return
         const range = sourceRangeFromSelection(surface.current, selection, entry.content)
@@ -97,6 +103,7 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
       if (event.key !== 'Escape' || event.isComposing || event.keyCode === 229 || !toolbarRef.current) return
       event.preventDefault()
       event.stopPropagation()
+      dismissedAt.current = performance.now()
       setToolbar(null)
     }
     document.addEventListener('keydown', onKey, true)
