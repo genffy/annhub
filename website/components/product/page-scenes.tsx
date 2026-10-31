@@ -30,30 +30,27 @@ export function SelectionMenu({
   const tipped = items.find(i => i.kind === tip)
   return (
     <span className={`ah ah-hm static ${className}`} role={onPick ? 'toolbar' : undefined} aria-label={onPick ? 'AnnHub' : undefined}>
-      {items.map((it, i) => {
-        const cls = `ah-hm-b ah-t-${it.kind}${hover === i ? ' is-hover' : ''}`
-        const inner = (
-          <>
-            <Ic icon={it.icon} />
-            <span>{it.label}</span>
-          </>
-        )
-        return onPick ? (
-          <button key={it.kind} type="button" className={cls} onMouseDown={e => e.preventDefault()} onClick={() => onPick(it.kind)}>
-            {inner}
-          </button>
-        ) : (
-          <span key={it.kind} className={cls}>
-            {inner}
-          </span>
-        )
-      })}
-      {tipped ? (
-        <span className="ah-hm-tip ah-tip" style={{ left: 0, bottom: 'calc(100% + 10px)' }}>
-          <b>{tipped.label}</b>
-          <small>{tipped.hint}</small>
-        </span>
-      ) : null}
+      <span className="ah-hm-row">
+        {items.map((it, i) => {
+          const cls = `ah-hm-b ah-t-${it.kind}${hover === i ? ' is-hover' : ''}`
+          const inner = (
+            <>
+              <Ic icon={it.icon} />
+              <span>{it.label}</span>
+            </>
+          )
+          return onPick ? (
+            <button key={it.kind} type="button" className={cls} onMouseDown={e => e.preventDefault()} onClick={() => onPick(it.kind)}>
+              {inner}
+            </button>
+          ) : (
+            <span key={it.kind} className={cls}>
+              {inner}
+            </span>
+          )
+        })}
+      </span>
+      {tipped ? <span className="ah-hm-hint">{tipped.hint}</span> : null}
     </span>
   )
 }

@@ -29,6 +29,35 @@ try {
       })
       assert.ok(bar.fits && bar.apart, `Header links overlap or overflow at ${locale}/${width}`)
       assert.ok(await page.evaluate(() => globalThis.document.documentElement.scrollWidth <= globalThis.innerWidth), `Horizontal scroll at ${locale}/${width}`)
+      if (width >= 1024) {
+        // the first picture: every window is drawn at its natural size (nothing shrinks its text), the selection with
+        // its menu is whole, and the caption stays next to the board it describes
+        const board = await page.evaluate(() => {
+          const { document } = globalThis
+          const scaleOf = el => el.getBoundingClientRect().width / el.offsetWidth
+          const header = document.querySelector('header').getBoundingClientRect()
+          const frame = document.querySelector('.hb').getBoundingClientRect()
+          const menu = document.querySelector('.hb-a .ah-hm')?.getBoundingClientRect()
+          const caption = document.querySelector('[data-hero-caption]')?.getBoundingClientRect()
+          return {
+            scales: [...document.querySelectorAll('.hb-w')].filter(w => w.getClientRects().length).map(w => Math.round(scaleOf(w) * 100) / 100),
+            menu: menu && { left: Math.round(menu.left), right: Math.round(menu.right), below: Math.round(menu.top - header.bottom) },
+            caption: caption && frame && { fromLeft: Math.round(caption.left - frame.left), fromBottom: Math.round(caption.top - frame.bottom) },
+          }
+        })
+        assert.ok(
+          board.scales.length > 0 && board.scales.every(scale => scale >= 0.99),
+          `Hero windows are drawn smaller than natural size at ${locale}/${width}: ${JSON.stringify(board.scales)}`,
+        )
+        assert.ok(
+          board.menu && board.menu.left >= 0 && board.menu.right <= width && board.menu.below >= 0,
+          `The selection menu is not whole at ${locale}/${width}: ${JSON.stringify(board.menu)}`,
+        )
+        assert.ok(
+          board.caption && board.caption.fromLeft >= -8 && Math.abs(board.caption.fromBottom) <= 40,
+          `The hero caption is away from the board at ${locale}/${width}: ${JSON.stringify(board.caption)}`,
+        )
+      }
       const cta = page.locator('header').getByRole('link', { name: locale === 'zh-CN' ? '体验资料库' : 'Try the library', exact: true })
       assert.ok(await cta.isVisible(), `No persistent library entry at ${locale}/${width}`)
       await cta.click()

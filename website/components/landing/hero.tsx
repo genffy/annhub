@@ -101,39 +101,45 @@ export default function Hero({ copy }: { copy: LandingCopy }) {
 
         <HeroPhone copy={copy} />
 
-        {/* The product board: one large selection scene in front, the reading view and the library behind it. */}
-        <div className="hb" role="img" aria-label={`${hero.captions.page}; ${hero.captions.reader}; ${hero.captions.library}`}>
-          <div className="hb-in" aria-hidden="true" inert>
-            <span className="hb-label hb-label-b">{hero.captions.reader}</span>
-            <span className="hb-label hb-label-a">{hero.captions.page}</span>
+        {/* The product board: one large selection scene in front, the reading view and the library behind it.
+            Every window is drawn at the size it is laid out for and cropped, never scaled — a scaled-down window's
+            text cannot be read. The caption stays with the board it describes. */}
+        <div className="hb-wrap">
+          <div className="hb" role="img" aria-label={`${hero.captions.page}; ${hero.captions.reader}; ${hero.captions.library}`}>
+            <div className="hb-in" aria-hidden="true" inert>
+              <span className="hb-label hb-label-b">{hero.captions.reader}</span>
+              <span className="hb-label hb-label-a">{hero.captions.page}</span>
 
-            <div className="hb-w hb-b">
-              <BrowserFrame title={`${reading.title} · AnnHub`} url={`chrome-extension://annhub/app.html#/read/${reading.id}`} width={900} height={560}>
-                <AppShell ui={ui} active="clip" counts={sample.counts} rail>
-                  <Reader entry={reading} registry={sample.registry} ui={ui} tab="properties" />
-                </AppShell>
-              </BrowserFrame>
-            </div>
+              <div className="hb-w hb-b">
+                <BrowserFrame title={`${reading.title} · AnnHub`} url={`chrome-extension://annhub/app.html#/read/${reading.id}`}>
+                  <AppShell ui={ui} active="clip" counts={sample.counts} rail>
+                    <Reader entry={reading} registry={sample.registry} ui={ui} tab="properties" />
+                  </AppShell>
+                </BrowserFrame>
+              </div>
 
-            <div className="hb-w hb-a">
-              <BrowserFrame title="Backpressure in Streams" url="engineering.example.com/posts/backpressure-in-streams" width={840} height={540}>
-                <HeroArticle ui={ui} />
-              </BrowserFrame>
-            </div>
+              <div className="hb-w hb-a">
+                <BrowserFrame title="Backpressure in Streams" url="engineering.example.com/posts/backpressure-in-streams">
+                  <HeroArticle ui={ui} />
+                </BrowserFrame>
+              </div>
 
-            <div className="hb-w hb-c">
-              <BrowserFrame title={`${ui.nav.all} · AnnHub`} url="chrome-extension://annhub/app.html#/all" width={600} height={372}>
-                <AppShell ui={ui} active="all" counts={sample.counts}>
-                  <PageHead title={ui.nav.all} sub={plural(sample.counts.all, ui.list.count, ui.list.countOne)} right={<SearchBox ui={ui} />} />
-                  <div className="ah-pbody">
-                    <EntryList entries={listed} ui={ui} hoverId="backpressure" />
-                  </div>
-                </AppShell>
-              </BrowserFrame>
+              <div className="hb-w hb-c">
+                <BrowserFrame title={`${ui.nav.all} · AnnHub`} url="chrome-extension://annhub/app.html#/all">
+                  <AppShell ui={ui} active="all" counts={sample.counts}>
+                    <PageHead title={ui.nav.all} sub={plural(sample.counts.all, ui.list.count, ui.list.countOne)} right={<SearchBox ui={ui} />} />
+                    <div className="ah-pbody">
+                      <EntryList entries={listed} ui={ui} hoverId="backpressure" />
+                    </div>
+                  </AppShell>
+                </BrowserFrame>
+              </div>
             </div>
           </div>
+          <p data-hero-caption className="hb-caption">
+            {hero.sketch}
+          </p>
         </div>
-        <p className="mt-3 text-[11.5px] text-fg-3 lg:absolute lg:bottom-5 lg:left-10">{hero.sketch}</p>
       </Container>
     </section>
   )
