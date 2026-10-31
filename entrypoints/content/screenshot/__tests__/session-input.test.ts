@@ -191,56 +191,65 @@ describe('the screenshot session and input made up by the page', () => {
     }
   })
 
-  it('arms the pick only after the pointer dwells outside the pending frame, and that click replaces it (screenshot.md §1.2)', async () => {
+  it('never arms the element pick outside a pending frame either, and a click there starts over instead of capturing (screenshot.md §1.2)', async () => {
     const post = document.getElementById('post')!
     dragToConfirm()
     await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
+    // the screen speaks of the frame now, not of picking
+    expect(hintText()).toMatch(/点选区外重选/)
+    expect(hintText()).not.toMatch(/单击选择元素/)
 
     const realElementsFromPoint = document.elementsFromPoint?.bind(document)
     document.elementsFromPoint = () => [post]
     try {
       aPerson = true
       document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: 420, clientY: 320 }))
-      await new Promise(resolve => setTimeout(resolve, 50))
-      // in transit there is no picker yet — a pointer on its way to the confirm bar paints nothing
-      expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).toBeNull()
-
-      await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).not.toBeNull(), { timeout: 800 })
-      expect(session()!.querySelector('[data-ann-ui="shot-margin-bar"]')).not.toBeNull()
-
-      document.body.dispatchEvent(pointer('pointerdown', 420, 320))
-      document.body.dispatchEvent(pointer('pointerup', 420, 320))
-      await vi.waitFor(() => expect(captures()).toHaveLength(1))
-      expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).toBeNull()
-    } finally {
-      if (realElementsFromPoint) document.elementsFromPoint = realElementsFromPoint
-      else Reflect.deleteProperty(document, 'elementsFromPoint')
-    }
-  })
-
-  it('clears the armed pick the moment a new drag starts', async () => {
-    const post = document.getElementById('post')!
-    dragToConfirm()
-    await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
-
-    const realElementsFromPoint = document.elementsFromPoint?.bind(document)
-    document.elementsFromPoint = () => [post]
-    try {
-      aPerson = true
-      document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: 420, clientY: 320 }))
-      await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).not.toBeNull(), { timeout: 800 })
-
-      document.body.dispatchEvent(pointer('pointerdown', 340, 220))
+      // well past any dwell: the frame is what is being settled, and a second candidate beside it is what confused
+      await new Promise(resolve => setTimeout(resolve, 450))
       expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).toBeNull()
       expect(session()!.querySelector('[data-ann-ui="shot-margin-bar"]')).toBeNull()
-      document.body.dispatchEvent(pointer('pointerup', 340, 220))
+
+      // the click starts over: the frame goes, picking is back, and nothing was taken behind the user's back
+      document.body.dispatchEvent(pointer('pointerdown', 420, 320))
+      document.body.dispatchEvent(pointer('pointerup', 420, 320))
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(captures()).toHaveLength(0)
+      expect(isScreenshotSessionActive()).toBe(true)
+      expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).toBeNull()
+      expect(session()!.querySelectorAll('.ann-shot-rect')).toHaveLength(0)
+      expect(session()!.classList.contains('ann-shot-modal')).toBe(false)
+      expect(hintText()).toMatch(/单击选择元素/)
+      // and the pointer, resting on the post, picks it again
+      expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).not.toBeNull()
+      expect(session()!.querySelector('[data-ann-ui="shot-margin-bar"]')).not.toBeNull()
     } finally {
       if (realElementsFromPoint) document.elementsFromPoint = realElementsFromPoint
       else Reflect.deleteProperty(document, 'elementsFromPoint')
     }
   })
 
-  it('clears the armed pick when the frame is confirmed, so the preview carries no dashed UI', async () => {
+  it('keeps the arrows for nudging the pending frame: there is no picker hierarchy to climb beside it', async () => {
+    const post = document.getElementById('post')!
+    dragToConfirm()
+    await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
+    const rect = session()!.querySelector('.ann-shot-rect') as HTMLElement
+    const left = parseFloat(rect.style.left)
+
+    const realElementsFromPoint = document.elementsFromPoint?.bind(document)
+    document.elementsFromPoint = () => [post]
+    try {
+      aPerson = true
+      document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: 420, clientY: 320 }))
+      await new Promise(resolve => setTimeout(resolve, 450))
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }))
+      expect(parseFloat(rect.style.left)).toBe(left + 1)
+    } finally {
+      if (realElementsFromPoint) document.elementsFromPoint = realElementsFromPoint
+      else Reflect.deleteProperty(document, 'elementsFromPoint')
+    }
+  })
+
+  it('confirms with Enter wherever the pointer rests, and the preview carries no dashed UI', async () => {
     const post = document.getElementById('post')!
     dragToConfirm()
     await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
@@ -250,11 +259,7 @@ describe('the screenshot session and input made up by the page', () => {
     try {
       aPerson = true
       document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: 420, clientY: 320 }))
-      await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).not.toBeNull(), { timeout: 800 })
-
-      // back inside the frame the pick disarms; Enter then belongs to the frame
-      document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: 80, clientY: 80 }))
-      expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).toBeNull()
+      await new Promise(resolve => setTimeout(resolve, 450))
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
       await vi.waitFor(() => expect(captures()).toHaveLength(1))
       expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).toBeNull()

@@ -8,15 +8,35 @@ import { clearLibrary, ensureServiceWorker, getAssetMetadata, getEntries, stopSe
  */
 
 const PAGE_URL = 'http://localhost:8173/pricing.html'
+/** A timeline that keeps a few cells in the DOM and recycles them as the page scrolls, like a social feed's. */
+const FEED_URL = 'http://localhost:8173/virtualfeed.html'
 
 async function open(page: import('@playwright/test').Page): Promise<void> {
   await page.goto(PAGE_URL)
   await page.waitForLoadState('networkidle')
 }
 
+function scrollY(page: import('@playwright/test').Page): Promise<number> {
+  return page.evaluate(() => window.scrollY)
+}
+
+/**
+ * The session is open and past the moment it looks for a remembered frame (that answer comes a round trip after the
+ * settings): either the picking chips or a pending frame is on the screen, and then the page has had time to move if
+ * anything was going to move it.
+ */
+async function sessionSettled(page: import('@playwright/test').Page): Promise<void> {
+  await page.locator('[data-ann-ui="screenshot-ratio-bar"], [data-ann-ui="shot-confirm-bar"]').first().waitFor()
+  await page.waitForTimeout(700)
+}
+
 /** Hovers the plans, presses ↑ until the container is the target, picks the margin, clicks. */
 async function capturePlansWithMargin(page: import('@playwright/test').Page, margin: number): Promise<void> {
   await triggerScreenshot(page)
+  // the frame the last shot left is offered, pending, and owns the screen; the target here is chosen afresh, so it is
+  // let go with a click outside it
+  await page.locator('[data-ann-ui="screenshot-ratio-bar"], [data-ann-ui="shot-confirm-bar"]').first().waitFor()
+  if (await page.locator('[data-ann-ui="shot-confirm-bar"]').count()) await page.mouse.click(4, 4)
   const plans = page.getByTestId('plans')
   const box = (await plans.boundingBox())!
   await page.mouse.move(box.x + box.width / 2, box.y + 30)
@@ -154,16 +174,18 @@ test.describe('repeatable frames (screenshot.md §1.4)', () => {
     ).toBe(true)
   })
 
-  test('after scrolling, reusing the last frame captures the same content', async ({ page }) => {
+  test('after a small scroll the last frame follows its element, and the page stays where the user left it', async ({ page }) => {
     test.setTimeout(180_000)
     await open(page)
     await capturePlansWithMargin(page, 24)
     const first = (await savedShotDims(page.context()))[0]!
 
-    await page.mouse.wheel(0, 600)
-    await page.waitForTimeout(300)
+    // the plans move up the window and are still wholly in it: the frame goes with them, the page is not scrolled for it
+    await page.evaluate(() => window.scrollTo(0, 40))
+    expect(await scrollY(page)).toBe(40)
     await triggerScreenshot(page)
     await expect(page.locator('[data-ann-ui="shot-frame-label"]')).toContainText('上次取景框')
+    expect(await scrollY(page)).toBe(40)
     await page.keyboard.press('Enter')
     await page.locator('[data-ann-ui="screenshot-save"]').click()
     await page.locator('[data-ann-ui="screenshot-session"]').waitFor({ state: 'detached', timeout: 15_000 })
@@ -181,6 +203,83 @@ test.describe('repeatable frames (screenshot.md §1.4)', () => {
     ).toBe(true)
   })
 
+  test('a last frame that is out of sight is not chased: the page stays, and the memory waits for the plans to be back', async ({ page }) => {
+    test.setTimeout(180_000)
+    await open(page)
+    await capturePlansWithMargin(page, 24)
+
+    await page.evaluate(() => window.scrollTo(0, 700))
+    const away = await scrollY(page)
+    expect(away, 'the plans are above the window now').toBeGreaterThan(300)
+    await triggerScreenshot(page)
+    await sessionSettled(page)
+    expect(await scrollY(page), 'opening the session does not scroll the page').toBe(away)
+    await expect(page.locator('[data-ann-ui="shot-frame-label"]')).toHaveCount(0)
+    await expect(page.locator('[data-ann-ui="shot-confirm-bar"]')).toHaveCount(0)
+
+    // the memory is still there: with the plans in the window again the frame is offered
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await triggerScreenshot(page)
+    await expect(page.locator('[data-ann-ui="shot-frame-label"]')).toContainText('上次取景框')
+  })
+
+  // X: the first post is remembered, the user reads on, and the shortcut then threw the page back to the top and
+  // framed the post that sits there — wherever the user had scrolled to
+  test('on a timeline whose cells are recycled, the shortcut never takes the user back to the post it remembers', async ({ page }) => {
+    test.setTimeout(180_000)
+    await page.goto(FEED_URL)
+    await page.waitForLoadState('networkidle')
+    await triggerScreenshot(page)
+    const post = (await page.locator('article[data-post="1"]').boundingBox())!
+    // the post's own padding: the hovered element is the post itself
+    await page.mouse.move(post.x + 6, post.y + 6)
+    await page.waitForTimeout(200)
+    await page.mouse.click(post.x + 6, post.y + 6)
+    await page.locator('[data-ann-ui="screenshot-save"]').click()
+    await page.locator('[data-ann-ui="screenshot-session"]').waitFor({ state: 'detached', timeout: 15_000 })
+
+    for (const depth of [6000, 2500]) {
+      await page.evaluate(top => window.scrollTo(0, top), depth)
+      await expect.poll(() => page.locator('[data-testid="timeline"] > .cell').first().getAttribute('style')).not.toContain('top: 0px')
+      expect(await scrollY(page)).toBe(depth)
+      await triggerScreenshot(page)
+      await sessionSettled(page)
+      expect(await scrollY(page), `with the page at ${depth}`).toBe(depth)
+      await page.keyboard.press('Escape')
+      await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
+    }
+  })
+
+  test("a frame offered from memory and confirmed as it came is still the element's: it follows the element when the layout moves", async ({ page }) => {
+    test.setTimeout(180_000)
+    await open(page)
+    await capturePlansWithMargin(page, 24)
+
+    // offered, confirmed untouched, saved: the memory must keep the element, not turn it into a place on the page
+    await triggerScreenshot(page)
+    await expect(page.locator('[data-ann-ui="shot-frame-label"]')).toContainText('上次取景框')
+    await page.keyboard.press('Enter')
+    await page.locator('[data-ann-ui="screenshot-save"]').click()
+    await page.locator('[data-ann-ui="screenshot-session"]').waitFor({ state: 'detached', timeout: 15_000 })
+
+    // the content moves down: the plans are somewhere else on the page now (padding, so no sibling index shifts)
+    await page.evaluate(() => {
+      document.body.style.paddingTop = '120px'
+    })
+    await triggerScreenshot(page)
+    const label = page.locator('[data-ann-ui="shot-frame-label"]')
+    await expect(label).toContainText('上次取景框')
+    await expect(label).not.toContainText('没找到')
+    const plans = (await page.getByTestId('plans').boundingBox())!
+    const frame = (await page.locator('.ann-shot-rect').boundingBox())!
+    expect(frame.y, 'the frame went with the plans').toBeCloseTo(plans.y - 24, 0)
+    expect(frame.x).toBeCloseTo(plans.x - 24, 0)
+    expect(frame.width).toBeCloseTo(plans.width + 48, 0)
+    expect(frame.height).toBeCloseTo(plans.height + 48, 0)
+  })
+
   test('a missing anchor falls back to the recorded position with a notice', async ({ page }) => {
     test.setTimeout(180_000)
     await open(page)
@@ -188,6 +287,8 @@ test.describe('repeatable frames (screenshot.md §1.4)', () => {
     const first = (await savedShotDims(page.context()))[0]!
 
     await page.getByTestId('remove-anchor').click()
+    // the click scrolled the page to its foot; the recorded place is in the window again once the user is back
+    await page.evaluate(() => window.scrollTo(0, 0))
     await page.waitForTimeout(200)
     await triggerScreenshot(page)
     await expect(page.locator('[data-ann-ui="shot-frame-label"]')).toContainText('没找到上次的元素')
@@ -222,6 +323,9 @@ test.describe('the last frame is kept for this tab and this page only (screensho
 
   /** Whether a new session opens on the remembered frame; the session is cancelled again either way. */
   async function offersLastFrame(page: import('@playwright/test').Page): Promise<boolean> {
+    // back at the top, where these tests drew the frame: a fragment link scrolls the page, and a frame is offered
+    // only where it is in the window
+    await page.evaluate(() => window.scrollTo(0, 0))
     await triggerScreenshot(page)
     await page.locator('[data-ann-ui="screenshot-session"]').waitFor()
     const offered = await page
@@ -287,6 +391,21 @@ test.describe('the last frame is kept for this tab and this page only (screensho
     await expect.poll(() => keptFrames(context)).toHaveLength(1)
     await tab.close()
     await expect.poll(() => keptFrames(context)).toHaveLength(0)
+  })
+
+  test('a frame drawn over the last one does not carry its label along', async ({ page }) => {
+    await open(page)
+    await saveDraggedFrame(page)
+    await triggerScreenshot(page)
+    await expect(page.locator('[data-ann-ui="shot-frame-label"]')).toContainText('上次取景框')
+
+    // a drag elsewhere replaces it: the new frame is a new frame, not "the last one"
+    await page.mouse.move(700, 300)
+    await page.mouse.down()
+    await page.mouse.move(980, 480, { steps: 4 })
+    await page.mouse.up()
+    await expect(page.locator('[data-ann-ui="shot-confirm-bar"]')).toBeVisible()
+    await expect(page.locator('[data-ann-ui="shot-frame-label"]')).toHaveCount(0)
   })
 
   // the area also holds the captures sender.ts lets a content script undo and edit: it must stay closed to them
@@ -397,10 +516,13 @@ test.describe('precise selection (screenshot.md §1.2)', () => {
     expect(Math.abs(climbed!.width - plans.width)).toBeLessThanOrEqual(4)
   })
 
-  test('a pending frame shows no picker inside itself, and only a dwelling pointer outside arms it (screenshot.md §1.2)', async ({ page }) => {
+  test('a pending frame owns the screen: no picker beside it, its own hint, and a click outside starts over (screenshot.md §1.2)', async ({ page }) => {
     await open(page)
     await triggerScreenshot(page)
     const plans = (await page.getByTestId('plans').boundingBox())!
+    const hint = page.locator('.ann-shot-hint')
+    await expect(hint).toContainText('单击选择元素')
+
     // drag a frame over the left part of the plans row
     await page.mouse.move(plans.x + 20, plans.y + 20)
     await page.mouse.down()
@@ -408,26 +530,38 @@ test.describe('precise selection (screenshot.md §1.2)', () => {
     await page.mouse.up()
     await expect(page.locator('[data-ann-ui="shot-confirm-bar"]')).toBeVisible()
 
-    // moving inside the frame — even resting on a card — paints nothing
-    await page.mouse.move(plans.x + plans.width * 0.25, plans.y + 60)
-    await page.waitForTimeout(450)
-    await expect(page.locator('[data-ann-ui="shot-hover-outline"]')).toHaveCount(0)
-    await expect(page.locator('[data-ann-ui="shot-margin-bar"]')).toHaveCount(0)
+    // what the screen says is about the frame: how to settle it, not how to pick; the chips of a drag that is over are gone
+    await expect(hint).toContainText('点选区外重选')
+    await expect(hint).not.toContainText('单击选择元素')
+    await expect(hint).toContainText('匿名')
+    await expect(page.locator('[data-ann-ui="screenshot-ratio-bar"]')).toHaveCount(0)
+    // and the hint is not dimmed by the frame's shade: it is above the frame
+    const stacking = await page.evaluate(() => {
+      const layer = (selector: string): number => Number(getComputedStyle(document.querySelector(selector)!).zIndex) || 0
+      return { hint: layer('.ann-shot-hint'), frame: layer('.ann-shot-rect') }
+    })
+    expect(stacking.hint).toBeGreaterThan(stacking.frame)
 
-    // a pointer in transit to a card outside the frame does not flash the picker either
-    await page.mouse.move(plans.x + plans.width * 0.8, plans.y + 60, { steps: 3 })
-    expect(await page.locator('[data-ann-ui="shot-hover-outline"]').count()).toBe(0)
+    // the pointer resting anywhere — inside the frame, on a card outside it — brings up no picker, however long it stays
+    for (const along of [0.25, 0.8]) {
+      await page.mouse.move(plans.x + plans.width * along, plans.y + 60)
+      await page.waitForTimeout(450)
+      await expect(page.locator('[data-ann-ui="shot-hover-outline"]')).toHaveCount(0)
+      await expect(page.locator('[data-ann-ui="shot-margin-bar"]')).toHaveCount(0)
+    }
 
-    // dwelling on that card outside the frame arms the picker
-    await page.waitForTimeout(450)
-    await expect(page.locator('[data-ann-ui="shot-hover-outline"]')).toBeVisible()
-    await expect(page.locator('[data-ann-ui="shot-margin-bar"]')).toBeVisible()
+    // a click outside the frame starts over: picking again, with nothing captured behind the user's back
+    await page.mouse.click(plans.x + plans.width * 0.8, plans.y + 60)
+    await expect(page.locator('[data-ann-ui="shot-confirm-bar"]')).toHaveCount(0)
+    await expect(page.locator('.ann-shot-rect')).toHaveCount(0)
+    await expect(page.locator('[data-ann-ui="screenshot-ratio-bar"]')).toBeVisible()
+    await expect(hint).toContainText('单击选择元素')
+    await expect(page.locator('[data-ann-ui="shot-hover-outline"]'), 'the picker is back: the pointer rests on a card').toBeVisible()
+    await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toHaveCount(0)
+    expect((await getEntries(page.context())).filter(entry => entry.type === 'screenshot')).toHaveLength(0)
 
-    // back inside the frame the pick disarms; Enter then confirms the frame,
-    // and the preview carries no dashed UI
-    await page.mouse.move(plans.x + plans.width * 0.25, plans.y + 60)
-    await expect(page.locator('[data-ann-ui="shot-hover-outline"]')).toHaveCount(0)
-    await page.keyboard.press('Enter')
+    // picking again works as it always did: a click takes the element under the pointer
+    await page.mouse.click(plans.x + plans.width * 0.8, plans.y + 60)
     await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible({ timeout: 15_000 })
     await expect(page.locator('[data-ann-ui="shot-hover-outline"]')).toHaveCount(0)
     await expect(page.locator('[data-ann-ui="shot-margin-bar"]')).toHaveCount(0)

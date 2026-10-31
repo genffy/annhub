@@ -114,7 +114,8 @@ test.describe('what anonymization covers (screenshot.md §3)', () => {
     menu = await selectUntilMenu(page, '[data-testid="identity-name"]')
     await menu.getByRole('menuitem', { name: '截图' }).click()
     await expect(page.locator('[data-ann-ui="shot-confirm-bar"]')).toBeVisible()
-    await expect(page.locator('[data-ann-ui="screenshot-ratio-bar"]'), 'the settings have arrived').toBeVisible()
+    // whether the settings are in yet is up to the browser's timing and the user's choice stands either way: the unit
+    // tests (session-settings.test.ts) pin both orders
     await page.keyboard.press('a')
     await expect(page.locator('.ann-shot-hint')).toContainText('匿名：关')
     await page.keyboard.press('Enter')

@@ -309,12 +309,12 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
     expect(await names('背景'), 'backgrounds by name, not A/B/1–5').toEqual(['无（透明）', '纯白', '米色', '紫色渐变', '蓝色渐变', '绿色渐变', '暖橙渐变', '深灰渐变'])
     expect(await names('内边距')).toEqual(['小', '中', '大'])
     expect(await names('圆角')).toEqual(['0', '12', '24'])
-    expect(await names('输出画布比例'), 'free, then the ratios the settings turned on, in their order').toEqual(['自由', '9:16', '4:3'])
+    expect(await names('画布比例'), 'free, then the ratios the settings turned on, in their order').toEqual(['自由', '9:16', '4:3'])
 
     await expect(choice('背景', '纯白')).toHaveAttribute('aria-pressed', 'true')
     await expect(choice('内边距', '中')).toHaveAttribute('aria-pressed', 'true')
     await expect(choice('圆角', '12')).toHaveAttribute('aria-pressed', 'true')
-    await expect(choice('输出画布比例', '自由')).toHaveAttribute('aria-pressed', 'true')
+    await expect(choice('画布比例', '自由')).toHaveAttribute('aria-pressed', 'true')
     await expect(group('背景').getByRole('button', { pressed: true })).toHaveCount(1)
 
     // the swatches show what they will paint
@@ -351,7 +351,7 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
 
     await choice('背景', '深灰渐变').click()
     await choice('圆角', '24').click()
-    await choice('输出画布比例', '16:9').click()
+    await choice('画布比例', '16:9').click()
     await panel.getByRole('switch', { name: '阴影', exact: true }).click()
     await expect(enabled).toBeChecked()
     expect((await canvasInfo(page)).width).toBeGreaterThan(plain.width)
@@ -362,7 +362,7 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
     await expect(choice('背景', '纯白')).toHaveAttribute('aria-pressed', 'true')
     await expect(choice('内边距', '中')).toHaveAttribute('aria-pressed', 'true')
     await expect(choice('圆角', '12')).toHaveAttribute('aria-pressed', 'true')
-    await expect(choice('输出画布比例', '自由')).toHaveAttribute('aria-pressed', 'true')
+    await expect(choice('画布比例', '自由')).toHaveAttribute('aria-pressed', 'true')
     await expect(panel.getByRole('switch', { name: '阴影', exact: true })).toBeChecked()
     expect((await canvasInfo(page)).width).toBe(plain.width)
     await expect(group('背景').getByRole('button', { pressed: true })).toHaveCount(1)
@@ -476,7 +476,7 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
       ['4:5', 4 / 5],
       ['1:1', 1],
     ] as const) {
-      await choice('输出画布比例', label).click()
+      await choice('画布比例', label).click()
       const info = await canvasInfo(page)
       expect(info.width / info.height, `ratio ${label}`).toBeCloseTo(ratio, 1)
       expect(info.width, 'never smaller than content plus padding').toBeGreaterThanOrEqual(plain.width + 128)
@@ -491,7 +491,7 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
       await choice('圆角', '12').click()
       await shadow.click()
     }
-    await choice('输出画布比例', '自由').click()
+    await choice('画布比例', '自由').click()
     expect((await canvasInfo(page)).width, 'free again').toBe(plain.width + 128)
   })
 
@@ -513,7 +513,7 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
     expect(grown.y, 'and around it, down').toBeLessThanOrEqual(selection.y)
     expect(grown.y + grown.height).toBeGreaterThanOrEqual(selection.y + selection.height)
     for (const label of ['自由', '1:1']) {
-      await choice('输出画布比例', label).click()
+      await choice('画布比例', label).click()
       const [preview, toolbar] = await Promise.all([boxOf(page, PREVIEW), boxOf(page, TOOLBAR)])
       expect(touches(preview, toolbar), `${label}: the toolbar sits on the picture`).toBe(false)
       expect(toolbar.y + toolbar.height, `${label}: the toolbar stays in the window`).toBeLessThanOrEqual(view.height)
@@ -521,7 +521,7 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
     }
 
     // 9:16 is taller than the window: the preview is the picture scaled down to fit…
-    await choice('输出画布比例', '9:16').click()
+    await choice('画布比例', '9:16').click()
     const tall = await canvasInfo(page)
     expect(tall.height, 'the picture itself is taller than the window').toBeGreaterThan(view.height)
     const shrunk = await boxOf(page, PREVIEW)
@@ -715,7 +715,7 @@ test.describe('annotating the capture (screenshot.md §3, §4.4)', () => {
     const { choice } = await openPanel(page)
     await choice('内边距', '大').click()
     await check('grown by the padding')
-    await choice('输出画布比例', '16:9').click()
+    await choice('画布比例', '16:9').click()
     await check('at 16:9')
   })
 
@@ -734,7 +734,7 @@ test.describe('annotating the capture (screenshot.md §3, §4.4)', () => {
 
     const { choice } = await openPanel(page)
     await choice('内边距', '大').click()
-    await choice('输出画布比例', '1:1').click()
+    await choice('画布比例', '1:1').click()
     for (const step of ['grown', 'square']) {
       const panel = await rectOf('[data-ann-ui="screenshot-beautify-panel"]')
       ;[preview, toolbar] = await Promise.all([rectOf(PREVIEW), rectOf(TOOLBAR)])
@@ -747,7 +747,7 @@ test.describe('annotating the capture (screenshot.md §3, §4.4)', () => {
       expect(touches(panel, toolbar), `${step}: the panel is off the toolbar`).toBe(false)
       expect(touches(panel, preview), `${step}: and off the picture`).toBe(false)
       expect(touches(preview, toolbar), `${step}: the toolbar is off the picture`).toBe(false)
-      await choice('输出画布比例', '自由').click()
+      await choice('画布比例', '自由').click()
     }
   })
 

@@ -62,7 +62,7 @@ describe('the beautify panel (screenshot.md §4.4)', () => {
   it('offers free and the ratios it was given, in their order, each with an outline of its shape', () => {
     const { panel } = open(DEFAULT_BEAUTIFY, ['16:9', '9:16', 'nonsense', '1:1'])
     const chips = group(panel, uiText('shot.beautify.ratio'))
-    expect(names(chips)).toEqual([uiText('shot.ratio.free'), '16:9', '9:16', '1:1'])
+    expect(names(chips)).toEqual([uiText('shot.beautify.ratio.fit'), '16:9', '9:16', '1:1'])
     const glyphs = [...chips.querySelectorAll<HTMLElement>('.ann-shot-bz-rg')].map(glyph => [glyph.style.width, glyph.style.height])
     expect(glyphs).toEqual([
       ['13px', '7px'],
@@ -83,7 +83,7 @@ describe('the beautify panel (screenshot.md §4.4)', () => {
 
     panel.sync({ ...DEFAULT_BEAUTIFY })
     expect(pressed(group(panel, uiText('shot.beautify.background')))).toEqual([uiText('shot.beautify.background.solid-white')])
-    expect(pressed(group(panel, uiText('shot.beautify.ratio')))).toEqual([uiText('shot.ratio.free')])
+    expect(pressed(group(panel, uiText('shot.beautify.ratio')))).toEqual([uiText('shot.beautify.ratio.fit')])
     expect(switchNamed(panel, uiText('shot.beautify.enabled')).getAttribute('aria-checked')).toBe('false')
     expect(switchNamed(panel, uiText('shot.beautify.shadow')).getAttribute('aria-checked')).toBe('true')
   })
@@ -98,7 +98,7 @@ describe('the beautify panel (screenshot.md §4.4)', () => {
     expect(onChange).toHaveBeenLastCalledWith({ radius: 24 })
     buttonLabelled(group(panel, uiText('shot.beautify.ratio')), '16:9').click()
     expect(onChange).toHaveBeenLastCalledWith({ ratio: '16:9' })
-    buttonLabelled(group(panel, uiText('shot.beautify.ratio')), uiText('shot.ratio.free')).click()
+    buttonLabelled(group(panel, uiText('shot.beautify.ratio')), uiText('shot.beautify.ratio.fit')).click()
     expect(onChange).toHaveBeenLastCalledWith({ ratio: undefined })
     expect(onChange).toHaveBeenCalledTimes(5)
   })

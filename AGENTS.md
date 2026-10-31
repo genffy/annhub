@@ -1,7 +1,7 @@
 # AnnHub 工程约定
 
 > 本文件只放跨目录通用规则。当前代码的局部维护提示见下表的 `AGENTS.md`。
-> 更新：2026-10-30。
+> 更新：2026-10-31。
 
 ## 项目与真源
 
@@ -59,6 +59,7 @@
 | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `.node-version`（Node 的唯一真源）        | 各 `package.json` 的 `engines.node` 和 `@types/node` 主版本；根 `README.md` 的运行环境；workflow 只用 `node-version-file`，不写死版本                                                                                                                                  |
 | `website/package.json` 的 `next`、`react` | `eslint-config-next` 同主版本；`website/README.md` 的技术栈；`next.config.js` 的静态导出；`website/wrangler.json`；`cd website && npm run build`                                                                                                                       |
+| `website/next.config.js` 的实验开关       | `experimental.globalNotFound` 在 Next 主版本变化后先确认它还在、含义没变，再更新配置旁的复核注记；`check:consistency` 核对注记里的主版本                                                                                                                               |
 | `website/wrangler.json`、静态部署配置     | `next.config.js` 的 `output: export`；`assets.directory` 与 CI 上传、下载目录；禁止 Worker 脚本与 `run_worker_first`；HTML 别名和 404；`lib/site.ts` 的域名；边缘规则与国家清单；CI 只发布同次运行且通过检查的 main 产物；[cloudflare/README.md](cloudflare/README.md) |
 | 官网生成类型与 `typecheck`                | `website/.gitignore` 忽略 `next-env.d.ts` 且 Git 不跟踪；`website/package.json` 的 `typecheck` 先 `next typegen` 再 `tsc`；CI 使用同一命令；`website/README.md`                                                                                                        |
 | `website/` 读取的 `NEXT_PUBLIC_*` 变量    | `cloudflare/production.json` 用同名字符串声明，只有生产构建读取；部署时的统计规则与是否有令牌一致；[website/README.md](website/README.md) 的「部署」                                                                                                                   |

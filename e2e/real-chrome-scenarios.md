@@ -1,7 +1,7 @@
 # AnnHub 真实 Chrome 测试场景
 
 > 适用于修复轮之后的构建（`fix/walkthrough-issues`）。场景只规定前置、输入、测量与通过标准，不规定用什么工具执行。
-> 更新：2026-10-31（新增 FX-14）。
+> 更新：2026-10-31（FX-2、FX-10 按待确认选区独占画面与不滚动的上次取景框改；新增 FX-13、FX-14）。
 
 [真机走查报告](../docs/real-machine-walkthrough-2026-10-11.md)第 5 节与第 8 节留下的项，在这里写成照着就能执行的场景。`npm run verify` 与 `e2e/*.spec.ts` 已经覆盖的行为不再重复；这里只剩自动化够不着的三类：真实站点（X、Medium、文档站）、只有操作系统才能产生的输入（全局快捷键），以及要人判断的通读。每个场景写明需要哪些能力（第 2 节），执行者按手里的工具先做能做的。
 
@@ -56,18 +56,18 @@
 
 ## 2. 能力与顺序
 
-| 能力                                         | 用到的场景                                       |
-| -------------------------------------------- | ------------------------------------------------ |
-| A 可信鼠标：移动、按下、拖拽、悬停停顿       | FX-1、FX-2、FX-4–FX-8、FX-10、FX-12、FX-14、MD-1 |
-| B 可信键盘：页面里的按键                     | FX-3–FX-5、FX-10、FX-12、FX-14、MD-1             |
-| C 全局快捷键：系统级按键，或 1.2 的后台消息  | FX-1–FX-3、FX-5、FX-10、FX-14、MD-1              |
-| C′ 系统级按键（后台消息不行）                | OP-1                                             |
-| D 在页面主环境执行脚本                       | 除 RD、OP-1 外全部                               |
-| E 打开并操作 `chrome-extension://` 页面      | FX-1、FX-2、FX-7–FX-9、FX-12、OP-2、OP-3         |
-| F 改系统设置：外观、时区；读文件系统里的转储 | FX-8、OP-2、OP-3                                 |
-| H 已登录 X 的 profile                        | FX-2、FX-6 的 X 部分                             |
-| I 人的判断：通读、目视、过人机验证           | RD 全部、MD-1、FX-2 第 8 步                      |
-| J 触摸屏或手写笔                             | FX-14 的第 5 步                                  |
+| 能力                                         | 用到的场景                                      |
+| -------------------------------------------- | ----------------------------------------------- |
+| A 可信鼠标：移动、按下、拖拽、悬停停顿       | FX-1、FX-2、FX-4–FX-8、FX-10、FX-12–FX-14、MD-1 |
+| B 可信键盘：页面里的按键                     | FX-3–FX-5、FX-10、FX-12、FX-13、FX-14、MD-1     |
+| C 全局快捷键：系统级按键，或 1.2 的后台消息  | FX-1–FX-3、FX-5、FX-10、FX-13、FX-14、MD-1      |
+| C′ 系统级按键（后台消息不行）                | OP-1                                            |
+| D 在页面主环境执行脚本                       | 除 RD、OP-1 外全部                              |
+| E 打开并操作 `chrome-extension://` 页面      | FX-1、FX-2、FX-7–FX-9、FX-12、OP-2、OP-3        |
+| F 改系统设置：外观、时区；读文件系统里的转储 | FX-8、OP-2、OP-3                                |
+| H 已登录 X 的 profile                        | FX-2、FX-6 的 X 部分、FX-13                     |
+| I 人的判断：通读、目视、过人机验证           | RD 全部、MD-1、FX-2 第 8 步                     |
+| J 触摸屏或手写笔                             | FX-14 的第 5 步                                 |
 
 建议顺序：FX-1、FX-2（截图主链路，数据风险最大）→ FX-3–FX-14 → MD-1 → OP → RD。
 
@@ -94,7 +94,7 @@
 - 前置：“截图默认匿名”开，“遮住哪些”两项都勾。
 - 步骤：
   1. 打开帖子，执行附录 A。
-  2. 截图快捷键 → 拖一个框，包住帖子头部（头像、显示名、@账号）和第一行正文。确认条出现后读页面顶部的提示条。
+  2. 截图快捷键，先读一次页面顶部的提示条 → 拖一个框，包住帖子头部（头像、显示名、@账号）和第一行正文。确认条出现后再读一次提示条。
   3. 按 `Enter`。预览出现后不要滚动页面，执行 `__annTest.identityGray('[data-testid="User-Name"]')` 与 `__annTest.identityGray('[data-testid^="UserAvatar"]')`。按 `Esc` 退出。
   4. 设置页取消“名字与账号”，回到帖子页（不用刷新），重复第 2–3 步。
   5. 设置页勾回“名字与账号”、取消“头像”，重复第 2–3 步。
@@ -102,7 +102,7 @@
   7. 取消“头像”，重复第 6 步。
   8. “截图默认匿名”关、“头像”不勾：指针停在帖子正文上等胶囊 → “截图”，目视预览。再把“截图默认匿名”打开，同样操作，目视。
 - 通过：
-  - 第 2 步：提示条是“拖拽选择区域，单击选择元素 · Esc 取消 · A 匿名：开”（英文“Drag to select an area, click to pick an element · Esc to cancel · A Anonymize: on”），`A` 与后面的字之间有空格。
+  - 第 2 步：拖之前提示条是“拖拽选择区域，单击选择元素 · Esc 取消 · A 匿名：开”（英文“Drag to select an area, click to pick an element · Esc to cancel · A Anonymize: on”）；确认条出现后是“调整选区 · Enter 确认 · 点选区外重选 · Esc 取消 · A 匿名：开”（英文“Adjust the frame · Enter to confirm · Click outside to start over · Esc to cancel · A Anonymize: on”）。两条里 `A` 与后面的字之间都有空格。
   - 第 3 步：每个名字块 `grayShare` ≥ 0.9，每个头像 ≥ 0.8。
   - 第 4 步：名字块 < 0.1，头像仍 ≥ 0.8。第 5 步反过来。
   - 第 6 步：马赛克条数等于框里头像与名字块的个数（一条帖子的头部是 2）。第 7 步只数名字块。
@@ -201,37 +201,26 @@
 - 步骤：
   1. 执行附录 A。截图快捷键 → 拖框 → `Enter` → 确认入库。
   2. 执行 `Object.keys(sessionStorage)`。
-  3. 再按截图快捷键：确认条应显示“Last frame · W × H”；按 `Enter` 直接进入编辑。按 `Esc`。
+  3. 页面不动，再按截图快捷键：确认条应显示“Last frame · W × H”，提示条是“Adjust the frame …”，画面上没有比例条；按 `Enter` 直接进入编辑。按 `Esc`。
   4. 区块模式 → `S` → 确认入库。再按截图快捷键：“Last frame”的尺寸等于刚才区块的尺寸。按 `Esc`。
   5. 刷新页面，按截图快捷键，记下有没有“Last frame”。按 `Esc`。
   6. 新开一个标签页打开同一地址，按截图快捷键，记下有没有“Last frame”。再在原标签页导航到同站的另一篇文章，然后返回，按截图快捷键，记下有没有。
-- 通过：第 2 步没有 `annhub` 开头的键；第 3、4 步符合；第 5 步有，第 6 步的两处都没有。契约见 [screenshot.md §1.4](../docs/product/screenshot.md#14-可重复的取景框)：只存在这个标签页的这个网页里，导航到别的页面、关闭标签页或重启浏览器就清除。
-- 当前预期：通过。第 6 步原先与契约不符：记忆不分标签页，离开页面也不清除。复核时改为由扩展后台按标签页保存，标签页导航到别的页面或关闭时清除，在自动化浏览器里通过。
+  7. 回到原标签页的原文章，把页面向下滚两屏（取景框整个落在窗口外），执行 `window.scrollY` 记下，按截图快捷键，等一秒，再执行 `window.scrollY`。按 `Esc`，滚回取景框所在的位置，再按截图快捷键。
+- 通过：第 2 步没有 `annhub` 开头的键；第 3、4 步符合；第 5 步有，第 6 步的两处都没有；第 7 步两次 `window.scrollY` 相等、没有“Last frame”、提示条与比例条是取景阶段的，滚回去之后又有。契约见 [screenshot.md §1.4](../docs/product/screenshot.md#14-可重复的取景框)：只存在这个标签页的这个网页里，导航到别的页面、关闭标签页或重启浏览器就清除。
+- 当前预期：通过。第 6 步原先与契约不符：记忆不分标签页，离开页面也不清除。复核时改为由扩展后台按标签页保存，标签页导航到别的页面或关闭时清除，在自动化浏览器里通过。第 7 步原先与契约不符：沿用时页面被滚回记录的位置（D-67），改为不滚动、取景框不在窗口里就不出现，由 `e2e/screenshot-frame.spec.ts` 守着。
 
-### FX-11 Markdown 的代码与换行（P2-3）
+### FX-13 X 时间线上的截图快捷键（D-66、D-67）
 
-- 能力：D。
-- 页面：MDN Using Fetch；Overreacted 的 useEffect 指南；Docusaurus 代码块页；Rust 手册 ch04-01（地址见 FX-3）；`https://en.wikipedia.org/wiki/Zettelkasten`；任一 Next.js 文档页（例如 `https://nextjs.org/docs/app/getting-started/installation`）。
-- 步骤：执行附录 B、附录 A，然后 `const r = __annTest.articleCoverage()`、`__annTest.allCodeLines()`，并在 `r.markdown` 里搜“Edit this page”“Was this helpful”“[edit]”。
-- 通过：`r.pass` 为 `true`；`r.fencedBlocks === r.visiblePre`；`allCodeLines().withMissing === 0`；三个短语都搜不到。
-- 当前预期：MDN、Overreacted、Docusaurus、Rust 四站通过，短语都没有残留。Rust 的 `hiddenTotal` 大于 0：mdBook 折叠起来的样板行（如 `fn main() {`）进了 Markdown。它们是可运行代码的一部分，记为观察，不算缺陷。
-
-### FX-12 P3 回归
-
-| 编号  | 检查                                                                       | 通过标准                                               | 当前预期                                                                |
-| ----- | -------------------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------- |
-| P3-1  | 截图快捷键后读提示条                                                       | 同 FX-2 第 2 步                                        | 通过（修复轮的分隔符之后 `A` 与文字仍连写成“AAnonymize”，本轮补了空格） |
-| P3-2  | 资料库只有 1 条时看总数、类型标签与删除确认                                | “1 entry”“1 highlight”；类型标签“Clip”“Screenshot”     | 通过                                                                    |
-| P3-3  | 选区菜单 `Tab` 到“Screenshot”，用光标浏览的方向键把焦点移到“Clip”，`Enter` | 执行的是“Clip”                                         | 未量                                                                    |
-| P3-4  | 见 FX-10 第 4 步                                                           |                                                        | 通过                                                                    |
-| P3-5  | 剪藏后执行 `__annTest.watchLive()` 记下的内容；指针停在提示上 5 秒         | 读到“Clipped”；悬停期间提示不消失                      | 通过                                                                    |
-| P3-6  | 截图视图里 `Tab` 到一张卡片                                                | 名称里有标题和来源                                     | 通过                                                                    |
-| P3-7  | 设置页的水印位置选项                                                       | 每个选项带文字，如“Top right ↗”                        | 通过                                                                    |
-| P3-8  | Wikipedia Zettelkasten 上进入区块模式                                      | 摘要从正文起读，不以“Toggle the table of contents”开头 | 通过                                                                    |
-| P3-9  | jvns 整篇剪藏的阅读视图                                                    | 链接形式的小标题按标题字号显示                         | 未量                                                                    |
-| P3-10 | 资料库 `nav` 的 `aria-label`                                               | “Library”                                              | 通过                                                                    |
-| P3-11 | X 上剪藏一条帖子，执行 `__annTest.coverOf('[data-ann-ui="clip-toast"]')`   | 提示在底部居中，`covered` 为空                         | 非 X 页面通过；X 未量                                                   |
-| P3-12 | 开着资料库，在另一个标签页剪藏                                             | 不刷新，1 秒内列表多出一张卡片                         | 通过                                                                    |
+- 能力：A、B、C、D、H。
+- 页面：登录后 X 的主页时间线（或任一账号的主页）。X 的时间线只在 DOM 里留窗口附近的几条帖子，滚走的单元格被回收再利用：同一个结构路径在不同的滚动高度是另一条帖子。
+- 步骤：
+  1. 执行附录 A。滚到第一条帖子，截图快捷键 → 指针停在一条帖子上等虚线描边 → 单击 → 确认入库。
+  2. 把页面分别滚到三屏、十屏、两屏的高度。每个高度：执行 `window.scrollY` 记下，按截图快捷键，等一秒，读画面上有几样取景相关的东西（提示条、比例条、确认条、虚线描边、边距条），再执行 `window.scrollY`，按 `Esc`。
+  3. 在其中一个高度，拖一个框并松手。读提示条；指针移到框外的另一条帖子上停 2 秒，看有没有虚线描边或边距条；按 `ArrowRight` 一次，看框动不动；点框外一下，读提示条，看有没有保存或复制发生。
+- 通过：
+  - 第 2 步：前后两次 `window.scrollY` 相等，每个高度都是如此；没有“Last frame”，或者它出现在原地且就在窗口里（此时那条帖子确实是上次框住的）。画面上只有取景阶段的提示条和比例条。
+  - 第 3 步：松手后画面上只有框、确认条和“调整选区 · Enter 确认 · 点选区外重选 · Esc 取消 · A 匿名：开”（英文“Adjust the frame · Enter to confirm · Click outside to start over · Esc to cancel · A Anonymize: on”）；框外停留不出现虚线描边或边距条；`ArrowRight` 微调框，不爬层级；点框外后提示条变回“拖拽选择区域，单击选择元素 · Esc 取消 · A 匿名：开”（英文“Drag to select an area, click to pick an element · Esc to cancel · A Anonymize: on”），比例条回来，指针下的帖子有描边，没有保存或复制。
+- 当前预期：在回收单元格的夹具 `e2e/virtualfeed.html` 与 `pricing.html` 上由 `e2e/screenshot-frame.spec.ts` 守着，通过；真实 X 未量（自动化浏览器没有登录态）。修复前是：任何高度按快捷键页面都回到顶部，取景框落在第一条帖子上；框待确认时，虚线描边、边距条、比例条与取景阶段的提示一起留在画面上。
 
 ### FX-14 页面批注的画笔与荧光笔（D-68、D-69、D-81）
 
@@ -272,6 +261,31 @@
   - 第 6 步：第一次按键撤销那一笔；选“指针”后按键不撤销（键属于页面）。
   - 第 7 步：编辑器里的笔迹形状与页面上一致，没有连线。
 - 当前预期：自动化 Chromium 上由 `e2e/page-annotation.spec.ts` 守着，通过；真实触控板的手感、触摸与手写笔、真实站点的页头未量。修复前是：每一笔都带起点到终点的连线（第 1、2 步 `inkOnLine` 为 1）；吸顶页头上的笔画落在按下位置下方一个滚动量处；触摸拖动立刻 `pointercancel`、什么也画不出；`Cmd+Z` 不起作用。
+
+### FX-11 Markdown 的代码与换行（P2-3）
+
+- 能力：D。
+- 页面：MDN Using Fetch；Overreacted 的 useEffect 指南；Docusaurus 代码块页；Rust 手册 ch04-01（地址见 FX-3）；`https://en.wikipedia.org/wiki/Zettelkasten`；任一 Next.js 文档页（例如 `https://nextjs.org/docs/app/getting-started/installation`）。
+- 步骤：执行附录 B、附录 A，然后 `const r = __annTest.articleCoverage()`、`__annTest.allCodeLines()`，并在 `r.markdown` 里搜“Edit this page”“Was this helpful”“[edit]”。
+- 通过：`r.pass` 为 `true`；`r.fencedBlocks === r.visiblePre`；`allCodeLines().withMissing === 0`；三个短语都搜不到。
+- 当前预期：MDN、Overreacted、Docusaurus、Rust 四站通过，短语都没有残留。Rust 的 `hiddenTotal` 大于 0：mdBook 折叠起来的样板行（如 `fn main() {`）进了 Markdown。它们是可运行代码的一部分，记为观察，不算缺陷。
+
+### FX-12 P3 回归
+
+| 编号  | 检查                                                                       | 通过标准                                               | 当前预期                                                                |
+| ----- | -------------------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------- |
+| P3-1  | 截图快捷键后读提示条                                                       | 同 FX-2 第 2 步                                        | 通过（修复轮的分隔符之后 `A` 与文字仍连写成“AAnonymize”，本轮补了空格） |
+| P3-2  | 资料库只有 1 条时看总数、类型标签与删除确认                                | “1 entry”“1 highlight”；类型标签“Clip”“Screenshot”     | 通过                                                                    |
+| P3-3  | 选区菜单 `Tab` 到“Screenshot”，用光标浏览的方向键把焦点移到“Clip”，`Enter` | 执行的是“Clip”                                         | 未量                                                                    |
+| P3-4  | 见 FX-10 第 4 步                                                           |                                                        | 通过                                                                    |
+| P3-5  | 剪藏后执行 `__annTest.watchLive()` 记下的内容；指针停在提示上 5 秒         | 读到“Clipped”；悬停期间提示不消失                      | 通过                                                                    |
+| P3-6  | 截图视图里 `Tab` 到一张卡片                                                | 名称里有标题和来源                                     | 通过                                                                    |
+| P3-7  | 设置页的水印位置选项                                                       | 每个选项带文字，如“Top right ↗”                        | 通过                                                                    |
+| P3-8  | Wikipedia Zettelkasten 上进入区块模式                                      | 摘要从正文起读，不以“Toggle the table of contents”开头 | 通过                                                                    |
+| P3-9  | jvns 整篇剪藏的阅读视图                                                    | 链接形式的小标题按标题字号显示                         | 未量                                                                    |
+| P3-10 | 资料库 `nav` 的 `aria-label`                                               | “Library”                                              | 通过                                                                    |
+| P3-11 | X 上剪藏一条帖子，执行 `__annTest.coverOf('[data-ann-ui="clip-toast"]')`   | 提示在底部居中，`covered` 为空                         | 非 X 页面通过；X 未量                                                   |
+| P3-12 | 开着资料库，在另一个标签页剪藏                                             | 不刷新，1 秒内列表多出一张卡片                         | 通过                                                                    |
 
 ## 4. Medium 第三篇（MD-1）
 

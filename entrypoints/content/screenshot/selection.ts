@@ -137,6 +137,11 @@ export function expandByMargin(rect: ViewportRect, margin: number): ViewportRect
   return { x: rect.x - margin, y: rect.y - margin, width: rect.width + margin * 2, height: rect.height + margin * 2 }
 }
 
+/** Two frames are the same when no edge differs by half a pixel: a one-pixel nudge makes another frame. */
+export function sameFrame(a: ViewportRect, b: ViewportRect): boolean {
+  return Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5 && Math.abs(a.width - b.width) < 0.5 && Math.abs(a.height - b.height) < 0.5
+}
+
 /** A frame must fit the window; a bigger element itself goes the element path. */
 export function fitsInViewport(box: ViewportRect, viewport: Viewport): boolean {
   return box.x >= 0 && box.y >= 0 && box.x + box.width <= viewport.width && box.y + box.height <= viewport.height

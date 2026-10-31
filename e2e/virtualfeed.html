@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Virtual timeline (cells recycled as the page scrolls)</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: -apple-system, system-ui, sans-serif;
+        background: #fff;
+      }
+      #timeline {
+        position: relative;
+        width: 600px;
+        margin: 0 auto;
+      }
+      .cell {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 0;
+      }
+      article {
+        box-sizing: border-box;
+        height: 100%;
+        padding: 12px 16px;
+        border: 1px solid #cfd9de;
+        border-radius: 12px;
+      }
+      article p {
+        margin: 0 0 8px;
+        line-height: 1.4;
+      }
+      .handle {
+        color: #536471;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div id="timeline" data-testid="timeline"></div>
+    </main>
+    <script>
+      // A long timeline kept to the few cells near the window, like a social feed's: a cell that scrolls far away is
+      // thrown out of the DOM, and the cell that is the n-th child of the list is another post every time the window
+      // slides. Nothing here lets a page position or a structural path find a post again.
+      const COUNT = 400
+      const heights = Array.from({ length: COUNT }, (_, i) => 150 + ((i * 7) % 5) * 45)
+      const tops = []
+      let total = 0
+      for (const height of heights) {
+        tops.push(total)
+        total += height
+      }
+      const timeline = document.getElementById('timeline')
+      timeline.style.height = `${total}px`
+      const cells = new Map()
+      let shown = { first: -1, last: -1 }
+
+      function make(index) {
+        const cell = document.createElement('div')
+        cell.className = 'cell'
+        cell.style.top = `${tops[index]}px`
+        cell.style.height = `${heights[index]}px`
+        cell.innerHTML =
+          `<article data-testid="tweet" data-post="${index}">` +
+          `<p class="handle">@writer${index} · ${index + 1}h</p>` +
+          `<p>Post number ${index}: a few lines of text that stand in for what somebody wrote.</p>` +
+          `</article>`
+        cells.set(index, cell)
+        return cell
+      }
+
+      function render() {
+        const from = window.scrollY - 1400
+        const to = window.scrollY + window.innerHeight + 1400
+        let first = 0
+        while (first < COUNT - 1 && tops[first] + heights[first] < from) first++
+        let last = first
+        while (last + 1 < COUNT && tops[last + 1] <= to) last++
+        if (first === shown.first && last === shown.last) return
+        const next = []
+        for (let i = first; i <= last; i++) next.push(cells.get(i) ?? make(i))
+        for (const index of [...cells.keys()]) if (index < first || index > last) cells.delete(index)
+        timeline.replaceChildren(...next)
+        shown = { first, last }
+      }
+
+      window.addEventListener('scroll', render, { passive: true })
+      render()
+    </script>
+  </body>
+</html>
