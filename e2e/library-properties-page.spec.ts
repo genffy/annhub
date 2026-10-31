@@ -104,27 +104,49 @@ test.describe('the properties page (extension.md §2.4)', () => {
     await library.close()
   })
 
+  test('every row says its type in words, not only an icon (visual.md §3)', async ({ page, extensionId }) => {
+    await seed(page, extensionId)
+    const library = await openProperties(page, extensionId)
+    await expect(library.getByRole('columnheader', { name: '类型' })).toBeVisible()
+    const words = await library.locator('[data-testid^="type-"]').allTextContents()
+    expect(words.length, 'a type word on every row').toBeGreaterThanOrEqual(6)
+    for (const word of ['文本', '列表', '数字', '复选框', '日期', '日期时间']) expect(words, `the type word "${word}" is on the page`).toContain(word)
+    await library.close()
+  })
+
   test('delete is always on the row; where it cannot work it is dimmed and the reason is written next to it', async ({ page, extensionId }) => {
     await seed(page, extensionId)
     const library = await openProperties(page, extensionId)
 
     for (const scheme of ['light', 'dark'] as const) {
       await library.emulateMedia({ colorScheme: scheme })
-      for (const [name, reason] of [
-        ['title', '内置属性不可删除'],
-        ['tags', '内置属性不可删除'],
-        ['author', '内置属性不可删除'],
-        ['project', '使用中，不可删除'],
-        ['seen', '使用中，不可删除'],
+      for (const [name, reason, short] of [
+        ['title', '内置属性不可删除', '内置'],
+        ['tags', '内置属性不可删除', '内置'],
+        ['author', '内置属性不可删除', '内置'],
+        ['project', '使用中，不可删除', '使用中'],
+        ['seen', '使用中，不可删除', '使用中'],
       ] as const) {
         const row = library.locator(`tr[data-prop="${name}"]`)
         const button = row.getByTestId(`delete-${name}`)
         const written = row.getByTestId(`delete-reason-${name}`)
         await expect(button, `${name}: the delete button is there`).toBeVisible()
         await expect(button, `${name}: it cannot be used`).toBeDisabled()
-        await expect(written, `${name}: the reason is on the page, not only in a tooltip`).toHaveText(reason)
+        // the visible word is short (extension.md §2.4); the sentence stays for the reader and the tooltip
+        await expect(written, `${name}: the reason is on the page, not only in a tooltip`).toHaveText(short)
         await expect(button, `${name}: a reader of the button hears the reason`).toHaveAccessibleDescription(reason)
         await expect(button, `${name}: the tooltip says it too`).toHaveAttribute('title', reason)
+        const colours = await button.evaluate(element => ({ borderTop: getComputedStyle(element).borderTopColor, colour: getComputedStyle(element).color }))
+        const danger = await library.evaluate(() => {
+          const probe = document.createElement('span')
+          probe.style.color = 'var(--ann-danger)'
+          document.body.append(probe)
+          const colour = getComputedStyle(probe).color
+          probe.remove()
+          return colour
+        })
+        expect(colours.borderTop, `${name}: a delete that cannot happen is not red (${scheme})`).not.toBe(danger)
+        expect(colours.colour, `${name}: quiet text, not a red shout (${scheme})`).not.toBe(danger)
 
         const look = await button.evaluate(element => ({ opacity: Number(getComputedStyle(element).opacity), cursor: getComputedStyle(element).cursor }))
         expect(look.opacity, `${name}: the dimmed button looks unavailable`).toBeLessThan(0.7)

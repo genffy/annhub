@@ -899,9 +899,17 @@ select.filter {
 }
 
 /* a control that cannot be used looks it: faded, no pointer; the reason, where there is one, is written beside it */
-.danger:disabled,
 .ghost:disabled {
   opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* a delete that cannot happen is quiet: a whole column of red buttons that all say "no" shouts over the
+   table; the word beside it carries the reason, the title the whole sentence (extension.md §2.4) */
+.danger:disabled {
+  border-color: var(--ann-border);
+  color: var(--ann-muted);
+  opacity: 0.6;
   cursor: not-allowed;
 }
 
@@ -1481,10 +1489,10 @@ select.filter {
   align-self: flex-start;
 }
 
+/* left-aligned with the list pages' content (D-62): one start for every page's title, each keeping its own width */
 .props-page {
-  padding: 16px 20px 40px;
+  padding: 16px 16px 40px;
   max-width: 860px;
-  margin: 0 auto;
   width: 100%;
 }
 
@@ -1511,6 +1519,17 @@ select.filter {
 }
 
 /* the reason a property cannot be deleted, under the dimmed button */
+/* for a reader's ears only: laid out but not painted */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .prop-reason {
   display: block;
   margin-top: 3px;
@@ -1595,8 +1614,13 @@ select.filter {
   flex: 1 1 0;
   min-height: 0;
   width: 100%;
-  padding: 24px max(20px, calc((100% - 600px) / 2)) 60px;
+  padding: 24px 16px 60px;
   overflow-y: auto;
+}
+
+/* the settings cards keep their readable width, starting where every page starts (D-62) */
+.settings-view > * {
+  max-width: 720px;
 }
 
 .settings-view h1 {

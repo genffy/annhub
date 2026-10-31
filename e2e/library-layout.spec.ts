@@ -719,6 +719,45 @@ test.describe('the card bottoms, tall captures and the reading note (extension.m
   })
 })
 
+test.describe('one shell, one content start, switches that say what they do (visual.md §4, D-62)', () => {
+  test('every page title starts at the same left edge, whatever the page below it', async ({ page, extensionId }) => {
+    await seed(page, extensionId)
+    const library = await page.context().newPage()
+    for (const [width, height] of [
+      [1280, 800],
+      [720, 800],
+    ] as const) {
+      await library.setViewportSize({ width, height })
+      const lefts: number[] = []
+      for (const view of ['all', 'clips', 'highlights', 'screenshots', 'properties', 'settings']) {
+        await library.goto(`chrome-extension://${extensionId}/library.html#/${view}`)
+        await library.reload()
+        const title = library.locator('h1.page-title, .props-page > .page-title, .settings-view > h1').first()
+        await expect(title).toBeVisible()
+        lefts.push(Math.round((await title.boundingBox())!.x))
+      }
+      expect(Math.max(...lefts) - Math.min(...lefts), `one start for every title at ${width}px: ${lefts}`).toBeLessThanOrEqual(1)
+    }
+    await library.close()
+  })
+
+  test('the settings switches are named for what they do, not for their state', async ({ page, extensionId }) => {
+    await seed(page, extensionId)
+    const library = await page.context().newPage()
+    await library.setViewportSize({ width: 1180, height: 800 })
+    await library.goto(`chrome-extension://${extensionId}/library.html#/settings`)
+    await library.reload()
+    await expect(library.getByTestId('settings-view')).toBeVisible()
+    const names = await library.getByRole('checkbox').evaluateAll(boxes => boxes.map(box => box.closest('label')?.textContent ?? box.getAttribute('aria-label') ?? ''))
+    expect(names.filter(Boolean).length, 'checkboxes on the page').toBeGreaterThanOrEqual(5)
+    for (const name of names) {
+      const bare = name.trim()
+      expect(['开', '关', 'on', 'off'], `a switch named for its state: "${bare}"`).not.toContain(bare)
+    }
+    await library.close()
+  })
+})
+
 test.describe('the icon rail in a narrow window (extension.md §2.2)', () => {
   test("the brand fits the rail and every badge, the current item's included, is legible", async ({ page, extensionId }) => {
     await seed(page, extensionId)
