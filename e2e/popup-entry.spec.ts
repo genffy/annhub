@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { test, expect } from './fixtures'
-import { clearLibrary, getCapturePageUrl, getEntries, selectUntilMenu, waitForClipToast } from './helpers'
+import { clearLibrary, getCapturePageUrl, getEntries, selectUntilMenu, textContrast, textOverlaps, waitForClipToast } from './helpers'
 
 test('a popup entry opens that entry in the library (RV-LIB-12)', async ({ page, extensionId }) => {
   await clearLibrary(page.context())
@@ -208,3 +208,199 @@ test('the popup annotation entry opens the layer on the page and stays off on re
   await popup2.close()
   await restricted.close()
 })
+
+/** Makes the popup believe the active tab is an http page and the worker answers with this recording state. */
+async function popupIn(page: Page, extensionId: string, recording?: Record<string, unknown>): Promise<Page> {
+  const popup = await page.context().newPage()
+  await popup.setViewportSize({ width: 340, height: 360 })
+  await popup.addInitScript(
+    ({ recording }) => {
+      const query = chrome.tabs.query.bind(chrome.tabs)
+      chrome.tabs.query = ((info: chrome.tabs.QueryInfo, callback?: (tabs: chrome.tabs.Tab[]) => void) => {
+        if (!info?.active) return query(info, callback as never)
+        const tabs = [{ id: 4242, url: 'https://engineering.example.com/posts/retries', title: 'Retries' } as chrome.tabs.Tab]
+        if (callback) return void callback(tabs)
+        return Promise.resolve(tabs)
+      }) as typeof chrome.tabs.query
+      const send = chrome.runtime.sendMessage.bind(chrome.runtime)
+      chrome.runtime.sendMessage = ((...rest: unknown[]) => {
+        const type = (rest[0] as { type?: string } | undefined)?.type
+        if (type === 'GET_RECORDING_STATE' && recording) return Promise.resolve({ success: true, data: recording })
+        return (send as (...args: unknown[]) => unknown)(...rest)
+      }) as typeof chrome.runtime.sendMessage
+    },
+    { recording },
+  )
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`)
+  await popup.locator('.popup-shell').waitFor()
+  return popup
+}
+
+/** The block under the list, in every state: no text drawn on text, nothing past the shell's right edge. */
+async function expectPopupWellFormed(popup: Page): Promise<void> {
+  expect(await textOverlaps(popup, '.popup-shell'), 'text drawn on text').toEqual([])
+  const geometry = await popup.evaluate(() => {
+    const shell = document.querySelector('.popup-shell')!
+    const shellBox = shell.getBoundingClientRect()
+    const beyond = [...shell.querySelectorAll<HTMLElement>('*')]
+      .filter(element => {
+        const box = element.getBoundingClientRect()
+        return box.width > 0 && box.right > shellBox.right + 1
+      })
+      .map(element => `${element.className || element.tagName} at ${Math.round(element.getBoundingClientRect().right)}`)
+    return { beyond, scrolls: shell.scrollWidth > shell.clientWidth + 1, list: document.querySelector('.popup-list')!.getClientRects().length }
+  })
+  expect(geometry.beyond, 'elements past the shell edge').toEqual([])
+  expect(geometry.scrolls, 'the shell scrolls sideways').toBe(false)
+  expect(geometry.list, 'the list keeps its place above the block').toBeGreaterThan(0)
+}
+
+for (const uiLocale of ['zh-CN', 'en-US'] as const) {
+  test.describe(`the popup's block under the list in ${uiLocale} (extension.md §2.6)`, () => {
+    test.use({ uiLocale })
+
+    test('idle, recording, download-failed: one line per piece of information, nothing overlapping', async ({ page, extensionId }) => {
+      await clearLibrary(page.context())
+      const idle = await popupIn(page, extensionId)
+      await expectPopupWellFormed(idle)
+      await idle.close()
+
+      const recording = await popupIn(page, extensionId, {
+        status: 'recording',
+        withMic: true,
+        tabId: 4242,
+        tabTitle: 'Retries and backpressure — engineering.example.com',
+        startedAt: Date.now() - 192_000,
+        micNotice: 'denied',
+      })
+      await expect(recording.locator('.popup-recording-mic')).toBeVisible()
+      await expectPopupWellFormed(recording)
+      await recording.close()
+
+      const failed = await popupIn(page, extensionId, {
+        status: 'download-failed',
+        withMic: false,
+        failedDownload: { filename: 'annhub-recording.webm' },
+      })
+      await expectPopupWellFormed(failed)
+      await failed.close()
+    })
+
+    test('idle: the two entries share one row, each on a single line and equally wide', async ({ page, extensionId }) => {
+      await clearLibrary(page.context())
+      const idle = await popupIn(page, extensionId)
+      const row = await idle.evaluate(() => {
+        const shell = document.querySelector('.popup-shell')!
+        const lines = (selector: string) => {
+          const button = document.querySelector<HTMLElement>(selector)!
+          const label2 = [...button.childNodes].find(node => node.nodeType === Node.TEXT_NODE)!
+          const range = document.createRange()
+          range.selectNodeContents(label2)
+          return range.getClientRects().length
+        }
+        const annotateButton = document.querySelector<HTMLElement>('[data-ann-ui="popup-annotate"]')!
+        const recordButton = document.querySelector<HTMLElement>('[data-ann-ui="popup-record"]')!
+        return {
+          annotateLines: lines('[data-ann-ui="popup-annotate"]'),
+          recordLines: lines('[data-ann-ui="popup-record"]'),
+          annotateWidth: annotateButton.getBoundingClientRect().width,
+          recordWidth: recordButton.getBoundingClientRect().width,
+          sameRow: Math.abs(annotateButton.getBoundingClientRect().top - recordButton.getBoundingClientRect().top) < 1,
+          micBelowRecord: document.querySelector<HTMLElement>('.popup-mic')!.getBoundingClientRect().top > recordButton.getBoundingClientRect().bottom - 1,
+          micWidth: document.querySelector<HTMLElement>('.popup-mic')!.getBoundingClientRect().height,
+          shellWidth: shell.getBoundingClientRect().width,
+        }
+      })
+      expect(row.annotateLines, 'the annotate entry is one line').toBe(1)
+      expect(row.recordLines, 'the record entry is one line').toBe(1)
+      expect(Math.abs(row.annotateWidth - row.recordWidth), 'the two entries are equally wide').toBeLessThanOrEqual(1)
+      expect(row.sameRow, 'the two entries share one row').toBe(true)
+      expect(row.micBelowRecord, 'the microphone choice sits under recording').toBe(true)
+      expect(row.micWidth, 'the microphone label is a 24px target').toBeGreaterThanOrEqual(24)
+      await idle.close()
+    })
+
+    test('restricted: the reason is on the page above the entries, and the footer speaks of what is possible', async ({ page, extensionId }) => {
+      await clearLibrary(page.context())
+      // the popup opened as its own tab is the active tab, and an extension page is one content scripts cannot enter
+      const popup = await page.context().newPage()
+      await popup.setViewportSize({ width: 340, height: 360 })
+      await popup.goto(`chrome-extension://${extensionId}/popup.html`)
+      await popup.locator('.popup-shell').waitFor()
+      const reason = popup.locator('.popup-restricted')
+      await expect(reason).toBeVisible()
+      const layout = await popup.evaluate(() => {
+        const reasonBox = document.querySelector('.popup-restricted')!.getBoundingClientRect()
+        const annotateBox = document.querySelector<HTMLElement>('[data-ann-ui="popup-annotate"]')!.getBoundingClientRect()
+        return { above: reasonBox.bottom <= annotateBox.top + 1 }
+      })
+      expect(layout.above, 'the reason sits above the entries').toBe(true)
+      const [ratio] = await textContrast(reason)
+      expect(ratio, 'the reason is readable text').toBeGreaterThanOrEqual(4.5)
+      await expect(popup.locator('[data-ann-ui="popup-annotate"]')).toBeDisabled()
+      await expect(popup.locator('[data-ann-ui="popup-record"]')).toBeDisabled()
+      await expect(popup.locator('.popup-foot')).not.toContainText('选中网页文字')
+      await expectPopupWellFormed(popup)
+      await popup.close()
+    })
+
+    test('recording: the annotate entry and the keys are there, the title on its own line', async ({ page, extensionId }) => {
+      await clearLibrary(page.context())
+      const recording = await popupIn(page, extensionId, {
+        status: 'recording',
+        withMic: true,
+        tabId: 4242,
+        tabTitle: 'Retries and backpressure — engineering.example.com',
+        startedAt: Date.now() - 192_000,
+      })
+      await expect(recording.locator('[data-ann-ui="popup-annotate"]')).toBeVisible()
+      const lines = await recording.evaluate(() => {
+        const status = document.querySelector('.popup-recording-line')!.getBoundingClientRect()
+        const title = document.querySelector('.popup-recording-title')!
+        const titleBox = title.getBoundingClientRect()
+        const style = getComputedStyle(title)
+        return {
+          ownLine: titleBox.top >= status.bottom - 1,
+          oneLine: titleBox.height < parseFloat(style.fontSize) * 2,
+          keysSize: parseFloat(getComputedStyle(document.querySelector('.popup-recording-keys')!).fontSize),
+        }
+      })
+      expect(lines.ownLine, 'the recorded tab title has its own line').toBe(true)
+      expect(lines.oneLine, 'the title is a single ellipsised line').toBe(true)
+      expect(lines.keysSize, 'the keys hint is at least 12px').toBeGreaterThanOrEqual(12)
+      await recording.close()
+    })
+
+    test('every text under the list is at least 12px', async ({ page, extensionId }) => {
+      await clearLibrary(page.context())
+      const idle = await popupIn(page, extensionId)
+      const recording = await popupIn(page, extensionId, {
+        status: 'recording',
+        withMic: true,
+        tabId: 4242,
+        tabTitle: 'Retries',
+        startedAt: Date.now() - 60_000,
+        micNotice: 'denied',
+      })
+      await expect(recording.locator('.popup-recording-mic')).toBeVisible()
+      for (const popup of [idle, recording]) {
+        const small = await popup.evaluate(() => {
+          const found: string[] = []
+          for (const block of document.querySelectorAll('.popup-actions, .popup-recording-outcome, .popup-foot')) {
+            const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT)
+            for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+              const text = (node.textContent ?? '').trim()
+              const parent = node.parentElement
+              if (!text || !parent) continue
+              const size = parseFloat(getComputedStyle(parent).fontSize)
+              if (size < 12) found.push(`${parent.className}: ${text.slice(0, 20)} at ${size}px`)
+            }
+          }
+          return found
+        })
+        expect(small, 'text under 12px below the list').toEqual([])
+        await popup.close()
+      }
+    })
+  })
+}

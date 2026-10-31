@@ -208,6 +208,48 @@ export function textContrast(locator: Locator): Promise<number[]> {
   })
 }
 
+/** Pairs of text drawn on top of each other inside `root`. Only the visible part of a text counts: what an ellipsis or an overflow hides does not overlap anything, and one text node never overlaps itself (Chrome reports an ellipsised range as two rects that coincide once clipped). */
+export function textOverlaps(page: Page, root: string): Promise<string[]> {
+  return page.evaluate(selector => {
+    const scope = document.querySelector(selector)!
+    const boxes: { text: string; l: number; t: number; r: number; b: number; node: Node }[] = []
+    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = (node.textContent ?? '').trim()
+      const el = node.parentElement
+      if (!text || !el || getComputedStyle(el).visibility === 'hidden' || el.closest('[hidden]')) continue
+      const range = document.createRange()
+      range.selectNodeContents(node)
+      for (const rect of range.getClientRects()) {
+        let { left: l, top: t, right: r, bottom: b } = rect
+        for (let a: Element | null = el; a && a !== scope.parentElement; a = a.parentElement) {
+          const cs = getComputedStyle(a)
+          const box = a.getBoundingClientRect()
+          if (cs.overflowX !== 'visible') {
+            l = Math.max(l, box.left)
+            r = Math.min(r, box.right)
+          }
+          if (cs.overflowY !== 'visible') {
+            t = Math.max(t, box.top)
+            b = Math.min(b, box.bottom)
+          }
+        }
+        if (r - l > 1 && b - t > 1) boxes.push({ text: text.slice(0, 24), l, t, r, b, node })
+      }
+    }
+    const hits: string[] = []
+    for (let i = 0; i < boxes.length; i++)
+      for (let j = i + 1; j < boxes.length; j++) {
+        const [a, b] = [boxes[i]!, boxes[j]!]
+        if (a.node === b.node) continue
+        const w = Math.min(a.r, b.r) - Math.max(a.l, b.l)
+        const h = Math.min(a.b, b.b) - Math.max(a.t, b.t)
+        if (w > 3 && h > 3) hits.push(`"${a.text}" × "${b.text}" (${Math.round(w)}×${Math.round(h)})`)
+      }
+    return hits
+  }, root)
+}
+
 // ── page driving ─────────────────────────────────────────────────────────
 
 /** Selects an element's text content and settles the selection (the menu reads it live). */
