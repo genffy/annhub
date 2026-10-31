@@ -7,7 +7,7 @@ const ICONS = [Library, LinkIcon, Highlighter, Tags, FileText]
 export default function TourControls({ copy, active = 0, onSelect }: { copy: LandingCopy; active?: number; onSelect?: (index: number) => void }) {
   return (
     <div className="tour-controls">
-      <div role="group" aria-label={copy.tour.tasksLabel} className="flex gap-1.5 overflow-x-auto py-1 sm:gap-2 lg:grid lg:grid-cols-5">
+      <div role="group" aria-label={copy.tour.tasksLabel} className="grid grid-cols-3 gap-1.5 py-1 sm:flex sm:gap-2 sm:overflow-x-auto lg:grid lg:grid-cols-5">
         {copy.tour.pins.map((pin, i) => {
           const Icon = ICONS[i]!
           return (

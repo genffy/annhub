@@ -47,7 +47,7 @@ function Boundary({ copy }: { copy: LandingCopy }) {
       </div>
       <div className="rounded-lg border border-dashed border-line-2 px-4 py-3.5 text-center text-[13px] text-fg-3">
         <span className="font-semibold text-fg-2">{d.server}</span>
-        <span className="mx-2 text-fg-4">·</span>
+        <span className="mx-2 text-fg-3">·</span>
         {d.none}
       </div>
     </div>
