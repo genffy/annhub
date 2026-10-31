@@ -17,14 +17,19 @@
 
 .type-chip svg {
   flex: none;
+  color: var(--ann-type-clip);
 }
 
 .type-clip {
-  background: var(--ann-accent-soft);
-  color: var(--ann-accent-text);
+  background: var(--ann-type-clip-soft);
+  color: var(--ann-type-clip-text);
 }
 
 .type-screenshot {
-  background: var(--ann-surface-alt);
-  color: var(--ann-muted);
+  background: var(--ann-type-screenshot-soft);
+  color: var(--ann-type-screenshot-text);
+}
+
+.type-screenshot svg {
+  color: var(--ann-type-screenshot);
 }

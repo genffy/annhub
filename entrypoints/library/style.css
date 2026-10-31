@@ -17,6 +17,17 @@ textarea {
   font-family: inherit;
 }
 
+/* a bare <a> gets the accent text colour and an underline where it belongs: on hover and focus */
+a {
+  color: var(--ann-accent-text);
+  text-decoration: none;
+}
+
+a:hover,
+a:focus-visible {
+  text-decoration: underline;
+}
+
 html,
 body {
   height: 100%;
@@ -92,6 +103,23 @@ body {
 
 .nav-item svg {
   flex: none;
+}
+
+/* the type views' icons carry their hue; the current item stays one accent-coloured row, icon included */
+.nav-item:where([data-view='clips']) svg {
+  color: var(--ann-type-clip);
+}
+
+.nav-item:where([data-view='highlights']) svg {
+  color: var(--ann-type-highlight);
+}
+
+.nav-item:where([data-view='screenshots']) svg {
+  color: var(--ann-type-screenshot);
+}
+
+.nav-item-current svg {
+  color: inherit;
 }
 
 .nav-item:hover,
@@ -462,7 +490,7 @@ body {
 
 .entry-card-highlights {
   flex: none;
-  color: var(--ann-accent-text);
+  color: var(--ann-type-highlight-text);
   white-space: nowrap;
 }
 
@@ -1882,4 +1910,9 @@ body {
   border-color: var(--ann-accent, #673ab8);
   color: var(--ann-accent-text, #673ab8);
   background: var(--ann-accent-soft, #f0eefb);
+}
+
+/* the highlight count reads in the highlight hue wherever it appears (the card row and the highlights view) */
+.hl-group-count {
+  color: var(--ann-type-highlight-text);
 }
