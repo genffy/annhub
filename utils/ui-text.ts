@@ -499,6 +499,13 @@ const STRINGS = {
   'property.defaultValue': { zh: '默认值', en: 'Default value' },
   'property.usage': { zh: '使用数', en: 'Usage' },
   'property.builtin': { zh: '内置', en: 'built-in' },
+  // settings switches and the properties table (WS-4): names that say what the switch does
+  'property.inUse': { zh: '使用中', en: 'In use' },
+  'settings.cursorHighlightToggle': { zh: '启用光标高亮', en: 'Enable cursor highlight' },
+  'settings.watermarkToggle': { zh: '启用水印', en: 'Enable the watermark' },
+  'settings.beautifyToggle': { zh: '默认开启美化', en: 'Turn beautify on by default' },
+  'settings.blockEntryToggle': { zh: '启用区块剪藏入口', en: 'Enable the block clipping entry' },
+  'settings.anonymizeToggle': { zh: '截图默认匿名', en: 'Anonymize screenshots by default' },
   'property.fixed': { zh: '固定', en: 'Fixed' },
   'property.fixedPreset': { zh: '固定附加，不可取消', en: 'Always attached; cannot be turned off' },
   'property.deleteBuiltin': { zh: '内置属性不可删除', en: 'Built-in properties cannot be deleted' },

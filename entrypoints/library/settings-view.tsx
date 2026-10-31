@@ -101,7 +101,7 @@ function RecordingSection({ settings, patch }: { settings: ExtensionSettings; pa
             onChange={event => void patch({ recording: { cursorHighlight: { enabled: event.target.checked } } })}
             data-testid="cursor-highlight-toggle"
           />
-          <span>{uiText(cursor.enabled ? 'shot.on' : 'shot.off')}</span>
+          <span>{uiText('settings.cursorHighlightToggle')}</span>
         </label>
         {cursor.enabled && (
           <>
@@ -247,7 +247,7 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
             onChange={event => void patch({ watermark: { ...settings.watermark, enabled: event.target.checked } })}
             data-testid="watermark-toggle"
           />
-          <span>{uiText(settings.watermark.enabled ? 'shot.on' : 'shot.off')}</span>
+          <span>{uiText('settings.watermarkToggle')}</span>
         </label>
         <div className="settings-grid">
           <label className="settings-field">
@@ -381,7 +381,7 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
         <h3>{uiText('settings.beautify')}</h3>
         <label className="switch-row">
           <input type="checkbox" checked={settings.beautify.enabled} onChange={event => void patch({ beautify: { ...settings.beautify, enabled: event.target.checked } })} />
-          <span>{uiText(settings.beautify.enabled ? 'shot.on' : 'shot.off')}</span>
+          <span>{uiText('settings.beautifyToggle')}</span>
         </label>
         <div className="settings-grid">
           <label className="settings-field">
@@ -491,7 +491,7 @@ export function SettingsView() {
             onChange={event => void patch({ blockEntryEnabled: event.target.checked })}
             data-testid="block-entry-toggle"
           />
-          <span>{uiText(settings.blockEntryEnabled ? 'shot.on' : 'shot.off')}</span>
+          <span>{uiText('settings.blockEntryToggle')}</span>
         </label>
         {settings.blockDisabledSites.length > 0 && (
           <div className="sites">
@@ -515,7 +515,7 @@ export function SettingsView() {
         <p className="hint">{uiText('settings.anonymizeHint')}</p>
         <label className="switch-row">
           <input type="checkbox" checked={settings.anonymizeDefault} onChange={event => void patch({ anonymizeDefault: event.target.checked })} data-testid="anonymize-toggle" />
-          <span>{uiText(settings.anonymizeDefault ? 'shot.on' : 'shot.off')}</span>
+          <span>{uiText('settings.anonymizeToggle')}</span>
         </label>
         {/* a kind left unchecked is neither covered nor pre-filled as mosaic (screenshot.md §3) */}
         <div className="settings-group">

@@ -184,6 +184,7 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
         <thead>
           <tr>
             <th>{uiText('property.name')}</th>
+            <th>{uiText('property.type')}</th>
             <th>{uiText('property.defaultValue')}</th>
             <th>{uiText('property.usage')}</th>
             <th>{uiText('property.presets')}</th>
@@ -211,6 +212,7 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
                     )}
                   </span>
                 </td>
+                <td data-testid={`type-${def.name}`}>{uiText(`property.type.${def.type}` as 'property.type.text')}</td>
                 <td>{def.defaultValue === undefined ? '—' : String(def.defaultValue)}</td>
                 <td data-testid={`usage-${def.name}`}>{count}</td>
                 <td>
@@ -244,8 +246,13 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
                     <Trash2 size={13} aria-hidden /> {uiText('library.delete')}
                   </button>
                   {blocked && (
-                    <span className="prop-reason" id={`delete-reason-${encodeURIComponent(def.name)}`} data-testid={`delete-reason-${def.name}`}>
-                      {uiText(blocked)}
+                    /* the visible word is short; the whole sentence stays for the reader of the button and
+                       the tooltip (extension.md §2.4) */
+                    <span className="prop-reason">
+                      <span className="sr-only" id={`delete-reason-${encodeURIComponent(def.name)}`}>
+                        {uiText(blocked)}
+                      </span>
+                      <span data-testid={`delete-reason-${def.name}`}>{uiText(def.builtin ? 'property.builtin' : 'property.inUse')}</span>
                     </span>
                   )}
                 </td>
