@@ -19,6 +19,7 @@ const TOOLBAR = '[data-ann-ui="screenshot-toolbar"]'
 const CANVAS = `${PREVIEW} canvas`
 const WIDTHS = '[data-ann-ui="screenshot-line-widths"]'
 const NOTICE = '.ann-shot-notice'
+const BUBBLE = '[data-ann-ui="screenshot-bubble"]'
 
 type Rgb = readonly [number, number, number]
 type Point = [number, number]
@@ -368,7 +369,7 @@ test.describe('the highlighter, the line and the line widths (screenshot.md §1.
     // the download is the picture with the strokes in it
     const asked = await stubDownloads(context)
     await toolbarButton(page, '下载').click()
-    await expect(page.locator(NOTICE)).toContainText('已下载')
+    await expect(page.locator(BUBBLE)).toContainText('已下载')
     const files = await asked()
     expect(files, 'one file').toHaveLength(1)
     expect(files[0]).toMatch(/^data:image\/png;base64,/)
@@ -600,14 +601,14 @@ test.describe('the highlighter, the line and the line widths (screenshot.md §1.
     expectMarks((await colours(page, 'canvas', MARKS, framed)).at, 'preview')
 
     await toolbarButton(page, '复制').click()
-    await expect(page.locator(NOTICE)).toContainText('已复制')
+    await expect(page.locator(BUBBLE)).toContainText('已复制')
     const copied = await colours(page, 'clipboard', MARKS, framed)
     expect([copied.width, copied.height], 'the clipboard has the beautified picture').toEqual([info.width + 128, info.height + 128])
     expectMarks(copied.at, 'copied')
 
     const asked = await stubDownloads(context)
     await toolbarButton(page, '下载').click()
-    await expect(page.locator(NOTICE)).toContainText('已下载')
+    await expect(page.locator(BUBBLE)).toContainText('已下载')
     const [jpeg] = await asked()
     expect(jpeg).toMatch(/^data:image\/jpeg;base64,/)
     const downloaded = await colours(page, { dataUrl: jpeg! }, MARKS, framed)
@@ -629,7 +630,7 @@ test.describe('the highlighter, the line and the line widths (screenshot.md §1.
     await highlightAndUnderline(page, info)
     const asked = await stubDownloads(context)
     await toolbarButton(page, '下载').click()
-    await expect(page.locator(NOTICE)).toContainText('已下载')
+    await expect(page.locator(BUBBLE)).toContainText('已下载')
     const [webp] = await asked()
     expect(webp).toMatch(/^data:image\/webp;base64,/)
     expectMarks((await colours(page, { dataUrl: webp! }, MARKS)).at, 'WebP', 24)
@@ -651,7 +652,7 @@ test.describe('the highlighter, the line and the line widths (screenshot.md §1.
     await kept('after the failed download')
     const asked = await stubDownloads(context)
     await toolbarButton(page, '下载').click()
-    await expect(page.locator(NOTICE)).toContainText('已下载')
+    await expect(page.locator(BUBBLE)).toContainText('已下载')
     const [file] = await asked()
     expectMarks((await colours(page, { dataUrl: file! }, MARKS)).at, 'the retried download')
 

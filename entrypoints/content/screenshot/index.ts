@@ -101,6 +101,15 @@ const ROOT_VALUE = 'screenshot-session'
 /** Asking again this often, this many times, covers the whole second the browser's capture limit counts. */
 const CAPTURE_RATE_RETRY_MS = 400
 const CAPTURE_RATE_RETRIES = 3
+/**
+ * How long the pointer must stay on one element outside a pending frame
+ * before the element picker paints — the same intent dwell the selection
+ * menu uses, so a pointer in transit never flashes the dashed frame.
+ */
+const HOVER_ARM_DWELL_MS = 300
+/** A success notice stays as long as the clip toast next door; the fade is counted on top. */
+const NOTICE_BUBBLE_MS = 3000
+const NOTICE_BUBBLE_FADE_MS = 200
 
 let activeSession: ScreenshotSession | null = null
 
@@ -191,6 +200,9 @@ class ScreenshotSession {
   private busy = false
   private exited = false
   private notice: { message: string; error: boolean } | undefined
+  /** The success bubble above the toolbar; errors are the toolbar's own notice row. */
+  private bubbleEl: HTMLDivElement | null = null
+  private bubbleTimer: number | null = null
   private textInput: HTMLTextAreaElement | null = null
   /** Where on the capture the open text box was clicked. */
   private textAt: Point = { x: 0, y: 0 }
@@ -227,6 +239,9 @@ class ScreenshotSession {
   private hoverChain: Element[] = []
   private hoverIndex = 0
   private hoverOutlineEl: HTMLDivElement | null = null
+  /** whether the pending-frame picker has painted after its dwell (screenshot.md §1.2) */
+  private hoverArmed = false
+  private hoverArmTimer: number | null = null
   private margin = 0
   private marginBarEl: HTMLDivElement | null = null
   private confirmBarEl: HTMLDivElement | null = null
@@ -382,6 +397,9 @@ class ScreenshotSession {
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks span { display: flex; align-items: center; gap: 3px; padding: 2px 5px; background: var(--annov-chip-bg, #edf0f2); border-radius: 3px; font: 11px/1.2 -apple-system, sans-serif; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks button { display: grid; place-items: center; padding: 0; border: 0; background: none; cursor: pointer; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-notice { padding: 4px 6px 2px; font: 12px/1.3 -apple-system, sans-serif; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-bubble { position: absolute; z-index: 5; padding: 6px 12px; border: 1px solid var(--annov-border, #d7dce1); border-radius: 6px; background: var(--annov-surface, #ffffff); color: var(--annov-text, #20252b); box-shadow: var(--annov-shadow, 0 6px 20px rgba(0, 0, 0, 0.18)); font: 12.5px/1.3 -apple-system, sans-serif; white-space: nowrap; pointer-events: none; animation: ann-shot-bubble-in 0.16s ease-out; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-bubble-out { opacity: 0; transition: opacity 0.2s ease-in; }
+      @keyframes ann-shot-bubble-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps { display: flex; align-items: center; gap: 8px; padding: 5px 2px 1px; font: 12px/1.3 -apple-system, sans-serif; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 1px solid var(--annov-input-border, #aeb6bd); border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button:hover:not(:disabled) { background: var(--annov-tool-hover-bg, #e7f1f0); color: var(--annov-tool-hover-text, #126f65); }
@@ -643,6 +661,11 @@ class ScreenshotSession {
     }
     this.clearConfirmUi()
     this.clearHoverUi()
+    if (this.bubbleTimer !== null) {
+      this.doc.defaultView?.clearTimeout(this.bubbleTimer)
+      this.bubbleTimer = null
+    }
+    this.bubbleEl = null
     // a session replaced while its scrolling capture runs stops the stitcher:
     // otherwise it keeps scrolling and photographing an orphaned page
     this.stitcher?.cancel()
@@ -759,7 +782,10 @@ class ScreenshotSession {
     e.preventDefault()
     e.stopPropagation()
 
-    // any drag replaces a pending selection (and the remembered frame)
+    // a new drag replaces the pending selection (and the remembered frame) —
+    // the dashed picker of the element path must not ride along over it, but a
+    // press-and-release is the click-element path and keeps its target
+    this.hideHoverUi()
     this.setConfirmShield(false)
     this.clearConfirmUi()
     this.selectionEl?.remove()
@@ -1007,6 +1033,9 @@ class ScreenshotSession {
       height: this.selection.height,
     }
     this.clearConfirmUi()
+    // the picker that armed outside the frame goes with the frame it was
+    // replacing: the preview belongs to the shot alone (真机反馈)
+    this.clearHoverUi()
     await this.captureRegionMode()
   }
 
@@ -1023,13 +1052,21 @@ class ScreenshotSession {
 
   /**
    * Tracks the element a click would capture; paints outline + margin bar.
-   * Hovering also works while a remembered frame waits for confirmation —
-   * clicking elsewhere replaces that frame (screenshot.md §1.4).
+   * Hovering also works while a frame waits for confirmation — but only
+   * outside that frame and after a short dwell, so adjusting or annotating
+   * inside the frame never shows the picker; clicking the armed element
+   * replaces the frame (screenshot.md §1.2, §1.4).
    */
   private trackHover(x: number, y: number): void {
     if (this.state !== 'selecting' && this.state !== 'confirming') return
     if (this.state === 'selecting' && this.selectionEl) return
     if (typeof this.doc.elementsFromPoint !== 'function') return
+    // inside a pending frame the picker never arms: the frame is what is being
+    // confirmed, and the dashed UI over it read as a second selection (真机反馈)
+    if (this.state === 'confirming' && this.pointerInSelection(x, y)) {
+      this.clearHoverUi()
+      return
+    }
     const stack = this.pageElementsFromPoint(x, y)
     // the pointer on our own chrome (margin chips, bars) keeps the hover alive
     const top = stack[0]
@@ -1043,11 +1080,39 @@ class ScreenshotSession {
       this.hoverEl = target
       this.hoverChain = elementChain(this.resolveCaptureTarget(target))
       this.hoverIndex = 0
+      // a frame is pending: swapping it needs intent, not a pointer in transit
+      // toward the confirm bar — the picker paints only after a dwell
+      if (this.state === 'confirming') {
+        this.scheduleHoverArm()
+        return
+      }
       this.paintHover()
+      return
+    }
+    if (this.state === 'confirming' && !this.hoverArmed) {
+      this.scheduleHoverArm()
       return
     }
     // same element: keep the painted UI instead of rebuilding it under a click
     if (!this.hoverOutlineEl || !this.marginBarEl) this.paintHover()
+  }
+
+  /** Paints the hover UI once the pointer has stayed on the same target. */
+  private scheduleHoverArm(): void {
+    this.clearHoverArmTimer()
+    const target = this.hoverEl
+    this.hoverArmTimer = this.doc.defaultView!.setTimeout(() => {
+      this.hoverArmTimer = null
+      if (this.hoverEl !== target || this.state !== 'confirming') return
+      this.hoverArmed = true
+      this.paintHover()
+    }, HOVER_ARM_DWELL_MS)
+  }
+
+  private clearHoverArmTimer(): void {
+    if (this.hoverArmTimer === null) return
+    this.doc.defaultView!.clearTimeout(this.hoverArmTimer)
+    this.hoverArmTimer = null
   }
 
   private paintHover(): void {
@@ -1121,6 +1186,17 @@ class ScreenshotSession {
     this.hoverEl = null
     this.hoverChain = []
     this.hoverIndex = 0
+    this.hideHoverUi()
+  }
+
+  /**
+   * Hides the picker's visuals but remembers its target: a press-and-release
+   * outside a pending frame is the click-element path, and it captures what
+   * the pointer rested on even though the press hid the dashed UI.
+   */
+  private hideHoverUi(): void {
+    this.clearHoverArmTimer()
+    this.hoverArmed = false
     this.hoverOutlineEl?.remove()
     this.hoverOutlineEl = null
     this.marginBarEl?.remove()
@@ -2152,9 +2228,54 @@ class ScreenshotSession {
     window.setTimeout(() => el.remove(), 2600)
   }
 
+  /**
+   * Failures are states to do something about: they stay in the toolbar until
+   * the next one. Successes are confirmations — they ride above the toolbar
+   * as a bubble and leave on their own, so the bar never carries stale text
+   * (真机反馈).
+   */
   showNotice(message: string, error = false): void {
-    this.notice = { message, error }
+    if (error) {
+      this.notice = { message, error }
+      this.updateToolbar()
+      return
+    }
+    this.notice = undefined
     this.updateToolbar()
+    this.showBubble(message)
+  }
+
+  /** A success bubble anchored over the toolbar, or top-centre without one. */
+  private showBubble(message: string): void {
+    this.bubbleEl?.remove()
+    this.bubbleEl = null
+    if (this.bubbleTimer !== null) {
+      this.doc.defaultView?.clearTimeout(this.bubbleTimer)
+      this.bubbleTimer = null
+    }
+    const view = this.doc.defaultView
+    if (!view) return
+    const el = this.doc.createElement('div')
+    el.className = 'ann-shot-bubble'
+    el.setAttribute(ROOT_ATTR, 'screenshot-bubble')
+    el.setAttribute('role', 'status')
+    el.textContent = message
+    this.host.appendChild(el)
+    const width = el.offsetWidth || 120
+    const height = el.offsetHeight || 30
+    const bar = this.toolbarEl?.isConnected ? this.toolbarEl.getBoundingClientRect() : null
+    const left = bar ? Math.max(8, Math.min(view.innerWidth - width - 8, bar.right - width)) : Math.max(8, view.innerWidth / 2 - width / 2)
+    const top = bar ? Math.max(8, bar.top - height - 8) : 64
+    Object.assign(el.style, { left: `${left}px`, top: `${top}px` })
+    this.bubbleEl = el
+    this.bubbleTimer = view.setTimeout(() => {
+      el.classList.add('ann-shot-bubble-out')
+      this.bubbleTimer = view.setTimeout(() => {
+        el.remove()
+        if (this.bubbleEl === el) this.bubbleEl = null
+        this.bubbleTimer = null
+      }, NOTICE_BUBBLE_FADE_MS)
+    }, NOTICE_BUBBLE_MS)
   }
 
   private showError(message: string): void {

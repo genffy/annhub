@@ -396,4 +396,40 @@ test.describe('precise selection (screenshot.md §1.2)', () => {
     expect(Math.abs(climbed!.x - plans.x)).toBeLessThanOrEqual(4)
     expect(Math.abs(climbed!.width - plans.width)).toBeLessThanOrEqual(4)
   })
+
+  test('a pending frame shows no picker inside itself, and only a dwelling pointer outside arms it (screenshot.md §1.2)', async ({ page }) => {
+    await open(page)
+    await triggerScreenshot(page)
+    const plans = (await page.getByTestId('plans').boundingBox())!
+    // drag a frame over the left part of the plans row
+    await page.mouse.move(plans.x + 20, plans.y + 20)
+    await page.mouse.down()
+    await page.mouse.move(plans.x + plans.width * 0.45, plans.y + plans.height - 20, { steps: 4 })
+    await page.mouse.up()
+    await expect(page.locator('[data-ann-ui="shot-confirm-bar"]')).toBeVisible()
+
+    // moving inside the frame — even resting on a card — paints nothing
+    await page.mouse.move(plans.x + plans.width * 0.25, plans.y + 60)
+    await page.waitForTimeout(450)
+    await expect(page.locator('[data-ann-ui="shot-hover-outline"]')).toHaveCount(0)
+    await expect(page.locator('[data-ann-ui="shot-margin-bar"]')).toHaveCount(0)
+
+    // a pointer in transit to a card outside the frame does not flash the picker either
+    await page.mouse.move(plans.x + plans.width * 0.8, plans.y + 60, { steps: 3 })
+    expect(await page.locator('[data-ann-ui="shot-hover-outline"]').count()).toBe(0)
+
+    // dwelling on that card outside the frame arms the picker
+    await page.waitForTimeout(450)
+    await expect(page.locator('[data-ann-ui="shot-hover-outline"]')).toBeVisible()
+    await expect(page.locator('[data-ann-ui="shot-margin-bar"]')).toBeVisible()
+
+    // back inside the frame the pick disarms; Enter then confirms the frame,
+    // and the preview carries no dashed UI
+    await page.mouse.move(plans.x + plans.width * 0.25, plans.y + 60)
+    await expect(page.locator('[data-ann-ui="shot-hover-outline"]')).toHaveCount(0)
+    await page.keyboard.press('Enter')
+    await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible({ timeout: 15_000 })
+    await expect(page.locator('[data-ann-ui="shot-hover-outline"]')).toHaveCount(0)
+    await expect(page.locator('[data-ann-ui="shot-margin-bar"]')).toHaveCount(0)
+  })
 })

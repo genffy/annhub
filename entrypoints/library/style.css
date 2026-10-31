@@ -1809,6 +1809,12 @@ select.filter {
   gap: 8px 14px;
 }
 
+/* two stacked inline rows (the recording shapes and their colour dots) breathe
+   like the rows inside one inline block do, instead of touching (真机反馈) */
+.settings-inline + .settings-inline {
+  margin-top: 8px;
+}
+
 .settings-inline .prop-preset {
   gap: 6px;
   height: var(--settings-control-h);

@@ -20,6 +20,7 @@ const DELETE = '[data-ann-ui="screenshot-step-delete"]'
 const NEXT = '[data-ann-ui="screenshot-step-next"]'
 const STEP_ROW = '[data-ann-ui="screenshot-steps"]'
 const NOTICE = '.ann-shot-notice'
+const BUBBLE = '[data-ann-ui="screenshot-bubble"]'
 
 type Rgb = readonly [number, number, number]
 type Point = [number, number]
@@ -342,7 +343,7 @@ test.describe('step badges (screenshot.md §1.1)', () => {
     const shown = await read([first, third, fourth, second, dropped])
     const asked = await stubDownloads(context)
     await toolbarButton(page, '下载').click()
-    await expect(page.locator(NOTICE)).toContainText('已下载')
+    await expect(page.locator(BUBBLE)).toContainText('已下载')
     const files = await asked()
     expect(files, 'one file').toHaveLength(1)
     expect(files[0]).toMatch(/^data:image\/png;base64,/)
@@ -450,7 +451,7 @@ test.describe('step badges (screenshot.md §1.1)', () => {
     preview.forEach((badge, index) => expectBadge(badge, colours[index]!, `preview ${index + 1}`))
 
     await toolbarButton(page, '复制').click()
-    await expect(page.locator(NOTICE)).toContainText('已复制')
+    await expect(page.locator(BUBBLE)).toContainText('已复制')
     const copied = await readBadges(page, 'clipboard', centres, framed)
     expect([copied[0]!.width, copied[0]!.height], 'the clipboard has the beautified picture').toEqual([info.width + 128, info.height + 128])
     copied.forEach((badge, index) => {
@@ -460,7 +461,7 @@ test.describe('step badges (screenshot.md §1.1)', () => {
 
     const asked = await stubDownloads(context)
     await toolbarButton(page, '下载').click()
-    await expect(page.locator(NOTICE)).toContainText('已下载')
+    await expect(page.locator(BUBBLE)).toContainText('已下载')
     const [jpeg] = await asked()
     expect(jpeg).toMatch(/^data:image\/jpeg;base64,/)
     const downloaded = await readBadges(page, { dataUrl: jpeg! }, centres, framed)
@@ -485,7 +486,7 @@ test.describe('step badges (screenshot.md §1.1)', () => {
     for (const point of points) await page.mouse.click(point[0], point[1])
     const asked = await stubDownloads(context)
     await toolbarButton(page, '下载').click()
-    await expect(page.locator(NOTICE)).toContainText('已下载')
+    await expect(page.locator(BUBBLE)).toContainText('已下载')
     const [webp] = await asked()
     expect(webp).toMatch(/^data:image\/webp;base64,/)
     const downloaded = await readBadges(
@@ -523,7 +524,7 @@ test.describe('step badges (screenshot.md §1.1)', () => {
     await kept('after the failed download')
     const asked = await stubDownloads(context)
     await toolbarButton(page, '下载').click()
-    await expect(page.locator(NOTICE)).toContainText('已下载')
+    await expect(page.locator(BUBBLE)).toContainText('已下载')
     const [file] = await asked()
     ;(await readBadges(page, { dataUrl: file! }, centres)).forEach((badge, index) => expectBadge(badge, RED, `the retried download: badge ${index + 1}`))
 
