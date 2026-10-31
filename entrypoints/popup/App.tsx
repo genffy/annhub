@@ -7,7 +7,7 @@
  * editing here.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CircleStop, Mic, PenLine, SquarePen } from 'lucide-react'
+import { CircleStop, Info, Mic, PenLine, Video } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import MessageUtils from '../../utils/message'
 import type { RecordingState } from '../../types/messages'
@@ -248,46 +248,62 @@ export default function App() {
             </span>
           </div>
         ) : recording?.status === 'recording' ? (
+          /* one line per piece of information (extension.md §2.6): status and time, then the tab's
+             title, the microphone notice when there is one, the annotate entry, and the keys */
           <div className="popup-actions" data-testid="popup-recording">
             <span className="popup-recording-line">
               <span className="popup-rec" aria-hidden />
-              {uiText('popup.recording.live', { title: recording.tabTitle ?? '', time: elapsed(recording.startedAt, now) })}
+              {uiText('popup.recording.status', { time: elapsed(recording.startedAt, now) })}
+              <span className="popup-recording-buttons">
+                <button type="button" data-ann-ui="popup-record-stop" onClick={() => void MessageUtils.sendMessage({ type: 'STOP_RECORDING' })}>
+                  {uiText('popup.recording.stop')}
+                </button>
+              </span>
             </span>
+            <span className="popup-recording-title">{recording.tabTitle ?? ''}</span>
             {micNotice && <span className="popup-recording-mic">{micNotice}</span>}
-            <span className="popup-recording-keys">{uiText('popup.recording.keys')}</span>
-            <span className="popup-recording-buttons">
-              <button type="button" data-ann-ui="popup-record-stop" onClick={() => void MessageUtils.sendMessage({ type: 'STOP_RECORDING' })}>
-                {uiText('popup.recording.stop')}
-              </button>
-            </span>
-          </div>
-        ) : (
-          <div className="popup-actions">
-            <button
-              type="button"
-              data-ann-ui="popup-annotate"
-              disabled={!canAnnotate}
-              title={canAnnotate ? uiText('popup.annotate') : uiText('popup.annotate.restricted')}
-              onClick={() => void annotateThisPage()}
-            >
+            <button type="button" data-ann-ui="popup-annotate" title={uiText('popup.annotate')} onClick={() => void annotateThisPage()}>
               <PenLine size={14} aria-hidden />
               {uiText('popup.annotate')}
             </button>
-            <button
-              type="button"
-              data-ann-ui="popup-record"
-              disabled={!canAnnotate}
-              title={canAnnotate ? uiText('popup.record') : uiText('popup.record.restricted')}
-              onClick={() => void startRecording()}
-            >
-              <SquarePen size={14} aria-hidden />
-              {uiText('popup.record')}
-            </button>
-            <label className="popup-mic" data-ann-ui="popup-mic">
-              <input type="checkbox" checked={withMic} onChange={event => toggleMic(event.target.checked)} />
-              <Mic size={13} aria-hidden />
-              {uiText('popup.recording.withMic')}
-            </label>
+            <span className="popup-recording-keys">{uiText('popup.recording.keys')}</span>
+          </div>
+        ) : (
+          <div className="popup-actions">
+            {!canAnnotate && (
+              /* the reason stays on the page, not only in the buttons' titles: keyboard and touch never see a title */
+              <p className="popup-restricted">
+                <Info size={14} aria-hidden />
+                {uiText('popup.restricted.reason')}
+              </p>
+            )}
+            <div className="popup-actions-row">
+              <button
+                type="button"
+                data-ann-ui="popup-annotate"
+                disabled={!canAnnotate}
+                title={canAnnotate ? uiText('popup.annotate') : uiText('popup.annotate.restricted')}
+                onClick={() => void annotateThisPage()}
+              >
+                <PenLine size={14} aria-hidden />
+                {uiText('popup.annotate')}
+              </button>
+              <button
+                type="button"
+                data-ann-ui="popup-record"
+                disabled={!canAnnotate}
+                title={canAnnotate ? uiText('popup.record') : uiText('popup.record.restricted')}
+                onClick={() => void startRecording()}
+              >
+                <Video size={14} aria-hidden />
+                {uiText('popup.record')}
+              </button>
+              <label className="popup-mic" data-ann-ui="popup-mic">
+                <input type="checkbox" checked={withMic} onChange={event => toggleMic(event.target.checked)} />
+                <Mic size={13} aria-hidden />
+                {uiText('popup.recording.withMic')}
+              </label>
+            </div>
           </div>
         )}
         {recording?.status === 'idle' && recording.limitNotice && (
@@ -301,7 +317,7 @@ export default function App() {
           <p className="popup-recording-outcome">{uiText('popup.recording.headphones')}</p>
         )}
 
-        <footer className="popup-foot">{shortcutHint}</footer>
+        <footer className="popup-foot">{canAnnotate ? shortcutHint : uiText('popup.restricted.foot')}</footer>
       </section>
     </main>
   )
