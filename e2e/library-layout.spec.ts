@@ -551,6 +551,49 @@ test.describe('the list views are grids of cards (extension.md §2.3)', () => {
   })
 })
 
+test.describe('the expanded nav: mark, groups and an outline export (extension.md §2.2)', () => {
+  test('the wordmark carries its mark, the groups are titled, and export is not the heaviest thing in the sidebar', async ({ page, extensionId }) => {
+    await seed(page, extensionId)
+    const library = await page.context().newPage()
+    for (const scheme of ['light', 'dark'] as const) {
+      await library.emulateMedia({ colorScheme: scheme })
+      await library.setViewportSize({ width: 1180, height: 800 })
+      await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+      await library.reload()
+      await expect(library.locator('.nav-item-current')).toBeVisible()
+      const nav = await library.evaluate(() => {
+        const mark = getComputedStyle(document.querySelector('.brand')!, '::before')
+        const probe = document.createElement('span')
+        probe.style.color = 'var(--ann-accent)'
+        document.body.append(probe)
+        const accent = getComputedStyle(probe).color
+        probe.remove()
+        return {
+          mark: { content: mark.content, width: parseFloat(mark.width), height: parseFloat(mark.height) },
+          titles: [...document.querySelectorAll('.nav-group-title')].map(title => ({
+            text: title.textContent,
+            size: parseFloat(getComputedStyle(title).fontSize),
+            colour: getComputedStyle(title).color,
+          })),
+          exportFill: getComputedStyle(document.querySelector('.nav-export')!).backgroundColor,
+          accent,
+        }
+      })
+      expect(nav.mark.content, `the brand draws its mark (${scheme})`).not.toBe('none')
+      expect(Math.min(nav.mark.width, nav.mark.height), `the mark is 20px or more (${scheme})`).toBeGreaterThanOrEqual(20)
+      expect(
+        nav.titles.map(title => title.text),
+        `the two groups are titled (${scheme})`,
+      ).toEqual(['资料库', '管理'])
+      for (const title of nav.titles) expect(title.size, `"${title.text}" is at least 11px (${scheme})`).toBeGreaterThanOrEqual(11)
+      expect(nav.exportFill, `export is an outline, not the accent fill (${scheme})`).not.toBe(nav.accent)
+      // the group titles read on the nav surface
+      for (const ratio of await textContrast(library.locator('.nav-group-title'))) expect(ratio, `a group title (${scheme})`).toBeGreaterThanOrEqual(4.5)
+    }
+    await library.close()
+  })
+})
+
 test.describe('the icon rail in a narrow window (extension.md §2.2)', () => {
   test("the brand fits the rail and every badge, the current item's included, is legible", async ({ page, extensionId }) => {
     await seed(page, extensionId)

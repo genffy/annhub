@@ -108,6 +108,83 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await library.close()
   })
 
+  test('an empty, unfiltered library hides the filter bar and shows the guide as three cards (extension.md §5)', async ({ page, extensionId }) => {
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+    await library.reload()
+    await expect(library.getByTestId('guide-card')).toBeVisible()
+    await expect(library.locator('.toolbar'), 'nothing to filter yet').toHaveCount(0)
+
+    // three cards, one per way in: icon, name, one sentence
+    const items = await library
+      .getByTestId('guide-card')
+      .locator('.guide-item')
+      .evaluateAll(items =>
+        items.map(item => ({
+          icons: item.querySelectorAll('svg').length,
+          name: item.querySelector('.guide-name')?.textContent,
+          sentence: item.querySelector('p')?.textContent?.length ?? 0,
+        })),
+      )
+    expect(items).toHaveLength(3)
+    for (const item of items) {
+      expect(item.icons, 'a type icon on every card').toBeGreaterThanOrEqual(1)
+      expect(item.sentence, 'a sentence on every card').toBeGreaterThan(0)
+    }
+
+    // one solid primary, a text link beside it, and air between them
+    const actions = await library.getByTestId('guide-card').evaluate(card => {
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--ann-accent)'
+      document.body.append(probe)
+      const accent = getComputedStyle(probe).color
+      probe.remove()
+      const primary = card.querySelector<HTMLButtonElement>('.primary')!
+      const link = card.querySelector<HTMLButtonElement>('.link')!
+      const [primaryBox, linkBox] = [primary.getBoundingClientRect(), link.getBoundingClientRect()]
+      return {
+        accent,
+        primaryFill: getComputedStyle(primary).backgroundColor,
+        primaryName: primary.textContent,
+        linkBorder: getComputedStyle(link).borderTopStyle,
+        gap: Math.min(Math.abs(linkBox.left - primaryBox.right), Math.abs(linkBox.top - primaryBox.bottom)),
+      }
+    })
+    expect(actions.primaryName).toContain('打开示例页面')
+    expect(actions.primaryFill, 'the primary is the solid accent').toBe(actions.accent)
+    expect(actions.linkBorder, 'the dismiss is a text link, not a bordered button').toBe('none')
+    expect(actions.gap, 'air between the primary and the secondary').toBeGreaterThanOrEqual(12)
+
+    // the empty state names both ways in, with the shortcut as the browser binds it
+    await expect(library.locator('.empty-rich')).toBeVisible()
+    await expect(library.locator('.empty-rich .empty-how').nth(1)).toContainText(/S/)
+
+    // the first entry brings the filter bar with it
+    // sent from the extension page itself; the fixture page never navigated anywhere
+    await library.evaluate(payload => chrome.runtime.sendMessage(payload), {
+      type: 'SAVE_CLIP',
+      requestId: 'r-ws2-first',
+      draft: {
+        id: 'ent_ws2_first',
+        content: 'The first clip brings the filters with it.',
+        sourceUrl: 'https://engineering.example.com/first',
+        properties: { title: 'First' },
+        via: 'menu',
+      },
+    })
+    await expect(library.locator('.toolbar')).toBeVisible()
+    await library.close()
+  })
+
+  test('an empty library with a filter on keeps its filter bar', async ({ page, extensionId }) => {
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/all?host=engineering.example.com`)
+    await library.reload()
+    await expect(library.locator('.toolbar'), 'the active filter stays reachable').toBeVisible()
+    await expect(library.getByTestId('list-count')).toContainText('0')
+    await library.close()
+  })
+
   test('the filter bar wraps instead of running over its neighbours or past the window edge (extension.md §2.2)', async ({ page, extensionId }) => {
     await saveClips(page.context(), page, 3)
     const library = await page.context().newPage()
