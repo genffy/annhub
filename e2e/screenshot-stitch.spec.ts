@@ -114,7 +114,7 @@ test.describe('scrolling long screenshot (screenshot.md §1.5)', () => {
     expect(near(await devicePixelAt(page, 340, 170), [229, 72, 77], 40)).toBe(true)
     // the pinned stroke is out, and the editor says one sentence about it
     expect(near(await devicePixelAt(page, 690, 24), [47, 111, 222], 30)).toBe(true)
-    const notice = page.locator('.ann-shot-notice')
+    const notice = page.locator('[data-ann-ui="screenshot-bubble"]')
     await expect(notice).toContainText(/固定在屏幕|不进长图/)
     await page.keyboard.press('Escape')
     await page.keyboard.press('Escape')

@@ -153,7 +153,7 @@ describe('the screenshot session and input made up by the page', () => {
     expect(isScreenshotSessionActive()).toBe(false)
   })
 
-  it('captures the armed element pick for a click inside a pending frame (screenshot.md §1.2)', async () => {
+  it('never arms the element pick inside a pending frame, and that click stays with the frame (screenshot.md §1.2)', async () => {
     const post = document.getElementById('post')!
     let pageHits = 0
     post.addEventListener('pointerdown', () => {
@@ -166,23 +166,99 @@ describe('the screenshot session and input made up by the page', () => {
     dragToConfirm()
     await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
 
-    // jsdom has no hit test; lend it one so the resting pointer arms the element path
+    // jsdom has no hit test; lend it one — the pointer rests inside the frame
     const realElementsFromPoint = document.elementsFromPoint?.bind(document)
     document.elementsFromPoint = () => [post]
     try {
       aPerson = true
       document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: 80, clientY: 80 }))
-      await new Promise(resolve => setTimeout(resolve, 0))
-      expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).not.toBeNull()
+      // past the dwell the picker still never paints: the frame is what is being confirmed
+      await new Promise(resolve => setTimeout(resolve, 400))
+      expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).toBeNull()
+      expect(session()!.querySelector('[data-ann-ui="shot-margin-bar"]')).toBeNull()
 
-      // the click lands inside the pending frame, on the armed element: element path, not a dead click
       const down = pointer('pointerdown', 80, 80)
       post.dispatchEvent(down)
       document.body.dispatchEvent(pointer('pointerup', 80, 80))
       expect(down.defaultPrevented).toBe(true)
       expect(pageHits).toBe(0) // the page still never sees it
+      await new Promise(resolve => setTimeout(resolve, 50))
+      expect(captures()).toHaveLength(0) // and nothing captured: the frame waits on
+      expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull()
+    } finally {
+      if (realElementsFromPoint) document.elementsFromPoint = realElementsFromPoint
+      else Reflect.deleteProperty(document, 'elementsFromPoint')
+    }
+  })
+
+  it('arms the pick only after the pointer dwells outside the pending frame, and that click replaces it (screenshot.md §1.2)', async () => {
+    const post = document.getElementById('post')!
+    dragToConfirm()
+    await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
+
+    const realElementsFromPoint = document.elementsFromPoint?.bind(document)
+    document.elementsFromPoint = () => [post]
+    try {
+      aPerson = true
+      document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: 420, clientY: 320 }))
+      await new Promise(resolve => setTimeout(resolve, 50))
+      // in transit there is no picker yet — a pointer on its way to the confirm bar paints nothing
+      expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).toBeNull()
+
+      await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).not.toBeNull(), { timeout: 800 })
+      expect(session()!.querySelector('[data-ann-ui="shot-margin-bar"]')).not.toBeNull()
+
+      document.body.dispatchEvent(pointer('pointerdown', 420, 320))
+      document.body.dispatchEvent(pointer('pointerup', 420, 320))
       await vi.waitFor(() => expect(captures()).toHaveLength(1))
       expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).toBeNull()
+    } finally {
+      if (realElementsFromPoint) document.elementsFromPoint = realElementsFromPoint
+      else Reflect.deleteProperty(document, 'elementsFromPoint')
+    }
+  })
+
+  it('clears the armed pick the moment a new drag starts', async () => {
+    const post = document.getElementById('post')!
+    dragToConfirm()
+    await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
+
+    const realElementsFromPoint = document.elementsFromPoint?.bind(document)
+    document.elementsFromPoint = () => [post]
+    try {
+      aPerson = true
+      document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: 420, clientY: 320 }))
+      await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).not.toBeNull(), { timeout: 800 })
+
+      document.body.dispatchEvent(pointer('pointerdown', 340, 220))
+      expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).toBeNull()
+      expect(session()!.querySelector('[data-ann-ui="shot-margin-bar"]')).toBeNull()
+      document.body.dispatchEvent(pointer('pointerup', 340, 220))
+    } finally {
+      if (realElementsFromPoint) document.elementsFromPoint = realElementsFromPoint
+      else Reflect.deleteProperty(document, 'elementsFromPoint')
+    }
+  })
+
+  it('clears the armed pick when the frame is confirmed, so the preview carries no dashed UI', async () => {
+    const post = document.getElementById('post')!
+    dragToConfirm()
+    await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-confirm-bar"]')).not.toBeNull())
+
+    const realElementsFromPoint = document.elementsFromPoint?.bind(document)
+    document.elementsFromPoint = () => [post]
+    try {
+      aPerson = true
+      document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: 420, clientY: 320 }))
+      await vi.waitFor(() => expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).not.toBeNull(), { timeout: 800 })
+
+      // back inside the frame the pick disarms; Enter then belongs to the frame
+      document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, cancelable: true, clientX: 80, clientY: 80 }))
+      expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).toBeNull()
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+      await vi.waitFor(() => expect(captures()).toHaveLength(1))
+      expect(session()!.querySelector('[data-ann-ui="shot-hover-outline"]')).toBeNull()
+      expect(session()!.querySelector('[data-ann-ui="shot-margin-bar"]')).toBeNull()
     } finally {
       if (realElementsFromPoint) document.elementsFromPoint = realElementsFromPoint
       else Reflect.deleteProperty(document, 'elementsFromPoint')

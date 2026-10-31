@@ -531,7 +531,7 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
     expect(touches(shrunk, await boxOf(page, TOOLBAR)), 'with the toolbar clear of it').toBe(false)
     // …while copy has every pixel
     await toolbarButton(page, '复制').click()
-    await expect(page.locator('.ann-shot-notice')).toContainText('已复制')
+    await expect(page.locator('[data-ann-ui="screenshot-bubble"]')).toContainText('已复制')
     const copied = await analyze(page, { source: 'clipboard' })
     expect([copied.width, copied.height], 'the clipboard has the full picture').toEqual([tall.width, tall.height])
     expect(plain.width, 'sanity: the content itself is small').toBeLessThan(tall.width)
@@ -548,7 +548,7 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
     const shown = await canvasInfo(page)
     expect([shown.width, shown.height]).toEqual([plain.width + 80, plain.height + 80])
     await toolbarButton(page, '复制').click()
-    await expect(page.locator('.ann-shot-notice')).toContainText('已复制')
+    await expect(page.locator('[data-ann-ui="screenshot-bubble"]')).toContainText('已复制')
     const probes: Array<[number, number]> = [
       [0, 0],
       [shown.width - 1, shown.height - 1],

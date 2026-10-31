@@ -331,7 +331,7 @@ test.describe('the watermark picture (screenshot.md §4.3, §5)', () => {
     expect(Math.abs(size.height - MARGIN - bottom(picture)), 'the picture stands a margin above the bottom edge').toBeLessThanOrEqual(3)
 
     await toolbarButton(page, '复制').click()
-    await expect(page.locator('.ann-shot-notice')).toContainText('已复制')
+    await expect(page.locator('[data-ann-ui="screenshot-bubble"]')).toContainText('已复制')
     const copied = await read(page, { source: 'clipboard', within: corner })
     expect([copied.width, copied.height], 'the clipboard has the whole picture').toEqual([size.width, size.height])
     expect(copied.checksum, 'and its corner is the preview’s corner, pixel for pixel').toBe(shown.checksum)
@@ -339,7 +339,7 @@ test.describe('the watermark picture (screenshot.md §4.3, §5)', () => {
 
     const asked = await recordDownloads(context)
     await toolbarButton(page, '下载').click()
-    await expect(page.locator('.ann-shot-notice')).toContainText('已下载')
+    await expect(page.locator('[data-ann-ui="screenshot-bubble"]')).toContainText('已下载')
     const files = await asked()
     expect(files, 'one file was asked for').toHaveLength(1)
     expect(files[0]).toMatch(/^data:image\/png;base64,/)
@@ -443,7 +443,7 @@ test.describe('the watermark picture (screenshot.md §4.3, §5)', () => {
     await expect(page.locator(HINT), 'and the hint says so').toContainText('水印：关')
 
     await toolbarButton(page, '复制').click()
-    await expect(page.locator('.ann-shot-notice')).toContainText('已复制')
+    await expect(page.locator('[data-ann-ui="screenshot-bubble"]')).toContainText('已复制')
     expect(noWatermark(await read(page, { source: 'clipboard', within: corner })), 'what is copied with W off has none of it').toEqual([null, null, null])
 
     await page.keyboard.press('W')

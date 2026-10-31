@@ -146,7 +146,11 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
     await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible()
 
     await page.locator('[data-ann-ui="screenshot-copy"]').click()
-    await expect(page.locator('.ann-shot-notice')).toContainText('已复制')
+    // the confirmation rides above the toolbar as a bubble, never a toolbar
+    // row, and leaves on its own (screenshot.md §4.2)
+    await expect(page.locator('[data-ann-ui="screenshot-bubble"]')).toContainText('已复制')
+    await expect(page.locator('.ann-shot-notice')).toHaveCount(0)
+    await expect(page.locator('[data-ann-ui="screenshot-bubble"]')).toHaveCount(0, { timeout: 5000 })
     // the session stays for more editing or a save (screenshot.md §4)
     await expect(page.locator('[data-ann-ui="screenshot-session"]')).toBeVisible()
 
