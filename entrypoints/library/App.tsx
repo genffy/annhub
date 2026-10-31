@@ -592,6 +592,7 @@ export default function App() {
       <a
         key={view}
         href={`#/${view}`}
+        data-view={view}
         className={`nav-item${navView === view ? ' nav-item-current' : ''}`}
         aria-current={navView === view ? 'page' : undefined}
         aria-label={label}
@@ -922,7 +923,7 @@ export default function App() {
                       <div className="hl-group-head">
                         <span className="hl-group-title">{String(group.clip.properties['title'] ?? '')}</span>
                         <span className="hl-group-meta">
-                          {group.clip.sourceHost} · {uiText('library.highlightsCount', { count: group.rows.length })}
+                          {group.clip.sourceHost} · <span className="hl-group-count">{uiText('library.highlightsCount', { count: group.rows.length })}</span>
                         </span>
                         <a className="link" href={group.clip.sourceUrl} target="_blank" rel="noopener noreferrer">
                           {uiText('library.backToSource')}

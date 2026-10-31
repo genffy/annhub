@@ -19,6 +19,17 @@
   --ann-danger-bg: #fdf0f0;
   --ann-success: #226a3c;
   --ann-success-bg: #eef7ef;
+  /* entry-type hues (visual.md §3): icon/stroke, chip fill and chip text; the highlight text is a 68% mix
+     (the others 78%) because 78% reads only 4.02:1 on its own fill */
+  --ann-type-clip: #276ed2;
+  --ann-type-clip-soft: #e1ebfb;
+  --ann-type-clip-text: #275ba8;
+  --ann-type-highlight: #c38400;
+  --ann-type-highlight-soft: #f7eee0;
+  --ann-type-highlight-text: #89621b;
+  --ann-type-screenshot: #008a74;
+  --ann-type-screenshot-soft: #e0efea;
+  --ann-type-screenshot-text: #007162;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -40,10 +51,26 @@
     --ann-danger-bg: #3a2325;
     --ann-success: #7fd8a1;
     --ann-success-bg: #1f3328;
+    --ann-type-clip: #80b3fd;
+    --ann-type-clip-soft: #2c3341;
+    --ann-type-clip-text: #98c0fb;
+    --ann-type-highlight: #ebbd57;
+    --ann-type-highlight-soft: #373430;
+    --ann-type-highlight-text: #ebc87f;
+    --ann-type-screenshot: #5cceb7;
+    --ann-type-screenshot-soft: #293639;
+    --ann-type-screenshot-text: #82d5c4;
   }
 }
 
 :focus-visible {
   outline: 2px solid var(--ann-accent);
   outline-offset: 2px;
+}
+
+/* native widgets (checkboxes, radios, ranges) draw in the brand purple everywhere, not the browser's blue */
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'] {
+  accent-color: var(--ann-accent);
 }

@@ -628,3 +628,97 @@ test.describe('the icon rail in a narrow window (extension.md §2.2)', () => {
     await library.close()
   })
 })
+
+test.describe('entry-type hues and global defaults (visual.md §3)', () => {
+  test('clip, screenshot and highlight each read in their own hue, none taking the accent of the current nav item', async ({ page, extensionId }) => {
+    await seedCards(page, extensionId)
+    const library = await page.context().newPage()
+    await library.setViewportSize({ width: 1440, height: 900 })
+    for (const scheme of ['light', 'dark'] as const) {
+      await library.emulateMedia({ colorScheme: scheme })
+      await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+      await library.reload()
+      await expect(library.locator('.type-chip.type-clip').first()).toBeVisible()
+      await expect(library.locator('.type-chip.type-screenshot').first()).toBeVisible()
+      await expect(library.locator('.entry-card-highlights').first()).toBeVisible()
+
+      const hues = await library.evaluate(() => ({
+        clip: getComputedStyle(document.querySelector('.type-chip.type-clip')!).color,
+        screenshot: getComputedStyle(document.querySelector('.type-chip.type-screenshot')!).color,
+        highlight: getComputedStyle(document.querySelector('.entry-card-highlights')!).color,
+        current: getComputedStyle(document.querySelector('.nav-item-current')!).color,
+        clipIcon: document.querySelector(".nav-item[data-view='clips'] svg") ? getComputedStyle(document.querySelector(".nav-item[data-view='clips'] svg")!).color : null,
+      }))
+      expect(new Set([hues.clip, hues.screenshot, hues.highlight]).size, `three type hues (${scheme})`).toBe(3)
+      expect(hues.clip, `the clip chip is not the current item's accent (${scheme})`).not.toBe(hues.current)
+      expect(hues.clipIcon, `the clips nav icon carries its type hue (${scheme})`).toBeTruthy()
+      // each chip's text on its own fill, and the highlight count on the card
+      for (const selector of ['.type-chip.type-clip', '.type-chip.type-screenshot', '.entry-card-highlights']) {
+        for (const ratio of await textContrast(library.locator(selector).first())) expect(ratio, `${selector} contrast (${scheme})`).toBeGreaterThanOrEqual(4.5)
+      }
+      // a type icon is a UI indicator: 3:1 on the nav it sits in
+      const [iconRatio] = await textContrast(library.locator(".nav-item[data-view='clips'] svg").first())
+      expect(iconRatio, `the clip nav icon (${scheme})`).toBeGreaterThanOrEqual(3)
+    }
+    await library.close()
+  })
+
+  test('no link on a card, in the drawer or in the reading view draws in the browser default blue', async ({ page, extensionId }) => {
+    await seedCards(page, extensionId)
+    const library = await page.context().newPage()
+    await library.setViewportSize({ width: 1440, height: 900 })
+    for (const scheme of ['light', 'dark'] as const) {
+      await library.emulateMedia({ colorScheme: scheme })
+      await library.goto(`chrome-extension://${extensionId}/library.html#/all?e=ent_card_0`)
+      await library.reload()
+      await expect(library.locator('.drawer[data-entry-id="ent_card_0"]')).toBeVisible()
+      const defaults = await library.evaluate(() => {
+        const browserBlue = ['rgb(0, 0, 238)', 'rgb(158, 158, 255)']
+        return [...document.querySelectorAll('a[href]')]
+          .filter(link => browserBlue.includes(getComputedStyle(link).color))
+          .map(link => `${link.className || link.tagName}: ${getComputedStyle(link).color}`)
+      })
+      expect(defaults, `links in the browser default blue (${scheme})`).toEqual([])
+    }
+    await library.close()
+  })
+
+  test('checkboxes everywhere draw in the accent, from one global rule', async ({ page, extensionId }) => {
+    await seed(page, extensionId, { watermark: { enabled: true, text: 'AnnHub demo' } })
+    const library = await page.context().newPage()
+    await library.emulateMedia({ colorScheme: 'light' })
+    await library.goto(`chrome-extension://${extensionId}/library.html#/properties`)
+    await library.reload()
+    await expect(library.locator('.prop-preset input').first()).toBeVisible()
+    const accentOf = (pageToRead: Page) =>
+      pageToRead.evaluate(() => {
+        const probe = document.createElement('span')
+        probe.style.color = 'var(--ann-accent)'
+        document.body.append(probe)
+        const accent = getComputedStyle(probe).color
+        probe.remove()
+        return accent
+      })
+    const presets = await library.evaluate(() => [...document.querySelectorAll('.prop-preset input')].map(input => getComputedStyle(input).accentColor))
+    const accent = await accentOf(library)
+    await library.goto(`chrome-extension://${extensionId}/library.html#/settings`)
+    await library.reload()
+    await expect(library.getByTestId('settings-view')).toBeVisible()
+    const settings = await library.evaluate(() => [...document.querySelectorAll('.settings-view input[type="checkbox"]')].map(input => getComputedStyle(input).accentColor))
+    const popup = await page.context().newPage()
+    await popup.goto(`chrome-extension://${extensionId}/popup.html`)
+    await expect(popup.locator('.popup-mic input')).toBeVisible()
+    const popupMic = await popup.evaluate(() => getComputedStyle(document.querySelector('.popup-mic input')!).accentColor)
+    await popup.close()
+
+    expect(presets.length, 'preset checkboxes on the properties page').toBeGreaterThan(0)
+    expect(settings.length, 'checkboxes on the settings page').toBeGreaterThan(0)
+    for (const [where, accentColor] of [
+      ['a properties preset', presets[0]!],
+      ['a settings checkbox', settings[0]!],
+      ['the popup microphone checkbox', popupMic],
+    ] as const)
+      expect(accentColor, `${where} takes the accent`).toBe(accent)
+    await library.close()
+  })
+})
