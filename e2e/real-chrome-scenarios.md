@@ -79,7 +79,7 @@
 - 步骤：
   1. 打开页面，执行附录 A。
   2. 指针停在正文第二段上，等胶囊出现，点“Shot”（中文界面“截图”）。预览出现后执行 `__annTest.previewStats()`。按 `Esc` 退出。
-  3. 区块模式（快捷键或后台消息）→ 按 `S`。预览出现后再测一次 `previewStats()`；点工具栏的确认（✓），记下从点击到会话消失的秒数。
+  3. 区块模式（快捷键或后台消息）→ 按 `S`。预览出现后再测一次 `previewStats()`；点工具栏的确认（✓，悬停提示写明“保存到资料库”），记下从点击到会话消失的秒数。
   4. 打开 `chrome-extension://<ID>/library.html#/screenshots`，把刚入库的那张卡片滚进视口，执行附录 A，再执行 `__annTest.imageStats('.entry-card img')`。
 - 通过：两次预览与入库图片都是 `distinctColors` > 50、`whiteShare` < 0.98、`transparentShare` < 0.01。
 - 当前预期：通过。danluu 段落 372 种颜色；区块模式 `S` 截 danluu 整篇（2400×13854）确认入库约 4 秒，jvns 约 1.3 秒。

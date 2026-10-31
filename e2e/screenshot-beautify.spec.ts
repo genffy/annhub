@@ -256,6 +256,37 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
     await expect(page.locator(SESSION), 'a second Esc cancels the screenshot').toHaveCount(0)
   })
 
+  test('the panel is one of the overlay surfaces and every control in it is a 24px target, light and dark (visual.md §2)', async ({ page }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme })
+      await openEditor(page)
+      const { panel } = await openPanel(page)
+      const [surface, controls] = await Promise.all([
+        page.evaluate(() => {
+          const probe = document.createElement('span')
+          probe.style.backgroundColor = 'var(--annov-surface)'
+          document.querySelector('[data-ann-ui="screenshot-beautify-panel"]')!.append(probe)
+          const colour = getComputedStyle(probe).backgroundColor
+          probe.remove()
+          return { panel: getComputedStyle(document.querySelector('[data-ann-ui="screenshot-beautify-panel"]')!).backgroundColor, surface: colour }
+        }),
+        panel.locator('button, [role="switch"], [aria-pressed]').evaluateAll(controls =>
+          controls.map(control => {
+            const box = control.getBoundingClientRect()
+            return { name: control.getAttribute('aria-label') ?? control.textContent?.trim() ?? control.getAttribute('role'), width: box.width, height: box.height }
+          }),
+        ),
+      ])
+      expect(surface.panel, `the panel sits on the overlay surface (${scheme})`).toBe(surface.surface)
+      expect(controls.length, 'controls in the panel').toBeGreaterThanOrEqual(12)
+      const small = controls.filter(control => control.width < 24 || control.height < 24)
+      expect(small, `controls under 24px (${scheme})`).toEqual([])
+      await page.keyboard.press('Escape')
+      await page.keyboard.press('Escape')
+      await expect(page.locator(SESSION)).toHaveCount(0)
+    }
+  })
+
   test('every control has one name: eight named backgrounds, small/medium/large, three radii, one shadow switch, the ratios of the settings', async ({ page, context }) => {
     await setSettings(context, { ratioPresets: ['9:16', '4:3'] })
     await openEditor(page)

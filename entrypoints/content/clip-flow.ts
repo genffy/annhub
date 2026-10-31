@@ -286,6 +286,9 @@ export function openEditBubble(outcome: ClipOutcome, anchor: Range | HTMLElement
   doc.documentElement.appendChild(host)
   positionNear(host, anchor)
   title.input.focus()
+  // the caret lands at the start and the box shows the title's beginning, not a tail scrolled out of view
+  title.input.setSelectionRange(0, 0)
+  title.input.scrollLeft = 0
 
   const close = (event: Event): void => {
     if (event.target instanceof Node && host.contains(event.target)) return

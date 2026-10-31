@@ -60,6 +60,35 @@ test.describe('selection clip (capture.md §6.1, extension.md §2.1)', () => {
       .toBe(true)
   })
 
+  test('the toast’s undo and edit are real targets, and the quick edit shows the title from its start', async ({ page }) => {
+    await page.goto(getCapturePageUrl())
+    // a title long enough that its end would scroll the start out of the box
+    await page.evaluate(() => {
+      document.title = 'Why retries need jitter and a budget before the outage spreads — engineering.example.com'
+    })
+    const menu = await selectUntilMenu(page, '#intro-p')
+    await menu.locator('.ann-menu-action').nth(0).click()
+    const toast = await waitForClipToast(page)
+
+    const buttons = await toast.locator('button').evaluateAll(buttons =>
+      buttons.map(button => {
+        const box = button.getBoundingClientRect()
+        return { name: button.textContent?.trim(), height: box.height, rightOfCard: Math.round(box.right) }
+      }),
+    )
+    expect(buttons.map(button => button.name)).toEqual(['撤销', '编辑'])
+    for (const button of buttons) expect(button.height, `${button.name} is a 24px target`).toBeGreaterThanOrEqual(24)
+
+    await toast.getByRole('button', { name: '编辑' }).click()
+    const bubble = page.locator('[data-ann-ui="clip-edit"]')
+    await expect(bubble).toBeVisible()
+    const title = bubble.locator('input').nth(0)
+    await expect(title).toBeFocused()
+    expect(await title.evaluate(input => input.scrollLeft), 'the title box shows its beginning').toBe(0)
+    await bubble.getByRole('button', { name: '完成' }).click()
+    await expect(bubble).not.toBeVisible()
+  })
+
   test('the quick edit bubble edits title, tags and note on the saved entry', async ({ page }) => {
     await page.goto(getCapturePageUrl())
     const menu = await selectUntilMenu(page, '#intro-p')

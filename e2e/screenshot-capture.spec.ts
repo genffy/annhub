@@ -49,6 +49,42 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
     expect(entries[0]!.assetId).toBe(assets[0]!.id)
   })
 
+  test('the selection stage paints its hint and the ratio bar on the same overlay surface, light and dark (visual.md §2)', async ({ page }) => {
+    await page.goto(getScreenshotPageUrl())
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme })
+      await triggerScreenshot(page)
+      await expect(page.locator('.ann-shot-hint')).toBeVisible()
+      await expect(page.locator('[data-ann-ui="screenshot-ratio-bar"]')).toBeVisible()
+      const surfaceOf = () =>
+        page.evaluate(() => {
+          const read = (selector: string) => getComputedStyle(document.querySelector(selector)!).backgroundColor
+          const probe = document.createElement('span')
+          probe.style.backgroundColor = 'var(--annov-surface)'
+          document.querySelector('[data-ann-ui="screenshot-ratio-bar"]')!.append(probe)
+          const surface = getComputedStyle(probe).backgroundColor
+          probe.remove()
+          return { hint: read('.ann-shot-hint'), ratio: read('[data-ann-ui="screenshot-ratio-bar"]'), surface }
+        })
+      const before = await surfaceOf()
+      expect(before.hint, `the hint sits on the overlay surface (${scheme})`).toBe(before.surface)
+      expect(before.ratio, `the ratio bar sits on the overlay surface (${scheme})`).toBe(before.surface)
+
+      // a dragged region adds the size label: it sits on the same surface too
+      const post = page.getByTestId('screenshot-post')
+      const box = (await post.boundingBox())!
+      await page.mouse.move(box.x + 5, box.y + 5)
+      await page.mouse.down()
+      await page.mouse.move(box.x + 260, box.y + 120, { steps: 4 })
+      await page.mouse.up()
+      await expect(page.locator('.ann-shot-size')).toBeVisible()
+      const after = await page.evaluate(() => getComputedStyle(document.querySelector('.ann-shot-size')!).backgroundColor)
+      expect(after, `the size label sits on the overlay surface (${scheme})`).toBe(before.surface)
+      await page.keyboard.press('Escape')
+      await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
+    }
+  })
+
   // the toolbar is drawn by React, whose first commit could come after the frame that moves the focus: the keyboard
   // then stayed on the masked page (真机走查 P2-6, 2 shots in 8). Shots in a row make a lost focus show up.
   test('the keyboard starts on the toolbar every time the preview opens', async ({ page }) => {

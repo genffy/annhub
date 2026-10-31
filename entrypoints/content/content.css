@@ -25,7 +25,8 @@
 [data-ann-ui='block-mode-capsule'],
 [data-ann-ui='block-more'],
 [data-ann-ui='screenshot-ratio-bar'],
-[data-ann-ui='screenshot-session'] {
+[data-ann-ui='screenshot-session'],
+[data-ann-ui='annotation-layer'] {
   --annov-surface: #ffffff;
   --annov-border: #d7dce1;
   --annov-text: #20252b;
@@ -54,7 +55,8 @@
   [data-ann-ui='block-mode-capsule'],
   [data-ann-ui='block-more'],
   [data-ann-ui='screenshot-ratio-bar'],
-  [data-ann-ui='screenshot-session'] {
+  [data-ann-ui='screenshot-session'],
+  [data-ann-ui='annotation-layer'] {
     --annov-surface: #1f2127;
     --annov-border: #3d414c;
     --annov-text: #ececf1;
@@ -201,13 +203,20 @@
 }
 
 .ann-clip-toast-row button {
-  padding: 0;
+  min-height: 24px;
+  margin-left: auto;
+  padding: 0 8px;
   border: 0;
+  border-radius: 4px;
   background: none;
   color: var(--annov-accent-text);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
+}
+
+.ann-clip-toast-row button:not(:disabled):hover {
+  background: var(--annov-accent-soft);
 }
 
 .ann-clip-toast-row button:disabled {
@@ -426,24 +435,23 @@
   color: var(--annov-on-accent);
 }
 
-/* beautify panel (screenshot.md §4.4): a dark card beside the picture, drawn like the design's .bz */
+/* beautify panel (screenshot.md §4.4): a card beside the picture in the overlay tokens, light or dark like the toolbar */
 [data-ann-ui='screenshot-beautify-panel'] {
   position: absolute;
   z-index: 4;
   box-sizing: border-box;
   width: 262px;
   padding: 12px 14px 14px;
+  border: 1px solid var(--annov-border);
   border-radius: 12px;
-  background: #1b1f2a;
-  color: #e6e9f2;
+  background: var(--annov-surface);
+  color: var(--annov-text);
   font:
     12px/1.4 -apple-system,
     BlinkMacSystemFont,
     'Segoe UI',
     sans-serif;
-  box-shadow:
-    0 14px 34px -8px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(255, 255, 255, 0.07);
+  box-shadow: var(--annov-shadow);
   pointer-events: auto;
 }
 
@@ -463,7 +471,7 @@
 }
 
 [data-ann-ui='screenshot-beautify-panel'] button:focus-visible {
-  outline: 2px solid #b9a3f2;
+  outline: 2px solid var(--annov-accent);
   outline-offset: 2px;
 }
 
@@ -492,20 +500,21 @@
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-reset {
+  min-height: 24px;
   padding: 2px 6px;
   border-radius: 6px;
-  color: #aab1c3;
+  color: var(--annov-muted);
   font-weight: 500;
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-reset:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  background: var(--annov-chip-bg);
+  color: var(--annov-text);
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-sec {
   padding: 8px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--annov-border);
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-sec:last-child {
@@ -514,8 +523,8 @@
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-lb {
   margin-bottom: 7px;
-  color: #aab1c3;
-  font-size: 11px;
+  color: var(--annov-muted);
+  font-size: 12px;
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-row {
@@ -533,21 +542,21 @@
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-sw {
-  width: 23px;
-  height: 23px;
+  width: 24px;
+  height: 24px;
   border-radius: 7px;
   background: var(--ann-bz-sw);
-  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 1.5px var(--annov-border);
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-sw[aria-pressed='true'] {
   box-shadow:
-    0 0 0 2px #1b1f2a,
-    0 0 0 3.5px #fff;
+    0 0 0 2px var(--annov-surface),
+    0 0 0 3.5px var(--annov-accent);
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-none {
-  background: repeating-linear-gradient(135deg, #3a4052 0 4px, #2b3040 4px 8px);
+  background: repeating-linear-gradient(135deg, var(--annov-chip-bg) 0 4px, var(--annov-border) 4px 8px);
 }
 
 /* padding and corners: three choices side by side */
@@ -555,37 +564,38 @@
   display: inline-flex;
   padding: 2px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--annov-chip-bg);
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-seg button {
+  min-height: 24px;
   padding: 3px 11px;
   border-radius: 6px;
-  color: #cdd2e0;
+  color: var(--annov-text);
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-seg button[aria-pressed='true'] {
-  background: rgba(185, 163, 242, 0.35);
-  color: #fff;
+  background: var(--annov-accent-soft);
+  color: var(--annov-accent-text);
 }
 
 /* the two switches */
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-switch {
   position: relative;
   flex: none;
-  width: 32px;
-  height: 18px;
+  width: 40px;
+  height: 24px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--annov-border);
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-switch::after {
   content: '';
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 14px;
-  height: 14px;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -593,11 +603,11 @@
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-switch[aria-checked='true'] {
-  background: #8660dc;
+  background: var(--annov-accent);
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-switch[aria-checked='true']::after {
-  transform: translateX(14px);
+  transform: translateX(16px);
 }
 
 /* the output canvas ratio: free and the enabled presets, each with an outline of its shape */
@@ -611,18 +621,18 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  height: 22px;
+  height: 24px;
   padding: 0 9px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
-  color: #dfe3ee;
-  font-size: 11.5px;
+  background: var(--annov-chip-bg);
+  color: var(--annov-text);
+  font-size: 12px;
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-chip[aria-pressed='true'] {
-  background: rgba(185, 163, 242, 0.3);
-  box-shadow: inset 0 0 0 1px rgba(185, 163, 242, 0.6);
-  color: #fff;
+  background: var(--annov-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--annov-accent);
+  color: var(--annov-accent-text);
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-chip svg {

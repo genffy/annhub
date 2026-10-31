@@ -88,6 +88,31 @@ test.describe('page annotation layer', () => {
     await expect(page.locator(LAYER)).toHaveCount(0)
   })
 
+  test('the toolbar draws its every control itself, and auto-erase cycles off → 3 s → 8 s → off', async ({ page }) => {
+    await page.goto(getScreenshotPageUrl())
+    await triggerAnnotation(page)
+    await page.locator(LAYER).waitFor()
+    await expect(page.locator(TOOLBAR)).toBeVisible()
+
+    const shapes = await page.locator(TOOLBAR).evaluate(bar => ({ selects: bar.querySelectorAll('select').length }))
+    expect(shapes.selects, 'no native select in the toolbar').toBe(0)
+
+    const erase = page.locator('[data-ann-ui="annotation-auto-erase"]')
+    const eraseBox = await erase.boundingBox()
+    expect(Math.min(eraseBox!.width, eraseBox!.height), 'the auto-erase button is a 32px target like its neighbours').toBeGreaterThanOrEqual(32)
+    await expect(erase).toHaveAccessibleName('自动擦除：关')
+    await expect(erase).toHaveAttribute('aria-pressed', 'false')
+    await erase.click()
+    await expect(erase).toHaveAccessibleName('自动擦除：3 秒')
+    await expect(erase).toHaveAttribute('aria-pressed', 'true')
+    await erase.click()
+    await expect(erase).toHaveAccessibleName('自动擦除：8 秒')
+    await erase.click()
+    await expect(erase).toHaveAccessibleName('自动擦除：关')
+    await triggerAnnotation(page)
+    await expect(page.locator(LAYER)).toHaveCount(0)
+  })
+
   test('the selection menu stays off the page while the layer is open', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
     await triggerAnnotation(page)

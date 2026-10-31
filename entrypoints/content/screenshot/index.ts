@@ -356,10 +356,10 @@ class ScreenshotSession {
       [${ROOT_ATTR}="${ROOT_VALUE}"].ann-shot-modal { pointer-events: auto; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-overlay { position: absolute; inset: 0; background: rgba(22, 26, 31, 0.58); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-hint { position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
-        background: #252b31; color: #fff; padding: 7px 12px; border-radius: 4px; font: 13px/1.4 -apple-system, sans-serif; pointer-events: none; white-space: nowrap; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-hint b { color: #a8dad2; }
+        background: var(--annov-surface, #ffffff); color: var(--annov-text, #20252b); padding: 7px 12px; border: 1px solid var(--annov-border, #d7dce1); border-radius: 4px; box-shadow: var(--annov-shadow, 0 6px 20px rgba(0, 0, 0, 0.18)); font: 13px/1.4 -apple-system, sans-serif; pointer-events: none; white-space: nowrap; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-hint b { color: var(--annov-accent-text, #673ab8); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-rect { position: absolute; box-sizing: border-box; border: 2px solid #4c91ff; background: transparent; box-shadow: 0 0 0 9999px rgba(22, 26, 31, 0.58); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-size { position: absolute; left: 0; bottom: calc(100% + 6px); padding: 2px 6px; pointer-events: none; background: #252b31; color: #fff; border-radius: 3px; font: 12px/1.4 -apple-system, sans-serif; white-space: nowrap; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-size { position: absolute; left: 0; bottom: calc(100% + 6px); padding: 2px 6px; pointer-events: none; background: var(--annov-surface, #ffffff); color: var(--annov-text, #20252b); border: 1px solid var(--annov-border, #d7dce1); border-radius: 3px; box-shadow: var(--annov-shadow, 0 6px 20px rgba(0, 0, 0, 0.18)); font: 12px/1.4 -apple-system, sans-serif; white-space: nowrap; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview { position: absolute; box-sizing: border-box; border: 2px solid #4c91ff; background: #fff; box-shadow: 0 0 0 9999px rgba(22, 26, 31, 0.58); pointer-events: auto; touch-action: none; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview textarea { position: absolute; z-index: 2; min-width: 110px; min-height: 32px; padding: 4px; box-sizing: border-box; border: 1px solid #4c91ff; background: var(--annov-surface, #fff); color: var(--annov-text, #20252b); font: 16px/1.3 -apple-system, sans-serif; resize: both; }
@@ -371,7 +371,8 @@ class ScreenshotSession {
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--annov-text, #252b31); cursor: pointer; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button:hover, [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-active { background: var(--annov-tool-hover-bg, #e7f1f0); color: var(--annov-tool-hover-text, #126f65); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button:disabled { opacity: .35; cursor: default; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-confirm { color: var(--annov-tool-confirm, #15805c); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-confirm { background: var(--annov-accent, #673ab8); color: var(--annov-on-accent, #fff); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-confirm:hover:not(:disabled) { background: var(--annov-accent-hover, #5a2fa1); color: var(--annov-on-accent, #fff); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-divider { width: 1px; height: 22px; margin: 0 3px; background: var(--annov-border, #d7dce1); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-colors { display: flex; gap: 2px; align-items: center; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-colors { flex: none; }
