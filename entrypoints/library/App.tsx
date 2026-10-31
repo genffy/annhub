@@ -116,43 +116,23 @@ const PAGE_SIZE = 50
  * placeholder so the same value can be re-picked after removal, and chips are plain buttons — reachable and
  * removable from the keyboard.
  */
-function MultiSelect({
-  ariaLabel,
-  chosen,
-  candidates,
-  onAdd,
-  onRemove,
-}: {
-  ariaLabel: string
-  chosen: { value: string; label: string }[]
-  candidates: { value: string; label: string }[]
-  onAdd(value: string): void
-  onRemove(value: string): void
-}) {
+function MultiSelect({ ariaLabel, candidates, onAdd }: { ariaLabel: string; candidates: { value: string; label: string }[]; onAdd(value: string): void }) {
   return (
-    <>
-      <select
-        className="filter"
-        value=""
-        aria-label={ariaLabel}
-        onChange={event => {
-          if (event.target.value) onAdd(event.target.value)
-        }}
-      >
-        <option value="">{ariaLabel}: —</option>
-        {candidates.map(candidate => (
-          <option key={candidate.value} value={candidate.value}>
-            {candidate.label}
-          </option>
-        ))}
-      </select>
-      {chosen.map(item => (
-        <button key={item.value} type="button" className="filter-chip" aria-label={uiText('library.filter.remove', { name: item.label })} onClick={() => onRemove(item.value)}>
-          <span>{item.label}</span>
-          <X size={11} aria-hidden />
-        </button>
+    <select
+      className="filter"
+      value=""
+      aria-label={ariaLabel}
+      onChange={event => {
+        if (event.target.value) onAdd(event.target.value)
+      }}
+    >
+      <option value="">{ariaLabel}: —</option>
+      {candidates.map(candidate => (
+        <option key={candidate.value} value={candidate.value}>
+          {candidate.label}
+        </option>
       ))}
-    </>
+    </select>
   )
 }
 
@@ -747,43 +727,28 @@ export default function App() {
                     </select>
                   )}
                   {route.view === 'highlights' && (
-                    <span className="filter-set">
-                      <MultiSelect
-                        ariaLabel={uiText('library.filter.color')}
-                        chosen={route.colors.map(color => ({
-                          value: color,
-                          label: uiText(`library.color.${color}` as 'library.color.yellow'),
-                        }))}
-                        candidates={HIGHLIGHT_FILTER_COLORS.filter(color => !route.colors.includes(color)).map(color => ({
-                          value: color,
-                          label: uiText(`library.color.${color}` as 'library.color.yellow'),
-                        }))}
-                        onAdd={color => setFilter({ colors: [...route.colors, color] })}
-                        onRemove={color => setFilter({ colors: route.colors.filter(item => item !== color) })}
-                      />
-                    </span>
+                    <MultiSelect
+                      ariaLabel={uiText('library.filter.color')}
+                      candidates={HIGHLIGHT_FILTER_COLORS.filter(color => !route.colors.includes(color)).map(color => ({
+                        value: color,
+                        label: uiText(`library.color.${color}` as 'library.color.yellow'),
+                      }))}
+                      onAdd={color => setFilter({ colors: [...route.colors, color] })}
+                    />
                   )}
                   {hosts.length > 0 && (
-                    <span className="filter-set">
-                      <MultiSelect
-                        ariaLabel={uiText('library.filter.host')}
-                        chosen={route.hosts.map(host => ({ value: host, label: host }))}
-                        candidates={hosts.filter(host => !route.hosts.includes(host)).map(host => ({ value: host, label: host }))}
-                        onAdd={host => setFilter({ hosts: [...route.hosts, host] })}
-                        onRemove={host => setFilter({ hosts: route.hosts.filter(item => item !== host) })}
-                      />
-                    </span>
+                    <MultiSelect
+                      ariaLabel={uiText('library.filter.host')}
+                      candidates={hosts.filter(host => !route.hosts.includes(host)).map(host => ({ value: host, label: host }))}
+                      onAdd={host => setFilter({ hosts: [...route.hosts, host] })}
+                    />
                   )}
                   {tags.length > 0 && (
-                    <span className="filter-set">
-                      <MultiSelect
-                        ariaLabel={uiText('library.filter.tag')}
-                        chosen={route.tags.map(tag => ({ value: tag, label: tag }))}
-                        candidates={tags.filter(tag => !route.tags.includes(tag)).map(tag => ({ value: tag, label: tag }))}
-                        onAdd={tag => setFilter({ tags: [...route.tags, tag] })}
-                        onRemove={tag => setFilter({ tags: route.tags.filter(item => item !== tag) })}
-                      />
-                    </span>
+                    <MultiSelect
+                      ariaLabel={uiText('library.filter.tag')}
+                      candidates={tags.filter(tag => !route.tags.includes(tag)).map(tag => ({ value: tag, label: tag }))}
+                      onAdd={tag => setFilter({ tags: [...route.tags, tag] })}
+                    />
                   )}
                   {registry.length > 0 &&
                     route.conditions.map((condition, index) => {
@@ -818,48 +783,41 @@ export default function App() {
                       }
                       return (
                         <span className="filter-set" key={`${condition.prop}-${index}`}>
-                          <select
-                            className="filter"
-                            value={condition.prop}
-                            aria-label={uiText('library.filter.property')}
-                            onChange={event => {
-                              const prop = event.target.value
-                              const nextDef = registry.find(item => item.name === prop)
-                              patch({ prop, op: nextDef ? OPERATORS[nextDef.type][0]!.op : '', val: '', val2: '' })
-                            }}
-                          >
-                            <option value="">{uiText('library.filter.property')}: —</option>
-                            {registry.map(item => (
-                              <option key={item.name} value={item.name}>
-                                {item.name}
-                              </option>
-                            ))}
-                          </select>
-                          {def && operators.length > 1 && (
+                          <span className="filter-set-row">
                             <select
                               className="filter"
-                              value={condition.op}
-                              aria-label={uiText('library.filter.operator')}
-                              onChange={event => patch({ op: event.target.value, val: '', val2: '' })}
+                              value={condition.prop}
+                              aria-label={uiText('library.filter.property')}
+                              onChange={event => {
+                                const prop = event.target.value
+                                const nextDef = registry.find(item => item.name === prop)
+                                patch({ prop, op: nextDef ? OPERATORS[nextDef.type][0]!.op : '', val: '', val2: '' })
+                              }}
                             >
-                              {operators.map(({ op, key: opKey }) => (
-                                <option key={op} value={op}>
-                                  {uiText(opKey as 'library.op.contains')}
+                              <option value="">{uiText('library.filter.property')}: —</option>
+                              {registry.map(item => (
+                                <option key={item.name} value={item.name}>
+                                  {item.name}
                                 </option>
                               ))}
                             </select>
-                          )}
-                          {def && valueInput('val')}
-                          {def && condition.op === 'between' && valueInput('val2', 'library.filter.value2')}
-                          <button
-                            type="button"
-                            className="filter-chip"
-                            aria-label={uiText('library.filter.remove', { name: condition.prop })}
-                            onClick={() => setFilter({ conditions: route.conditions.filter((_, at) => at !== index) })}
-                          >
-                            <span>{condition.prop}</span>
-                            <X size={11} aria-hidden />
-                          </button>
+                            {def && operators.length > 1 && (
+                              <select
+                                className="filter"
+                                value={condition.op}
+                                aria-label={uiText('library.filter.operator')}
+                                onChange={event => patch({ op: event.target.value, val: '', val2: '' })}
+                              >
+                                {operators.map(({ op, key: opKey }) => (
+                                  <option key={op} value={op}>
+                                    {uiText(opKey as 'library.op.contains')}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                            {def && valueInput('val')}
+                            {def && condition.op === 'between' && valueInput('val2', 'library.filter.value2')}
+                          </span>
                         </span>
                       )
                     })}
@@ -892,6 +850,59 @@ export default function App() {
                   <span className="count" data-testid="list-count">
                     {loading ? uiText('common.loading') : uiText('library.count', { count: route.view === 'highlights' ? highlightResult.total : total })}
                   </span>
+                  {(route.colors.length > 0 || route.hosts.length > 0 || route.tags.length > 0 || route.conditions.length > 0) && (
+                    // every chosen value on one line under the controls (D-59), not inline with them
+                    <div className="filter-chips-row">
+                      {route.colors.map(color => (
+                        <button
+                          key={`color-${color}`}
+                          type="button"
+                          className="filter-chip"
+                          aria-label={uiText('library.filter.remove', { name: uiText(`library.color.${color}` as 'library.color.yellow') })}
+                          onClick={() => setFilter({ colors: route.colors.filter(item => item !== color) })}
+                        >
+                          <span>{uiText(`library.color.${color}` as 'library.color.yellow')}</span>
+                          <X size={11} aria-hidden />
+                        </button>
+                      ))}
+                      {route.hosts.map(host => (
+                        <button
+                          key={`host-${host}`}
+                          type="button"
+                          className="filter-chip"
+                          aria-label={uiText('library.filter.remove', { name: host })}
+                          onClick={() => setFilter({ hosts: route.hosts.filter(item => item !== host) })}
+                        >
+                          <span>{host}</span>
+                          <X size={11} aria-hidden />
+                        </button>
+                      ))}
+                      {route.tags.map(tag => (
+                        <button
+                          key={`tag-${tag}`}
+                          type="button"
+                          className="filter-chip"
+                          aria-label={uiText('library.filter.remove', { name: tag })}
+                          onClick={() => setFilter({ tags: route.tags.filter(item => item !== tag) })}
+                        >
+                          <span>#{tag}</span>
+                          <X size={11} aria-hidden />
+                        </button>
+                      ))}
+                      {route.conditions.map((condition, index) => (
+                        <button
+                          key={`cond-${condition.prop}-${index}`}
+                          type="button"
+                          className="filter-chip"
+                          aria-label={uiText('library.filter.remove', { name: condition.prop })}
+                          onClick={() => setFilter({ conditions: route.conditions.filter((_, at) => at !== index) })}
+                        >
+                          <span>{condition.prop}</span>
+                          <X size={11} aria-hidden />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -1109,7 +1120,17 @@ function EntryCard({ entry, onOpen, onChanged }: { entry: EntryRecord; onOpen():
             </span>
           </span>
         ) : url ? (
-          <img className="entry-card-preview" src={url} alt="" loading="lazy" />
+          <img
+            className="entry-card-preview"
+            src={url}
+            alt=""
+            loading="lazy"
+            onLoad={event => {
+              // a long capture fills the box from the top instead of shrinking to a sliver (D-58)
+              const image = event.currentTarget
+              image.dataset.tall = image.naturalHeight / image.naturalWidth >= 2 ? 'true' : 'false'
+            }}
+          />
         ) : (
           <span className="entry-card-preview screenshot-placeholder" aria-hidden>
             <Scan size={28} />
@@ -1131,11 +1152,13 @@ function EntryCard({ entry, onOpen, onChanged }: { entry: EntryRecord; onOpen():
             </span>
           )}
           <span className="entry-card-meta" id={id('meta')}>
-            <TypeChip type={entry.type} />
+            <span className="entry-card-meta-first">
+              <TypeChip type={entry.type} />
+              {highlights > 0 && <span className="entry-card-highlights">{uiText('library.highlightsCount', { count: highlights })}</span>}
+            </span>
             <span className="entry-card-source">
               {entry.sourceHost} · {relativeTime(entry.createdAt)}
             </span>
-            {highlights > 0 && <span className="entry-card-highlights">· {uiText('library.highlightsCount', { count: highlights })}</span>}
           </span>
         </span>
       </button>

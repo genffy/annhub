@@ -286,7 +286,9 @@ body {
 .toolbar {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  /* the sets are columns now (chips under controls): everything starts at the top, so the count
+     stays on the first line beside the controls instead of sinking to the middle of a tall set */
+  align-items: flex-start;
   gap: 8px;
   padding: 8px 16px 12px;
   border-bottom: 1px solid var(--ann-border);
@@ -305,7 +307,9 @@ body {
 }
 
 .filter {
-  padding: 7px 8px;
+  box-sizing: border-box;
+  min-height: 32px;
+  padding: 4px 26px 4px 8px;
   border: 1px solid var(--ann-border);
   border-radius: 6px;
   background: var(--ann-surface);
@@ -314,13 +318,48 @@ body {
   max-width: 180px;
 }
 
-/* one multi-select dimension: the adding select plus its chosen-value chips (search.md §3) */
+/* one dropdown arrow of our own, so every select wears the same face (D-59; the glyph cannot read the tokens) */
+select.filter {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23777d89' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.filter:hover,
+.filter-time:hover {
+  border-color: var(--ann-accent-text);
+}
+
+.filter:focus-visible,
+.filter-time:focus-within {
+  border-color: var(--ann-accent);
+}
+
+/* one multi-select dimension (search.md §3): just the adding select — the chosen-value chips
+   live together on one line under the controls (D-59) */
 .filter-set {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
   min-width: 0;
+}
+
+.filter-set-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+/* every chosen value on its own line below the controls, whatever dimension it came from */
+.filter-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  flex-basis: 100%;
+  gap: 4px;
 }
 
 .filter-chip {
@@ -365,12 +404,13 @@ body {
   gap: 4px;
   min-width: 0;
   max-width: 100%;
+  min-height: 32px;
   border: 1px solid var(--ann-border);
   border-radius: 6px;
-  padding: 3px 6px;
+  padding: 3px 8px;
   background: var(--ann-surface);
   color: var(--ann-muted);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
 .filter-time input {
@@ -380,7 +420,7 @@ body {
   border: 0;
   background: transparent;
   color: var(--ann-text);
-  font-size: 12px;
+  font-size: 12.5px;
   font-family: inherit;
 }
 
@@ -473,6 +513,12 @@ body {
   object-fit: contain;
 }
 
+/* a capture at least twice as tall as wide fills the box from the top instead of shrinking to a sliver (D-58) */
+.entry-card-preview[data-tall='true'] {
+  object-fit: cover;
+  object-position: top;
+}
+
 /* clamped inside the box rather than as the box: a clamp on a box of fixed height still shows the lines after it */
 .entry-card-excerpt {
   display: -webkit-box;
@@ -512,18 +558,26 @@ body {
   -webkit-line-clamp: 2;
 }
 
-/* type, source and time are the card's last line, level across a row of cards whatever the title and tags above */
+/* the card's last block, level across a row of cards whatever the title and tags above: type and
+   highlights on the first line, the source and time under them */
 .entry-card-meta {
   display: flex;
-  align-items: center;
-  gap: 6px;
+  flex-direction: column;
+  gap: 3px;
   margin-top: auto;
   min-width: 0;
   color: var(--ann-muted);
-  font-size: 11.5px;
+  font-size: 12px;
 }
 
-/* one line: a long host gives way, the type and the highlight count stay whole */
+.entry-card-meta-first {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* its own line: a long host gives way to the ellipsis */
 .entry-card-source {
   min-width: 0;
   overflow: hidden;
@@ -657,10 +711,18 @@ body {
 
 .drawer-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 12px 16px;
   border-bottom: 1px solid var(--ann-border);
+}
+
+/* a narrow drawer gives the title its own row rather than squeezing it to "Full page: l…" */
+@media (max-width: 520px) {
+  .drawer-title {
+    flex-basis: 100%;
+  }
 }
 
 .drawer-title {
@@ -1141,8 +1203,8 @@ body {
 
 .md-hl-note {
   margin-left: 2px;
-  color: var(--ann-muted);
-  font-size: 0.75em;
+  color: var(--ann-text);
+  font-size: 0.9em;
 }
 
 /* selection toolbar: five colors + note */

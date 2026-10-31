@@ -176,6 +176,43 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await library.close()
   })
 
+  test('chosen filters sit on their own line under the controls, the count stays on the first (D-59)', async ({ page, extensionId }) => {
+    await saveClips(page.context(), page, 3)
+    const library = await page.context().newPage()
+    for (const width of [1280, 1024, 390] as const) {
+      await library.setViewportSize({ width, height: 844 })
+      // a host, a property condition and a start date: three dimensions chosen at once
+      const clip = (await getEntries(page.context()))[0]!
+      const host = new URL(clip.sourceUrl).host
+      await library.goto(`chrome-extension://${extensionId}/library.html#/all?host=${encodeURIComponent(host)}&prop=title&op=contains&val=o&val2=&from=2020-01-01`)
+      await library.reload()
+      await expect(library.locator('.entry-card')).toHaveCount(0)
+      const rows = await library.evaluate(() => {
+        const bar = document.querySelector('.toolbar')!
+        const barBox = bar.getBoundingClientRect()
+        const firstTop = Math.min(...[...bar.children].filter(child => child.getBoundingClientRect().width > 0).map(child => Math.round(child.getBoundingClientRect().top)))
+        const chipsRow = bar.querySelector('.filter-chips-row')
+        const chips = [...bar.querySelectorAll('.filter-chip')]
+        const countElement = document.querySelector('.count')!
+        const countBox = countElement.getBoundingClientRect()
+        return {
+          firstTop,
+          chipTops: chips.map(chip => Math.round(chip.getBoundingClientRect().top)),
+          chipsRowTop: chipsRow ? Math.round(chipsRow.getBoundingClientRect().top) : null,
+          countTop: Math.round(countBox.top),
+          countAtRightEdge: Math.abs(countBox.right - (barBox.right - 16)) <= 2,
+        }
+      })
+      expect(rows.chipTops.length, 'the chosen filters are on the page').toBeGreaterThanOrEqual(2)
+      for (const top of rows.chipTops) expect(top, `a chosen chip below the first line at ${width}`).toBeGreaterThan(rows.firstTop + 10)
+      // the count stays with the controls, at the right edge of its own line — never displaced below the chips
+      expect(rows.chipsRowTop, `the chips have their own row at ${width}`).not.toBeNull()
+      expect(rows.countTop, `the count stays above the chips row at ${width}`).toBeLessThan(rows.chipsRowTop!)
+      expect(rows.countAtRightEdge, `the count sits at the right end of its line at ${width}`).toBe(true)
+    }
+    await library.close()
+  })
+
   test('an empty library with a filter on keeps its filter bar', async ({ page, extensionId }) => {
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/all?host=engineering.example.com`)

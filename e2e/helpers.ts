@@ -250,6 +250,42 @@ export function textOverlaps(page: Page, root: string): Promise<string[]> {
   }, root)
 }
 
+/** Contrast of each element's text against what is really painted behind it. Understands every CSS colour syntax, unlike `textContrast`. */
+export function contrastOf(locator: Locator): Promise<number[]> {
+  return locator.evaluateAll(elements => {
+    const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true })!
+    const rgba = (css: string): [number, number, number, number] => {
+      ctx.clearRect(0, 0, 1, 1)
+      ctx.fillStyle = '#000'
+      ctx.fillStyle = css
+      ctx.fillRect(0, 0, 1, 1)
+      const d = ctx.getImageData(0, 0, 1, 1).data
+      return [d[0]!, d[1]!, d[2]!, d[3]! / 255]
+    }
+    const over = (top: number[], under: number[]): number[] => [0, 1, 2].map(i => top[i]! * top[3]! + under[i]! * (1 - top[3]!))
+    const luminance = (rgb: number[]): number => {
+      const [r, g, b] = rgb.map(channel => {
+        const unit = channel / 255
+        return unit <= 0.03928 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4
+      }) as [number, number, number]
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+    return elements.map(element => {
+      const layers: [number, number, number, number][] = []
+      for (let node: Element | null = element; node; node = node.parentElement) {
+        const layer = rgba(getComputedStyle(node).backgroundColor)
+        if (layer[3] > 0) layers.push(layer)
+        if (layer[3] === 1) break
+      }
+      let ground: number[] = [255, 255, 255]
+      for (const layer of layers.reverse()) ground = over(layer, ground)
+      const text = over(rgba(getComputedStyle(element).color), ground)
+      const [a, b] = [luminance(text), luminance(ground)]
+      return Math.round(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)) * 100) / 100
+    })
+  })
+}
+
 // ── page driving ─────────────────────────────────────────────────────────
 
 /** Selects an element's text content and settles the selection (the menu reads it live). */

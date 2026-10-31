@@ -1,6 +1,6 @@
 import type { Page } from '@playwright/test'
 import { test, expect } from './fixtures'
-import { clearLibrary, textContrast } from './helpers'
+import { clearLibrary, contrastOf, textContrast } from './helpers'
 
 /**
  * Layout of the library page's own surfaces, asserted from geometry and computed colours — never from
@@ -527,7 +527,7 @@ test.describe('the list views are grids of cards (extension.md §2.3)', () => {
     // a clamp on a box taller than its lines still draws the lines after the ellipsis, half of one at the bottom
     expect(Math.abs(clamp.shown - Math.round(clamp.shown)), `the excerpt shows ${clamp.shown.toFixed(2)} lines`).toBeLessThan(0.05)
     const open = card.locator('.entry-card-open')
-    await expect(open).toHaveAccessibleName(/^Retries and backpressure: .* #reliability #retry #distributed-systems 剪藏 engineering\.example\.com · .+ · 3 高亮$/)
+    await expect(open).toHaveAccessibleName(/^Retries and backpressure: .* #reliability #retry #distributed-systems 剪藏 3 高亮 engineering\.example\.com · .+$/)
     await expect(open).toHaveAccessibleDescription(/^Retries amplify the load when every client backs off together/)
     await library.close()
   })
@@ -589,6 +589,131 @@ test.describe('the expanded nav: mark, groups and an outline export (extension.m
       expect(nav.exportFill, `export is an outline, not the accent fill (${scheme})`).not.toBe(nav.accent)
       // the group titles read on the nav surface
       for (const ratio of await textContrast(library.locator('.nav-group-title'))) expect(ratio, `a group title (${scheme})`).toBeGreaterThanOrEqual(4.5)
+    }
+    await library.close()
+  })
+})
+
+test.describe('the card bottoms, tall captures and the reading note (extension.md §2.3, D-58)', () => {
+  /** A capture five times as tall as wide: a long page's crop. */
+  async function seedTallScreenshot(page: Page, extensionId: string): Promise<void> {
+    await clearLibrary(page.context())
+    await page.goto(`chrome-extension://${extensionId}/sample.html`)
+    const dataUrl = await page.evaluate(() => {
+      const canvas = document.createElement('canvas')
+      canvas.width = 60
+      canvas.height = 300
+      const ctx = canvas.getContext('2d')!
+      ctx.fillStyle = '#2b6cb0'
+      ctx.fillRect(0, 0, 60, 300)
+      ctx.fillStyle = '#ffffff'
+      for (let y = 0; y < 300; y += 30) ctx.fillRect(0, y, 60, 6)
+      return canvas.toDataURL('image/png')
+    })
+    await send(page, {
+      type: 'SAVE_SCREENSHOT',
+      requestId: 'r-tall',
+      data: { id: 'ent_tall', dataUrl, width: 60, height: 300, sourceUrl: 'https://engineering.example.com/tall', title: 'Tall capture', via: 'shortcut' },
+    })
+  }
+
+  test('a tall capture fills its preview from the top instead of shrinking to a sliver', async ({ page, extensionId }) => {
+    await seedTallScreenshot(page, extensionId)
+    const library = await page.context().newPage()
+    await library.setViewportSize({ width: 1440, height: 900 })
+    await library.goto(`chrome-extension://${extensionId}/library.html#/screenshots`)
+    await library.reload()
+    const card = library.locator('.entry-card[data-entry-id="ent_tall"]')
+    await expect(card.locator('img.entry-card-preview')).toBeVisible()
+    await expect.poll(() => card.locator('img.entry-card-preview').evaluate(image => image.dataset.tall), { timeout: 10_000 }).toBe('true')
+    const preview = await card.locator('img.entry-card-preview').evaluate(image => {
+      const style = getComputedStyle(image)
+      return {
+        fit: style.objectFit,
+        position: style.objectPosition,
+        height: Math.round(image.getBoundingClientRect().height),
+        drawn: Math.round(image.getBoundingClientRect().width),
+      }
+    })
+    expect(preview.fit, 'a tall capture covers its box').toBe('cover')
+    expect(preview.position, 'it covers from the top').toBe('50% 0%')
+    expect(preview.height, 'the preview box stays 150px').toBe(150)
+    expect(preview.drawn, 'the sliver is gone: the image fills the card width').toBeGreaterThan(200)
+    await library.close()
+  })
+
+  test("the card's bottom block is two lines, with the source on its own", async ({ page, extensionId }) => {
+    await seedCards(page, extensionId)
+    const library = await page.context().newPage()
+    await library.setViewportSize({ width: 1440, height: 900 })
+    await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+    await library.reload()
+    await expect(library.locator('.entry-card')).toHaveCount(8)
+    const meta = await library.evaluate(() => {
+      const meta = document.querySelector('.entry-card[data-entry-id="ent_card_0"] .entry-card-meta')!
+      const first = meta.querySelector('.entry-card-meta-first')!
+      const source = meta.querySelector('.entry-card-source')!
+      const [metaBox, firstBox, sourceBox] = [meta, first, source].map(element => element.getBoundingClientRect())
+      return {
+        lines: Math.abs(firstBox.top - sourceBox.top) > 5,
+        fontSize: parseFloat(getComputedStyle(meta).fontSize),
+        bottomAligned: Math.abs(metaBox.bottom - document.querySelector('.entry-card[data-entry-id="ent_card_1"] .entry-card-meta')!.getBoundingClientRect().bottom) <= 1,
+        cut: (() => {
+          const el = document.querySelector<HTMLElement>('.entry-card-source')!
+          return el.scrollWidth > el.clientWidth + 1
+        })(),
+      }
+    })
+    expect(meta.lines, 'type and highlights on one line, the source under them').toBe(true)
+    expect(meta.fontSize, 'the bottom block is 12px').toBeGreaterThanOrEqual(12)
+    expect(meta.bottomAligned, 'the bottoms stay level across a row').toBe(true)
+    expect(meta.cut, 'the sample hosts fit without the ellipsis').toBe(false)
+    await library.close()
+  })
+
+  test('the note marker reads on all five highlight colours, light and dark', async ({ page, extensionId }) => {
+    await clearLibrary(page.context())
+    await page.goto(`chrome-extension://${extensionId}/sample.html`)
+    const paragraphs = ['Yellow note.', 'Green note.', 'Blue note.', 'Pink note.', 'Purple note.']
+    const content = paragraphs.join('\n\n')
+    await send(page, {
+      type: 'SAVE_CLIP',
+      requestId: 'r-note-colors',
+      draft: { id: 'ent_note_colors', content, sourceUrl: 'https://engineering.example.com/colors', properties: { title: 'Five colours' }, via: 'menu' },
+    })
+    const colors = ['yellow', 'green', 'blue', 'pink', 'purple'] as const
+    // one highlight per paragraph, each inside its own block: a range across the blank line is not valid
+    let cursor = 0
+    for (const [index, color] of colors.entries()) {
+      const start = cursor
+      const end = start + paragraphs[index]!.length
+      cursor = end + 2
+      await send(page, {
+        type: 'ADD_HIGHLIGHT',
+        id: 'ent_note_colors',
+        highlight: { id: `hl_note_${color}`, start, end, quote: content.slice(start, end), color, note: 'note', createdAt: Date.now() },
+      })
+    }
+    const library = await page.context().newPage()
+    await library.setViewportSize({ width: 1180, height: 800 })
+    for (const scheme of ['light', 'dark'] as const) {
+      await library.emulateMedia({ colorScheme: scheme })
+      await library.goto(`chrome-extension://${extensionId}/library.html#/read/ent_note_colors`)
+      await library.reload()
+      await expect(library.locator('.md-hl-note').first()).toBeVisible()
+      const notes = await library
+        .locator('.md-hl-note')
+        .evaluateAll(notes => notes.map(note => ({ size: parseFloat(getComputedStyle(note).fontSize), colour: getComputedStyle(note.parentElement!).backgroundColor })))
+      expect(notes.length, `five markers, one per colour (${scheme})`).toBe(5)
+      expect(new Set(notes.map(note => note.colour)).size, 'each on its own colour').toBe(5)
+      const body = parseFloat(
+        await library
+          .locator('.md-view p')
+          .first()
+          .evaluate(p => getComputedStyle(p).fontSize),
+      )
+      for (const note of notes) expect(note.size, `the marker is at least 0.85em (${scheme})`).toBeGreaterThanOrEqual(body * 0.85)
+      for (const ratio of await contrastOf(library.locator('.md-hl-note'))) expect(ratio, `a note marker on its highlight (${scheme})`).toBeGreaterThanOrEqual(4.5)
     }
     await library.close()
   })
