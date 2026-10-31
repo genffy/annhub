@@ -1,7 +1,7 @@
 # E2E 约定
 
 > 适用于当前 `e2e/` 实现；测试目录随未来 monorepo 包结构调整。全局规则见根目录 `AGENTS.md`。
-> 更新：2026-10-30。
+> 更新：2026-10-31。
 
 - Playwright specs、fixture HTML 和 helpers 放在本目录；单元测试仍与源码同级放 `__tests__/`。
 - `e2e/fixtures.ts` 加载 `.output/chrome-mv3`。全局 setup 只在构建目录不存在或 `BUILD_FORCE=1` 时重建；源码变化后必须先 `npm run build`，再跑 `npx playwright test <spec>`。
@@ -10,7 +10,7 @@
 - 触发页面侧动作走 `helpers.ts` 的 `triggerScreenshot`/`triggerBlockMode`/`triggerAnnotation`：经 service worker 给标签页的顶层框架（`frameId: 0`）发消息，与快捷键同一条路。不要在页面里派发 `CustomEvent` 来触发；页面脚本能做的事不能被扩展当成用户的操作，`screenshot-capture.spec.ts` 的 “a synthetic keypress…” 守着这条边界。
 - 冷启动用 `helpers.ts` 的 `stopServiceWorker(context, page)`（CDP `ServiceWorker.stopAllWorkers`）真的停掉 worker，再断言空闲后的第一条消息立即成功（`cold-start.spec.ts`）；不要靠等待或重试掩盖冷启动。
 - `page-entry.spec.ts` 守着页面入口的边界：可编辑区里不出菜单、`Enter` 只在 `Tab` 聚焦菜单项后触发、截图会话里单击链接不跳转。
-- 批注层与录制各有专门 spec：`page-annotation.spec.ts`（层的进入退出、墨迹、「截图」把墨迹交给编辑器且是一步撤销、会话结束层带着墨迹回来、退出即清空、层开着时选区菜单不出现、区块快捷键指向层而不是开区块模式）与 `recording-annotation.spec.ts`（录制中工具栏不进画面、光标高亮与点击涟漪跟随指针且不挡点击、`RECORDING_LIFECYCLE` 按 worker 真实广播的那条路到达）。
+- 批注层与录制各有专门 spec：`page-annotation.spec.ts`（层的进入退出、墨迹、「截图」把墨迹交给编辑器且是一步撤销、会话结束层带着墨迹回来、退出即清空、层开着时选区菜单不出现、区块快捷键指向层而不是开区块模式、画笔与荧光笔的笔迹几何：读批注层画布的像素量起点到终点的连线、快速拖动被浏览器折叠的样点、直角的转角、吸顶导航上的笔画、触摸拖动与 `Ctrl`/`Cmd`+`Z`；一次发出一串移动要经 CDP 的 `Input.dispatchMouseEvent` 不等回复地连发，每次 `await page.mouse.move` 都是各自一个事件，折叠不起来）与 `recording-annotation.spec.ts`（录制中工具栏不进画面、光标高亮与点击涟漪跟随指针且不挡点击、`RECORDING_LIFECYCLE` 按 worker 真实广播的那条路到达）。
 - 滚动长图用例（`screenshot-stitch.spec.ts`）用 `longpage.html` 夹具：五屏长页带吸顶导航与懒加载图片，断言导航只在成品里出现一次、接缝不糊，`Esc` 放弃并滚回原处，成品照常可编辑、下载、入库，指标带 `frame=stitched`。
 - 断言下载用 service worker 里的 `chrome.downloads.search`：后台发起的下载不会触发 Playwright 的页面 download 事件。
 - 清库用 `clearLibrary`，它清 entries、assets 和两个派生检索 store，保留 properties store：内置属性注册表被清掉后，service worker 不会重新播种，之后每次保存都会校验失败。

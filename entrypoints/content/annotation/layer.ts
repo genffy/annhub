@@ -32,6 +32,7 @@ import {
   type ScreenshotTool,
 } from '../screenshot/editor'
 import type { UiTextKey } from '../../../utils/ui-text'
+import { pointerSamples } from '../pointer-samples'
 import { inkToEditorAnnotations, inkToViewport, snapshotInk, type InkStroke } from './ink'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -161,7 +162,7 @@ export class AnnotationLayer {
          one of those is overridden back to a full, transparent, click-through viewport. */
       [${ROOT_ATTR}="${ROOT_VALUE}"] { position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border: 0; padding: 0; background: transparent; overflow: visible; z-index: 2147483647; pointer-events: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-canvas { position: absolute; inset: 0; pointer-events: none; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"].ann-annot-drawing .ann-annot-canvas { pointer-events: auto; cursor: crosshair; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"].ann-annot-drawing .ann-annot-canvas { pointer-events: auto; cursor: crosshair; touch-action: none; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-toolbar { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 2px; max-height: calc(100vh - 16px); overflow-y: auto; box-sizing: border-box; padding: 5px; border: 1px solid var(--annov-border, #d7dce1); border-radius: 6px; background: var(--annov-surface, #fff); box-shadow: var(--annov-shadow, 0 6px 20px rgba(0,0,0,.18)); pointer-events: auto; color: var(--annov-text, #252b31); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-toolbar button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-toolbar button:hover, [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-toolbar button.ann-annot-active { background: var(--annov-tool-hover-bg, #e7f1f0); color: var(--annov-tool-hover-text, #126f65); }
@@ -513,6 +514,17 @@ export class AnnotationLayer {
       if (active instanceof HTMLElement && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return
       event.preventDefault()
       this.deleteSelectedStep()
+      return
+    }
+    // Ctrl/Cmd+Z undoes a step, as it does in the screenshot editor — but only while a drawing tool owns the
+    // pointer: with the pointer tool, or the focus in an input or editable area, the key belongs to the page (D-81)
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'z') {
+      if (this.tool === 'pointer') return
+      const active = this.doc.activeElement
+      if (active instanceof HTMLElement && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable)) return
+      event.preventDefault()
+      event.stopPropagation()
+      this.undo()
     }
   }
 
@@ -547,54 +559,77 @@ export class AnnotationLayer {
     if (!isUserInput(event) || event.button !== 0) return
     event.preventDefault()
     event.stopPropagation()
-    const start = this.canvasPoint(event)
+    // one stroke at a time (annotate.md §1.2, D-69): a gesture already running, or a second finger
+    // coming down while one draws, starts nothing of its own
+    if (this.endGesture || !event.isPrimary) return
     if (this.tool === 'text') {
-      this.openTextInput(start)
+      this.openTextInput(this.canvasPoint(event))
       return
     }
     if (this.tool === 'step') {
       this.pressStep(event)
       return
     }
-    const id = this.newStrokeId()
-    const draft: InkStroke = { id, tool: this.tool as InkStroke['tool'], points: [start, start], color: this.color }
-    if (isLineTool(this.tool)) draft.width = this.lineWidth
-    if (this.isPinnedPoint(event.clientX, event.clientY)) draft.pinned = true
+    const tool = this.tool as InkStroke['tool']
+    const traced = tool === 'pen' || tool === 'highlighter'
+    // pinned ink keeps viewport coordinates from its first sample on (annotate.md §1.2): page
+    // coordinates would sit a scroll's worth below the pointer once the page has scrolled
+    const pinned = this.isPinnedPoint(event.clientX, event.clientY)
+    const view = this.doc.defaultView!
+    const at = (e: { clientX: number; clientY: number }): Point => (pinned ? { x: e.clientX, y: e.clientY } : { x: e.clientX + view.scrollX, y: e.clientY + view.scrollY })
+    const start = at(event)
+    // a trace holds only the samples the pointer has passed; the shapes hold [start, end] with `end` rewritten per move
+    const draft: InkStroke = { id: this.newStrokeId(), tool, points: traced ? [start] : [start, start], color: this.color }
+    if (isLineTool(tool)) draft.width = this.lineWidth
+    if (pinned) draft.pinned = true
     this.draft = draft
+    const pointerId = event.pointerId
     const follow = (ev: PointerEvent): void => {
-      const point = this.canvasPoint(ev)
-      draft.points[1] = draft.tool === 'line' && ev.shiftKey ? snapLine(start, point) : point
-      if (draft.tool === 'pen' || draft.tool === 'highlighter') draft.points.push(point)
+      if (traced) {
+        for (const sample of pointerSamples(ev)) {
+          const point = at(sample)
+          const last = draft.points[draft.points.length - 1]!
+          if (point.x !== last.x || point.y !== last.y) draft.points.push(point)
+        }
+      } else {
+        const point = at(ev)
+        draft.points[1] = tool === 'line' && ev.shiftKey ? snapLine(start, point) : point
+      }
       this.paint()
     }
     const move = (ev: PointerEvent): void => {
-      if (!isUserInput(ev)) return
+      if (ev.pointerId !== pointerId || !isUserInput(ev)) return
       follow(ev)
     }
     const up = (ev: PointerEvent): void => {
-      if (!isUserInput(ev)) return
+      if (ev.pointerId !== pointerId || !isUserInput(ev)) return
       cleanup()
       follow(ev)
       this.draft = null
       // a click without a drag draws nothing, as the screenshot editor's strokes do (screenshot.md §1.1)
-      const moved = Math.hypot(draft.points[draft.points.length - 1]!.x - start.x, draft.points[draft.points.length - 1]!.y - start.y) >= 3 || draft.points.length > 3
+      const moved = Math.hypot(draft.points[draft.points.length - 1]!.x - start.x, draft.points[draft.points.length - 1]!.y - start.y) >= 3 || draft.points.length > 2
       if (!moved) {
         this.paint()
         return
       }
       this.commit([...this.strokes, draft])
     }
+    // this pointer's cancel drops the half-drawn stroke; another pointer's leaves it alone
+    const cancel = (ev: PointerEvent): void => {
+      if (ev.pointerId !== pointerId) return
+      cleanup()
+    }
     const cleanup = (): void => {
       this.doc.removeEventListener('pointermove', move, true)
       this.doc.removeEventListener('pointerup', up, true)
-      this.doc.removeEventListener('pointercancel', cleanup, true)
+      this.doc.removeEventListener('pointercancel', cancel, true)
       this.draft = null
       this.endGesture = null
     }
     this.endGesture = cleanup
     this.doc.addEventListener('pointermove', move, true)
     this.doc.addEventListener('pointerup', up, true)
-    this.doc.addEventListener('pointercancel', cleanup, true)
+    this.doc.addEventListener('pointercancel', cancel, true)
   }
 
   /** The step tool on the layer: press a badge to drag it, anywhere else the next one follows the pointer and lands on release. */

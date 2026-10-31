@@ -9,6 +9,7 @@ import {
   relativeLuminance,
   renderScreenshot,
   snapLine,
+  tracePath,
   stepAt,
   stepInk,
   stepNumbers,
@@ -176,6 +177,7 @@ function recordingCanvas(width = 300, height = 200) {
     beginPath: () => {},
     moveTo: (x: number, y: number) => calls.push(`moveTo ${x},${y}`),
     lineTo: (x: number, y: number) => calls.push(`lineTo ${x},${y}`),
+    quadraticCurveTo: (cx: number, cy: number, x: number, y: number) => calls.push(`quadraticCurveTo ${cx},${cy}→${x},${y}`),
     ellipse: () => {},
     strokeRect: () => calls.push(`strokeRect ${ctx.strokeStyle} w${ctx.lineWidth}`),
     arc: (x: number, y: number, radius: number) => calls.push(`arc ${x},${y} r${radius}`),
@@ -337,8 +339,11 @@ describe('drawing with the highlighter', () => {
   it('lays its colour over the picture at 40%, in one stroke: where it runs over itself it is no deeper', () => {
     const { target, calls } = recordingCanvas()
     renderScreenshot(target, source, [], [line('highlighter', scribble, 'medium', '#f6c453')], 1)
+    // one path, stroked once: a moveTo, a curve per inner sample, and the straight closing half segment
     expect(strokes(calls)).toEqual(['stroke #f6c453 w20 a0.4'])
-    expect(calls.filter(call => call.startsWith('lineTo'))).toHaveLength(scribble.length - 1)
+    expect(calls.filter(call => call.startsWith('moveTo'))).toHaveLength(1)
+    expect(calls.filter(call => call.startsWith('quadraticCurveTo'))).toHaveLength(scribble.length - 2)
+    expect(calls).toContain(`lineTo ${scribble[scribble.length - 1]!.x},${scribble[scribble.length - 1]!.y}`)
   })
 
   it('keeps 60% of the difference between the text and the background under it, whatever the colour', () => {
@@ -355,5 +360,88 @@ describe('drawing with the highlighter', () => {
     const { target, calls } = recordingCanvas()
     renderScreenshot(target, source, [], [line('highlighter', scribble, 'thick'), line('pen', scribble, 'thin')], 2)
     expect(strokes(calls)).toEqual([`stroke ${RED} w64 a0.4`, `stroke ${RED} w4`])
+  })
+})
+
+describe('the trace through its samples (annotate.md §1.2, D-68)', () => {
+  const trace = (points: Point[]): string[] => {
+    const calls: string[] = []
+    tracePath(
+      {
+        moveTo: (x, y) => calls.push(`moveTo ${x},${y}`),
+        lineTo: (x, y) => calls.push(`lineTo ${x},${y}`),
+        quadraticCurveTo: (cx, cy, x, y) => calls.push(`quadraticCurveTo ${cx},${cy}→${x},${y}`),
+      },
+      points,
+    )
+    return calls
+  }
+
+  it('draws two samples as one straight segment', () => {
+    expect(
+      trace([
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+      ]),
+    ).toEqual(['moveTo 0,0', 'lineTo 100,0'])
+  })
+
+  it('keeps a straight drag straight: collinear samples stay on their line', () => {
+    const calls = trace([
+      { x: 0, y: 0 },
+      { x: 50, y: 0 },
+      { x: 100, y: 0 },
+      { x: 150, y: 0 },
+    ])
+    expect(calls[0]).toBe('moveTo 0,0')
+    expect(calls).toContain('lineTo 150,0')
+    const ys = calls.flatMap(call => [...call.matchAll(/(-?\d+),(-?\d+)/g)].map(match => Number(match[2])))
+    expect(ys, 'every point the path names lies on the level line').toStrictEqual([0, 0, 0, 0, 0, 0])
+  })
+
+  it('rounds a corner: the corner sample is the control point, never a point on the path', () => {
+    // (0,0) → (100,0) → (100,100): the curve passes inside the corner, through (100,50)
+    expect(
+      trace([
+        { x: 0, y: 0 },
+        { x: 100, y: 0 },
+        { x: 100, y: 100 },
+      ]),
+    ).toEqual(['moveTo 0,0', 'quadraticCurveTo 100,0→100,50', 'lineTo 100,100'])
+  })
+
+  it('repeated samples add no segment of their own', () => {
+    expect(
+      trace([
+        { x: 0, y: 0 },
+        { x: 0, y: 0 },
+        { x: 50, y: 0 },
+        { x: 50, y: 0 },
+      ]),
+    ).toEqual(['moveTo 0,0', 'lineTo 50,0'])
+  })
+
+  it('never curves the clipped polyline: its segments stay straight', () => {
+    const { target, calls } = recordingCanvas()
+    renderScreenshot(
+      target,
+      {} as HTMLCanvasElement,
+      [],
+      [
+        {
+          tool: 'polyline',
+          points: [
+            { x: 0, y: 0 },
+            { x: 30, y: 20 },
+            { x: 60, y: 0 },
+          ],
+          color: RED,
+          pixelWidth: 3,
+        },
+      ],
+      1,
+    )
+    expect(calls.filter(call => call.startsWith('quadraticCurveTo'))).toHaveLength(0)
+    expect(calls.filter(call => call.startsWith('lineTo'))).toHaveLength(2)
   })
 })
