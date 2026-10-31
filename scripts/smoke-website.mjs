@@ -76,7 +76,9 @@ export async function smokeWebsite({ origin = SITE_ORIGIN, revision, edgeRules =
   assert.equal(llms.status, 200, 'Missing public route: /llms.txt')
   assert.match(llms.headers.get('content-type') ?? '', /^text\/plain\b/, 'llms.txt must be served as plain text')
   assert.ok((await llms.text()).startsWith('# AnnHub\n'), 'llms.txt does not open with the product name')
-  assert.equal((await get('/this-page-does-not-exist')).status, 404, 'Unknown routes must return 404')
+  const missing = await get('/this-page-does-not-exist')
+  assert.equal(missing.status, 404, 'Unknown routes must return 404')
+  assert.match(await missing.text(), /href="\/en#library"/, 'Unknown routes must show the AnnHub 404 page, with its exits')
   await checkRedirect('/', '/en', { 'accept-language': 'ja,en;q=0.5' }, 302)
   if (edgeRules) {
     await checkRedirect('/?utm_source=deploy', '/zh-CN?utm_source=deploy', { 'accept-language': 'zh-TW,zh;q=0.9' }, 302)

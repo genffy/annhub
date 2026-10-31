@@ -36,6 +36,14 @@ export function checkWebsiteExport({ directory = websiteOutput, revision, produc
     assert.ok(assets.some(path => path.endsWith('.js')) && assets.some(path => path.endsWith('.css')), `No local scripts/styles: ${locale}`)
     for (const asset of assets) assert.ok(existsSync(resolve(directory, `.${asset}`)), `Broken static asset: ${asset}`)
   }
+  // the branded 404 page: not indexed, no analytics consent, and in each language an exit to the library and one to the home page
+  const notFound = read('404.html')
+  assert.match(notFound, /<meta name="robots" content="noindex/, 'The 404 page must not be indexed')
+  assert.ok(!notFound.includes('consent'), 'The 404 page must not carry the analytics consent')
+  for (const locale of ['en', 'zh-CN']) {
+    assert.ok(notFound.includes(`lang="${locale}"`), `The 404 page has no ${locale} section`)
+    for (const href of [`/${locale}#library`, `/${locale}`]) assert.ok(notFound.includes(`href="${href}"`), `The 404 page does not link to ${href}`)
+  }
   assert.ok(read('llms.txt').startsWith('# AnnHub\n'), 'llms.txt does not open with the product name')
   assert.equal(read('_redirects'), staticRedirects(), 'The artifact has stale redirects')
   const deployed = JSON.parse(read('__deployment.json'))
