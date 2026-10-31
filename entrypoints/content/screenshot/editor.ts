@@ -84,6 +84,26 @@ export function renderScreenshot(target: HTMLCanvasElement, source: HTMLCanvasEl
 }
 
 /**
+ * The trace of a pen or highlighter stroke through its samples (annotate.md §1.2, D-68): a quadratic curve per pair
+ * of samples, with the samples themselves as control points and the curve passing through the midpoints between
+ * them, so a corner comes out round without the overshoot an interpolating spline would make. The first and the last
+ * half segment are straight: the stroke starts at the first sample and ends at the last one. Samples repeated at the
+ * same position add no segment of their own; the shapes and the clipped `polyline` never go through here — a
+ * rectangle's corner is a corner.
+ */
+export function tracePath(ctx: Pick<CanvasRenderingContext2D, 'moveTo' | 'lineTo' | 'quadraticCurveTo'>, points: readonly Point[]): void {
+  const path = points.filter((point, index) => index === 0 || point.x !== points[index - 1]!.x || point.y !== points[index - 1]!.y)
+  if (path.length === 0) return
+  ctx.moveTo(path[0]!.x, path[0]!.y)
+  for (let index = 1; index < path.length - 1; index++) {
+    const current = path[index]!
+    const next = path[index + 1]!
+    ctx.quadraticCurveTo(current.x, current.y, (current.x + next.x) / 2, (current.y + next.y) / 2)
+  }
+  ctx.lineTo(path[path.length - 1]!.x, path[path.length - 1]!.y)
+}
+
+/**
  * One annotation onto the context, in the context's own pixel coordinates, at `scale` (the capture's device pixel
  * ratio). The screenshot editor and the page annotation layer paint through this one function, so a stroke looks the
  * same in both. `numbers` supplies the step badges' labels; `textBounds` is the canvas width a text annotation is
@@ -148,8 +168,7 @@ export function drawAnnotation(ctx: CanvasRenderingContext2D, annotation: Annota
     ctx.save()
     if (annotation.tool === 'highlighter') ctx.globalAlpha = HIGHLIGHTER_ALPHA
     ctx.beginPath()
-    ctx.moveTo(annotation.points[0].x, annotation.points[0].y)
-    annotation.points.slice(1).forEach(point => ctx.lineTo(point.x, point.y))
+    tracePath(ctx, annotation.points)
     ctx.stroke()
     ctx.restore()
   }

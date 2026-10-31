@@ -26,6 +26,7 @@ import { newEntryId } from '../../../learning-core/assets'
 import { normalizeHost } from '../../../learning-core/normalize'
 import { extractPageMeta, resolvePermalink } from '../page-meta'
 import { isUserInput } from '../user-input'
+import { pointerSamples } from '../pointer-samples'
 import type { CaptureVia, ResponseMessage } from '../../../types/messages'
 import type { ViewportRect } from './crop'
 import { computeCropSource, CropError, intersectRects } from './crop'
@@ -1722,12 +1723,22 @@ class ScreenshotSession {
     const draft: Annotation = isLineTool(tool)
       ? { tool, start, end: start, points: [start], color: this.color, width: this.lineWidth }
       : { tool, start, end: start, points: [start], color: this.color }
-    // the pen and the highlighter go where the pointer goes; the line goes straight to it, or with Shift held to the
-    // nearest horizontal, vertical or 45° diagonal (screenshot.md §1.1)
+    // the pen and the highlighter go where the pointer goes, taking every sample the frame folded
+    // into the move; the line goes straight to it, or with Shift held to the nearest horizontal,
+    // vertical or 45° diagonal (screenshot.md §1.1)
     const follow = (ev: PointerEvent) => {
-      const point = this.canvasPoint(ev)
-      draft.end = draft.tool === 'line' && ev.shiftKey ? snapLine(start, point) : point
-      if (draft.tool === 'pen' || draft.tool === 'highlighter') draft.points.push(draft.end)
+      if (draft.tool === 'pen' || draft.tool === 'highlighter') {
+        for (const sample of pointerSamples(ev)) {
+          const point = this.canvasPoint(sample)
+          const last = draft.points[draft.points.length - 1]!
+          if (point.x === last.x && point.y === last.y) continue
+          draft.points.push(point)
+          draft.end = point
+        }
+      } else {
+        const point = this.canvasPoint(ev)
+        draft.end = draft.tool === 'line' && ev.shiftKey ? snapLine(start, point) : point
+      }
     }
     const move = (ev: PointerEvent) => {
       follow(ev)
