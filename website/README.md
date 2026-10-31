@@ -47,7 +47,7 @@ npm run build
 npm run start
 ```
 
-构建产物在 `out/`，`npm run start` 用 Wrangler 本地服务这些文件；它不是 Next.js 服务端。两种语言、法律页的别名、静态导航数据和 404 都通过同一份产物验证。`/` 在本地回退到 `/en`；生产的浏览器语言和地区规则需要在真实 Cloudflare zone 验证，本地不能通过伪造请求头模拟 Cloudflare 国家判断。
+构建产物在 `out/`，`npm run start` 用 Wrangler 本地服务这些文件；它不是 Next.js 服务端。两种语言、法律页的别名、静态导航数据和 404 都通过同一份产物验证。404 页依赖 Next.js 的实验开关 `experimental.globalNotFound`（`next.config.js`）：Next.js 主版本变化时，`npm run check:consistency` 会要求先确认它还在、含义没变，再更新配置旁的复核注记。`/` 在本地回退到 `/en`；生产的浏览器语言和地区规则需要在真实 Cloudflare zone 验证，本地不能通过伪造请求头模拟 Cloudflare 国家判断。
 
 ## 部署
 

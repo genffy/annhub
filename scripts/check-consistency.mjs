@@ -139,6 +139,21 @@ function checkNext() {
     const config = dependencies['eslint-config-next']
     if (config !== undefined && majorOf(config) !== majorOf(dependencies.next)) fail(file, `eslint-config-next ${config} is not the same major as next ${dependencies.next}`)
 
+    // An experimental switch can be renamed, changed or dropped by any major, and nothing else notices: the config says
+    // which major it was last checked on, and a new major has to be checked again.
+    const configFile = directory ? `${directory}/next.config.js` : 'next.config.js'
+    const nextConfig = read(configFile) ?? ''
+    if (/\bexperimental\s*:\s*\{[^}]*\bglobalNotFound\b/.test(nextConfig)) {
+      const reviewed = /globalNotFound reviewed on Next (\d+)/.exec(nextConfig)?.[1]
+      if (reviewed === undefined)
+        fail(configFile, 'enables experimental.globalNotFound without saying which Next.js major it was reviewed on ("globalNotFound reviewed on Next <major>")')
+      else if (Number(reviewed) !== majorOf(dependencies.next))
+        fail(
+          configFile,
+          `experimental.globalNotFound was reviewed on Next ${reviewed}, but ${file} depends on next ${dependencies.next}: check that the switch still exists and still does the same, then update the note`,
+        )
+    }
+
     const readmeFile = directory ? `${directory}/README.md` : 'README.md'
     const readme = read(readmeFile)
     if (readme === null) continue

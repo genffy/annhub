@@ -170,7 +170,7 @@ export function createBeautifyPanel(doc: Document, options: BeautifyPanelOptions
 
   // the output canvas ratio: free, and the ratios the settings turned on, each with a small outline of its shape
   const free = button('ann-shot-bz-chip')
-  free.append(icon(MOVE), make('span', undefined, uiText('shot.ratio.free')))
+  free.append(icon(MOVE), make('span', undefined, uiText('shot.beautify.ratio.fit')))
   const chips: HTMLButtonElement[] = [choice(free, settings => settings.ratio === undefined, { ratio: undefined })]
   for (const id of options.ratios) {
     const preset = ratioOf(id)

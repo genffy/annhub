@@ -88,6 +88,7 @@ import {
   nudgeBox,
   pageStable,
   resizeFromHandle,
+  sameFrame,
   snapPoint,
   type HandleId,
 } from './selection'
@@ -102,12 +103,6 @@ const ROOT_VALUE = 'screenshot-session'
 /** Asking again this often, this many times, covers the whole second the browser's capture limit counts. */
 const CAPTURE_RATE_RETRY_MS = 400
 const CAPTURE_RATE_RETRIES = 3
-/**
- * How long the pointer must stay on one element outside a pending frame
- * before the element picker paints — the same intent dwell the selection
- * menu uses, so a pointer in transit never flashes the dashed frame.
- */
-const HOVER_ARM_DWELL_MS = 300
 /** A success notice stays as long as the clip toast next door; the fade is counted on top. */
 const NOTICE_BUBBLE_MS = 3000
 const NOTICE_BUBBLE_FADE_MS = 200
@@ -240,9 +235,6 @@ class ScreenshotSession {
   private hoverChain: Element[] = []
   private hoverIndex = 0
   private hoverOutlineEl: HTMLDivElement | null = null
-  /** whether the pending-frame picker has painted after its dwell (screenshot.md §1.2) */
-  private hoverArmed = false
-  private hoverArmTimer: number | null = null
   private margin = 0
   private marginBarEl: HTMLDivElement | null = null
   private confirmBarEl: HTMLDivElement | null = null
@@ -253,6 +245,8 @@ class ScreenshotSession {
   private snapYEl: HTMLDivElement | null = null
   private shiftRatio: number | null = null
   private pendingFrameRecord: FrameRecord | null = null
+  /** The frame as the memory offered it: confirmed untouched, it is still the element's frame and not a place (screenshot.md §1.4). */
+  private offeredFrame: ViewportRect | null = null
   private reusedFrame = false
   /** The capture came out of the scroll stitcher (screenshot.md §1.5): the frame is stitched, not dragged or picked. */
   private stitched = false
@@ -304,7 +298,8 @@ class ScreenshotSession {
       this.anonymizeToggled = true
       this.syncHint()
     }
-    if (this.state === 'confirming' && this.selection && !this.hoverOutlineEl) {
+    // the pending frame owns the arrows and Enter: there is no picker beside it to climb or to ask
+    if (this.state === 'confirming' && this.selection) {
       const view = this.doc.defaultView!
       if (e.key.startsWith('Arrow')) {
         e.preventDefault()
@@ -321,7 +316,7 @@ class ScreenshotSession {
     if (e.key === 'Shift' && this.state === 'selecting' && this.selection) {
       this.shiftRatio = this.selection.height > 0 ? this.selection.width / this.selection.height : null
     }
-    if ((this.state === 'selecting' || this.state === 'confirming') && this.hoverOutlineEl && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    if (this.state === 'selecting' && this.hoverOutlineEl && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault()
       this.hoverIndex = adjustHierarchy(this.hoverChain, this.hoverIndex, e.key === 'ArrowUp' ? 1 : -1)
       this.paintHover()
@@ -371,7 +366,7 @@ class ScreenshotSession {
       [${ROOT_ATTR}="${ROOT_VALUE}"] { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       [${ROOT_ATTR}="${ROOT_VALUE}"].ann-shot-modal { pointer-events: auto; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-overlay { position: absolute; inset: 0; background: rgba(22, 26, 31, 0.58); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-hint { position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-hint { position: absolute; z-index: 4; top: 16px; left: 50%; transform: translateX(-50%);
         background: var(--annov-surface, #ffffff); color: var(--annov-text, #20252b); padding: 7px 12px; border: 1px solid var(--annov-border, #d7dce1); border-radius: 4px; box-shadow: var(--annov-shadow, 0 6px 20px rgba(0, 0, 0, 0.18)); font: 13px/1.4 -apple-system, sans-serif; pointer-events: none; white-space: nowrap; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-hint b { color: var(--annov-accent-text, #673ab8); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-rect { position: absolute; box-sizing: border-box; border: 2px solid #4c91ff; background: transparent; box-shadow: 0 0 0 9999px rgba(22, 26, 31, 0.58); }
@@ -467,11 +462,18 @@ class ScreenshotSession {
     this.beautify = { ...response.data.beautify }
     if (response.data.watermark.enabled && response.data.watermark.image) void this.loadWatermarkImage(response.data.watermark.image)
     this.syncHint()
-    // a frame handed over by the selection menu is pending, not captured
-    if (this.state === 'selecting' || this.state === 'confirming') {
-      this.showRatioBar()
-      void this.restoreRememberedFrame()
-    }
+    // a frame handed over by the selection menu is pending, not captured, and needs no picking chips
+    if (this.state === 'selecting') void this.offerPicking()
+  }
+
+  /**
+   * The memory has its say first, then the picking chips: a frame offered a round trip after the session opened
+   * must not find the chips already on the screen beside it. Not part of `settingsLoaded` — no shot waits for it.
+   */
+  private async offerPicking(): Promise<void> {
+    await this.restoreRememberedFrame()
+    if (this.exited || this.state !== 'selecting' || this.stitching) return
+    this.showRatioBar()
   }
 
   /**
@@ -492,7 +494,8 @@ class ScreenshotSession {
     // (真机走查 P3-1：“Esc to cancelAAnonymize: on”)
     const sep = (): Text => this.textNode(' · ')
     this.hintEl.append(
-      this.textNode(uiText('shot.hint')),
+      // a pending frame is settled by its own keys and a click outside; the picking line would promise gestures that are not on
+      this.textNode(uiText(this.state === 'confirming' ? 'shot.hintPending' : 'shot.hint')),
       // with both identity kinds switched off in settings there is nothing for `A` to do
       ...(this.anonymizeAvailable()
         ? [sep(), this.boldNode('A'), this.textNode(` ${uiText('shot.anonymize', { state: uiText(this.anonymizeOn ? 'shot.on' : 'shot.off') })}`)]
@@ -552,7 +555,8 @@ class ScreenshotSession {
   private stitching = false
 
   private async beginStitching(): Promise<void> {
-    if (this.stitching || (this.state !== 'selecting' && this.state !== 'confirming')) return
+    // the button lives on the picking chips: a pending frame has none, and is let go with a click outside first
+    if (this.stitching || this.state !== 'selecting') return
     // a transparent catcher holds the pointer off the page's hover styles for the whole run
     const sweeper = this.doc.createElement('div')
     sweeper.setAttribute(ROOT_ATTR, 'screenshot-hover-sweeper')
@@ -582,8 +586,6 @@ class ScreenshotSession {
     // every ending — stitched, stalled, cancelled or discarded — scrolls the page back to here
     const startTop = this.doc.scrollingElement?.scrollTop ?? 0
     const startLeft = this.doc.scrollingElement?.scrollLeft ?? 0
-    this.setConfirmShield(false)
-    this.clearConfirmUi()
     this.clearHoverUi()
     this.selectionEl?.remove()
     this.selectionEl = null
@@ -612,8 +614,8 @@ class ScreenshotSession {
     if (!result) {
       // nothing was stitched, or the run was discarded: back to selecting, with the reason when there is one
       this.state = 'selecting'
-      this.showRatioBar()
-      this.syncHint()
+      this.hintEl?.style.removeProperty('display')
+      this.backToPicking()
       const code = failure ?? 'scripted'
       if (code === 'zoomed') this.showExternalNotice(uiText('shot.stitch.zoom'))
       else if (code === 'capture') this.showExternalNotice(uiText('shot.error.capture'))
@@ -766,9 +768,7 @@ class ScreenshotSession {
     if (!isUserInput(e)) return
     if (this.isShotChrome(e.target)) return
     // Inside the pending frame: not a new selection, and not a click for the page.
-    // An armed element pick is the click-element path — it keeps working even
-    // inside the frame and replaces it (screenshot.md §1.2「单击元素的路径不变」).
-    if (this.state === 'confirming' && this.pointerInSelection(e.clientX, e.clientY) && !this.hoverOutlineEl) {
+    if (this.state === 'confirming' && this.pointerInSelection(e.clientX, e.clientY)) {
       e.preventDefault()
       e.stopPropagation()
       return
@@ -783,15 +783,18 @@ class ScreenshotSession {
     e.preventDefault()
     e.stopPropagation()
 
-    // a new drag replaces the pending selection (and the remembered frame) —
-    // the dashed picker of the element path must not ride along over it, but a
-    // press-and-release is the click-element path and keeps its target
+    // A press outside a pending frame lets it go. A drag from here is a new frame; a click only takes the user back to
+    // picking — what the pointer rests on is outlined, not captured behind their back (screenshot.md §1.2).
+    const letGo = this.state === 'confirming'
+    // a new drag replaces the pending selection and the frame the memory offered; a press-and-release in the
+    // picking state is the click-element path and keeps its target
     this.hideHoverUi()
     this.setConfirmShield(false)
     this.clearConfirmUi()
     this.selectionEl?.remove()
     this.selectionEl = null
     this.state = 'selecting'
+    if (letGo) this.backToPicking()
     const origin = { x: e.clientX, y: e.clientY }
     const rect = this.doc.createElement('div')
     rect.className = 'ann-shot-rect'
@@ -848,7 +851,8 @@ class ScreenshotSession {
         this.selectionEl = null
         this.selection = null
         if (this.overlayEl) this.overlayEl.style.background = ''
-        this.captureHoveredElement()
+        if (letGo) this.trackHover(ev.clientX, ev.clientY)
+        else this.captureHoveredElement()
         return
       }
       if (!this.selection || this.selection.width < 4 || this.selection.height < 4) {
@@ -870,6 +874,21 @@ class ScreenshotSession {
     this.selectionCleanup = detach
     this.doc.addEventListener('pointermove', move)
     this.doc.addEventListener('pointerup', up)
+  }
+
+  /**
+   * A pending frame is let go (screenshot.md §1.2): its label and the memory's offer go with it, and the picking line and
+   * chips are back — a new drag is under way, or the user clicked outside to choose again. The overlay dims the page
+   * again until a new rect takes over that.
+   */
+  private backToPicking(): void {
+    this.frameLabel = ''
+    this.pendingFrameRecord = null
+    this.offeredFrame = null
+    this.reusedFrame = false
+    if (this.overlayEl) this.overlayEl.style.background = ''
+    this.syncHint()
+    this.showRatioBar()
   }
 
   /** Element boxes under a point, for drag snapping. */
@@ -923,7 +942,11 @@ class ScreenshotSession {
     this.state = 'confirming'
     this.frameLabel = label
     this.clearConfirmUi()
+    // the pending frame owns the screen: no second candidate, no chips for the next drag, and a hint that is about it
     this.clearHoverUi()
+    this.ratioBarEl?.remove()
+    this.ratioBarEl = null
+    this.syncHint()
     if (!this.selectionEl || !this.selection) return
 
     for (const handle of HANDLES) {
@@ -1025,18 +1048,19 @@ class ScreenshotSession {
   private async confirmSelection(): Promise<void> {
     if (!this.selection || this.state !== 'confirming') return
     const view = this.doc.defaultView!
-    // a free-dragged frame is remembered by its page position (screenshot.md §1.4)
-    this.pendingFrameRecord = {
-      kind: 'box',
-      pageX: this.selection.x + view.scrollX,
-      pageY: this.selection.y + view.scrollY,
-      width: this.selection.width,
-      height: this.selection.height,
+    // a free-dragged frame is remembered by its page position; the element's frame the memory offered, confirmed as it
+    // came, is still the element's (screenshot.md §1.4)
+    const asOffered = this.pendingFrameRecord?.kind === 'element' && this.offeredFrame && sameFrame(this.offeredFrame, this.selection)
+    if (!asOffered) {
+      this.pendingFrameRecord = {
+        kind: 'box',
+        pageX: this.selection.x + view.scrollX,
+        pageY: this.selection.y + view.scrollY,
+        width: this.selection.width,
+        height: this.selection.height,
+      }
     }
     this.clearConfirmUi()
-    // the picker that armed outside the frame goes with the frame it was
-    // replacing: the preview belongs to the shot alone (真机反馈)
-    this.clearHoverUi()
     await this.captureRegionMode()
   }
 
@@ -1053,21 +1077,14 @@ class ScreenshotSession {
 
   /**
    * Tracks the element a click would capture; paints outline + margin bar.
-   * Hovering also works while a frame waits for confirmation — but only
-   * outside that frame and after a short dwell, so adjusting or annotating
-   * inside the frame never shows the picker; clicking the armed element
-   * replaces the frame (screenshot.md §1.2, §1.4).
+   * Only while choosing: a pending frame owns the screen, and a second
+   * candidate drawn beside it read as two selections at once — the way to
+   * another target is a click outside the frame, which is choosing again
+   * (screenshot.md §1.2, §1.4).
    */
   private trackHover(x: number, y: number): void {
-    if (this.state !== 'selecting' && this.state !== 'confirming') return
-    if (this.state === 'selecting' && this.selectionEl) return
+    if (this.state !== 'selecting' || this.selectionEl) return
     if (typeof this.doc.elementsFromPoint !== 'function') return
-    // inside a pending frame the picker never arms: the frame is what is being
-    // confirmed, and the dashed UI over it read as a second selection (真机反馈)
-    if (this.state === 'confirming' && this.pointerInSelection(x, y)) {
-      this.clearHoverUi()
-      return
-    }
     const stack = this.pageElementsFromPoint(x, y)
     // the pointer on our own chrome (margin chips, bars) keeps the hover alive
     const top = stack[0]
@@ -1081,39 +1098,11 @@ class ScreenshotSession {
       this.hoverEl = target
       this.hoverChain = elementChain(this.resolveCaptureTarget(target))
       this.hoverIndex = 0
-      // a frame is pending: swapping it needs intent, not a pointer in transit
-      // toward the confirm bar — the picker paints only after a dwell
-      if (this.state === 'confirming') {
-        this.scheduleHoverArm()
-        return
-      }
       this.paintHover()
-      return
-    }
-    if (this.state === 'confirming' && !this.hoverArmed) {
-      this.scheduleHoverArm()
       return
     }
     // same element: keep the painted UI instead of rebuilding it under a click
     if (!this.hoverOutlineEl || !this.marginBarEl) this.paintHover()
-  }
-
-  /** Paints the hover UI once the pointer has stayed on the same target. */
-  private scheduleHoverArm(): void {
-    this.clearHoverArmTimer()
-    const target = this.hoverEl
-    this.hoverArmTimer = this.doc.defaultView!.setTimeout(() => {
-      this.hoverArmTimer = null
-      if (this.hoverEl !== target || this.state !== 'confirming') return
-      this.hoverArmed = true
-      this.paintHover()
-    }, HOVER_ARM_DWELL_MS)
-  }
-
-  private clearHoverArmTimer(): void {
-    if (this.hoverArmTimer === null) return
-    this.doc.defaultView!.clearTimeout(this.hoverArmTimer)
-    this.hoverArmTimer = null
   }
 
   private paintHover(): void {
@@ -1192,12 +1181,10 @@ class ScreenshotSession {
 
   /**
    * Hides the picker's visuals but remembers its target: a press-and-release
-   * outside a pending frame is the click-element path, and it captures what
-   * the pointer rested on even though the press hid the dashed UI.
+   * is the click-element path, and it captures what the pointer rested on
+   * even though the press hid the dashed UI.
    */
   private hideHoverUi(): void {
-    this.clearHoverArmTimer()
-    this.hoverArmed = false
     this.hoverOutlineEl?.remove()
     this.hoverOutlineEl = null
     this.marginBarEl?.remove()
@@ -2140,66 +2127,43 @@ class ScreenshotSession {
 
   /**
    * The remembered frame opens the session as a pending selection
-   * (screenshot.md §1.4): anchored to its element when that is found within
-   * 10% drift, otherwise the recorded page position with a notice; the page
-   * scrolls so the frame lands fully in view.
+   * (screenshot.md §1.4), where it is in the window now: anchored to its
+   * element when that is found within 10% drift, otherwise at the recorded
+   * page position with a notice. The page is never scrolled for it — a feed
+   * that recycles its cells can answer the element or the position with
+   * another post entirely — so a frame that is not wholly in the window is
+   * not offered, and the memory waits for the next trigger.
    */
   private async restoreRememberedFrame(): Promise<void> {
     const record = await readFrame()
-    // the frame arrives a worker round trip after the session opened: a pointer that
-    // is already picking its own target keeps it, and the frame waits for the next trigger
-    if (!record || this.exited || this.state !== 'selecting' || this.hoverEl) return
+    // the frame arrives a worker round trip after the session opened: a pointer that is already picking its
+    // own target, or a drag under way, keeps it, and the frame waits for the next trigger
+    if (!record || this.exited || this.state !== 'selecting' || this.hoverEl || this.selectionEl) return
     const view = this.doc.defaultView!
-    let label = `${uiText('shot.lastFrame')} · ${Math.round(record.width + (record.kind === 'element' ? record.margin * 2 : 0))} × ${Math.round(record.height + (record.kind === 'element' ? record.margin * 2 : 0))}`
-    if (record.kind === 'element') {
-      const el = this.doc.querySelector(record.selector)
-      const box = el?.getBoundingClientRect()
-      if (el && box && boxWithinTolerance({ width: box.width, height: box.height }, record)) {
-        el.scrollIntoView?.({ block: 'center', inline: 'center', behavior: 'instant' as ScrollBehavior })
-        const fresh = el.getBoundingClientRect()
-        this.selection = expandByMargin({ x: fresh.left, y: fresh.top, width: fresh.width, height: fresh.height }, record.margin)
-        this.pendingFrameRecord = { ...record, width: fresh.width, height: fresh.height }
-      } else {
-        const fallback = this.frameAtRecordedPosition(record)
-        if (!fallback) return
-        this.selection = fallback
-        this.pendingFrameRecord = null
-        label += ` · ${uiText('shot.frameNotFound')}`
-      }
+    const margin = record.kind === 'element' ? record.margin : 0
+    const found = record.kind === 'element' ? this.doc.querySelector(record.selector)?.getBoundingClientRect() : undefined
+    // the element's place now when it is still about the size it was; else where the frame was drawn on the page
+    const anchor = found && boxWithinTolerance({ width: found.width, height: found.height }, record) ? found : null
+    const frame = expandByMargin(
+      anchor
+        ? { x: anchor.left, y: anchor.top, width: anchor.width, height: anchor.height }
+        : { x: record.pageX - view.scrollX, y: record.pageY - view.scrollY, width: record.width, height: record.height },
+      margin,
+    )
+    if (!fitsInViewport(frame, { width: view.innerWidth, height: view.innerHeight })) return
+    let label = `${uiText('shot.lastFrame')} · ${Math.round(frame.width)} × ${Math.round(frame.height)}`
+    if (anchor) {
+      this.pendingFrameRecord = { ...record, width: anchor.width, height: anchor.height }
     } else {
-      const fallback = this.frameAtRecordedPosition(record)
-      if (!fallback) return
-      this.selection = fallback
       this.pendingFrameRecord = null
+      if (record.kind === 'element') label += ` · ${uiText('shot.frameNotFound')}`
     }
-    if (!fitsInViewport(this.selection, { width: view.innerWidth, height: view.innerHeight })) {
-      label += ` · ${uiText('shot.frameTooBig')}`
-    }
+    this.selection = frame
+    this.offeredFrame = { ...frame }
     this.frameLabel = label
     this.reusedFrame = true
     this.paintFrameSelection()
     this.enterConfirming(label)
-  }
-
-  /**
-   * Fallback when the remembered frame's anchor is gone (or the record is a
-   * plain box): scroll the recorded page rect back into view — the recording
-   * happened somewhere on this page — then express it as a viewport selection
-   * clamped to what is visible (screenshot.md §1.4). Returns null when no
-   * part of the rect can be brought on screen.
-   */
-  private frameAtRecordedPosition(record: FrameRecord): ViewportRect | null {
-    const view = this.doc.defaultView!
-    const margin = record.kind === 'element' ? record.margin : 0
-    const expanded = expandByMargin({ x: record.pageX, y: record.pageY, width: record.width, height: record.height }, margin)
-    // Browsers clamp these assignments to the scrollable area; jsdom no-ops.
-    const scroller = this.doc.scrollingElement
-    if (scroller) {
-      scroller.scrollLeft = expanded.x
-      scroller.scrollTop = expanded.y
-    }
-    const rect = { x: expanded.x - view.scrollX, y: expanded.y - view.scrollY, width: expanded.width, height: expanded.height }
-    return intersectRects(rect, { x: 0, y: 0, width: view.innerWidth, height: view.innerHeight })
   }
 
   /** Paints a programmatic selection (restored frame) with its size label. */
@@ -2220,7 +2184,6 @@ class ScreenshotSession {
     this.host.appendChild(rect)
     this.selectionEl = rect
     if (this.overlayEl) this.overlayEl.style.background = 'transparent'
-    if (this.hintEl) this.hintEl.style.display = 'none'
   }
 
   /**

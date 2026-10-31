@@ -192,6 +192,35 @@ describe('check-consistency', () => {
         'says Next.js 16, but website/package.json depends on next ^17.0.0',
       )
     })
+
+    // an experimental switch can be renamed, changed or dropped by any major: the config says which one it was checked on
+    const withSwitch = (note: string) => `module.exports = {\n  output: 'export',\n  ${note}\n  experimental: { globalNotFound: true },\n}\n`
+
+    it('accepts the experimental 404 switch when it was reviewed on the Next.js major in use', () => {
+      const { status, output } = check({ 'website/next.config.js': withSwitch('// globalNotFound reviewed on Next 16') })
+      expect(status, output).toBe(0)
+    })
+
+    it('catches the experimental 404 switch left unreviewed after a Next.js major bump', () => {
+      expectFailure(
+        {
+          'website/package.json': manifestWith('website/package.json', manifest => {
+            manifest.dependencies.next = '^17.0.0'
+            manifest.devDependencies['eslint-config-next'] = '^17.0.0'
+          }),
+          'website/README.md': 'Built with Next.js 17, React 19 and next-intl 4.\n',
+          'website/next.config.js': withSwitch('// globalNotFound reviewed on Next 16'),
+        },
+        'experimental.globalNotFound was reviewed on Next 16, but website/package.json depends on next ^17.0.0',
+      )
+    })
+
+    it('catches the experimental 404 switch that says nothing about when it was reviewed', () => {
+      expectFailure(
+        { 'website/next.config.js': withSwitch('// the 404 needs its own document') },
+        'enables experimental.globalNotFound without saying which Next.js major it was reviewed on',
+      )
+    })
   })
 
   describe('Tailwind CSS', () => {

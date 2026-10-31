@@ -67,6 +67,7 @@ const STRINGS = {
   'block.kind.article': { zh: '文章', en: 'Article' },
   // screenshot session (screenshot.md §1)
   'shot.hint': { zh: '拖拽选择区域，单击选择元素 · Esc 取消', en: 'Drag to select an area, click to pick an element · Esc to cancel' },
+  'shot.hintPending': { zh: '调整选区 · Enter 确认 · 点选区外重选 · Esc 取消', en: 'Adjust the frame · Enter to confirm · Click outside to start over · Esc to cancel' },
   'shot.toolbar': { zh: '截图工具栏', en: 'Screenshot toolbar' },
   'shot.anonymize': { zh: '匿名：{state}', en: 'Anonymize: {state}' },
   'shot.watermark': { zh: '水印：{state}', en: 'Watermark: {state}' },
@@ -83,6 +84,7 @@ const STRINGS = {
   'shot.beautify.radius': { zh: '圆角', en: 'Radius' },
   'shot.beautify.shadow': { zh: '阴影', en: 'Shadow' },
   'shot.beautify.ratio': { zh: '输出画布比例', en: 'Output canvas ratio' },
+  'shot.beautify.ratio.fit': { zh: '自由', en: 'Free' },
   'shot.beautify.enabled': { zh: '启用美化', en: 'Apply beautify' },
   'shot.beautify.background.none': { zh: '无（透明）', en: 'None (transparent)' },
   'shot.beautify.background.solid-white': { zh: '纯白', en: 'White' },

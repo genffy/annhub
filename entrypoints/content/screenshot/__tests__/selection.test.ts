@@ -10,6 +10,7 @@ import {
   handleAnchor,
   nudgeBox,
   resizeFromHandle,
+  sameFrame,
   snapPoint,
 } from '../selection'
 
@@ -90,6 +91,14 @@ describe('element + margin frames (screenshot.md §1.4)', () => {
     expect(fitsInViewport(expandByMargin(element, 24), VIEW)).toBe(true)
     expect(fitsInViewport(expandByMargin({ ...element, y: 780 }, 24), VIEW)).toBe(false)
     expect(fitsInViewport({ x: 0, y: 0, width: 1300, height: 100 }, VIEW)).toBe(false)
+  })
+
+  it('a frame offered from memory is the same frame until an edge moves by more than half a pixel', () => {
+    const frame = expandByMargin(element, 24)
+    expect(sameFrame(frame, { ...frame })).toBe(true)
+    expect(sameFrame(frame, { ...frame, x: frame.x + 0.4 })).toBe(true)
+    expect(sameFrame(frame, { ...frame, x: frame.x + 1 })).toBe(false) // one nudge
+    expect(sameFrame(frame, { ...frame, height: frame.height - 1 })).toBe(false)
   })
 })
 
