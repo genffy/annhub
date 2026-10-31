@@ -39,25 +39,29 @@ const ROOT_VALUE = 'annotation-layer'
 
 /** The erase delays of 自动擦除 (annotate.md §1.2, D-39): off by default, two fixed choices. */
 export type AutoErase = 'off' | '3s' | '8s'
+const AUTO_ERASE_CYCLE: readonly AutoErase[] = ['off', '3s', '8s']
 const AUTO_ERASE_MS: Record<Exclude<AutoErase, 'off'>, number> = { '3s': 3000, '8s': 8000 }
 
 type InkTool = 'pointer' | 'pen' | 'highlighter' | 'line' | 'arrow' | 'rectangle' | 'ellipse' | 'text' | 'step'
 
 /** Simple inline icons (lucide paths) — the toolbar buttons are plain DOM, not a React root. */
 const ICONS: Record<string, string> = {
-  pointer: '<path d="m4 4 7.07 17 2.51-7.39L21 11.07z"/>',
-  pen: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
-  highlighter: '<path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/>',
-  line: '<path d="M22 2 2 22"/>',
-  arrow: '<path d="M7 7h10v10"/><path d="M7 17 17 7"/>',
-  rectangle: '<rect width="18" height="18" x="3" y="3" rx="2"/>',
-  ellipse: '<circle cx="12" cy="12" r="10"/>',
-  text: '<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>',
-  step: '<path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>',
-  undo: '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>',
-  clear: '<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',
-  screenshot: '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
-  exit: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  'pointer': '<path d="m4 4 7.07 17 2.51-7.39L21 11.07z"/>',
+  'pen': '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
+  'highlighter': '<path d="m9 11-6 6v3h9l3-3"/><path d="m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"/>',
+  'line': '<path d="M22 2 2 22"/>',
+  'arrow': '<path d="M7 7h10v10"/><path d="M7 17 17 7"/>',
+  'rectangle': '<rect width="18" height="18" x="3" y="3" rx="2"/>',
+  'ellipse': '<circle cx="12" cy="12" r="10"/>',
+  'text': '<path d="M4 7V4h16v3"/><path d="M9 20h6"/><path d="M12 4v16"/>',
+  'step': '<path d="M10 6h11"/><path d="M10 12h11"/><path d="M10 18h11"/><path d="M4 6h1v4"/><path d="M4 10h2"/><path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"/>',
+  'undo': '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+  'clear': '<path d="m7 21-4.3-4.3c-1-1-1-2.5 0-3.4l9.6-9.6c1-1 2.5-1 3.4 0l5.6 5.6c1 1 1 2.5 0 3.4L13 21"/><path d="M22 21H7"/><path d="m5 11 9 9"/>',
+  'screenshot': '<path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>',
+  'exit': '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  'timer': '<line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/>',
+  'timer-off':
+    '<path d="M10 2h4"/><path d="M4.6 11a8 8 0 0 0 1.7 8.7 8 8 0 0 0 8.7 1.7"/><path d="M7.4 7.4a8 8 0 0 1 10.3 1 8 8 0 0 1 .9 10.2"/><path d="m2 2 20 20"/><path d="M12 12v-2"/>',
 }
 
 const TOOL_KEYS: ReadonlyArray<{ tool: InkTool; labelKey: string }> = [
@@ -169,8 +173,7 @@ export class AnnotationLayer {
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-widths { display: flex; flex-direction: column; align-items: center; gap: 2px; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-widths button { width: 26px !important; height: 20px !important; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-widths i { display: block; border-radius: 50%; background: currentColor; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-erase { width: 100%; margin: 2px 0; padding: 2px; border: 1px solid var(--annov-input-border, #aeb6bd); border-radius: 4px; background: transparent; color: inherit; font: 11px/1.3 -apple-system, sans-serif; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-notice { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); box-sizing: border-box; padding: 7px 12px; border-radius: 4px; background: #252b31; color: #fff; font: 13px/1.4 -apple-system, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-notice { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); max-width: calc(100vw - 32px); box-sizing: border-box; padding: 7px 12px; border: 1px solid var(--annov-border, #d7dce1); border-radius: 4px; background: var(--annov-surface, #ffffff); color: var(--annov-text, #20252b); box-shadow: var(--annov-shadow, 0 6px 20px rgba(0, 0, 0, 0.18)); font: 13px/1.4 -apple-system, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-text-input { position: absolute; min-width: 110px; min-height: 32px; padding: 4px; box-sizing: border-box; border: 1px solid #4c91ff; background: var(--annov-surface, #fff); color: var(--annov-text, #20252b); font: 16px/1.3 -apple-system, sans-serif; resize: both; pointer-events: auto; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-step-ring { position: absolute; box-sizing: border-box; border: 2px solid #4c91ff; border-radius: 50%; pointer-events: none; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-annot-step-ring button { position: absolute; top: -10px; right: -10px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: #4c91ff; color: #fff; font: 600 15px/1 -apple-system, sans-serif; cursor: pointer; pointer-events: auto; }
@@ -373,20 +376,24 @@ export class AnnotationLayer {
     }
     bar.appendChild(widths)
 
-    const erase = this.doc.createElement('select')
-    erase.className = 'ann-annot-erase'
+    // a cycle button (off → 3 s → 8 s → off) in the toolbar's own button look: a native select was
+    // the one control in the bar that drew in the browser's face and the smallest target in it
+    const erase = this.doc.createElement('button')
+    erase.type = 'button'
     erase.setAttribute('data-ann-ui', 'annotation-auto-erase')
-    erase.setAttribute('aria-label', uiText('annotate.autoerase'))
-    for (const value of ['off', '3s', '8s'] as const) {
-      const option = this.doc.createElement('option')
-      option.value = value
-      option.textContent = uiText(`annotate.autoerase.${value}` as UiTextKey)
-      erase.appendChild(option)
+    const syncErase = (): void => {
+      const label = uiText(`annotate.autoerase.${this.autoErase}` as UiTextKey)
+      erase.setAttribute('aria-label', label)
+      erase.title = label
+      erase.setAttribute('aria-pressed', this.autoErase === 'off' ? 'false' : 'true')
+      erase.innerHTML = this.icon(this.autoErase === 'off' ? 'timer-off' : 'timer')
     }
-    erase.value = this.autoErase
-    erase.addEventListener('change', () => {
-      this.autoErase = erase.value as AutoErase
+    erase.addEventListener('click', event => {
+      if (!isUserInput(event)) return
+      this.autoErase = AUTO_ERASE_CYCLE[(AUTO_ERASE_CYCLE.indexOf(this.autoErase) + 1) % AUTO_ERASE_CYCLE.length]!
+      syncErase()
     })
+    syncErase()
     bar.appendChild(erase)
 
     const divider2 = this.doc.createElement('div')

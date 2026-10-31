@@ -151,7 +151,7 @@ export function ScreenshotToolbar(props: Props) {
           </button>
           <button
             type="button"
-            title={uiText('shot.tool.confirm')}
+            title={`${uiText('shot.tool.confirm')} · ${uiText('shot.tool.confirmHint')}`}
             aria-label={uiText('shot.tool.confirm')}
             className="ann-shot-confirm"
             data-ann-ui="screenshot-save"

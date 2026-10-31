@@ -206,6 +206,8 @@ const STRINGS = {
   'popup.recording.limitSize': { zh: '已到约 500 MB，已保存', en: 'Reached about 500 MB — saved' },
   'shot.tool.undo': { zh: '撤销', en: 'Undo' },
   'shot.tool.copy': { zh: '复制', en: 'Copy' },
+  // in-page overlays (WS-5): the confirm tick says where it saves
+  'shot.tool.confirmHint': { zh: '保存到资料库', en: 'Save to library' },
   'shot.tool.download': { zh: '下载', en: 'Download' },
   'shot.tool.cancel': { zh: '取消', en: 'Cancel' },
   'shot.tool.confirm': { zh: '确认', en: 'Confirm' },
