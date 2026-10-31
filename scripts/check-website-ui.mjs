@@ -2,6 +2,43 @@ import assert from 'node:assert/strict'
 import { chromium } from '@playwright/test'
 import { STORE_URL } from '../website/components/landing/links.ts'
 
+/** Contrast of each element's text against what is really painted behind it; understands every CSS colour syntax. */
+function contrastOf(locator) {
+  return locator.evaluateAll(elements => {
+    const { document, getComputedStyle } = globalThis
+    const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true })
+    const rgba = css => {
+      ctx.clearRect(0, 0, 1, 1)
+      ctx.fillStyle = '#000'
+      ctx.fillStyle = css
+      ctx.fillRect(0, 0, 1, 1)
+      const d = ctx.getImageData(0, 0, 1, 1).data
+      return [d[0], d[1], d[2], d[3] / 255]
+    }
+    const over = (top, under) => [0, 1, 2].map(i => top[i] * top[3] + under[i] * (1 - top[3]))
+    const luminance = rgb => {
+      const [r, g, b] = rgb.map(channel => {
+        const unit = channel / 255
+        return unit <= 0.03928 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4
+      })
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b
+    }
+    return elements.map(element => {
+      const layers = []
+      for (let node = element; node; node = node.parentElement) {
+        const layer = rgba(getComputedStyle(node).backgroundColor)
+        if (layer[3] > 0) layers.push(layer)
+        if (layer[3] === 1) break
+      }
+      let ground = [255, 255, 255]
+      for (const layer of layers.reverse()) ground = over(layer, ground)
+      const text = over(rgba(getComputedStyle(element).color), ground)
+      const [a, b] = [luminance(text), luminance(ground)]
+      return Math.round(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)) * 100) / 100
+    })
+  })
+}
+
 // Run against a freshly built static preview. Geometry checks guard the interaction regressions from the design review.
 const origin = process.env.WEBSITE_SMOKE_ORIGIN ?? 'http://localhost:3001'
 const browser = await chromium.launch({ headless: true })
@@ -58,12 +95,44 @@ try {
           `The hero caption is away from the board at ${locale}/${width}: ${JSON.stringify(board.caption)}`,
         )
       }
+      // entry types are told apart by hue as well as icon and word (docs/product/visual.md §3)
+      const hue = await page.evaluate(() => {
+        const { document, getComputedStyle } = globalThis
+        const read = selector => {
+          const el = document.querySelector(selector)
+          return el ? getComputedStyle(el).color : null
+        }
+        return { clip: read('.ah-tchip.ah-t-clip'), screenshot: read('.ah-tchip.ah-t-screenshot') }
+      })
+      assert.ok(hue.clip && hue.screenshot && hue.clip !== hue.screenshot, `Type chips share one colour at ${locale}/${width}: ${JSON.stringify(hue)}`)
+      // the small grey text of the library windows (group titles, counts, highlight counts) is readable
+      const low = (await contrastOf(page.locator('.ah-nav-label, .ah-nav-i .n, .ah-hlc'))).filter(ratio => ratio < 4.5)
+      assert.deepEqual(low, [], `Small text under 4.5:1 at ${locale}/${width}`)
+      // the colour bar of the highlight card lies wholly inside its card
+      await page.locator('#ways').scrollIntoViewIfNeeded()
+      const colourBar = await page.evaluate(() => {
+        const { document } = globalThis
+        const bar = document.querySelector('#ways .ah-hbar')
+        const frame = bar?.closest('.overflow-hidden')
+        if (!bar || !frame) return null
+        const [b, f] = [bar.getBoundingClientRect(), frame.getBoundingClientRect()]
+        return { left: Math.round(b.left - f.left), right: Math.round(f.right - b.right) }
+      })
+      assert.ok(colourBar && colourBar.left >= 0 && colourBar.right >= 0, `The highlight colour bar sticks out of its card at ${locale}/${width}: ${JSON.stringify(colourBar)}`)
+      await page.evaluate(() => globalThis.scrollTo(0, 0))
       const cta = page.locator('header').getByRole('link', { name: locale === 'zh-CN' ? '体验资料库' : 'Try the library', exact: true })
       assert.ok(await cta.isVisible(), `No persistent library entry at ${locale}/${width}`)
       await cta.click()
       const firstTask = page.locator('[data-tour-pin="0"]')
       await firstTask.waitFor({ state: 'visible' })
       await page.waitForFunction(() => !globalThis.document.querySelector('[data-tour-pin="0"]')?.disabled)
+      // the task row never needs a sideways scroll: a button hidden behind one is not found, a half-seen one looks cut off
+      const row = await page.evaluate(() => {
+        const { document } = globalThis
+        const row = document.querySelector('[data-tour-pin="0"]')?.parentElement
+        return row ? { scroll: row.scrollWidth, client: row.clientWidth } : null
+      })
+      assert.ok(row && row.scroll <= row.client + 1, `The task row scrolls sideways at ${locale}/${width}: ${JSON.stringify(row)}`)
       for (let task = 0; task < 5; task++) {
         await page.locator(`[data-tour-pin="${task}"]`).click()
         const stage = await page.locator('#library-demo-window').boundingBox()

@@ -164,7 +164,12 @@
   font-size: 11.5px;
 }
 
-/* entry type: icon + word + hue, the hue is only a hint (docs/product/visual.md §3) */
+/* entry type: icon + word + hue, the hue is only a hint (docs/product/visual.md §3).
+   The gray default has no specificity of its own (:where), so the type classes below win wherever they are set. */
+:where(.ah-tchip, .ah-ttile) {
+  --k: var(--fg-3);
+}
+
 .ah-t-clip {
   --k: var(--t-clip);
 }
@@ -178,7 +183,6 @@
 }
 
 .ah-tchip {
-  --k: var(--fg-3);
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -205,7 +209,6 @@
 }
 
 .ah-ttile {
-  --k: var(--fg-3);
   width: 32px;
   height: 32px;
   flex: none;
@@ -1309,6 +1312,13 @@ button.ah-hm-b:hover {
 
 .ah-over-above {
   bottom: calc(100% + 12px);
+}
+
+/* anchored at the start of the selection instead of centred on it: a short selection at the start of a line would push a
+   wide bar past the left edge of its window */
+.ah-over.is-start {
+  left: 0;
+  transform: none;
 }
 
 .ah-over-below {

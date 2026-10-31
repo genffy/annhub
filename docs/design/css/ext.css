@@ -2756,7 +2756,7 @@
   padding: 0 8px;
   border-radius: 6px;
   background: color-mix(in oklab, var(--t-highlight, #d4a017) 14%, var(--surface));
-  color: color-mix(in oklab, var(--t-highlight, #d4a017) 78%, var(--fg));
+  color: color-mix(in oklab, var(--t-highlight, #d4a017) 70%, var(--fg));
   font-size: 12px;
   font-weight: 600;
 }

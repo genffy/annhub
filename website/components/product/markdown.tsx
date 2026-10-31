@@ -105,6 +105,8 @@ export interface MarkdownProps {
   selection?: { start: number; end: number } | null
   /** Drawn anchored above the selection (the colour toolbar of the reading view). Must be phrasing content. */
   selectionOverlay?: ReactNode
+  /** Where the overlay sits on the selection: centred (default), or from its start edge when the line leaves no room on the left. */
+  overlayAlign?: 'center' | 'start'
   labels: MarkdownLabels
   colorNames?: Record<string, string>
   /** Makes highlights focusable and clickable (only in client components). */
@@ -112,7 +114,18 @@ export interface MarkdownProps {
   className?: string
 }
 
-export function Markdown({ source, highlights = [], activeId, selection, selectionOverlay, labels, colorNames = {}, onHighlight, className = '' }: MarkdownProps) {
+export function Markdown({
+  source,
+  highlights = [],
+  activeId,
+  selection,
+  selectionOverlay,
+  overlayAlign = 'center',
+  labels,
+  colorNames = {},
+  onHighlight,
+  className = '',
+}: MarkdownProps) {
   const marks = highlights.filter(h => h.end > h.start).sort((a, b) => a.start - b.start)
   const sel = selection && selection.end > selection.start ? selection : null
 
@@ -136,7 +149,8 @@ export function Markdown({ source, highlights = [], activeId, selection, selecti
       )
       if (sel && sel.start <= a && sel.end >= b) {
         // the overlay hangs on the piece that starts where the selection starts, so it is attached exactly once
-        const overlay = selectionOverlay && a === sel.start ? <span className="ah-over ah-over-above">{selectionOverlay}</span> : null
+        const overlay =
+          selectionOverlay && a === sel.start ? <span className={`ah-over ah-over-above${overlayAlign === 'start' ? ' is-start' : ''}`}>{selectionOverlay}</span> : null
         seg = (
           <span key={`${keyBase}-s${i}`} className={`ah-selm${overlay ? ' ah-anchor' : ''}`}>
             {seg}

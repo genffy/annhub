@@ -47,6 +47,7 @@ function HighlightMini({ copy }: { copy: LandingCopy }) {
           highlights={entry.highlights}
           selection={{ start: 0, end: entry.content.search(/[,，]/) }}
           selectionOverlay={<HighlightBar ui={ui} hover={0} />}
+          overlayAlign="start"
           className="ah-md-sm"
           labels={markdownLabels(ui)}
           colorNames={ui.colors}
