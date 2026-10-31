@@ -166,3 +166,38 @@ describe('content column of a selection', () => {
     expect(found?.width).toBe(480)
   })
 })
+
+describe('the consequence hint is a floating tooltip, not a card row (真机反馈)', () => {
+  it('never reserves a hint row in the card; the tip appears beside the action after the dwell and clears on leave', async () => {
+    vi.resetModules()
+    vi.doMock('../user-input', () => ({ isUserInput: () => true }))
+    const { SelectionMenu } = await import('../selection-menu')
+    document.body.innerHTML = '<p id="para">Selectable words for the menu to appear.</p>'
+    const para = document.getElementById('para')!
+    const range = document.createRange()
+    range.selectNodeContents(para)
+    ;(range as unknown as { getBoundingClientRect: () => DOMRect }).getBoundingClientRect = () =>
+      ({ left: 10, top: 10, right: 300, bottom: 40, width: 290, height: 30, x: 10, y: 10, toJSON: () => ({}) }) as DOMRect
+    const menu = new SelectionMenu(document, { onClip: () => undefined, onScreenshot: () => undefined })
+    menu.show(range)
+
+    const host = document.querySelector('[data-ann-ui="selection-menu"]')!
+    expect(host.querySelector('.ann-menu-hint')).toBeNull() // no in-card row: no blank strip under the buttons
+    const tip = host.querySelector('.ann-menu-tip') as HTMLElement
+    expect(tip.getAttribute('aria-live')).toBe('polite')
+    expect(tip.textContent).toBe('') // empty, it renders nothing at all
+
+    const button = host.querySelector('.ann-menu-clip') as HTMLElement
+    button.dispatchEvent(new MouseEvent('pointerenter', { bubbles: true }))
+    await new Promise(resolve => setTimeout(resolve, 60))
+    expect(tip.textContent).toBe('') // the dwell has not elapsed yet
+    await new Promise(resolve => setTimeout(resolve, 300))
+    expect(tip.textContent).not.toBe('')
+    expect(tip.style.top).not.toBe('') // positioned beside the action, not in the layout
+
+    button.dispatchEvent(new MouseEvent('pointerleave', { bubbles: true }))
+    expect(tip.textContent).toBe('')
+    menu.dismiss()
+    vi.restoreAllMocks()
+  })
+})

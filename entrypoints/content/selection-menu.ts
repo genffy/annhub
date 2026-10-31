@@ -3,8 +3,9 @@
  * order, icon plus short text (docs/product/extension.md §2.1). It appears for
  * mouse drags and keyboard selections alike (no minimum length; an
  * all-whitespace selection never shows it), keyboard users drive it with
- * Tab and Enter, and hovering or focusing an action for ~300ms reveals its
- * consequence line.
+ * Tab and Enter, and hovering or focusing an action for ~300ms floats a dark
+ * tooltip with its consequence beside the action — the card itself is always
+ * one row of buttons and never grows for a hint.
  */
 import { isBlankText } from '../../learning-core/normalize'
 import { isUserInput } from './user-input'
@@ -113,6 +114,7 @@ export interface SelectionMenuHooks {
 
 export class SelectionMenu {
   private host: HTMLElement | null = null
+  private tipEl: HTMLElement | null = null
   private hintTimer: number | null = null
   private focusIndex = -1
   private currentRange: Range | null = null
@@ -138,12 +140,15 @@ export class SelectionMenu {
     const row = this.doc.createElement('div')
     row.className = 'ann-menu-row'
     row.append(...buttons)
-    const hint = this.doc.createElement('div')
-    hint.className = 'ann-menu-hint'
-    hint.setAttribute('aria-live', 'polite')
-    host.append(row, hint)
+    // the consequence tooltip lives in the same host but outside the layout:
+    // empty it renders nothing, and the card is never taller for a hint
+    const tip = this.doc.createElement('div')
+    tip.className = 'ann-menu-tip'
+    tip.setAttribute('aria-live', 'polite')
+    host.append(row, tip)
     this.doc.documentElement.appendChild(host)
     this.host = host
+    this.tipEl = tip
     this.position(range)
 
     const onKey = (event: KeyboardEvent): void => {
@@ -158,7 +163,7 @@ export class SelectionMenu {
         event.preventDefault()
         this.focusIndex = (this.focusIndex + 1) % buttons.length
         buttons[this.focusIndex]!.focus()
-        this.showHint(this.focusIndex === 0 ? 'menu.clip.hint' : 'menu.screenshot.hint')
+        this.showHint(this.focusIndex === 0 ? 'menu.clip.hint' : 'menu.screenshot.hint', buttons[this.focusIndex]!)
         return
       }
       if (event.key === 'Enter') {
@@ -183,9 +188,10 @@ export class SelectionMenu {
     button.setAttribute('role', 'menuitem')
     button.type = 'button'
     button.textContent = uiText(key)
-    button.addEventListener('pointerenter', () => this.showHint(key === 'menu.clip' ? 'menu.clip.hint' : 'menu.screenshot.hint'))
-    button.addEventListener('focus', () => this.showHint(key === 'menu.clip' ? 'menu.clip.hint' : 'menu.screenshot.hint'))
+    button.addEventListener('pointerenter', () => this.showHint(key === 'menu.clip' ? 'menu.clip.hint' : 'menu.screenshot.hint', button))
+    button.addEventListener('focus', () => this.showHint(key === 'menu.clip' ? 'menu.clip.hint' : 'menu.screenshot.hint', button))
     button.addEventListener('pointerleave', () => this.clearHint())
+    button.addEventListener('blur', () => this.clearHint())
     button.addEventListener('click', event => {
       if (!isUserInput(event)) return
       if (key === 'menu.clip') this.hooks.onClip()
@@ -199,12 +205,33 @@ export class SelectionMenu {
     return this.currentRange
   }
 
-  private showHint(key: 'menu.clip.hint' | 'menu.screenshot.hint'): void {
+  private showHint(key: 'menu.clip.hint' | 'menu.screenshot.hint', anchor: HTMLElement): void {
     this.clearHint()
     this.hintTimer = window.setTimeout(() => {
-      const hint = this.host?.querySelector('.ann-menu-hint')
-      if (hint) hint.textContent = uiText(key)
+      const tip = this.tipEl
+      if (!tip || !this.host) return
+      tip.textContent = uiText(key)
+      this.placeTip(tip, anchor)
     }, HINT_DELAY_MS)
+  }
+
+  /** Below the anchored action, centered on it, above the card when the window ends first. */
+  private placeTip(tip: HTMLElement, anchor: HTMLElement): void {
+    const host = this.host
+    const view = this.doc.defaultView
+    if (!host || !view) return
+    tip.style.left = '0px'
+    tip.style.top = '0px'
+    const tipWidth = tip.offsetWidth || 120
+    const tipHeight = tip.offsetHeight || 24
+    const centre = anchor.offsetLeft + anchor.offsetWidth / 2
+    const left = Math.max(2, Math.min(host.offsetWidth - tipWidth - 2, centre - tipWidth / 2))
+    const hostBottom = host.getBoundingClientRect().bottom
+    const below = hostBottom + 6 + tipHeight <= view.innerHeight - 8
+    tip.style.top = `${below ? host.offsetHeight + 6 : -tipHeight - 6}px`
+    tip.style.left = `${left}px`
+    tip.classList.toggle('ann-menu-tip-up', !below)
+    tip.style.setProperty('--ann-tip-x', `${Math.max(10, Math.min(tipWidth - 10, centre - left))}px`)
   }
 
   private clearHint(): void {
@@ -212,8 +239,7 @@ export class SelectionMenu {
       window.clearTimeout(this.hintTimer)
       this.hintTimer = null
     }
-    const hint = this.host?.querySelector('.ann-menu-hint')
-    if (hint) hint.textContent = ''
+    if (this.tipEl) this.tipEl.textContent = ''
   }
 
   private position(range: Range): void {
@@ -239,6 +265,7 @@ export class SelectionMenu {
     this.cleanupFns = []
     this.host?.remove()
     this.host = null
+    this.tipEl = null
     this.currentRange = null
     this.focusIndex = -1
     this.clearHint()
