@@ -27,7 +27,7 @@ import { currentUiLanguage, entryErrorText, uiText, type UiTextKey } from '../..
 import { exportFailureKey, type ExportStage } from './export-error'
 import { EMPTY_FILTERS, hasActiveFilter, isListView, listHash, readHash, readHashFor, type FilterState, type PropertyFilter, type RouteState, type View } from './route'
 import { Download, Keyboard, Lock, PanelLeftClose, PanelLeftOpen, Scan, Trash2, X } from 'lucide-react'
-import { TypeChip, VIEW_ICONS } from '../../utils/entry-icons'
+import { ENTRY_TYPE_ICONS, TypeChip, VIEW_ICONS } from '../../utils/entry-icons'
 import { CONTENT_MAX_CHARS, CONTEXT_MAX_CHARS } from '../../learning-core/validate'
 import { ANN_SCREENSHOT_COMMAND } from '../../constants'
 
@@ -248,6 +248,7 @@ export default function App() {
   const [loading, setLoading] = useState(() => isListView(route.view))
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null)
   // starts from the default binding and follows the browser's own assignment (extension.md §7.1)
+  const [shortcutKeys, setShortcutKeys] = useState('Cmd/Ctrl+Shift+S')
   const [shortcutHint, setShortcutHint] = useState(() => uiText('library.shortcutHint', { keys: 'Cmd/Ctrl+Shift+S' }))
   const [exportState, setExportState] = useState<'idle' | 'busy' | 'done' | 'partial' | 'failed'>('idle')
   const [exportSummary, setExportSummary] = useState('')
@@ -521,7 +522,10 @@ export default function App() {
     })
     void chrome.commands.getAll().then(commands => {
       const binding = commands.find(command => command.name === ANN_SCREENSHOT_COMMAND)?.shortcut
-      if (binding) setShortcutHint(uiText('library.shortcutHint', { keys: binding }))
+      if (binding) {
+        setShortcutKeys(binding)
+        setShortcutHint(uiText('library.shortcutHint', { keys: binding }))
+      }
     })
   }, [refreshCounts])
 
@@ -608,6 +612,17 @@ export default function App() {
   /** An answer with nothing in it: the view's own entry hint, or — when a filter is on — "no results" and the way out (extension.md §5). */
   const emptyState = (hint: UiTextKey) => {
     const filtered = hasActiveFilter(route)
+    if (route.view === 'all' && !filtered && countsReady && counts.all === 0) {
+      // an empty library explains both ways in, with the shortcut as the browser actually binds it
+      return (
+        <div className="empty empty-rich">
+          <VIEW_ICONS.all className="empty-icon" size={28} aria-hidden />
+          <p className="empty-heading">{uiText('library.empty.heading')}</p>
+          <p className="empty-how">{uiText('library.empty.how.clip')}</p>
+          <p className="empty-how">{uiText('library.empty.how.shot', { keys: shortcutKeys })}</p>
+        </div>
+      )
+    }
     return (
       <div className="empty">
         {uiText(filtered ? 'library.noResults' : hint)}
@@ -636,11 +651,13 @@ export default function App() {
             {rail ? <PanelLeftOpen size={17} aria-hidden /> : <PanelLeftClose size={17} aria-hidden />}
           </button>
         </div>
+        <p className="nav-group-title">{uiText('library.group.library')}</p>
         {viewTab('all', counts.all)}
         {viewTab('clips', counts.clips)}
         {viewTab('highlights', highlightTotal)}
         {viewTab('screenshots', counts.screenshots)}
         <div className="nav-spacer" />
+        <p className="nav-group-title">{uiText('library.group.manage')}</p>
         {viewTab('properties', registry.length)}
         {viewTab('settings', 0)}
         <p className="nav-shortcut" title={shortcutHint}>
@@ -676,7 +693,12 @@ export default function App() {
           </div>
         )}
         {exportState === 'failed' && <span className="nav-note nav-note-warn">{exportError}</span>}
-        {usage && usage.quota > 0 && <span className="nav-note">{uiText('library.storageUsed', { size: formatBytes(usage.usage) })}</span>}
+        {usage && usage.quota > 0 && (
+          <p className="nav-note nav-storage">
+            {uiText('library.storageUsed', { size: formatBytes(usage.usage) })}
+            <progress value={usage.usage} max={usage.quota} aria-hidden />
+          </p>
+        )}
       </nav>
 
       <main className="content">
@@ -709,191 +731,208 @@ export default function App() {
                   aria-label={uiText('library.searchPlaceholder')}
                 />
               </header>
-              <div className="toolbar" role="group" aria-label={uiText('library.filters')}>
-                {route.view === 'all' && (
-                  <select
-                    className="filter"
-                    value={route.type}
-                    onChange={event => setFilter({ type: event.target.value as FilterState['type'] })}
-                    aria-label={uiText('library.filter.type')}
-                  >
-                    <option value="">{uiText('library.filter.type')}: —</option>
-                    <option value="clip">{uiText('library.clips')}</option>
-                    <option value="screenshot">{uiText('library.screenshots')}</option>
-                  </select>
-                )}
-                {route.view === 'highlights' && (
-                  <span className="filter-set">
-                    <MultiSelect
-                      ariaLabel={uiText('library.filter.color')}
-                      chosen={route.colors.map(color => ({
-                        value: color,
-                        label: uiText(`library.color.${color}` as 'library.color.yellow'),
-                      }))}
-                      candidates={HIGHLIGHT_FILTER_COLORS.filter(color => !route.colors.includes(color)).map(color => ({
-                        value: color,
-                        label: uiText(`library.color.${color}` as 'library.color.yellow'),
-                      }))}
-                      onAdd={color => setFilter({ colors: [...route.colors, color] })}
-                      onRemove={color => setFilter({ colors: route.colors.filter(item => item !== color) })}
-                    />
-                  </span>
-                )}
-                {hosts.length > 0 && (
-                  <span className="filter-set">
-                    <MultiSelect
-                      ariaLabel={uiText('library.filter.host')}
-                      chosen={route.hosts.map(host => ({ value: host, label: host }))}
-                      candidates={hosts.filter(host => !route.hosts.includes(host)).map(host => ({ value: host, label: host }))}
-                      onAdd={host => setFilter({ hosts: [...route.hosts, host] })}
-                      onRemove={host => setFilter({ hosts: route.hosts.filter(item => item !== host) })}
-                    />
-                  </span>
-                )}
-                {tags.length > 0 && (
-                  <span className="filter-set">
-                    <MultiSelect
-                      ariaLabel={uiText('library.filter.tag')}
-                      chosen={route.tags.map(tag => ({ value: tag, label: tag }))}
-                      candidates={tags.filter(tag => !route.tags.includes(tag)).map(tag => ({ value: tag, label: tag }))}
-                      onAdd={tag => setFilter({ tags: [...route.tags, tag] })}
-                      onRemove={tag => setFilter({ tags: route.tags.filter(item => item !== tag) })}
-                    />
-                  </span>
-                )}
-                {registry.length > 0 &&
-                  route.conditions.map((condition, index) => {
-                    const def = registry.find(item => item.name === condition.prop)
-                    const operators = def ? OPERATORS[def.type] : []
-                    const patch = (next: Partial<PropertyFilter>) => setFilter({ conditions: route.conditions.map((item, at) => (at === index ? { ...item, ...next } : item)) })
-                    const valueInput = (key: 'val' | 'val2', labelKey?: 'library.filter.value2') => {
-                      if (def!.type === 'checkbox') {
+              {/* nothing to filter yet: the toolbar leaves an empty, unfiltered library alone (extension.md §5) */}
+              {!(countsReady && counts.all === 0 && !hasActiveFilter(route)) && (
+                <div className="toolbar" role="group" aria-label={uiText('library.filters')}>
+                  {route.view === 'all' && (
+                    <select
+                      className="filter"
+                      value={route.type}
+                      onChange={event => setFilter({ type: event.target.value as FilterState['type'] })}
+                      aria-label={uiText('library.filter.type')}
+                    >
+                      <option value="">{uiText('library.filter.type')}: —</option>
+                      <option value="clip">{uiText('library.clips')}</option>
+                      <option value="screenshot">{uiText('library.screenshots')}</option>
+                    </select>
+                  )}
+                  {route.view === 'highlights' && (
+                    <span className="filter-set">
+                      <MultiSelect
+                        ariaLabel={uiText('library.filter.color')}
+                        chosen={route.colors.map(color => ({
+                          value: color,
+                          label: uiText(`library.color.${color}` as 'library.color.yellow'),
+                        }))}
+                        candidates={HIGHLIGHT_FILTER_COLORS.filter(color => !route.colors.includes(color)).map(color => ({
+                          value: color,
+                          label: uiText(`library.color.${color}` as 'library.color.yellow'),
+                        }))}
+                        onAdd={color => setFilter({ colors: [...route.colors, color] })}
+                        onRemove={color => setFilter({ colors: route.colors.filter(item => item !== color) })}
+                      />
+                    </span>
+                  )}
+                  {hosts.length > 0 && (
+                    <span className="filter-set">
+                      <MultiSelect
+                        ariaLabel={uiText('library.filter.host')}
+                        chosen={route.hosts.map(host => ({ value: host, label: host }))}
+                        candidates={hosts.filter(host => !route.hosts.includes(host)).map(host => ({ value: host, label: host }))}
+                        onAdd={host => setFilter({ hosts: [...route.hosts, host] })}
+                        onRemove={host => setFilter({ hosts: route.hosts.filter(item => item !== host) })}
+                      />
+                    </span>
+                  )}
+                  {tags.length > 0 && (
+                    <span className="filter-set">
+                      <MultiSelect
+                        ariaLabel={uiText('library.filter.tag')}
+                        chosen={route.tags.map(tag => ({ value: tag, label: tag }))}
+                        candidates={tags.filter(tag => !route.tags.includes(tag)).map(tag => ({ value: tag, label: tag }))}
+                        onAdd={tag => setFilter({ tags: [...route.tags, tag] })}
+                        onRemove={tag => setFilter({ tags: route.tags.filter(item => item !== tag) })}
+                      />
+                    </span>
+                  )}
+                  {registry.length > 0 &&
+                    route.conditions.map((condition, index) => {
+                      const def = registry.find(item => item.name === condition.prop)
+                      const operators = def ? OPERATORS[def.type] : []
+                      const patch = (next: Partial<PropertyFilter>) => setFilter({ conditions: route.conditions.map((item, at) => (at === index ? { ...item, ...next } : item)) })
+                      const valueInput = (key: 'val' | 'val2', labelKey?: 'library.filter.value2') => {
+                        if (def!.type === 'checkbox') {
+                          return (
+                            <select
+                              className="filter filter-value"
+                              value={condition[key]}
+                              aria-label={labelKey ? uiText(labelKey) : uiText('library.filter.value')}
+                              onChange={event => patch({ [key]: event.target.value })}
+                            >
+                              <option value="">{uiText('library.filter.value')}: —</option>
+                              <option value="yes">{uiText('library.value.yes')}</option>
+                              <option value="no">{uiText('library.value.no')}</option>
+                            </select>
+                          )
+                        }
+                        const inputType = def!.type === 'number' ? 'number' : def!.type === 'date' ? 'date' : def!.type === 'datetime' ? 'datetime-local' : 'text'
                         return (
-                          <select
+                          <input
                             className="filter filter-value"
+                            type={inputType}
                             value={condition[key]}
                             aria-label={labelKey ? uiText(labelKey) : uiText('library.filter.value')}
                             onChange={event => patch({ [key]: event.target.value })}
-                          >
-                            <option value="">{uiText('library.filter.value')}: —</option>
-                            <option value="yes">{uiText('library.value.yes')}</option>
-                            <option value="no">{uiText('library.value.no')}</option>
-                          </select>
+                          />
                         )
                       }
-                      const inputType = def!.type === 'number' ? 'number' : def!.type === 'date' ? 'date' : def!.type === 'datetime' ? 'datetime-local' : 'text'
                       return (
-                        <input
-                          className="filter filter-value"
-                          type={inputType}
-                          value={condition[key]}
-                          aria-label={labelKey ? uiText(labelKey) : uiText('library.filter.value')}
-                          onChange={event => patch({ [key]: event.target.value })}
-                        />
-                      )
-                    }
-                    return (
-                      <span className="filter-set" key={`${condition.prop}-${index}`}>
-                        <select
-                          className="filter"
-                          value={condition.prop}
-                          aria-label={uiText('library.filter.property')}
-                          onChange={event => {
-                            const prop = event.target.value
-                            const nextDef = registry.find(item => item.name === prop)
-                            patch({ prop, op: nextDef ? OPERATORS[nextDef.type][0]!.op : '', val: '', val2: '' })
-                          }}
-                        >
-                          <option value="">{uiText('library.filter.property')}: —</option>
-                          {registry.map(item => (
-                            <option key={item.name} value={item.name}>
-                              {item.name}
-                            </option>
-                          ))}
-                        </select>
-                        {def && operators.length > 1 && (
+                        <span className="filter-set" key={`${condition.prop}-${index}`}>
                           <select
                             className="filter"
-                            value={condition.op}
-                            aria-label={uiText('library.filter.operator')}
-                            onChange={event => patch({ op: event.target.value, val: '', val2: '' })}
+                            value={condition.prop}
+                            aria-label={uiText('library.filter.property')}
+                            onChange={event => {
+                              const prop = event.target.value
+                              const nextDef = registry.find(item => item.name === prop)
+                              patch({ prop, op: nextDef ? OPERATORS[nextDef.type][0]!.op : '', val: '', val2: '' })
+                            }}
                           >
-                            {operators.map(({ op, key: opKey }) => (
-                              <option key={op} value={op}>
-                                {uiText(opKey as 'library.op.contains')}
+                            <option value="">{uiText('library.filter.property')}: —</option>
+                            {registry.map(item => (
+                              <option key={item.name} value={item.name}>
+                                {item.name}
                               </option>
                             ))}
                           </select>
-                        )}
-                        {def && valueInput('val')}
-                        {def && condition.op === 'between' && valueInput('val2', 'library.filter.value2')}
-                        <button
-                          type="button"
-                          className="filter-chip"
-                          aria-label={uiText('library.filter.remove', { name: condition.prop })}
-                          onClick={() => setFilter({ conditions: route.conditions.filter((_, at) => at !== index) })}
-                        >
-                          <span>{condition.prop}</span>
-                          <X size={11} aria-hidden />
-                        </button>
-                      </span>
-                    )
-                  })}
-                {registry.length > 0 && (
-                  <select
-                    className="filter"
-                    value=""
-                    aria-label={uiText('library.filter.addProperty')}
-                    onChange={event => {
-                      const prop = event.target.value
-                      if (!prop) return
-                      const def = registry.find(item => item.name === prop)
-                      setFilter({ conditions: [...route.conditions, { prop, op: def ? OPERATORS[def.type][0]!.op : '', val: '', val2: '' }] })
-                    }}
-                  >
-                    <option value="">{uiText('library.filter.addProperty')}: —</option>
-                    {registry.map(def => (
-                      <option key={def.name} value={def.name}>
-                        {def.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <label className="filter filter-time" aria-label={uiText('library.filter.time')}>
-                  <span className="filter-time-label">{uiText('library.filter.time')}</span>
-                  <input type="date" value={route.from} aria-label={uiText('library.filter.timeFrom')} onChange={event => setFilter({ from: event.target.value })} />
-                  <span>–</span>
-                  <input type="date" value={route.to} aria-label={uiText('library.filter.timeTo')} onChange={event => setFilter({ to: event.target.value })} />
-                </label>
-                <span className="count" data-testid="list-count">
-                  {loading ? uiText('common.loading') : uiText('library.count', { count: route.view === 'highlights' ? highlightResult.total : total })}
-                </span>
-              </div>
+                          {def && operators.length > 1 && (
+                            <select
+                              className="filter"
+                              value={condition.op}
+                              aria-label={uiText('library.filter.operator')}
+                              onChange={event => patch({ op: event.target.value, val: '', val2: '' })}
+                            >
+                              {operators.map(({ op, key: opKey }) => (
+                                <option key={op} value={op}>
+                                  {uiText(opKey as 'library.op.contains')}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          {def && valueInput('val')}
+                          {def && condition.op === 'between' && valueInput('val2', 'library.filter.value2')}
+                          <button
+                            type="button"
+                            className="filter-chip"
+                            aria-label={uiText('library.filter.remove', { name: condition.prop })}
+                            onClick={() => setFilter({ conditions: route.conditions.filter((_, at) => at !== index) })}
+                          >
+                            <span>{condition.prop}</span>
+                            <X size={11} aria-hidden />
+                          </button>
+                        </span>
+                      )
+                    })}
+                  {registry.length > 0 && (
+                    <select
+                      className="filter"
+                      value=""
+                      aria-label={uiText('library.filter.addProperty')}
+                      onChange={event => {
+                        const prop = event.target.value
+                        if (!prop) return
+                        const def = registry.find(item => item.name === prop)
+                        setFilter({ conditions: [...route.conditions, { prop, op: def ? OPERATORS[def.type][0]!.op : '', val: '', val2: '' }] })
+                      }}
+                    >
+                      <option value="">{uiText('library.filter.addProperty')}: —</option>
+                      {registry.map(def => (
+                        <option key={def.name} value={def.name}>
+                          {def.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  <label className="filter filter-time" aria-label={uiText('library.filter.time')}>
+                    <span className="filter-time-label">{uiText('library.filter.time')}</span>
+                    <input type="date" value={route.from} aria-label={uiText('library.filter.timeFrom')} onChange={event => setFilter({ from: event.target.value })} />
+                    <span>–</span>
+                    <input type="date" value={route.to} aria-label={uiText('library.filter.timeTo')} onChange={event => setFilter({ to: event.target.value })} />
+                  </label>
+                  <span className="count" data-testid="list-count">
+                    {loading ? uiText('common.loading') : uiText('library.count', { count: route.view === 'highlights' ? highlightResult.total : total })}
+                  </span>
+                </div>
+              )}
             </>
           )}
 
           {countsReady && counts.all === 0 && !loading && total === 0 && !guideDismissed && isListView(route.view) && (
             <div className="guide-card" data-testid="guide-card">
-              <p>{uiText('library.guide.clip')}</p>
-              <p>{uiText('library.guide.shot')}</p>
-              <p>{uiText('library.guide.hl')}</p>
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => void chrome.tabs.create({ url: chrome.runtime.getURL(currentUiLanguage() === 'zh' ? 'sample.html' : 'sample.en.html') })}
-              >
-                {uiText('library.guide.sample')}
-              </button>
-              <button
-                type="button"
-                className="ghost"
-                onClick={() => {
-                  localStorage.setItem('annhub.guideDismissed', '1')
-                  setGuideDismissed(true)
-                }}
-              >
-                {uiText('library.guide.dismiss')}
-              </button>
+              <div className="guide-grid">
+                {(
+                  [
+                    { Icon: ENTRY_TYPE_ICONS.clip, nameKey: 'library.clips', textKey: 'library.guide.clip' },
+                    { Icon: ENTRY_TYPE_ICONS.screenshot, nameKey: 'library.screenshots', textKey: 'library.guide.shot' },
+                    { Icon: VIEW_ICONS.highlights, nameKey: 'library.highlights', textKey: 'library.guide.hl' },
+                  ] as const
+                ).map(({ Icon, nameKey, textKey }) => (
+                  <div className="guide-item" key={nameKey}>
+                    <Icon size={18} aria-hidden />
+                    <span className="guide-name">{uiText(nameKey)}</span>
+                    <p>{uiText(textKey)}</p>
+                  </div>
+                ))}
+              </div>
+              <div className="guide-actions">
+                <button
+                  type="button"
+                  className="primary"
+                  onClick={() => void chrome.tabs.create({ url: chrome.runtime.getURL(currentUiLanguage() === 'zh' ? 'sample.html' : 'sample.en.html') })}
+                >
+                  {uiText('library.guide.sample')}
+                </button>
+                <button
+                  type="button"
+                  className="link"
+                  onClick={() => {
+                    localStorage.setItem('annhub.guideDismissed', '1')
+                    setGuideDismissed(true)
+                  }}
+                >
+                  {uiText('library.guide.dismiss')}
+                </button>
+              </div>
             </div>
           )}
           {route.view === 'settings' ? (

@@ -65,9 +65,32 @@ body {
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.2px;
+}
+
+/* the same mask the rail paints, at the wordmark's side */
+.brand::before {
+  content: '';
+  flex: none;
+  width: 20px;
+  height: 20px;
+  background: var(--ann-accent);
+  -webkit-mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
+  mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
+}
+
+/* the two groups in the nav; the rail shows icons only */
+.nav-group-title {
+  margin: 10px 10px 3px;
+  color: var(--ann-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
 .nav-fold {
@@ -153,14 +176,20 @@ body {
   justify-content: center;
   gap: 7px;
   margin: 4px 8px;
-  padding: 8px 10px;
-  border: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--ann-border);
   border-radius: 6px;
-  background: var(--ann-accent);
-  color: var(--ann-accent-contrast);
+  background: var(--ann-surface);
+  color: var(--ann-text);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
+}
+
+.nav-export:hover:not(:disabled),
+.nav-export:focus-visible {
+  border-color: var(--ann-accent);
+  color: var(--ann-accent-text);
 }
 
 .nav-shortcut {
@@ -203,6 +232,20 @@ body {
 
 .nav-note-warn {
   color: var(--ann-danger);
+}
+
+/* storage: the number plus a thin bar of the quota */
+.nav-storage {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav-storage progress {
+  width: 100%;
+  height: 4px;
+  margin: 0;
+  accent-color: var(--ann-accent);
 }
 
 /* ── Content: toolbar + list ── */
@@ -539,6 +582,30 @@ body {
   color: var(--ann-muted);
   text-align: center;
   font-size: 13.5px;
+}
+
+/* the empty library: an icon, a heading and the two ways in */
+.empty-rich {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.empty-icon {
+  color: var(--ann-muted);
+}
+
+.empty-heading {
+  margin: 4px 0 2px;
+  color: var(--ann-text);
+  font-size: 14.5px;
+  font-weight: 600;
+}
+
+.empty-how {
+  margin: 0;
+  font-size: 12.5px;
 }
 
 /* its own line under the centred message; a block button hugs the left edge unless its side margins are auto */
@@ -1750,31 +1817,86 @@ body {
   padding: 0;
 }
 
+/* first use (extension.md §5): three cards, one per way in, then one solid action */
 .guide-card {
   max-width: 860px;
   margin: 0 auto 14px;
   width: 100%;
   padding: 16px 20px;
-  border: 1px solid var(--ann-accent);
+  border: 1px solid var(--ann-border);
   border-radius: 10px;
-  background: var(--ann-accent-soft);
+  background: var(--ann-surface);
   font-size: 13px;
   line-height: 1.6;
 }
 
-.guide-card p {
-  margin: 0 0 6px;
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
 }
 
-.guide-card button {
-  margin-top: 6px;
-  padding: 5px 12px;
-  border: 1px solid var(--ann-accent);
-  border-radius: 5px;
-  background: var(--ann-surface);
+.guide-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-surface-alt);
+}
+
+.guide-item svg {
+  color: var(--ann-accent);
+}
+
+.guide-name {
+  font-weight: 600;
+}
+
+.guide-item p {
+  margin: 0;
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+.guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.guide-actions .primary {
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--ann-accent);
+  color: var(--ann-accent-contrast);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.guide-actions .primary:focus-visible {
+  outline: 2px solid var(--ann-accent);
+  outline-offset: 2px;
+}
+
+.guide-actions .link {
+  padding: 0;
+  border: 0;
+  background: none;
   color: var(--ann-accent-text);
   font-size: 12.5px;
   cursor: pointer;
+}
+
+.guide-actions .link:hover,
+.guide-actions .link:focus-visible {
+  text-decoration: underline;
 }
 
 /*
@@ -1794,6 +1916,10 @@ body {
 }
 
 /* the wordmark is wider than the rail: the logo stands in, the text stays for screen readers */
+.is-rail .nav-group-title {
+  display: none;
+}
+
 .is-rail .brand {
   font-size: 0;
 }
