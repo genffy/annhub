@@ -209,6 +209,7 @@ export const zhCN: LandingCopy = {
     deny: '不允许',
     current: { granted: '当前：允许统计。', denied: '当前：不统计。' },
   },
+  notFound: { title: '找不到这个页面', reason: '这个地址不存在，或者页面已经移走。', library: '体验资料库', home: '回到首页' },
   ui: {
     types: { clip: '剪藏', screenshot: '截图', highlight: '高亮' },
     menu: { clip: '剪藏', screenshot: '截图', clipHint: '保存选中的内容，之后在资料库里读和高亮', screenshotHint: '框选区域或单击元素 · 保存为图片' },

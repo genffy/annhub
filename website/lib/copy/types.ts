@@ -116,5 +116,7 @@ export interface LandingCopy {
     deny: string
     current: { granted: string; denied: string }
   }
+  /** The page shown for an address that does not exist (docs/product/website.md §20). */
+  notFound: { title: string; reason: string; library: string; home: string }
   ui: ProductUi
 }

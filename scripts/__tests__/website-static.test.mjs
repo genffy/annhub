@@ -31,6 +31,13 @@ function fixture() {
   ]) {
     writeFileSync(join(directory, file), 'test asset')
   }
+  // the branded 404 (website.md §20): both languages, each with its exits, not indexed, no consent
+  writeFileSync(
+    join(directory, '404.html'),
+    '<html lang="en"><head><meta name="robots" content="noindex"></head><body>' +
+      ['en', 'zh-CN'].map(locale => `<section lang="${locale}"><a href="/${locale}#library">library</a><a href="/${locale}">home</a></section>`).join('') +
+      '</body></html>',
+  )
   writeFileSync(join(directory, 'llms.txt'), '# AnnHub\n')
   for (const locale of ['en', 'zh-CN']) {
     writeFileSync(

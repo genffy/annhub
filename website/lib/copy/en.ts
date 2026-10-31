@@ -255,6 +255,7 @@ export const en: LandingCopy = {
     deny: 'Don’t allow',
     current: { granted: 'Currently allowed.', denied: 'Currently off.' },
   },
+  notFound: { title: 'Page not found', reason: 'This address does not exist, or the page has moved.', library: 'Try the library', home: 'Back to home' },
   ui: {
     types: { clip: 'Clip', screenshot: 'Screenshot', highlight: 'Highlight' },
     menu: {
