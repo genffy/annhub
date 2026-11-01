@@ -50,6 +50,6 @@ demo-screenshots/
 __pycache__/
 .pytest_cache/
 
-# ZCode local workspace state (shared config lives in .agents/mcp.json)
+# ZCode local workspace state
 .zcode/
 store-assets/
