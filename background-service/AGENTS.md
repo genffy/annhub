@@ -5,7 +5,7 @@
 
 ## 服务边界
 
-- `index.ts` 注册四个服务：`services/entries`（条目/属性的消息门面）、`services/screenshot`（截取、跨域代取、下载、入库）、`services/recording`（标签页录制：状态机、badge 与下载，视频本身在 `entrypoints/offscreen` 收，annotate.md §2）、`services/system`（偏好、本地指标）。`service-manager.ts` 管生命周期与消息分发；`event-handlers/command-handler.ts` 接四条命令（区域截图、区块模式、批注、录制开关，后两条默认不绑定，D-37），前三条只发给标签页的顶层框架（`frameId: 0`），录制开关在 worker 内直接走 `RecordingService`，没有注入式兜底（`scripting` 已移除）。
+- `index.ts` 注册四个服务：`services/entries`（条目/属性的消息门面）、`services/screenshot`（截取、跨域代取、下载、入库）、`services/recording`（标签页录制：状态机、badge 与下载，视频本身在 `entrypoints/offscreen` 收，annotate.md §2）、`services/system`（偏好、本地指标）。`service-manager.ts` 管生命周期与消息分发；`event-handlers/command-handler.ts` 接四条命令（区域截图、区块模式、批注、录制开关，后两条默认不绑定，annotate.md §1.1、§2.1），前三条只发给标签页的顶层框架（`frameId: 0`），录制开关在 worker 内直接走 `RecordingService`，没有注入式兜底（`scripting` 已移除）。
 - 共享 IndexedDB 连接走 `store-instance.ts` 的单例；服务不各自开库。
 - 新消息先在 `types/messages.ts` 登记，再同步 handler、调用方和测试。读用户数据、写类消息按 `sender.ts` 校验，不要再复制判断。
 - 发送者分三档，每个 handler 自己校验，`services/entries/sender.test.ts` 遍历所有 handler 守着：

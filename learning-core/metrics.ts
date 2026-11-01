@@ -47,7 +47,7 @@ export function bucketCaptureDuration(ms: number): CaptureDurationBucket {
 
 /**
  * `recording.downloaded`'s duration is the recorded video's own length, in coarse minute buckets — the general rule
- * cannot show whether the recording limits of D-46 hold (metrics.md §9).
+ * cannot show whether the recording limits of annotate.md §2.1 hold (metrics.md §9).
  */
 export type RecordingDurationBucket = '<1min' | '1-3min' | '3-5min' | '5-10min' | '>=10min'
 

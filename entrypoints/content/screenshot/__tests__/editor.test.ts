@@ -363,7 +363,7 @@ describe('drawing with the highlighter', () => {
   })
 })
 
-describe('the trace through its samples (annotate.md §1.2, D-68)', () => {
+describe('the trace through its samples (annotate.md §1.2)', () => {
   const trace = (points: Point[]): string[] => {
     const calls: string[] = []
     tracePath(

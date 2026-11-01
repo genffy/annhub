@@ -143,7 +143,7 @@ export class RecordingService implements IService {
     try {
       const withMic = await this.readMicPreference()
       if (withMic && !(await this.micGranted())) {
-        // no live grant: the settings page asks, this does not record (annotate.md §2.1, D-43)
+        // no live grant: the settings page asks, this does not record (annotate.md §2.1)
         await chrome.runtime.sendMessage({ type: 'OPEN_EXTENSION_PAGE', page: 'settings', params: { recordTabId: tab.id } }).catch(() => undefined)
         return
       }

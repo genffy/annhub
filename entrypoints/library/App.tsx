@@ -1115,7 +1115,7 @@ function EntryCard({
             alt=""
             loading="lazy"
             onLoad={event => {
-              // a long capture fills the box from the top instead of shrinking to a sliver (D-58)
+              // a long capture fills the box from the top instead of shrinking to a sliver (extension.md §2.3)
               const image = event.currentTarget
               image.dataset.tall = image.naturalHeight / image.naturalWidth >= 2 ? 'true' : 'false'
             }}

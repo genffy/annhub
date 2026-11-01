@@ -169,7 +169,7 @@ export class Stitcher {
 
     const scrollTop = scroller.scrollTop
     const scrollLeft = scroller.scrollLeft
-    // the visible page width, scrollbar excluded — its thumb would sit differently in every segment (D-42)
+    // the visible page width, scrollbar excluded — its thumb would sit differently in every segment (screenshot.md §1.5)
     const widthCss = Math.max(1, this.doc.documentElement.clientWidth)
     const step = Math.max(1, view.innerHeight - STITCH_OVERLAP_CSS)
     const startDpr = view.devicePixelRatio || 1

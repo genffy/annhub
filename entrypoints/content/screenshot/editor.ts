@@ -84,7 +84,7 @@ export function renderScreenshot(target: HTMLCanvasElement, source: HTMLCanvasEl
 }
 
 /**
- * The trace of a pen or highlighter stroke through its samples (annotate.md §1.2, D-68): a quadratic curve per pair
+ * The trace of a pen or highlighter stroke through its samples (annotate.md §1.2): a quadratic curve per pair
  * of samples, with the samples themselves as control points and the curve passing through the midpoints between
  * them, so a corner comes out round without the overshoot an interpolating spline would make. The first and the last
  * half segment are straight: the stroke starts at the first sample and ends at the last one. Samples repeated at the

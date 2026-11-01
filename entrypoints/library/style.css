@@ -792,7 +792,7 @@ body {
   object-fit: contain;
 }
 
-/* a capture at least twice as tall as wide fills the box from the top instead of shrinking to a sliver (D-58) */
+/* a capture at least twice as tall as wide fills the box from the top instead of shrinking to a sliver (extension.md §2.3) */
 .entry-card-preview[data-tall='true'] {
   object-fit: cover;
   object-position: top;

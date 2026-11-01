@@ -55,13 +55,13 @@ export default defineConfig({
         description: '__MSG_commandBlockMode__',
         global: false,
       },
-      // No suggested key on purpose (annotate.md §1.1, D-37): the user binds it in
+      // No suggested key on purpose (annotate.md §1.1): the user binds it in
       // the browser's shortcut settings; the toolbar popup is the primary entry.
       [ANN_ANNOTATE_COMMAND]: {
         description: '__MSG_commandAnnotate__',
         global: false,
       },
-      // Also unbound by default (annotate.md §2.1, D-37): the toolbar popup is the primary entry.
+      // Also unbound by default (annotate.md §2.1): the toolbar popup is the primary entry.
       [ANN_RECORD_COMMAND]: {
         description: '__MSG_commandRecordTab__',
         global: false,

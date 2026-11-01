@@ -3,7 +3,7 @@ import { resolve } from 'path'
 import { describe, expect, it } from 'vitest'
 
 /**
- * One colour, four handwritten copies (D-78): the design draft (docs/design/css/tokens.css, oklch), the extension
+ * One colour, four handwritten copies (visual.md §2): the design draft (docs/design/css/tokens.css, oklch), the extension
  * pages (styles/tokens.css, hex), the in-page overlays (entrypoints/content/content.css, --annov-*) and the website
  * (website/app/[locale]/globals.css, oklch). Each file's header says it matches the others; nothing checked that,
  * and the type chips drifted grey precisely because of it. The tables below are the check: every row names the
