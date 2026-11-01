@@ -454,7 +454,7 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
   })
 })
 
-test.describe('element capture renders content (真机走查 P1-2)', () => {
+test.describe('element capture renders content', () => {
   test('the preview of a clicked element shows the element, not one flat colour', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
     await triggerScreenshot(page)
