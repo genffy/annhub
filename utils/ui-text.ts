@@ -72,6 +72,7 @@ const STRINGS = {
   'block.kind.article': { zh: '文章', en: 'Article' },
   // screenshot session (screenshot.md §1)
   'shot.hint': { zh: '拖拽选择区域，单击选择元素 · Esc 取消', en: 'Drag to select an area, click to pick an element · Esc to cancel' },
+  'page.noFocus': { zh: '页面没有键盘焦点，先点一下页面', en: 'The page has no keyboard focus — click it first' },
   'shot.hintPending': { zh: '调整选区 · Enter 确认 · 点选区外重选 · Esc 取消', en: 'Adjust the frame · Enter to confirm · Click outside to start over · Esc to cancel' },
   'shot.toolbar': { zh: '截图工具栏', en: 'Screenshot toolbar' },
   'shot.anonymize': { zh: '匿名：{state}', en: 'Anonymize: {state}' },

@@ -34,6 +34,19 @@ describe('the screenshot session and input made up by the page', () => {
     document.body.innerHTML = ''
   })
 
+  it('says so in the hint bar while the page has no keyboard focus, and clears it on focus', () => {
+    const hasFocus = vi.spyOn(document, 'hasFocus')
+    hasFocus.mockReturnValue(false)
+    enterScreenshotMode()
+    const hint = document.querySelector('.ann-shot-hint')!
+    expect(hint.textContent).toContain('页面没有键盘焦点')
+
+    hasFocus.mockReturnValue(true)
+    document.dispatchEvent(new FocusEvent('focus'))
+    expect(hint.textContent).not.toContain('页面没有键盘焦点')
+    hasFocus.mockRestore()
+  })
+
   it('does not start a drag from a pointerdown a script dispatched', async () => {
     enterScreenshotMode()
     aPerson = false

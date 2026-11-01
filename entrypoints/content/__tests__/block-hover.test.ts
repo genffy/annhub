@@ -329,6 +329,22 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
   })
 })
 
+describe('the mode hint mentions a page without keyboard focus', () => {
+  it('adds the note while the page has no focus and clears it when focus returns', () => {
+    const hasFocus = vi.spyOn(document, 'hasFocus')
+    hasFocus.mockReturnValue(false)
+    const { entries } = start()
+    const hint = document.querySelector('.ann-block-mode-hint')!
+    expect(hint.textContent).toContain('页面没有键盘焦点')
+
+    hasFocus.mockReturnValue(true)
+    document.dispatchEvent(new FocusEvent('focus'))
+    expect(hint.textContent).not.toContain('页面没有键盘焦点')
+    hasFocus.mockRestore()
+    entries.exitBlockMode()
+  })
+})
+
 describe('capsule placement stays inside the block (capture.md §6.2)', () => {
   const CAPSULE_WIDTH = 164 // half of this, 82px, is the overflow measured at 110% zoom
   const CAPSULE_HEIGHT = 36

@@ -445,6 +445,7 @@ class ScreenshotSession {
 
     this.doc.documentElement.appendChild(this.host)
     this.doc.addEventListener('keydown', this.onKeydown, true)
+    this.doc.addEventListener('focus', this.onFocus, true)
     // Selecting leaves the host pointer-events:none so a click still hits the
     // page element the element path wants. Confirming adds ann-shot-modal,
     // which takes the pointer so the page underneath cannot (issue #108).
@@ -507,9 +508,21 @@ class ScreenshotSession {
     if (image && this.state === 'preview') this.refreshDisplay()
   }
 
+  private readonly onFocus = (): void => {
+    this.syncHint()
+  }
+
   private syncHint(): void {
     if (!this.hintEl) return
     this.hintEl.innerHTML = ''
+    // the address bar holds the keys while the page has no focus: Esc would land in the
+    // browser, so the hint says to click the page first
+    if (!this.doc.hasFocus()) {
+      const dot = this.doc.createElement('span')
+      dot.className = 'ann-shot-sep'
+      dot.textContent = '·'
+      this.hintEl.append(this.textNode(uiText('page.noFocus')), dot)
+    }
     // the segments read as one line; the muted dots keep them from running together
     // (without them the hint reads as one run: “Esc to cancelAAnonymize: on”),
     // and the keys ride as keycaps
@@ -714,6 +727,7 @@ class ScreenshotSession {
     this.toolbarRoot?.unmount()
     this.toolbarRoot = null
     this.doc.removeEventListener('keydown', this.onKeydown, true)
+    this.doc.removeEventListener('focus', this.onFocus, true)
     this.doc.removeEventListener('pointerdown', this.onPointerDown, true)
     this.doc.removeEventListener('pointermove', this.onHoverMove, true)
     for (const type of SWALLOWED_EVENT_TYPES) {

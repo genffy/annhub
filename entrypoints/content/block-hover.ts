@@ -578,8 +578,17 @@ export class BlockEntries {
       words.textContent = uiText(labelKey)
       hint.appendChild(words)
     }
+    // the address bar holds the keys while the page has no focus: Esc would land in the browser
+    this.modeHintEl = hint
+    if (!this.doc.hasFocus()) {
+      const note = this.doc.createElement('span')
+      note.className = 'ann-block-mode-nofocus'
+      note.textContent = uiText('page.noFocus')
+      hint.appendChild(note)
+    }
     status.append(dot, label, kind, hint)
     this.doc.documentElement.append(overlay, status)
+    this.doc.addEventListener('focus', this.modeOnFocus, true)
     // Keys must reach this document: a user whose focus sat in a child frame would otherwise type
     // into that frame while the mode waits here. The previous focus comes back on exit.
     const previousFocus = this.doc.activeElement
@@ -726,8 +735,22 @@ export class BlockEntries {
     }
   }
 
+  private modeHintEl: HTMLElement | null = null
+  private readonly modeOnFocus = (): void => {
+    if (!this.modeHintEl) return
+    const note = this.modeHintEl.querySelector('.ann-block-mode-nofocus')
+    if (this.doc.hasFocus()) note?.remove()
+    else if (!note) {
+      const added = this.doc.createElement('span')
+      added.className = 'ann-block-mode-nofocus'
+      added.textContent = uiText('page.noFocus')
+      this.modeHintEl.appendChild(added)
+    }
+  }
+
   exitBlockMode(): void {
     if (this.modeKeyHandler) this.doc.removeEventListener('keydown', this.modeKeyHandler, true)
+    this.doc.removeEventListener('focus', this.modeOnFocus, true)
     if (this.modeRepaint) {
       this.doc.removeEventListener('scroll', this.modeRepaint, true)
       this.doc.defaultView?.removeEventListener('resize', this.modeRepaint)
