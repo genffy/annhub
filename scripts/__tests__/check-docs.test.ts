@@ -25,6 +25,9 @@ const Q2 = id('Q', 2)
 const GOOD_FILES: Record<string, string> = {
   'README.md': '# AnnHub\n\nSee the [guide](docs/guide.md).\n',
   'docs/guide.md': `# Guide\n\n## 1. Basics\n\nThe toolbar follows ${ref(SPEC, '1.1')}, and ${Q2} decides the window size.\n`,
+  'AGENTS.md': '# AnnHub\n\nSee [entrypoints/library/AGENTS.md](entrypoints/library/AGENTS.md) for the library.\n',
+  'entrypoints/library/AGENTS.md': '# Library\n\nSee [notes/x.md](notes/x.md) for the list rules.\n',
+  'entrypoints/library/notes/x.md': '# Lists\n\nA card grid, fifty per page.\n',
   'docs/spec.md': '# Spec\n\n## 1.1 Toolbar\n\nThe toolbar pins the selection.\n',
   'docs/decisions.md': `# Decisions
 
@@ -138,6 +141,41 @@ describe('check-docs', () => {
     })
     expect(status).toBe(1)
     expect(output).toContain('docs/guide.md:5: [round-label] the line carries a fix-round or defect label')
+  })
+
+  it('names the linker of an instruction file nothing links', () => {
+    const { status, output } = check({ 'docs/sub/AGENTS.md': '# Sub\n\nLocal rules.\n' })
+    expect(status).toBe(1)
+    expect(output).toContain('docs/sub/AGENTS.md: [agents-tree] not linked from AGENTS.md')
+  })
+
+  it('names the directory AGENTS.md that must link a note', () => {
+    const { status, output } = check({ 'entrypoints/library/notes/y.md': '# Another\n\nUnlinked.\n' })
+    expect(status).toBe(1)
+    expect(output).toContain('entrypoints/library/notes/y.md: [agents-tree] not linked from entrypoints/library/AGENTS.md')
+  })
+
+  it('flags a bare @ path in an instruction file', () => {
+    const { status, output } = check({
+      'entrypoints/library/AGENTS.md': edit(
+        'entrypoints/library/AGENTS.md',
+        'See [notes/x.md](notes/x.md) for the list rules.',
+        'See [notes/x.md](notes/x.md) and @foo/bar.md for the list rules.',
+      ),
+    })
+    expect(status).toBe(1)
+    expect(output).toContain('[agents-tree] an @import would inline the file whole')
+  })
+
+  it('allows @ paths in backticks and fences', () => {
+    const { status } = check({
+      'entrypoints/library/AGENTS.md': edit(
+        'entrypoints/library/AGENTS.md',
+        'See [notes/x.md](notes/x.md) for the list rules.',
+        'See [notes/x.md](notes/x.md). Run `@foo/bar` when needed.\n\n~~~\n@fenced/example\n~~~',
+      ),
+    })
+    expect(status).toBe(0)
   })
 
   it('names the citing place of an identifier whose definition is gone', () => {
