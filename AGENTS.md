@@ -4,12 +4,11 @@
 
 ## 项目与真源
 
-当前仓库包含 Chrome MV3 扩展、TypeScript 领域核心和官网。目标会演进为 monorepo；现有目录只是当前代码位置，不代表最终 package 划分。
+仓库包含 Chrome MV3 扩展、TypeScript 领域核心和官网；会演进为 monorepo，现有目录只是当前代码位置，不代表最终 package 划分。
 
-- 产品边界、契约与验收以 [docs/product/README.md](docs/product/README.md) 为入口；当前代码行为以源码和测试为准，发布了什么、正在做什么见 [roadmap.md](docs/product/roadmap.md)。
-- 新功能的规格与代码在同一个 PR 里进入仓库，流程见 [docs/product/AGENTS.md](docs/product/AGENTS.md)。没有产品文档依据的代码、文案或配置，发现时删除，而不是兼容或隔离。
-- 本文件不复制数据结构、消息清单、目标包结构或产品决策。当前字段与消息看源码，已确认但仍在迭代的产品结论看 `docs/product/`。
-- 待确认的产品决策（`D-`）连同各自的默认在 [validation.md 第 2 节](docs/product/validation.md)：实现不等回复，先按默认走，确认的结果与默认不同再调整。只有真机才能验收的项在 [roadmap.md 第 5 节](docs/product/roadmap.md)。
+- 产品边界、契约与验收以 [docs/product/README.md](docs/product/README.md) 为入口；代码行为以源码和测试为准，交付状态见 [roadmap.md](docs/product/roadmap.md)。
+- 新功能的规格与代码在同一个 PR 里进入仓库，流程见 [docs/product/AGENTS.md](docs/product/AGENTS.md)；没有产品文档依据的代码、文案或配置，发现时删除。
+- 待确认的决策（`D-`）与其默认在 [validation.md 第 2 节](docs/product/validation.md)：实现不等回复，先按默认走；真机验收项在 [roadmap.md 第 5 节](docs/product/roadmap.md)。
 
 ## 文档怎么写
 
@@ -20,76 +19,62 @@
 
 ## 按目录读取
 
-下表只定位当前代码。只在改动对应目录时读取局部约定；重组为 monorepo 时把仍有效的规则随模块迁移，删除失效路径，不按此表创建最终包结构。
+只在改动对应目录时读取局部约定；重组为 monorepo 时把仍有效的规则随模块迁移，不按此表创建最终包结构。
 
-| 目录                   | 专属约定                                                                  |
-| ---------------------- | ------------------------------------------------------------------------- |
-| `entrypoints/content/` | [选区、区块、截图与页面批注（含录制光标）](entrypoints/content/AGENTS.md) |
-| `entrypoints/library/` | [应用页、阅读与高亮、属性与设置（含弹窗）](entrypoints/library/AGENTS.md) |
-| `background-service/`  | [消息门面与浏览器服务](background-service/AGENTS.md)                      |
-| `learning-core/`       | [TypeScript 领域规则与 IndexedDB](learning-core/AGENTS.md)                |
-| `e2e/`                 | [Playwright 与浏览器实测](e2e/AGENTS.md)                                  |
-| `docs/product/`        | [产品文档维护与新功能流程](docs/product/AGENTS.md)                        |
+| 目录                   | 专属约定                                                        | 什么时候读                  |
+| ---------------------- | --------------------------------------------------------------- | --------------------------- |
+| `entrypoints/content/` | [选区、区块、截图与页面批注](entrypoints/content/AGENTS.md)     | 改页面侧采集、批注、截图时  |
+| `entrypoints/library/` | [应用页、阅读与高亮、属性与设置](entrypoints/library/AGENTS.md) | 改扩展页面、弹窗或样式时    |
+| `background-service/`  | [消息门面与浏览器服务](background-service/AGENTS.md)            | 改消息、handler、后台服务时 |
+| `learning-core/`       | [领域规则与 IndexedDB](learning-core/AGENTS.md)                 | 改领域规则、校验、存储时    |
+| `e2e/`                 | [Playwright 与浏览器实测](e2e/AGENTS.md)                        | 写或跑浏览器测试时          |
+| `docs/product/`        | [产品文档维护与新功能流程](docs/product/AGENTS.md)              | 开始功能或改产品结论时      |
+| `website/`             | [运行方式与 Cloudflare 静态部署](website/README.md)             | 构建官网或动部署配置时      |
 
-`website/` 是独立 Next.js 应用，运行方式和 Cloudflare 静态部署的注意事项见 [website/README.md](website/README.md)。其他扩展入口的事实以相邻源码为准。
+其他扩展入口（options、popup、offscreen）的事实以相邻源码为准。
+
+## 按任务读取
+
+| 任务                               | 先读                                                                                        |
+| ---------------------------------- | ------------------------------------------------------------------------------------------- |
+| 改版本号、依赖、构建、CI、部署配置 | [scripts/README.md](scripts/README.md) 的联动表                                             |
+| 加或改消息、handler                | [background-service/AGENTS.md](background-service/AGENTS.md) 与 `types/messages.ts`         |
+| 改 IndexedDB 结构或数据契约        | [learning-core/AGENTS.md](learning-core/AGENTS.md) 与 [storage.md](docs/product/storage.md) |
+| 新功能、改产品行为                 | [docs/product/AGENTS.md](docs/product/AGENTS.md)                                            |
+| 改权限或 manifest                  | [permissions.md](docs/product/permissions.md) 与联动表                                      |
 
 ## Agent skills
 
-- skill 用开放的 SKILL.md 格式（agentskills.io），正本放在 `.agents/skills/<name>/`：Codex 读这里。Claude Code 只读 `.claude/skills/`，那里放同名软链接 `../../.agents/skills/<name>`。两边始终是同一个目录，不放两份。
-- 例外是 `babysit`：正本在 `.claude/skills/babysit/`，`.agents/skills/babysit` 链接过去。Claude 的远程执行环境按这个路径到 PR 分支上读它，经过软链接的路径读不出来。
-- pstack 的 skill（`create-verification-skill`、`create-formal-verification-skill`）用 Cursor 的叫法：Claude Code 先读 `.agents/docs/harness/claude-code.md`，Codex 先读 `.agents/docs/harness/codex.md`。它们生成的新 skill 同样放进 `.agents/skills/`，再在 `.claude/skills/` 建链接。
-- 只允许用户手动调用的 skill，两边各写一处：Claude Code 在 frontmatter 写 `disable-model-invocation: true`，Codex 在 skill 目录的 `agents/openai.yaml` 写 `policy.allow_implicit_invocation: false`。
-- 在 Windows 上检出需要打开 Git 的软链接支持（`core.symlinks`）。
+- skill 的正本在 `.agents/skills/<name>/`；`.claude/skills/<name>` 是它的软链接，两边始终是同一个目录（Windows 检出需开 `core.symlinks`）。
+- 例外是 `babysit`：正本在 `.claude/skills/babysit/`，`.agents/skills/babysit` 链接过去——远程执行环境按这个路径到 PR 分支上读它。
+- 只允许手动调用的 skill 两边各写一处：frontmatter 的 `disable-model-invocation: true` 与 `agents/openai.yaml` 的 `policy.allow_implicit_invocation: false`。pstack 的 `create-*` skill 见 `.agents/docs/harness/`。
 
 ## 跨目录规则
 
 1. 优先复用现有服务、领域函数和 UI 模式；不要在入口层复制归一化、校验或调度规则。
-2. 当前扩展消息联合类型在 `types/messages.ts`；协议修改时同步定义、handler、调用方和相关测试。写操作沿用 sender 权限校验；敏感配置 GET 不回传密钥。
+2. 消息联合类型在 `types/messages.ts`；协议修改时同步定义、handler、调用方与测试。写操作沿用 sender 权限校验；敏感配置 GET 不回传密钥。
 3. 共享契约改变时，以 `docs/product/` 的最新结论为准，同步受影响的 TypeScript、IndexedDB 和文档；迁移策略按实际用户数据决定。
 4. 日志与指标事件不包含密钥、用户内容、完整页面或附件二进制。
 5. 保存失败、返回或关闭流程不得丢失用户已输入的内容。不回退与当前任务无关的工作区改动。
-6. 模块、消息、快捷键或数据契约变化时，更新受影响的 `README.md` 与 `docs/`；只在全局规则或目录导航变化时修改本文件。
+6. 模块、消息、快捷键或数据契约变化时，更新受影响的 `README.md` 与 `docs/`；只有全局规则或目录导航变化才改本文件。
 
 ## 联动一致性（强制）
 
-环境、依赖、构建和部署的值同时写在多个文件里。只改其中一处、漏掉其余，类型检查和单测发现不了。
+只改联动值中的一处、漏掉其余，类型检查和单测发现不了。表在 [scripts/README.md](scripts/README.md)，改这类值之前先读。
 
-1. **先找全，再动手。** 改任何版本号、包名、目录名、命令或 CI / 部署配置之前，先 `git grep` 这个值，列出全部出现处，范围至少含 `.github/`、`cloudflare/`、`website/wrangler.json`、各 `package.json`、`README.md` 和 `docs/`。改完再搜一遍，确认没有残留。
-2. **一个值一个真源。** 其余位置引用它或与它一致；不新增第二份真源，文档和本文件不抄版本号（抄了就会过期）。
-3. **按下表联动。** 改左列，右列在同一个提交里一起改。表里没有的联动，按第 1 条自己找，并补进表和 `scripts/check-consistency.mjs`。
-4. **断言兜底，不许绕。** `npm run check:consistency`（在 `verify` 和 CI 里）把能机器核对的联动写成断言。它失败说明漏改了某处：去改那一处，不要删断言、放宽匹配或加豁免来求绿。新增联动点时同步加断言和测试。
-5. **主版本升级是迁移，不是改 `package.json`。** Node、Next.js、React、Tailwind、ESLint、TypeScript 的主版本变化，按下表逐项核对，并在本地跑对应的构建（website：`cd website && npm run build`）。Dependabot 开的主版本 PR 只是起点，要在它的分支上补齐联动改动；CI 是红的就不要合并。
+1. **先找全，再动手。** 改版本号、包名、目录名、命令或 CI / 部署配置之前，先 `git grep` 这个值找全出现处（至少含 `.github/`、`cloudflare/`、`website/wrangler.json`、各 `package.json`、`README.md`、`docs/`），改完再搜一遍。
+2. **一个值一个真源。** 其余位置引用它或与它一致；不新增第二份真源，文档和本文件不抄版本号。
+3. **按 `scripts/README.md` 的联动表联动。** 改左列，右列在同一个提交里一起改；表里没有的联动，按第 1 条自己找，并补进那张表和 `scripts/check-consistency.mjs`。
+4. **断言兜底，不许绕。** `npm run check:consistency` 失败说明漏改了某处：去改那一处，不删断言、不放宽匹配、不加豁免；新增联动点时同步加断言和测试。
+5. **主版本升级是迁移，不是改 `package.json`。** Node、Next.js、React、Tailwind、ESLint、TypeScript 的主版本变化按联动表逐项核对，本地跑对应构建；Dependabot 的主版本 PR 只是起点，在它的分支上补齐联动改动。
 6. **PR 描述写明核对过的位置**：列出搜过的命令和命中的文件，不要只写“已核对”。
-
-| 改这里                                    | 同一个提交里核对                                                                                                                                                                                                                                                       |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.node-version`（Node 的唯一真源）        | 各 `package.json` 的 `engines.node` 和 `@types/node` 主版本；根 `README.md` 的运行环境；workflow 只用 `node-version-file`，不写死版本                                                                                                                                  |
-| `website/package.json` 的 `next`、`react` | `eslint-config-next` 同主版本；`website/README.md` 的技术栈；`next.config.js` 的静态导出；`website/wrangler.json`；`cd website && npm run build`                                                                                                                       |
-| `website/next.config.js` 的实验开关       | `experimental.globalNotFound` 在 Next 主版本变化后先确认它还在、含义没变，再更新配置旁的复核注记；`check:consistency` 核对注记里的主版本                                                                                                                               |
-| `website/wrangler.json`、静态部署配置     | `next.config.js` 的 `output: export`；`assets.directory` 与 CI 上传、下载目录；禁止 Worker 脚本与 `run_worker_first`；HTML 别名和 404；`lib/site.ts` 的域名；边缘规则与国家清单；CI 只发布同次运行且通过检查的 main 产物；[cloudflare/README.md](cloudflare/README.md) |
-| 官网生成类型与 `typecheck`                | `website/.gitignore` 忽略 `next-env.d.ts` 且 Git 不跟踪；`website/package.json` 的 `typecheck` 先 `next typegen` 再 `tsc`；CI 使用同一命令；`website/README.md`                                                                                                        |
-| `website/` 读取的 `NEXT_PUBLIC_*` 变量    | `cloudflare/production.json` 用同名字符串声明，只有生产构建读取；部署时的统计规则与是否有令牌一致；[website/README.md](website/README.md) 的「部署」                                                                                                                   |
-| `tailwindcss` 的主版本                    | `postcss.config.*`（4 用 `@tailwindcss/postcss`，3 用 `tailwindcss` 插件）；样式入口与配置的写法；`.github/dependabot.yml` 里对它的 `ignore`；目视对比页面                                                                                                             |
-| `typescript`、`eslint` 的主版本           | `typescript-eslint`、`eslint-config-next` 内置插件的 peer 范围必须接受新版本，否则 `npm run lint` 崩溃；`.github/dependabot.yml` 里对它们的 `ignore`；本地跑 `npm run lint`                                                                                            |
-| 新增、移动含 `package.json` 的目录        | `.github/dependabot.yml`；`scheduled-audit.yml` 的矩阵；CI 里的安装与构建步骤；`scripts/check-lockfiles.mjs` 的列表；`website/wrangler.json`                                                                                                                           |
-| `package.json` 的 `scripts`、CI 任务      | `verify` 与 CI 运行同样的命令；`.github/rulesets/main.json` 的必需检查名；本文件「验证入口」                                                                                                                                                                           |
-| 新增、移动或删除 skill                    | `.agents/skills/<name>` 与 `.claude/skills/<name>` 同时存在且是同一个目录（一个是另一个的软链接）；只想手动调用时两边的开关都写上；`check:consistency` 核对目录                                                                                                        |
-| `wxt.config.ts` 的权限与最低版本          | [docs/product/permissions.md](docs/product/permissions.md)；隐私政策页 `website/public/privacy-policy.html` 里的权限表（`utils/__tests__/legal-pages.test.ts` 核对它，不核对文档）；商店的权限说明；官网 `lib/site.ts` 的 `MIN_CHROME_VERSION`                         |
-| 移动、重编号或删除被引用的节或编号        | `check:docs` 兜底：引用不只在 `docs/`，源码、测试和 `docs/design/` 也有；引用与定义在同一个提交里一起改                                                                                                                                                                |
-| 官网组件的 `ah-*` 类名与样式选择器        | 每个用到的 `ah-*` 类在官网样式里都有自己的规则（选择器里 `.类名` 开头一个复合选择器，后面不紧跟另一个类），`check:consistency` 核对                                                                                                                                    |
 
 ## 验证入口
 
-- 提交前跑 `npm run verify`（format:check → lint → compile → vitest → check:docs → check:lockfiles → check:consistency）。`check:docs` 核对文档的相对链接、`文档.md §N.M` 节号引用、被引用的编号（`D-`、`US-` 等）有定义，以及正文的写法（日期、状态标签与叙事残留）。格式由 Prettier 负责，`npm run format` 一次修复；ESLint 只管正确性。
-- 扩展构建：`npm run build`。浏览器 E2E：先构建，再 `npx playwright test <spec>`；现有 `.output` 不会因源码变化自动重建。手工 Chrome 实测见 [e2e/README.md](e2e/README.md)。
-- 官网静态部署：`cd website && npm run build && npm run start`；另一个终端在仓库根运行 `WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node scripts/smoke-website.mjs --local`。
-- 按改动范围运行相关测试；消息协议和截图链路的最低验证见对应目录约定。
-- CI（`.github/workflows/`）运行同样的命令，并加上 CodeQL 和依赖审查；合并以 CI 为准。CI 失败先在本地用上面的命令复现，不要跳过、禁用或隔离测试来求绿。
-- CI 的任务不按路径过滤：有测试会读其他目录的文件（法律页测试读 `website/public/`），一份“不影响该任务的路径”清单就是又一处隐藏联动。要少跑，靠 Dependabot 分组和取消过期运行，不要加 `paths`。必需检查所在的工作流更不能加：被跳过的必需检查会一直 pending，阻塞合并（`check:consistency` 会拦）。
+- 提交前跑 `npm run verify`；每个检查做什么、E2E 与官网冒烟怎么跑，见 [scripts/README.md](scripts/README.md)。
+- CI（`.github/workflows/`）跑同样的命令并加 CodeQL 与依赖审查；失败先在本地复现，不跳过、不禁用、不隔离测试来求绿。任务不按路径过滤（测试会读其他目录的文件；必需检查被跳过会一直 pending 阻塞合并，`check:consistency` 会拦），要少跑靠 Dependabot 分组与取消过期运行。
 
 ## 生成物与提交
 
-- 不手改生成物或单一来源文件：`package-lock.json`（用 npm 11 的 `npm install`）。`.claude/hooks/protect-generated-files.mjs` 会拦截对它的编辑。
-- 锁文件里的 `resolved` 只指向 `registry.npmjs.org`。本机把 npm 指向镜像加速时，`npm install` 会把镜像地址写进锁文件；提交前跑 `npm run check:lockfiles -- --fix`，它只换主机名，`integrity` 和依赖树不变。`npm run verify` 与 CI 都会检查。
-- 提交信息用 Conventional Commits（`feat` / `fix` / `docs` / `test` / `chore` / `style` / `refactor`），正文写原因而不是复述 diff。一个提交对应一个完整的改动。
-- 新增依赖前确认确实需要，并跑 `npm audit --omit=dev`；运行时依赖保持零已知漏洞。
+- 不手改 `package-lock.json`（用 npm 11 的 `npm install`；`.claude/hooks/protect-generated-files.mjs` 拦截手改）。锁文件的 `resolved` 只指向 `registry.npmjs.org`：本机镜像会把加速地址写进锁文件，提交前跑 `npm run check:lockfiles -- --fix`。
+- 提交信息用 Conventional Commits（`feat` / `fix` / `docs` / `test` / `chore` / `style` / `refactor`），正文写原因而不是复述 diff；一个提交对应一个完整的改动。新增依赖前跑 `npm audit --omit=dev`。
