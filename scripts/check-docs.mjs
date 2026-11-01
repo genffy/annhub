@@ -9,6 +9,10 @@
 //                defined in some Markdown (a heading, a table's first cell or the start of a list item), so a retired
 //                definition cannot leave dangling citations behind
 //   dated-file   a Markdown file name carries a date, which pins a living document to the day it was last touched
+//   header-meta  a document opens with 更新/状态/层级 lines — what changed when lives in git, delivery state in roadmap.md
+//   date-in-prose  a document body names a calendar date; market.md is exempt, its facts carry their own check dates
+//   history-wording  narrative wording (修复轮, 曾, 旧实现, …) — the word list lives in HISTORY_WORD below
+//   round-label  a 真机走查/修复轮/P1-2 label in any tracked text file, Markdown or source
 //
 // Failures are printed as `path:line: [rule] what` and the process exits 1.
 // `--root <dir>` runs the checks on another directory, so the tests can build a small tree.
@@ -270,6 +274,73 @@ function checkDatedFiles() {
   return { problems, detail: `${markdownFiles.length} Markdown file names` }
 }
 
+// --- header-meta: an update/status line in a document's first lines ------------------------------------------------
+
+function checkHeaderMeta() {
+  const headerMeta = /^(> )?(更新时间|更新|核对日期|状态|层级)[：:]/
+  const problems = []
+  for (const file of markdownFiles) {
+    const lines = read(file).split('\n', 12)
+    for (let index = 0; index < lines.length; index += 1) {
+      if (headerMeta.test(lines[index])) problems.push(`${file}:${index + 1}: [header-meta] the document opens with an update/status line`)
+    }
+  }
+  return { problems, detail: `${markdownFiles.length} Markdown files` }
+}
+
+// --- date-in-prose: a date in a document's body (market.md states facts and carries their check dates) --------------
+
+function checkDatesInProse() {
+  const date = /20\d\d-\d\d-\d\d|\d{4} 年 \d+ 月/
+  const problems = []
+  let checked = 0
+  for (const file of markdownFiles) {
+    if (file === 'docs/product/market.md') continue
+    for (const { line, n } of proseLines(read(file))) {
+      checked += 1
+      if (date.test(line)) problems.push(`${file}:${n}: [date-in-prose] the body names a calendar date`)
+    }
+  }
+  return { problems, detail: `${checked} body lines outside market.md` }
+}
+
+// --- history-wording: words that only ever tell how something came to be ---------------------------------------------
+
+const HISTORY_WORD = /(修复轮|修复前|修复后|真机走查|第[一二三四五六七八九十]+轮|已移出|旧实现|原先|曾经|曾有|曾是|曾在|曾出现|量到过|偶发失败过|都出现过|已实现)/
+
+function checkHistoryWording() {
+  const problems = []
+  let checked = 0
+  for (const file of markdownFiles) {
+    for (const { line, n } of proseLines(read(file))) {
+      checked += 1
+      if (HISTORY_WORD.test(line)) problems.push(`${file}:${n}: [history-wording] the line uses narrative wording (${HISTORY_WORD.exec(line)[1]})`)
+    }
+  }
+  return { problems, detail: `${checked} body lines` }
+}
+
+// --- round-label: a fix-round or defect label in any tracked text file ------------------------------------------------
+
+const ROUND_LABEL = /真机走查|修复轮|(^|[^A-Za-z0-9])P[0-3]-[0-9]+([^A-Za-z0-9-]|$)/
+
+function checkRoundLabels() {
+  const problems = []
+  let checked = 0
+  const scan = (file, markdown) => {
+    if (file === 'scripts/check-docs.mjs') return // the word lists and this rule's own pattern live here
+    const lines = markdown ? [...proseLines(read(file))] : read(file).split('\n')
+    for (let index = 0; index < lines.length; index += 1) {
+      checked += 1
+      const line = markdown ? lines[index].line : lines[index]
+      if (ROUND_LABEL.test(line)) problems.push(`${file}:${index + 1}: [round-label] the line carries a fix-round or defect label`)
+    }
+  }
+  for (const file of markdownFiles) scan(file, true)
+  for (const file of sourceFiles) scan(file, false)
+  return { problems, detail: `${checked} text lines` }
+}
+
 // --- run ----------------------------------------------------------------------------------------------------------
 
 const rules = [
@@ -277,6 +348,10 @@ const rules = [
   ['section-ref', checkSectionReferences],
   ['retired-id', checkRetiredIds],
   ['dated-file', checkDatedFiles],
+  ['header-meta', checkHeaderMeta],
+  ['date-in-prose', checkDatesInProse],
+  ['history-wording', checkHistoryWording],
+  ['round-label', checkRoundLabels],
 ]
 
 const problems = []
