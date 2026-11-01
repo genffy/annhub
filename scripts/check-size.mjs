@@ -25,6 +25,7 @@ const ceilKB = bytes => Math.ceil(bytes / KB) * KB
 
 const NOT_SOURCE = new Set(['node_modules', '.git', '.next', '.output', '.wxt', '.build', 'build', 'coverage'])
 const CODE = /\.(ts|tsx|js|mjs|cjs)$/
+// Only the line scan of instruction files reads a file; one larger than this is far over budget and is reported without being read.
 const MAX_BYTES = 2_000_000
 
 /** The files that belong to the repository: tracked ones and new ones not yet added. A tree
@@ -112,9 +113,8 @@ for (const file of files) {
   counts.set(name, (counts.get(name) ?? 0) + 1)
   const biggest = largest.get(name)
   if (!biggest || size > biggest.size) largest.set(name, { file, size })
-  if (size > MAX_BYTES) continue
 
-  if (name === 'agents' || name === 'note') {
+  if ((name === 'agents' || name === 'note') && size <= MAX_BYTES) {
     const lines = read(file).split('\n')
     for (let index = 0; index < lines.length; index += 1) {
       if (lines[index].length > 300) problems.push(`${file}:${index + 1}: [long-line] ${lines[index].length} characters — one rule per line, split it`)
@@ -156,10 +156,6 @@ if (process.argv.includes('--report')) {
 }
 
 if (process.argv.includes('--init')) {
-  if (existsSync(ledgerPath)) {
-    console.error('size-ledger.json already exists; use --lower to maintain it.')
-    process.exit(1)
-  }
   const entries = {}
   for (const file of files) {
     const classified = classify(file)
@@ -174,7 +170,14 @@ if (process.argv.includes('--init')) {
       process.exit(1)
     }
   }
-  writeFileSync(ledgerPath, `${JSON.stringify(entries, null, 2)}\n`)
+  try {
+    // The 'wx' flag creates the file or fails when it exists, so no one can create it between a check and the write.
+    writeFileSync(ledgerPath, `${JSON.stringify(entries, null, 2)}\n`, { flag: 'wx' })
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error
+    console.error('size-ledger.json already exists; use --lower to maintain it.')
+    process.exit(1)
+  }
   console.log(`size-ledger.json written with ${Object.keys(entries).length} entrie(s).`)
   process.exit(0)
 }

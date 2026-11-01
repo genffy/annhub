@@ -76,6 +76,12 @@ describe('check-size', () => {
     expect(output).toContain(`${CODE_FILE}: [over-budget]`)
   })
 
+  it('names a file over 2 MB too: the biggest files do not escape the budget', () => {
+    const { status, output } = check({ [CODE_FILE]: codeFile(2_100_000) })
+    expect(status).toBe(1)
+    expect(output).toContain(`${CODE_FILE}: [over-budget]`)
+  })
+
   it('rejects a ledgered file that grew', () => {
     const { status, output } = check({ 'scripts/size-ledger.json': ledgerOf({ [CODE_FILE]: 34 * 1024 }), [CODE_FILE]: codeFile(BIG) })
     expect(status).toBe(1)
@@ -143,8 +149,10 @@ describe('check-size', () => {
   })
 
   it('--init refuses to overwrite a ledger and refuses over-budget instruction files', () => {
-    const withLedger = check({ 'scripts/size-ledger.json': ledgerOf({}) }, ['--init'])
+    const withLedger = check({ 'scripts/size-ledger.json': ledgerOf({}), [CODE_FILE]: codeFile(BIG) }, ['--init'])
     expect(withLedger.status).toBe(1)
+    expect(withLedger.output).toContain('already exists')
+    expect(readFileSync(join(withLedger.root, 'scripts/size-ledger.json'), 'utf8')).toBe(ledgerOf({}))
     const badAgents = check({ [AGENTS]: `# AnnHub\n\n${'设'.repeat(3000)}\n` }, ['--init'])
     expect(badAgents.status).toBe(1)
     expect(badAgents.output).toContain('instruction files must fit their budget')
