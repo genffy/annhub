@@ -181,7 +181,7 @@ describe('shared page-text fixtures: the converter writes the pinned Markdown an
   }
 })
 
-describe('page furniture that class detection cannot see (真机走查 P2-3)', () => {
+describe('page furniture that class detection cannot see ', () => {
   it('drops edit/help/share UI links wherever they appear', () => {
     const md = convert(`
       <p>Intro paragraph with real content.</p>
@@ -242,7 +242,7 @@ describe('highlighted code blocks', () => {
   })
 })
 
-describe('open shadow roots carry content (MDN, 真机走查 P2-3)', () => {
+describe('open shadow roots carry content (MDN)', () => {
   it('converts the code inside an empty host element', () => {
     const host = doc.createElement('div')
     const shadowHost = doc.createElement('div')

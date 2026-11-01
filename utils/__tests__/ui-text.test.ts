@@ -21,7 +21,7 @@ describe('ui text localization (extension.md §2.7)', () => {
     expect(uiText('library.count', { count: 3 }, 'en')).toBe('3 entries')
   })
 
-  it('names a highlight with each language’s own punctuation (真机走查 P2-7)', () => {
+  it('names a highlight with each language’s own punctuation ', () => {
     expect(uiText('reading.highlightLabel', { color: '黄色', text: '原文' }, 'zh')).toBe('高亮，黄色：原文')
     expect(uiText('reading.highlightLabel', { color: 'Yellow', text: 'the words' }, 'en')).toBe('Highlight, Yellow: the words')
   })
@@ -78,7 +78,7 @@ describe('ui text localization (extension.md §2.7)', () => {
   })
 })
 
-describe('English plural agreement (真机走查 P3-2)', () => {
+describe('English plural agreement ', () => {
   it('uses the singular after 1 and the plural otherwise', () => {
     expect(uiText('library.count', { count: 1 }, 'en')).toBe('1 entry')
     expect(uiText('library.count', { count: 21 }, 'en')).toBe('21 entries')

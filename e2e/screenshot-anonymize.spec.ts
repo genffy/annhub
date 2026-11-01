@@ -76,7 +76,7 @@ test.describe('what anonymization covers (screenshot.md §3)', () => {
     await expect(page.locator('[data-ann-ui="mask-box"]'), 'the avatar alone').toHaveCount(1)
   })
 
-  // the capsule's shot starts together with the session, before the settings arrive (真机走查复核)
+  // the capsule's shot starts together with the session, before the settings arrive
   test("the block capsule's shot takes the default and the kinds from the settings", async ({ page }) => {
     await setSettings(page.context(), { anonymizeDefault: false })
     await page.goto(IDENTITY_PAGE)

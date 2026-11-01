@@ -132,7 +132,7 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
   })
 
   // the toolbar is drawn by React, whose first commit could come after the frame that moves the focus: the keyboard
-  // then stayed on the masked page (真机走查 P2-6, 2 shots in 8). Shots in a row make a lost focus show up.
+  // then stayed on the masked page. Shots in a row make a lost focus show up.
   test('the keyboard starts on the toolbar every time the preview opens', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
     const post = page.getByTestId('screenshot-post')

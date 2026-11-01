@@ -125,7 +125,7 @@ export function showClipToast(outcome: ClipOutcome, editAnchor: Range | HTMLElem
   const doc = document
   const host = doc.createElement('div')
   host.setAttribute(ROOT_ATTR, 'clip-toast')
-  // spoken as well as seen (真机走查 P3-5)
+  // spoken as well as seen
   host.setAttribute('role', 'status')
   host.setAttribute('aria-live', 'polite')
 
@@ -162,7 +162,7 @@ export function showClipToast(outcome: ClipOutcome, editAnchor: Range | HTMLElem
   doc.documentElement.appendChild(host)
 
   // the ~3 s countdown pauses while the user is on the toast — reading the
-  // warning or aiming at Undo — and resumes on leaving it (真机走查 P3-5).
+  // warning or aiming at Undo — and resumes on leaving it.
   // The thin bar is the same countdown, not a decoration: it stops with the
   // timer and, on leaving, restarts a whole round like the timer does.
   const restartBar = (): void => {

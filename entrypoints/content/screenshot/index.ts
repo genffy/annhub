@@ -113,7 +113,7 @@ export interface EnterScreenshotOptions {
   via?: CaptureVia
   /** The block capsule's target: skip selection, straight to element capture. */
   element?: HTMLElement
-  /** A pending frame to confirm (Enter) or adjust, e.g. the selection menu's screenshot path (真机走查 P2-5). */
+  /** A pending frame to confirm (Enter) or adjust, e.g. the selection menu's screenshot path ). */
   initialRect?: ViewportRect
   /** Page-annotation ink at capture time (annotate.md §1.3): drawn back onto the capture as ordinary annotations. */
   ink?: InkStroke[]
@@ -329,7 +329,7 @@ class ScreenshotSession {
     }
     // The editor is modal for the keyboard: Tab stays inside the session's own
     // controls instead of walking the masked page, where Enter on a link would
-    // navigate away and drop the shot (真机走查 P2-6). The text input keeps the
+    // navigate away and drop the shot. The text input keeps the
     // browser's own Tab so typing still behaves as usual.
     if (this.state === 'preview' && e.key === 'Tab' && !this.textInput) {
       e.preventDefault()
@@ -511,7 +511,8 @@ class ScreenshotSession {
     if (!this.hintEl) return
     this.hintEl.innerHTML = ''
     // the segments read as one line; the muted dots keep them from running together
-    // (真机走查 P3-1：“Esc to cancelAAnonymize: on”), and the keys ride as keycaps
+    // (without them the hint reads as one run: “Esc to cancelAAnonymize: on”),
+    // and the keys ride as keycaps
     const sep = (): HTMLElement => {
       const dot = this.doc.createElement('span')
       dot.className = 'ann-shot-sep'
@@ -1436,7 +1437,7 @@ class ScreenshotSession {
   /**
    * The block capsule's direct path: capture a known element without
    * selection. The element also becomes the remembered frame, like the
-   * click path does (真机走查 P3-4：区块路径的截图也记为“上次取景框”).
+   * click path does (区块路径的截图也记为“上次取景框”).
    */
   async captureElementTarget(target: HTMLElement): Promise<void> {
     if (this.exited) return
@@ -1590,7 +1591,7 @@ class ScreenshotSession {
     this.toolbarEl = toolbar
     this.toolbarRoot = createRoot(toolbar)
     // React 19 commits a root's first render later; without flushSync the frame
-    // below can run before the buttons exist and focus stays on the page (真机走查 P2-6).
+    // below can run before the buttons exist and focus stays on the page.
     flushSync(() => this.updateToolbar())
     this.toolbarResizeObserver = new ResizeObserver(() => {
       this.positionToolbar()
@@ -1602,7 +1603,7 @@ class ScreenshotSession {
     requestAnimationFrame(() => {
       this.layout()
       // The editor takes the keyboard: focus starts on the toolbar, not on the
-      // masked page behind it (真机走查 P2-6).
+      // masked page behind it.
       this.toolbarEl?.querySelector<HTMLElement>('button:not([disabled])')?.focus()
     })
   }
@@ -2352,8 +2353,8 @@ function doubleRaf(): Promise<void> {
 
 /**
  * “Screenshot saved”, spoken once: the session's own DOM goes away with the
- * save, so the live region lives on the document and removes itself (真机走查
- * P2-6：保存成功读屏没有任何播报).
+ * save, so the live region lives on the document and removes itself (保存成功
+ * 读屏没有任何播报).
  */
 function announceSaved(doc: Document): void {
   const el = doc.createElement('div')

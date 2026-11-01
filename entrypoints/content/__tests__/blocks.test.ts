@@ -332,7 +332,7 @@ describe('keyboard mode helpers (capture.md §6.2)', () => {
   })
 })
 
-describe('candidateSummary starts at the unit content (真机走查 P3-8)', () => {
+describe('candidateSummary starts at the unit content ', () => {
   it('skips the page furniture that sits inside the unit', () => {
     document.body.innerHTML = `
       <article>
@@ -348,7 +348,7 @@ describe('candidateSummary starts at the unit content (真机走查 P3-8)', () =
 
 const WORDS = 'Enough words in this paragraph to give the section it belongs to the characters a section needs. '.repeat(2)
 
-describe('headings that are an article’s own children (danluu, the Rust book: 真机走查 P2-1)', () => {
+describe('headings that are an article’s own children (danluu, the Rust book)', () => {
   it('divide the article into sections: a paragraph’s target is its heading run, then the article', () => {
     document.body.innerHTML = `<main id="m"><p id="intro">${WORDS}</p><h3 id="a">Alpha</h3><p id="a-p">${WORDS}</p><h3 id="b">Beta</h3><p>${WORDS}</p></main>`
     const chain = candidatesFor(doc.getElementById('a-p')!, doc)
@@ -365,7 +365,7 @@ describe('headings that are an article’s own children (danluu, the Rust book: 
   })
 })
 
-describe('childChainOf: what ↓ enters (真机走查 P2-1)', () => {
+describe('childChainOf: what ↓ enters ', () => {
   const unit = (kind: BlockCandidate['kind'], id: string): BlockCandidate => ({ kind, element: doc.getElementById(id) as HTMLElement })
   const ids = (chain: BlockCandidate[]): string[] => chain.map(candidate => (candidate.range ? `${candidate.range.start.id} run` : candidate.element.id))
 
@@ -469,7 +469,7 @@ describe('childChainOf: what ↓ enters (真机走查 P2-1)', () => {
   })
 })
 
-describe('candidatesFor crosses open shadow roots (MDN, 真机走查 P2-3)', () => {
+describe('candidatesFor crosses open shadow roots (MDN)', () => {
   it('climbs from a shadow-root pre into the light DOM ancestors', () => {
     document.body.innerHTML = `<main><div id="host-slot"></div><p>${'light body text '.repeat(12)}</p></main>`
     const host = document.getElementById('host-slot')!

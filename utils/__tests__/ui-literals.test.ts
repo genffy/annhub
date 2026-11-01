@@ -16,7 +16,7 @@ const root = resolve(__dirname, '../..')
 const SAME_EVERYWHERE = new Set(['AnnHub', 'PNG', 'JPEG', 'WebP', 'A', 'B', 'W'])
 const USER_FACING_ATTRIBUTES = new Set(['aria-label', 'title', 'placeholder', 'alt', 'aria-description'])
 const CJK = /[㐀-鿿]/
-/** Chinese punctuation: in text put together around values it is display text (“Highlight, Yellow：…”, 真机走查 P2-7). */
+/** Chinese punctuation: in text put together around values it is display text (“Highlight, Yellow：…”, ). */
 const CJK_PUNCTUATION = /[\u3000-\u303f\uff00-\uffef]/
 
 function sourceFiles(dir: string, extensions: RegExp): string[] {

@@ -142,8 +142,7 @@ function encodeDestination(href: string): string {
 //
 // Edit links, view counts, video durations, Medium's sign-in and subscribe
 // boxes: none of them carry chrome classes, so whole blocks and link labels
-// that are nothing but these phrases are dropped by text (真机走查 P2-3 的
-// 页面界面残留).
+// that are nothing but these phrases are dropped by text (页面界面残留).
 
 const UI_BLOCK_PATTERNS: RegExp[] = [
   /^\[?edit\]?$/i,
@@ -367,7 +366,7 @@ function emitElement(el: Element, ctx: Ctx, out: Emitter): void {
       const parts: string[] = []
       if (img) parts.push(imageLine(img, ctx))
       // a figure can carry highlighted code instead of a picture (Gatsby
-      // wraps every code block in one — 真机走查 P2-3：Overreacted 整篇丢代码)
+      // wraps every code block in one — Overreacted 整篇丢代码)
       for (const codeBlock of Array.from(el.querySelectorAll('pre'))) {
         const inner = new Emitter()
         emitElement(codeBlock, ctx, inner)
@@ -440,7 +439,7 @@ function inlineChildren(el: Element, ctx: Ctx): string {
  * The source text of a highlighted code block. Highlighters that render each
  * line as its own element (Prism's `token-line`, or any display:block line)
  * carry no newline characters at all — the lines are recovered from the
- * markup (真机走查 P2-3：Docusaurus 代码块挤成一行).
+ * markup (Docusaurus 代码块挤成一行).
  */
 function preText(source: Element): string {
   const text = source.textContent ?? ''
@@ -460,8 +459,8 @@ function preText(source: Element): string {
 
 /**
  * Walks into open shadow roots when a host carries no light-DOM children:
- * its rendered content lives in the shadow tree (MDN's code examples — 真机
- * 走查 P2-3：整篇 Markdown 丢掉全部代码). Hosts with light children keep
+ * its rendered content lives in the shadow tree (MDN's code examples — 整篇
+ * Markdown 丢掉全部代码). Hosts with light children keep
  * them; walking both would double-project slotted content.
  */
 function expandShadowHosts(nodes: Node[]): Node[] {

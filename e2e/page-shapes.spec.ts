@@ -70,7 +70,7 @@ test.describe('block detection on real page shapes (capture.md §6.2)', () => {
     expect(entry.content).not.toContain('Getting started covers')
   })
 
-  // the unit test stubs hit-testing; only a real browser has the mode's overlay on top of the page (真机走查 P2-1)
+  // the unit test stubs hit-testing; only a real browser has the mode's overlay on top of the page
   test('↓ from the whole article goes into its sections, one level at a time, and Enter saves the one outlined', async ({ page }) => {
     await page.goto(`${BASE}/docusaurus.html`)
     await page.locator('#docus').evaluate(element => {
@@ -99,7 +99,7 @@ test.describe('block detection on real page shapes (capture.md §6.2)', () => {
   })
 
   // shaped like the Rust book and danluu: the headings are main's own children, the introduction fills the window, a
-  // quote sits above the first heading and the code is inside a figure (Overreacted) — 真机走查 P2-1
+  // quote sits above the first heading and the code is inside a figure (Overreacted)
   test('the keyboard reaches every level of a long article: ↓ into the section below the window and its code, Tab within a tier', async ({ page }) => {
     await page.goto(`${BASE}/longform.html`)
     await page.locator('#longform').evaluate(element => {

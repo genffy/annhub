@@ -7,8 +7,8 @@ function mount(html: string): void {
 
 describe('identitySelectorsForHost', () => {
   it('adds X selectors on x.com and twitter.com (incl. subdomains)', () => {
-    // X's real DOM uses data-testid="User-Name" (singular) — 真机走查 P2-12:
-    // the plural form never matched, leaving names and handles in the shot.
+    // X's real DOM uses data-testid="User-Name" (singular) — the plural form
+    // never matched, leaving names and handles in the shot.
     expect(identitySelectorsForHost('x.com')).toContain('[data-testid="User-Name"]')
     expect(identitySelectorsForHost('mobile.twitter.com')).toContain('[data-testid^="UserAvatar"]')
   })

@@ -4,7 +4,7 @@ import MessageUtils from '../../utils/message'
 import type { BaseMessage } from '../../types/messages'
 import { listenForFrames } from '../../background-service/services/screenshot/frame-memory'
 
-/** Mutations the open library pages listen for, to refresh their lists without a reload (真机走查 P3-12). */
+/** Mutations the open library pages listen for, to refresh their lists without a reload ). */
 const MUTATION_MESSAGE_TYPES = new Set(['SAVE_CLIP', 'SAVE_SCREENSHOT', 'UPDATE_ENTRY', 'DELETE_ENTRY', 'ADD_HIGHLIGHT', 'UPDATE_HIGHLIGHT', 'REMOVE_HIGHLIGHT'])
 
 export default defineBackground(() => {

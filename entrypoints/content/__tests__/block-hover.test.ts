@@ -397,7 +397,7 @@ describe('capsule placement stays inside the block (capture.md §6.2)', () => {
   })
 })
 
-describe('↓ at the innermost level enters the unit, one level at a time (真机走查 P2-1)', () => {
+describe('↓ at the innermost level enters the unit, one level at a time ', () => {
   it('goes to the section inside the article before the code inside the section, and ↑ walks back out the same way', () => {
     document.body.innerHTML = NESTED
     // start on the article itself: its own chain is just [article]

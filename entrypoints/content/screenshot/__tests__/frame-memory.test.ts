@@ -19,7 +19,7 @@ describe('the session hands its last frame to the worker (screenshot.md §1.4)',
     vi.unstubAllGlobals()
   })
 
-  // the page's own storage is read by the site's scripts (真机走查 P2-11)
+  // the page's own storage is read by the site's scripts
   it('sends the frame and asks for it back, writing nothing into the page', async () => {
     sendMessage.mockResolvedValueOnce({ type: 'RESPONSE', success: true }).mockResolvedValueOnce({ type: 'RESPONSE', success: true, data: { record } })
     await rememberFrame(record)

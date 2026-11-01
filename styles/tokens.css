@@ -106,8 +106,8 @@
     --ann-warn-bg: #262526;
     --ann-info: #70b3f7;
     --ann-info-bg: #1c2431;
-    /* fill and text split like the design's --brand / --brand-text (真机走查
-       P2-8)：#7a55d2 fill keeps white text at 5.19:1, #b9a3f2 as text reads
+    /* fill and text split like the design's --brand / --brand-text:
+       #7a55d2 fill keeps white text at 5.19:1, #b9a3f2 as text reads
        8.10:1 on the dark page — one #8a63d2 for both sat under 4.5:1. */
     --ann-accent: #7a55d1;
     --ann-accent-text: #b9a3f2;

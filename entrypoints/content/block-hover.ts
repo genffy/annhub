@@ -473,7 +473,7 @@ export class BlockEntries {
     }
     if (this.capsuleAreaOccupied(x, y, box, capsule)) {
       // all four corners taken (an X post's are): slide along the top edge
-      // instead of sitting on the corner's controls (真机走查 P2-4)
+      // instead of sitting on the corner's controls
       const topY = corners[0]![1]
       const minX = Math.max(0, rect.left)
       for (let cx = corners[0]![0] - 24; cx >= minX; cx -= 24) {
@@ -501,7 +501,7 @@ export class BlockEntries {
     const clampX = (x: number) => Math.max(1, Math.min(view.innerWidth - 1, x))
     const clampY = (y: number) => Math.max(1, Math.min(view.innerHeight - 1, y))
     // dense enough that a common 30px icon button cannot fall between probes
-    // (真机走查 P2-4：代码块右上角的按钮正好落在两个采样点之间)
+    // the button in a code block's top-right corner falls between two sample points
     const step = 24
     const nx = Math.max(2, Math.ceil(box.width / step))
     const ny = Math.max(2, Math.ceil(box.height / step))
@@ -617,8 +617,8 @@ export class BlockEntries {
           this.paintMode(true)
           return
         }
-        // ↓ at the innermost level enters the unit (真机走查 P2-1：区块模式停在整篇
-        // 文章下不去), one level at a time: the outermost unit inside it first.
+        // ↓ at the innermost level enters the unit (otherwise the mode stalls at
+        // the whole article), one level at a time: the outermost unit inside it first.
         // The child chain is spliced in front, so the next ↓ goes on down it and
         // ↑ walks back out the way ↓ came in.
         if (event.key === 'ArrowDown' && this.modeDepth === 0) {
