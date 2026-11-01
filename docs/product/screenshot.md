@@ -1,8 +1,5 @@
 # 截图采集
 
-> 层级：core
-> 状态：采集链路
-> 更新：2026-11-01
 
 截图是 [采集链路](capture.md) 的视觉入口，保存为 `screenshot` 条目。页面交互见 [扩展 PRD](extension.md)，资产字段、事务和 ZIP 导出以 [存储契约](storage.md) 为准，条目字段见 [条目契约](entry.md)。
 
