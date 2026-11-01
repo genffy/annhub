@@ -42,9 +42,8 @@ Wrangler 的精确版本只写在官网的 `package.json`，本地预览与部�
    node scripts/cloudflare-rules.mjs --print
    ```
 
-5. 域名切换只做一次：记录当前 DNS 和 Worker 路由；停用 Netlify 的 Git 自动发布，避免合并时触发原站构建；删除 `annhub-edge` 在 `annhub.org/en*` 与 `annhub.org/zh-CN*` 的两条旧路由，停用原来的法律页 Cache Rule。旧 Worker 路由会优先接管请求，不能留在新站前面。
-6. 检查生产域名已有的 DNS/自定义域名绑定。Wrangler 可以创建自定义域名，但有冲突的既有 CNAME 需要先解除；在维护窗口完成这一步，再启用部署开关并合并分支。首次部署会按配置创建/更新 `annhub.org` 与 `www.annhub.org` 的绑定。保留原站用于必要的 DNS 回退，验证完成后停止其服务。
-7. 自动发布结束后检查生产 SHA、根路径中英文协商、www 跳转、法律页、未知路径 404、地区 Cookie。真实欧洲出口与非欧洲出口分别核对一次；发送伪造的 `CF-IPCountry` 请求头不能替代这个验证。没有完成这些线上检查前，不能把迁移标记为生产已验收。
+5. 检查生产域名已有的 DNS/自定义域名绑定。Wrangler 可以创建自定义域名，但有冲突的既有 CNAME 需要先解除；在维护窗口完成这一步，再启用部署开关并合并分支。首次部署会按配置创建/更新 `annhub.org` 与 `www.annhub.org` 的绑定。
+6. 首次部署后核对生产 SHA、根路径中英文协商、www 跳转、法律页、未知路径 404、地区 Cookie。真实欧洲出口与非欧洲出口分别核对一次；发送伪造的 `CF-IPCountry` 请求头不能替代这个验证。没有完成这些线上检查前，不能把部署标记为生产已验收。
 
 API 凭证只放 GitHub Secrets 或本机进程环境，不要提交到仓库或贴到日志。首次账户授权、既有域名冲突和旧路由清理不由普通代码构建自动完成。
 
@@ -86,4 +85,4 @@ node scripts/smoke-website.mjs
 
 `--local` 验证页面、资源、导航数据、别名、默认跳转和 404；它不声称验证 Cloudflare zone 规则。单测覆盖规则生成、国家集合、规则同步对其他规则的保留和错误处理。线上脚本还检查语言 Cookie 优先级与查询串，CI 额外核对部署的 SHA。部署刚完成的几秒内 Cloudflare 仍在切换版本，页面和它引用的资源可能来自不同版本，所以 CI 先等 `/__deployment.json` 连续多次返回这个 SHA 再断言，限时内等不到就算失败；断言只跑一次，`--local` 不等待。
 
-需要暂停发布时将仓库变量 `CLOUDFLARE_DEPLOY_ENABLED` 设为 `false`。日常回退通过撤销问题提交并合入 main，重新经过同一套检查与发布；首次迁移需要退回原托管平台时，按切换前记录恢复 DNS 和路由。Cloudflare 版本回退不自动恢复 zone 规则，不能只回退静态文件就假定配置也一起恢复。
+需要暂停发布时将仓库变量 `CLOUDFLARE_DEPLOY_ENABLED` 设为 `false`。日常回退通过撤销问题提交并合入 main，重新经过同一套检查与发布；Cloudflare 版本回退不自动恢复 zone 规则，不能只回退静态文件就假定配置也一起恢复。

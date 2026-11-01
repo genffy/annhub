@@ -13,7 +13,7 @@ Do not open a public issue for a security problem. You can expect an acknowledge
 
 ## What AnnHub is designed to protect
 
-- Captured material stays on the device by default. Logs never contain provider keys, full pages or
+- Captured material stays on the device by default. Logs never contain keys, full pages or
   attachment bytes.
 - Release artifacts carry a build-provenance attestation; verify a downloaded zip with
   `gh attestation verify <zip> --repo genffy/annhub`.
