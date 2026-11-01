@@ -113,6 +113,33 @@ describe('check-docs', () => {
     expect(output).toContain('docs/report-2026-10-11.md: [dated-file] the file name contains a date')
   })
 
+  it('names the document that opens with an update or status line', () => {
+    const { status, output } = check({ 'docs/guide.md': GOOD_FILES['docs/guide.md']! + '> 更新：2026-11-01\n' })
+    expect(status).toBe(1)
+    expect(output).toContain('docs/guide.md:6: [header-meta] the document opens with an update/status line')
+  })
+
+  it('names the body line that names a calendar date', () => {
+    const { status, output } = check({ 'docs/guide.md': edit('docs/guide.md', 'decides the window size.', 'decided the window size on 2026-10-13.') })
+    expect(status).toBe(1)
+    expect(output).toContain('docs/guide.md:5: [date-in-prose] the body names a calendar date')
+  })
+
+  it('names the line whose wording tells a fix story', () => {
+    const { status, output } = check({ 'docs/guide.md': edit('docs/guide.md', 'and ' + Q2 + ' decides the window size.', 'and ' + Q2 + ' decides the window size (旧实现).') })
+    expect(status).toBe(1)
+    expect(output).toContain('[history-wording] the line uses narrative wording (旧实现)')
+  })
+
+  it('names the line that carries a fix-round or defect label', () => {
+    const label = ['真机', '走查', ' P2-', '1'].join('')
+    const { status, output } = check({
+      'docs/guide.md': edit('docs/guide.md', 'decides the window size.', `decides the window size (${label}).`),
+    })
+    expect(status).toBe(1)
+    expect(output).toContain('docs/guide.md:5: [round-label] the line carries a fix-round or defect label')
+  })
+
   it('names the citing place of an identifier whose definition is gone', () => {
     const { status, output } = check({ 'docs/decisions.md': edit('docs/decisions.md', `## ${Q1} Window sizing`, '## Window sizing') })
     expect(status).toBe(1)
