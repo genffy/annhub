@@ -387,7 +387,7 @@ function extShotPreciseGroup() {
     ref: 'market §4.5 · screenshot §1.4 · §5',
     w: 1100,
     body: `<div class="ui" style="padding:22px 26px 26px;background:var(--surface-2);display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:28px;align-items:start">
-      <div class="vs g10"><b class="t-sm">同一个页面，三种状态各截一张（2026-10-08，Chromium 153，2 倍像素比）</b>
+      <div class="vs g10"><b class="t-sm">同一个页面，三种状态各截一张</b>
         <table class="sp-table" style="font-size:12.5px"><thead><tr><th>取景方式</th><th>三张图的像素尺寸</th><th>与第一张相比</th></tr></thead><tbody>
           ${cmp('元素 + 24 CSS 像素', '2496×1400 ×3', '只有切换条与价格不同；最外圈 48 像素环 <b>0</b> 个像素不同', true)}
           ${cmp('手动框选（±3 像素误差）', '2494×1392 · 2494×1390 · 2498×1402', '尺寸各不相同，无法逐像素对比', false)}

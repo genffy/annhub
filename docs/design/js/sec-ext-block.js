@@ -137,7 +137,7 @@ function extBlockGroup() {
           ${cov('再加 main 与常见内容容器', '.entry-content · .markdown-body · main …', 30, 90.9)}
           ${cov('再加文字密集的容器', '包含至少三个有文字量的段落', 32, 97)}
         </div>
-        <div class="help">33 个可评估页面：技术文档 20（含 Anthropic、OpenAI 各 3 页）、Medium 1、英文博客 8、中文博客 4；另有 Claude Code 文档等 8 页未计入。2026-10-08 用脚本只读 DOM 统计；X 对无头浏览器返回 403，没有抽样。</div></div>
+        <div class="help">33 个可评估页面：技术文档 20（含 Anthropic、OpenAI 各 3 页）、Medium 1、英文博客 8、中文博客 4；另有 Claude Code 文档等 8 页未计入。用脚本只读 DOM 统计；X 对无头浏览器返回 403，没有抽样。</div></div>
       <div class="vs g8"><b class="t-sm">其他发现</b>
         <ul class="t-sm" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:7px;color:var(--fg-2)">
           <li><b>整篇文章很高</b>：27 个页面的正文容器高于 1.2 个视口，中位约 8.4 个视口</li>
