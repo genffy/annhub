@@ -484,6 +484,18 @@ export class BlockEntries {
         }
       }
     }
+    if (this.capsuleAreaOccupied(x, y, box, capsule)) {
+      // a sticky page header owns the whole top edge: try along the bottom edge
+      // before sitting on a control
+      const bottomY = corners[2]![1]
+      for (let cx = corners[0]![0] - 24; cx >= Math.max(0, rect.left); cx -= 24) {
+        if (!this.capsuleAreaOccupied(cx, bottomY, box, capsule)) {
+          x = cx
+          y = bottomY
+          break
+        }
+      }
+    }
     let left = Math.max(0, Math.min(view.innerWidth - box.width, x))
     const top = Math.max(0, Math.min(view.innerHeight - box.height, y))
     // A viewport clamp must not push the capsule back out over the sidebar

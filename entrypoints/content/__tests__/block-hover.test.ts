@@ -411,6 +411,36 @@ describe('capsule placement stays inside the block (capture.md §6.2)', () => {
     const overlapsCaret = right > 800 && left < 834 && bottom > 124 && top < 156
     expect(overlapsCaret).toBe(false)
   })
+
+  it('slides to the bottom edge when a sticky header owns the whole top', async () => {
+    vi.useFakeTimers()
+    mockCapsuleBox()
+    document.body.innerHTML = `<header id="sticky"><button id="theme" type="button">Switch color theme</button></header><article id="post"><p id="body">${LONG}</p><button id="b1" type="button">A</button><button id="b2" type="button">B</button></article>`
+    const post = document.getElementById('post')!
+    post.getBoundingClientRect = () => new DOMRect(0, 40, 800, 600)
+    const body = document.getElementById('body')!
+    const sticky = document.getElementById('sticky')!
+    const b1 = document.getElementById('b1')!
+    const b2 = document.getElementById('b2')!
+    b1.getBoundingClientRect = () => new DOMRect(766, 604, 34, 32)
+    b2.getBoundingClientRect = () => new DOMRect(0, 604, 34, 32)
+    const theme = document.getElementById('theme')!
+    document.elementFromPoint = vi.fn((x: number, y: number) => {
+      if (y < 60) return theme // the sticky bar is controls end to end
+      if (x >= 766 && x <= 800 && y >= 604 && y <= 636) return b1
+      if (x <= 34 && y >= 604 && y <= 636) return b2
+      return body
+    })
+    const capsule = await showCapsule(400, 200)
+    const left = Number.parseFloat(capsule.style.left)
+    const top = Number.parseFloat(capsule.style.top)
+    const right = left + CAPSULE_WIDTH
+    const bottom = top + CAPSULE_HEIGHT
+    expect(top).toBeGreaterThan(60) // clear of the sticky header
+    expect(right).toBeLessThanOrEqual(766) // clear of the bottom-right control
+    expect(left).toBeGreaterThanOrEqual(34) // clear of the bottom-left control
+    expect(bottom).toBeLessThanOrEqual(640 + CAPSULE_HEIGHT)
+  })
 })
 
 describe('↓ at the innermost level enters the unit, one level at a time ', () => {
