@@ -17,10 +17,13 @@
 - 用 fixture 验证浏览器可观察行为和持久化结果。采集、截图、检索或消息协议变化时选择相应调用链测试；断线、重启、失败和取消属于相关流程的必要边界。写操作之后既断言库，也断言界面（列表的卡片数、总数、导航计数、徽章）：只查库发现不了“库里改了、界面没变”（`library-browse.spec.ts` 的删除用例是范例）。下一步操作之前等的也是界面，不是库：service worker 先提交、再回复，页面收到回复才画出标记、清掉选区、关掉工具条。库里刚有、回复未到时按 `Esc`，关掉的是还开着的工具条而不是阅读视图；这时双击下一处，新的选区和工具条会被迟到的回复清掉（测试：`reading-highlight.spec.ts`）。
 - `fixtures.ts` 有一个自动的 `pageErrors` 守卫：用例里任何页面（含扩展页面、内容脚本在页面里的浮层）抛出未捕获错误，或打印 `console.error`，该用例就失败。唯一放行的是“资源加载失败”（夹具页引用了不存在的主机，浏览器还会要 `/favicon.ico`）；新增放行项要写明理由，不要为了求绿放宽。
 - 专项夹具：`keyboard-blocks`、`timeline.html`（X 式时间线：帖子列紧挨侧栏，Parent 停在帖子、离开与 Esc 收起描边，胶囊的左右缘留在帖子内）、`media`（视频帖与滚到第二张的多图轮播：`screenshot-media.spec.ts` 读预览画布像素，断言当前视频帧与当前幻灯在元素截图里）、`columns`（三栏页：内栏自滚、窗口 scrollY 为 0 时，划词菜单仍贴内栏的选区）、`longpage.html`（滚动长图的五屏长页）、`virtualfeed.html`（回收单元格的虚拟时间线，同一个结构路径在不同滚动高度是另一条帖子；测试：`screenshot-frame.spec.ts` 的“沿用上次取景框时页面不动”）。`page-shapes.spec.ts` 在真实浏览器里验识别与转换。
-- 版式不做截图比对，用 `getBoundingClientRect` 和 `getComputedStyle` 断言几何与对比度（弹窗列表的宽度、暗色下文字对背景的对比度不低于 4.5、筛选条不溢出也不互相覆盖；列表视图的卡片填满内容区、同一行等高、预览等高、摘要只露整行，设置页的标签与控件分列且等高、表格有边框与内边距、窄窗口图标栏容得下品牌且当前项的徽章可读；测试：`library-layout.spec.ts`）。看页面实际长什么样时，另写一次性的截图脚本，看完删除，不提交。临时的 Playwright 配置不要放进 `test-results/`：它是默认的 `outputDir`，每次运行都会被清空（同目录里没有提交的审阅图也一起没了）。新断言先对着坏样式验一遍：把构建出的 CSS 改回出过错的样子（`.output/chrome-mv3/assets/library-*.css`），确认它红，再重建。
-- 截图编辑器的像素用例（`screenshot-beautify.spec.ts`）在页面里读画布：预览画布、剪贴板里的图（`navigator.clipboard.read`）和入库的图片都用同一个 `analyze` 量角点颜色、透明像素、红色标注的外接框与墨色深浅，断言“背景是它自己的颜色”“内容完整居中”“标注落在指针处”这类结果，不做截图比对。面板、工具栏与预览的位置用 `getBoundingClientRect` 断言互不覆盖、都在窗口内；测试浏览器自己的截取永远是一个 CSS 像素一个像素（模拟 `deviceScaleFactor` 也一样），所以 Retina 要在 service worker 里把 `chrome.tabs.captureVisibleTab` 换成返回两倍大小图片的桩（`captureAtTwiceTheSize`；会话的缩放取自图片宽度除以 `innerWidth`，不取 `devicePixelRatio`），图里红绿通道随位置渐变，裁出来的任何一个像素都说明它取自窗口的哪里。选区的屏幕尺寸量 `PREVIEW` 容器，不量里面的画布：容器有 2 像素边框，画布比选区小 4 像素。文字框要用真实的鼠标与键盘（点一下、输入、`Enter`、`Esc`、点别处），Chrome 在移除有焦点的元素时同步触发 `blur`，只有真实浏览器能复现这类重入（页面抛的错会被 `pageErrors` 守卫抓到）。
-- 序号的像素用例（`screenshot-steps.spec.ts`）在夹具页上临时铺一条五色色块，每种颜色的序号放在同色的块上，读圆面、描边与数字是不是取了对比色；序号的编号从删除按钮“×”的读屏名称（“删除序号 N”）读，不从像素猜。保存失败在 service worker 里把 `IDBObjectStore.prototype.put` 换成对 `assets` 抛 `QuotaExceededError` 的版本，下载失败把 `chrome.downloads.download` 换成回调 `undefined` 的桩，重试前换回来。
-- 荧光笔、直线与线宽的像素用例（`screenshot-strokes.spec.ts`）在夹具页上临时铺一张白纸，用黑色横条代替一行行文字，截图正好截这张纸（`openOnSheet` 断言尺寸），截图里的坐标就是纸上的坐标。指针要按到截图上的某一点，先经 `toScreen` 换算：预览画布比选区小 4 像素，纸上的坐标直接拿来按会差几个像素。荧光笔的期望颜色按 40% 叠加算出；线宽是横穿一笔的各像素覆盖率之和，抗锯齿的边也算进去；2x 在 service worker 里把 `chrome.tabs.captureVisibleTab` 换成返回两倍大白图的桩。
+
+## 按需读取
+
+| 主题                         | 文件                                                   |
+| ---------------------------- | ------------------------------------------------------ |
+| 版式与像素断言（不截屏比对） | [notes/pixel-and-layout.md](notes/pixel-and-layout.md) |
+
 - 从扩展页面里播种或读数据走 `helpers.ts` 的 `sendMessage`（同一条消息路径，错误响应直接让用例失败）；量文字对比度走 `textContrast`（取元素第一个有底色的祖先作背景），亮暗两套外观各量一次。应用页的壳、属性页与抽屉编辑的用例见 `library-shell.spec.ts`、`library-properties-page.spec.ts`、`library-drawer-edit.spec.ts`。
 - 大库用例用 `library-browse.spec.ts` 的 `seedRealisticLibrary`（1 万条、约 65 MB：70% 约 0.5 KB、20% 约 6 KB、10% 约 50 KB）；耗时断言留足余量，只防数量级退化（重启后每个视图的就绪预算见根目录「验证入口」与 `background-service/AGENTS.md`）。
 - 同一台机器上两个检出同时跑 E2E 会争用固定端口 8173：`reuseExistingServer` 会复用对方的静态服务，对方的运行一结束，这边就出现 `ERR_CONNECTION_REFUSED`。并行时错开，或先 `lsof -i :8173`；看到这个错误先单独重跑，再判断是不是代码问题。
