@@ -64,7 +64,7 @@ function check(overrides: Record<string, string | null> = {}) {
 }
 
 /** The good file with one edit; fails loudly when the text to replace is gone, so a case cannot pass by editing nothing. */
-function edit(file: string, from: string | RegExp, to: string): string {
+function edit(file: string, from: string, to: string): string {
   const text = GOOD_FILES[file]!
   if (!text.includes(from)) throw new Error(`${file} no longer contains ${from}`)
   return text.replace(from, to)
