@@ -18,7 +18,7 @@
 - chrome:// 等内容脚本进不去的页面给原因而不是按钮。
 - 筛选条会换行，不能溢出或互相盖住，里面的控件也不能比所在的框更宽，整页不能横向滚动；
 - 筛选弹层（`.filter-pop`）是 `position: fixed` 的浮层，避开滚动容器的裁剪，宽度用 `max-width: min(360px, calc(100vw - 16px))` 收在窗口里。
-- 版式由 `e2e/popup-entry.spec.ts`（弹窗的宽度、暗色对比度）、`e2e/library-browse.spec.ts`（筛选条在 1180、1024、390 像素宽度下）和 `e2e/library-layout.spec.ts`（列表的卡片网格、设置页的行与控件、Markdown 表格、窄窗口图标栏）用 `getBoundingClientRect` 与 `getComputedStyle` 断言守着。
+- 版式由 `e2e/popup-entry.spec.ts`（弹窗的宽度、暗色对比度）、`e2e/library-browse.spec.ts`（筛选条在 1180、1024、390 像素宽度下）和 `e2e/library-layout.spec.ts`（列表的卡片网格、设置页的行与控件、Markdown 表格、窄窗口图标栏）用 `getBoundingClientRect` 与 `getComputedStyle` 断言。
 - 设置页在 `.page-body` 里滚动（导航不跟着走，visual.md §4），内容是两列卡片网格（容器查询：内容宽窄于约 860 变一列）。
 - 每张卡片是容器（`container-type: inline-size`）：行在卡片窄于约 420 时改成上下排，按卡片宽度判断，不按视口写断点（视口 721 像素时卡片只有约 420 像素宽）。
 - 控件都是原生表单控件加样式，共用件在 `settings-card.tsx`（卡片与行）、`settings-switch.tsx`（`role="switch"`，读屏名称是行的功能名，`aria-labelledby`）、`settings-seg.tsx`（分段单选组）、`settings-slider.tsx`、`settings-posbox.tsx`、`settings-check-chip.tsx`、`settings-swatches.tsx`（色块取 `output.ts` 的 `backgroundCss`，不另抄色值）。
