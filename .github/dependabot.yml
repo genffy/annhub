@@ -5,10 +5,9 @@ version: 2
 #   - Monthly, not weekly. Security updates are not on this schedule: they arrive when an advisory
 #     is published.
 #   - At most 3 open version-update pull requests per directory. Security updates do not count.
-#   - One group per directory, for minor and patch updates only. Majors are not grouped: a group that
-#     took in eslint and typescript replaced their two individual pull requests with one that read
-#     like routine maintenance, and it was merged with a red build. A major stays an individual pull
-#     request, with its own title and its own red check.
+#   - One group per directory, for minor and patch updates only. Majors are not grouped: a major
+#     stays an individual pull request with its own title and its own check, so a red build cannot
+#     hide in a routine-looking group.
 #   - A cooldown keeps brand-new releases out for a week, which is when most compromised packages
 #     are noticed and pulled. Security updates ignore the cooldown.
 #

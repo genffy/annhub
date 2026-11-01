@@ -1,7 +1,7 @@
 name: CodeQL
 
 # Static analysis for the TypeScript extension and the workflows themselves.
-# Findings land in the Security tab and block the merge through the `CodeQL` status check.
+# It analyzes the code on pull requests and pushes to main and puts the findings in the Security tab.
 on:
   pull_request:
   push:
