@@ -42,6 +42,8 @@
 - 身份元素的种类只由 `detect.ts` 的 `identityPartOf` 判定，区域覆盖、克隆匿名与马赛克预填都经 `identityElements` 取元素，不各自筛选。
 - `Esc` 先关最里面的一层：文字输入框，其次美化面板，最后才取消会话。
 
+## 验证
+
 - 改截图链路先跑 `entrypoints/content/screenshot/__tests__`；
 - 改美化、标注或预览布局后跑 `e2e/screenshot-beautify.spec.ts`（在预览、剪贴板和入库图片的像素上断言）；
 - 改水印的排版、解码或 `W` 后跑 `e2e/screenshot-watermark.spec.ts`（同样读像素，再加下载的 data URL；水印图片是测试里现编的 PNG，经 `setSettings` 播种，读不出来的那张是“PNG 签名 + 垃圾”，能通过设置校验却解码失败）；

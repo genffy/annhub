@@ -12,7 +12,7 @@
 
 发送者三档与每个 handler 的校验清单见 [notes/sender-rules.md](notes/sender-rules.md)。
 
-- `entrypoints/background/index.ts` 在脚本顶层同步注册 `runtime.onMessage`（MV3 要求：空闲后被消息唤醒时，监听器必须已经存在），处理器先 `await whenReady()`（四个服务初始化完成）再 `dispatchMessage`，未知类型立即返回错误。不要把注册挪到任何异步初始化之后；（测试：`e2e/cold-start.spec.ts`，用 `helpers.ts` 的 `stopServiceWorker` 真的停掉 worker）。
+- `entrypoints/background/index.ts` 在脚本顶层同步注册 `runtime.onMessage`（MV3 要求：空闲后被消息唤醒时，监听器必须已经存在），处理器先 `await whenReady()`（四个服务初始化完成）再 `dispatchMessage`，未知类型立即返回错误。不要把注册挪到任何异步初始化之后（测试：`e2e/cold-start.spec.ts`，用 `helpers.ts` 的 `stopServiceWorker` 真的停掉 worker）。
 - `SAVE_CLIP`、`SAVE_SCREENSHOT` 带 `requestId` 和调用方生成的条目 ID：`service-manager.ts` 缓存执行中的 Promise（键含发送者），并发的同一请求共用一次执行；worker 重启之后的重试靠 `saveEntry` 对同一 ID 返回已存的记录（内容不同则 `ENTRY_CONTENT_INVALID`）。`MessageUtils.sendMessage` 只对“没有接收者 / 端口已关闭”这类连接错误重试（50ms、200ms），处理器已经跑过并失败的不重试。
 - 协议是字段级的：`UPDATE_ENTRY` 的 `note`、`context` 用 `null` 清除（JSON 会丢掉 `undefined`），`properties` 是 `{ set, unset, newDefinitions }`；高亮是 `ADD_HIGHLIGHT`、`UPDATE_HIGHLIGHT`、`REMOVE_HIGHLIGHT`、`RESTORE_HIGHLIGHT` 四个操作，每个在 store 的一个事务里读-改-写并返回最新条目，重叠高亮的合并只在 `learning-core/store.ts` 里一份。
 - 失败一律回稳定错误码，不回原始 message：条目写入沿用 `entry.md §6` 的码，配额不足是 `STORAGE_QUOTA_EXCEEDED`、其余存储错误是 `OPERATION_FAILED`（`services/errors.ts` 的 `storageErrorCode`）；
