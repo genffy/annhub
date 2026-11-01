@@ -25,5 +25,5 @@
 - 应用页的壳、属性页和抽屉编辑各有一个 spec：`library-shell.spec.ts`（阅读视图不盖导航、焦点、折叠按钮、页面标题、图标、控件字体）、`library-properties-page.spec.ts`（属性页的行序、删除的原因、类型图标）、`library-drawer-edit.spec.ts`（原文与语境的就地编辑）。从扩展页面里播种或读数据走 `helpers.ts` 的 `sendMessage`（同一条消息路径，错误响应直接让用例失败）；量文字对比度走 `textContrast`（取元素第一个有底色的祖先作背景），亮暗两套外观各量一次。
 - 大库用例用 `library-browse.spec.ts` 的 `seedRealisticLibrary`（1 万条、约 65 MB：70% 约 0.5 KB、20% 约 6 KB、10% 约 50 KB）；耗时断言留足余量，只防数量级退化（修复前，重启后的剪藏视图要 3.4 秒，预算是 2.5 秒）。
 - 同一台机器上两个检出同时跑 E2E 会争用固定端口 8173：`reuseExistingServer` 会复用对方的静态服务，对方的运行一结束，这边就出现 `ERR_CONNECTION_REFUSED`。并行时错开，或先 `lsof -i :8173`；看到这个错误先单独重跑，再判断是不是代码问题。
-- 需要用 chrome-devtools-mcp 手工安装或重载扩展时，先读 [README.md](README.md) 的环境限制与安装步骤。不要用自动化命令误杀日常 Chrome。
+- 需要用 chrome-devtools-mcp 手工安装或重载扩展时，用所在 agent 自己配置的 chrome-devtools-mcp（仓库不带共享 MCP 配置），没有配置就提醒用户安装；先读 [README.md](README.md) 的环境限制与安装步骤。不要用自动化命令误杀日常 Chrome。
 - [real-chrome-scenarios.md](real-chrome-scenarios.md) 是自动化够不着的真机场景，不写执行工具。它的附录 A 按当前实现取元素（`[data-ann-ui]` 的名称、资料库的类名、界面文案），这些改名时同步它；修好一项缺陷，把对应场景的“当前预期”改成通过。
