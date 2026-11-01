@@ -64,8 +64,10 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      - name: Documentation links
+      - name: Documentation (links, section references, wording)
         run: npm run check:docs
+      - name: File size budgets
+        run: npm run check:size
 
       - name: Lockfiles use the public registry
         run: npm run check:lockfiles

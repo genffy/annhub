@@ -6,7 +6,7 @@ name: Release Extension
 on:
   push:
     tags:
-      - 'v*' # e.g. v2.0.0
+      - 'v*' # v<major>.<minor>.<patch>, matching the version in package.json
 
 permissions: {}
 
