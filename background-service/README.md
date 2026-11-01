@@ -1,96 +1,25 @@
 # Background Service Architecture
 
+Components and responsibilities at a glance. The message-facade, sender and
+start-up rules live in [AGENTS.md](AGENTS.md).
+
 ## Core Components
 
-### 1. BackgroundServiceManager
+1. **BackgroundServiceManager** — `background-service/index.ts`: registers and initializes all services
+2. **ServiceManager** — `background-service/service-manager.ts`: service lifecycle and message dispatch
+3. **EventHandlerManager** — `background-service/event-handlers/index.ts`: extension event listeners, unified error handling
 
-- **File**: `background-service/index.ts`
-- **Responsibility**: Register and initialize all services
-- **Features**:
-  - `whenReady()`: resolves once the services are ready; a failed initialization clears the cached promise so the next message retries
-  - `dispatchMessage()`: forwards a message to the service handlers
+## Services
 
-### 2. ServiceManager
-
-- **File**: `background-service/service-manager.ts`
-- **Responsibility**: Manage the lifecycle of all services
-- **Features**:
-  - Service registration and initialization
-  - Message dispatch: unknown types fail fast; `SAVE_CLIP` / `SAVE_SCREENSHOT` responses are cached by `requestId` so a retry after a lost response cannot save twice
-
-### 3. EventHandlerManager
-
-- **File**: `background-service/event-handlers/index.ts`
-- **Responsibility**: Manage extension event listeners
-- **Features**:
-  - Register various event listeners
-  - Unified error handling
-  - Event listener lifecycle management
-
-## Service worker start-up contract
-
-MV3 service workers must register listeners in the synchronous top level. The
-real `runtime.onMessage` listener lives in `entrypoints/background/index.ts`;
-it answers immediately, awaits `whenReady()`, and only then dispatches. A
-message that wakes a cold worker is therefore never dropped, and a first
-operation costs one initialization (IndexedDB open), not a retry backoff.
-
-## Service Architecture
-
-### Service Interface (IService)
-
-All services must implement the following interface:
-
-```typescript
-export interface IService {
-  readonly name: SupportedServices
-  initialize(): Promise<void>
-  getMessageHandlers(): Record<string, MessageHandler>
-  isInitialized(): boolean
-  cleanup?(): Promise<void>
-}
-```
-
-### Current Services
-
-1. **EntryService** - entries, properties, highlights and queries (`services/entries`); the export ZIP is built in the library page, not here
-2. **ScreenshotService** - capture, image fetch, download, screenshot save (`services/screenshot`)
-3. **RecordingService** - tab-recording state machine, toolbar badge and the finished video's download (`services/recording`); the video itself is assembled by the offscreen recording document (`entrypoints/offscreen`)
-4. **SystemService** - settings and local metrics (`services/system`)
+1. **EntryService** — entries, properties, highlights and queries (`services/entries`); the export ZIP is built in the library page, not here
+2. **ScreenshotService** — capture, image fetch, download, screenshot save (`services/screenshot`)
+3. **RecordingService** — tab-recording state machine, toolbar badge and the finished video's download (`services/recording`); the video itself is assembled by the offscreen recording document (`entrypoints/offscreen`)
+4. **SystemService** — settings and local metrics (`services/system`)
 
 ## Event Handlers
 
-### 1. CommandHandler
-
-- **Responsibility**: Handle shortcut commands; the trigger goes to the top frame only (`frameId: 0`)
-- **Events**: `browser.commands.onCommand`
-
-### 2. InstallationHandler
-
-- **Responsibility**: Handle installation and update events
-- **Events**: `browser.runtime.onInstalled`
-- **Features**:
-  - Version migration
-  - First installation handling
-
-## Usage
-
-```typescript
-import backgroundServiceManager from '../../background-service'
-
-export default defineBackground(() => {
-  // listeners must be registered synchronously; see the contract above
-  browser.runtime.onMessage.addListener(
-    MessageUtils.wrapAsyncHandler(async (message, sender) => {
-      await backgroundServiceManager.whenReady()
-      return backgroundServiceManager.dispatchMessage(message, sender)
-    }),
-  )
-  void backgroundServiceManager.whenReady()
-})
-```
-
-## Extensibility
+1. **CommandHandler** — shortcut commands (`browser.commands.onCommand`); the trigger goes to the top frame only (`frameId: 0`)
+2. **InstallationHandler** — installation and update events (`browser.runtime.onInstalled`)
 
 ### Add new service
 
