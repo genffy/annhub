@@ -879,7 +879,7 @@ button.ah-hm-b:hover {
 }
 
 /* ── in-page popovers ────────────────────────────────────────────────────── */
-.ah-recpop {
+.ah-pop {
   position: absolute;
   z-index: 22;
   width: 280px;
@@ -1274,8 +1274,10 @@ button.ah-hm-b:hover {
 }
 
 /* ── helpers for scenes ──────────────────────────────────────────────────── */
+/* a `static` pop sits in a scene's flow instead of floating: `inline-block` is what makes its width apply */
 .ah-pop.static {
   position: relative;
+  display: inline-block;
 }
 
 /* a pixel-positioned scene drawn at natural size and scaled to its container (see fit.tsx) */
@@ -1556,10 +1558,16 @@ button.ah-hm-b:hover {
 
 /* the toolbar popup while a tab is being recorded */
 .ah-recpop {
+  position: absolute;
+  z-index: 22;
+  width: 280px;
+  padding: 10px 12px;
   border: 1px solid #d7dce1;
   border-radius: 10px;
   background: #fff;
-  padding: 10px 12px;
+  color: var(--fg);
+  box-shadow: var(--sh-modal);
+  font-family: var(--font-ui);
   font-size: 12px;
   display: flex;
   flex-direction: column;

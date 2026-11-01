@@ -112,7 +112,7 @@ export const en: LandingCopy = {
         when: 'Mon 10:12',
         title: 'Select a passage, click “Clip”',
         body: 'One click saves it, and no window opens. For about 3 seconds you can undo, or add tags and a note right there.',
-        caption: 'A passage selected in the article, with the Clip / Screenshot menu above it',
+        caption: 'After “Edit” in the toast: a small bubble under the selection for the title, tags and note, saved when it loses focus',
       },
       {
         id: 'block',

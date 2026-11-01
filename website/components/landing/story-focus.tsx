@@ -4,7 +4,7 @@ import ExportFile from '../product/export-file'
 import Fit from '../product/fit'
 import { SearchBox } from '../product/library'
 import { Markdown, rangeOf } from '../product/markdown'
-import { Anchored, BlockOutline, BlockPill, SelectionMenu } from '../product/page-scenes'
+import { BlockOutline, BlockPill, QuickEdit } from '../product/page-scenes'
 import { TypeChip } from '../product/parts'
 import { entryById, getSample } from '../product/sample'
 import { ShotMini } from '../product/shot-scene'
@@ -87,14 +87,12 @@ export default function StoryFocus({ step, copy }: { step: StoryStep['id']; copy
     <div className="ah ah-pg story-focus">
       <p className="text-[12px] text-fg-3">engineering.example.com</p>
       <h4 className="mt-3 text-[19px] font-bold">{page.storm.heading}</h4>
-      <p className="mt-16 text-[16px] leading-8">
-        <span className="ah-sel ah-anchor">
-          {page.storm.selection}
-          <Anchored place="above">
-            <SelectionMenu ui={ui} hover={0} />
-          </Anchored>
-        </span>
+      <p className="mt-10 text-[16px] leading-8">
+        <span className="ah-sel">{page.storm.selection}</span>
       </p>
+      {/* the bubble under the selection; on a panel narrower than its 322px the inline width gives way to max-width,
+          so the card shrinks to the panel instead of overflowing it */}
+      <QuickEdit ui={ui} data={sample.quickEdit} className="mt-2.5 block max-w-full" />
     </div>
   )
 }
