@@ -1,0 +1,8 @@
+# 版式与像素断言
+
+> 适用范围：`e2e/` 里用几何与像素断言的用例（不截图比对）；上级约定见 [../AGENTS.md](../AGENTS.md)。
+
+- 版式不做截图比对，用 `getBoundingClientRect` 和 `getComputedStyle` 断言几何与对比度（弹窗列表的宽度、暗色下文字对背景的对比度不低于 4.5、筛选条不溢出也不互相覆盖；列表视图的卡片填满内容区、同一行等高、预览等高、摘要只露整行，设置页的标签与控件分列且等高、表格有边框与内边距、窄窗口图标栏容得下品牌且当前项的徽章可读；测试：`library-layout.spec.ts`）。看页面实际长什么样时，另写一次性的截图脚本，看完删除，不提交。临时的 Playwright 配置不要放进 `test-results/`：它是默认的 `outputDir`，每次运行都会被清空（同目录里没有提交的审阅图也一起没了）。新断言先对着坏样式验一遍：把构建出的 CSS 改回出过错的样子（`.output/chrome-mv3/assets/library-*.css`），确认它红，再重建。
+- 截图编辑器的像素用例（`screenshot-beautify.spec.ts`）在页面里读画布：预览画布、剪贴板里的图（`navigator.clipboard.read`）和入库的图片都用同一个 `analyze` 量角点颜色、透明像素、红色标注的外接框与墨色深浅，断言“背景是它自己的颜色”“内容完整居中”“标注落在指针处”这类结果，不做截图比对。面板、工具栏与预览的位置用 `getBoundingClientRect` 断言互不覆盖、都在窗口内；测试浏览器自己的截取永远是一个 CSS 像素一个像素（模拟 `deviceScaleFactor` 也一样），所以 Retina 要在 service worker 里把 `chrome.tabs.captureVisibleTab` 换成返回两倍大小图片的桩（`captureAtTwiceTheSize`；会话的缩放取自图片宽度除以 `innerWidth`，不取 `devicePixelRatio`），图里红绿通道随位置渐变，裁出来的任何一个像素都说明它取自窗口的哪里。选区的屏幕尺寸量 `PREVIEW` 容器，不量里面的画布：容器有 2 像素边框，画布比选区小 4 像素。文字框要用真实的鼠标与键盘（点一下、输入、`Enter`、`Esc`、点别处），Chrome 在移除有焦点的元素时同步触发 `blur`，只有真实浏览器能复现这类重入（页面抛的错会被 `pageErrors` 守卫抓到）。
+- 序号的像素用例（`screenshot-steps.spec.ts`）在夹具页上临时铺一条五色色块，每种颜色的序号放在同色的块上，读圆面、描边与数字是不是取了对比色；序号的编号从删除按钮“×”的读屏名称（“删除序号 N”）读，不从像素猜。保存失败在 service worker 里把 `IDBObjectStore.prototype.put` 换成对 `assets` 抛 `QuotaExceededError` 的版本，下载失败把 `chrome.downloads.download` 换成回调 `undefined` 的桩，重试前换回来。
+- 荧光笔、直线与线宽的像素用例（`screenshot-strokes.spec.ts`）在夹具页上临时铺一张白纸，用黑色横条代替一行行文字，截图正好截这张纸（`openOnSheet` 断言尺寸），截图里的坐标就是纸上的坐标。指针要按到截图上的某一点，先经 `toScreen` 换算：预览画布比选区小 4 像素，纸上的坐标直接拿来按会差几个像素。荧光笔的期望颜色按 40% 叠加算出；线宽是横穿一笔的各像素覆盖率之和，抗锯齿的边也算进去；2x 在 service worker 里把 `chrome.tabs.captureVisibleTab` 换成返回两倍大白图的桩。
