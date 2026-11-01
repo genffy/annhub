@@ -60,7 +60,7 @@ describe('stitchStopCondition', () => {
     expect(stitchStopCondition({ ...base, segmentCount: STITCH_CAPS.maxSegments - 1 })).toBeNull()
   })
 
-  it('stops at the pixel area cap (D-49: about 40 MP)', () => {
+  it('stops at the pixel area cap: about 40 MP (screenshot.md §1.5)', () => {
     expect(stitchStopCondition({ ...base, widthPx: 1600, stitchedHeightPx: 25_000 })).toBe('area')
     expect(stitchStopCondition({ ...base, widthPx: 1600, stitchedHeightPx: 24_000 })).toBeNull()
   })
