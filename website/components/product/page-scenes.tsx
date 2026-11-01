@@ -84,7 +84,7 @@ export function ClipToast({ ui, progress = 62, state = 'clipped', className = ''
   )
 }
 
-/** The small bubble from the toast's "Edit": title, tags, note — exactly the fields the product asks for (真机走查 P2-10). */
+/** The small bubble from the toast's "Edit": title, tags, note — exactly the fields the product asks for ). */
 export function QuickEdit({ ui, data, className = '' }: { ui: ProductUi; data: { title: string; tags: string[]; note: string }; className?: string }) {
   return (
     <span className={`ah ah-pop static ${className}`} style={{ width: 322 }}>

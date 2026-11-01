@@ -378,7 +378,7 @@ test.describe('Markdown headings in the drawer (extension.md §4.2)', () => {
   })
 })
 
-test.describe('accent text on the accent tint (visual.md §3, 真机走查 P2-8)', () => {
+test.describe('accent text on the accent tint (visual.md §3)', () => {
   test('the Clip chip and the current reading tab read at 4.5:1 or more, light and dark', async ({ page, extensionId }) => {
     await seed(page, extensionId)
     const library = await page.context().newPage()

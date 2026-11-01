@@ -357,7 +357,7 @@ export const zhCN: LandingCopy = {
     },
     colors: { yellow: '黄色', green: '绿色', blue: '蓝色', pink: '粉色', purple: '紫色' },
     export: {
-      // 一键导出、没有对话框——提示行就是全部流程，与产品一致（真机走查 P2-10）
+      // 一键导出、没有对话框——提示行就是全部流程，与产品一致
       running: '正在导出…',
       done: '导出完成',
       summary: '{clips} 条剪藏、{screenshots} 张截图；缺失图片 {missing} 项',

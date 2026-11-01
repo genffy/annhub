@@ -94,7 +94,7 @@ test('in dark mode the popup text stays readable on the popup background (extens
       text: {
         title: contrast('.popup-title'),
         head: contrast('.popup-head'),
-        // accent text on the dark surface and on the accent tint (真机走查 P2-8)
+        // accent text on the dark surface and on the accent tint
         link: contrast('.popup-head .link'),
         meta: contrast('.popup-meta'),
         hint: contrast('.popup-foot'),

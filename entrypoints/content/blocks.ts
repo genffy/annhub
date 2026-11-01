@@ -300,7 +300,7 @@ function chainFrom(target: Element, doc: Document, top: Element | null): BlockCa
     }
     if (el === top) break
     // through open shadow roots: the chain crosses the boundary, so "Parent"
-    // climbs from a shadow-root code block back into the page (真机走查 P2-3)
+    // climbs from a shadow-root code block back into the page
     el = composedParent(el)
   }
 
@@ -331,7 +331,7 @@ function classify(el: Element, target: Element): BlockCandidate[] {
   if (classifyArticle(el)) {
     if (textLength(el) < 120) return []
     // headings that are the article's own children (danluu, the Rust book) still divide it: the target sits in
-    // a section of the article, as on any other page (真机走查 P2-1)
+    // a section of the article, as on any other page
     const run = runSection(el, target)
     const article: BlockCandidate = { kind: 'article', element }
     return run?.range && !spansWhole(el, run.range) ? [run, article] : [article]
@@ -485,8 +485,7 @@ const WRAPPER_SHARE = 0.9
 const SECTION_ANCHORS = PEER_SELECTORS.section
 
 /**
- * The chain of the first unit strictly inside `parent`, innermost first (真机走查
- * P2-1: `↓` at the innermost level enters the unit instead of doing nothing); []
+ * The chain of the first unit strictly inside `parent`, innermost first (`↓` at the innermost level enters the unit instead of doing nothing); []
  * when nothing smaller is inside. Walks the unit's own content in document
  * order — through open shadow roots, where MDN keeps its code — from the first
  * block that reaches into the window, then on down, then around: the unit found
@@ -612,7 +611,7 @@ export function candidateSummary(candidate: BlockCandidate, limit = 80): string 
  * The unit's own words, starting at its first content block: a heading or
  * paragraph inside the unit, not the page furniture that happens to sit in it
  * (Wikipedia's “Toggle the table of contents”, Medium's tags and highlight
- * markers — 真机走查 P3-8). Falls back to the whole text when no content
+ * markers). Falls back to the whole text when no content
  * block qualifies.
  */
 function summaryTextOf(el: HTMLElement): string {

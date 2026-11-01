@@ -63,8 +63,7 @@ function wireSelectionMenu(): void {
       ? {
           onScreenshot: () => {
             // The selection itself becomes the pending frame: Enter confirms,
-            // arrows nudge, Esc cancels — the keyboard is never a dead end
-            // (真机走查 P2-5).
+            // arrows nudge, Esc cancels — the keyboard is never a dead end.
             const rect = lastRange?.getBoundingClientRect()
             selectionMenu?.dismiss()
             document.getSelection()?.removeAllRanges()
@@ -276,7 +275,7 @@ export default defineContentScript({
   // document_start: the recording-time single keys must be on the window's
   // capture phase before the page's own scripts register theirs — a site that
   // listens for the same keys (X's 点赞 L) would otherwise fire first
-  // (annotate.md §3.1, 真机走查). The overlays wait for the DOM below.
+  // (annotate.md §3.1). The overlays wait for the DOM below.
   runAt: 'document_start',
   async main() {
     if (window.top !== window) {

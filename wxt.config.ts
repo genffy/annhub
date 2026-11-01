@@ -36,7 +36,7 @@ export default defineConfig({
     },
     // `options_ui` is generated from entrypoints/options/index.html (the
     // open-in-tab flag is a meta tag there); a block here never reached the
-    // built manifest (真机走查 P2-9).
+    // built manifest.
 
     commands: {
       [ANN_SCREENSHOT_COMMAND]: {

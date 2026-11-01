@@ -379,8 +379,8 @@ const STRINGS = {
   'library.sub.count': { zh: '{count} 条', en: '{count} entries' },
   'library.sub.highlights': { zh: '{count} 条 · 来自 {clips} 条剪藏', en: '{count} highlights · from {clips} clips' },
   'library.sub.filtered': { zh: '筛选后 {count} 条', en: '{count} entries after filters' },
-  // English plural agreement: “1 entry”, “2 entries” — Chinese has no such form
-  // (真机走查 P3-2). Applied after substitution, only for the value 1.
+  // English plural agreement: “1 entry”, “2 entries” — Chinese has no such form.
+  // Applied after substitution, only for the value 1.
   'library.type.clip': { zh: '剪藏', en: 'Clip' },
   'library.type.screenshot': { zh: '截图', en: 'Screenshot' },
   'shot.saved': { zh: '截图已保存', en: 'Screenshot saved' },

@@ -1,7 +1,6 @@
 /**
  * The last frame (screenshot.md §1.4) is the worker's, kept for this tab and this page; the session only hands it a
- * frame and asks for it back. Nothing is written into the page's own storage, which the site's scripts read
- * (真机走查 P2-11). Without an answer there is simply no remembered frame.
+ * frame and asks for it back. Nothing is written into the page's own storage, which the site's scripts read. Without an answer there is simply no remembered frame.
  */
 import MessageUtils from '../../../utils/message'
 import type { FrameRecord } from '../../../types/messages'

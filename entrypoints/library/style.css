@@ -1669,7 +1669,7 @@ select:focus-visible {
 }
 
 /* a heading written as a link (“### [标题](#锚点)”) still reads as the heading,
-   not as an underlined body-sized link (真机走查 P3-9) */
+   not as an underlined body-sized link */
 .md-view h1 a,
 .md-view h2 a,
 .md-view h3 a,

@@ -453,7 +453,7 @@ export default function App() {
 
   // A clip or screenshot saved from a page tab while this library tab is open:
   // the background broadcasts the mutation, the list refreshes itself instead
-  // of waiting for a reload (真机走查 P3-12).
+  // of waiting for a reload.
   useEffect(() => {
     let channel: BroadcastChannel | null = null
     try {

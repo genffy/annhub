@@ -406,7 +406,7 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
     ).toEqual([0, 0])
   })
 
-  // the capsule's shot starts together with the session, before the settings arrive (真机走查复核)
+  // the capsule's shot starts together with the session, before the settings arrive
   test('a shot from the block capsule starts with the style saved in settings, as a dragged one does', async ({ page, context }) => {
     await setSettings(context, { beautify: { enabled: true, background: 'grad-slate', padding: 'large', radius: 12, shadow: false } })
     await page.goto(getScreenshotPageUrl())

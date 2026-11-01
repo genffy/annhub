@@ -97,7 +97,7 @@ export async function captureElement(element: HTMLElement, options: ElementCaptu
     // The surface lives offscreen, but html-to-image copies the root's computed
     // style (position/left) into the SVG, which would paint the content 10000px
     // outside the canvas. Override the root back to the canvas origin for the
-    // rasterization only (真机走查 P1-2：元素截图全空白的原因).
+    // rasterization only (元素截图全空白的原因).
     const rootStyle = { position: 'static', left: '0px', top: '0px' }
     try {
       return await toCanvas(surface, { backgroundColor: background, pixelRatio: 2, style: rootStyle })

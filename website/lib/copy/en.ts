@@ -418,7 +418,7 @@ export const en: LandingCopy = {
     },
     colors: { yellow: 'Yellow', green: 'Green', blue: 'Blue', pink: 'Pink', purple: 'Purple' },
     export: {
-      // one click, no dialog — the notice line is the whole flow, like the product (真机走查 P2-10)
+      // one click, no dialog — the notice line is the whole flow, like the product
       running: 'Exporting…',
       done: 'Export complete',
       summary: '{clips} clips, {screenshots} screenshots; {missing} missing images',

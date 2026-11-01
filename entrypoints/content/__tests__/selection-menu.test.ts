@@ -18,7 +18,7 @@ describe('shadow selection fallback (capture.md §3)', () => {
   })
 })
 
-describe('Enter follows the button that holds focus (真机走查 P3-3)', () => {
+describe('Enter follows the button that holds focus ', () => {
   it('fires the focused action, not a stale recorded one; a bare Enter stays with the page', async () => {
     vi.resetModules()
     vi.doMock('../user-input', () => ({ isUserInput: () => true }))

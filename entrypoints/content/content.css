@@ -59,7 +59,7 @@
     --annov-text: #ececf1;
     --annov-muted: #a3a8b6;
     --annov-input-border: #4a4f5b;
-    /* the dark pair from the library's tokens (真机走查 P2-8): white on #7a55d1
+    /* the dark pair from the library's tokens: white on #7a55d1
        reads 5.19:1, #b9a3f2 as text on the dark surface reads 8.10:1 */
     --annov-accent: #7a55d1;
     --annov-accent-text: #b9a3f2;
@@ -246,8 +246,7 @@
 [data-ann-ui='clip-toast'] {
   position: fixed;
   /* bottom-center: the corners belong to the page's own floating buttons
-     (X's Chat sat under the old bottom-right toast for its whole 3 s —
-     真机走查 P3-11). Centered with auto margins so the fade-in's transform
+     (X's Chat button sits in the corner). Centered with auto margins so the fade-in's transform
      does not fight a translateX. */
   left: 0;
   right: 0;
