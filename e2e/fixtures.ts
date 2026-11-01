@@ -20,7 +20,7 @@ const EXPECTED_CONSOLE_ERRORS: RegExp[] = [
  * fails the test when any of its pages throws an uncaught error or logs an unexpected console error.
  */
 export const test = base.extend<{
-  /** Browser UI language; the product wording is localized (D-11). Specs run in Chinese unless they opt into `en-US`. */
+  /** Browser UI language; the product wording is localized (extension.md §2.7). Specs run in Chinese unless they opt into `en-US`. */
   uiLocale: string
   context: BrowserContext
   extensionId: string
