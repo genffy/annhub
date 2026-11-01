@@ -13,7 +13,7 @@
 
 1. `docs/product/` 是产品层真源，描述当前的产品、边界、契约和路线图；规则见 [产品文档约定](./product/AGENTS.md)。
 2. 根目录 `AGENTS.md` 是工程约定入口；目录专属规则由各级 `AGENTS.md` 管理，当前实现细节以源码和测试为准。CI、发布与仓库设置见根 `README.md`，工作流文件自带说明。
-3. 不另建工程方案或待办文档：候选功能是 GitHub issue，功能的规格随实现它的 PR 写进产品文档；待确认的决策、风险与开放问题进 [validation.md](./product/validation.md)，交付状态进 [roadmap.md](./product/roadmap.md)，局部的维护提示放进相应目录的 `AGENTS.md`。
+3. 不另建工程方案或待办文档：候选功能是 GitHub issue，功能的规格随实现它的 PR 写进产品文档；待确认的决策、风险与开放问题进 [validation.md](./product/validation.md)，交付状态进 [roadmap.md](./product/roadmap.md)，局部的维护提示放进相应目录的 `AGENTS.md`；一个文件放不下（超过预算）时，主题拆到同目录的 `notes/`，由该目录的 `AGENTS.md` 链接。
 4. 新文档必须服务剪藏、截图的采集与库内阅读、高亮、检索、导出的主链路，或讲解网页时的页面批注与录屏。
 5. 文档不写更新日期、版本号和状态标签：什么时候改的看 git，交付状态只在 [roadmap.md](./product/roadmap.md)。
 6. 图片资源放在对应模块的 `assets/` 下，并使用相对路径引用。

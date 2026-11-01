@@ -14,6 +14,10 @@ const rules = [
     why: 'The lockfile is owned by npm. Change package.json and run `npm install` (use npm 11, as CI does).',
   },
   {
+    test: p => /(^|\/)scripts\/size-ledger\.json$/.test(p),
+    why: 'The size ledger only goes down. Split the file, then run npm run check:size -- --lower; do not edit the numbers by hand.',
+  },
+  {
     test: p => /(^|\/)(\.output|\.wxt|\.next|node_modules)\//.test(p),
     why: 'Build output and installed dependencies are not source.',
   },

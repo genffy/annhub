@@ -8,18 +8,18 @@
 
 - 产品边界、契约与验收以 [docs/product/README.md](docs/product/README.md) 为入口；代码行为以源码和测试为准，交付状态见 [roadmap.md](docs/product/roadmap.md)。
 - 新功能的规格与代码在同一个 PR 里进入仓库，流程见 [docs/product/AGENTS.md](docs/product/AGENTS.md)；没有产品文档依据的代码、文案或配置，发现时删除。
-- 待确认的决策（`D-`）与其默认在 [validation.md 第 2 节](docs/product/validation.md)：实现不等回复，先按默认走；真机验收项在 [roadmap.md 第 5 节](docs/product/roadmap.md)。
+- 待确认的决策与其默认见 [validation.md](docs/product/validation.md)：实现不等回复，先按默认走；真机验收项见 [roadmap.md 第 5 节](docs/product/roadmap.md)。
 
 ## 文档怎么写
 
 - 只写现在是什么：不写日期、版本、状态标签、轮次、修复经过；什么时候改的看 git，交付状态只在 [roadmap.md](docs/product/roadmap.md)。
-- 约束连同原因写成一句现在时；细节放进被引用的文档，不在约定里复述实现。
-- 引用节号一律写成 `文档.md §N.M`；被引用过的节不移动、不复用。稳定编号（`D-`、`Q-`、`RK-`、`M-`、`US-` 等）不改号、不复用。
-- 机器检查是 `npm run check:docs`（链接、节号引用、编号引用、写法）。
+- 约束连同原因写成一句现在时；细节放进被引用的文档，不在约定里复述实现。新规则写进最近作用域的 `AGENTS.md`，不往根里加；一条一件事，不用 `@` 导入（它不省上下文）。
+- 引用节号一律写成 `文档.md §N.M`；被引用过的节不移动、不复用。稳定编号（`D-`、`Q-`、`RK-`、`M-`、`US-` 等）不改号、不复用。机器检查是 `npm run check:docs`。
+- 单个文件有字节预算（`npm run check:size`，细则见 [scripts/README.md](scripts/README.md)）：接近预算按职责拆新文件，不按行数拆。台账里的文件不许再长，变小后跑 `npm run check:size -- --lower`；台账里的文件不要整份读，先 `grep -n` 找位置再按行段读。
 
 ## 按目录读取
 
-只在改动对应目录时读取局部约定；重组为 monorepo 时把仍有效的规则随模块迁移，不按此表创建最终包结构。
+只在改动对应目录时读取局部约定；重组为 monorepo 时规则随模块迁移，不按此表创建最终包结构。
 
 | 目录                   | 专属约定                                                        | 什么时候读                  |
 | ---------------------- | --------------------------------------------------------------- | --------------------------- |
@@ -53,7 +53,7 @@
 
 1. 优先复用现有服务、领域函数和 UI 模式；不要在入口层复制归一化、校验或调度规则。
 2. 消息联合类型在 `types/messages.ts`；协议修改时同步定义、handler、调用方与测试。写操作沿用 sender 权限校验；敏感配置 GET 不回传密钥。
-3. 共享契约改变时，以 `docs/product/` 的最新结论为准，同步受影响的 TypeScript、IndexedDB 和文档；迁移策略按实际用户数据决定。
+3. 共享契约改变时，以 `docs/product/` 的最新结论为准，同步受影响的 TypeScript、IndexedDB 和文档。
 4. 日志与指标事件不包含密钥、用户内容、完整页面或附件二进制。
 5. 保存失败、返回或关闭流程不得丢失用户已输入的内容。不回退与当前任务无关的工作区改动。
 6. 模块、消息、快捷键或数据契约变化时，更新受影响的 `README.md` 与 `docs/`；只有全局规则或目录导航变化才改本文件。
@@ -72,7 +72,7 @@
 ## 验证入口
 
 - 提交前跑 `npm run verify`；每个检查做什么、E2E 与官网冒烟怎么跑，见 [scripts/README.md](scripts/README.md)。
-- CI（`.github/workflows/`）跑同样的命令并加 CodeQL 与依赖审查；失败先在本地复现，不跳过、不禁用、不隔离测试来求绿。任务不按路径过滤（测试会读其他目录的文件；必需检查被跳过会一直 pending 阻塞合并，`check:consistency` 会拦），要少跑靠 Dependabot 分组与取消过期运行。
+- CI 跑同样的命令并加 CodeQL 与依赖审查；失败先在本地复现，不跳过、不禁用、不隔离测试求绿。任务不按路径过滤（测试会读其他目录的文件；必需检查被跳过会 pending 阻塞合并），要少跑靠 Dependabot 分组与取消过期运行。
 
 ## 生成物与提交
 
