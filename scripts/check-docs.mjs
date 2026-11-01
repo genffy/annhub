@@ -8,6 +8,7 @@
 //   retired-id   a D-/Q-/RK-/M-/AP-/US-…/FX-/MD-/OP-/RD- identifier cited from any Markdown or source file must be
 //                defined in some Markdown (a heading, a table's first cell or the start of a list item), so a retired
 //                definition cannot leave dangling citations behind
+//   dated-file   a Markdown file name carries a date, which pins a living document to the day it was last touched
 //
 // Failures are printed as `path:line: [rule] what` and the process exits 1.
 // `--root <dir>` runs the checks on another directory, so the tests can build a small tree.
@@ -262,12 +263,20 @@ function checkRetiredIds() {
   return { problems, detail: `${citations.length} identifier citations` }
 }
 
+// --- dated-file: a Markdown file name carries a date ---------------------------------------------------------------
+
+function checkDatedFiles() {
+  const problems = markdownFiles.filter(file => /20\d\d-\d\d/.test(basename(file, '.md'))).map(file => `${file}: [dated-file] the file name contains a date`)
+  return { problems, detail: `${markdownFiles.length} Markdown file names` }
+}
+
 // --- run ----------------------------------------------------------------------------------------------------------
 
 const rules = [
   ['link', checkLinks],
   ['section-ref', checkSectionReferences],
   ['retired-id', checkRetiredIds],
+  ['dated-file', checkDatedFiles],
 ]
 
 const problems = []

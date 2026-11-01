@@ -107,6 +107,12 @@ describe('check-docs', () => {
     expect(output).toContain(`entrypoints/toolbar.ts:1: [section-ref] docs/${broken} does not exist`)
   })
 
+  it('names a Markdown file whose file name carries a date', () => {
+    const { status, output } = check({ 'docs/report-2026-10-11.md': '# Report\n' })
+    expect(status).toBe(1)
+    expect(output).toContain('docs/report-2026-10-11.md: [dated-file] the file name contains a date')
+  })
+
   it('names the citing place of an identifier whose definition is gone', () => {
     const { status, output } = check({ 'docs/decisions.md': edit('docs/decisions.md', `## ${Q1} Window sizing`, '## Window sizing') })
     expect(status).toBe(1)
