@@ -785,8 +785,7 @@
   position: absolute;
   z-index: 20;
   display: inline-flex;
-  flex-direction: column;
-  align-items: stretch;
+  align-items: center;
   gap: 2px;
   padding: 4px;
   border-radius: 12px;
@@ -853,17 +852,34 @@ button.ah-hm-b:hover {
   gap: 2px;
 }
 
-/* the hover hint is the second line of the card, as in the extension (content.css .ann-menu-hint) */
-.ah-hm-hint {
-  padding: 2px 10px 4px;
-  color: #a9b1c4;
+/* the consequence hint floats as a dark tooltip above the action it explains, title row plus one consequence */
+.ah-hm-tip {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 10px);
+  z-index: 21;
+  display: inline-block;
+  width: max-content;
+  max-width: 230px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: #1b1f2a;
+  color: #f1f3f8;
   font-size: 11.5px;
-  line-height: 1.35;
-  white-space: nowrap;
+  font-weight: 600;
+  line-height: 1.45;
+  box-shadow: 0 6px 18px -4px rgb(0 0 0 / 0.4);
+}
+
+.ah-hm-tip small {
+  display: block;
+  color: #a9b1c4;
+  font-size: 11px;
+  font-weight: 400;
 }
 
 /* ── in-page popovers ────────────────────────────────────────────────────── */
-.ah-pop {
+.ah-recpop {
   position: absolute;
   z-index: 22;
   width: 280px;
@@ -1330,4 +1346,292 @@ button.ah-hm-b:hover {
   border-radius: 8px;
   overflow: hidden;
   box-shadow: var(--sh-window);
+}
+
+/* ── page annotation (annotate.md §1): a toolbar standing on the window edge, ink over the article ── */
+.ah-annot-tb {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 9;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 5px;
+  border-radius: 12px;
+  background: #1b1f2a;
+  box-shadow:
+    0 12px 30px -8px rgb(0 0 0 / 0.55),
+    0 0 0 1px rgb(255 255 255 / 0.07);
+  color: #e6e9f2;
+}
+
+/* the toolbar stands upright, so its separators and colour dots do too */
+.ah-annot-tb .ah-tb-sep {
+  width: 20px;
+  height: 1px;
+  align-self: center;
+  margin: 4px 0;
+}
+
+.ah-annot-tb .ah-tb-dots {
+  flex-direction: column;
+  padding: 0;
+}
+
+.ah-annot-wd {
+  width: 26px;
+  height: 20px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+}
+
+.ah-annot-wd.on {
+  background: rgb(185 163 242 / 0.28);
+}
+
+.ah-annot-wd i {
+  border-radius: 50%;
+  background: #d5d9e6;
+}
+
+.ah-annot-ink {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.ah-annot-cursor {
+  position: absolute;
+  z-index: 5;
+  color: #e5484d;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.25));
+}
+
+/* step badges (screenshot.md §1.1): a 28px filled circle whose centre lands on left/top; the ink colour contrasts with the fill */
+.ah-step-b {
+  position: absolute;
+  z-index: 6;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  box-sizing: border-box;
+  border: 2px solid var(--ink, #fff);
+  border-radius: 50%;
+  background: var(--fill, #e5484d);
+  color: var(--ink, #fff);
+  display: grid;
+  place-items: center;
+  font: 700 15px/1 var(--font-ui);
+}
+
+/* the ring and its × are the editor's selection affordance; they never enter the picture */
+.ah-step-ring {
+  position: absolute;
+  z-index: 7;
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  box-sizing: border-box;
+  border: 2px solid #4c91ff;
+  border-radius: 50%;
+}
+
+.ah-step-ring .x {
+  position: absolute;
+  top: -10px;
+  right: -10px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #4c91ff;
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+
+.ah-step-ring .x .ah-i {
+  width: 12px;
+  height: 12px;
+  stroke-width: 3;
+}
+
+/* the highlighter lays 40% ink over the words; the line runs under them (screenshot.md §1.1) */
+.ah-hl-mark {
+  position: relative;
+  background: none;
+  color: inherit;
+}
+
+.ah-hl-mark::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: -5px;
+  right: -5px;
+  height: var(--h, 20px);
+  margin-top: calc(var(--h, 20px) / -2);
+  border-radius: 999px;
+  background: var(--c);
+  opacity: 0.4;
+}
+
+.ah-ann-under {
+  position: relative;
+}
+
+.ah-ann-under::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  bottom: -4px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--c);
+}
+
+/* the width row under the toolbar: thin, medium, thick */
+.ah-shot-widths {
+  position: absolute;
+  z-index: 9;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 4px 4px 12px;
+  border-radius: 10px;
+  background: #1b1f2a;
+  color: #d5d9e6;
+  font-size: 12px;
+}
+
+.ah-shot-widths .lb {
+  margin-right: 6px;
+}
+
+.ah-shot-widths .wd {
+  width: 28px;
+  height: 24px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+}
+
+.ah-shot-widths .wd.on {
+  background: rgb(185 163 242 / 0.28);
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgb(185 163 242 / 0.6);
+}
+
+.ah-shot-widths .wd i {
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/* ── recording (annotate.md §2, §3): only the ink and the cursor highlight are in the picture ── */
+.ah-cursor-hl {
+  position: absolute;
+  z-index: 5;
+  width: 34px;
+  height: 34px;
+  margin: -17px 0 0 -17px;
+  border: 3px solid #0f9d8f;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgb(255 255 255 / 0.6);
+}
+
+.ah-cursor-ripple {
+  position: absolute;
+  z-index: 5;
+  width: 46px;
+  height: 46px;
+  margin: -23px 0 0 -23px;
+  border: 2px solid rgb(15 157 143 / 0.55);
+  border-radius: 50%;
+}
+
+/* the toolbar popup while a tab is being recorded */
+.ah-recpop {
+  border: 1px solid #d7dce1;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ah-recpop-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ah-recpop-rec {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c4271e;
+  flex: none;
+}
+
+.ah-recpop-stop {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 9px;
+  border: 1px solid #f3b8b8;
+  border-radius: 6px;
+  font-size: 11.5px;
+  color: #b91c1c;
+  background: #fff;
+}
+
+.ah-recpop-title {
+  color: #5c6670;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── scrolling capture (screenshot.md §1.5): the stitched long image ── */
+.ah-stitch-card {
+  position: absolute;
+  border: 1px solid #e6e8ee;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* the sticky header is filmed once and hidden on later screens, so it appears only in the first screen */
+.ah-stitch-nav {
+  height: 28px;
+  background: #2f6fde;
+}
+
+.ah-stitch-img {
+  position: absolute;
+  background: linear-gradient(180deg, #dbeafe, #eff6ff);
+}
+
+/* where two screens were joined */
+.ah-stitch-seam {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: #f59e0b;
+  box-shadow: 0 0 0 1px rgb(245 158 11 / 0.25);
+}
+
+/* the quick-edit header's reassurance: the bubble saves itself when it loses focus */
+.ah-qe-note {
+  color: var(--fg-3);
+  font-size: 11px;
+  font-weight: 400;
 }

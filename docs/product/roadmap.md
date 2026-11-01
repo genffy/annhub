@@ -2,7 +2,7 @@
 
 > 层级：vision
 > 状态：当前计划；交付状态的唯一入口
-> 更新：2026-10-31
+> 更新：2026-11-01
 
 本文写已发布的能力、正在做的事、发布门禁与真机验收项，是交付状态的唯一真源。页面体验见 [扩展](extension.md)，字段见 [条目契约](entry.md) 和 [存储](storage.md)，待确认的决策、风险与开放问题见 [validation.md](validation.md)。代码按本目录的契约实现；与契约不符的代码、消息、设置、测试入口和文案，在实现时一并删除。
 
@@ -88,7 +88,7 @@
 - [x] 社交卡片（§3.3）：中英文卡片图与 `og:image:alt`，`twitter:card` 为 `summary_large_image`；`og:title` 与 `og:description` 取自页面的标题与描述。卡片图在 `website/public/og/`，生成器在 `website/scripts/og-cards/`，画面带社交账号（x.com/genffy、小红书 genffy）。
 - [x] `robots.txt`（含内容信号）与 `sitemap.xml`（§3.4、§3.5）。
 - [x] Cloudflare 的三类 AI 爬虫策略都是 Allow（§6）：在 Cloudflare 后台设置，仓库里核对不到。
-- [x] 访问统计按访客的选择加载，Cloudflare 判断在欧洲或判断不出国家的访客先看到同意卡片，隐私政策第 9 节写明（§7.1、[permissions.md §8](permissions.md)、[website.md §19](website.md)）；站点令牌写进生产构建的环境。
+- [x] 访问统计按访客的选择加载，Cloudflare 判断在欧洲或判断不出国家的访客先看到同意卡片，隐私政策第 9 节写明（§7.1、[permissions.md §8](permissions.md)、[website.md §20](website.md)）；站点令牌写进生产构建的环境。
 - [x] Cloudflare 侧开启访问统计：Web Analytics 只用手动嵌入、关掉自动注入（[部署说明](../../website/README.md)）。
 - [x] 静态托管上线验收：候选站点、生产域名切换、部署提交标识、语言跳转与真实欧洲/非欧洲的统计同意行为全部通过（[上线步骤](../../cloudflare/README.md)）。生产站点的冒烟检查 2026-10-23 通过，真实欧洲与非欧洲出口的统计同意行为 2026-10-24 复核通过。
 - [x] `FAQPage` 结构化数据（§5.1）：文字取自页面 FAQ，竞品答案带核对日期。

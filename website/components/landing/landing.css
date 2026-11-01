@@ -99,10 +99,12 @@
   font-size: 11.5px;
 }
 
-/* The selection menu is the point of the first picture, so it is drawn a little larger than life. */
+/* The selection menu is the point of the first picture, so it is drawn a little larger than life. It is anchored at
+   the selection's start (the line holds the thesis on its own), and the tip keeps to the menu's edge so neither runs
+   under the library window that overlaps this board's lower right. */
 .hb-a .ah-over-above {
-  transform: translateX(-50%) scale(1.22);
-  transform-origin: 50% 100%;
+  transform: scale(1.22);
+  transform-origin: 0 100%;
 }
 
 @media (min-width: 768px) {

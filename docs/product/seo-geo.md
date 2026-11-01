@@ -2,14 +2,14 @@
 
 > 层级：website
 > 状态：官网被搜索引擎与 AI 搜索发现、理解和引用的目标契约
-> 更新：2026-10-24
+> 更新：2026-11-01
 
 本文规定官网在传统搜索（SEO）与生成式 AI 搜索（GEO）里的技术契约、内容写法和衡量方式。页面的信息架构与文案以 [website.md](website.md) 为准，产品定义以 [product.md §1](product.md) 为准，官网收集的访问数据以 [permissions.md §8](permissions.md) 为准，指标口径以 [metrics.md §11](metrics.md) 为准，搜索与 AI 平台的外部事实见 [market.md §4.6](market.md)。交付状态只看 [roadmap.md](roadmap.md)；待定的决策、风险与问题在 [validation.md](validation.md)。
 
 ## 1. 原则
 
 1. **先是好页面**：Google 把面向生成式 AI 搜索的优化视为 SEO 本身，不要求专门的标记、文件或写法（[market.md §4.6](market.md)）。页面写给读者：原创、具体、结构清楚；不为 AI 另写一版，不把段落拆碎，不堆砌关键词。
-2. **真实先行**：只描述有实现依据的能力；不为覆盖关键词写入 [product.md §2.3](product.md) 不做清单里的能力；不用“唯一”“最先进”“永不丢失”这类绝对化说法（[website.md §9](website.md)）。不制造评价、提及或链接。
+2. **真实先行**：只描述有实现依据的能力；不为覆盖关键词写入 [product.md §2.3](product.md) 不做清单里的能力；不用“唯一”“最先进”“永不丢失”这类绝对化说法（[website.md §10](website.md)）。不制造评价、提及或链接。
 3. **文字同源**：结构化数据、社交卡片和 `llms.txt` 里的文字取自页面的文案（可见文本与第 3.3 节的标题、描述），不另写；页面文案改了，这些位置一起改。对竞品的描述出自 [market.md](market.md) 并带核对日期，market.md 复核后日期一起更新。
 4. **爬虫与访客看到同一份页面**：核心内容在构建时生成为语义化 HTML，不依赖脚本（第 4.3 节）；不对爬虫返回不同的内容，不用隐藏文字。
 5. **隐私友好**：统计不用 Cookie，欧洲访客同意后才统计；不接入广告、跨站追踪或营销脚本（[permissions.md §8](permissions.md)）。
@@ -45,7 +45,7 @@
 - 每个语言页有自己的标题和描述。标题以 AnnHub 开头，后接 [website.md §4](website.md) 的第一句；描述按第 4.1 节从产品定义压缩而来。社交卡片的标题与描述用同一份，不另写。
 - 品牌名在标题、`og:site_name` 与 H1 里写法一致。Google 的站点名称结构化数据只认域名根地址，而根路径只做跳转，所以不依赖它（[market.md §4.6](market.md)）。
 - 社交卡片：`og:title`、`og:description`、`og:url`（规范地址）、`og:type`、`og:site_name`、`og:locale` 与 `og:locale:alternate`、`og:image` 与 `og:image:alt`；`twitter:card` 为 `summary_large_image`，标题、描述与图片沿用 OG。
-- 社交卡片图：中英文各一张，1200×630 像素、300KB 以内，使用绝对地址；画面是产品窗口示意、品牌名与一句定位，使用示例数据并标注为示意，附社交账号（x.com/genffy、小红书 genffy，中文卡两者、英文卡只留 x）。（[website.md §10](website.md)）图片在 `website/public/og/`，由 `website/scripts/og-cards/` 的模板生成，改文案或设计后重新截图。
+- 社交卡片图：中英文各一张，1200×630 像素、300KB 以内，使用绝对地址；画面是产品窗口示意、品牌名与一句定位，使用示例数据并标注为示意，附社交账号（x.com/genffy、小红书 genffy，中文卡两者、英文卡只留 x）。（[website.md §11](website.md)）图片在 `website/public/og/`，由 `website/scripts/og-cards/` 的模板生成，改文案或设计后重新截图。
 
 ### 3.4 `robots.txt`
 
@@ -79,7 +79,7 @@
 对外描述 AnnHub 是什么，都从 [product.md §1](product.md) 的定义压缩或节选，不另写一版：
 
 - 名称写作 AnnHub；提到品类时写作“本地优先的浏览器扩展”（英文 local-first browser extension）。
-- 只出现定义里有的能力：剪藏与截图连同来源存进一个本地库；在库里阅读、高亮、加属性；检索、回到来源、导出 Markdown。不加定义里没有的能力、对比或形容词。
+- 标题、描述与社交卡片（第 3.3 节）只写核心定义：剪藏与截图连同来源存进一个本地库；在库里阅读、高亮、加属性；检索、回到来源、导出 Markdown。功能清单、FAQ 与 `llms.txt` 的功能分组可以写页面批注与标签页录制（[website.md](website.md) 第 8、14 节），文字取自页面文案。任何位置都不加没有实现依据的能力、对比或形容词。
 - 适用于官网的标题、描述、结构化数据与 `llms.txt`，GitHub 仓库简介与 README，以及商店条目。有长度上限的位置（商店简介不超过 132 个字符）用更短的压缩，规则相同；英文是对应的译文。
 
 ### 4.2 写法
@@ -104,7 +104,7 @@
 
 ### 5.1 `FAQPage`
 
-问答取自 [website.md §13](website.md) 的全部条目，文字与页面一致，涉及竞品的答案连同核对日期。Google 搜索不展示 FAQ 富结果，它的 AI 功能也不需要专门的标记（[market.md §4.6](market.md)）；保留它是给其他搜索引擎和 AI 读取的语义层，维护成本低。
+问答取自 [website.md §14](website.md) 的全部条目，文字与页面一致，涉及竞品的答案连同核对日期。Google 搜索不展示 FAQ 富结果，它的 AI 功能也不需要专门的标记（[market.md §4.6](market.md)）；保留它是给其他搜索引擎和 AI 读取的语义层，维护成本低。
 
 ### 5.2 `SoftwareApplication`（增长阶段）
 
@@ -114,10 +114,11 @@
 | `description`         | 页面的描述（第 3.3 节）                                                                                                  |
 | `applicationCategory` | `BrowserApplication`                                                                                                     |
 | `operatingSystem`     | 桌面版 Chromium 内核浏览器，最低版本取自 [permissions.md §5](permissions.md)，用页面的语言写；不逐个列出浏览器或操作系统 |
+| `featureList`         | 页面功能清单的文字（第 4.1 节）：剪藏、截图与库内高亮，连同页面批注与标签页录制；取自页面文案，不另写                    |
 | `url`、`installUrl`   | 商店条目页（[permissions.md §6](permissions.md)）                                                                        |
 | `sameAs`              | 商店条目页与 GitHub 仓库                                                                                                 |
 
-不写 `offers`（商业化见 [Q-07](validation.md)），不写 `aggregateRating` 与 `review`（没有真实评价，[website.md §12](website.md)）。Google 的软件应用富结果要求这些属性（[market.md §4.6](market.md)），所以这段标记只作语义层；Search Console 里相应的缺字段提示在预期之内。
+不写 `offers`（商业化见 [Q-07](validation.md)），不写 `aggregateRating` 与 `review`（没有真实评价，[website.md §13](website.md)）。Google 的软件应用富结果要求这些属性（[market.md §4.6](market.md)），所以这段标记只作语义层；Search Console 里相应的缺字段提示在预期之内。
 
 ### 5.3 不使用的类型
 
@@ -129,7 +130,7 @@
 
 `llms.txt` 是社区提案，不是标准；Google 说明它对 Google 搜索不需要，也不影响排名（[market.md §4.6](market.md)）。它维护成本低，供愿意读取它的 AI 工具使用：
 
-- 位置 `/llms.txt`，英文，格式按提案：H1 写 AnnHub；摘要引用块写英文页的描述；正文写适用人群、数据存放与核心取舍（本地优先、不改动原网页、类型化属性、Markdown 导出），文字取自英文页的 Hero、信任区与差异化区（[website.md](website.md) 第 4、11、9 节）；再按二级标题分组列出链接。
+- 位置 `/llms.txt`，英文，格式按提案：H1 写 AnnHub；摘要引用块写英文页的描述；正文写适用人群、数据存放与核心取舍（本地优先、不改动原网页、类型化属性、Markdown 导出）与功能清单（含页面批注与标签页录制），文字取自英文页的 Hero、信任区、差异化区与功能区（[website.md](website.md) 第 4、12、10、7、8 节）；再按二级标题分组列出链接。
 - 链接：两个语言页、商店条目页、GitHub 仓库、两个法律页，都写绝对地址。条目字段、导出格式等契约只给链接，不在这里另写一份。
 
 ## 6. AI 爬虫

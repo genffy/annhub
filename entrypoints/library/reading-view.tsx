@@ -1,15 +1,19 @@
 /**
  * The reading view — a clip read comfortably with the interactive highlight
  * surface and the side panel (extension.md §4.2). Route `#/read/<id>`;
- * `Esc` or 返回 returns to the previous list and position. Highlights
- * live in the clip (entry.md §4); the side list sorts by position, and a
- * click scrolls to the mark. It fills the content area of the shell and
- * nothing more: the nav stays where it is and stays usable (extension.md §2.2).
+ * `Esc` or 返回 returns to the previous list and position. The text sits
+ * centred in its own column with the title and source above it; the right
+ * rail holds the 高亮 / 属性 tabs. Highlights live in the clip (entry.md
+ * §4); the side list sorts by position, and a click scrolls to the mark.
+ * It fills the content area of the shell and nothing more: the nav stays
+ * where it is and stays usable (extension.md §2.2).
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, MessageSquareText } from 'lucide-react'
 import MessageUtils from '../../utils/message'
 import type { EntryRecord, HighlightColor, PropertyDefinition } from '../../learning-core/types'
+import { relativeTime } from '../../utils/relative-time'
+import { TypeChip } from '../../utils/entry-icons'
 import { HighlightSurface } from './highlight-surface'
 import { PropertyPanel, type PropertyPanelHandle } from './property-panel'
 import { uiText } from '../../utils/ui-text'
@@ -89,37 +93,60 @@ export function ReadingView({ entryId, highlightId = null, defaultColor, registr
     return () => document.removeEventListener('keydown', onKey)
   }, [closeWithSave])
 
-  const header = (
-    <header className="reading-header">
-      <button type="button" ref={backButton} className="ghost reading-back" onClick={closeWithSave}>
-        <ArrowLeft size={15} aria-hidden /> {uiText('reading.back')}
+  /** The top bar: 返回 on the left, the source on the right, over the scrolling column (extension.md §4.2). */
+  const bar = (
+    <div className="rd-bar">
+      <button type="button" ref={backButton} className="ghost sm quiet reading-back" onClick={closeWithSave}>
+        <ArrowLeft size={14} aria-hidden /> {uiText('reading.back')}
       </button>
-      <h1 className="reading-title">{entry ? String(entry.properties['title'] ?? '') : ''}</h1>
+      <span className="rd-bar-space" aria-hidden />
       {entry && (
-        <a className="link" href={entry.sourceUrl} target="_blank" rel="noopener noreferrer">
-          {uiText('library.backToSource')}
+        <a className="ghost sm" href={entry.sourceUrl} target="_blank" rel="noopener noreferrer">
+          {uiText('library.backToSource')} <ArrowUpRight size={14} aria-hidden />
         </a>
       )}
-    </header>
+    </div>
   )
 
   if (!entry) {
     return (
       <div className="reading" data-testid="reading-view">
-        {header}
-        <div className="reading-body">{error || uiText('common.loading')}</div>
+        <div className="reading-body">
+          {bar}
+          <div className="rd-col">
+            <div className="rd-head-placeholder">{error || uiText('common.loading')}</div>
+          </div>
+        </div>
       </div>
     )
   }
 
   const highlights = [...(entry.highlights ?? [])].sort((a, b) => a.start - b.start)
+  const tags = (entry.properties['tags'] as string[] | undefined) ?? []
 
   return (
     <div className="reading" data-testid="reading-view" data-entry-id={entry.id}>
-      {header}
+      <div className="reading-body">
+        {bar}
 
-      <div className="reading-layout">
-        <div className="reading-body">
+        <div className="rd-col">
+          <div className="rd-head">
+            <h1 className="reading-title">{String(entry.properties['title'] ?? '')}</h1>
+            <div className="rd-meta">
+              <TypeChip type={entry.type} small />
+              <span className="rd-meta-host">{entry.sourceUrl.replace(/^https?:\/\//, '')}</span>
+              <span className="rd-meta-dot" aria-hidden>
+                ·
+              </span>
+              <span>{relativeTime(entry.createdAt)}</span>
+              {tags.map(tag => (
+                <span key={tag} className="tag">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          </div>
+
           {highlights.length > 0 && <p className="reading-lock">{uiText('reading.locked')}</p>}
           <HighlightSurface
             entry={entry}
@@ -130,65 +157,71 @@ export function ReadingView({ entryId, highlightId = null, defaultColor, registr
             }}
           />
           {entry.context && (
-            <section className="drawer-context">
-              <h3>{uiText('library.context')}</h3>
+            <div className="drawer-context">
+              <b>{uiText('library.context')}</b>
               <p>{entry.context}</p>
-            </section>
+            </div>
           )}
         </div>
-
-        <aside className="reading-side">
-          <div className="reading-tabs" role="tablist">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === 'highlights'}
-              className={tab === 'highlights' ? 'reading-tab reading-tab-current' : 'reading-tab'}
-              onClick={() => setTab('highlights')}
-            >
-              {uiText('library.highlights')} · {highlights.length}
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === 'properties'}
-              className={tab === 'properties' ? 'reading-tab reading-tab-current' : 'reading-tab'}
-              onClick={() => setTab('properties')}
-            >
-              {uiText('library.properties')}
-            </button>
-          </div>
-          {tab === 'properties' ? (
-            <section className="reading-side-section" data-testid="reading-properties">
-              <PropertyPanel
-                ref={propertyPanel}
-                entry={entry}
-                registry={registry}
-                onEntryChanged={next => {
-                  setEntry(next)
-                  onEntryChanged(next)
-                }}
-              />
-            </section>
-          ) : (
-            <section className="reading-side-section" data-testid="hl-list">
-              <h3>
-                {uiText('library.highlights')} · {highlights.length}
-              </h3>
-              {highlights.length === 0 && <p className="hint">{uiText('reading.empty')}</p>}
-              {highlights.map(highlight => (
-                <div key={highlight.id} className={`hl-row hl-row-${highlight.color}`} data-testid="hl-row">
-                  <p className="hl-quote">{highlight.quote}</p>
-                  {highlight.note && <p className="hl-note-text">{highlight.note}</p>}
-                  <button type="button" className="link" onClick={() => locate(highlight.id, true)}>
-                    {uiText('reading.locate')}
-                  </button>
-                </div>
-              ))}
-            </section>
-          )}
-        </aside>
       </div>
+
+      <aside className="reading-side" aria-label={uiText('reading.sideLabel')}>
+        <div className="reading-tabs" role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'highlights'}
+            className={tab === 'highlights' ? 'reading-tab reading-tab-current' : 'reading-tab'}
+            onClick={() => setTab('highlights')}
+          >
+            {uiText('library.highlights')} <b className="reading-tab-count">{highlights.length}</b>
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === 'properties'}
+            className={tab === 'properties' ? 'reading-tab reading-tab-current' : 'reading-tab'}
+            onClick={() => setTab('properties')}
+          >
+            {uiText('library.properties')}
+          </button>
+        </div>
+        {tab === 'properties' ? (
+          <section className="reading-side-section" data-testid="reading-properties">
+            <PropertyPanel
+              ref={propertyPanel}
+              entry={entry}
+              registry={registry}
+              onEntryChanged={next => {
+                setEntry(next)
+                onEntryChanged(next)
+              }}
+            />
+          </section>
+        ) : (
+          <section className="reading-side-section reading-hl-list" data-testid="hl-list">
+            {highlights.length === 0 && <p className="rd-empty">{uiText('reading.empty')}</p>}
+            {highlights.map(highlight => (
+              /* the whole row locates the mark in the text; the name keeps the action for readers (extension.md §4.2) */
+              <button
+                key={highlight.id}
+                type="button"
+                className={`hl-row hl-row-${highlight.color}`}
+                data-testid="hl-row"
+                aria-label={uiText('reading.locateLabel', { text: highlight.quote })}
+                onClick={() => locate(highlight.id, true)}
+              >
+                <p className="hl-quote">{highlight.quote}</p>
+                {highlight.note && (
+                  <p className="hl-note-text">
+                    <MessageSquareText size={13} aria-hidden /> {highlight.note}
+                  </p>
+                )}
+              </button>
+            ))}
+          </section>
+        )}
+      </aside>
     </div>
   )
 }

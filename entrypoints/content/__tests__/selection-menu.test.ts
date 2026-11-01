@@ -201,3 +201,53 @@ describe('the consequence hint is a floating tooltip, not a card row (真机反�
     vi.restoreAllMocks()
   })
 })
+
+describe('the pill says which side of the line it is on (extension.md §2.1)', () => {
+  const menuOver = (top: number) => {
+    // a failed earlier test leaves its host behind; each case starts from a clean page
+    document.querySelectorAll('[data-ann-ui]').forEach(node => node.remove())
+    vi.resetModules()
+    vi.doMock('../user-input', () => ({ isUserInput: () => true }))
+    return import('../selection-menu').then(({ SelectionMenu }) => {
+      document.body.innerHTML = '<p id="para">Selectable words for the menu to appear.</p>'
+      const para = document.getElementById('para')!
+      const range = document.createRange()
+      range.selectNodeContents(para)
+      ;(range as unknown as { getBoundingClientRect: () => DOMRect }).getBoundingClientRect = () =>
+        ({ left: 40, top, right: 300, bottom: top + 24, width: 260, height: 24, x: 40, y: top, toJSON: () => ({}) }) as DOMRect
+      const menu = new SelectionMenu(document, { onClip: () => undefined, onScreenshot: () => undefined })
+      menu.show(range)
+      const host = document.querySelector('[data-ann-ui="selection-menu"]') as HTMLElement
+      // jsdom lays nothing out: give the placed card the box the browser would have
+      const placed = Number.parseFloat(host.style.top)
+      host.getBoundingClientRect = () => ({ left: 50, top: placed, right: 290, bottom: placed + 40, width: 240, height: 40, x: 50, y: placed, toJSON: () => ({}) }) as DOMRect
+      const tip = host.querySelector('.ann-menu-tip') as HTMLElement
+      const dwell = async (): Promise<void> => {
+        ;(host.querySelector('.ann-menu-clip') as HTMLElement).dispatchEvent(new MouseEvent('pointerenter', { bubbles: true }))
+        await new Promise(resolve => setTimeout(resolve, 360))
+      }
+      return { host, tip, dwell, menu }
+    })
+  }
+
+  it('points its caret at the selection and floats the tip above the card', async () => {
+    const { host, tip, dwell, menu } = await menuOver(200)
+    expect(host.classList.contains('ann-menu-below')).toBe(false)
+    expect(host.style.getPropertyValue('--ann-caret')).not.toBe('')
+    await dwell()
+    expect(tip.textContent).toContain('剪藏')
+    expect(tip.querySelector('.ann-menu-tip-desc')!.textContent).toContain('资料库')
+    expect(Number.parseFloat(tip.style.top)).toBeLessThan(0) // outside the card, on the side away from the selection
+    menu.dismiss()
+    vi.restoreAllMocks()
+  })
+
+  it('flips both caret and tip when the menu dropped below the line', async () => {
+    const { host, tip, dwell, menu } = await menuOver(6)
+    expect(host.classList.contains('ann-menu-below')).toBe(true)
+    await dwell()
+    expect(Number.parseFloat(tip.style.top)).toBeGreaterThanOrEqual(0) // below the card, still away from the selection
+    menu.dismiss()
+    vi.restoreAllMocks()
+  })
+})

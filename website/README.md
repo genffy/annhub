@@ -21,7 +21,7 @@ AnnHub 的公开网站与产品展示页。网站代码位于独立 Next.js 应�
 
 ## 页面定位
 
-网站是稳定的产品介绍页，围绕问题、完整工作流、资料库体验和本地数据边界组织内容。主 CTA「体验资料库」指向站内可交互示例（`#library`）；次要 CTA 是安装入口「添加到 Chrome」，打开 Chrome 应用商店的条目页，在首屏、结尾、页脚和平板以上宽度的顶栏出现。页面不展示交付进度；功能表述仍以源码和[路线图](../docs/product/roadmap.md)核对。参见[网站蓝图 §4、§14](../docs/product/website.md)。
+网站是稳定的产品介绍页，围绕问题、完整工作流、资料库体验和本地数据边界组织内容。主 CTA「体验资料库」指向站内可交互示例（`#library`）；次要 CTA 是安装入口「添加到 Chrome」，打开 Chrome 应用商店的条目页，在首屏、结尾、页脚和平板以上宽度的顶栏出现。页面不展示交付进度；功能表述仍以源码和[路线图](../docs/product/roadmap.md)核对。参见[网站蓝图 §4、§15](../docs/product/website.md)。
 
 资料库示例使用内存中的示例数据，刷新后重置。任务入口在窗口上方，点击后让说明与结果保持在视口内。可体验导航、搜索、阅读和高亮；来源与属性供查看，“导出预览”显示 Markdown 示例，不模拟下载成功。未提供交互的筛选、设置、删除与属性编辑不显示成可点击入口。产品窗口保持“界面示意”标注，不能暗示访客已经安装扩展。
 
@@ -82,13 +82,13 @@ app/sitemap.ts                    站点地图：两个语言页与两个法律�
 app/llms.txt/route.ts             构建时写出 /llms.txt，内容由 lib/llms-txt.ts 从英文文案生成
 lib/structured-data.ts            语言页的结构化数据：FAQPage 与 SoftwareApplication
 public/robots.txt                 全部放行、内容信号与站点地图的地址
-components/landing/               页面的各个区块（hero、问题、三种方式、走查、资料库、取舍、隐私、FAQ、收束）与统计同意卡片
-components/product/               扩展界面的复刻：选区菜单、剪藏提示、区块胶囊、截图、资料库、阅读视图与高亮、属性、导出
+components/landing/               页面的各个区块（hero、问题、三种方式、批注与录制、走查、资料库、取舍、隐私、FAQ、收束）与统计同意卡片
+components/product/               扩展界面的复刻：选区菜单、剪藏提示、区块胶囊、截图（含序号与荧光笔、滚动长图）、页面批注与录制状态、资料库、阅读视图与高亮、属性、导出
 components/product/product-*.css  从设计稿 css/ui.css、css/ext.css 移植，类名统一加 ah- 前缀，不与 Tailwind 冲突
 components/product/sample.ts      示例数据，取自 docs/product/examples.md 的一周走查，来源是中性域名
 ```
 
-- **界面复刻不是截图**。设计稿里的界面用 React 和 CSS 重画，页面上标注“界面示意”。真实构建的截图（[蓝图 §16](../docs/product/website.md)）就绪后再替换；替换前不要把它们描述成公开构建的截图。
+- **界面复刻不是截图**。设计稿里的界面用 React 和 CSS 重画，页面上标注“界面示意”。真实构建的截图（[蓝图 §17](../docs/product/website.md)）就绪后再替换；替换前不要把它们描述成公开构建的截图。
 - **站点地图的日期跟着内容走**：语言页的 `lastmod` 取 `lib/copy/*` 里的 `meta.updated`，文案或结构化数据有实质改动时改成当天；法律页取页面上写明的更新日期（[seo-geo.md §3.5](../docs/product/seo-geo.md)）。
 - **结构化数据与 `llms.txt` 不另写文字**：两者都从 `lib/copy/*` 取页面的描述与正文，链接取 `components/landing/links.ts` 与 `lib/site.ts`（[seo-geo.md §1、§5](../docs/product/seo-geo.md)）。`lib/site.ts` 的 `MIN_CHROME_VERSION` 与扩展 `wxt.config.ts` 的 `minimum_chrome_version` 一致，`npm run check:consistency` 核对；内容由 `utils/__tests__/website-search.test.ts` 核对，构建产物和线上版本由导出检查与冒烟检查核对。
 - **界面里的字符串跟扩展一致**：`lib/copy/*` 里的 `ui` 取自扩展的 `utils/ui-text.ts`，设计稿或扩展改了文案，这里同步。

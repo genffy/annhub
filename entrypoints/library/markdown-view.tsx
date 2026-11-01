@@ -15,6 +15,7 @@ import type { Highlight } from '../../learning-core/types'
 import { HIGHLIGHT_QUOTE_MAX_CHARS } from '../../learning-core/validate'
 import { closesFence, codeSpanAt, openingFence, quoteFromMarkdownRange } from '../../learning-core/markdown'
 import { uiText } from '../../utils/ui-text'
+import { Image } from 'lucide-react'
 
 export interface SourceRange {
   start: number
@@ -103,7 +104,10 @@ export function inlineRuns(source: string, srcStart: number): Run[] {
     } else if (token.startsWith('![')) {
       const alt = token.slice(2, token.indexOf(']('))
       const href = token.slice(token.indexOf('](') + 2, -1)
-      appendTextRuns(runs, alt, at + 2, { kind: 'image', href, alt: restore(alt) })
+      // an empty alt still places the placeholder (it reads the generic image word); appendTextRuns
+      // alone would drop an empty text and the image would vanish from the rendering
+      if (alt) appendTextRuns(runs, alt, at + 2, { kind: 'image', href, alt: restore(alt) })
+      else runs.push({ text: '', srcStart: at + 2, kind: 'image', href, alt: '' })
     } else if (token.startsWith('[')) {
       const label = token.slice(1, token.indexOf(']('))
       const href = token.slice(token.indexOf('](') + 2, -1)
@@ -112,7 +116,8 @@ export function inlineRuns(source: string, srcStart: number): Run[] {
     cursor = match.index + token.length
   }
   if (cursor < protectedSource.length) appendTextRuns(runs, protectedSource.slice(cursor), srcStart + cursor)
-  return runs.filter(run => run.text.length > 0)
+  // an image run keeps its place with an empty text: the placeholder draws the alt, not the run's text
+  return runs.filter(run => run.text.length > 0 || run.kind === 'image')
 }
 
 function restore(text: string): string {
@@ -288,12 +293,17 @@ function applyHighlights(runs: Run[], highlights: Highlight[]): Piece[] {
 function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highlight: Highlight, event: React.MouseEvent) => void): ReactNode {
   const { highlight } = piece
   if (piece.kind === 'image') {
+    // the image never loads (capture.md §3.1): alt text, the “not saved” note and the original's link instead.
+    // data-s/data-e stay on the placeholder so a selection across it keeps its source offsets.
+    const href = safeHref(piece.href)
     return (
       <span key={keyPrefix} className="md-image-placeholder" data-s={piece.srcStart} data-e={piece.srcLength ? piece.srcStart + piece.srcLength : undefined}>
-        [{piece.alt}]
-        {piece.href && (
-          <a href={safeHref(piece.href)} target="_blank" rel="noopener noreferrer">
-            ⧉
+        <Image size={14} aria-hidden />
+        {piece.alt || uiText('library.image')}
+        <small>{uiText('library.imagePlaceholder')}</small>
+        {href && (
+          <a href={href} target="_blank" rel="noopener noreferrer">
+            {uiText('library.openOriginal')}
           </a>
         )}
       </span>
@@ -309,7 +319,8 @@ function renderRun(piece: Piece, keyPrefix: string, onHighlightClick?: (highligh
       className={highlight ? `md-hl md-hl-${highlight.color}` : undefined}
     >
       {piece.text}
-      {highlight?.note && <sup className="md-hl-note">✎</sup>}
+      {/* a carried note shows as a small dot (visual.md §3); the words live in the note itself */}
+      {highlight?.note && <sup className="md-hl-note" aria-hidden />}
     </span>
   )
   if (highlight && onHighlightClick) {

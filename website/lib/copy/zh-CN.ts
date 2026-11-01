@@ -1,7 +1,8 @@
 import type { LandingCopy } from './types'
+import { MIN_CHROME_VERSION } from '../site'
 
 // 中文文案。内容以 docs/product/website.md 为准；产品术语以 docs/product/README.md §4 为准；界面里的字符串与扩展的
-// utils/ui-text.ts 一致。页面不得自行发明功能、用户数或评价（website.md §12、§14）。
+// utils/ui-text.ts 一致。页面不得自行发明功能、用户数或评价（website.md §13、§15）。
 export const zhCN: LandingCopy = {
   locale: 'zh-CN',
   meta: {
@@ -9,7 +10,7 @@ export const zhCN: LandingCopy = {
     description: 'AnnHub 是本地优先的浏览器扩展：把剪藏、高亮和截图连同来源存进同一个本地库，用属性分类、随时找回，并导出为 Obsidian 读得懂的 Markdown。',
     ogImageAlt: '界面示意，使用示例数据',
     operatingSystem: 'Chromium {version} 及以上内核的桌面浏览器',
-    updated: '2026-10-24',
+    updated: '2026-11-01',
   },
   header: {
     nav: [
@@ -50,10 +51,26 @@ export const zhCN: LandingCopy = {
     title: '两种方式留下内容，在库里读成自己的',
     kinds: [
       { id: 'clip', name: '剪藏', body: '选中一段，或指一下整篇文章、整条推文，一次点击存下来。', caption: '选中文字后出现的剪藏菜单' },
-      { id: 'screenshot', name: '截图', body: '框选或点选，原位标注，遮住身份信息。', caption: '截图选区里的标注与工具栏' },
+      { id: 'screenshot', name: '截图', body: '框选或点选，原位标注，遮住身份信息；长文章能拼成一张整页长图。', caption: '截图选区里的标注与工具栏' },
       { id: 'highlight', name: '高亮', body: '回到资料库里读剪藏，选中重点、写下想法；不改动原网页。', caption: '在资料库里选中文字，点一种颜色划高亮' },
     ],
     unified: { lead: '它们在同一个库里，用同一套属性分类、一起检索，导出为带 `frontmatter` 的 Markdown，高亮写成 `==…==`。' },
+  },
+  annotate: {
+    title: '讲解一个界面：画在页面上，或录下来',
+    lead: '提反馈、做走查、复现问题，都要指着一个界面说：在当前标签页上直接画，画完一键带走。',
+    points: [
+      { title: '在当前标签页上直接画', body: '画笔、荧光笔、直线、箭头、矩形、椭圆、文字与序号，五种颜色、三档线宽；墨迹跟着页面内容走。' },
+      { title: '画完带走', body: '一键带着墨迹截进截图编辑器，或把整个标签页录成本地视频，可带麦克风旁白。' },
+      { title: '录制时观众看得清', body: '批注与光标高亮都在画面里，批注控件不进画面。' },
+    ],
+    boundary: '退出批注即全部清除，页面不留痕迹，墨迹不保存；视频是本机的 WebM 文件，不进资料库、不上传。',
+    sketch: '界面示意 · 示例数据',
+    captions: {
+      annotate: '窗口边上的批注工具栏，画在文章上的箭头、圈选与序号',
+      editor: '带着墨迹截进截图编辑器：墨迹按截取那一刻在屏幕上的位置画回图上',
+      record: '录制中：弹窗里是计时与停止，页面上只有墨迹与光标高亮，批注控件不进画面',
+    },
   },
   story: {
     title: '从一篇技术文章，到一份带属性的 Markdown',
@@ -77,7 +94,7 @@ export const zhCN: LandingCopy = {
         id: 'shot',
         when: '周一 10:40',
         title: '框选延迟曲线，截图',
-        body: '框选或点选，在选区里直接标注、遮住身份信息。确认后入库；也可以复制出去贴进设计文档，入库的那份保持原样。',
+        body: '框选或点选，在选区里直接标注——荧光笔涂出重点、序号标出步骤——遮住身份信息。确认后入库；也可以复制出去贴进设计文档，入库的那份保持原样。',
         caption: '截图选区内的原位标注：遮住头像与名字，圈出峰值',
       },
       {
@@ -124,6 +141,21 @@ export const zhCN: LandingCopy = {
       { title: '查看属性', body: '查看示例的属性名称、类型与使用数；扩展中可用它们整理条目，导出时写入 frontmatter。' },
       { title: '导出预览', body: '看看同一条内容导出后的 Markdown：属性、来源与高亮都在文件里。' },
     ],
+    statics: {
+      lead: '截图编辑器与滚动长图 · 静态示意',
+      items: [
+        {
+          visual: 'steps',
+          title: '序号与荧光笔',
+          body: '单击放下递增的数字徽章，可拖动、删除；荧光笔半透明，盖住的正文仍读得清；画笔、直线与荧光笔各有三档线宽。',
+        },
+        {
+          visual: 'stitch',
+          title: '滚动长图',
+          body: '比窗口长的文章拼成一张整页长图，吸顶导航只在第一屏，拼接处没有重复或缺失，再进同一个编辑器。',
+        },
+      ],
+    },
     sketch: '界面示意 · 示例数据，刷新后重置',
   },
   diff: {
@@ -181,6 +213,16 @@ export const zhCN: LandingCopy = {
         q: '能导出吗？',
         a: '可以。在扩展里点“导出内容”，下载由 Markdown 与已保存图片组成的 ZIP，属性写成 frontmatter。它适合其他工具阅读，不是可以恢复 AnnHub 数据库的备份。',
       },
+      { q: '录屏会上传吗？视频存在哪里？', a: '不上传，也没有账号。停止录制后视频自动下载为本机的 WebM 文件；它不是条目，不进资料库，也不进“导出内容”的 ZIP。' },
+      {
+        q: '为什么需要 tabCapture 与 offscreen 权限？',
+        a: '都只在录制时用：`tabCapture` 录制当前标签页的画面与声音，`offscreen` 让录制在扩展自己的后台文档里进行。录制只能从工具栏弹窗或快捷键开始。',
+      },
+      {
+        q: '最低需要什么浏览器版本？',
+        a: `Chrome ${MIN_CHROME_VERSION} 及以上：录屏要把扩展后台取得的标签页画面交给扩展的后台文档录制，Chrome ${MIN_CHROME_VERSION} 起才支持。`,
+      },
+      { q: '批注和录屏会改动网页吗？', a: '不会。批注层是扩展自己的浮层，退出即全部清除；墨迹不保存，不写进条目、设置或导出。' },
     ],
   },
   closing: {
@@ -214,7 +256,7 @@ export const zhCN: LandingCopy = {
     types: { clip: '剪藏', screenshot: '截图', highlight: '高亮' },
     menu: { clip: '剪藏', screenshot: '截图', clipHint: '保存选中的内容，之后在资料库里读和高亮', screenshotHint: '框选区域或单击元素 · 保存为图片' },
     toast: { clipped: '已剪藏', undo: '撤销', edit: '编辑', undone: '已撤销' },
-    edit: { title: '标题', tags: '标签', note: '备注', more: '更多属性', done: '完成', addTag: '添加标签…' },
+    edit: { title: '标题', tags: '标签', note: '备注', more: '更多属性', done: '完成', addTag: '添加标签…', blurNote: '失焦即保存' },
     block: { clip: '剪藏', shot: '截图', parent: '上一级', more: '更多', clipped: '已剪藏' },
     shot: {
       hint: '拖拽选择区域，单击选择元素 · Esc 取消',
@@ -222,7 +264,11 @@ export const zhCN: LandingCopy = {
       rect: '矩形',
       ellipse: '椭圆',
       arrow: '箭头',
+      line: '直线',
       pen: '画笔',
+      highlighter: '荧光笔',
+      step: '序号',
+      width: '线宽',
       mosaic: '马赛克',
       text: '文字',
       undo: '撤销',
@@ -232,6 +278,21 @@ export const zhCN: LandingCopy = {
       confirm: '确认',
       annotation: '重试放大',
       figure: '图',
+      stepsNext: '下一个：{n}',
+      stepsReset: '重置计数',
+      stitch: { progress: '拼长图 {done} / {total}', esc: 'Esc 取消' },
+    },
+    annotate: {
+      toolbar: '批注工具栏',
+      pointer: '指针：页面照常可点',
+      autoerase: '自动擦除：关',
+      clear: '清空',
+      screenshot: '带着墨迹截图',
+      exit: '退出批注',
+    },
+    record: {
+      status: '正在录制 · {time}',
+      stop: '停止录制',
     },
     nav: {
       library: '资料库',

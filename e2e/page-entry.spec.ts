@@ -42,27 +42,63 @@ test.describe('editable areas (capture.md §3, US-CAP-01)', () => {
   })
 })
 
-test.describe('overlay appearance follows the system (visual.md §2)', () => {
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`the selection menu carries the ${scheme} surface and stays readable`, async ({ page }) => {
-      await page.emulateMedia({ colorScheme: scheme })
-      await page.goto('http://localhost:8173/editable.html')
+test.describe('the dark bars stay dark whatever the system (visual.md §2)', () => {
+  test('the selection menu and the block capsule read the same in light and dark', async ({ page }) => {
+    await page.goto('http://localhost:8173/editable.html')
+    const readMenu = async (): Promise<{ bg: string; label: string; ratios: number[] }> => {
       const menu = await selectUntilMenu(page, '#plain')
-      const background = await menu.evaluate(node => getComputedStyle(node).backgroundColor)
-      expect(background, scheme).toBe(scheme === 'dark' ? 'rgb(31, 33, 39)' : 'rgb(255, 255, 255)')
-      // every action's label reads at 4.5:1 or more on it (extension.md §7.2)
-      for (const ratio of await textContrast(menu.locator('.ann-menu-action'))) expect(ratio, `an action label (${scheme})`).toBeGreaterThanOrEqual(4.5)
+      const styles = await menu.evaluate(node => {
+        const action = node.querySelector<HTMLButtonElement>('.ann-menu-action')!
+        return { bg: getComputedStyle(node).backgroundColor, label: getComputedStyle(action).color }
+      })
+      const ratios = await textContrast(menu.locator('.ann-menu-action'))
       await page.keyboard.press('Escape')
-    })
-  }
+      return { ...styles, ratios }
+    }
 
-  test('the block capsule follows the system the same way', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' })
+    const light = await readMenu()
+    expect(light.bg).toBe('rgb(27, 31, 42)') // the pill's own dark, not the page surface
+    for (const ratio of light.ratios) expect(ratio, 'an action label (light system)').toBeGreaterThanOrEqual(4.5)
+
     await page.emulateMedia({ colorScheme: 'dark' })
+    const dark = await readMenu()
+    expect(dark.bg).toBe(light.bg)
+    expect(dark.label).toBe(light.label)
+    for (const ratio of dark.ratios) expect(ratio, 'an action label (dark system)').toBeGreaterThanOrEqual(4.5)
+
+    // the keyboard focus ring reads against the pill and its hover tint (extension.md §7.2)
+    await page.emulateMedia({ colorScheme: 'light' })
+    const menu = await selectUntilMenu(page, '#plain')
+    await page.keyboard.press('Tab')
+    const ring = await menu.evaluate(node => {
+      const action = node.querySelector<HTMLButtonElement>('.ann-menu-action')!
+      return { shadow: getComputedStyle(action).boxShadow, bg: getComputedStyle(node).backgroundColor }
+    })
+    expect(ring.shadow).toContain('rgb(185, 163, 242)') // the inset cap: #b9a3f2
+    await page.keyboard.press('Escape')
+  })
+
+  test('the block capsule is the same dark pill in both appearances', async ({ page }) => {
     await page.goto('http://localhost:8173/capture.html')
-    const capsule = await hoverForCapsule(page, '#intro-p')
-    const background = await capsule.evaluate(node => getComputedStyle(node).backgroundColor)
-    expect(background).toBe('rgb(31, 33, 39)')
-    for (const ratio of await textContrast(capsule.locator('button:not(:first-child)'))) expect(ratio).toBeGreaterThanOrEqual(4.5)
+    const readCapsule = async (): Promise<{ bg: string; ratios: number[]; height: number; radius: string }> => {
+      const capsule = await hoverForCapsule(page, '#intro-p')
+      const styles = await capsule.evaluate(node => ({
+        bg: getComputedStyle(node).backgroundColor,
+        height: node.getBoundingClientRect().height,
+        radius: getComputedStyle(node).borderRadius,
+      }))
+      const ratios = await textContrast(capsule.locator('.ann-blk-seg'))
+      return { ...styles, ratios }
+    }
+    const light = await readCapsule()
+    await page.emulateMedia({ colorScheme: 'dark' })
+    const dark = await readCapsule()
+    expect(dark.bg).toBe('rgb(27, 31, 42)')
+    expect(dark.bg).toBe(light.bg)
+    expect(dark.height, 'the capsule is a 30px pill').toBeCloseTo(30, 0)
+    expect(dark.radius).toBe('999px')
+    for (const ratio of dark.ratios) expect(ratio, 'a capsule label').toBeGreaterThanOrEqual(4.5)
   })
 })
 

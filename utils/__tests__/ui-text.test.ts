@@ -33,8 +33,8 @@ describe('ui text localization (extension.md §2.7)', () => {
   it('keeps both languages for every key', () => {
     expect(uiText('menu.clip', {}, 'zh')).toBe('剪藏')
     expect(uiText('menu.clip', {}, 'en')).toBe('Clip')
-    expect(uiText('block.mode.hint', {}, 'en')).toContain('Tab')
-    expect(uiText('block.mode.hint', {}, 'zh')).toContain('区块模式')
+    expect(uiText('block.mode.label', {}, 'zh')).toBe('区块模式')
+    expect(uiText('block.mode.label', {}, 'en')).toBe('Block mode')
   })
 
   it('maps backend error codes without exposing code strings', () => {

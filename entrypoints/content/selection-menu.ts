@@ -4,8 +4,9 @@
  * mouse drags and keyboard selections alike (no minimum length; an
  * all-whitespace selection never shows it), keyboard users drive it with
  * Tab and Enter, and hovering or focusing an action for ~300ms floats a dark
- * tooltip with its consequence beside the action — the card itself is always
- * one row of buttons and never grows for a hint.
+ * consequence card outside the menu — the pill itself is always one row of
+ * buttons and never grows for a hint. The pill is always dark whatever the
+ * system appearance: it floats over content, it is not a surface.
  */
 import { isBlankText } from '../../learning-core/normalize'
 import { isUserInput } from './user-input'
@@ -139,9 +140,15 @@ export class SelectionMenu {
     const buttons = shot ? [clip.button, shot.button] : [clip.button]
     const row = this.doc.createElement('div')
     row.className = 'ann-menu-row'
-    row.append(...buttons)
-    // the consequence tooltip lives in the same host but outside the layout:
-    // empty it renders nothing, and the card is never taller for a hint
+    if (shot) {
+      const sep = this.doc.createElement('span')
+      sep.className = 'ann-menu-sep'
+      row.append(clip.button, sep, shot.button)
+    } else {
+      row.append(clip.button)
+    }
+    // the consequence card lives in the same host but outside the layout:
+    // empty it renders nothing, and the pill is never taller for a hint
     const tip = this.doc.createElement('div')
     tip.className = 'ann-menu-tip'
     tip.setAttribute('aria-live', 'polite')
@@ -163,7 +170,7 @@ export class SelectionMenu {
         event.preventDefault()
         this.focusIndex = (this.focusIndex + 1) % buttons.length
         buttons[this.focusIndex]!.focus()
-        this.showHint(this.focusIndex === 0 ? 'menu.clip.hint' : 'menu.screenshot.hint', buttons[this.focusIndex]!)
+        this.showHint(this.focusIndex === 0 ? 'menu.clip' : 'menu.screenshot')
         return
       }
       if (event.key === 'Enter') {
@@ -188,8 +195,8 @@ export class SelectionMenu {
     button.setAttribute('role', 'menuitem')
     button.type = 'button'
     button.textContent = uiText(key)
-    button.addEventListener('pointerenter', () => this.showHint(key === 'menu.clip' ? 'menu.clip.hint' : 'menu.screenshot.hint', button))
-    button.addEventListener('focus', () => this.showHint(key === 'menu.clip' ? 'menu.clip.hint' : 'menu.screenshot.hint', button))
+    button.addEventListener('pointerenter', () => this.showHint(key))
+    button.addEventListener('focus', () => this.showHint(key))
     button.addEventListener('pointerleave', () => this.clearHint())
     button.addEventListener('blur', () => this.clearHint())
     button.addEventListener('click', event => {
@@ -205,33 +212,51 @@ export class SelectionMenu {
     return this.currentRange
   }
 
-  private showHint(key: 'menu.clip.hint' | 'menu.screenshot.hint', anchor: HTMLElement): void {
+  private showHint(nameKey: 'menu.clip' | 'menu.screenshot'): void {
     this.clearHint()
     this.hintTimer = window.setTimeout(() => {
       const tip = this.tipEl
       if (!tip || !this.host) return
-      tip.textContent = uiText(key)
-      this.placeTip(tip, anchor)
+      const name = this.doc.createElement('span')
+      name.textContent = uiText(nameKey)
+      const desc = this.doc.createElement('span')
+      desc.className = 'ann-menu-tip-desc'
+      desc.textContent = uiText(nameKey === 'menu.clip' ? 'menu.clip.hint' : 'menu.screenshot.hint')
+      tip.replaceChildren(name, desc)
+      this.placeTip(tip)
     }, HINT_DELAY_MS)
   }
 
-  /** Below the anchored action, centered on it, above the card when the window ends first. */
-  private placeTip(tip: HTMLElement, anchor: HTMLElement): void {
+  /**
+   * Outside the menu: above it when the menu sits above the selection, below it
+   * when the menu dropped below — left-aligned with the menu's own left edge.
+   * The viewport edge clamps the card back inside (it may then overlap the menu,
+   * which is ours); it is never flipped to the selection's side, where it would
+   * cover what the user is reading.
+   */
+  private placeTip(tip: HTMLElement): void {
     const host = this.host
     const view = this.doc.defaultView
     if (!host || !view) return
     tip.style.left = '0px'
     tip.style.top = '0px'
     const tipWidth = tip.offsetWidth || 120
-    const tipHeight = tip.offsetHeight || 24
-    const centre = anchor.offsetLeft + anchor.offsetWidth / 2
-    const left = Math.max(2, Math.min(host.offsetWidth - tipWidth - 2, centre - tipWidth / 2))
-    const hostBottom = host.getBoundingClientRect().bottom
-    const below = hostBottom + 6 + tipHeight <= view.innerHeight - 8
-    tip.style.top = `${below ? host.offsetHeight + 6 : -tipHeight - 6}px`
-    tip.style.left = `${left}px`
-    tip.classList.toggle('ann-menu-tip-up', !below)
-    tip.style.setProperty('--ann-tip-x', `${Math.max(10, Math.min(tipWidth - 10, centre - left))}px`)
+    const tipHeight = tip.offsetHeight || 40
+    const hostBox = host.getBoundingClientRect()
+    const gap = 10
+    const edge = 4
+    let top: number
+    if (host.classList.contains('ann-menu-below')) {
+      top = host.offsetHeight + gap
+      if (hostBox.bottom + gap + tipHeight > view.innerHeight - edge) top = view.innerHeight - edge - tipHeight - hostBox.top
+    } else {
+      top = -tipHeight - gap
+      if (hostBox.top - gap - tipHeight < edge) top = edge - hostBox.top
+    }
+    let left = 0
+    if (hostBox.left + tipWidth > view.innerWidth - edge) left = view.innerWidth - edge - tipWidth - hostBox.left
+    tip.style.top = `${Math.round(top)}px`
+    tip.style.left = `${Math.round(left)}px`
   }
 
   private clearHint(): void {
@@ -258,6 +283,12 @@ export class SelectionMenu {
     box.style.left = `${placed.left}px`
     box.style.top = `${placed.top}px`
     box.style.visibility = ''
+    // the caret points at the selection's middle, and the consequence card
+    // takes the side away from the selection: both read which side the menu is on
+    const below = placed.top > anchor.top
+    box.classList.toggle('ann-menu-below', below)
+    const caret = Math.round(Math.max(12, Math.min(menu.width - 12, anchor.left + anchor.width / 2 - placed.left)))
+    box.style.setProperty('--ann-caret', `${caret}px`)
   }
 
   dismiss(): void {

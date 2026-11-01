@@ -34,10 +34,17 @@ export function softwareApplicationJsonLd(copy: LandingCopy) {
     'description': copy.meta.description,
     'applicationCategory': 'BrowserApplication',
     'operatingSystem': fill(copy.meta.operatingSystem, { version: MIN_CHROME_VERSION }),
+    'featureList': featureList(copy),
     'url': STORE_URL,
     'installUrl': STORE_URL,
     'sameAs': [STORE_URL, REPO_URL],
   }
+}
+
+/** The capabilities as the page states them (§4.1): the three ways, then annotation and recording. No words of its own. */
+export function featureList(copy: LandingCopy): string[] {
+  const sep = copy.locale === 'zh-CN' ? '：' : ': '
+  return [...copy.ways.kinds.map(kind => `${kind.name}${sep}${kind.body}`), ...copy.annotate.points.map(point => `${point.title}${sep}${point.body}`)]
 }
 
 /** The contents of a `<script type="application/ld+json">`: `<` is escaped so no text can end the element early. */

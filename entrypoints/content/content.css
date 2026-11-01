@@ -41,9 +41,6 @@
   --annov-danger-border: #f3b8b8;
   --annov-warn: #8a6116;
   --annov-chip-bg: #edf0f2;
-  --annov-tool-hover-bg: #e7f1f0;
-  --annov-tool-hover-text: #126f65;
-  --annov-tool-confirm: #15805c;
   --annov-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
 }
 
@@ -73,30 +70,85 @@
     --annov-danger-border: #553133;
     --annov-warn: #d9b465;
     --annov-chip-bg: #2a2d35;
-    --annov-tool-hover-bg: #2a2d35;
-    --annov-tool-hover-text: #7fd8a1;
-    --annov-tool-confirm: #7fd8a1;
     --annov-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
   }
 }
 
-/* ── Selection menu (extension.md §2.1) ── */
+/* ── The dark floating bars (visual.md §2) ──
+   The selection menu, capsules, toasts, hints and the screenshot/annotation toolbars sit
+   over the page as one always-dark set (#1b1f2a) whatever the system appearance is: they
+   mark a layer over content, not a surface. Form-style overlays — the quick-edit bubble,
+   the block "more" menu and the beautify panel — keep the theme-following --annov-* tokens
+   above. Defined once here, never repeated in the dark block. The draft's hand-drawn
+   near-greys (#e6e9f2, #dfe3ee, #d5d9e6, #cdd2e0, #aab1c3) all read as pill-text / pill-muted. */
+[data-ann-ui='selection-menu'],
+[data-ann-ui='clip-toast'],
+[data-ann-ui='block-capsule'],
+[data-ann-ui='block-mode-capsule'],
+[data-ann-ui='screenshot-ratio-bar'],
+[data-ann-ui='screenshot-session'],
+[data-ann-ui='annotation-layer'] {
+  --annov-pill-bg: #1b1f2a;
+  --annov-pill-text: #eceff6;
+  --annov-pill-muted: #a9b1c4;
+  --annov-pill-line: rgb(255 255 255 / 0.14);
+  --annov-pill-hover: rgb(255 255 255 / 0.12);
+  --annov-pill-focus: #b9a3f2;
+  --annov-pill-accent: #c9b8f5;
+  --annov-pill-sep: rgb(255 255 255 / 0.22);
+  --annov-pill-kbd-bg: rgb(255 255 255 / 0.12);
+  --annov-pill-kbd-line: rgb(255 255 255 / 0.22);
+  /* the menu/toolbar shadow of the draft (.shot-tb, .annot-tb): drop shadow plus hairline */
+  --annov-pill-shadow: 0 12px 30px -8px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.07);
+  /* the toast's status icons: the draft's oklch() as hex */
+  --annov-pill-danger: #ff9189;
+  --annov-pill-ok: #61da92;
+  --annov-pill-warn: #d9b465;
+  /* the block capsule's segment icons: the draft's .bp-seg .i / .bp-seg.is-alt .i */
+  --annov-pill-icon-clip: #b9a3f2;
+  --annov-pill-icon-shot: #9fd0ff;
+}
+
+/* ── Selection menu (extension.md §2.1): a dark pill over the page ── */
 
 [data-ann-ui='selection-menu'] {
   position: fixed;
   z-index: 2147483646;
-  min-width: 200px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   padding: 4px;
-  border: 1px solid var(--annov-border);
-  border-radius: 6px;
-  background: var(--annov-surface);
-  box-shadow: var(--annov-shadow);
+  border-radius: 12px;
+  background: var(--annov-pill-bg);
+  color: var(--annov-pill-text);
+  box-shadow: var(--annov-pill-shadow);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   animation: ann-fade-in 0.12s ease-out;
 }
 
+/* the caret points at the middle of the selection: below the menu when it sits
+   above the line, flipped above it when the menu dropped below */
+[data-ann-ui='selection-menu']::after {
+  content: '';
+  position: absolute;
+  left: var(--ann-caret, 50%);
+  bottom: -4px;
+  width: 9px;
+  height: 9px;
+  margin-left: -5px;
+  border-radius: 2px;
+  background: var(--annov-pill-bg);
+  transform: rotate(45deg);
+}
+
+[data-ann-ui='selection-menu'].ann-menu-below::after {
+  bottom: auto;
+  top: -4px;
+}
+
 [data-ann-ui='selection-menu'] .ann-menu-row {
   display: flex;
+  align-items: center;
   gap: 2px;
 }
 
@@ -104,69 +156,76 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 10px;
+  height: 30px;
+  padding: 0 11px 0 10px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 8px;
   background: transparent;
-  color: var(--annov-text);
-  font-size: 13px;
-  cursor: pointer;
+  color: var(--annov-pill-text);
+  font-size: 12.5px;
+  font-weight: 500;
   white-space: nowrap;
+  cursor: pointer;
 }
 
 [data-ann-ui='selection-menu'] .ann-menu-action::before {
   content: '';
-  width: 14px;
-  height: 14px;
+  width: 15px;
+  height: 15px;
   flex: none;
   background-repeat: no-repeat;
   background-size: contain;
-  opacity: 0.85;
 }
 
+/* each icon carries its type's hue mixed toward white (the draft's
+   color-mix(in oklab, --ann-type-* 60%, #fff) with the light-set hue; a
+   data-URI stroke cannot read a variable, and the pill is always dark) */
 [data-ann-ui='selection-menu'] .ann-menu-clip::before {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23673ab8' stroke-width='2'%3E%3Cpath d='m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233666cd' stroke-width='2'%3E%3Cpath d='m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z'/%3E%3C/svg%3E");
 }
 
 [data-ann-ui='selection-menu'] .ann-menu-shot::before {
   /* lucide "scan" (extension.md §2.1, visual.md §3): the same icon the library uses for screenshots */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23673ab8' stroke-width='2'%3E%3Cpath d='M3 7V5a2 2 0 0 1 2-2h2'/%3E%3Cpath d='M17 3h2a2 2 0 0 1 2 2v2'/%3E%3Cpath d='M21 17v2a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M7 21H5a2 2 0 0 1-2-2v-2'/%3E%3Cpath d='M7 12h10'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23367b65' stroke-width='2'%3E%3Cpath d='M3 7V5a2 2 0 0 1 2-2h2'/%3E%3Cpath d='M17 3h2a2 2 0 0 1 2 2v2'/%3E%3Cpath d='M21 17v2a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M7 21H5a2 2 0 0 1-2-2v-2'/%3E%3Cpath d='M7 12h10'/%3E%3C/svg%3E");
 }
 
-/* a data-URI stroke cannot read a variable: the dark appearance swaps the whole icon */
-@media (prefers-color-scheme: dark) {
-  [data-ann-ui='selection-menu'] .ann-menu-clip::before {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b9a3f2' stroke-width='2'%3E%3Cpath d='m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z'/%3E%3C/svg%3E");
-  }
-
-  [data-ann-ui='selection-menu'] .ann-menu-shot::before {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23b9a3f2' stroke-width='2'%3E%3Cpath d='M3 7V5a2 2 0 0 1 2-2h2'/%3E%3Cpath d='M17 3h2a2 2 0 0 1 2 2v2'/%3E%3Cpath d='M21 17v2a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M7 21H5a2 2 0 0 1-2-2v-2'/%3E%3Cpath d='M7 12h10'/%3E%3C/svg%3E");
-  }
+[data-ann-ui='selection-menu'] .ann-menu-sep {
+  width: 1px;
+  align-self: stretch;
+  margin: 6px 3px;
+  background: var(--annov-pill-line);
 }
 
-[data-ann-ui='selection-menu'] .ann-menu-action:hover,
+[data-ann-ui='selection-menu'] .ann-menu-action:hover {
+  background: var(--annov-pill-hover);
+}
+
+/* keyboard focus is the draft's inset ring, not the hover tint */
 [data-ann-ui='selection-menu'] .ann-menu-action:focus-visible {
-  background: var(--annov-accent-soft);
+  box-shadow: inset 0 0 0 2px var(--annov-pill-focus);
   outline: none;
 }
 
-/* The consequence hint floats as a dark tooltip beside its action (真机反馈:
-   an in-card hint row left a blank strip under the buttons and grew the card).
-   Deliberately dark on light pages too, like the reference tooltip; the card
-   keeps the page-following tokens. Empty, it renders nothing at all. */
+/* The consequence card floats outside the menu — above it when the menu sits
+   above the selection, below when the menu dropped below — left-aligned with
+   the menu, never flipped over the selection, always fully inside the viewport
+   (extension.md §2.1). Two lines: the action's name, then the consequence in
+   the muted grey of the pill. No arrow. Empty, it renders nothing at all. */
 [data-ann-ui='selection-menu'] .ann-menu-tip {
   position: absolute;
   z-index: 2;
   display: none;
   box-sizing: border-box;
+  width: max-content;
   max-width: 260px;
-  padding: 5px 9px;
-  border-radius: 5px;
-  background: #1f2127;
-  color: #ececf1;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--annov-pill-bg);
+  color: var(--annov-pill-text);
   font-size: 11.5px;
-  line-height: 1.35;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
+  font-weight: 600;
+  line-height: 1.45;
+  box-shadow: 0 6px 18px -4px rgb(0 0 0 / 0.4);
   pointer-events: none;
 }
 
@@ -174,24 +233,15 @@
   display: block;
 }
 
-[data-ann-ui='selection-menu'] .ann-menu-tip::before {
-  content: '';
-  position: absolute;
-  top: -4px;
-  left: var(--ann-tip-x, 50%);
-  width: 8px;
-  height: 8px;
-  border-radius: 1px;
-  background: inherit;
-  transform: rotate(45deg);
+[data-ann-ui='selection-menu'] .ann-menu-tip-desc {
+  display: block;
+  color: var(--annov-pill-muted);
+  font-size: 11px;
+  font-weight: 400;
 }
 
-[data-ann-ui='selection-menu'] .ann-menu-tip-up::before {
-  top: auto;
-  bottom: -4px;
-}
-
-/* ── Clip toast: 已剪藏 · 撤销 · 编辑 (extension.md §3) ── */
+/* ── Clip toast: 已剪藏 · 撤销 · 编辑 (extension.md §3): the dark pill at the
+   viewport's bottom centre; a thin bar under its content counts the time left ── */
 
 [data-ann-ui='clip-toast'] {
   position: fixed;
@@ -201,7 +251,7 @@
      does not fight a translateX. */
   left: 0;
   right: 0;
-  bottom: 24px;
+  bottom: 22px;
   margin: 0 auto;
   width: max-content;
   max-width: calc(100vw - 24px);
@@ -211,209 +261,504 @@
 }
 
 .ann-clip-toast {
-  min-width: 220px;
-  padding: 10px 12px;
-  border: 1px solid var(--annov-border);
-  border-radius: 6px;
-  background: var(--annov-surface);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
-}
-
-.ann-clip-toast-error {
-  border-color: var(--annov-danger-border);
+  position: relative;
+  overflow: hidden;
+  padding: 9px 12px 11px 14px;
+  border-radius: 12px;
+  background: var(--annov-pill-bg);
+  color: var(--annov-pill-text);
+  box-shadow: 0 10px 30px -6px rgb(0 0 0 / 0.45);
+  font-size: 12.5px;
 }
 
 .ann-clip-toast-row {
   display: flex;
   align-items: center;
-  gap: 12px;
-  color: var(--annov-text);
-  font-size: 13px;
+  gap: 10px;
+  white-space: nowrap;
 }
 
-.ann-clip-toast-row span {
+.ann-clip-toast-icon {
+  display: inline-flex;
   flex: none;
+  color: var(--annov-pill-ok);
+}
+
+.ann-clip-toast-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.ann-clip-toast-icon-danger {
+  color: var(--annov-pill-danger);
+}
+
+.ann-clip-toast-sepd {
+  width: 1px;
+  height: 14px;
+  background: var(--annov-pill-sep);
 }
 
 .ann-clip-toast-row button {
   min-height: 24px;
-  margin-left: auto;
-  padding: 0 8px;
+  padding: 0 6px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 6px;
   background: none;
-  color: var(--annov-accent-text);
-  font-size: 13px;
-  font-weight: 500;
+  color: var(--annov-pill-accent);
+  font-size: 12.5px;
+  font-weight: 600;
   cursor: pointer;
 }
 
 .ann-clip-toast-row button:not(:disabled):hover {
-  background: var(--annov-accent-soft);
+  background: var(--annov-pill-hover);
 }
 
 .ann-clip-toast-row button:disabled {
-  color: var(--annov-muted);
+  color: var(--annov-pill-muted);
   cursor: default;
 }
 
+.ann-clip-toast-warn,
 .ann-clip-toast-reason {
+  margin-top: 4px;
   max-width: 320px;
-  margin-bottom: 6px;
-  color: var(--annov-danger);
   font-size: 11.5px;
   line-height: 1.4;
   white-space: normal;
 }
 
 .ann-clip-toast-warn {
-  margin-bottom: 6px;
-  color: var(--annov-warn);
-  font-size: 11.5px;
-  line-height: 1.4;
+  color: var(--annov-pill-warn);
+}
+
+.ann-clip-toast-reason {
+  color: var(--annov-pill-danger);
 }
 
 .ann-clip-toast-undone {
-  color: var(--annov-text);
-  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
 }
 
-/* ── Quick edit bubble (extension.md §3) ── */
+/* the countdown runs with the dismiss timer (3.2s, TOAST_MS in clip-flow.ts):
+   one CSS animation the pause stops, and leaving restarts the whole round —
+   never a decoration that keeps running while the timer is held */
+.ann-clip-toast-tbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: var(--annov-pill-line);
+}
+
+.ann-clip-toast-tbar i {
+  display: block;
+  height: 100%;
+  background: var(--annov-pill-accent);
+  transform-origin: left;
+  animation: ann-toast-countdown 3.2s linear forwards;
+}
+
+.ann-clip-toast.ann-clip-toast-held .ann-clip-toast-tbar i {
+  animation-play-state: paused;
+}
+
+@keyframes ann-toast-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* reduced motion keeps the information and drops the smooth sweep: the bar steps */
+@media (prefers-reduced-motion: reduce) {
+  .ann-clip-toast-tbar i {
+    animation-timing-function: steps(8, jump-none);
+  }
+}
+
+/* ── Quick edit bubble (extension.md §3): a theme-following form card —
+   title, tag chips and note, the header saying when it saves ── */
 
 [data-ann-ui='clip-edit'] {
   position: fixed;
   z-index: 2147483646;
-  width: 300px;
+  box-sizing: border-box;
+  width: 322px;
   padding: 12px;
   border: 1px solid var(--annov-border);
-  border-radius: 8px;
+  border-radius: 14px;
   background: var(--annov-surface);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  color: var(--annov-text);
+  box-shadow: var(--annov-shadow);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
   animation: ann-fade-in 0.12s ease-out;
+}
+
+.ann-clip-edit-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-weight: 650;
+}
+
+.ann-clip-edit-head svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+.ann-clip-edit-head .ann-clip-edit-hint {
+  margin-left: auto;
+  color: var(--annov-muted);
+  font-size: 12px;
+  font-weight: 400;
 }
 
 .ann-clip-edit-field {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
-.ann-clip-edit-field span {
+.ann-clip-edit-field > span {
   display: block;
-  margin-bottom: 3px;
+  margin-bottom: 4px;
   color: var(--annov-muted);
-  font-size: 11.5px;
+  font-size: 12px;
+  font-weight: 600;
 }
 
-.ann-clip-edit-field input {
+/* the fields paint the surface themselves: a bare input/textarea would fall
+   back to the browser's white field face, unreadable under the dark tokens */
+.ann-clip-edit-field input,
+.ann-clip-edit-note {
   box-sizing: border-box;
   width: 100%;
-  padding: 6px 8px;
+  min-height: 30px;
+  padding: 4px 8px;
   border: 1px solid var(--annov-input-border);
-  border-radius: 4px;
-  font-size: 13px;
+  border-radius: 8px;
+  background: var(--annov-surface);
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--annov-text);
 }
 
-.ann-clip-edit-field input:focus {
+.ann-clip-edit-field input::placeholder,
+.ann-clip-edit-note::placeholder {
+  color: var(--annov-muted);
+}
+
+.ann-clip-edit-note {
+  min-height: 50px;
+  padding: 6px 8px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.ann-clip-edit-field input:focus,
+.ann-clip-edit-note:focus {
   border-color: var(--annov-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--annov-accent) 42%, transparent);
   outline: none;
+}
+
+/* the tag input: chips and the typing field share one bordered box; the box,
+   not the field inside it, carries the focus ring */
+.ann-clip-edit-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border: 1px solid var(--annov-input-border);
+  border-radius: 8px;
+  background: var(--annov-surface);
+}
+
+.ann-clip-edit-tags:focus-within {
+  border-color: var(--annov-accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--annov-accent) 42%, transparent);
+}
+
+.ann-clip-edit-tags input {
+  flex: 1;
+  min-width: 80px;
+  min-height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 12.5px;
+  color: var(--annov-text);
+}
+
+.ann-clip-edit-tags input:focus {
+  box-shadow: none;
+  outline: none;
+}
+
+.ann-clip-edit-tags input::placeholder {
+  color: var(--annov-muted);
+}
+
+.ann-clip-edit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 5px 0 8px;
+  border: 1px solid color-mix(in oklab, var(--annov-accent) 22%, var(--annov-surface));
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--annov-accent) 9%, var(--annov-surface));
+  color: var(--annov-accent-text);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.ann-clip-edit-chip button {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.7;
+}
+
+.ann-clip-edit-chip button:hover {
+  background: color-mix(in oklab, var(--annov-accent) 18%, var(--annov-surface));
+  opacity: 1;
+}
+
+.ann-clip-edit-chip svg {
+  width: 11px;
+  height: 11px;
+}
+
+.ann-clip-edit-error {
+  margin: -2px 0 8px;
+  color: var(--annov-danger);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.ann-clip-edit-error:empty {
+  display: none;
 }
 
 .ann-clip-edit-actions {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
-.ann-clip-edit-actions button {
-  padding: 5px 10px;
-  border: 1px solid var(--annov-input-border);
-  border-radius: 4px;
-  background: var(--annov-surface);
-  color: var(--annov-text);
+.ann-clip-edit-actions .ann-clip-edit-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 4px;
+  border: 0;
+  background: none;
+  color: var(--annov-accent-text);
   font-size: 12.5px;
   cursor: pointer;
 }
 
-.ann-clip-edit-actions .ann-clip-edit-done {
-  border-color: var(--annov-accent);
-  background: var(--annov-accent);
-  color: var(--annov-on-accent);
+.ann-clip-edit-actions .ann-clip-edit-more:hover {
+  text-decoration: underline;
 }
 
-/* ── Block clip: outline, capsule, more menu (capture.md §6.2) ── */
+.ann-clip-edit-actions .ann-clip-edit-more svg {
+  width: 12px;
+  height: 12px;
+}
+
+.ann-clip-edit-actions .ann-clip-edit-done {
+  min-height: 28px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: var(--annov-accent);
+  color: var(--annov-on-accent);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ann-clip-edit-actions .ann-clip-edit-done:hover {
+  background: var(--annov-accent-hover);
+}
+
+.ann-clip-edit-actions button:focus-visible {
+  outline: 2px solid var(--annov-accent);
+  outline-offset: 2px;
+}
+
+/* ── Block clip (capture.md §6.2): the brand outline over the content, the
+   dark capsule beside it, the theme-surface "more" menu ── */
 
 [data-ann-ui='block-outline'] {
   position: fixed;
   z-index: 2147483645;
   border: 2px solid #673ab8;
-  border-radius: 3px;
+  border-radius: 12px;
+  background: color-mix(in oklab, #673ab8 6%, transparent);
   pointer-events: none;
-  box-shadow: 0 0 0 1px rgba(103, 58, 184, 0.25);
 }
 
+/* the keyboard outline shares the selection blue: it marks content, not a surface */
 [data-ann-ui='block-outline'].ann-block-outline-keyboard {
   border-color: #4c91ff;
+  background: color-mix(in oklab, #4c91ff 6%, transparent);
 }
 
-[data-ann-ui='block-capsule'],
-[data-ann-ui='block-mode-capsule'] {
+[data-ann-ui='block-capsule'] {
   position: fixed;
   z-index: 2147483646;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--annov-border);
-  border-radius: 6px;
-  background: var(--annov-surface);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+  gap: 1px;
+  height: 30px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--annov-pill-bg);
+  color: var(--annov-pill-text);
+  box-shadow: var(--annov-pill-shadow);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
   animation: ann-fade-in 0.1s ease-out;
 }
 
-[data-ann-ui='block-capsule'] button,
-[data-ann-ui='block-more'] button {
-  padding: 5px 9px;
+[data-ann-ui='block-capsule'] .ann-blk-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 10px 0 9px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 999px;
   background: transparent;
-  color: var(--annov-text);
-  font-size: 12.5px;
+  color: inherit;
+  font: inherit;
   white-space: nowrap;
   cursor: pointer;
 }
 
-[data-ann-ui='block-capsule'] button:first-child {
-  background: var(--annov-accent);
-  color: var(--annov-on-accent);
+[data-ann-ui='block-capsule'] .ann-blk-seg:hover {
+  background: var(--annov-pill-hover);
 }
 
-[data-ann-ui='block-capsule'] button:hover:not(:disabled),
-[data-ann-ui='block-more'] button:hover {
-  background: var(--annov-accent-soft);
+[data-ann-ui='block-capsule'] .ann-blk-seg:active {
+  background: rgb(255 255 255 / 0.16);
 }
 
-[data-ann-ui='block-capsule'] button:first-child:hover {
-  background: var(--annov-accent-hover);
+[data-ann-ui='block-capsule'] .ann-blk-seg svg {
+  flex: none;
+  width: 15px;
+  height: 15px;
 }
 
-[data-ann-ui='block-capsule'] button:disabled {
+[data-ann-ui='block-capsule'] .ann-blk-seg-clip svg {
+  color: var(--annov-pill-icon-clip);
+}
+
+[data-ann-ui='block-capsule'] .ann-blk-seg-shot svg {
+  color: var(--annov-pill-icon-shot);
+}
+
+[data-ann-ui='block-capsule'] .ann-blk-sub {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--annov-pill-muted);
+  cursor: pointer;
+}
+
+[data-ann-ui='block-capsule'] .ann-blk-sub:hover:not(:disabled) {
+  background: var(--annov-pill-hover);
+  color: var(--annov-pill-text);
+}
+
+[data-ann-ui='block-capsule'] .ann-blk-sub:disabled {
   opacity: 0.35;
   cursor: default;
 }
 
+[data-ann-ui='block-capsule'] .ann-blk-sub svg {
+  width: 14px;
+  height: 14px;
+}
+
+[data-ann-ui='block-capsule'] .ann-blk-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--annov-pill-line);
+}
+
+[data-ann-ui='block-capsule'] button:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--annov-pill-focus);
+  outline: none;
+}
+
+/* the "more" menu is a form-style overlay: theme tokens, hairline edge */
 [data-ann-ui='block-more'] {
   position: fixed;
   z-index: 2147483647;
   display: flex;
   flex-direction: column;
-  padding: 3px;
+  min-width: 190px;
+  padding: 5px;
   border: 1px solid var(--annov-border);
-  border-radius: 6px;
+  border-radius: 12px;
   background: var(--annov-surface);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.16);
+  box-shadow: var(--annov-shadow);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 13px;
+}
+
+[data-ann-ui='block-more'] button {
+  padding: 6px 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--annov-text);
+  font-size: 13px;
+  white-space: nowrap;
+  text-align: left;
+  cursor: pointer;
+}
+
+[data-ann-ui='block-more'] button:hover {
+  background: var(--annov-chip-bg);
+}
+
+[data-ann-ui='block-more'] button:focus-visible {
+  outline: 2px solid var(--annov-accent);
+  outline-offset: -2px;
 }
 
 /* Block mode: the page keeps reading, but links do not answer clicks */
@@ -424,19 +769,77 @@
   cursor: crosshair;
 }
 
+/* the mode capsule: the same dark pill, with the live dot and the keycaps */
 [data-ann-ui='block-mode-capsule'] {
-  top: 14px;
+  position: fixed;
+  top: 12px;
   left: 50%;
   transform: translateX(-50%);
-  flex-direction: column;
-  gap: 0;
-  padding: 7px 12px;
-  font-size: 12px;
-  color: var(--annov-text);
+  z-index: 2147483646;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 14px 0 12px;
+  border-radius: 999px;
+  background: var(--annov-pill-bg);
+  color: var(--annov-pill-text);
+  box-shadow: var(--annov-pill-shadow);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
   white-space: nowrap;
 }
 
-/* ratio chips on the selection bar (screenshot.md §1.3) */
+.ann-block-mode-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  /* the draft's recording dot (.capsule .dotp) */
+  background: #ffd84d;
+  box-shadow: 0 0 0 3px rgb(255 216 77 / 0.25);
+}
+
+.ann-block-mode-label {
+  color: inherit;
+}
+
+.ann-block-mode-kind {
+  font-weight: 600;
+}
+
+.ann-block-mode-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--annov-pill-muted);
+}
+
+/* moving around is advice, acting is the point: the action labels read full */
+.ann-block-mode-hint .ann-block-mode-act {
+  color: var(--annov-pill-text);
+}
+
+[data-ann-ui='block-mode-capsule'] kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--annov-pill-kbd-line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--annov-pill-kbd-bg);
+  color: var(--annov-pill-text);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+/* ratio chips on the selection bar (screenshot.md §1.3): a dark pill under the picking hint,
+   its chips the draft's .rchip — the bar never follows the system appearance (visual.md §2) */
 [data-ann-ui='screenshot-ratio-bar'] {
   position: absolute;
   z-index: 4;
@@ -446,27 +849,83 @@
   display: flex;
   gap: 4px;
   padding: 4px;
-  border: 1px solid var(--annov-border);
-  border-radius: 6px;
-  background: var(--annov-surface);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
+  border-radius: 999px;
+  background: var(--annov-pill-bg);
+  box-shadow: var(--annov-pill-shadow);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   pointer-events: auto;
 }
 
 [data-ann-ui='screenshot-ratio-bar'] button {
-  padding: 4px 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  padding: 0 9px;
   border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--annov-text);
-  font-size: 12px;
+  border-radius: 999px;
+  background: var(--annov-pill-hover);
+  color: var(--annov-pill-text);
+  font-size: 11.5px;
+  white-space: nowrap;
   cursor: pointer;
 }
 
+[data-ann-ui='screenshot-ratio-bar'] button:hover {
+  background: color-mix(in srgb, var(--annov-pill-hover) 60%, var(--annov-pill-text));
+}
+
+[data-ann-ui='screenshot-ratio-bar'] button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--annov-pill-focus);
+}
+
 [data-ann-ui='screenshot-ratio-bar'] button.ann-shot-ratio-active {
-  background: var(--annov-accent);
-  color: var(--annov-on-accent);
+  background: color-mix(in srgb, var(--annov-pill-focus) 28%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--annov-pill-focus) 60%, transparent);
+  color: var(--annov-pill-text);
+}
+
+[data-ann-ui='screenshot-ratio-bar'] svg {
+  width: 12px;
+  height: 12px;
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* the little outline of a ratio's shape (the draft's .rg) */
+[data-ann-ui='screenshot-ratio-bar'] .ann-shot-rg {
+  display: inline-block;
+  box-sizing: border-box;
+  border: 1.5px solid currentcolor;
+  border-radius: 2px;
+}
+
+/* the stitcher's progress line rides above the dimmed page as the same dark pill */
+[data-ann-ui='stitch-progress'] {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2147483646;
+  display: inline-flex;
+  gap: 10px;
+  align-items: center;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--annov-pill-bg);
+  box-shadow: var(--annov-pill-shadow);
+  color: var(--annov-pill-text);
+  font:
+    12px/1.4 -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 /* beautify panel (screenshot.md §4.4): a card beside the picture in the overlay tokens, light or dark like the toolbar */
@@ -558,7 +1017,7 @@
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-lb {
   margin-bottom: 7px;
   color: var(--annov-muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 [data-ann-ui='screenshot-beautify-panel'] .ann-shot-bz-row {
@@ -683,30 +1142,32 @@
 
 /* ── precise selection: snap guides, handles, confirm bar, margin bar, hover outline ── */
 
+/* the guide blue is the selection blue: the marks sit on the page's content, not on a surface */
 [data-ann-ui='screenshot-session'] .ann-shot-snap-line {
   position: absolute;
-  background: #673ab8;
-  opacity: 0.8;
+  border: 0 dashed #4c91ff;
   pointer-events: none;
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-snap-x {
   top: 0;
   bottom: 0;
-  width: 1px;
+  width: 0;
+  border-left-width: 1.5px;
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-snap-y {
   left: 0;
   right: 0;
-  height: 1px;
+  height: 0;
+  border-top-width: 1.5px;
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-handle {
   position: absolute;
   width: 10px;
   height: 10px;
-  border: 1px solid #4c91ff;
+  border: 1.5px solid #4c91ff;
   border-radius: 2px;
   background: #fff;
   pointer-events: auto;
@@ -752,92 +1213,142 @@
   top: calc(50% - 5px);
 }
 
+/* the pending frame's own dark pill: a primary way forward and a quiet way out (screenshot.md §1.2) */
 [data-ann-ui='screenshot-session'] .ann-shot-confirm-bar {
   position: absolute;
   z-index: 4;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 5px 7px;
-  border: 1px solid var(--annov-border);
-  border-radius: 6px;
-  background: var(--annov-surface);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.2);
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--annov-pill-bg);
+  box-shadow: var(--annov-pill-shadow);
   pointer-events: auto;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-confirm-bar button {
-  padding: 5px 10px;
+  height: 30px;
+  padding: 0 12px;
   border: 0;
-  border-radius: 4px;
-  font-size: 12.5px;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--annov-pill-text);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-[data-ann-ui='screenshot-session'] .ann-shot-confirm-bar button:first-child {
-  background: var(--annov-accent);
-  color: var(--annov-on-accent);
+[data-ann-ui='screenshot-session'] .ann-shot-confirm-bar button:hover {
+  background: var(--annov-pill-hover);
 }
 
-[data-ann-ui='screenshot-session'] .ann-shot-confirm-bar button:last-of-type {
-  background: transparent;
-  border: 1px solid var(--annov-input-border);
-  color: var(--annov-text);
+[data-ann-ui='screenshot-session'] .ann-shot-confirm-bar button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--annov-pill-focus);
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-confirm-bar button:first-child {
+  background: var(--annov-pill-accent);
+  color: var(--annov-pill-bg);
+  font-weight: 600;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-confirm-bar button:first-child:hover {
+  background: var(--annov-pill-accent);
+  color: var(--annov-pill-bg);
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-frame-label {
-  color: var(--annov-muted);
+  padding: 0 8px;
+  color: var(--annov-pill-muted);
   font-size: 11.5px;
+  white-space: nowrap;
 }
 
+/* the margin chips ride the hovered element's frame in the same dark pill (screenshot.md §1.4) */
 [data-ann-ui='screenshot-session'] .ann-shot-margin-bar {
   position: absolute;
   z-index: 4;
   display: flex;
   align-items: center;
-  gap: 3px;
-  padding: 4px 6px;
-  border: 1px solid var(--annov-border);
-  border-radius: 6px;
-  background: var(--annov-surface);
-  box-shadow: 0 5px 16px rgba(0, 0, 0, 0.18);
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: var(--annov-pill-bg);
+  box-shadow: var(--annov-pill-shadow);
   pointer-events: auto;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-margin-label {
-  padding: 0 4px;
-  color: var(--annov-muted);
+  padding: 0 4px 0 8px;
+  color: var(--annov-pill-muted);
   font-size: 11.5px;
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-margin-bar button {
-  padding: 3px 8px;
+  height: 22px;
+  padding: 0 9px;
   border: 0;
-  border-radius: 4px;
-  background: transparent;
-  color: var(--annov-text);
-  font-size: 12px;
+  border-radius: 999px;
+  background: var(--annov-pill-hover);
+  color: var(--annov-pill-text);
+  font-size: 11.5px;
   cursor: pointer;
 }
 
+[data-ann-ui='screenshot-session'] .ann-shot-margin-bar button:hover {
+  background: color-mix(in srgb, var(--annov-pill-hover) 60%, var(--annov-pill-text));
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-margin-bar button:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px var(--annov-pill-focus);
+}
+
 [data-ann-ui='screenshot-session'] .ann-shot-margin-bar button.ann-shot-ratio-active {
-  background: var(--annov-accent);
-  color: var(--annov-on-accent);
+  background: color-mix(in srgb, var(--annov-pill-focus) 28%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--annov-pill-focus) 60%, transparent);
 }
 
 [data-ann-ui='screenshot-session'] .ann-shot-margin-bar input {
   width: 44px;
-  padding: 3px 5px;
-  border: 1px solid var(--annov-input-border);
-  border-radius: 4px;
-  font-size: 12px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid var(--annov-pill-kbd-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--annov-pill-text);
+  font-size: 11.5px;
 }
 
+/* the hovered element: a solid blue rim over a faint tint, named by the tag on its top edge */
 [data-ann-ui='screenshot-session'] .ann-shot-hover-outline {
   position: absolute;
-  border: 1.5px dashed #673ab8;
-  border-radius: 2px;
+  border-radius: 8px;
+  outline: 2px solid #4c91ff;
+  outline-offset: 2px;
+  background: rgb(76 145 255 / 0.1);
   pointer-events: none;
+}
+
+[data-ann-ui='screenshot-session'] .ann-shot-hover-tag {
+  position: absolute;
+  left: -2px;
+  top: -26px;
+  height: 21px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: #4c91ff;
+  color: #fff;
+  font:
+    500 11px/21px ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Consolas,
+    monospace;
+  white-space: nowrap;
 }

@@ -2,7 +2,7 @@ import { ChevronRight } from 'lucide-react'
 import type { LandingCopy } from '@/lib/copy'
 import { Container, RichText, SectionTitle } from './shared'
 
-/** The questions a careful reader asks first. Comparisons carry the date they were checked (website.md §13). */
+/** The questions a careful reader asks first. Comparisons carry the date they were checked (website.md §14). */
 export default function Faq({ copy }: { copy: LandingCopy }) {
   const { faq } = copy
   return (

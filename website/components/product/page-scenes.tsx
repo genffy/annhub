@@ -30,6 +30,12 @@ export function SelectionMenu({
   const tipped = items.find(i => i.kind === tip)
   return (
     <span className={`ah ah-hm static ${className}`} role={onPick ? 'toolbar' : undefined} aria-label={onPick ? 'AnnHub' : undefined}>
+      {tipped ? (
+        <span className="ah-hm-tip">
+          {tipped.label}
+          <small>{tipped.hint}</small>
+        </span>
+      ) : null}
       <span className="ah-hm-row">
         {items.map((it, i) => {
           const cls = `ah-hm-b ah-t-${it.kind}${hover === i ? ' is-hover' : ''}`
@@ -50,7 +56,6 @@ export function SelectionMenu({
           )
         })}
       </span>
-      {tipped ? <span className="ah-hm-hint">{tipped.hint}</span> : null}
     </span>
   )
 }
@@ -88,6 +93,7 @@ export function QuickEdit({ ui, data, className = '' }: { ui: ProductUi; data: {
           <Ic icon={Bookmark} />
           {ui.toast.clipped}
           <span className="ah-grow" />
+          <span className="ah-qe-note">{ui.edit.blurNote}</span>
         </span>
         <span className="ah-field">
           <span className="ah-label">{ui.edit.title}</span>
@@ -160,9 +166,9 @@ export function BlockOutline({ label, faint }: { label?: string; faint?: boolean
   )
 }
 
-/** Anchors an overlay to the selected text itself, so it follows the text if fonts reflow the page. */
-export function Anchored({ place, children }: { place: 'above' | 'below'; children: ReactNode }) {
-  return <span className={`ah-over ah-over-${place}`}>{children}</span>
+/** Anchors an overlay to the selected text itself, so it follows the text if fonts reflow the page. `start` anchors it at the selection's first character instead of centring on it. */
+export function Anchored({ place, start, children }: { place: 'above' | 'below'; start?: boolean; children: ReactNode }) {
+  return <span className={`ah-over ah-over-${place}${start ? ' is-start' : ''}`}>{children}</span>
 }
 
 // ── web pages (the user's, always light and serif) ───────────────────────────────────────────────
@@ -184,15 +190,19 @@ export function HeroArticle({ ui, menu = true, toast = false }: { ui: ProductUi;
           When a producer emits events faster than a consumer can process them, something has to give. Queues grow, memory climbs, and eventually the slowest component takes the
           whole pipeline down with it.
         </p>
+        {/* the thesis as its own line: the menu and its tip start at the column's left edge and stay clear of the
+            library window overlapping this board's lower right (landing.css .hb-c) */}
         <p>
           <span className="ah-sel ah-anchor">
             <b>Backpressure</b> is how a system pushes that pain back where it belongs.
             {menu ? (
-              <Anchored place="above">
+              <Anchored place="above" start>
                 <SelectionMenu ui={ui} hover={0} tip="clip" />
               </Anchored>
             ) : null}
-          </span>{' '}
+          </span>
+        </p>
+        <p>
           Instead of letting buffers absorb the mismatch indefinitely, the consumer signals demand upstream so the producer slows down, pauses, or drops work it cannot deliver.
         </p>
         <div className="ah-h2">Three common strategies</div>

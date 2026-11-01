@@ -24,10 +24,11 @@ export default function Story({ copy }: { copy: LandingCopy }) {
   const reading = entryById(sample, sample.reading)
   const hit = entryById(sample, sample.search.hits[0]!)
 
+  // `select` opens the quick-edit bubble below the selection, so it gets the taller stage the bubble needs
   const web = (focus: 'select' | 'block', offset: number) => (
-    <Fit width={840} height={500}>
-      <BrowserFrame title={page.title} url={url} width={840} height={500}>
-        <RetriesArticle ui={ui} page={page} focus={focus} offset={offset} />
+    <Fit width={840} height={focus === 'select' ? 680 : 500}>
+      <BrowserFrame title={page.title} url={url} width={840} height={focus === 'select' ? 680 : 500}>
+        <RetriesArticle ui={ui} page={page} focus={focus} offset={offset} quickEdit={focus === 'select' ? sample.quickEdit : undefined} />
       </BrowserFrame>
     </Fit>
   )

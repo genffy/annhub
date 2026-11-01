@@ -2,21 +2,21 @@
  * Toolbar popup — the compact shell (extension.md §2.6): left icon rail with
  * counts (all / clips / highlights / screenshots, settings below), right the
  * five most recent entries of the selected kind (highlights show quote +
- * clip), "open in library", and the shortcut hint. It is also the fallback
- * entry where in-page surfaces cannot run (chrome:// and friends). No
+ * clip), "open in library", and the shortcut hint with keycaps. It is also the
+ * fallback entry where in-page surfaces cannot run (chrome:// and friends). No
  * editing here.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { CircleStop, Info, Mic, PenLine, Video } from 'lucide-react'
+import { ArrowUpRight, CircleStop, Info, Mic, PenLine, Video } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import MessageUtils from '../../utils/message'
 import type { RecordingState } from '../../types/messages'
 import type { EntryQueryResult, HighlightQueryResult } from '../../learning-core/query'
 import type { EntryRecord } from '../../learning-core/types'
 import { relativeTime } from '../../utils/relative-time'
-import { uiText, type UiTextKey } from '../../utils/ui-text'
+import { uiText } from '../../utils/ui-text'
 import { extensionPageUrl } from '../../utils/extension-pages'
-import { TypeChip, VIEW_ICONS } from '../../utils/entry-icons'
+import { TypeTile, VIEW_ICONS } from '../../utils/entry-icons'
 import { ANN_SCREENSHOT_COMMAND } from '../../constants'
 
 type Tab = 'all' | 'clips' | 'highlights' | 'screenshots'
@@ -30,11 +30,41 @@ function elapsed(startedAt: number | undefined, now: number): string {
   return `${pad(minutes)}:${pad(seconds % 60)}`
 }
 
-const TABS: { tab: Tab; labelKey: 'library.all' | 'library.clips' | 'library.highlights' | 'library.screenshots'; Icon: LucideIcon }[] = [
+/**
+ * One keycap per key of the browser's binding: it reports either "+"-joined
+ * names ("Ctrl+Shift+S") or bare glyphs ("⌘⇧S").
+ */
+function keycaps(binding: string): string[] {
+  if (binding.includes('+'))
+    return binding
+      .split('+')
+      .map(key => key.trim())
+      .filter(Boolean)
+  return [...binding]
+}
+
+/** The shortcut hint with its key segment drawn as keycaps; the copy itself never changes. */
+function ShortcutHint({ binding }: { binding: string }) {
+  const text = uiText('library.shortcutHint', { keys: binding })
+  const [before, after] = binding && text.includes(binding) ? text.split(binding) : [text, '']
+  return (
+    <>
+      {before}
+      {keycaps(binding).map(key => (
+        <kbd key={key}>{key}</kbd>
+      ))}
+      {after}
+    </>
+  )
+}
+
+type TabDef = { tab: Tab; labelKey: 'library.all' | 'library.clips' | 'library.highlights' | 'library.screenshots'; Icon: LucideIcon; tone?: 'clip' | 'highlight' | 'screenshot' }
+
+const TABS: TabDef[] = [
   { tab: 'all', labelKey: 'library.all', Icon: VIEW_ICONS.all },
-  { tab: 'clips', labelKey: 'library.clips', Icon: VIEW_ICONS.clips },
-  { tab: 'highlights', labelKey: 'library.highlights', Icon: VIEW_ICONS.highlights },
-  { tab: 'screenshots', labelKey: 'library.screenshots', Icon: VIEW_ICONS.screenshots },
+  { tab: 'clips', labelKey: 'library.clips', Icon: VIEW_ICONS.clips, tone: 'clip' },
+  { tab: 'highlights', labelKey: 'library.highlights', Icon: VIEW_ICONS.highlights, tone: 'highlight' },
+  { tab: 'screenshots', labelKey: 'library.screenshots', Icon: VIEW_ICONS.screenshots, tone: 'screenshot' },
 ]
 
 export default function App() {
@@ -43,7 +73,7 @@ export default function App() {
   const [highlightRows, setHighlightRows] = useState<HighlightQueryResult['groups']>([])
   const [counts, setCounts] = useState<Record<Tab, number>>({ all: 0, clips: 0, highlights: 0, screenshots: 0 })
   // starts from the default binding and follows the browser's own assignment (extension.md §7.1)
-  const [shortcutHint, setShortcutHint] = useState(() => uiText('library.shortcutHint', { keys: 'Cmd/Ctrl+Shift+S' }))
+  const [shortcutBinding, setShortcutBinding] = useState('Cmd/Ctrl+Shift+S')
   // The annotation and recording entries work on the pages the content script covers; chrome:// and
   // friends get the reason instead (annotate.md §1.1, §2.4 — the popup is the fallback where page
   // surfaces cannot run).
@@ -59,7 +89,7 @@ export default function App() {
   useEffect(() => {
     void chrome.commands.getAll().then(commands => {
       const binding = commands.find(command => command.name === ANN_SCREENSHOT_COMMAND)?.shortcut
-      if (binding) setShortcutHint(uiText('library.shortcutHint', { keys: binding }))
+      if (binding) setShortcutBinding(binding)
     })
     void chrome.tabs.query({ active: true, currentWindow: true }).then(([active]) => {
       try {
@@ -84,7 +114,7 @@ export default function App() {
       void MessageUtils.sendMessage<RecordingState>({ type: 'GET_RECORDING_STATE' }).then(response => {
         if (response.success) {
           setRecording(response.data ?? { status: 'idle', withMic: false })
-          if (response.data?.micNotice) setMicNotice(uiText(`popup.recording.mic.${response.data.micNotice}` as UiTextKey))
+          if (response.data?.micNotice) setMicNotice(uiText(`popup.recording.mic.${response.data.micNotice}` as 'popup.recording.mic.denied'))
         }
       })
     }, 1000)
@@ -171,11 +201,11 @@ export default function App() {
   return (
     <main className="popup-shell">
       <nav className="popup-rail" aria-label={uiText('library.openLibrary')}>
-        {TABS.map(({ tab: item, labelKey, Icon }) => (
+        {TABS.map(({ tab: item, labelKey, Icon, tone }) => (
           <button
             key={item}
             type="button"
-            className={`popup-rail-item${tab === item ? ' popup-rail-current' : ''}`}
+            className={`popup-rail-item${tone ? ` popup-rail-${tone}` : ''}${tab === item ? ' popup-rail-current' : ''}`}
             aria-label={`${uiText(labelKey)} ${counts[item]}`}
             aria-current={tab === item ? 'true' : undefined}
             title={`${uiText(labelKey)} · ${counts[item]}`}
@@ -193,11 +223,12 @@ export default function App() {
 
       <section className="popup-body">
         <header className="popup-head">
-          <span>
-            {uiText(TABS.find(candidate => candidate.tab === tab)!.labelKey)} · {counts[tab]}
-          </span>
+          <b>{uiText(TABS.find(candidate => candidate.tab === tab)!.labelKey)}</b>
+          <span className="popup-recent">{uiText('popup.recent')}</span>
+          <span className="popup-head-grow" />
           <button type="button" className="link" onClick={() => openLibrary(tab)}>
             {uiText('library.openLibrary')}
+            <ArrowUpRight size={12} aria-hidden />
           </button>
         </header>
 
@@ -209,9 +240,14 @@ export default function App() {
               .slice(0, 5)
               .map(({ row, clip }) => (
                 <li key={row.highlight.id}>
-                  <button type="button" onClick={() => openEntry(clip.id)}>
-                    <span className="popup-quote">{row.highlight.quote}</span>
-                    <span className="popup-meta">{String(clip.properties['title'] ?? clip.sourceHost)}</span>
+                  <button type="button" onClick={() => openEntry(clip.id)} title={row.clipTitle}>
+                    <TypeTile type="highlight" />
+                    <span className="popup-rowtext">
+                      <span className="popup-title">{row.highlight.quote}</span>
+                      <span className="popup-meta">
+                        {row.clipTitle} · {relativeTime(row.highlight.createdAt)}
+                      </span>
+                    </span>
                   </button>
                 </li>
               ))}
@@ -222,9 +258,13 @@ export default function App() {
             {entries.map(entry => (
               <li key={entry.id}>
                 <button type="button" onClick={() => openEntry(entry.id)} title={String(entry.properties['title'] ?? '')}>
-                  <TypeChip type={entry.type} />
-                  <span className="popup-title">{String(entry.properties['title'] ?? '')}</span>
-                  <span className="popup-meta">{relativeTime(entry.createdAt)}</span>
+                  <TypeTile type={entry.type} />
+                  <span className="popup-rowtext">
+                    <span className="popup-title">{String(entry.properties['title'] ?? '')}</span>
+                    <span className="popup-meta">
+                      {entry.sourceHost} · {relativeTime(entry.createdAt)}
+                    </span>
+                  </span>
                 </button>
               </li>
             ))}
@@ -242,7 +282,7 @@ export default function App() {
               <button type="button" onClick={() => void MessageUtils.sendMessage({ type: 'RETRY_RECORDING_DOWNLOAD' })}>
                 {uiText('popup.recording.downloadAgain')}
               </button>
-              <button type="button" onClick={() => void MessageUtils.sendMessage({ type: 'DISCARD_RECORDING' })}>
+              <button type="button" className="popup-danger" onClick={() => void MessageUtils.sendMessage({ type: 'DISCARD_RECORDING' })}>
                 {uiText('popup.recording.discard')}
               </button>
             </span>
@@ -255,14 +295,14 @@ export default function App() {
               <span className="popup-rec" aria-hidden />
               {uiText('popup.recording.status', { time: elapsed(recording.startedAt, now) })}
               <span className="popup-recording-buttons">
-                <button type="button" data-ann-ui="popup-record-stop" onClick={() => void MessageUtils.sendMessage({ type: 'STOP_RECORDING' })}>
+                <button type="button" className="popup-danger" data-ann-ui="popup-record-stop" onClick={() => void MessageUtils.sendMessage({ type: 'STOP_RECORDING' })}>
                   {uiText('popup.recording.stop')}
                 </button>
               </span>
             </span>
             <span className="popup-recording-title">{recording.tabTitle ?? ''}</span>
             {micNotice && <span className="popup-recording-mic">{micNotice}</span>}
-            <button type="button" data-ann-ui="popup-annotate" title={uiText('popup.annotate')} onClick={() => void annotateThisPage()}>
+            <button type="button" className="popup-annotate" data-ann-ui="popup-annotate" title={uiText('popup.annotate')} onClick={() => void annotateThisPage()}>
               <PenLine size={14} aria-hidden />
               {uiText('popup.annotate')}
             </button>
@@ -317,7 +357,7 @@ export default function App() {
           <p className="popup-recording-outcome">{uiText('popup.recording.headphones')}</p>
         )}
 
-        <footer className="popup-foot">{canAnnotate ? shortcutHint : uiText('popup.restricted.foot')}</footer>
+        <footer className="popup-foot">{canAnnotate ? <ShortcutHint binding={shortcutBinding} /> : uiText('popup.restricted.foot')}</footer>
       </section>
     </main>
   )

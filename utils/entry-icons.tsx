@@ -32,12 +32,26 @@ export const PROPERTY_TYPE_ICONS: Record<PropertyType, LucideIcon> = {
 }
 
 /** The type as its icon and its name together: the icon never stands alone and the colour never carries the meaning (visual.md §3). */
-export function TypeChip({ type, className }: { type: EntryType; className?: string }) {
+export function TypeChip({ type, className, small = false }: { type: EntryType; className?: string; small?: boolean }) {
   const Icon = ENTRY_TYPE_ICONS[type]
   return (
-    <span className={`type-chip type-${type}${className ? ` ${className}` : ''}`} data-type={type}>
-      <Icon size={12} aria-hidden />
+    <span className={`type-chip type-${type}${small ? ' type-chip-sm' : ''}${className ? ` ${className}` : ''}`} data-type={type}>
+      <Icon size={small ? 12 : 13} aria-hidden />
       {uiText(type === 'clip' ? 'library.type.clip' : 'library.type.screenshot')}
+    </span>
+  )
+}
+
+/**
+ * The type as its tile: the icon alone in the type's tinted square, for compact
+ * rows that carry their own name beside it (the popup's list, design .ttile).
+ * A highlight is not an entry type, but its rows get a tile of their own hue.
+ */
+export function TypeTile({ type }: { type: EntryType | 'highlight' }) {
+  const Icon = type === 'highlight' ? Highlighter : ENTRY_TYPE_ICONS[type]
+  return (
+    <span className={`type-tile type-${type}`} data-type={type}>
+      <Icon size={17} aria-hidden />
     </span>
   )
 }

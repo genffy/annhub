@@ -222,7 +222,9 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
     document.getElementById('code')!.focus()
     const hooks = hooksFor(false)
     start(hooks)
-    expect(document.querySelector('.ann-block-mode-hint')?.textContent).toBe(uiText('block.mode.hintClipOnly'))
+    // the keycaps say Enter 剪藏 and Esc 退出, with no S between them
+    const hint = document.querySelector('.ann-block-mode-hint')!
+    expect([...hint.querySelectorAll('kbd')].map(cap => cap.textContent)).toEqual(['Tab', '↑', '↓', 'Enter', 'Esc'])
     press('s')
     expect(document.querySelector('[data-ann-ui="block-mode-overlay"]')).not.toBeNull()
   })
@@ -231,7 +233,7 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
     document.body.innerHTML = NESTED
     document.getElementById('code')!.focus()
     const { hooks } = start()
-    expect(document.querySelector('.ann-block-mode-hint')?.textContent).toBe(uiText('block.mode.hint'))
+    expect([...document.querySelectorAll('.ann-block-mode-hint kbd')].map(cap => cap.textContent)).toEqual(['Tab', '↑', '↓', 'Enter', 'S', 'Esc'])
     press('s', { metaKey: true })
     expect(hooks.onScreenshot).not.toHaveBeenCalled()
     press('s')
@@ -320,8 +322,9 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
     entries.install()
     document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
     await vi.advanceTimersByTimeAsync(450)
-    const labels = [...document.querySelectorAll('[data-ann-ui="block-capsule"] button')].map(button => button.textContent)
-    expect(labels).toEqual([uiText('block.clip'), uiText('block.shot'), '⌃', uiText('block.more')])
+    // up and more are icon-only: their accessible names come from the aria-labels
+    const names = [...document.querySelectorAll('[data-ann-ui="block-capsule"] button')].map(button => button.getAttribute('aria-label') ?? button.textContent)
+    expect(names).toEqual([uiText('block.clip'), uiText('block.shot'), uiText('block.up'), uiText('block.more')])
     entries.dispose()
   })
 })

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { clearLibrary, ensureServiceWorker, getEntries, getCapturePageUrl, selectText, selectUntilMenu, stopServiceWorker, waitForClipToast } from './helpers'
+import { clearLibrary, ensureServiceWorker, getEntries, getCapturePageUrl, selectText, selectUntilMenu, stopServiceWorker, textContrast, waitForClipToast } from './helpers'
 
 test.describe('selection clip (capture.md §6.1, extension.md §2.1)', () => {
   test.beforeEach(async ({ context }) => {
@@ -99,7 +99,7 @@ test.describe('selection clip (capture.md §6.1, extension.md §2.1)', () => {
     const bubble = page.locator('[data-ann-ui="clip-edit"]')
     await expect(bubble).toBeVisible()
     await bubble.locator('input').nth(1).fill('retry, backoff')
-    await bubble.locator('input').nth(2).fill('对照复盘文档')
+    await bubble.locator('textarea').fill('对照复盘文档')
     await bubble.getByRole('button', { name: '完成' }).click()
     await expect(bubble).not.toBeVisible()
 
@@ -155,7 +155,7 @@ test.describe('selection clip (capture.md §6.1, extension.md §2.1)', () => {
 
     // MV3 recycles the worker after ~30 s idle — long before a note is typed
     await stopServiceWorker(page.context(), page)
-    await bubble.locator('input').nth(2).fill('note typed after the restart')
+    await bubble.locator('textarea').fill('note typed after the restart')
     await bubble.getByRole('button', { name: '完成' }).click()
     await expect(bubble).not.toBeVisible()
     await expect.poll(async () => (await getEntries(page.context()))[0]?.note, { timeout: 15_000 }).toBe('note typed after the restart')
@@ -252,5 +252,137 @@ test.describe('selection clip (capture.md §6.1, extension.md §2.1)', () => {
     await selectText(page, '#blank-target')
     await page.waitForTimeout(600)
     await expect(page.locator('[data-ann-ui="selection-menu"]')).toHaveCount(0)
+  })
+
+  test('the consequence card floats outside the menu, inside the viewport, never over the selection (extension.md §2.1)', async ({ page }) => {
+    await page.setViewportSize({ width: 900, height: 700 })
+    await page.goto(getCapturePageUrl())
+    const menu = await selectUntilMenu(page, '#intro-p')
+    await menu.locator('.ann-menu-clip').hover()
+    const tip = menu.locator('.ann-menu-tip')
+    await expect(tip).toContainText('剪藏')
+    await expect(tip.locator('.ann-menu-tip-desc')).toContainText('资料库')
+    await page.waitForTimeout(150)
+
+    const boxes = await page.evaluate(() => {
+      const host = document.querySelector('[data-ann-ui="selection-menu"]')!
+      const tipEl = host.querySelector('.ann-menu-tip')!
+      const line = document.querySelector('#intro-p')!
+      const rect = (el: Element) => {
+        const box = el.getBoundingClientRect()
+        return { top: box.top, bottom: box.bottom, left: box.left, right: box.right }
+      }
+      return { menu: rect(host), tip: rect(tipEl), line: rect(line), viewport: { width: innerWidth, height: innerHeight } }
+    })
+    const outside = boxes.tip.bottom <= boxes.menu.top + 0.5 || boxes.tip.top >= boxes.menu.bottom - 0.5
+    expect(outside, 'the card sits outside the menu, on the side away from the selection').toBe(true)
+    expect(boxes.tip.left, 'left-aligned with the menu').toBeCloseTo(boxes.menu.left, 0)
+    expect(boxes.tip.top).toBeGreaterThanOrEqual(0)
+    expect(boxes.tip.bottom).toBeLessThanOrEqual(boxes.viewport.height)
+    expect(boxes.tip.right).toBeLessThanOrEqual(boxes.viewport.width)
+    const overlap = !(boxes.tip.bottom <= boxes.line.top || boxes.line.bottom <= boxes.tip.top || boxes.tip.right <= boxes.line.left || boxes.line.right <= boxes.tip.left)
+    expect(overlap, 'never over the selected text').toBe(false)
+  })
+
+  test('the countdown bar holds with the toast while the pointer rests on it (extension.md §3)', async ({ page }) => {
+    await page.goto(getCapturePageUrl())
+    const menu = await selectUntilMenu(page, '#intro-p')
+    await menu.locator('.ann-menu-action').nth(0).click()
+    const toast = await waitForClipToast(page)
+    const fill = toast.locator('.ann-clip-toast-tbar i')
+    const scaleX = async (): Promise<number> =>
+      fill.evaluate(el => {
+        const matrix = new DOMMatrixReadOnly(getComputedStyle(el).transform)
+        return matrix.a
+      })
+    await page.waitForTimeout(120)
+    const running = await scaleX()
+    await page.waitForTimeout(700)
+    expect(await scaleX(), 'the bar runs down with the timer').toBeLessThan(running)
+
+    await toast.hover()
+    await page.waitForTimeout(2600)
+    const held = await scaleX()
+    await expect(toast).toBeVisible()
+    await page.waitForTimeout(500)
+    expect(await scaleX(), 'the bar stops while the user is on the toast').toBeCloseTo(held, 3)
+
+    await page.mouse.move(40, 60)
+    await expect(toast).not.toBeVisible({ timeout: 5000 })
+  })
+
+  test('the tag field commits chips by keyboard and refuses what the property refuses (extension.md §3)', async ({ page }) => {
+    await page.goto(getCapturePageUrl())
+    const menu = await selectUntilMenu(page, '#intro-p')
+    await menu.locator('.ann-menu-action').nth(0).click()
+    const toast = await waitForClipToast(page)
+    await toast.getByRole('button', { name: '编辑' }).click()
+
+    const bubble = page.locator('[data-ann-ui="clip-edit"]')
+    const tags = bubble.locator('.ann-clip-edit-tags input')
+    await tags.click()
+    await tags.pressSequentially('retry')
+    await page.keyboard.press('Enter')
+    await tags.pressSequentially('streams,')
+    await expect(bubble.locator('.ann-clip-edit-chip')).toHaveText(['retry', 'streams'])
+
+    await page.keyboard.press('Backspace')
+    await expect(bubble.locator('.ann-clip-edit-chip')).toHaveText(['retry'])
+
+    await tags.pressSequentially('x'.repeat(33))
+    await page.keyboard.press('Enter')
+    await expect(bubble.locator('.ann-clip-edit-error')).toContainText('32')
+    await expect(bubble.locator('.ann-clip-edit-chip')).toHaveText(['retry'])
+    await expect(tags).toHaveValue('x'.repeat(33))
+
+    await tags.fill('')
+    await tags.pressSequentially('final')
+    await bubble.getByRole('button', { name: '完成' }).click()
+    await expect(bubble).not.toBeVisible()
+    await expect
+      .poll(() => getEntries(page.context()), { timeout: 15_000 })
+      .toMatchObject([expect.objectContaining({ properties: expect.objectContaining({ tags: ['retry', 'final'] }) })])
+  })
+
+  test('the quick edit fields paint their own surface in both appearances (visual.md §2)', async ({ page }) => {
+    await page.goto(getCapturePageUrl())
+    const menu = await selectUntilMenu(page, '#intro-p')
+    await menu.locator('.ann-menu-action').nth(0).click()
+    const toast = await waitForClipToast(page)
+    await toast.getByRole('button', { name: '编辑' }).click()
+    const bubble = page.locator('[data-ann-ui="clip-edit"]')
+    await expect(bubble).toBeVisible()
+    // a field that fell back to the browser's white face carries light text on
+    // it in the dark set and the ratio collapses (真机验收：标题与备注曾是白底浅字)
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme })
+      for (const field of [bubble.locator('input').nth(0), bubble.locator('.ann-clip-edit-tags input'), bubble.locator('textarea')]) {
+        for (const ratio of await textContrast(field)) expect(ratio, `a typing field's text (${scheme})`).toBeGreaterThanOrEqual(4.5)
+      }
+    }
+    await page.keyboard.press('Escape')
+  })
+
+  test('the toast pill reads the same under light and dark systems (visual.md §2)', async ({ page }) => {
+    await page.goto(getCapturePageUrl())
+    const menu = await selectUntilMenu(page, '#intro-p')
+    await menu.locator('.ann-menu-action').nth(0).click()
+    const toast = await waitForClipToast(page)
+    const read = async (): Promise<{ bg: string; text: string; ratios: number[] }> => {
+      const styles = await toast.evaluate(node => {
+        const bar = node.querySelector<HTMLElement>('.ann-clip-toast')!
+        const label = node.querySelector<HTMLElement>('.ann-clip-toast-row span:not(.ann-clip-toast-icon)')!
+        return { bg: getComputedStyle(bar).backgroundColor, text: getComputedStyle(label).color }
+      })
+      return { ...styles, ratios: await textContrast(toast.locator('.ann-clip-toast-row button')) }
+    }
+    await page.emulateMedia({ colorScheme: 'light' })
+    const light = await read()
+    await page.emulateMedia({ colorScheme: 'dark' })
+    const dark = await read()
+    expect(light.bg).toBe('rgb(27, 31, 42)')
+    expect(dark.bg).toBe(light.bg)
+    expect(dark.text).toBe(light.text)
+    for (const ratio of light.ratios) expect(ratio, 'an action on the toast').toBeGreaterThanOrEqual(4.5)
   })
 })

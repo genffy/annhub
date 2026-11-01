@@ -63,6 +63,15 @@ export interface LandingCopy {
     kinds: { id: EntryKind; name: string; body: string; caption: string }[]
     unified: { lead: string }
   }
+  /** Page annotation and tab recording (docs/product/website.md §8, facts from annotate.md). */
+  annotate: {
+    title: string
+    lead: string
+    points: { title: string; body: string }[]
+    boundary: string
+    sketch: string
+    captions: { annotate: string; editor: string; record: string }
+  }
   story: {
     title: string
     intro: string
@@ -83,6 +92,8 @@ export interface LandingCopy {
     exportHint: string
     empty: string
     pins: { title: string; body: string }[]
+    /** Static illustrations under the interactive window (website.md §11); the interactive scope stays as defined above. */
+    statics: { lead: string; items: { visual: 'steps' | 'stitch'; title: string; body: string }[] }
     sketch: string
   }
   diff: {

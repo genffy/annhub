@@ -3,6 +3,7 @@ import {
   Check,
   Circle,
   ClipboardCopy,
+  CircleAlert,
   Download,
   Grid2X2,
   Highlighter,
@@ -41,6 +42,10 @@ interface Props {
   /** the width the pen, the line and the highlighter draw at */
   lineWidth: LineWidth
   maskCount: number
+  /** this shot's anonymity, or null when the settings leave nothing to anonymize */
+  anonymize: boolean | null
+  /** this shot's watermark, or null when the settings never enabled one */
+  watermark: boolean | null
   canUndo: boolean
   /** the number the step tool puts down next */
   nextStep: number
@@ -62,6 +67,7 @@ interface Props {
 }
 
 export function ScreenshotToolbar(props: Props) {
+  const onOff = (on: boolean): string => uiText(on ? 'shot.on' : 'shot.off')
   return (
     <>
       <div className="ann-shot-tools" role="toolbar" aria-label={uiText('shot.toolbar')}>
@@ -79,7 +85,7 @@ export function ScreenshotToolbar(props: Props) {
                 data-ann-ui={`screenshot-tool-${id}`}
                 onClick={() => props.onTool(props.tool === id ? null : id)}
               >
-                <Icon size={19} strokeWidth={2} />
+                <Icon size={16} strokeWidth={2} />
               </button>
             )
           })}
@@ -110,7 +116,7 @@ export function ScreenshotToolbar(props: Props) {
             disabled={!props.canUndo || props.busy}
             onClick={props.onUndo}
           >
-            <RotateCcw size={19} />
+            <RotateCcw size={16} />
           </button>
           <button
             type="button"
@@ -122,10 +128,10 @@ export function ScreenshotToolbar(props: Props) {
             disabled={props.busy}
             onClick={props.onBeautify}
           >
-            <Palette size={19} />
+            <Palette size={16} />
           </button>
           <button type="button" title={uiText('shot.tool.copy')} aria-label={uiText('shot.tool.copy')} data-ann-ui="screenshot-copy" disabled={props.busy} onClick={props.onCopy}>
-            <ClipboardCopy size={19} />
+            <ClipboardCopy size={16} />
           </button>
           <button
             type="button"
@@ -135,7 +141,7 @@ export function ScreenshotToolbar(props: Props) {
             disabled={props.busy}
             onClick={props.onDownload}
           >
-            <Download size={19} />
+            <Download size={16} />
           </button>
         </div>
         <div className="ann-shot-actions">
@@ -147,7 +153,7 @@ export function ScreenshotToolbar(props: Props) {
             disabled={props.busy}
             onClick={props.onCancel}
           >
-            <X size={21} />
+            <X size={17} />
           </button>
           <button
             type="button"
@@ -158,10 +164,43 @@ export function ScreenshotToolbar(props: Props) {
             disabled={props.busy}
             onClick={props.onSave}
           >
-            <Check size={22} />
+            <Check size={18} />
           </button>
         </div>
       </div>
+      {(props.anonymize !== null || props.watermark !== null || props.maskCount > 0) && (
+        <div className="ann-shot-status" role="status">
+          {props.anonymize !== null && <span>{uiText('shot.anonymize', { state: onOff(props.anonymize) })}</span>}
+          {props.anonymize !== null && props.watermark !== null && <span className="ann-shot-sep">·</span>}
+          {props.watermark !== null && (
+            <span>
+              {uiText('shot.watermark', { state: onOff(props.watermark) })} <kbd aria-hidden="true">W</kbd>
+            </span>
+          )}
+          {props.maskCount > 0 && (
+            <>
+              <span className="ann-shot-sep">·</span>
+              <span>{uiText('shot.mask.count', { count: props.maskCount })}</span>
+              <span className="ann-shot-masks" aria-label={uiText('shot.masks')}>
+                {Array.from({ length: props.maskCount }, (_, index) => (
+                  <span key={index} data-ann-ui="mask-box">
+                    {uiText('shot.mask', { index: index + 1 })}
+                    <button
+                      type="button"
+                      title={uiText('shot.mask.remove', { index: index + 1 })}
+                      aria-label={uiText('shot.mask.remove', { index: index + 1 })}
+                      data-ann-ui={`mask-remove-${index + 1}`}
+                      onClick={() => props.onRemoveMask(index)}
+                    >
+                      <X size={11} />
+                    </button>
+                  </span>
+                ))}
+              </span>
+            </>
+          )}
+        </div>
+      )}
       {isLineTool(props.tool) && (
         <div className="ann-shot-widths" role="group" aria-label={uiText('shot.lineWidth')} data-ann-ui="screenshot-line-widths">
           <span aria-hidden="true">{uiText('shot.lineWidth')}</span>
@@ -188,31 +227,14 @@ export function ScreenshotToolbar(props: Props) {
         <div className="ann-shot-steps" data-ann-ui="screenshot-steps">
           <span data-ann-ui="screenshot-step-next">{uiText('shot.step.next', { number: props.nextStep })}</span>
           <button type="button" data-ann-ui="screenshot-step-reset" disabled={props.nextStep === 1 || props.busy} onClick={props.onResetSteps}>
-            <ListRestart size={14} aria-hidden="true" />
+            <ListRestart size={13} aria-hidden="true" />
             {uiText('shot.step.reset')}
           </button>
         </div>
       )}
-      {props.maskCount > 0 && (
-        <div className="ann-shot-masks" aria-label={uiText('shot.masks')}>
-          {Array.from({ length: props.maskCount }, (_, index) => (
-            <span key={index} data-ann-ui="mask-box">
-              {uiText('shot.mask', { index: index + 1 })}
-              <button
-                type="button"
-                title={uiText('shot.mask.remove', { index: index + 1 })}
-                aria-label={uiText('shot.mask.remove', { index: index + 1 })}
-                data-ann-ui={`mask-remove-${index + 1}`}
-                onClick={() => props.onRemoveMask(index)}
-              >
-                <X size={13} />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
       {props.notice && (
         <div className={`ann-shot-notice${props.notice.error ? ' ann-shot-error' : ''}`} role="status">
+          <CircleAlert size={14} aria-hidden="true" />
           {props.notice.message}
         </div>
       )}

@@ -1,35 +1,77 @@
 /*
  * The type chip (visual.md §3): icon and name together, in the type's hue. Shared by every extension page, so a
- * clip and a screenshot look the same in the library's rows, the drawer and the popup.
+ * clip and a screenshot look the same in the library's rows, the drawer and the popup. Geometry follows the
+ * design's tchip; the fills and text stay on the extension's own type tokens (token-parity.test.ts).
  */
 .type-chip {
   display: inline-flex;
   flex: none;
   align-items: center;
-  gap: 4px;
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 11px;
+  gap: 5px;
+  height: 22px;
+  padding: 0 8px 0 6px;
+  border-radius: 6px;
+  font-size: 11.5px;
   font-weight: 600;
-  line-height: 1.4;
   white-space: nowrap;
 }
 
 .type-chip svg {
   flex: none;
+  width: 13px;
+  height: 13px;
   color: var(--ann-type-clip);
 }
 
-.type-clip {
+.type-chip.type-clip {
+  border: 1px solid color-mix(in oklab, var(--ann-type-clip) 26%, var(--ann-surface));
   background: var(--ann-type-clip-soft);
   color: var(--ann-type-clip-text);
 }
 
-.type-screenshot {
+.type-chip.type-screenshot {
+  border: 1px solid color-mix(in oklab, var(--ann-type-screenshot) 26%, var(--ann-surface));
   background: var(--ann-type-screenshot-soft);
   color: var(--ann-type-screenshot-text);
 }
 
-.type-screenshot svg {
+.type-chip.type-screenshot svg {
   color: var(--ann-type-screenshot);
+}
+
+/* the small chip (design .tchip.sm): the reading view's meta row, where the big chip would outweigh the line */
+.type-chip-sm {
+  height: 18px;
+  padding: 0 6px 0 5px;
+  font-size: 11px;
+}
+
+.type-chip-sm svg {
+  width: 12px;
+  height: 12px;
+}
+
+/*
+ * The type tile (design .ttile): the icon alone in a square of the type's tint,
+ * for compact rows that carry their own name beside it — the popup's list.
+ * Same hue grammar as the chip above (token-parity.test.ts keeps one hue a type).
+ */
+.type-tile {
+  --k: var(--ann-type-clip);
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--k) 13%, var(--ann-surface));
+  color: color-mix(in oklab, var(--k) 78%, var(--ann-text));
+}
+
+.type-tile.type-highlight {
+  --k: var(--ann-type-highlight);
+}
+
+.type-tile.type-screenshot {
+  --k: var(--ann-type-screenshot);
 }

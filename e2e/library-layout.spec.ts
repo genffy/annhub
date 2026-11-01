@@ -1,13 +1,13 @@
 import type { Page } from '@playwright/test'
 import { test, expect } from './fixtures'
-import { clearLibrary, contrastOf, textContrast } from './helpers'
+import { clearLibrary, textContrast } from './helpers'
 
 /**
  * Layout of the library page's own surfaces, asserted from geometry and computed colours — never from
- * screenshots (e2e/AGENTS.md): the settings page's labelled rows, the Markdown tables in the drawer and the
+ * screenshots (e2e/AGENTS.md): the settings page's card grid and rows, the Markdown tables in the drawer and the
  * reading view, and the narrow window's icon rail. Each of them once shipped looking broken because a class
- * had no rule at all (`.settings-grid`, `.md-table`) or a rule was overridden by a more specific one
- * (`.settings-view button` painted over `.hl-dot`, the current item's badge colour beat the rail's).
+ * had no rule at all (the settings card grid, `.md-table`) or a rule was overridden by a more specific one
+ * (a settings button rule once painted over `.hl-dot`, the current item's badge colour beat the rail's).
  */
 
 // a cold service worker now and then holds `clearLibrary` for ~20s; that is not what these tests measure
@@ -81,17 +81,19 @@ for (const [uiLocale, shortcutLabels] of [
   test.describe(`settings page layout in ${uiLocale} (extension.md §2.5)`, () => {
     test.use({ uiLocale })
 
-    test('labels, controls, preview, colour dots and shortcut rows sit in aligned rows, light and dark', async ({ page, extensionId }) => {
+    test('two columns of cards, a row per setting, controls level, light and dark', async ({ page, extensionId }) => {
       await seed(page, extensionId, {
-        downloadFormat: 'jpeg', // the quality slider only exists for JPEG and WebP
+        downloadFormat: 'jpeg', // the quality slider is enabled for JPEG and WebP
         blockDisabledSites: ['example.com', 'news.example.org'],
-        watermark: { enabled: true, text: 'AnnHub demo', image: PNG_1PX }, // a stored image adds the remove button
+        watermark: { enabled: true, text: 'AnnHub demo', image: PNG_1PX }, // a stored image adds the thumbnail and the remove button
       })
       const library = await page.context().newPage()
-      for (const [width, height, stacked] of [
-        [1180, 800, false],
-        [1024, 700, false],
-        [390, 844, true],
+      // the grid measures the content area (nav aside): at 1180 it is ~960 wide (two columns), at 1024 ~804 and
+      // at 390 ~338 — both under the ~860 where the cards become one column
+      for (const [width, height, columns] of [
+        [1180, 800, 2],
+        [1024, 700, 1],
+        [390, 844, 1],
       ] as const) {
         await library.setViewportSize({ width, height })
         for (const scheme of ['light', 'dark'] as const) {
@@ -101,60 +103,61 @@ for (const [uiLocale, shortcutLabels] of [
           await expect(library.getByTestId('settings-view')).toBeVisible()
           // chrome.commands.getAll can omit a freshly added unbound command, so the
           // row count races; the two bound shortcuts are always listed
-          expect(await library.locator('.keys').count()).toBeGreaterThanOrEqual(2)
+          expect(await library.locator('.set-r:has(kbd)').count()).toBeGreaterThanOrEqual(2)
           const where = `${uiLocale}, ${width}px, ${scheme}`
 
-          const problems = await library.evaluate(isStacked => {
+          const problems = await library.evaluate(expectedColumns => {
             const found: string[] = []
             const box = (element: Element): DOMRect => element.getBoundingClientRect()
             const view = document.querySelector<HTMLElement>('.settings-view')!
-            const edge = box(view)
-            if (view.scrollWidth > view.clientWidth + 1) found.push(`the settings view scrolls sideways (${view.scrollWidth} > ${view.clientWidth})`)
-            for (const card of view.querySelectorAll('section')) {
-              const cardBox = box(card)
-              if (cardBox.left < edge.left - 1 || cardBox.right > edge.right + 1) found.push(`a card leaves the view: ${card.querySelector('h2')?.textContent}`)
+            const body = view.querySelector<HTMLElement>('.page-body')!
+            if (body.scrollWidth > body.clientWidth + 1) found.push(`the settings body scrolls sideways (${body.scrollWidth} > ${body.clientWidth})`)
+
+            // the card grid: as many columns as the width holds, equal widths, one 16px gap between them
+            const cols = [...view.querySelectorAll<HTMLElement>('.settings-col')]
+            const lefts = [...new Set(cols.map(col => Math.round(box(col).left)))]
+            if (lefts.length !== expectedColumns) found.push(`${lefts.length} columns of cards at this width, expected ${expectedColumns}`)
+            if (lefts.length === 2) {
+              const [a, b] = cols.map(col => box(col))
+              if (Math.abs(a.width - b.width) > 1) found.push(`the card columns differ in width: ${Math.round(a.width)} vs ${Math.round(b.width)}`)
+              if (Math.abs(b.left - a.right - 16) > 1) found.push(`the gap between the card columns is ${Math.round(b.left - a.right)}`)
             }
 
-            // labelled rows: the label never runs into its control; the columns line up row to row
-            for (const grid of view.querySelectorAll('.settings-grid')) {
-              const gridBox = box(grid)
-              const controlLefts = new Set<number>()
-              let previousBottom = -Infinity
-              for (const row of grid.querySelectorAll(':scope > .settings-field')) {
-                const label = row.querySelector(':scope > .settings-label')!
-                const control = row.querySelector(':scope > :not(.settings-label)')!
-                const name = (label.textContent ?? '').trim()
-                const text = document.createRange()
-                text.selectNodeContents(label)
-                const [textBox, controlBox, rowBox] = [text.getBoundingClientRect(), box(control), box(row)]
-                if (rowBox.top < previousBottom - 1) found.push(`${name}: the row overlaps the one above`)
-                previousBottom = rowBox.bottom
-                if (controlBox.right > gridBox.right + 1) found.push(`${name}: the control leaves the card`)
-                if (isStacked) {
-                  if (controlBox.top < textBox.bottom - 1) found.push(`${name}: the control is not below its label`)
-                  if (Math.abs(controlBox.left - box(label).left) > 1) found.push(`${name}: label and control do not share a left edge`)
-                } else {
-                  if (controlBox.left < textBox.right + 8) found.push(`${name}: the label runs into its control`)
-                  controlLefts.add(Math.round(controlBox.left))
+            // every card stays inside the body, and in every row the name and the control keep to their sides
+            const bodyBox = box(body)
+            for (const card of view.querySelectorAll<HTMLElement>('.set')) {
+              const cardBox = box(card)
+              if (cardBox.left < bodyBox.left - 1 || cardBox.right > bodyBox.right + 1) found.push(`a card leaves the body: ${card.querySelector('h2')?.textContent}`)
+              for (const row of card.querySelectorAll<HTMLElement>(':scope > .set-r')) {
+                const label = row.querySelector<HTMLElement>(':scope > .set-l')
+                const control = row.querySelector<HTMLElement>(':scope > .set-ctl')
+                // the metrics card opens with a banner row, which is no name-and-control row
+                if (!label?.querySelector('b') || !control) continue
+                const name = (label.querySelector('b')?.textContent ?? '').trim()
+                const labelBox = box(label)
+                const controlBox = box(control)
+                if (controlBox.right > cardBox.right + 1) found.push(`${name}: the control leaves the card`)
+                if (controlBox.top >= labelBox.bottom - 1) {
+                  // stacked by the card's own container query: the control goes under the whole label, at its left edge
+                  if (Math.abs(controlBox.left - labelBox.left) > 1) found.push(`${name}: a stacked control does not line up under its name`)
+                } else if (controlBox.left < box(label.querySelector('b')!).right + 8) {
+                  found.push(`${name}: the name runs into its control`)
                 }
               }
-              if (controlLefts.size > 1) found.push(`the controls of one card start at ${[...controlLefts].join(' and ')}`)
             }
 
-            // one height for every field control and button, so mixed rows do not step
-            const heights = new Set(
-              [...view.querySelectorAll('select, input[type="text"], input[type="file"], input[type="range"], .settings-field button, .settings-inline .prop-preset')].map(
-                control => Math.round(box(control).height),
-              ),
-            )
-            if (heights.size > 1) found.push(`controls differ in height: ${[...heights].join(', ')}`)
+            // one height for every small button and every text input, so mixed rows do not step
+            const smalls = [...view.querySelectorAll<HTMLElement>('.ghost.sm')].map(button => Math.round(box(button).height))
+            if (new Set(smalls).size > 1) found.push(`the small buttons differ in height: ${[...new Set(smalls)].join(', ')}`)
+            for (const input of view.querySelectorAll<HTMLElement>('.wm-text'))
+              if (Math.round(box(input).height) !== 30) found.push(`a watermark text input is ${Math.round(box(input).height)} tall`)
 
             // the preview comes after every watermark control
             const preview = view.querySelector('[data-testid="watermark-preview"]')!
             const previewBox = box(preview)
-            if (previewBox.width < 100 || previewBox.height < 30) found.push(`the preview is ${previewBox.width}×${previewBox.height}`)
-            for (const control of preview.closest('.settings-group')!.querySelectorAll('select, input, button')) {
-              if (box(control).bottom > previewBox.top + 1) found.push('a watermark control sits below the preview')
+            if (previewBox.width < 100 || previewBox.height < 30) found.push(`the preview is ${Math.round(previewBox.width)}×${Math.round(previewBox.height)}`)
+            for (const control of preview.closest('.set')!.querySelectorAll('select, input, button')) {
+              if (control !== preview && box(control).bottom > previewBox.top + 1) found.push('a watermark control sits below the preview')
             }
 
             // the default-colour dots keep the paint .hl-dot gives them
@@ -171,19 +174,31 @@ for (const [uiLocale, shortcutLabels] of [
               if (next && box(next).left - dotBox.right < 6) found.push(`dots ${index} and ${index + 1} touch`)
             })
 
-            // shortcut rows: the name on the left, the key (or "not assigned") on the right
-            for (const row of view.querySelectorAll('.keys')) {
-              const [name, key] = [row.children[0]!, row.children[1]!]
-              const rowBox = box(row)
-              if (!key || box(name).right > box(key).left) found.push(`the shortcut row "${name.textContent}" is not name-then-key`)
-              if (key && box(key).right < rowBox.right - 1) found.push(`the key of "${name.textContent}" is not at the row's right edge`)
-              if (key?.tagName === 'KBD' && getComputedStyle(key).borderTopStyle !== 'solid') found.push('a shortcut key is not drawn as a key')
+            // shortcut rows: the name on the left, the keycaps (or "not assigned") at the row's right edge —
+            // under the name and at its left edge once the card stacks its rows
+            for (const row of view.querySelectorAll<HTMLElement>('.set-r')) {
+              if (!row.querySelector('kbd, .keys-unassigned')) continue
+              const label = row.querySelector<HTMLElement>(':scope > .set-l')!
+              const [name, key] = [label.querySelector<HTMLElement>('b')!, row.querySelector<HTMLElement>(':scope > .set-ctl')!]
+              const [labelBox, nameBox, keyBox] = [box(label), box(name), box(key)]
+              if (keyBox.top >= labelBox.bottom - 1) {
+                if (Math.abs(keyBox.left - labelBox.left) > 1) found.push(`the key of "${name.textContent}" does not line up under its name`)
+              } else {
+                const contentRight = box(row).right - parseFloat(getComputedStyle(row).paddingRight)
+                if (keyBox.left < nameBox.right) found.push(`the shortcut row "${name.textContent}" is not name-then-key`)
+                if (keyBox.right < contentRight - 1) found.push(`the key of "${name.textContent}" is not at the row's right edge`)
+              }
+              for (const cap of row.querySelectorAll('kbd')) if (getComputedStyle(cap).borderTopStyle !== 'solid') found.push('a shortcut key is not drawn as a key')
             }
+
+            // the metrics card opens with its banner beside the refresh button
+            const metricsBanner = view.querySelector('.banner-info')
+            if (!metricsBanner || !metricsBanner.closest('.set')) found.push('the metrics card has no banner')
             return found
-          }, stacked)
+          }, columns)
           expect(problems, `settings layout (${where})`).toEqual([])
 
-          const shortcutNames = await library.locator('.keys > :first-child').allTextContents()
+          const shortcutNames = await library.locator('.set-r:has(kbd) .set-l b').allTextContents()
           expect(
             shortcutNames.filter(name => (shortcutLabels as readonly string[]).includes(name)),
             `the bound shortcuts are listed in order (${where})`,
@@ -191,7 +206,7 @@ for (const [uiLocale, shortcutLabels] of [
 
           // text is readable on whatever it sits on, in both colour schemes
           const readable = library.locator(
-            '.settings-view :is(h2, h3, .hint, .settings-label, .settings-value, .keys, kbd, .switch-row span, select, input[type="text"], input[type="file"], .prop-preset, button:not(.hl-dot))',
+            '.settings-view :is(h1.page-title, .page-sub, .set-h h2, .set-l b, .set-l small, .set-note, .mic-status, .keys-unassigned, kbd, .seg-opt, .sl-val, .wm-count, .rcheck, .cv-tag, .banner, button:not(.hl-dot))',
           )
           const ratios = await textContrast(readable)
           expect(ratios.length, `readable settings text (${where})`).toBeGreaterThan(20)
@@ -209,7 +224,7 @@ for (const [uiLocale, shortcutLabels] of [
       await library.reload()
       await expect(library.getByTestId('settings-view')).toBeVisible()
       const scroll = await library.evaluate(() => {
-        const view = document.querySelector<HTMLElement>('.settings-view')!
+        const view = document.querySelector<HTMLElement>('.settings-view .page-body')!
         const side = document.querySelector('.side')!
         const sideBefore = side.getBoundingClientRect().top
         view.scrollTop = 400
@@ -222,7 +237,7 @@ for (const [uiLocale, shortcutLabels] of [
         }
       })
       expect(scroll.scrollable, 'the settings content is taller than the window').toBe(true)
-      expect(scroll.moved, 'the view itself scrolled').toBeGreaterThan(0)
+      expect(scroll.moved, 'the settings body itself scrolled').toBeGreaterThan(0)
       expect(scroll.documentTop, 'the page did not scroll').toBe(0)
       expect(scroll.sideAfter, 'the nav stayed put').toBe(scroll.sideBefore)
       await library.close()
@@ -476,7 +491,8 @@ test.describe('the list views are grids of cards (extension.md §2.3)', () => {
     const library = await page.context().newPage()
     for (const [width, columns] of [
       [1440, (n: number) => n >= 4],
-      [1024, (n: number) => n >= 3],
+      // the wider shell (232 nav, 32 page padding) leaves 728px at 1024: the design's auto-fill holds two columns of 240+
+      [1024, (n: number) => n >= 2],
       [390, (n: number) => n === 1],
     ] as const) {
       await library.setViewportSize({ width, height: 900 })
@@ -527,7 +543,7 @@ test.describe('the list views are grids of cards (extension.md §2.3)', () => {
     // a clamp on a box taller than its lines still draws the lines after the ellipsis, half of one at the bottom
     expect(Math.abs(clamp.shown - Math.round(clamp.shown)), `the excerpt shows ${clamp.shown.toFixed(2)} lines`).toBeLessThan(0.05)
     const open = card.locator('.entry-card-open')
-    await expect(open).toHaveAccessibleName(/^Retries and backpressure: .* #reliability #retry #distributed-systems 剪藏 3 高亮 engineering\.example\.com · .+$/)
+    await expect(open).toHaveAccessibleName(/^Retries and backpressure: .* #reliability #retry #distributed-systems 剪藏 engineering\.example\.com · .+ 3 高亮$/)
     await expect(open).toHaveAccessibleDescription(/^Retries amplify the load when every client backs off together/)
     await library.close()
   })
@@ -552,7 +568,7 @@ test.describe('the list views are grids of cards (extension.md §2.3)', () => {
 })
 
 test.describe('the expanded nav: mark, groups and an outline export (extension.md §2.2)', () => {
-  test('the wordmark carries its mark, the groups are titled, and export is not the heaviest thing in the sidebar', async ({ page, extensionId }) => {
+  test('the wordmark carries its mark, the groups are titled, the items are one height and the current one keeps its bar', async ({ page, extensionId }) => {
     await seed(page, extensionId)
     const library = await page.context().newPage()
     for (const scheme of ['light', 'dark'] as const) {
@@ -568,6 +584,8 @@ test.describe('the expanded nav: mark, groups and an outline export (extension.m
         document.body.append(probe)
         const accent = getComputedStyle(probe).color
         probe.remove()
+        const heights = new Set([...document.querySelectorAll('.nav-item')].map(item => Math.round(item.getBoundingClientRect().height)))
+        const bar = getComputedStyle(document.querySelector('.nav-item-current')!, '::before')
         return {
           mark: { content: mark.content, width: parseFloat(mark.width), height: parseFloat(mark.height) },
           titles: [...document.querySelectorAll('.nav-group-title')].map(title => ({
@@ -575,6 +593,8 @@ test.describe('the expanded nav: mark, groups and an outline export (extension.m
             size: parseFloat(getComputedStyle(title).fontSize),
             colour: getComputedStyle(title).color,
           })),
+          itemHeights: [...heights],
+          barDrawn: bar.content !== 'none' && parseFloat(bar.width) >= 2,
           exportFill: getComputedStyle(document.querySelector('.nav-export')!).backgroundColor,
           accent,
         }
@@ -586,6 +606,8 @@ test.describe('the expanded nav: mark, groups and an outline export (extension.m
         `the two groups are titled (${scheme})`,
       ).toEqual(['资料库', '管理'])
       for (const title of nav.titles) expect(title.size, `"${title.text}" is at least 11px (${scheme})`).toBeGreaterThanOrEqual(11)
+      expect(nav.itemHeights, `every nav item is the same 34px row (${scheme})`).toEqual([34])
+      expect(nav.barDrawn, `the current view carries its left bar, not colour alone (${scheme})`).toBe(true)
       expect(nav.exportFill, `export is an outline, not the accent fill (${scheme})`).not.toBe(nav.accent)
       // the group titles read on the nav surface
       for (const ratio of await textContrast(library.locator('.nav-group-title'))) expect(ratio, `a group title (${scheme})`).toBeGreaterThanOrEqual(4.5)
@@ -642,7 +664,7 @@ test.describe('the card bottoms, tall captures and the reading note (extension.m
     await library.close()
   })
 
-  test("the card's bottom block is two lines, with the source on its own", async ({ page, extensionId }) => {
+  test("the card's bottom block is one line: type, source, time, and the highlight count at its end", async ({ page, extensionId }) => {
     await seedCards(page, extensionId)
     const library = await page.context().newPage()
     await library.setViewportSize({ width: 1440, height: 900 })
@@ -650,12 +672,16 @@ test.describe('the card bottoms, tall captures and the reading note (extension.m
     await library.reload()
     await expect(library.locator('.entry-card')).toHaveCount(8)
     const meta = await library.evaluate(() => {
-      const meta = document.querySelector('.entry-card[data-entry-id="ent_card_0"] .entry-card-meta')!
-      const first = meta.querySelector('.entry-card-meta-first')!
+      const card = document.querySelector('.entry-card[data-entry-id="ent_card_0"]')!
+      const meta = card.querySelector('.entry-card-meta')!
+      const chip = meta.querySelector('.type-chip')!
       const source = meta.querySelector('.entry-card-source')!
-      const [metaBox, firstBox, sourceBox] = [meta, first, source].map(element => element.getBoundingClientRect())
+      const highlights = meta.querySelector('.entry-card-highlights')!
+      const [metaBox, chipBox, sourceBox, highlightsBox, cardBox] = [meta, chip, source, highlights, card].map(element => element.getBoundingClientRect())
+      const mid = (box: DOMRect) => (box.top + box.bottom) / 2
       return {
-        lines: Math.abs(firstBox.top - sourceBox.top) > 5,
+        oneLine: Math.abs(mid(chipBox) - mid(sourceBox)) <= 1.5 && Math.abs(mid(sourceBox) - mid(highlightsBox)) <= 1.5,
+        countAtRowsEnd: highlightsBox.right <= cardBox.right - 8,
         fontSize: parseFloat(getComputedStyle(meta).fontSize),
         bottomAligned: Math.abs(metaBox.bottom - document.querySelector('.entry-card[data-entry-id="ent_card_1"] .entry-card-meta')!.getBoundingClientRect().bottom) <= 1,
         cut: (() => {
@@ -664,7 +690,8 @@ test.describe('the card bottoms, tall captures and the reading note (extension.m
         })(),
       }
     })
-    expect(meta.lines, 'type and highlights on one line, the source under them').toBe(true)
+    expect(meta.oneLine, 'type, source and time share one row, the count at its end').toBe(true)
+    expect(meta.countAtRowsEnd, 'the highlight count stays inside the card').toBe(true)
     expect(meta.fontSize, 'the bottom block is 12px').toBeGreaterThanOrEqual(12)
     expect(meta.bottomAligned, 'the bottoms stay level across a row').toBe(true)
     expect(meta.cut, 'the sample hosts fit without the ellipsis').toBe(false)
@@ -701,25 +728,56 @@ test.describe('the card bottoms, tall captures and the reading note (extension.m
       await library.goto(`chrome-extension://${extensionId}/library.html#/read/ent_note_colors`)
       await library.reload()
       await expect(library.locator('.md-hl-note').first()).toBeVisible()
-      const notes = await library
-        .locator('.md-hl-note')
-        .evaluateAll(notes => notes.map(note => ({ size: parseFloat(getComputedStyle(note).fontSize), colour: getComputedStyle(note.parentElement!).backgroundColor })))
-      expect(notes.length, `five markers, one per colour (${scheme})`).toBe(5)
-      expect(new Set(notes.map(note => note.colour)).size, 'each on its own colour').toBe(5)
-      const body = parseFloat(
-        await library
-          .locator('.md-view p')
-          .first()
-          .evaluate(p => getComputedStyle(p).fontSize),
-      )
-      for (const note of notes) expect(note.size, `the marker is at least 0.85em (${scheme})`).toBeGreaterThanOrEqual(body * 0.85)
-      for (const ratio of await contrastOf(library.locator('.md-hl-note'))) expect(ratio, `a note marker on its highlight (${scheme})`).toBeGreaterThanOrEqual(4.5)
+      // the marker is a solid dot (design .hln): what must read is its fill against the highlight's tint —
+      // a non-text contrast (≥3), measured with the same compositing the text helper uses
+      const notes = await library.locator('.md-hl-note').evaluateAll(markers => {
+        const ctx = Object.assign(document.createElement('canvas'), { width: 1, height: 1 }).getContext('2d', { willReadFrequently: true })!
+        const rgba = (css: string): [number, number, number, number] => {
+          ctx.clearRect(0, 0, 1, 1)
+          ctx.fillStyle = '#000'
+          ctx.fillStyle = css
+          ctx.fillRect(0, 0, 1, 1)
+          const d = ctx.getImageData(0, 0, 1, 1).data
+          return [d[0]!, d[1]!, d[2]!, d[3]! / 255]
+        }
+        const over = (top: number[], under: number[]): number[] => [0, 1, 2].map(i => top[i]! * top[3]! + under[i]! * (1 - top[3]!))
+        const luminance = (rgb: number[]) => {
+          const [r, g, b] = rgb.map(channel => {
+            const unit = channel / 255
+            return unit <= 0.03928 ? unit / 12.92 : ((unit + 0.055) / 1.055) ** 2.4
+          }) as [number, number, number]
+          return 0.2126 * r + 0.7152 * g + 0.0722 * b
+        }
+        return markers.map(marker => {
+          const layers: number[][] = []
+          for (let node: Element | null = marker.parentElement; node; node = node.parentElement) {
+            const layer = rgba(getComputedStyle(node).backgroundColor)
+            if (layer[3] > 0) layers.push(layer)
+            if (layer[3] === 1) break
+          }
+          let ground: number[] = [255, 255, 255]
+          for (const layer of layers.reverse()) ground = over(layer, ground)
+          const dot = rgba(getComputedStyle(marker).backgroundColor)
+          const [a, b] = [luminance(dot), luminance(ground)]
+          return {
+            width: marker.getBoundingClientRect().width,
+            ratio: Math.round(((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)) * 100) / 100,
+            tint: getComputedStyle(marker.parentElement!).backgroundColor,
+          }
+        })
+      })
+      expect(notes.length, `five markers, one per paragraph (${scheme})`).toBe(5)
+      expect(new Set(notes.map(note => note.tint)).size, 'each on its own colour').toBe(5)
+      for (const note of notes) {
+        expect(note.width, `the dot is a visible 7px marker (${scheme})`).toBeGreaterThanOrEqual(7)
+        expect(note.ratio, `the dot reads on its highlight tint (${scheme})`).toBeGreaterThanOrEqual(3)
+      }
     }
     await library.close()
   })
 })
 
-test.describe('one shell, one content start, switches that say what they do (visual.md §4, D-62)', () => {
+test.describe('one shell, one content start, switches that say what they do (visual.md §4)', () => {
   test('every page title starts at the same left edge, whatever the page below it', async ({ page, extensionId }) => {
     await seed(page, extensionId)
     const library = await page.context().newPage()
@@ -728,38 +786,70 @@ test.describe('one shell, one content start, switches that say what they do (vis
       [720, 800],
     ] as const) {
       await library.setViewportSize({ width, height })
-      const lefts: number[] = []
+      const lefts: Record<string, number> = {}
       for (const view of ['all', 'clips', 'highlights', 'screenshots', 'properties', 'settings']) {
         await library.goto(`chrome-extension://${extensionId}/library.html#/${view}`)
         await library.reload()
-        const title = library.locator('h1.page-title, .props-page > .page-title, .settings-view > h1').first()
+        const title = library.locator('h1.page-title').first()
         await expect(title).toBeVisible()
-        lefts.push(Math.round((await title.boundingBox())!.x))
+        lefts[view] = Math.round((await title.boundingBox())!.x)
       }
-      expect(Math.max(...lefts) - Math.min(...lefts), `one start for every title at ${width}px: ${lefts}`).toBeLessThanOrEqual(1)
+      expect(Math.max(...Object.values(lefts)) - Math.min(...Object.values(lefts)), `one start for every page title at ${width}px: ${JSON.stringify(lefts)}`).toBeLessThanOrEqual(1)
     }
     await library.close()
   })
 
-  test('the settings switches are named for what they do, not for their state', async ({ page, extensionId }) => {
+  test('the settings switches are named for what they do, not for their state, and answer Space', async ({ page, extensionId }) => {
     await seed(page, extensionId)
     const library = await page.context().newPage()
     await library.setViewportSize({ width: 1180, height: 800 })
     await library.goto(`chrome-extension://${extensionId}/library.html#/settings`)
     await library.reload()
     await expect(library.getByTestId('settings-view')).toBeVisible()
-    const names = await library.getByRole('checkbox').evaluateAll(boxes => boxes.map(box => box.closest('label')?.textContent ?? box.getAttribute('aria-label') ?? ''))
-    expect(names.filter(Boolean).length, 'checkboxes on the page').toBeGreaterThanOrEqual(5)
+    const readSettings = () => library.evaluate(async () => (await chrome.storage.local.get('annhub.settings'))['annhub.settings'] as Record<string, unknown> | undefined)
+    // the accessible name comes from the row's feature name (aria-labelledby), never from the state
+    const names = await library
+      .getByRole('switch')
+      .evaluateAll(switches => switches.map(box => document.getElementById(box.getAttribute('aria-labelledby') ?? '')?.textContent ?? box.getAttribute('aria-label') ?? ''))
+    expect(names.filter(Boolean).length, 'switches on the page').toBeGreaterThanOrEqual(4)
     for (const name of names) {
       const bare = name.trim()
       expect(['开', '关', 'on', 'off'], `a switch named for its state: "${bare}"`).not.toContain(bare)
     }
+    // Space flips a switch without a pointer, and the change reaches storage; the entry is on by default
+    const block = library.getByTestId('block-entry-toggle')
+    await expect(block).toBeChecked()
+    await block.focus()
+    await library.keyboard.press('Space')
+    await expect(block).not.toBeChecked()
+    await expect.poll(async () => (await readSettings())?.blockEntryEnabled).toBe(false)
+    await library.keyboard.press('Space')
+    await expect(block).toBeChecked()
+    await expect.poll(async () => (await readSettings())?.blockEntryEnabled).toBe(true)
+    await library.close()
+  })
+
+  test('a segmented control walks its segments with the arrow keys', async ({ page, extensionId }) => {
+    await seed(page, extensionId)
+    const library = await page.context().newPage()
+    await library.setViewportSize({ width: 1180, height: 800 })
+    await library.goto(`chrome-extension://${extensionId}/library.html#/settings`)
+    await library.reload()
+    const group = library.getByRole('radiogroup', { name: '下载格式' })
+    const png = group.getByRole('radio', { name: 'PNG' })
+    await expect(png).toBeChecked()
+    await png.focus()
+    await library.keyboard.press('ArrowRight')
+    await expect(group.getByRole('radio', { name: 'JPEG' })).toBeChecked()
+    await expect(group.getByRole('radio', { name: 'JPEG' })).toBeFocused()
+    await library.keyboard.press('ArrowLeft')
+    await expect(png).toBeChecked()
     await library.close()
   })
 })
 
 test.describe('the icon rail in a narrow window (extension.md §2.2)', () => {
-  test("the brand fits the rail and every badge, the current item's included, is legible", async ({ page, extensionId }) => {
+  test('the brand fits the rail, the counts fold away, and the current item keeps its bar', async ({ page, extensionId }) => {
     await seed(page, extensionId)
     const library = await page.context().newPage()
     for (const scheme of ['light', 'dark'] as const) {
@@ -767,7 +857,7 @@ test.describe('the icon rail in a narrow window (extension.md §2.2)', () => {
       await library.setViewportSize({ width: 390, height: 844 })
       await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
       await library.reload()
-      await expect(library.locator('.nav-item-current .nav-count')).toHaveText('3')
+      await expect(library.locator('.nav-item-current')).toHaveAccessibleName('全部')
 
       const rail = await library.evaluate(() => {
         const found: string[] = []
@@ -786,32 +876,16 @@ test.describe('the icon rail in a narrow window (extension.md §2.2)', () => {
         // something is drawn in the brand's place: a mark of a usable size
         const mark = getComputedStyle(brand, '::before')
         if (mark.content === 'none' || parseFloat(mark.width) < 20 || parseFloat(mark.height) < 20) found.push('the brand shows no mark in the rail')
-
-        const pill = (element: Element) => {
-          const style = getComputedStyle(element)
-          return { text: element.textContent, color: style.color, background: style.backgroundColor, box: element.getBoundingClientRect() }
-        }
-        return {
-          found,
-          count: document.querySelectorAll('.nav-count').length,
-          current: pill(document.querySelector('.nav-item-current .nav-count')!),
-          siblings: [...document.querySelectorAll('.nav-item:not(.nav-item-current) .nav-count')].map(pill),
-        }
+        // the rail shows no counts and no group titles; the current view keeps its mark: the bar at the left edge
+        const drawn = (element: Element | null) => Boolean(element && (element as HTMLElement).offsetParent !== null)
+        if (drawn(document.querySelector('.nav-count'))) found.push('a count is drawn in the rail')
+        if (drawn(document.querySelector('.nav-group-title'))) found.push('a group title is drawn in the rail')
+        const bar = getComputedStyle(document.querySelector('.nav-item-current')!, '::before')
+        if (bar.content === 'none' || parseFloat(bar.width) < 2) found.push("the current item's bar is gone")
+        return { found, width: Math.round(side.width) }
       })
       expect(rail.found, `the rail at 390px, ${scheme}`).toEqual([])
-      expect(rail.count, 'badges in the rail').toBeGreaterThanOrEqual(3)
-      expect(rail.siblings.length).toBeGreaterThan(0)
-      for (const other of rail.siblings) {
-        expect({ color: rail.current.color, background: rail.current.background }, `the current badge looks like the others (${scheme})`).toEqual({
-          color: other.color,
-          background: other.background,
-        })
-      }
-      expect(rail.current.box.width, 'the current badge has room for its number').toBeGreaterThanOrEqual(12)
-
-      // accent text on an accent fill measures 1:1; 3:1 is the floor for a UI indicator, and the shared pair clears it in both schemes
-      const [ratio] = await textContrast(library.locator('.nav-item-current .nav-count'))
-      expect(ratio, `the current item's badge contrast (${scheme})`).toBeGreaterThanOrEqual(3)
+      expect(rail.width, `the rail is the 60px rail (${scheme})`).toBe(60)
     }
 
     // the wide layout keeps its quiet badge: text in the item's colour, no fill
@@ -896,7 +970,7 @@ test.describe('entry-type hues and global defaults (visual.md §3)', () => {
     await library.emulateMedia({ colorScheme: 'light' })
     await library.goto(`chrome-extension://${extensionId}/library.html#/properties`)
     await library.reload()
-    await expect(library.locator('.prop-preset input').first()).toBeVisible()
+    await expect(library.locator('.props-table input[type="checkbox"]').first()).toBeVisible()
     const accentOf = (pageToRead: Page) =>
       pageToRead.evaluate(() => {
         const probe = document.createElement('span')
@@ -906,7 +980,7 @@ test.describe('entry-type hues and global defaults (visual.md §3)', () => {
         probe.remove()
         return accent
       })
-    const presets = await library.evaluate(() => [...document.querySelectorAll('.prop-preset input')].map(input => getComputedStyle(input).accentColor))
+    const presets = await library.evaluate(() => [...document.querySelectorAll('.props-table input[type="checkbox"]')].map(input => getComputedStyle(input).accentColor))
     const accent = await accentOf(library)
     await library.goto(`chrome-extension://${extensionId}/library.html#/settings`)
     await library.reload()
@@ -926,6 +1000,52 @@ test.describe('entry-type hues and global defaults (visual.md §3)', () => {
       ['the popup microphone checkbox', popupMic],
     ] as const)
       expect(accentColor, `${where} takes the accent`).toBe(accent)
+    await library.close()
+  })
+
+  test('each banner variant carries its own state colour, in both appearances', async ({ page, extensionId }) => {
+    await seed(page, extensionId)
+    const library = await page.context().newPage()
+    for (const scheme of ['light', 'dark'] as const) {
+      await library.emulateMedia({ colorScheme: scheme })
+      await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+      await library.reload()
+      await expect(library.locator('.page-title')).toBeVisible()
+      // the four status banners probed in place: each --ann-state is its own root token, and each
+      // background is distinct and not the bare banner's neutral ground
+      const banners = await library.evaluate(() => {
+        const root = getComputedStyle(document.documentElement)
+        const host = document.createElement('div')
+        host.innerHTML = '<p class="banner"></p>' + ['ok', 'warn', 'danger', 'info'].map(kind => `<p class="banner banner-${kind}"></p>`).join('')
+        document.body.append(host)
+        const read = (selector: string) => {
+          const el = host.querySelector(selector)!
+          return { state: getComputedStyle(el).getPropertyValue('--ann-state').trim(), bg: getComputedStyle(el).backgroundColor }
+        }
+        const out = {
+          plain: read('.banner:not([class*="banner-"])').bg,
+          ok: read('.banner-ok'),
+          warn: read('.banner-warn'),
+          danger: read('.banner-danger'),
+          info: read('.banner-info'),
+          tokens: {
+            success: root.getPropertyValue('--ann-success').trim(),
+            warn: root.getPropertyValue('--ann-warn').trim(),
+            danger: root.getPropertyValue('--ann-danger').trim(),
+            info: root.getPropertyValue('--ann-info').trim(),
+          },
+        }
+        host.remove()
+        return out
+      })
+      expect(banners.ok.state, `ok reads the success token (${scheme})`).toBe(banners.tokens.success)
+      expect(banners.warn.state, `warn reads the warn token (${scheme})`).toBe(banners.tokens.warn)
+      expect(banners.danger.state, `danger reads the danger token (${scheme})`).toBe(banners.tokens.danger)
+      expect(banners.info.state, `info reads the info token (${scheme})`).toBe(banners.tokens.info)
+      const grounds = [banners.ok.bg, banners.warn.bg, banners.danger.bg, banners.info.bg]
+      expect(new Set(grounds).size, `four distinct grounds (${scheme})`).toBe(4)
+      for (const ground of grounds) expect(ground, `a variant ground differs from the plain banner (${scheme})`).not.toBe(banners.plain)
+    }
     await library.close()
   })
 })

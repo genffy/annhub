@@ -12,8 +12,8 @@ import ts from 'typescript'
 
 const root = resolve(__dirname, '../..')
 
-/** Words that are the same in every language: the product's name, file formats, option letters. */
-const SAME_EVERYWHERE = new Set(['AnnHub', 'PNG', 'JPEG', 'WebP', 'A', 'B'])
+/** Words that are the same in every language: the product's name, file formats, option and keycap letters. */
+const SAME_EVERYWHERE = new Set(['AnnHub', 'PNG', 'JPEG', 'WebP', 'A', 'B', 'W'])
 const USER_FACING_ATTRIBUTES = new Set(['aria-label', 'title', 'placeholder', 'alt', 'aria-description'])
 const CJK = /[㐀-鿿]/
 /** Chinese punctuation: in text put together around values it is display text (“Highlight, Yellow：…”, 真机走查 P2-7). */

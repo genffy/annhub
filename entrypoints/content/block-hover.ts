@@ -21,6 +21,7 @@ import {
   type BlockKind,
 } from './blocks'
 import { isUserInput } from './user-input'
+import { overlayIcon } from './icons'
 import { uiText } from '../../utils/ui-text'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -340,10 +341,18 @@ export class BlockEntries {
     const host = this.doc.createElement('div')
     host.setAttribute(ROOT_ATTR, keyboard ? 'block-mode-capsule' : 'block-capsule')
     host.className = 'ann-block-capsule'
+    const segment = () => {
+      const sep = this.doc.createElement('span')
+      sep.className = 'ann-blk-sep'
+      return sep
+    }
 
     const clip = this.doc.createElement('button')
     clip.type = 'button'
-    clip.textContent = uiText('block.clip')
+    clip.className = 'ann-blk-seg ann-blk-seg-clip'
+    const clipLabel = this.doc.createElement('span')
+    clipLabel.textContent = uiText('block.clip')
+    clip.append(overlayIcon(this.doc, 'bookmark'), clipLabel)
     clip.addEventListener('click', event => {
       if (!isUserInput(event)) return
       this.offerClip(candidate, this.hoverDepth > 0 || this.modeLevelChanged)
@@ -355,20 +364,24 @@ export class BlockEntries {
     if (startScreenshot) {
       const shot = this.doc.createElement('button')
       shot.type = 'button'
-      shot.textContent = uiText('block.shot')
+      shot.className = 'ann-blk-seg ann-blk-seg-shot'
+      const shotLabel = this.doc.createElement('span')
+      shotLabel.textContent = uiText('block.shot')
+      shot.append(overlayIcon(this.doc, 'scan'), shotLabel)
       shot.addEventListener('click', event => {
         if (!isUserInput(event)) return
         startScreenshot.call(this.hooks, candidate)
         if (!keyboard) this.hideNow()
       })
-      host.append(shot)
+      host.append(segment(), shot)
     }
 
     if (!keyboard) {
       const up = this.doc.createElement('button')
       up.type = 'button'
-      up.textContent = '⌃'
+      up.className = 'ann-blk-sub'
       up.setAttribute('aria-label', uiText('block.up'))
+      up.appendChild(overlayIcon(this.doc, 'chevron-up'))
       up.disabled = this.hoverDepth >= this.hoverChain.length - 1
       up.addEventListener('click', event => {
         if (!isUserInput(event)) return
@@ -376,17 +389,19 @@ export class BlockEntries {
         this.hoverCandidate = this.hoverChain[this.hoverDepth]!
         this.paintHover()
       })
-      host.appendChild(up)
+      host.append(segment(), up)
     }
 
     const more = this.doc.createElement('button')
     more.type = 'button'
-    more.textContent = uiText('block.more')
+    more.className = 'ann-blk-sub'
+    more.setAttribute('aria-label', uiText('block.more'))
+    more.appendChild(overlayIcon(this.doc, 'ellipsis'))
     more.addEventListener('click', event => {
       if (!isUserInput(event)) return
       this.openMoreMenu(host)
     })
-    host.appendChild(more)
+    host.append(segment(), more)
     return host
   }
 
@@ -526,19 +541,44 @@ export class BlockEntries {
     overlay.setAttribute(ROOT_ATTR, 'block-mode-overlay')
     overlay.className = 'ann-block-mode-overlay'
     // One live region: the kind and the unit's own words change with the target; the key hint
-    // never changes, so it is announced once with the mode and not on every move.
+    // never changes, so it is announced once with the mode and not on every move. The "Block
+    // mode" prefix is presentation — aria-hidden keeps the announcement at "kind · summary".
     const status = this.doc.createElement('div')
     status.className = 'ann-block-mode-status'
     status.setAttribute(ROOT_ATTR, 'block-mode-capsule')
     status.setAttribute('role', 'status')
     status.setAttribute('aria-live', 'polite')
     status.setAttribute('aria-atomic', 'false')
+    const dot = this.doc.createElement('i')
+    dot.className = 'ann-block-mode-dot'
+    const label = this.doc.createElement('span')
+    label.className = 'ann-block-mode-label'
+    label.setAttribute('aria-hidden', 'true')
+    label.textContent = `${uiText('block.mode.label')} ·`
     const kind = this.doc.createElement('span')
     kind.className = 'ann-block-mode-kind'
     const hint = this.doc.createElement('span')
     hint.className = 'ann-block-mode-hint'
-    hint.textContent = uiText(this.hooks.onScreenshot ? 'block.mode.hint' : 'block.mode.hintClipOnly')
-    status.append(kind, hint)
+    type HintPart = [keys: string[], labelKey: 'block.mode.next' | 'block.mode.level' | 'block.clip' | 'block.shot' | 'block.mode.exit', act: boolean]
+    const hintParts: HintPart[] = [
+      [['Tab'], 'block.mode.next', false],
+      [['↑', '↓'], 'block.mode.level', false],
+      [['Enter'], 'block.clip', true],
+    ]
+    if (this.hooks.onScreenshot) hintParts.push([['S'], 'block.shot', true])
+    hintParts.push([['Esc'], 'block.mode.exit', true])
+    for (const [keys, labelKey, act] of hintParts) {
+      for (const key of keys) {
+        const cap = this.doc.createElement('kbd')
+        cap.textContent = key
+        hint.appendChild(cap)
+      }
+      const words = this.doc.createElement('span')
+      if (act) words.className = 'ann-block-mode-act'
+      words.textContent = uiText(labelKey)
+      hint.appendChild(words)
+    }
+    status.append(dot, label, kind, hint)
     this.doc.documentElement.append(overlay, status)
     // Keys must reach this document: a user whose focus sat in a child frame would otherwise type
     // into that frame while the mode waits here. The previous focus comes back on exit.

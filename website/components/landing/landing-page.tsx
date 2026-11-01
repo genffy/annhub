@@ -1,5 +1,6 @@
 import type { LandingCopy } from '@/lib/copy'
 import AnalyticsConsent from './analytics-consent'
+import Annotate from './annotate'
 import Closing from './closing'
 import Differences from './differences'
 import Faq from './faq'
@@ -13,7 +14,7 @@ import Story from './story'
 import Trust from './trust'
 import Ways from './ways'
 
-/** Order follows docs/product/website.md §3: hero, problem, the three ways, one real story, the product, differences, trust, FAQ, closing. */
+/** Order follows docs/product/website.md §3: hero, problem, the three ways, annotation and recording, one real story, the product, differences, trust, FAQ, closing. */
 export default function LandingPage({ copy }: { copy: LandingCopy }) {
   return (
     <>
@@ -29,6 +30,7 @@ export default function LandingPage({ copy }: { copy: LandingCopy }) {
         <Hero copy={copy} />
         <Problem copy={copy} />
         <Ways copy={copy} />
+        <Annotate copy={copy} />
         <Story copy={copy} />
         <LibrarySection copy={copy} />
         <Differences copy={copy} />
