@@ -47,7 +47,7 @@ const TYPE_HUES: Record<'clip' | 'highlight' | 'screenshot', { oklch: [string, s
 /** The accent, one purple in every copy. */
 const ACCENT: [string, string] = ['#673ab8', '#7a55d1']
 
-describe('one colour, four copies: the token parity table (D-78)', () => {
+describe('one colour, four copies: the token parity table (visual.md §2)', () => {
   it('the accent is one purple everywhere', () => {
     for (const [scheme, index] of [
       ['light', 0],
