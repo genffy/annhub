@@ -31,7 +31,7 @@ function fixture() {
   ]) {
     writeFileSync(join(directory, file), 'test asset')
   }
-  // the branded 404 (website.md §20): both languages, each with its exits, not indexed, no consent
+  // the branded 404 (website.md §21): both languages, each with its exits, not indexed, no consent
   writeFileSync(
     join(directory, '404.html'),
     '<html lang="en"><head><meta name="robots" content="noindex"></head><body>' +

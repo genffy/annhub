@@ -54,7 +54,7 @@ export interface ProductUi {
   types: { clip: string; screenshot: string; highlight: string }
   menu: { clip: string; screenshot: string; clipHint: string; screenshotHint: string }
   toast: { clipped: string; undo: string; edit: string; undone: string }
-  edit: { title: string; tags: string; note: string; more: string; done: string; addTag: string }
+  edit: { title: string; tags: string; note: string; more: string; done: string; addTag: string; blurNote: string }
   block: { clip: string; shot: string; parent: string; more: string; clipped: string }
   shot: {
     hint: string
@@ -62,7 +62,11 @@ export interface ProductUi {
     rect: string
     ellipse: string
     arrow: string
+    line: string
     pen: string
+    highlighter: string
+    step: string
+    width: string
     mosaic: string
     text: string
     undo: string
@@ -72,6 +76,25 @@ export interface ProductUi {
     confirm: string
     annotation: string
     figure: string
+    /** The chip under the toolbar while the step tool is on; `{n}` is the next number. */
+    stepsNext: string
+    stepsReset: string
+    /** The stitching progress of a scrolling capture; `{done}` / `{total}` are screens. */
+    stitch: { progress: string; esc: string }
+  }
+  /** The page-annotation layer's own toolbar (annotate.md §1); tool names are shared with the shot editor. */
+  annotate: {
+    toolbar: string
+    pointer: string
+    autoerase: string
+    clear: string
+    screenshot: string
+    exit: string
+  }
+  /** The toolbar popup while a tab is being recorded (annotate.md §2.1); `{time}` is the elapsed 03:12. */
+  record: {
+    status: string
+    stop: string
   }
   nav: {
     library: string

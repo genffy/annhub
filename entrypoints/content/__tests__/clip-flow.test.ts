@@ -74,21 +74,96 @@ describe('the quick edit bubble keeps typed text and says why a write was refuse
     vi.spyOn(MessageUtils, 'sendMessage').mockResolvedValue({ type: 'RESPONSE', success: false, error: 'STORAGE_QUOTA_EXCEEDED' })
     openEditBubble({ entryId: 'ent_1', title: 'T', truncated: false }, document.body)
     const bubble = document.querySelector<HTMLElement>('[data-ann-ui="clip-edit"]')!
-    const inputs = bubble.querySelectorAll('input')
-    inputs[2]!.value = 'my note'
+    const note = bubble.querySelector<HTMLTextAreaElement>('textarea')!
+    note.value = 'my note'
     ;[...bubble.querySelectorAll('button')].find(button => button.textContent === '完成')!.click()
     await vi.waitFor(() => expect(bubble.querySelector('.ann-clip-edit-error')!.textContent).toContain('导出'))
     expect(bubble.isConnected).toBe(true)
-    expect(inputs[2]!.value).toBe('my note')
+    expect(note.value).toBe('my note')
   })
 
   it('an unexplained refusal reads "Save failed" and still keeps the bubble', async () => {
     vi.spyOn(MessageUtils, 'sendMessage').mockResolvedValue({ type: 'RESPONSE', success: false, error: 'Forbidden: extension page context required' })
     openEditBubble({ entryId: 'ent_1', title: 'T', truncated: false }, document.body)
     const bubble = document.querySelector<HTMLElement>('[data-ann-ui="clip-edit"]')!
-    bubble.querySelectorAll('input')[2]!.value = 'my note'
+    const note = bubble.querySelector<HTMLTextAreaElement>('textarea')!
+    note.value = 'my note'
     ;[...bubble.querySelectorAll('button')].find(button => button.textContent === '完成')!.click()
     await vi.waitFor(() => expect(bubble.querySelector('.ann-clip-edit-error')!.textContent).toBe('保存失败'))
     expect(bubble.isConnected).toBe(true)
+  })
+})
+
+describe('the countdown bar is the timer, not a decoration (extension.md §3)', () => {
+  it('stops with the toast while the user is on it and runs a fresh round after leaving', () => {
+    vi.useFakeTimers()
+    const handle = showClipToast({ entryId: 'ent_t', title: 'T', truncated: false }, null)
+    const host = document.querySelector<HTMLElement>('[data-ann-ui="clip-toast"]')!
+    const bar = host.querySelector<HTMLElement>('.ann-clip-toast')!
+    expect(host.querySelector('.ann-clip-toast-tbar i')).not.toBeNull()
+
+    host.dispatchEvent(new MouseEvent('pointerenter'))
+    vi.advanceTimersByTime(10_000)
+    expect(host.isConnected).toBe(true)
+    expect(bar.classList.contains('ann-clip-toast-held')).toBe(true)
+
+    host.dispatchEvent(new MouseEvent('pointerleave'))
+    expect(bar.classList.contains('ann-clip-toast-held')).toBe(false)
+    vi.advanceTimersByTime(3_100)
+    expect(host.isConnected).toBe(true)
+    vi.advanceTimersByTime(200)
+    expect(host.isConnected).toBe(false)
+    handle.dismiss()
+    vi.useRealTimers()
+  })
+})
+
+describe('the tag field commits chips and refuses what the property refuses (extension.md §3)', () => {
+  const openBubble = (): HTMLElement => {
+    vi.spyOn(MessageUtils, 'sendMessage').mockResolvedValue({ type: 'RESPONSE', success: true, data: {} })
+    openEditBubble({ entryId: 'ent_1', title: 'T', truncated: false }, document.body)
+    return document.querySelector<HTMLElement>('[data-ann-ui="clip-edit"]')!
+  }
+  const chipTexts = (bubble: HTMLElement): string[] => [...bubble.querySelectorAll('.ann-clip-edit-chip > span:first-child')].map(chip => chip.textContent ?? '')
+
+  it('Enter and a comma turn the typed text into chips; Backspace on an empty field drops the last one', async () => {
+    const bubble = openBubble()
+    const input = bubble.querySelectorAll('input')[1] as HTMLInputElement
+    input.value = 'retry'
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    input.value = 'streams'
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: '，', bubbles: true, cancelable: true }))
+    expect(chipTexts(bubble)).toEqual(['retry', 'streams'])
+    expect(input.value).toBe('')
+
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true, cancelable: true }))
+    expect(chipTexts(bubble)).toEqual(['retry'])
+
+    input.value = 'left uncommitted'
+    input.dispatchEvent(new FocusEvent('blur'))
+    expect(chipTexts(bubble)).toEqual(['retry', 'left uncommitted'])
+    ;[...bubble.querySelectorAll('button')].find(button => button.textContent === '完成')!.click()
+    await vi.waitFor(() => expect(bubble.isConnected).toBe(false))
+    expect(MessageUtils.sendMessage).toHaveBeenLastCalledWith(
+      expect.objectContaining({ type: 'UPDATE_ENTRY', patch: expect.objectContaining({ properties: { set: { tags: ['retry', 'left uncommitted'] } } }) }),
+    )
+  })
+
+  it('says which limit was hit and keeps the text for editing instead of chipping it', () => {
+    const bubble = openBubble()
+    const input = bubble.querySelectorAll('input')[1] as HTMLInputElement
+    input.value = 'x'.repeat(33)
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    expect(bubble.querySelector('.ann-clip-edit-error')!.textContent).toContain('32')
+    expect(chipTexts(bubble)).toEqual([])
+    expect(input.value).toBe('x'.repeat(33))
+  })
+
+  it('names each chip’s remover for the screen reader', () => {
+    const bubble = openBubble()
+    const input = bubble.querySelectorAll('input')[1] as HTMLInputElement
+    input.value = 'retry'
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    expect(bubble.querySelector('.ann-clip-edit-chip button')!.getAttribute('aria-label')).toBe('移除标签：retry')
   })
 })

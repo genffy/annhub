@@ -2,23 +2,75 @@
  * Extension surface tokens (docs/product/visual.md): one brand-purple accent,
  * neutral surfaces, light and dark sets that follow the system. The names and
  * values match the in-page overlay tokens in entrypoints/content/content.css.
+ *
+ * Design-draft mapping (docs/design/css/tokens.css → this file). The extension
+ * keeps its own slate neutrals, so tokens marked "extension value" only share a
+ * name with the draft; the ones below the table take the draft's numbers.
+ *
+ * draft              token                      value
+ * --surface          --ann-surface              extension value
+ * --surface-2        --ann-surface-alt          extension value
+ * --surface-3        --ann-surface-3            design value
+ * --side             --ann-side                 design value
+ * --canvas/--canvas-line  (no token: the draft's artboard canvas; extension pages use --ann-page)
+ * --fg               --ann-text                 extension value
+ * --fg-2             --ann-text-2               design value
+ * --fg-3             --ann-muted                extension value
+ * --fg-4             --ann-subtle               design value
+ * --line             --ann-line                 design value
+ * --line-2           --ann-border               extension value
+ * --brand            --ann-accent               one purple (token-parity.test.ts)
+ * --brand-fg         --ann-accent-contrast
+ * --brand-text       --ann-accent-text
+ * --ring             --ann-ring                 design value
+ * --ok               --ann-success              extension value
+ * --warn             --ann-warn                 design oklch as hex
+ * --danger           --ann-danger               extension value
+ * --info             --ann-info                 design oklch as hex
+ * --t-clip/--t-highlight/--t-screenshot  --ann-type-*  one hue in every copy (token-parity.test.ts)
+ * banner tints (color-mix 10% over the draft's surface)  --ann-danger-bg/--ann-success-bg/--ann-warn-bg/--ann-info-bg
+ * --hl-yellow/green/blue/pink/purple  (no tokens: the five highlight colours stay with the
+ *   highlight dot and mark rules, not in tokens)
+ * --font-ui/--font-mono/--font-serif  (no tokens: the extension writes its system font stacks per stylesheet)
+ * --nav-w/--rail-w/--drawer-w  (no tokens: shell layout sizes live in the layout rules, not here)
+ * --sh-1/--sh-2/--sh-modal  --ann-shadow-1/-2/-modal  design value
+ * --sh-window        (no token: the artboard window shadow; no extension surface needs it)
+ * --page-bg/--page-fg/--page-sel  (no tokens: the draft's fake web page; the extension overlays real pages)
+ * --pin/--pin-fg     (no tokens: the draft's annotation pins; in-page annotation draws ink, not pins)
+ * --c/--k/--g/--p/--caret/--ink/--fill/--chrome-*  (component-local variables in the draft, not tokens)
  */
 :root {
   color-scheme: light dark;
   --ann-surface: #ffffff;
   --ann-surface-alt: #f6f7f9;
+  --ann-surface-3: #e9ecf1;
   --ann-page: #f8f9fa;
+  --ann-side: #f7f7fb;
   --ann-border: #d6d8de;
+  --ann-line: #e6e9ef;
   --ann-text: #1a1d24;
+  --ann-text-2: #384051;
   --ann-muted: #636977;
+  --ann-subtle: #8f96a3;
   --ann-accent: #673ab8;
   --ann-accent-text: #673ab8;
   --ann-accent-contrast: #ffffff;
   --ann-accent-soft: #efe9fa;
+  --ann-ring: color-mix(in oklab, #673ab8 42%, transparent);
+  --ann-scrim: rgb(15 23 42 / 0.52);
+  --ann-shadow-1: 0 1px 2px rgb(15 23 42 / 0.06), 0 0 0 1px rgb(15 23 42 / 0.04);
+  --ann-shadow-2: 0 6px 16px -4px rgb(15 23 42 / 0.12), 0 0 0 1px rgb(15 23 42 / 0.05);
+  --ann-shadow-modal: 0 28px 70px -14px rgb(15 23 42 / 0.4), 0 0 0 1px rgb(15 23 42 / 0.08);
   --ann-danger: #c6373c;
   --ann-danger-bg: #fdf0f0;
   --ann-success: #226a3c;
   --ann-success-bg: #eef7ef;
+  /* --warn/--info are the draft's oklch as hex; the -bg pair is its banner tint
+     (color-mix 10% over the draft surface) with the banner text at 9.6:1 / 8.6:1 */
+  --ann-warn: #da950b;
+  --ann-warn-bg: #fcf5eb;
+  --ann-info: #2b7ec9;
+  --ann-info-bg: #eaf2fa;
   /* entry-type hues (visual.md §3): icon/stroke, chip fill and chip text; the highlight text is a 68% mix
      (the others 78%) because 78% reads only 4.02:1 on its own fill */
   --ann-type-clip: #276ed2;
@@ -36,10 +88,24 @@
   :root {
     --ann-surface: #1f2127;
     --ann-surface-alt: #2a2d35;
+    --ann-surface-3: #262b38;
     --ann-page: #17181c;
+    --ann-side: #10131a;
     --ann-border: #3d414c;
+    --ann-line: #242937;
     --ann-text: #ececf1;
+    --ann-text-2: #bcc3d2;
     --ann-muted: #a3a8b6;
+    --ann-subtle: #6a7387;
+    --ann-ring: color-mix(in oklab, #9a7be6 55%, transparent);
+    --ann-scrim: rgb(2 4 10 / 0.62);
+    --ann-shadow-1: 0 1px 2px rgb(0 0 0 / 0.4), 0 0 0 1px rgb(255 255 255 / 0.05);
+    --ann-shadow-2: 0 8px 20px -4px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.07);
+    --ann-shadow-modal: 0 30px 80px -14px rgb(0 0 0 / 0.75), 0 0 0 1px rgb(255 255 255 / 0.09);
+    --ann-warn: #edb345;
+    --ann-warn-bg: #262526;
+    --ann-info: #70b3f7;
+    --ann-info-bg: #1c2431;
     /* fill and text split like the design's --brand / --brand-text (真机走查
        P2-8)：#7a55d2 fill keeps white text at 5.19:1, #b9a3f2 as text reads
        8.10:1 on the dark page — one #8a63d2 for both sat under 4.5:1. */

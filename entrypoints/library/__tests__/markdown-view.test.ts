@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { Highlight } from '../../../learning-core/types'
 import { fold, PAGE_TEXT_CASES } from '../../../learning-core/__tests__/fixtures/page-text'
 import { MarkdownView, parseBlocks, quoteForRange, renderedRuns, sourceRangeFromSelection, splitTableRow } from '../markdown-view'
+import { uiText } from '../../../utils/ui-text'
 
 /**
  * RK-13: rendered-selection ↔ source-offset conversion lives in one shared
@@ -241,6 +242,37 @@ describe('escaped source offsets and Markdown display (RV-LIB-09, RV-LIB-14)', (
     range.setEnd(paragraphs[1]!, 0)
     selection.addRange(range)
     expect(sourceRangeFromSelection(root, selection, md)).toEqual({ start: 0, end: 'Alpha two three.'.length })
+  })
+})
+
+describe('the inline image placeholder (extension.md §4.2, capture.md §3.1)', () => {
+  it('shows the alt text, the not-saved note and a safe original link, with its source offsets', () => {
+    const md = 'Before ![a diagram](https://pics.example.com/diagram.png) after.'
+    document.body.innerHTML = renderToStaticMarkup(createElement(MarkdownView, { markdown: md }))
+    const placeholder = document.querySelector<HTMLElement>('.md-image-placeholder')!
+    expect(placeholder.textContent).toContain('a diagram')
+    expect(placeholder.querySelector('small')!.textContent).toBe(uiText('library.imagePlaceholder'))
+    const link = placeholder.querySelector('a')!
+    expect(link.getAttribute('href')).toBe('https://pics.example.com/diagram.png')
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer')
+    expect(link.getAttribute('target')).toBe('_blank')
+    expect(link.textContent).toBe(uiText('library.openOriginal'))
+    // the placeholder carries the alt text's source span, so a selection across it keeps its offsets;
+    // a plain alt sets no end (the convention: only escapes carry their two-source-char width)
+    expect(placeholder.dataset.s).toBe(String(md.indexOf('a diagram')))
+    expect(placeholder.dataset.e).toBeUndefined()
+  })
+
+  it('drops the link for schemes safeHref refuses and falls back to the plain word for an empty alt', () => {
+    const md = 'No link ![alt](javascript:alert(1)) and empty ![](https://pics.example.com/x.png) done.'
+    document.body.innerHTML = renderToStaticMarkup(createElement(MarkdownView, { markdown: md }))
+    const placeholders = [...document.querySelectorAll<HTMLElement>('.md-image-placeholder')]
+    expect(placeholders).toHaveLength(2)
+    // javascript: never becomes a link (safeHref allows http(s) only)
+    expect(placeholders[0]!.querySelector('a')).toBeNull()
+    // an empty alt reads the generic image word, not an empty chip
+    expect(placeholders[1]!.textContent).toContain(uiText('library.image'))
+    expect(placeholders[1]!.querySelector('a')!.getAttribute('href')).toBe('https://pics.example.com/x.png')
   })
 })
 

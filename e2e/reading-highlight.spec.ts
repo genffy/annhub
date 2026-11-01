@@ -22,6 +22,12 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     const reading = library.getByTestId('reading-view')
     await expect(reading).toBeVisible()
 
+    // the back button is a quiet ghost (design .btn-ghost): borderless until hover warms it
+    const back = reading.getByRole('button', { name: '返回' })
+    expect(await back.evaluate(button => getComputedStyle(button).borderTopColor)).toBe('rgba(0, 0, 0, 0)')
+    await back.hover()
+    await expect.poll(() => back.evaluate(button => getComputedStyle(button).backgroundColor)).not.toBe('rgba(0, 0, 0, 0)')
+
     // select rendered text with a real double-click (the word under the pointer) and create a highlight with the yellow dot
     const surface = reading.locator('.md-view')
     await surface
@@ -91,13 +97,14 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     const groups = library.getByTestId('hl-groups')
     await expect(groups).toBeVisible()
     await expect(groups.locator('.hl-group')).toHaveCount(1)
-    await groups.locator('.hl-row').first().click()
+    await groups.locator('.hl-item').first().click()
     await expect(library.getByTestId('reading-view')).toBeVisible()
 
     // export writes the mark back as ==…== (storage.md §6)
     await library.getByTestId('reading-view').getByRole('button', { name: '返回' }).click()
     await library.locator('.nav-export').click()
-    await expect(library.locator('.nav-note').first()).toContainText('导出完成')
+    await library.getByTestId('export-dialog').getByRole('button', { name: '导出 ZIP' }).click()
+    await expect(library.locator('.nav-note:not(.nav-storage)').first()).toContainText('导出完成')
     const entries = await getEntries(library.context())
     expect(entries[0]!.highlights?.length).toBe(1)
     await library.close()
@@ -453,7 +460,7 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
 
     const library = await page.context().newPage()
     await library.goto(`chrome-extension://${extensionId}/library.html#/highlights`)
-    await library.locator('.hl-row').first().click()
+    await library.locator('.hl-item').first().click()
     await expect(library).toHaveURL(/#\/read\/ent_locate\?h=hl_locate/)
     await expect(library.getByTestId('reading-view')).toBeVisible()
     // the mark is on screen without any scrolling by the user
@@ -519,6 +526,77 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     await expect(library.locator('.md-hl-hit').first()).toBeFocused()
     await library.keyboard.press('Escape')
     await expect(library.getByTestId('reading-view')).toHaveCount(0)
+    await library.close()
+  })
+
+  test('the side rail carries each highlight in its own colour bar', async ({ page, extensionId }) => {
+    const paragraphs = ['Yellow note.', 'Green note.', 'Blue note.', 'Pink note.', 'Purple note.']
+    const content = paragraphs.join('\n\n')
+    await page.goto(`chrome-extension://${extensionId}/sample.html`)
+    await page.evaluate(
+      payload =>
+        chrome.runtime.sendMessage({
+          type: 'SAVE_CLIP',
+          requestId: 'r-rail-colours',
+          draft: { id: 'ent_rail_colours', content: payload.content, sourceUrl: 'https://engineering.example.com/rail', properties: { title: 'Five colours' }, via: 'menu' },
+        }),
+      { content },
+    )
+    // one highlight per paragraph, each inside its own block: a range across the blank line is not valid
+    let cursor = 0
+    for (const [index, color] of (['yellow', 'green', 'blue', 'pink', 'purple'] as const).entries()) {
+      const start = cursor
+      const end = start + paragraphs[index]!.length
+      cursor = end + 2
+      const added = await page.evaluate(
+        payload =>
+          chrome.runtime.sendMessage({
+            type: 'ADD_HIGHLIGHT',
+            id: 'ent_rail_colours',
+            highlight: { id: `hl_rail_${payload.color}`, start: payload.start, end: payload.end, quote: payload.quote, color: payload.color, createdAt: Date.now() },
+          }),
+        { color, start, end, quote: content.slice(start, end) },
+      )
+      expect(added.success, `the ${color} highlight is in the store`).toBe(true)
+    }
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/read/ent_rail_colours`)
+    await expect(library.getByTestId('hl-list').locator('.hl-row')).toHaveCount(5)
+    // the colour bar is the row's left border: it reads in the highlight's own hue, not the text colour
+    const bars = await library
+      .getByTestId('hl-list')
+      .locator('.hl-row')
+      .evaluateAll(rows => rows.map(row => ({ className: row.className, border: getComputedStyle(row).borderLeftColor, width: getComputedStyle(row).borderLeftWidth })))
+    const expected = { yellow: '#facc15', green: '#4ade80', blue: '#60a5fa', pink: '#f472b6', purple: '#a78bfa' } as const
+    for (const [name, hex] of Object.entries(expected)) {
+      const bar = bars.find(row => row.className.includes(`hl-row-${name}`))
+      expect(bar, `the ${name} row is in the rail`).toBeTruthy()
+      const [r, g, b] = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16))
+      expect(bar!.border, `the ${name} bar is the highlight's own colour`).toBe(`rgb(${r}, ${g}, ${b})`)
+      expect(bar!.width, `the ${name} bar is the 4px rail`).toBe('4px')
+    }
+    await library.close()
+  })
+
+  test('the reading view sits on the content area surface, in both appearances', async ({ page, extensionId }) => {
+    await saveClip(page, extensionId, 'ent_ground', 'One paragraph to read.')
+    const library = await page.context().newPage()
+    for (const scheme of ['light', 'dark'] as const) {
+      await library.emulateMedia({ colorScheme: scheme })
+      await library.goto(`chrome-extension://${extensionId}/library.html#/clips`)
+      await library.reload()
+      const listGround = await library.evaluate(() => {
+        // the stage paints nothing of its own: the body carries the content surface
+        const stage = getComputedStyle(document.querySelector('.content-stage')!).backgroundColor
+        return stage === 'rgba(0, 0, 0, 0)' ? getComputedStyle(document.body).backgroundColor : stage
+      })
+      await library.goto(`chrome-extension://${extensionId}/library.html#/read/ent_ground`)
+      await library.reload()
+      await expect(library.getByTestId('reading-view')).toBeVisible()
+      const readingGround = await library.evaluate(() => getComputedStyle(document.querySelector('.reading')!).backgroundColor)
+      expect(readingGround, `the reading view keeps the content surface (${scheme})`).toBe(listGround)
+      expect(readingGround, `it is the surface token, not the page token (${scheme})`).not.toBe('rgba(0, 0, 0, 0)')
+    }
     await library.close()
   })
 })

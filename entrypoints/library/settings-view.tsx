@@ -1,13 +1,14 @@
 /**
- * The settings view inside the application page (extension.md §2.5):
- * preferences (block entry + disabled sites, screenshot anonymize
- * default and what it covers), shortcuts display, data (export entry lives in the nav, here
- * storage usage and the orphan report), and the local-metrics readout —
- * aggregate numbers only, nothing readable. The screenshot output section
- * (formats, watermark, ratio presets, beautify) rides the same settings
- * object; see screenshot.ts for its shape.
+ * The settings view inside the application page (extension.md §2.5): two
+ * columns of cards — preferences, screenshot output, brand watermark and
+ * beautify on the left; recording, shortcuts, data and the local-metrics
+ * readout on the right. Every control is a native input dressed by CSS: the
+ * switches are checkboxes wearing `role="switch"` named for their feature,
+ * the segmented controls and swatches are radios, the sliders are ranges that
+ * commit on release. The metrics panel answers aggregate numbers only
+ * (metrics.md §5).
  */
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import MessageUtils from '../../utils/message'
 import type { ExtensionSettings, SettingsPatch } from '../../background-service/settings-schema'
 import { EntryStore, type OrphanReport } from '../../learning-core/store'
@@ -17,6 +18,7 @@ import {
   BEAUTIFY_RADII,
   PADDING_PX,
   RATIO_PRESETS,
+  backgroundCss,
   decodeWatermarkImage,
   paintWatermark,
   type BeautifyBackground,
@@ -28,6 +30,14 @@ import { uiText, type UiTextKey } from '../../utils/ui-text'
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../../learning-core/types'
 import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
 import { ANNOTATION_COLORS } from '../content/screenshot/editor'
+import { ExternalLink } from 'lucide-react'
+import { SettingsCard, SettingsRow } from './settings-card'
+import { SettingsSwitch } from './settings-switch'
+import { SettingsSegmentedControl } from './settings-seg'
+import { SettingsSlider } from './settings-slider'
+import { SettingsCornerPicker } from './settings-posbox'
+import { SettingsCheckChip } from './settings-check-chip'
+import { SettingsSwatches } from './settings-swatches'
 
 /** The browser commands the shortcut hint speaks of; the browser also lists the toolbar button's own command. */
 const SHORTCUT_COMMANDS: readonly string[] = [ANN_SCREENSHOT_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_ANNOTATE_COMMAND, ANN_RECORD_COMMAND]
@@ -39,8 +49,29 @@ function shortcutLabel(command: string): UiTextKey {
   return 'settings.shortcut.block'
 }
 
-/** The 录制 section (extension.md §2.5): microphone grant status and the request, per annotate.md §2.1 (D-43). */
-function RecordingSection({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
+/** One shortcut string as keycaps: split at "+" when it has one ("Ctrl+Shift+S"), else per character ("⇧⌘S"). */
+function keyCaps(shortcut: string): string[] {
+  if (shortcut.includes('+')) return shortcut.split('+').filter(Boolean)
+  return [...shortcut]
+}
+
+/** One metric as a row: the M-id in its tag, the name on the left, the value (and its support) on the right. */
+function MetricRow({ id, name, value, testId }: { id: string; name: string; value: ReactNode; testId?: string }) {
+  return (
+    <div className="set-r metric-row">
+      <div className="set-l">
+        <b>{name}</b>
+      </div>
+      <div className="set-ctl metric-val">
+        <span className="cv-tag">{id}</span>
+        <span data-testid={testId}>{value}</span>
+      </div>
+    </div>
+  )
+}
+
+/** The 录制 card (extension.md §2.5): microphone grant status and the request, per annotate.md §2.1 (D-43), plus the cursor highlight. */
+function RecordingCard({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
   const [grant, setGrant] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
   const [requesting, setRequesting] = useState(false)
   // the tab that wanted the microphone when the popup routed here (annotate.md §2.1)
@@ -72,53 +103,61 @@ function RecordingSection({ settings, patch }: { settings: ExtensionSettings; pa
   }
 
   return (
-    <section data-testid="recording-section">
-      <h2>{uiText('settings.recording')}</h2>
-      <p className="hint">{uiText('settings.recordingMicHint')}</p>
-      <p className="mic-status" data-testid="mic-status">
-        <span>{uiText('settings.recordingMicStatus')}</span>
-        <span className={grant === 'denied' ? 'mic-status-denied' : ''}>{uiText(`settings.recordingMic.${grant}`)}</span>
-      </p>
-      {grant !== 'granted' && (
-        <button type="button" onClick={() => void request()} disabled={requesting} data-testid="mic-request">
-          {uiText('settings.recordingMicRequest')}
-        </button>
+    <SettingsCard title={uiText('settings.recording')} testId="recording-section">
+      <SettingsRow name={uiText('settings.microphone')} desc={uiText('settings.recordingMicHint')}>
+        {() => (
+          <span className="rec-mic">
+            <span className={`mic-status${grant === 'denied' ? ' is-denied' : ''}`} data-testid="mic-status">
+              {uiText(`settings.recordingMic.${grant}`)}
+            </span>
+            {grant !== 'granted' && (
+              <button type="button" className="ghost sm" onClick={() => void request()} disabled={requesting} data-testid="mic-request">
+                {uiText('settings.recordingMicRequest')}
+              </button>
+            )}
+            {grant === 'granted' && recordTabId !== null && (
+              <button
+                type="button"
+                className="ghost sm"
+                onClick={() => void chrome.tabs.update(recordTabId, { active: true }).then(() => window.close())}
+                data-testid="mic-back-to-tab"
+              >
+                {uiText('settings.recordingBackToTab')}
+              </button>
+            )}
+          </span>
+        )}
+      </SettingsRow>
+      {grant === 'denied' && (
+        <div className="set-pad">
+          <p className="banner banner-warn">{uiText('settings.recordingMicDenied')}</p>
+        </div>
       )}
-      {grant === 'denied' && <p className="hint">{uiText('settings.recordingMicDenied')}</p>}
-      {grant === 'granted' && recordTabId !== null && (
-        <button type="button" onClick={() => void chrome.tabs.update(recordTabId, { active: true }).then(() => window.close())} data-testid="mic-back-to-tab">
-          {uiText('settings.recordingBackToTab')}
-        </button>
-      )}
-
-      <div className="settings-group">
-        <h3>{uiText('settings.cursorHighlight')}</h3>
-        <p className="hint">{uiText('settings.cursorHighlightHint')}</p>
-        <label className="switch-row">
-          <input
-            type="checkbox"
+      <SettingsRow name={uiText('settings.cursorHighlightToggle')} desc={uiText('settings.cursorHighlightHint')}>
+        {ids => (
+          <SettingsSwitch
             checked={cursor.enabled}
-            onChange={event => void patch({ recording: { cursorHighlight: { enabled: event.target.checked } } })}
-            data-testid="cursor-highlight-toggle"
+            onChange={enabled => void patch({ recording: { cursorHighlight: { enabled } } })}
+            nameId={ids.nameId}
+            describedBy={ids.descId}
+            testId="cursor-highlight-toggle"
           />
-          <span>{uiText('settings.cursorHighlightToggle')}</span>
-        </label>
-        {cursor.enabled && (
-          <>
-            <div className="settings-inline" role="group" aria-label={uiText('settings.cursorHighlightShape')}>
-              {(['ring', 'rounded', 'diamond'] as const).map(shape => (
-                <button
-                  key={shape}
-                  type="button"
-                  className={`chip${cursor.shape === shape ? ' chip-active' : ''}`}
-                  aria-pressed={cursor.shape === shape}
-                  onClick={() => void patch({ recording: { cursorHighlight: { shape } } })}
-                >
-                  {uiText(`settings.cursorHighlight.shape.${shape}` as UiTextKey)}
-                </button>
-              ))}
-            </div>
-            <div className="settings-inline" role="group" aria-label={uiText('shot.colors')}>
+        )}
+      </SettingsRow>
+      {cursor.enabled && (
+        <div className="set-sub">
+          <div className="set-fr">
+            <span className="set-lb">{uiText('settings.cursorHighlightShape')}</span>
+            <SettingsSegmentedControl
+              ariaLabel={uiText('settings.cursorHighlightShape')}
+              value={cursor.shape}
+              options={(['ring', 'rounded', 'diamond'] as const).map(shape => ({ value: shape, label: uiText(`settings.cursorHighlight.shape.${shape}` as UiTextKey) }))}
+              onChange={shape => void patch({ recording: { cursorHighlight: { shape } } })}
+            />
+          </div>
+          <div className="set-fr">
+            <span className="set-lb">{uiText('shot.colors')}</span>
+            <span className="hl-colors" role="group" aria-label={uiText('shot.colors')}>
               {ANNOTATION_COLORS.map(entry => (
                 <button
                   key={entry.value}
@@ -130,32 +169,127 @@ function RecordingSection({ settings, patch }: { settings: ExtensionSettings; pa
                   onClick={() => void patch({ recording: { cursorHighlight: { color: entry.value } } })}
                 />
               ))}
-            </div>
-          </>
-        )}
-      </div>
-    </section>
+            </span>
+          </div>
+        </div>
+      )}
+    </SettingsCard>
   )
 }
 
-function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
-  const imageInputId = useId()
+function ScreenshotCard({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
+  return (
+    <SettingsCard title={uiText('settings.screenshot')}>
+      <SettingsRow name={uiText('settings.anonymize')} desc={uiText('settings.anonymizeHint')}>
+        {ids => (
+          <SettingsSwitch
+            checked={settings.anonymizeDefault}
+            onChange={checked => void patch({ anonymizeDefault: checked })}
+            nameId={ids.nameId}
+            describedBy={ids.descId}
+            testId="anonymize-toggle"
+          />
+        )}
+      </SettingsRow>
+      {/* a kind left unchecked is neither covered nor pre-filled as mosaic (screenshot.md §3) */}
+      <SettingsRow name={uiText('settings.anonymizeParts')}>
+        {() => (
+          <span className="chip-row">
+            <SettingsCheckChip
+              checked={settings.anonymizeAvatars}
+              onChange={checked => void patch({ anonymizeAvatars: checked })}
+              label={uiText('settings.anonymizeAvatars')}
+              testId="anonymize-avatars"
+            />
+            <SettingsCheckChip
+              checked={settings.anonymizeNames}
+              onChange={checked => void patch({ anonymizeNames: checked })}
+              label={uiText('settings.anonymizeNames')}
+              testId="anonymize-names"
+            />
+          </span>
+        )}
+      </SettingsRow>
+      <SettingsRow name={uiText('settings.downloadFormat')} desc={uiText('settings.downloadFormatHint')}>
+        {() => (
+          <SettingsSegmentedControl
+            ariaLabel={uiText('settings.downloadFormat')}
+            value={settings.downloadFormat}
+            options={[
+              { value: 'png', label: 'PNG' },
+              { value: 'jpeg', label: 'JPEG' },
+              { value: 'webp', label: 'WebP' },
+            ]}
+            onChange={format => void patch({ downloadFormat: format })}
+          />
+        )}
+      </SettingsRow>
+      <QualityRow settings={settings} patch={patch} />
+      <div className="set-r set-r-block">
+        <div className="set-l">
+          <b>{uiText('settings.ratioPresets')}</b>
+        </div>
+        <div className="chip-row chip-row-wrap">
+          {RATIO_PRESETS.map(preset => (
+            <SettingsCheckChip
+              key={preset.id}
+              checked={settings.ratioPresets.includes(preset.id)}
+              onChange={checked => {
+                const next = checked ? [...settings.ratioPresets, preset.id] : settings.ratioPresets.filter(id => id !== preset.id)
+                void patch({ ratioPresets: next })
+              }}
+              label={preset.id}
+              ratio={{ w: preset.w, h: preset.h }}
+            />
+          ))}
+        </div>
+      </div>
+    </SettingsCard>
+  )
+}
+
+/** The quality slider stays in place for PNG, dimmed and inert — PNG has no quality (the design's "off" state). */
+function QualityRow({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
+  const [error, setError] = useState('')
+  const nameId = useId()
+  return (
+    <div className="set-r">
+      <div className="set-l" id={nameId}>
+        <b>{uiText('settings.quality')}</b>
+      </div>
+      <div className="set-ctl">
+        <SettingsSlider
+          value={settings.downloadQuality}
+          min={0.5}
+          max={1}
+          step={0.05}
+          nameId={nameId}
+          disabled={settings.downloadFormat === 'png'}
+          format={value => value.toFixed(2)}
+          onCommit={value => void patch({ downloadQuality: value }).then(ok => (!ok ? setError(uiText('toast.saveFailed')) : setError('')))}
+        />
+        {error && (
+          <span className="sl-error" role="alert">
+            {error}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function WatermarkCard({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
+  const imageInput = useRef<HTMLInputElement>(null)
   const [watermarkText, setWatermarkText] = useState(settings.watermark.text)
-  const [quality, setQuality] = useState(settings.downloadQuality)
   const [opacity, setOpacity] = useState(settings.watermark.opacity)
   const [error, setError] = useState('')
   const [imageBroken, setImageBroken] = useState(false)
   const watermarkDirty = useRef(false)
-  const qualitySaved = useRef(settings.downloadQuality)
-  const opacitySaved = useRef(settings.watermark.opacity)
 
   useEffect(() => {
     if (!watermarkDirty.current) setWatermarkText(settings.watermark.text)
-    qualitySaved.current = settings.downloadQuality
-    opacitySaved.current = settings.watermark.opacity
-    setQuality(settings.downloadQuality)
     setOpacity(settings.watermark.opacity)
-  }, [settings.downloadQuality, settings.watermark.opacity, settings.watermark.text])
+  }, [settings.watermark.opacity, settings.watermark.text])
 
   const saveText = async () => {
     if (!watermarkDirty.current) return
@@ -165,14 +299,8 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
       setError('')
     } else setError(uiText('toast.saveFailed'))
   }
-  const saveQuality = async (value: number) => {
-    if (value === qualitySaved.current) return
-    if (await patch({ downloadQuality: value })) qualitySaved.current = value
-    else setError(uiText('toast.saveFailed'))
-  }
   const saveOpacity = async (value: number) => {
-    if (value === opacitySaved.current) return
-    if (await patch({ watermark: { opacity: value } })) opacitySaved.current = value
+    if (await patch({ watermark: { opacity: value } })) setError('')
     else setError(uiText('toast.saveFailed'))
   }
 
@@ -206,224 +334,477 @@ function ScreenshotSection({ settings, patch }: { settings: ExtensionSettings; p
     }
   }
 
+  const opacityId = useId()
   return (
-    <section>
-      <h2>{uiText('settings.screenshot')}</h2>
-
-      <div className="settings-group">
-        <h3>{uiText('settings.downloadFormat')}</h3>
-        <div className="settings-inline">
-          <select value={settings.downloadFormat} aria-label={uiText('settings.downloadFormat')} onChange={event => void patch({ downloadFormat: event.target.value as 'png' })}>
-            <option value="png">PNG</option>
-            <option value="jpeg">JPEG</option>
-            <option value="webp">WebP</option>
-          </select>
-          {settings.downloadFormat !== 'png' && (
-            <label className="settings-control settings-range">
-              <span className="settings-label">{uiText('settings.quality')}</span>
-              <input
-                type="range"
-                min={0.5}
-                max={1}
-                step={0.05}
-                value={quality}
-                onChange={event => setQuality(Number(event.target.value))}
-                onPointerUp={event => void saveQuality(Number(event.currentTarget.value))}
-                onKeyUp={event => void saveQuality(Number(event.currentTarget.value))}
-                onBlur={event => void saveQuality(Number(event.currentTarget.value))}
-              />
-              <span className="settings-value">{quality.toFixed(2)}</span>
-            </label>
-          )}
-        </div>
-      </div>
-
-      <div className="settings-group">
-        <h3>{uiText('settings.watermark')}</h3>
-        <label className="switch-row">
-          <input
-            type="checkbox"
+    <SettingsCard title={uiText('settings.watermark')}>
+      <SettingsRow name={uiText('settings.watermarkToggle')}>
+        {ids => (
+          <SettingsSwitch
             checked={settings.watermark.enabled}
-            onChange={event => void patch({ watermark: { ...settings.watermark, enabled: event.target.checked } })}
-            data-testid="watermark-toggle"
+            onChange={enabled => void patch({ watermark: { ...settings.watermark, enabled } })}
+            nameId={ids.nameId}
+            testId="watermark-toggle"
           />
-          <span>{uiText('settings.watermarkToggle')}</span>
-        </label>
-        <div className="settings-grid">
-          <label className="settings-field">
-            <span className="settings-label">{uiText('settings.watermarkText')}</span>
-            <input
-              type="text"
-              maxLength={40}
-              value={watermarkText}
-              onChange={event => {
-                watermarkDirty.current = true
-                setWatermarkText(event.target.value)
-              }}
-              onBlur={() => void saveText()}
-              onKeyDown={event => {
-                if (event.key === 'Enter' && !event.nativeEvent.isComposing) void saveText()
-              }}
-              placeholder="AnnHub"
-            />
-          </label>
-          {/* the remove button sits beside the chooser, outside the label: the label names the chooser only */}
-          <div className="settings-field">
-            <label className="settings-label" htmlFor={imageInputId}>
-              {uiText('settings.watermarkImage')}
-            </label>
-            <span className="settings-control">
-              <input
-                id={imageInputId}
-                type="file"
-                accept="image/png"
-                onChange={event => {
-                  const file = event.target.files?.[0]
-                  if (!file) return
-                  if (file.size > 512 * 1024) {
-                    setError(uiText('settings.error.imageTooLarge'))
-                    return
-                  }
-                  setError('')
-                  const reader = new FileReader()
-                  reader.onload = () => void patch({ watermark: { ...settings.watermark, image: String(reader.result) } })
-                  reader.readAsDataURL(file)
-                }}
-              />
-              {settings.watermark.image && (
-                <button type="button" className="ghost" onClick={() => void patch({ watermark: { image: null } })}>
-                  {uiText('settings.remove')}
-                </button>
-              )}
-            </span>
-          </div>
-          <label className="settings-field">
-            <span className="settings-label">{uiText('settings.position')}</span>
-            <select value={settings.watermark.position} onChange={event => void patch({ watermark: { ...settings.watermark, position: event.target.value as 'bottom-right' } })}>
-              <option value="top-left">{uiText('settings.position.topLeft')}</option>
-              <option value="top-right">{uiText('settings.position.topRight')}</option>
-              <option value="bottom-left">{uiText('settings.position.bottomLeft')}</option>
-              <option value="bottom-right">{uiText('settings.position.bottomRight')}</option>
-            </select>
-          </label>
-          <label className="settings-field">
-            <span className="settings-label">{uiText('settings.size')}</span>
-            <select value={settings.watermark.size} onChange={event => void patch({ watermark: { ...settings.watermark, size: event.target.value as 'medium' } })}>
-              <option value="small">{uiText('settings.size.small')}</option>
-              <option value="medium">{uiText('settings.size.medium')}</option>
-              <option value="large">{uiText('settings.size.large')}</option>
-            </select>
-          </label>
-          <label className="settings-field">
-            <span className="settings-label">{uiText('settings.opacity')}</span>
-            <span className="settings-control settings-range">
-              <input
-                type="range"
-                min={0.2}
-                max={1}
-                step={0.05}
-                value={opacity}
-                onChange={event => setOpacity(Number(event.target.value))}
-                onPointerUp={event => void saveOpacity(Number(event.currentTarget.value))}
-                onKeyUp={event => void saveOpacity(Number(event.currentTarget.value))}
-                onBlur={event => void saveOpacity(Number(event.currentTarget.value))}
-              />
-              <span className="settings-value">{Math.round(opacity * 100)}%</span>
-            </span>
-          </label>
-          <div className="settings-field settings-field-top">
-            <span className="settings-label" aria-hidden="true">
-              {uiText('settings.preview')}
-            </span>
-            <canvas
-              ref={watermarkPreviewRef}
-              width={260}
-              height={90}
-              className="watermark-preview"
-              role="img"
-              aria-label={uiText('settings.preview')}
-              data-testid="watermark-preview"
-            />
-          </div>
+        )}
+      </SettingsRow>
+      <div className="set-sub">
+        <div className="set-fr">
+          <span className="set-lb set-lb-wide">{uiText('settings.watermarkText')}</span>
+          <input
+            className="wm-text"
+            type="text"
+            maxLength={40}
+            value={watermarkText}
+            onChange={event => {
+              watermarkDirty.current = true
+              setWatermarkText(event.target.value)
+            }}
+            onBlur={() => void saveText()}
+            onKeyDown={event => {
+              if (event.key === 'Enter' && !event.nativeEvent.isComposing) void saveText()
+            }}
+            placeholder="AnnHub"
+          />
+          <span className="wm-count" aria-hidden="true">
+            {watermarkText.length} / 40
+          </span>
+        </div>
+        {/* the chooser is a hidden input behind its own buttons: the thumbnail names what is there, not a file name */}
+        <div className="set-fr">
+          <span className="set-lb set-lb-wide">{uiText('settings.watermarkImage')}</span>
+          {settings.watermark.image && <img className="wm-thumb" src={settings.watermark.image} alt="" />}
+          <button type="button" className="ghost sm" onClick={() => imageInput.current?.click()}>
+            {settings.watermark.image ? uiText('settings.changeImage') : uiText('settings.chooseImage')}
+          </button>
+          {settings.watermark.image && (
+            <button type="button" className="ghost sm" onClick={() => void patch({ watermark: { image: null } })}>
+              {uiText('settings.remove')}
+            </button>
+          )}
+          <input
+            ref={imageInput}
+            type="file"
+            accept="image/png"
+            className="vh-input"
+            onChange={event => {
+              const file = event.target.files?.[0]
+              if (!file) return
+              if (file.size > 512 * 1024) {
+                setError(uiText('settings.error.imageTooLarge'))
+                return
+              }
+              setError('')
+              const reader = new FileReader()
+              reader.onload = () => void patch({ watermark: { ...settings.watermark, image: String(reader.result) } })
+              reader.readAsDataURL(file)
+            }}
+          />
+        </div>
+        <div className="set-fr">
+          <span className="set-lb" />
+          <p className="set-note">{uiText('settings.watermarkImageHint')}</p>
+        </div>
+        <div className="set-fr">
+          <span className="set-lb">{uiText('settings.position')}</span>
+          <SettingsCornerPicker
+            ariaLabel={uiText('settings.position')}
+            value={settings.watermark.position}
+            corners={(['top-left', 'top-right', 'bottom-left', 'bottom-right'] as const).map((value, index) => ({
+              value,
+              label: uiText(
+                ['settings.position.topLeft', 'settings.position.topRight', 'settings.position.bottomLeft', 'settings.position.bottomRight'][index]! as 'settings.position.topLeft',
+              ),
+              corner: (['tl', 'tr', 'bl', 'br'] as const)[index],
+            }))}
+            onChange={position => void patch({ watermark: { ...settings.watermark, position } })}
+          />
+        </div>
+        <div className="set-fr">
+          <span className="set-lb">{uiText('settings.size')}</span>
+          <SettingsSegmentedControl
+            ariaLabel={uiText('settings.size')}
+            value={settings.watermark.size}
+            options={(['small', 'medium', 'large'] as const).map(size => ({ value: size, label: uiText(`settings.size.${size}`) }))}
+            onChange={size => void patch({ watermark: { ...settings.watermark, size } })}
+          />
+        </div>
+        <div className="set-fr">
+          <span className="set-lb" id={opacityId}>
+            {uiText('settings.opacity')}
+          </span>
+          <SettingsSlider
+            value={settings.watermark.opacity}
+            min={0.2}
+            max={1}
+            step={0.05}
+            nameId={opacityId}
+            format={value => `${Math.round(value * 100)}%`}
+            onCommit={value => void saveOpacity(value)}
+          />
+        </div>
+        <div className="set-fr set-fr-top">
+          <span className="set-lb">{uiText('settings.preview')}</span>
+          <canvas
+            ref={watermarkPreviewRef}
+            width={220}
+            height={92}
+            className="watermark-preview"
+            role="img"
+            aria-label={uiText('settings.preview')}
+            data-testid="watermark-preview"
+          />
         </div>
         {error && (
-          <p className="warn" role="alert">
-            {error}
-          </p>
+          <div className="set-fr">
+            <span className="set-lb" />
+            <p className="banner banner-danger" role="alert">
+              {error}
+            </p>
+          </div>
         )}
         {imageBroken && (
-          <p className="warn" role="alert">
-            {uiText('settings.error.imageUnreadable')}
-          </p>
+          <div className="set-fr">
+            <span className="set-lb" />
+            <p className="banner banner-warn" role="alert">
+              {uiText('settings.error.imageUnreadable')}
+            </p>
+          </div>
         )}
       </div>
+    </SettingsCard>
+  )
+}
 
-      <div className="settings-group">
-        <h3>{uiText('settings.ratioPresets')}</h3>
-        <div className="settings-inline">
-          {RATIO_PRESETS.map(preset => (
-            <label key={preset.id} className="prop-preset">
-              <input
-                type="checkbox"
-                checked={settings.ratioPresets.includes(preset.id)}
-                onChange={event => {
-                  const next = event.target.checked ? [...settings.ratioPresets, preset.id] : settings.ratioPresets.filter(id => id !== preset.id)
-                  void patch({ ratioPresets: next })
-                }}
-              />
-              {preset.id}
-            </label>
-          ))}
+function BeautifyCard({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
+  const shadowId = useId()
+  const beautify = settings.beautify
+  return (
+    <SettingsCard title={uiText('settings.beautify')}>
+      <SettingsRow name={uiText('settings.beautifyToggle')}>
+        {ids => <SettingsSwitch checked={beautify.enabled} onChange={enabled => void patch({ beautify: { ...beautify, enabled } })} nameId={ids.nameId} />}
+      </SettingsRow>
+      <div className="set-sub">
+        <div className="set-fr">
+          <span className="set-lb">{uiText('settings.background')}</span>
+          <SettingsSwatches
+            ariaLabel={uiText('settings.background')}
+            value={beautify.background}
+            swatches={BEAUTIFY_BACKGROUND_IDS.map(id => ({ value: id, label: uiText(`shot.beautify.background.${id}`), css: id === 'none' ? '' : backgroundCss(id) }))}
+            onChange={background => void patch({ beautify: { ...beautify, background: background as BeautifyBackground } })}
+          />
+        </div>
+        <div className="set-fr">
+          <span className="set-lb">{uiText('settings.padding')}</span>
+          <SettingsSegmentedControl
+            ariaLabel={uiText('settings.padding')}
+            value={beautify.padding}
+            options={(Object.keys(PADDING_PX) as BeautifyPadding[]).map(size => ({ value: size, label: uiText(`settings.size.${size}`) }))}
+            onChange={padding => void patch({ beautify: { ...beautify, padding } })}
+          />
+        </div>
+        <div className="set-fr">
+          <span className="set-lb">{uiText('settings.radius')}</span>
+          <SettingsSegmentedControl
+            ariaLabel={uiText('settings.radius')}
+            value={String(beautify.radius)}
+            options={BEAUTIFY_RADII.map(radius => ({ value: String(radius), label: String(radius) }))}
+            onChange={radius => void patch({ beautify: { ...beautify, radius: Number(radius) } })}
+          />
+        </div>
+        <div className="set-fr">
+          <span className="set-lb" id={shadowId}>
+            {uiText('settings.shadow')}
+          </span>
+          <SettingsSwitch checked={beautify.shadow} onChange={shadow => void patch({ beautify: { ...beautify, shadow } })} nameId={shadowId} />
+        </div>
+        {/* a CSS placeholder, not the real picture: the chosen background, padding, corner and shadow as a grey card */}
+        <div className="set-fr set-fr-top">
+          <span className="set-lb">{uiText('settings.preview')}</span>
+          <div
+            className={`bz-preview${beautify.background === 'none' ? ' bz-preview-none' : ''}`}
+            style={{
+              padding: Math.round(PADDING_PX[beautify.padding] / 4),
+              ...(beautify.background === 'none' ? {} : { background: backgroundCss(beautify.background) }),
+            }}
+          >
+            <div
+              className="bz-preview-card"
+              style={{
+                borderRadius: beautify.radius,
+                boxShadow: beautify.shadow ? '0 14px 26px -10px rgb(0 0 0 / 0.5)' : 'none',
+              }}
+            />
+          </div>
         </div>
       </div>
+    </SettingsCard>
+  )
+}
 
-      <div className="settings-group">
-        <h3>{uiText('settings.beautify')}</h3>
-        <label className="switch-row">
-          <input type="checkbox" checked={settings.beautify.enabled} onChange={event => void patch({ beautify: { ...settings.beautify, enabled: event.target.checked } })} />
-          <span>{uiText('settings.beautifyToggle')}</span>
-        </label>
-        <div className="settings-grid">
-          <label className="settings-field">
-            <span className="settings-label">{uiText('settings.background')}</span>
-            <select
-              value={settings.beautify.background}
-              onChange={event => void patch({ beautify: { ...settings.beautify, background: event.target.value as BeautifyBackground } })}
-            >
-              {BEAUTIFY_BACKGROUND_IDS.map(id => (
-                <option key={id} value={id}>
-                  {uiText(`shot.beautify.background.${id}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="settings-field">
-            <span className="settings-label">{uiText('settings.padding')}</span>
-            <select value={settings.beautify.padding} onChange={event => void patch({ beautify: { ...settings.beautify, padding: event.target.value as BeautifyPadding } })}>
-              {(Object.keys(PADDING_PX) as BeautifyPadding[]).map(size => (
-                <option key={size} value={size}>
-                  {uiText(`settings.size.${size}`)} · {PADDING_PX[size]}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="settings-field">
-            <span className="settings-label">{uiText('settings.radius')}</span>
-            <select value={settings.beautify.radius} onChange={event => void patch({ beautify: { ...settings.beautify, radius: Number(event.target.value) } })}>
-              {BEAUTIFY_RADII.map(radius => (
-                <option key={radius} value={radius}>
-                  {radius}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="settings-field">
-            <span className="settings-label">{uiText('settings.shadow')}</span>
-            <input type="checkbox" checked={settings.beautify.shadow} onChange={event => void patch({ beautify: { ...settings.beautify, shadow: event.target.checked } })} />
-          </label>
+function ShortcutsCard({ shortcuts }: { shortcuts: chrome.commands.Command[] }) {
+  return (
+    <SettingsCard title={uiText('settings.shortcuts')}>
+      {shortcuts.map(command => (
+        <div className="set-r" key={command.name}>
+          <div className="set-l">
+            <b>{uiText(shortcutLabel(command.name ?? ''))}</b>
+          </div>
+          <div className="set-ctl">
+            {command.shortcut ? (
+              <span className="keys-group">
+                {keyCaps(command.shortcut).map((cap, index) => (
+                  <kbd key={`${cap}-${index}`}>{cap}</kbd>
+                ))}
+              </span>
+            ) : (
+              <span className="keys-unassigned">{uiText('settings.shortcut.unassigned')}</span>
+            )}
+          </div>
+        </div>
+      ))}
+      <div className="set-r">
+        <div className="set-l">
+          <b>{uiText('settings.shortcutsManageRow')}</b>
+          <small>{uiText('settings.shortcutsHint')}</small>
+        </div>
+        <div className="set-ctl">
+          <button
+            type="button"
+            className="ghost sm"
+            aria-label={uiText('settings.shortcut.manage')}
+            onClick={() => void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' })}
+          >
+            <ExternalLink size={13} aria-hidden /> {uiText('settings.shortcut.open')}
+          </button>
         </div>
       </div>
-    </section>
+    </SettingsCard>
+  )
+}
+
+function DataCard({
+  usage,
+  orphans,
+  loadOrphans,
+  cleanupOrphans,
+}: {
+  usage: { usage: number; quota: number } | null
+  orphans: OrphanReport | null
+  loadOrphans(): void
+  cleanupOrphans(): void
+}) {
+  return (
+    <SettingsCard title={uiText('settings.data')}>
+      <div className="set-r set-r-block">
+        <div className="set-l">
+          <b>{uiText('settings.storageLocal')}</b>
+        </div>
+        <span className="set-ctl tnum">{usage ? `${formatBytes(usage.usage)} / ${formatBytes(usage.quota)}` : ''}</span>
+        {usage && usage.quota > 0 && <progress className="storage-bar" value={usage.usage} max={usage.quota} />}
+      </div>
+      <SettingsRow name={uiText('settings.orphans')}>
+        {() => (
+          <button type="button" className="ghost sm" onClick={loadOrphans}>
+            {uiText('settings.orphanReport')}
+          </button>
+        )}
+      </SettingsRow>
+      {orphans && (
+        <div className="set-pad set-note" data-testid="orphan-report">
+          <p>
+            {uiText('settings.orphanUnreferenced')}: {orphans.unreferencedAssets.length} · {uiText('settings.orphanMissing')}: {orphans.entriesWithMissingAssets.length}
+          </p>
+          {orphans.unreferencedAssets.length > 0 && (
+            <>
+              <ul>
+                {orphans.unreferencedAssets.map(id => (
+                  <li key={id}>
+                    <code>{id}</code>
+                  </li>
+                ))}
+              </ul>
+              <button type="button" className="ghost sm" onClick={cleanupOrphans}>
+                {uiText('settings.orphanCleanup')}
+              </button>
+            </>
+          )}
+          {orphans.entriesWithMissingAssets.length > 0 && (
+            <ul>
+              {orphans.entriesWithMissingAssets.map(item => (
+                <li key={item.id}>
+                  <code>{item.id}</code>: <code>{item.assetId}</code>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </SettingsCard>
+  )
+}
+
+/**
+ * The local-metrics readout (metrics.md §5, §10): M-03, M-11 and M-19–M-25,
+ * every number an aggregate. Share-of-users metrics show this install's standing — the panel cannot see other
+ * installs — next to the event counts that support it.
+ */
+function MetricsCard({ panel, loadMetrics }: { panel: MetricsPanelData | null; loadMetrics(): void }) {
+  const summaries = panel?.summaries
+  const timingValue = (timing: CaptureTimingSummary, guard: boolean) =>
+    timing.count === 0 ? (
+      uiText('metrics.m03.none')
+    ) : (
+      <>
+        {uiText('metrics.m03.value', { count: timing.count, median: timing.median ?? '', p95: timing.p95 ?? '' })}
+        {guard && <span className="metric-guard"> · {uiText(timing.within300ms ? 'metrics.m03.guard.pass' : 'metrics.m03.guard.fail')}</span>}
+      </>
+    )
+  const habitValue = (habit: HabitSummary, support: string) =>
+    habit.satisfied === null ? uiText('metrics.none') : `${habit.satisfied ? uiText('metrics.yes') : uiText('metrics.no')} · ${support}`
+  const rateValue = (rate: { rate: number | null }, support: string) =>
+    rate.rate === null ? uiText('metrics.none') : uiText('metrics.rate', { pct: Math.round(rate.rate * 100), support })
+
+  return (
+    <SettingsCard title={uiText('settings.metrics')}>
+      <div className="set-r set-r-bare">
+        <p className="banner banner-info">{uiText('settings.metricsHint')}</p>
+        <button type="button" className="ghost sm" onClick={loadMetrics}>
+          {uiText('settings.metricsRefresh')}
+        </button>
+      </div>
+      {summaries && (
+        <div data-testid="metrics-summary">
+          <MetricRow id="M-03" name={uiText('metrics.m03.selection')} value={timingValue(summaries.timing.selection, true)} />
+          <MetricRow id="M-03" name={uiText('metrics.m03.block')} value={timingValue(summaries.timing.block, true)} />
+          <MetricRow id="M-03" name={uiText('metrics.m03.screenshot')} value={timingValue(summaries.timing.screenshot, false)} />
+          <MetricRow
+            id="M-11"
+            name={uiText('metrics.m11.name')}
+            value={
+              summaries.activation.firstSaveDay === null
+                ? uiText('metrics.m11.noSaves')
+                : `${summaries.activation.activated ? uiText('metrics.m11.activated') : uiText('metrics.m11.notYet')} · ${uiText('metrics.m11.firstSave', { day: summaries.activation.firstSaveDay })}`
+            }
+          />
+          <MetricRow id="M-20" name={uiText('metrics.m20.name')} value={habitValue(summaries.propertyUse, uiText('metrics.m20.support', { n: summaries.propertyUse.numerator }))} />
+          <MetricRow
+            id="M-21"
+            name={uiText('metrics.m21.name')}
+            value={habitValue(summaries.highlightUse, uiText('metrics.m21.support', { n: summaries.highlightUse.numerator, m: summaries.highlightUse.denominator }))}
+          />
+          <MetricRow
+            id="M-22"
+            name={uiText('metrics.m22.name')}
+            value={habitValue(
+              summaries.screenshotExternalUse,
+              uiText('metrics.m22.support', { n: summaries.screenshotExternalUse.numerator, m: summaries.screenshotExternalUse.denominator }),
+            )}
+          />
+          <MetricRow
+            id="M-23"
+            name={uiText('metrics.m23.name')}
+            value={rateValue(
+              summaries.blockFirstHit,
+              uiText('metrics.m23.support', { a: summaries.blockFirstHit.unchangedLevels, u: summaries.blockFirstHit.undos, d: summaries.blockFirstHit.denominator }),
+            )}
+          />
+          <MetricRow
+            id="M-24"
+            name={uiText('metrics.m24.name')}
+            value={habitValue(summaries.beautifyUse, uiText('metrics.m24.support', { n: summaries.beautifyUse.numerator, m: summaries.beautifyUse.denominator }))}
+          />
+          <MetricRow
+            id="M-25"
+            name={uiText('metrics.m25.name')}
+            value={rateValue(summaries.frameReuse, uiText('metrics.m25.support', { n: summaries.frameReuse.numerator, d: summaries.frameReuse.denominator }))}
+          />
+          <MetricRow
+            id="M-31"
+            name={uiText('metrics.m31.name')}
+            testId="metrics-m31"
+            value={
+              summaries.recordingUse.downloads === 0
+                ? uiText('metrics.m31.none')
+                : uiText('metrics.m31.value', {
+                    n: summaries.recordingUse.downloads,
+                    mic: summaries.recordingUse.withMic,
+                    user: summaries.recordingUse.stoppedBy.user,
+                    tab: summaries.recordingUse.stoppedBy.tab_closed,
+                    limit: summaries.recordingUse.stoppedBy.limit,
+                  })
+            }
+          />
+        </div>
+      )}
+      {panel && (
+        <>
+          <h3 className="set-tbl-h">{uiText('metrics.m19')}</h3>
+          <div className="props-scroll">
+            <table className="props-table metric-weeks" data-testid="metrics-weeks" role="table">
+              <thead role="rowgroup">
+                <tr role="row">
+                  <th scope="col" role="columnheader">
+                    {uiText('metrics.week')}
+                  </th>
+                  <th scope="col" role="columnheader" className="num">
+                    {uiText('metrics.m19.reopens')}
+                  </th>
+                  <th scope="col" role="columnheader" className="num">
+                    {uiText('metrics.m19.exports')}
+                  </th>
+                  <th scope="col" role="columnheader" className="num">
+                    {uiText('metrics.m19.retrieved')}
+                  </th>
+                  <th scope="col" role="columnheader" className="num">
+                    {uiText('metrics.queried')}
+                  </th>
+                  <th scope="col" role="columnheader">
+                    {uiText('metrics.m19.sought')}
+                  </th>
+                </tr>
+              </thead>
+              <tbody role="rowgroup">
+                {summaries!.weeks.map(week => (
+                  <tr key={week.weekStart} role="row">
+                    <td role="cell">{week.weekStart}</td>
+                    <td role="cell" className="num">
+                      {week.reopens}
+                    </td>
+                    <td role="cell" className="num">
+                      {week.exports}
+                    </td>
+                    <td role="cell" className="num">
+                      {week.retrieved}
+                    </td>
+                    <td role="cell" className="num">
+                      {week.queried}
+                    </td>
+                    <td role="cell">{week.soughtBack ? uiText('metrics.yes') : uiText('metrics.no')}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <h3 className="set-tbl-h">{uiText('metrics.events')}</h3>
+          <div className="props-scroll">
+            <table className="props-table metric-events" data-testid="metrics-table" role="table">
+              <tbody role="rowgroup">
+                {Object.entries(panel.events)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([name, bucket]) => (
+                    <tr key={name} role="row">
+                      <td role="cell">{name}</td>
+                      <td role="cell" className="num">
+                        {bucket.total}
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </SettingsCard>
   )
 }
 
@@ -450,9 +831,10 @@ export function SettingsView() {
     return response.success
   }, [])
 
-  const loadOrphans = useCallback(async () => {
-    const response = await MessageUtils.sendMessage<OrphanReport>({ type: 'ORPHAN_REPORT' })
-    if (response.success) setOrphans(response.data!)
+  const loadOrphans = useCallback(() => {
+    void MessageUtils.sendMessage<OrphanReport>({ type: 'ORPHAN_REPORT' }).then(response => {
+      if (response.success) setOrphans(response.data!)
+    })
   }, [])
 
   const cleanupOrphans = useCallback(async () => {
@@ -462,15 +844,16 @@ export function SettingsView() {
     try {
       await store.initialize()
       await store.deleteOrphanAssets(ids)
-      await loadOrphans()
+      loadOrphans()
     } finally {
       await store.close()
     }
   }, [orphans, loadOrphans])
 
-  const loadMetrics = useCallback(async () => {
-    const response = await MessageUtils.sendMessage<MetricsPanelData>({ type: 'GET_METRICS' })
-    if (response.success) setPanel(response.data!)
+  const loadMetrics = useCallback(() => {
+    void MessageUtils.sendMessage<MetricsPanelData>({ type: 'GET_METRICS' }).then(response => {
+      if (response.success) setPanel(response.data!)
+    })
   }, [])
 
   if (!settings) {
@@ -479,283 +862,77 @@ export function SettingsView() {
 
   return (
     <div className="settings-view" data-testid="settings-view">
-      <h1>{uiText('settings.title')}</h1>
-
-      <section>
-        <h2>{uiText('settings.blockEntry')}</h2>
-        <p className="hint">{uiText('settings.blockEntryHint')}</p>
-        <label className="switch-row">
-          <input
-            type="checkbox"
-            checked={settings.blockEntryEnabled}
-            onChange={event => void patch({ blockEntryEnabled: event.target.checked })}
-            data-testid="block-entry-toggle"
-          />
-          <span>{uiText('settings.blockEntryToggle')}</span>
-        </label>
-        {settings.blockDisabledSites.length > 0 && (
-          <div className="sites">
-            <h3>{uiText('settings.disabledSites')}</h3>
-            <ul>
-              {settings.blockDisabledSites.map(site => (
-                <li key={site}>
-                  {site}
-                  <button type="button" onClick={() => void patch({ blockDisabledSites: settings.blockDisabledSites.filter(item => item !== site) })}>
-                    {uiText('settings.remove')}
-                  </button>
-                </li>
-              ))}
-            </ul>
+      <header className="page-head">
+        <div className="page-titles">
+          <h1 className="page-title">{uiText('settings.title')}</h1>
+          <p className="page-sub">{uiText('settings.subtitle')}</p>
+        </div>
+      </header>
+      <div className="page-body">
+        <div className="settings-cards">
+          <div className="settings-col">
+            <section className="set">
+              <div className="set-h">
+                <h2>{uiText('settings.preferences')}</h2>
+              </div>
+              <SettingsRow name={uiText('settings.defaultHighlightColor')}>
+                {() => (
+                  <span className="hl-colors" role="group" aria-label={uiText('settings.defaultHighlightColor')}>
+                    {HIGHLIGHT_COLORS.map((color: HighlightColor) => (
+                      <button
+                        key={color}
+                        type="button"
+                        className={`hl-dot hl-dot-${color}${settings.defaultHighlightColor === color ? ' hl-dot-active' : ''}`}
+                        aria-label={uiText(`library.color.${color}`)}
+                        aria-pressed={settings.defaultHighlightColor === color}
+                        onClick={() => void patch({ defaultHighlightColor: color })}
+                      />
+                    ))}
+                  </span>
+                )}
+              </SettingsRow>
+              <SettingsRow name={uiText('settings.blockEntry')} desc={uiText('settings.blockEntryHint')}>
+                {ids => (
+                  <SettingsSwitch
+                    checked={settings.blockEntryEnabled}
+                    onChange={checked => void patch({ blockEntryEnabled: checked })}
+                    nameId={ids.nameId}
+                    describedBy={ids.descId}
+                    testId="block-entry-toggle"
+                  />
+                )}
+              </SettingsRow>
+              <div className="set-r set-r-block">
+                <div className="set-l">
+                  <b>{uiText('settings.disabledSites')}</b>
+                </div>
+                <span className="tag">{uiText('settings.count', { count: settings.blockDisabledSites.length })}</span>
+                {settings.blockDisabledSites.length > 0 && (
+                  <ul className="sites">
+                    {settings.blockDisabledSites.map(site => (
+                      <li key={site}>
+                        <span className="site-name">{site}</span>
+                        <button type="button" className="ghost sm" onClick={() => void patch({ blockDisabledSites: settings.blockDisabledSites.filter(item => item !== site) })}>
+                          {uiText('settings.remove')}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </section>
+            <ScreenshotCard settings={settings} patch={patch} />
+            <WatermarkCard settings={settings} patch={patch} />
+            <BeautifyCard settings={settings} patch={patch} />
           </div>
-        )}
-      </section>
-
-      <section>
-        <h2>{uiText('settings.anonymize')}</h2>
-        <p className="hint">{uiText('settings.anonymizeHint')}</p>
-        <label className="switch-row">
-          <input type="checkbox" checked={settings.anonymizeDefault} onChange={event => void patch({ anonymizeDefault: event.target.checked })} data-testid="anonymize-toggle" />
-          <span>{uiText('settings.anonymizeToggle')}</span>
-        </label>
-        {/* a kind left unchecked is neither covered nor pre-filled as mosaic (screenshot.md §3) */}
-        <div className="settings-group">
-          <h3>{uiText('settings.anonymizeParts')}</h3>
-          <div className="settings-inline">
-            <label className="prop-preset">
-              <input
-                type="checkbox"
-                checked={settings.anonymizeAvatars}
-                onChange={event => void patch({ anonymizeAvatars: event.target.checked })}
-                data-testid="anonymize-avatars"
-              />
-              {uiText('settings.anonymizeAvatars')}
-            </label>
-            <label className="prop-preset">
-              <input type="checkbox" checked={settings.anonymizeNames} onChange={event => void patch({ anonymizeNames: event.target.checked })} data-testid="anonymize-names" />
-              {uiText('settings.anonymizeNames')}
-            </label>
+          <div className="settings-col">
+            <RecordingCard settings={settings} patch={patch} />
+            <ShortcutsCard shortcuts={shortcuts} />
+            <DataCard usage={usage} orphans={orphans} loadOrphans={loadOrphans} cleanupOrphans={() => void cleanupOrphans()} />
+            <MetricsCard panel={panel} loadMetrics={loadMetrics} />
           </div>
         </div>
-      </section>
-
-      <ScreenshotSection settings={settings} patch={patch} />
-
-      <RecordingSection settings={settings} patch={patch} />
-
-      <section>
-        <h2>{uiText('settings.defaultHighlightColor')}</h2>
-        <div className="hl-colors" role="group" aria-label={uiText('settings.defaultHighlightColor')}>
-          {HIGHLIGHT_COLORS.map((color: HighlightColor) => (
-            <button
-              key={color}
-              type="button"
-              className={`hl-dot hl-dot-${color}${settings.defaultHighlightColor === color ? ' hl-dot-active' : ''}`}
-              aria-label={uiText(`library.color.${color}`)}
-              aria-pressed={settings.defaultHighlightColor === color}
-              onClick={() => void patch({ defaultHighlightColor: color })}
-            />
-          ))}
-        </div>
-      </section>
-
-      <section>
-        <h2>{uiText('settings.shortcuts')}</h2>
-        <p className="hint">{uiText('settings.shortcutsHint')}</p>
-        {shortcuts.map(command => (
-          <p className="keys" key={command.name}>
-            <span>{uiText(shortcutLabel(command.name ?? ''))}</span>
-            {command.shortcut ? <kbd>{command.shortcut}</kbd> : <span className="keys-unassigned">{uiText('settings.shortcut.unassigned')}</span>}
-          </p>
-        ))}
-        <button type="button" className="link" onClick={() => void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' })}>
-          {uiText('settings.shortcut.manage')}
-        </button>
-      </section>
-
-      <section>
-        <h2>{uiText('settings.data')}</h2>
-        {usage && usage.quota > 0 && (
-          <p className="hint">
-            {formatBytes(usage.usage)} / {formatBytes(usage.quota)}
-          </p>
-        )}
-        <button type="button" onClick={() => void loadOrphans()}>
-          {uiText('settings.orphanReport')}
-        </button>
-        {orphans && (
-          <div className="hint" data-testid="orphan-report">
-            <p>
-              {uiText('settings.orphanUnreferenced')}: {orphans.unreferencedAssets.length} · {uiText('settings.orphanMissing')}: {orphans.entriesWithMissingAssets.length}
-            </p>
-            {orphans.unreferencedAssets.length > 0 && (
-              <>
-                <ul>
-                  {orphans.unreferencedAssets.map(id => (
-                    <li key={id}>
-                      <code>{id}</code>
-                    </li>
-                  ))}
-                </ul>
-                <button type="button" onClick={() => void cleanupOrphans()}>
-                  {uiText('settings.orphanCleanup')}
-                </button>
-              </>
-            )}
-            {orphans.entriesWithMissingAssets.length > 0 && (
-              <ul>
-                {orphans.entriesWithMissingAssets.map(item => (
-                  <li key={item.id}>
-                    <code>{item.id}</code>: <code>{item.assetId}</code>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-      </section>
-
-      <section>
-        <h2>{uiText('settings.metrics')}</h2>
-        <p className="hint">{uiText('settings.metricsHint')}</p>
-        <button type="button" onClick={() => void loadMetrics()}>
-          {uiText('settings.metricsRefresh')}
-        </button>
-        {panel && <MetricsPanel panel={panel} />}
-      </section>
+      </div>
     </div>
-  )
-}
-
-/**
- * The local-metrics readout (metrics.md §5, §10): M-03, M-11 and M-19–M-25,
- * every number an aggregate. Share-of-users metrics show this install's standing — the panel cannot see other
- * installs — next to the event counts that support it.
- */
-function MetricsPanel({ panel }: { panel: MetricsPanelData }) {
-  const summaries = panel.summaries
-
-  const timingRow = (entrance: UiTextKey, timing: CaptureTimingSummary, guard: boolean) => (
-    <tr key={entrance}>
-      <th scope="row">
-        {uiText('metrics.m03')} · {uiText(entrance)}
-      </th>
-      <td>
-        {timing.count === 0 ? (
-          uiText('metrics.m03.none')
-        ) : (
-          <>
-            {uiText('metrics.m03.value', { count: timing.count, median: timing.median ?? '', p95: timing.p95 ?? '' })}
-            {guard && <span className="hint"> · {uiText(timing.within300ms ? 'metrics.m03.guard.pass' : 'metrics.m03.guard.fail')}</span>}
-          </>
-        )}
-      </td>
-    </tr>
-  )
-
-  const habitRow = (label: UiTextKey, habit: HabitSummary, support: string) => (
-    <tr key={label}>
-      <th scope="row">{uiText(label)}</th>
-      <td>{habit.satisfied === null ? uiText('metrics.none') : `${habit.satisfied ? uiText('metrics.yes') : uiText('metrics.no')} · ${support}`}</td>
-    </tr>
-  )
-
-  const rateRow = (label: UiTextKey, rate: { rate: number | null }, support: string) => (
-    <tr key={label}>
-      <th scope="row">{uiText(label)}</th>
-      <td>{rate.rate === null ? uiText('metrics.none') : uiText('metrics.rate', { pct: Math.round(rate.rate * 100), support })}</td>
-    </tr>
-  )
-
-  const activation = summaries.activation
-  return (
-    <>
-      <table className="props-table" data-testid="metrics-summary">
-        <tbody>
-          {timingRow('metrics.m03.selection', summaries.timing.selection, true)}
-          {timingRow('metrics.m03.block', summaries.timing.block, true)}
-          {timingRow('metrics.m03.screenshot', summaries.timing.screenshot, false)}
-          <tr>
-            <th scope="row">{uiText('metrics.m11')}</th>
-            <td>
-              {activation.firstSaveDay === null
-                ? uiText('metrics.m11.noSaves')
-                : `${activation.activated ? uiText('metrics.m11.activated') : uiText('metrics.m11.notYet')} · ${uiText('metrics.m11.firstSave', { day: activation.firstSaveDay })}`}
-            </td>
-          </tr>
-          {habitRow('metrics.m20', summaries.propertyUse, uiText('metrics.m20.support', { n: summaries.propertyUse.numerator }))}
-          {habitRow('metrics.m21', summaries.highlightUse, uiText('metrics.m21.support', { n: summaries.highlightUse.numerator, m: summaries.highlightUse.denominator }))}
-          {habitRow(
-            'metrics.m22',
-            summaries.screenshotExternalUse,
-            uiText('metrics.m22.support', { n: summaries.screenshotExternalUse.numerator, m: summaries.screenshotExternalUse.denominator }),
-          )}
-          {rateRow(
-            'metrics.m23',
-            summaries.blockFirstHit,
-            uiText('metrics.m23.support', { a: summaries.blockFirstHit.unchangedLevels, u: summaries.blockFirstHit.undos, d: summaries.blockFirstHit.denominator }),
-          )}
-          {habitRow('metrics.m24', summaries.beautifyUse, uiText('metrics.m24.support', { n: summaries.beautifyUse.numerator, m: summaries.beautifyUse.denominator }))}
-          {rateRow('metrics.m25', summaries.frameReuse, uiText('metrics.m25.support', { n: summaries.frameReuse.numerator, d: summaries.frameReuse.denominator }))}
-          <tr>
-            <th scope="row">{uiText('metrics.m31')}</th>
-            <td data-testid="metrics-m31">
-              {summaries.recordingUse.downloads === 0
-                ? uiText('metrics.m31.none')
-                : uiText('metrics.m31.value', {
-                    n: summaries.recordingUse.downloads,
-                    mic: summaries.recordingUse.withMic,
-                    user: summaries.recordingUse.stoppedBy.user,
-                    tab: summaries.recordingUse.stoppedBy.tab_closed,
-                    limit: summaries.recordingUse.stoppedBy.limit,
-                  })}
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <div className="settings-group">
-        <h3>{uiText('metrics.m19')}</h3>
-        <table className="props-table" data-testid="metrics-weeks">
-          <thead>
-            <tr>
-              <th scope="col">{uiText('metrics.week')}</th>
-              <th scope="col">{uiText('metrics.m19.reopens')}</th>
-              <th scope="col">{uiText('metrics.m19.exports')}</th>
-              <th scope="col">{uiText('metrics.m19.retrieved')}</th>
-              <th scope="col">{uiText('metrics.queried')}</th>
-              <th scope="col">{uiText('metrics.m19.sought')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {summaries.weeks.map(week => (
-              <tr key={week.weekStart}>
-                <td>{week.weekStart}</td>
-                <td>{week.reopens}</td>
-                <td>{week.exports}</td>
-                <td>{week.retrieved}</td>
-                <td>{week.queried}</td>
-                <td>{week.soughtBack ? uiText('metrics.yes') : uiText('metrics.no')}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="settings-group">
-        <h3>{uiText('metrics.events')}</h3>
-        <table className="props-table" data-testid="metrics-table">
-          <tbody>
-            {Object.entries(panel.events)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([name, bucket]) => (
-                <tr key={name}>
-                  <td>{name}</td>
-                  <td>{bucket.total}</td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
-    </>
   )
 }

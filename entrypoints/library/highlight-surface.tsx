@@ -7,6 +7,7 @@
  * selections merge in the background per entry.md §4.6.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MessageSquareText, Trash2 } from 'lucide-react'
 import MessageUtils from '../../utils/message'
 import { newHighlightId } from '../../learning-core/assets'
 import { HIGHLIGHT_COLORS, type EntryRecord, type Highlight, type HighlightColor } from '../../learning-core/types'
@@ -53,6 +54,15 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
       return null
     })
   }, [])
+
+  /** A press outside the popover saves the note and closes it; the focus stays wherever the press took it. */
+  const dismissPopover = (note: string): void => {
+    setPopover(current => {
+      if (!current) return null
+      void runHighlightOp({ type: 'UPDATE_HIGHLIGHT', id: entry.id, highlightId: current.highlight.id, patch: { note: note || null } })
+      return null
+    })
+  }
 
   // A selection made with the keyboard (Shift + arrows, Ctrl/Cmd+A) offers the same toolbar a drag does
   // (extension.md §4.2). A drag in progress is left to its own mouseup.
@@ -213,19 +223,24 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
       {error && <p className="warn">{error}</p>}
 
       {toolbar && (
-        <div className="hl-toolbar" style={{ left: toolbar.x, top: Math.max(8, toolbar.y - 46) }} data-testid="hl-toolbar" role="toolbar">
-          {HIGHLIGHT_COLORS.map(color => (
-            <button
-              key={color}
-              type="button"
-              className={`hl-dot hl-dot-${color}`}
-              aria-label={color}
-              onClick={() => void createHighlight(toolbar.start, toolbar.end, color, 'toolbar')}
-            />
-          ))}
+        <div className="hl-toolbar" style={{ left: toolbar.x, top: Math.max(8, toolbar.y - 44) }} data-testid="hl-toolbar" role="toolbar">
+          <span className="hl-toolbar-dots" role="group" aria-label={uiText('reading.colors')}>
+            {HIGHLIGHT_COLORS.map(color => (
+              <span key={color} className="hl-dotb">
+                <button
+                  type="button"
+                  className={`hl-dot hl-dot-${color}`}
+                  aria-label={uiText(`library.color.${color}` as 'library.color.yellow')}
+                  title={uiText(`library.color.${color}` as 'library.color.yellow')}
+                  onClick={() => void createHighlight(toolbar.start, toolbar.end, color, 'toolbar')}
+                />
+              </span>
+            ))}
+          </span>
+          <span className="hl-sep" aria-hidden />
           <button
             type="button"
-            className="hl-note-button"
+            className="hl-act"
             onClick={() => {
               const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null
               void createHighlight(toolbar.start, toolbar.end, defaultColor, 'toolbar', true).then(created => {
@@ -233,8 +248,12 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
               })
             }}
           >
-            {uiText('reading.note')}
+            <MessageSquareText size={13} aria-hidden /> {uiText('reading.note')}
           </button>
+          <span className="hl-sep" aria-hidden />
+          <span className="hl-act hl-act-key" aria-hidden>
+            <kbd>{'H'}</kbd>
+          </span>
         </div>
       )}
 
@@ -244,6 +263,7 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
           x={popover.x}
           y={popover.y}
           onClose={closePopover}
+          onDismiss={dismissPopover}
           onColor={color => {
             void runHighlightOp({ type: 'UPDATE_HIGHLIGHT', id: entry.id, highlightId: popover.highlight.id, patch: { color } })
             closePopover()
@@ -267,6 +287,7 @@ function HighlightPopover({
   x,
   y,
   onClose,
+  onDismiss,
   onColor,
   onNote,
   onDelete,
@@ -275,15 +296,33 @@ function HighlightPopover({
   x: number
   y: number
   onClose(): void
+  /** A press outside: save what was typed, close, and leave the focus where the press put it. */
+  onDismiss(note: string): void
   onColor(color: HighlightColor): void
   onNote(note: string): Promise<boolean>
   onDelete(): void
 }) {
   const [note, setNote] = useState(highlight.note ?? '')
+  const noteRef = useRef(note)
+  noteRef.current = note
+  // the latest dismiss callback, read through a ref so the listener below subscribes once
+  const dismissRef = useRef(onDismiss)
+  dismissRef.current = onDismiss
   const root = useRef<HTMLDivElement>(null)
   // Focus moves in on open: Escape then closes this popover (saving the note) before the reading view
   useEffect(() => {
     root.current?.focus({ preventScroll: true })
+  }, [])
+  // A press anywhere else closes the popover after saving what was typed. Subscribed once and reading the
+  // note and the dismissal through their refs: a listener rebuilt on every keystroke would race the
+  // press that ends the edit.
+  useEffect(() => {
+    const onDown = (event: MouseEvent): void => {
+      if (root.current?.contains(event.target as Node)) return
+      dismissRef.current(noteRef.current)
+    }
+    document.addEventListener('mousedown', onDown, true)
+    return () => document.removeEventListener('mousedown', onDown, true)
   }, [])
   return (
     <div
@@ -303,20 +342,25 @@ function HighlightPopover({
         })
       }}
     >
-      <div className="hl-popover-colors">
-        {HIGHLIGHT_COLORS.map(color => (
-          <button
-            key={color}
-            type="button"
-            className={`hl-dot hl-dot-${color}${highlight.color === color ? ' hl-dot-active' : ''}`}
-            aria-label={color}
-            onClick={() => onColor(color)}
-          />
-        ))}
+      <div className="hl-popover-head">
+        <div className="hl-popover-colors" role="group" aria-label={uiText('reading.colors')}>
+          {HIGHLIGHT_COLORS.map(color => (
+            <span key={color} className="hl-dotb">
+              <button
+                type="button"
+                className={`hl-dot hl-dot-${color}${highlight.color === color ? ' hl-dot-active' : ''}`}
+                aria-label={uiText(`library.color.${color}` as 'library.color.yellow')}
+                title={uiText(`library.color.${color}` as 'library.color.yellow')}
+                onClick={() => onColor(color)}
+              />
+            </span>
+          ))}
+        </div>
+        <span className="hl-popover-name">{uiText(`library.color.${highlight.color}` as 'library.color.yellow')}</span>
       </div>
       <textarea
         value={note}
-        placeholder={uiText('reading.note')}
+        placeholder={uiText('reading.notePlaceholder')}
         onChange={event => setNote(event.target.value)}
         // blur SAVES the note but never closes the popover — a click on
         // delete or a color must still land (RV-LIB-08)
@@ -326,11 +370,9 @@ function HighlightPopover({
         data-testid="hl-note-input"
       />
       <div className="hl-popover-actions">
-        <button type="button" className="danger" data-testid="hl-delete" onClick={onDelete}>
-          {uiText('library.delete')}
-        </button>
-        <button type="button" className="ghost" onClick={onClose}>
-          {uiText('common.close')}
+        <span className="hl-popover-hint">{uiText('reading.noteBlurHint')}</span>
+        <button type="button" className="ghost sm quiet" data-testid="hl-delete" onClick={onDelete}>
+          <Trash2 size={13} aria-hidden /> {uiText('library.delete')}
         </button>
       </div>
     </div>

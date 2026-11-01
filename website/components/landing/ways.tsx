@@ -3,7 +3,7 @@ import type { LandingCopy } from '@/lib/copy'
 import { HighlightBar, markdownLabels } from '../product/detail'
 import Fit from '../product/fit'
 import { Markdown } from '../product/markdown'
-import { Anchored, SelectionMenu } from '../product/page-scenes'
+import { Anchored, ClipToast, SelectionMenu } from '../product/page-scenes'
 import { Ic, TypeChip, TypeTile } from '../product/parts'
 import { entryById, getSample } from '../product/sample'
 import { ShotMini } from '../product/shot-scene'
@@ -13,7 +13,7 @@ import { Container, RichText, SectionTitle } from './shared'
 function ClipMini({ copy }: { copy: LandingCopy }) {
   const { ui } = copy
   return (
-    <div className="ah ah-pg overflow-hidden rounded-md border border-line px-5 pb-5 pt-[70px]">
+    <div className="ah ah-pg overflow-hidden rounded-md border border-line px-5 pb-[72px] pt-[70px]">
       <p className="m-0 font-serif text-[15.5px] leading-[1.7] text-[#26241f]">
         Instead of letting buffers absorb the mismatch indefinitely,{' '}
         <span className="ah-sel ah-anchor">
@@ -24,6 +24,10 @@ function ClipMini({ copy }: { copy: LandingCopy }) {
         </span>{' '}
         so the producer slows down, pauses, or drops work it cannot deliver.
       </p>
+      {/* the moment after the click: clipped, undo and edit for about 3 seconds */}
+      <div className="ah-toast-pos">
+        <ClipToast ui={ui} />
+      </div>
     </div>
   )
 }

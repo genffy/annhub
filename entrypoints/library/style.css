@@ -32,7 +32,8 @@ html,
 body {
   height: 100%;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
-  background-color: var(--ann-page);
+  /* the content area is one surface, and the reading view reads on the same one (visual.md §4) */
+  background-color: var(--ann-surface);
   color: var(--ann-text);
 }
 
@@ -45,63 +46,54 @@ body {
   height: 100%;
 }
 
+/* the nav's own surface with a hairline against the content (extension.md §2.2); 232 open, 60 as the rail */
 .side {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  width: 220px;
+  width: 232px;
   flex: none;
-  padding: 16px 10px;
-  border-right: 1px solid var(--ann-border);
-  background: var(--ann-surface);
+  padding: 14px 12px;
+  border-right: 1px solid var(--ann-line);
+  background: var(--ann-side);
 }
 
 .nav-top {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  margin: 0 4px 14px 8px;
+  gap: 8px;
+  padding: 2px 6px 12px;
 }
 
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-size: 17px;
+  gap: 9px;
+  font-size: 15px;
   font-weight: 700;
-  letter-spacing: 0.2px;
+  letter-spacing: -0.01em;
 }
 
 /* the same mask the rail paints, at the wordmark's side */
 .brand::before {
   content: '';
   flex: none;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   background: var(--ann-accent);
   -webkit-mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
   mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
-}
-
-/* the two groups in the nav; the rail shows icons only */
-.nav-group-title {
-  margin: 10px 10px 3px;
-  color: var(--ann-muted);
-  font-size: 11.5px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
 }
 
 .nav-fold {
   display: grid;
   place-items: center;
   flex: none;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
   padding: 0;
   border: 0;
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
   color: var(--ann-muted);
   cursor: pointer;
@@ -109,23 +101,39 @@ body {
 
 .nav-fold:hover,
 .nav-fold:focus-visible {
-  background: var(--ann-surface-alt);
+  background: color-mix(in oklab, var(--ann-text) 6%, transparent);
   color: var(--ann-text);
 }
 
+/* the two groups in the nav; the rail shows icons only (the label stays on --ann-muted: the quieter
+   --ann-subtle reads under 4.5 on the nav surface) */
+.nav-group-title {
+  margin: 0;
+  padding: 14px 10px 5px;
+  color: var(--ann-muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
 .nav-item {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  color: var(--ann-text);
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--ann-text-2);
   font-size: 13.5px;
+  font-weight: 500;
   text-decoration: none;
+  white-space: nowrap;
 }
 
 .nav-item svg {
   flex: none;
+  color: var(--ann-muted);
 }
 
 /* the type views' icons carry their hue; the current item stays one accent-coloured row, icon included */
@@ -147,27 +155,47 @@ body {
 
 .nav-item:hover,
 .nav-item:focus-visible {
-  background: var(--ann-surface-alt);
+  background: color-mix(in oklab, var(--ann-text) 5%, transparent);
 }
 
+/* the current view: tinted row, heavier word and a bar at the left edge — not colour alone (extension.md §2.2) */
 .nav-item-current {
-  background: var(--ann-accent-soft);
+  background: color-mix(in oklab, var(--ann-accent) 11%, var(--ann-side));
   color: var(--ann-accent-text);
-  font-weight: 600;
+  font-weight: 650;
+}
+
+.nav-item-current::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--ann-accent);
 }
 
 .nav-count {
   margin-left: auto;
+  /* the count is information, not decoration: it reads at the muted weight even though the draft
+     paints it in its faintest grey (--fg-4 measured 2.78:1 light / 3.91:1 dark) */
   color: var(--ann-muted);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 .nav-item-current .nav-count {
   color: inherit;
 }
 
-.nav-spacer {
-  flex: 1;
+/* the nav's bottom block: storage meter, the export outline and the shortcut hint with its keycaps */
+.nav-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 14px;
 }
 
 .nav-export {
@@ -175,10 +203,10 @@ body {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  margin: 4px 8px;
-  padding: 7px 10px;
+  min-height: 32px;
+  padding: 0 10px;
   border: 1px solid var(--ann-border);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--ann-surface);
   color: var(--ann-text);
   font-size: 13px;
@@ -196,14 +224,25 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px;
+  padding: 0 2px;
   color: var(--ann-muted);
-  font-size: 11px;
-  line-height: 1.4;
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .nav-shortcut svg {
   flex: none;
+}
+
+.nav-shortcut kbd {
+  margin: 0 1px;
+}
+
+.nav-shortcut span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
 }
 
 .nav-note ul,
@@ -224,7 +263,7 @@ body {
 }
 
 .nav-note {
-  margin: 4px 10px;
+  margin: 0;
   color: var(--ann-muted);
   font-size: 11.5px;
   line-height: 1.4;
@@ -234,21 +273,15 @@ body {
   color: var(--ann-danger);
 }
 
-/* storage: the number plus a thin bar of the quota */
+/* storage: the number plus the global thin progress bar of the quota */
 .nav-storage {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 5px;
+  font-size: 12px;
 }
 
-.nav-storage progress {
-  width: 100%;
-  height: 4px;
-  margin: 0;
-  accent-color: var(--ann-accent);
-}
-
-/* ── Content: toolbar + list ── */
+/* ── Content: page head, filter bar, list ── */
 
 /* the reading view lays itself over this box only: the nav beside it is never covered (extension.md §4.2) */
 .content {
@@ -267,165 +300,405 @@ body {
   min-width: 0;
 }
 
-/* the title row of a page: its name and, on the right, the search (extension.md §2.2) */
+/*
+ * The title row every page of the shell opens with (extension.md §2.2): title and subtitle on the left, the
+ * page's actions at the right end, the whole row aligned to the bottom edge so the search sits beside the
+ * title whatever the subtitle says. One structure for every page, so titles and content share one left edge.
+ */
 .page-head {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 16px 4px;
-  background: var(--ann-surface);
+  align-items: flex-end;
+  gap: 16px;
+  padding: 22px 32px 0;
+}
+
+.page-titles {
+  flex: 1;
+  min-width: 0;
 }
 
 .page-title {
-  flex: none;
-  margin-right: auto;
-  font-size: 19px;
+  margin: 0;
+  font-size: 22px;
+  line-height: 1.2;
   font-weight: 700;
+  letter-spacing: -0.02em;
 }
 
-.toolbar {
+.page-sub {
+  margin: 3px 0 0;
+  color: var(--ann-muted);
+  font-size: 13px;
+}
+
+.page-actions {
   display: flex;
-  flex-wrap: wrap;
-  /* the sets are columns now (chips under controls): everything starts at the top, so the count
-     stays on the first line beside the controls instead of sinking to the middle of a tall set */
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
-  padding: 8px 16px 12px;
-  border-bottom: 1px solid var(--ann-border);
-  background: var(--ann-surface);
+  flex: none;
+  min-width: 0;
 }
 
-.search {
-  flex: 0 1 420px;
-  min-width: 0;
-  padding: 8px 10px;
+/* the page's content under its head: what scrolls, and where the filter bar, the cards and the empty
+   states live, all starting at the same left edge as the title above them */
+.page-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 32px 28px;
+  overflow: auto;
+}
+
+/* 窄窗口（< 720）：页头与内容左右各收窄到 20 */
+@media (max-width: 719px) {
+  .page-head,
+  .page-body {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
+/* the search box in the page head (extension.md §2.2): the field is its own frame, the input sits bare in it */
+.search-field {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 320px;
+  max-width: 100%;
+  height: 36px;
+  padding: 0 12px;
   border: 1px solid var(--ann-border);
-  border-radius: 6px;
-  background: var(--ann-page);
+  border-radius: 10px;
+  background: var(--ann-surface);
+  color: var(--ann-subtle);
+}
+
+.search-field:focus-within {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 3px var(--ann-ring);
+}
+
+.search-field > svg {
+  flex: none;
+}
+
+.search-field .search {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--ann-text);
   font-size: 13px;
 }
 
-.filter {
-  box-sizing: border-box;
-  min-height: 32px;
-  padding: 4px 26px 4px 8px;
-  border: 1px solid var(--ann-border);
-  border-radius: 6px;
-  background: var(--ann-surface);
-  color: var(--ann-text);
-  font-size: 12.5px;
-  max-width: 180px;
+/* the field's frame carries the focus ring, so the input itself stays quiet */
+.search-field .search:focus,
+.search-field .search:focus-visible {
+  outline: none;
 }
 
-/* one dropdown arrow of our own, so every select wears the same face (D-59; the glyph cannot read the tokens) */
-select.filter {
-  appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23777d89' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
+.search-field kbd {
+  flex: none;
 }
 
-.filter:hover,
-.filter-time:hover {
-  border-color: var(--ann-accent-text);
-}
-
-.filter:focus-visible,
-.filter-time:focus-within {
-  border-color: var(--ann-accent);
-}
-
-/* one multi-select dimension (search.md §3): just the adding select — the chosen-value chips
-   live together on one line under the controls (D-59) */
-.filter-set {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-.filter-set-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: wrap;
-  min-width: 0;
-}
-
-/* every chosen value on its own line below the controls, whatever dimension it came from */
-.filter-chips-row {
+/* the filter bar (extension.md §2.3, search.md §3): one button per dimension, the chosen values as chips
+   beside them, the count at the row's end; it wraps, it never runs over its neighbours */
+.toolbar {
   display: flex;
   flex-wrap: wrap;
-  flex-basis: 100%;
-  gap: 4px;
+  align-items: center;
+  gap: 8px;
 }
 
-.filter-chip {
+.filter-button {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 5px 7px;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
   border: 1px solid var(--ann-border);
-  border-radius: 999px;
-  background: var(--ann-accent-soft);
-  color: var(--ann-accent-text);
-  font-size: 12px;
-  line-height: 1;
-  max-width: 160px;
+  border-radius: 8px;
+  background: var(--ann-surface);
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.filter-chip span {
+.filter-button svg {
+  color: var(--ann-muted);
+}
+
+.filter-button:hover {
+  background: var(--ann-surface-alt);
+}
+
+.filter-button[aria-expanded='true'] {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 3px var(--ann-ring);
+}
+
+/* a chosen value: its body reopens the dimension's popover, its × removes it */
+.filter-chip-on {
+  display: inline-flex;
+  align-items: stretch;
+  height: 28px;
+  max-width: 240px;
+  border: 1px solid color-mix(in oklab, var(--ann-accent) 50%, var(--ann-surface));
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--ann-accent) 8%, var(--ann-surface));
+  color: var(--ann-accent-text);
+  overflow: hidden;
+}
+
+.filter-chip-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 4px 0 10px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.filter-chip-open svg {
+  flex: none;
+}
+
+.filter-chip-label {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.filter-chip:focus-visible {
-  outline: 2px solid var(--ann-accent);
-  outline-offset: 1px;
+.filter-chip-x {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 26px;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
 }
 
-.filter-value {
-  max-width: 150px;
-  width: 150px;
+.filter-chip-x:hover {
+  background: color-mix(in oklab, var(--ann-accent) 14%, transparent);
 }
 
-/*
- * The date range is a .filter too, but a select's 180px cap does not fit a label and two date inputs: with the
- * cap the inputs ran out of the control, over the count and past the window. It sizes to its content and gives
- * way, inputs first, only when the bar itself is narrower.
- */
-.filter-time {
+/* the popover a filter button opens: a fixed layer, so no scrolling ancestor clips it; it stays
+   invisible until JS places it (data-placed), never flashing in at the viewport's corner */
+.filter-pop {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 30;
+  visibility: hidden;
+  min-width: 220px;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 6px;
+  border: 1px solid var(--ann-border);
+  border-radius: 12px;
+  background: var(--ann-surface);
+  box-shadow: var(--ann-shadow-2);
+}
+
+.filter-pop[data-placed='true'] {
+  visibility: visible;
+}
+
+.filter-pop-search {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  height: 32px;
+  margin-bottom: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-surface);
+  color: var(--ann-text);
+  font-size: 13px;
+}
+
+.filter-pop-search:focus-visible {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 3px var(--ann-ring);
+  outline: none;
+}
+
+.filter-pop-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 264px;
+  overflow-y: auto;
+}
+
+.filter-pop-option {
   display: flex;
   align-items: center;
-  gap: 4px;
-  min-width: 0;
-  max-width: 100%;
+  gap: 9px;
   min-height: 32px;
-  border: 1px solid var(--ann-border);
-  border-radius: 6px;
-  padding: 3px 8px;
-  background: var(--ann-surface);
+  padding: 0 9px;
+  border-radius: 7px;
+  color: var(--ann-text-2);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.filter-pop-option svg {
+  flex: none;
+  color: var(--ann-muted);
+}
+
+.filter-pop-option[aria-selected='true'] {
+  background: var(--ann-surface-alt);
+  color: var(--ann-text);
+}
+
+.filter-pop-option[aria-selected='true'] > svg:first-child {
+  color: var(--ann-accent-text);
+}
+
+.filter-pop-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-pop-option-aside {
+  margin-left: auto;
+  flex: none;
+  color: var(--ann-subtle);
+  font-size: 12px;
+}
+
+.filter-pop-option .hl-dot {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border: 0;
+}
+
+.filter-pop-empty {
+  padding: 8px 9px;
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+/* the date-range popover */
+.filter-pop-time {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px;
+}
+
+.filter-pop-time label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   color: var(--ann-muted);
   font-size: 12px;
 }
 
-.filter-time input {
-  flex: 0 1 118px;
-  width: 118px;
-  min-width: 0;
-  border: 0;
-  background: transparent;
+.filter-pop-time input {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-surface);
   color: var(--ann-text);
-  font-size: 12.5px;
-  font-family: inherit;
+  font-size: 13px;
 }
 
-.filter-time-label {
+.filter-pop-time input:focus-visible {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 3px var(--ann-ring);
+  outline: none;
+}
+
+/* the property popover: the chosen property, then its operator and value(s) */
+.filter-pop-prop {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px;
+}
+
+.filter-pop-prop-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  padding: 0 8px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.filter-pop-prop-head svg {
+  flex: none;
+  color: var(--ann-muted);
+}
+
+.filter-pop-prop-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.filter-pop-prop-type {
+  margin-left: auto;
+  flex: none;
+  color: var(--ann-subtle);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.filter-pop-prop-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.filter-pop-control {
+  box-sizing: border-box;
+  flex: 1 1 110px;
+  min-width: 0;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-surface);
+  color: var(--ann-text);
+  font-size: 12.5px;
+}
+
+.filter-pop-control:focus-visible {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 3px var(--ann-ring);
+  outline: none;
+}
+
+.filter-pop-hint {
+  margin: 0;
+  padding: 0 2px;
+  color: var(--ann-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .count {
@@ -435,7 +708,7 @@ select.filter {
   white-space: nowrap;
 }
 
-/* the four list views scroll here, under the page head and the filters */
+/* the four list views scroll here, inside the page body's frame */
 .list {
   flex: 1;
   min-height: 0;
@@ -451,7 +724,7 @@ select.filter {
 .hl-groups {
   --card-min: 240px;
   --card-gap: 14px;
-  padding: 16px 16px 24px;
+  padding: 0 0 14px;
   list-style: none;
 }
 
@@ -461,12 +734,12 @@ select.filter {
   gap: var(--card-gap);
 }
 
+/* a white card on the content surface, held by a hairline; hover warms the edge (extension.md §2.3) */
 .entry-card,
 .hl-group {
-  border: 1px solid var(--ann-border);
-  border-radius: 6px;
+  border: 1px solid var(--ann-line);
+  border-radius: 12px;
   background: var(--ann-surface);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .entry-card {
@@ -477,7 +750,13 @@ select.filter {
 }
 
 .entry-card:hover {
-  border-color: color-mix(in srgb, var(--ann-accent) 45%, var(--ann-border));
+  border-color: color-mix(in oklab, var(--ann-accent) 40%, var(--ann-line));
+}
+
+/* the card the drawer is open on: drawn in the brand colour, ring and all (extension.md §2.3) */
+.entry-card-selected {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 3px var(--ann-ring);
 }
 
 .entry-card-open {
@@ -508,7 +787,7 @@ select.filter {
   flex: none;
   width: 100%;
   height: 150px;
-  border-bottom: 1px solid var(--ann-border);
+  border-bottom: 1px solid var(--ann-line);
   background: var(--ann-surface-alt);
   object-fit: contain;
 }
@@ -551,44 +830,49 @@ select.filter {
   display: -webkit-box;
   overflow: hidden;
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 650;
   line-height: 1.4;
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
 
-/* the card's last block, level across a row of cards whatever the title and tags above: type and
-   highlights on the first line, the source and time under them */
+/*
+ * The card's last line, level across a row of cards whatever the title and tags above: the type chip, then the
+ * source host and the time (a long host ends in an ellipsis, not in a fold), the highlight count at the end.
+ */
 .entry-card-meta {
   display: flex;
-  flex-direction: column;
-  gap: 3px;
+  align-items: center;
+  gap: 6px;
   margin-top: auto;
   min-width: 0;
   color: var(--ann-muted);
   font-size: 12px;
+  white-space: nowrap;
 }
 
-.entry-card-meta-first {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-}
-
-/* its own line: a long host gives way to the ellipsis */
 .entry-card-source {
+  flex: 1;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* the amber highlight count, the one colour the last line allows itself */
 .entry-card-highlights {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   flex: none;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--ann-type-highlight-soft);
   color: var(--ann-type-highlight-text);
-  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .entry-card-tags {
@@ -599,8 +883,8 @@ select.filter {
 
 .entry-card-actions {
   position: absolute;
-  top: 7px;
-  right: 7px;
+  top: 8px;
+  right: 8px;
   display: flex;
   gap: 4px;
   opacity: 0;
@@ -617,55 +901,94 @@ select.filter {
   width: 28px;
   height: 28px;
   border: 1px solid var(--ann-border);
-  border-radius: 4px;
+  border-radius: 8px;
   background: var(--ann-surface);
   color: var(--ann-text);
   cursor: pointer;
 }
 
+/* the small tag chip (design .tag) */
 .tag {
-  padding: 1px 6px;
-  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 6px;
   background: var(--ann-surface-alt);
   color: var(--ann-muted);
-  font-size: 11px;
+  font-size: 11.5px;
 }
 
-.empty {
-  padding: 60px 20px;
+/* the custom-property pill a card shows (extension.md §2.3): type icon, name, and the value heavier */
+.ppill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 170px;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--ann-line);
+  border-radius: 6px;
+  background: var(--ann-surface-alt);
   color: var(--ann-muted);
-  text-align: center;
-  font-size: 13.5px;
+  font-size: 11.5px;
+  white-space: nowrap;
 }
 
-/* the empty library: an icon, a heading and the two ways in */
-.empty-rich {
+.ppill svg {
+  flex: none;
+}
+
+.ppill-name,
+.ppill-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ppill-value {
+  font-weight: 600;
+  color: var(--ann-text-2);
+}
+
+/* an empty view: an icon tile, the title, the line under it, the way out (extension.md §5) */
+.empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  max-width: 960px;
+  padding: 44px 24px;
+  color: var(--ann-muted);
+  text-align: center;
 }
 
 .empty-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  background: var(--ann-surface-alt);
   color: var(--ann-muted);
 }
 
 .empty-heading {
-  margin: 4px 0 2px;
+  margin: 6px 0 0;
   color: var(--ann-text);
-  font-size: 14.5px;
+  font-size: 16px;
   font-weight: 600;
 }
 
-.empty-how {
+.empty-desc {
+  max-width: 380px;
   margin: 0;
-  font-size: 12.5px;
+  font-size: 13px;
+  line-height: 1.5;
 }
 
-/* its own line under the centred message; a block button hugs the left edge unless its side margins are auto */
-.empty .link {
-  display: block;
-  margin: 10px auto 0;
+.empty .primary {
+  margin-top: 6px;
 }
 
 /* the first answer is still on its way: quiet, so a slow query never reads as "nothing here" */
@@ -686,13 +1009,153 @@ select.filter {
   padding: 0;
 }
 
+.link:hover,
+.link:focus-visible {
+  text-decoration: underline;
+}
+
+/* the shared banner (design .banner): a base strip plus status variants; the first child, when
+   an svg, is the 15px status icon and `b` lifts a word to the body colour */
+.banner {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--ann-line);
+  border-radius: 10px;
+  background: var(--ann-surface-alt);
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.banner > svg:first-child {
+  flex: none;
+  margin-top: 1px;
+  width: 15px;
+  height: 15px;
+}
+
+.banner b {
+  color: var(--ann-text);
+}
+
+/* the status variants: a 10% tint for the background, a 28% one for the border (design ratios);
+   the icon tints 78% toward the body colour. --ann-state carries each variant's colour */
+.banner-ok,
+.banner-warn,
+.banner-danger,
+.banner-info {
+  border-color: color-mix(in oklab, var(--ann-state) 28%, var(--ann-surface));
+}
+
+.banner-ok > svg:first-child,
+.banner-warn > svg:first-child,
+.banner-danger > svg:first-child,
+.banner-info > svg:first-child {
+  color: color-mix(in oklab, var(--ann-state) 78%, var(--ann-text));
+}
+
+.banner-ok {
+  --ann-state: var(--ann-success);
+  background: var(--ann-success-bg);
+}
+
+.banner-warn {
+  --ann-state: var(--ann-warn);
+  background: var(--ann-warn-bg);
+}
+
+.banner-danger {
+  --ann-state: var(--ann-danger);
+  background: var(--ann-danger-bg);
+}
+
+.banner-info {
+  --ann-state: var(--ann-info);
+  background: var(--ann-info-bg);
+}
+
+/* the native progress element (design .progress): a 6px rounded bar on the surface-3 track with
+   the accent fill; without a value attribute it is indeterminate — one accent bar sweeping back
+   and forth, still (and half full) under reduced motion */
+progress {
+  height: 6px;
+  border: 0;
+  border-radius: 3px;
+  background: var(--ann-surface-3);
+  overflow: hidden;
+  accent-color: var(--ann-accent);
+}
+
+progress::-webkit-progress-bar {
+  border-radius: 3px;
+  background: var(--ann-surface-3);
+}
+
+progress::-webkit-progress-value {
+  border-radius: 3px;
+  background: var(--ann-accent);
+}
+
+progress:not([value]) {
+  /* the native indeterminate chunk is hidden; the element itself paints the sweeping bar */
+  background:
+    linear-gradient(var(--ann-accent), var(--ann-accent)) no-repeat 0 0 / 40% 100%,
+    var(--ann-surface-3);
+  animation: ann-progress-sweep 1.2s ease-in-out infinite alternate;
+}
+
+progress:not([value])::-webkit-progress-bar,
+progress:not([value])::-webkit-progress-value {
+  background: transparent;
+}
+
+@keyframes ann-progress-sweep {
+  from {
+    background-position: 0 0;
+  }
+
+  to {
+    background-position: 100% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  progress:not([value]) {
+    animation: none;
+    background:
+      linear-gradient(var(--ann-accent), var(--ann-accent)) no-repeat 50% 0 / 50% 100%,
+      var(--ann-surface-3);
+  }
+}
+
+/* the shared keycap (design kbd): a mono chip on the surface with a hairline edge and a heavier
+   bottom, centred, never narrower than a key's width */
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border: 1px solid var(--ann-line);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--ann-surface);
+  color: var(--ann-text-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+
 /* ── Detail drawer (extension.md §4.1) ── */
 
+/* the design's “scrim” is a transparent click area: clicking outside closes, and the page behind is not dimmed */
 .drawer-backdrop {
   position: fixed;
   inset: 0;
   z-index: 19;
-  background: rgba(0, 0, 0, 0.28);
+  background: transparent;
 }
 
 .drawer {
@@ -700,12 +1163,12 @@ select.filter {
   top: 0;
   right: 0;
   bottom: 0;
-  width: min(520px, 92vw);
+  width: min(440px, 100vw);
   display: flex;
   flex-direction: column;
-  border-left: 1px solid var(--ann-border);
+  border-left: 1px solid var(--ann-line);
   background: var(--ann-surface);
-  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.12);
+  box-shadow: -18px 0 40px -18px rgb(15 23 42 / 0.28);
   z-index: 20;
 }
 
@@ -713,23 +1176,51 @@ select.filter {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--ann-border);
+  gap: 8px;
+  padding: 12px 14px 12px 18px;
+  border-bottom: 1px solid var(--ann-line);
 }
 
-/* a narrow drawer gives the title its own row rather than squeezing it to "Full page: l…" */
-@media (max-width: 520px) {
-  .drawer-title {
-    flex-basis: 100%;
-  }
+.drawer-header-space {
+  flex: 1;
+}
+
+/* the header's actions move as one row — [阅读] [回到来源] [删除] [关闭] (extension.md §4.1) — and stay
+   at the row's right end however narrow the drawer gets */
+.drawer-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* "回到来源" is an <a>: keep it from growing the underline a button never has */
+.drawer-header a.ghost:hover,
+.drawer-header a.ghost:focus-visible {
+  text-decoration: none;
+}
+
+/* the title block under the header (design .dtitle): the entry's name, then where and when it came from */
+.drawer-title-block {
+  padding: 14px 18px 6px;
 }
 
 .drawer-title {
-  flex: 1;
-  min-width: 0;
-  font-size: 14.5px;
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 18px;
   font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.drawer-sub {
+  margin-top: 3px;
+  color: var(--ann-muted);
+  font-size: 11.5px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -737,54 +1228,75 @@ select.filter {
 
 .drawer-body {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+}
+
+/* the sections (design .dsec): one hairline between them, the last one open toward the footer edge */
+.drawer-section {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--ann-line);
+}
+
+.drawer-section-last {
+  border-bottom: 0;
 }
 
 /* a child selector: the clip's Markdown renders inside a section too, and its `##` is an h3 (it was drawn as one of these labels) */
 .drawer-section > h3 {
   margin-bottom: 8px;
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--ann-muted);
-  font-weight: 600;
+  font-weight: 650;
+  letter-spacing: 0.02em;
   text-transform: none;
+}
+
+.drawer-section > h3 svg {
+  vertical-align: -2px;
+  margin-right: 1px;
 }
 
 .drawer-section-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 6px;
   margin-bottom: 8px;
 }
 
 .drawer-section-head > h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   margin: 0;
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--ann-muted);
-  font-weight: 600;
+  font-weight: 650;
+  letter-spacing: 0.02em;
 }
 
-/* why the original text cannot be edited: said in words beside the text, as in the reading view */
-.drawer-lock {
-  display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  margin-bottom: 10px;
-  padding: 8px 10px;
-  border: 1px dashed var(--ann-border);
-  border-radius: 6px;
-  color: var(--ann-muted);
+.drawer-section-space {
+  flex: 1;
+}
+
+.drawer-section-head .link {
+  flex: none;
   font-size: 12px;
-  line-height: 1.5;
+}
+
+/* why the original text cannot be edited: a small lock badge beside the section title; the whole sentence
+   travels in the title attribute and, in words, for readers of the badge (extension.md §4.1) */
+.drawer-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ann-muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .drawer-lock svg {
   flex: none;
-  margin-top: 2px;
 }
 
 .drawer-edit-actions {
@@ -801,16 +1313,24 @@ select.filter {
   resize: vertical;
 }
 
+/* the screenshot's picture (design .gt-img in the drawer): whole, centred in a bounded frame */
 .drawer-image {
+  display: block;
   max-width: 100%;
-  border: 1px solid var(--ann-border);
-  border-radius: 6px;
+  max-height: 210px;
+  margin: 0 auto;
+  object-fit: contain;
 }
 
 .drawer-image-button {
-  border: 0;
-  background: transparent;
+  display: grid;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--ann-line);
+  border-radius: 10px;
+  background: var(--ann-surface-alt);
   cursor: zoom-in;
+  overflow: hidden;
 }
 
 .image-zoom {
@@ -835,25 +1355,37 @@ select.filter {
   object-fit: contain;
 }
 
+/* the context as a quiet box under the original (design .ctxbox): supplementary, not a peer section */
 .drawer-context {
-  padding: 10px;
-  border-left: 3px solid var(--ann-border);
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--ann-surface-alt);
   color: var(--ann-muted);
   font-size: 12.5px;
+  line-height: 1.6;
 }
 
-.drawer-system {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  gap: 4px 10px;
-  margin-top: 10px;
-  color: var(--ann-muted);
+.drawer-context-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.drawer-context-head b {
+  color: var(--ann-text-2);
   font-size: 11.5px;
 }
 
-.drawer-system dd {
-  min-width: 0;
+.drawer-context p {
+  margin: 0;
   overflow-wrap: anywhere;
+}
+
+/* an edit error at the drawer's foot (a delete that failed): inside the padded flow, not glued to an edge */
+.drawer-error {
+  padding: 10px 18px;
 }
 
 .field {
@@ -868,16 +1400,36 @@ select.filter {
   font-size: 11.5px;
 }
 
+/* the shared text controls (design .input/.textarea): 32 tall, 8 radius; every select joins
+   them. Inputs and selects take the height itself, so a view can still give its own rows
+   one lower height; a textarea's height stays with its content */
 .field input,
-.drawer-section textarea {
+.drawer-section textarea,
+select {
   box-sizing: border-box;
-  width: 100%;
-  padding: 7px 9px;
+  padding: 6px 10px;
   border: 1px solid var(--ann-border);
-  border-radius: 5px;
+  border-radius: 8px;
   background: var(--ann-page);
   color: var(--ann-text);
   font-size: 13px;
+}
+
+.field input,
+select {
+  height: 32px;
+}
+
+.field input,
+.drawer-section textarea {
+  width: 100%;
+}
+
+.field input:focus-visible,
+.drawer-section textarea:focus-visible,
+select:focus-visible {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 3px var(--ann-ring);
 }
 
 .warn {
@@ -885,21 +1437,9 @@ select.filter {
   font-size: 12.5px;
 }
 
-.danger {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
-  border: 1px solid var(--ann-danger);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--ann-danger);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-
 /* a control that cannot be used looks it: faded, no pointer; the reason, where there is one, is written beside it */
-.ghost:disabled {
+.ghost:disabled,
+.primary:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
@@ -922,54 +1462,169 @@ select.filter {
   cursor: progress;
 }
 
-.ghost {
+/*
+ * The shared button frame (design .btn): 32 tall, 8 radius, weight 500. `.ghost` is the outlined
+ * secondary, `.danger` the same frame in the danger colour, `.primary` the brand fill. The small
+ * 28 is `.sm` below; the borderless ghost is `.ghost.quiet`; the icon-only square is `.ghost-icon`.
+ */
+.ghost,
+.danger,
+.primary {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
   border: 1px solid var(--ann-border);
-  border-radius: 5px;
-  background: transparent;
+  border-radius: 8px;
+  background: var(--ann-surface);
   color: var(--ann-text);
-  font-size: 12.5px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
   cursor: pointer;
 }
 
-.modal {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(0, 0, 0, 0.35);
+.ghost:hover:not(:disabled),
+.danger:hover:not(:disabled) {
+  background: var(--ann-surface-alt);
 }
 
-.modal p {
-  margin-bottom: 14px;
-  padding: 18px 20px;
-  border-radius: 8px;
+.primary {
+  border-color: transparent;
+  background: var(--ann-accent);
+  color: var(--ann-accent-contrast);
+}
+
+.primary:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--ann-accent) 86%, #000);
+}
+
+/* the danger button keeps the secondary frame; only its text carries the colour */
+.danger {
+  color: color-mix(in oklab, var(--ann-danger) 84%, var(--ann-text));
+}
+
+/* the quiet ghost (design .btn-ghost): no border, no fill — the word is the button, and the wash
+   arrives on hover. A dialog's cancel, the reading view's back, the popover's delete */
+.ghost.quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ann-text-2);
+}
+
+.ghost.quiet:hover:not(:disabled) {
+  background: var(--ann-surface-alt);
+}
+
+/* the small button of a settings row or an inline form (design .btn sm): 28 tall, one notch quieter */
+.ghost.sm,
+.danger.sm,
+.primary.sm {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.ghost.sm svg,
+.danger.sm svg,
+.primary.sm svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* the design's focus ring: a surface gap, then the soft accent ring. The global outline from
+   tokens.css stays on top of it — it carries the ≥3:1 contrast and survives forced colours,
+   where box-shadows disappear */
+.ghost:focus-visible,
+.danger:focus-visible,
+.primary:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--ann-surface),
+    0 0 0 4px var(--ann-ring);
+}
+
+/* the icon-only ghost (design .btn-ghost.btn-icon): borderless and quiet — the drawer's 删除 and 关闭,
+   where a drawn border on every icon would weigh the header down */
+.ghost-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ann-text-2);
+  cursor: pointer;
+}
+
+.ghost-icon:hover {
+  background: var(--ann-surface-alt);
+  color: var(--ann-text);
+}
+
+/* the delete confirm (extension.md §4.1): the scrim dims the drawer beneath it and keeps the drawer's
+   controls away from the keyboard, and one card holds the question and its two answers */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  background: var(--ann-scrim);
+}
+
+.modal-card {
+  width: min(420px, calc(100vw - 48px));
+  padding: 20px 22px;
+  border-radius: 16px;
   background: var(--ann-surface);
-  font-size: 13.5px;
-  text-align: center;
+  box-shadow: var(--ann-shadow-modal);
+}
+
+.modal-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.modal-card p {
+  margin: 6px 0 0;
+  color: var(--ann-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.modal-card p b {
+  color: var(--ann-text);
 }
 
 .modal-actions {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translateY(26px);
   display: flex;
-  gap: 10px;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
 }
 
 /* ── Markdown view (capture.md §3.1 rendering rules) ── */
 
+/* one component, three sizes (design .md / .md-sm / .md-rd): the drawer's compact copy, the page base, the reading column */
 .md-view {
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.drawer .md-view {
   font-size: 13.5px;
   line-height: 1.65;
 }
 
 .md-view > * + * {
-  margin-top: 10px;
+  margin-top: 0.65em;
 }
 
 .md-view h1,
@@ -978,25 +1633,39 @@ select.filter {
 .md-view h4,
 .md-view h5,
 .md-view h6 {
-  margin-top: 18px;
+  margin-top: 1.1em;
   font-weight: 650;
   line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.md-view > :first-child {
+  margin-top: 0;
 }
 
 .md-view h1 {
-  font-size: 1.55em;
+  font-size: 1.3em;
 }
 
 .md-view h2 {
-  font-size: 1.35em;
+  font-size: 1.3em;
 }
 
 .md-view h3 {
-  font-size: 1.18em;
+  font-size: 1.12em;
 }
 
 .md-view h4 {
-  font-size: 1.05em;
+  font-size: 1em;
+}
+
+.md-view ul,
+.md-view ol {
+  padding-left: 1.5em;
+}
+
+.md-view li {
+  margin: 0.25em 0;
 }
 
 /* a heading written as a link (“### [标题](#锚点)”) still reads as the heading,
@@ -1022,18 +1691,31 @@ select.filter {
 }
 
 .md-view code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--ann-surface-3);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.92em;
+  font-size: 0.88em;
+}
+
+.md-view pre code {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 12px;
 }
 
 .md-view blockquote {
-  padding: 4px 12px;
-  border-left: 3px solid var(--ann-accent);
-  color: var(--ann-muted);
+  margin: 0.8em 0;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--ann-border);
+  color: var(--ann-text-2);
 }
 
 .md-view a {
   color: var(--ann-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /*
@@ -1056,6 +1738,8 @@ select.filter {
   background: var(--ann-surface);
   text-align: left;
   vertical-align: top;
+  /* the wide table scrolls rather than shrinks: a cell's long words do not break (RV-LIB-09) */
+  overflow-wrap: normal;
 }
 
 .md-view th {
@@ -1063,94 +1747,143 @@ select.filter {
   font-weight: 600;
 }
 
+/* the reading view's image placeholder (design .md-img): alt text, the not-saved note and the
+   original's link in a dashed chip — the image itself never loads (capture.md §3.1) */
 .md-view .md-image-placeholder {
-  color: var(--ann-muted);
-  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
   border: 1px dashed var(--ann-border);
-  border-radius: 4px;
-  padding: 2px 6px;
+  border-radius: 7px;
+  color: var(--ann-muted);
+  font-size: 0.85em;
+}
+
+/* the draft paints the note in its faintest grey; muted keeps it readable in both appearances */
+.md-view .md-image-placeholder small {
+  color: var(--ann-muted);
+  font-size: 0.9em;
+}
+
+.md-view .md-image-placeholder a {
+  margin-left: 4px;
 }
 
 /* ── Reading view and in-library highlights (extension.md §4.2) ── */
 
-/* it fills the content area (`.content` is its positioned parent) and leaves the nav alone */
+/* it fills the content area (`.content` is its positioned parent) and leaves the nav alone: the scrolling
+   text column plus the 320px rail of 高亮 / 属性 (design .rd). No ground of its own: the text column
+   keeps the content area's surface, only the rail carries the second surface */
 .reading {
   position: absolute;
   inset: 0;
   z-index: 15;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  background: var(--ann-surface);
+}
+
+.reading-body {
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 32px 56px;
+}
+
+/* the bar over the column: 返回 on the left, the source on the right; it scrolls away with the text */
+.rd-bar {
   display: flex;
-  flex-direction: column;
-  background: var(--ann-page);
+  align-items: center;
+  gap: 8px;
+  max-width: 700px;
+  margin: 0 auto 18px;
+}
+
+.rd-bar-space {
+  flex: 1;
 }
 
 .reading-back {
   display: inline-flex;
   flex: none;
-  align-items: center;
-  gap: 5px;
 }
 
-.reading-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--ann-border);
-  background: var(--ann-surface);
+/* the centred column (design .rd-col): title, meta with a hairline under it, then the article */
+.rd-col {
+  position: relative;
+  max-width: 700px;
+  margin: 0 auto;
 }
 
 .reading-title {
-  flex: 1;
-  min-width: 0;
-  font-size: 14.5px;
+  margin: 0;
+  font-size: 26px;
   font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.rd-head-placeholder {
+  color: var(--ann-muted);
+}
+
+.rd-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 10px 0 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--ann-line);
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+.rd-meta-host {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.reading-layout {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
-.reading-body {
-  flex: 1;
-  min-width: 0;
-  overflow-y: auto;
-  padding: 24px 20px 60px;
-}
-
-.reading-body .md-view {
-  max-width: 720px;
-  margin: 0 auto;
-  font-size: 15px;
+.rd-col .md-view {
+  font-size: 16px;
+  line-height: 1.85;
 }
 
 .reading-lock {
-  max-width: 720px;
-  margin: 0 auto 16px;
-  padding: 8px 12px;
-  border: 1px dashed var(--ann-border);
-  border-radius: 6px;
+  margin: 0 0 16px;
   color: var(--ann-muted);
   font-size: 12px;
 }
 
+/* the rail (design .rd-rail): its own surface, the tabs holding its top, the pane scrolling under them */
 .reading-side {
-  width: 280px;
-  flex: none;
-  border-left: 1px solid var(--ann-border);
-  background: var(--ann-surface);
-  overflow-y: auto;
-  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--ann-line);
+  background: var(--ann-surface-alt);
 }
 
-.reading-side-section h3 {
-  margin-bottom: 10px;
-  font-size: 12px;
+.reading-side-section {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 10px 16px;
+}
+
+/* the rail is 40px narrower than the drawer: the property rows slim with it (design .rd-props .prow) */
+.reading-side .prop-row {
+  grid-template-columns: 96px minmax(0, 1fr) 20px;
+}
+
+.rd-empty {
+  padding: 48px 24px;
   color: var(--ann-muted);
+  text-align: center;
+  font-size: 12.5px;
 }
 
 .hint {
@@ -1159,9 +1892,13 @@ select.filter {
   line-height: 1.5;
 }
 
-/* highlight marks and colors (visual.md §3: color plus underline, never color alone) */
+/* highlight marks and colors (visual.md §3: color plus underline, never color alone). Design .hlm: a
+   42% tint under the words, the stronger 78%-toward-black tone as the underline */
 .md-hl {
-  border-bottom: 2px solid currentColor;
+  position: relative;
+  border-bottom: 2px solid transparent;
+  border-radius: 3px;
+  padding: 1px 0;
   cursor: pointer;
 }
 
@@ -1190,43 +1927,111 @@ select.filter {
 }
 
 .md-hl-yellow {
-  background: rgba(250, 204, 21, 0.4);
+  background: color-mix(in oklab, #facc15 42%, transparent);
+  border-bottom-color: color-mix(in oklab, #facc15 78%, #000);
 }
 
 .md-hl-green {
-  background: rgba(74, 222, 128, 0.35);
+  background: color-mix(in oklab, #4ade80 42%, transparent);
+  border-bottom-color: color-mix(in oklab, #4ade80 78%, #000);
 }
 
 .md-hl-blue {
-  background: rgba(96, 165, 250, 0.35);
+  background: color-mix(in oklab, #60a5fa 42%, transparent);
+  border-bottom-color: color-mix(in oklab, #60a5fa 78%, #000);
 }
 
 .md-hl-pink {
-  background: rgba(244, 114, 182, 0.32);
+  background: color-mix(in oklab, #f472b6 42%, transparent);
+  border-bottom-color: color-mix(in oklab, #f472b6 78%, #000);
 }
 
 .md-hl-purple {
-  background: rgba(167, 139, 250, 0.32);
+  background: color-mix(in oklab, #a78bfa 42%, transparent);
+  border-bottom-color: color-mix(in oklab, #a78bfa 78%, #000);
 }
 
+/* a carried note is a small dot after the words (design .hln); the words live in the note itself. The
+   accent reads on the light tints; in the dark scheme the tints sit beside the accent's own luminance,
+   so the dot takes the body colour — the one combination the tints are built to carry */
 .md-hl-note {
-  margin-left: 2px;
-  color: var(--ann-text);
-  font-size: 0.9em;
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin: 0 2px 0 3px;
+  border-radius: 50%;
+  background: var(--ann-accent-text);
+  vertical-align: super;
 }
 
-/* selection toolbar: five colors + note */
+@media (prefers-color-scheme: dark) {
+  .md-hl-note {
+    background: var(--ann-text);
+  }
+}
+
+/*
+ * The selection toolbar (design .hbar): a small pill on the app's own surface — five colour dots in round
+ * hover targets, 备注, and the H keycap — and the existing-highlight popover (design .hpop) beside its mark.
+ */
 .hl-toolbar {
   position: fixed;
   z-index: 40;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 7px;
+  gap: 2px;
+  padding: 4px 6px;
   border: 1px solid var(--ann-border);
-  border-radius: 8px;
+  border-radius: 11px;
   background: var(--ann-surface);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  color: var(--ann-text-2);
+  box-shadow: var(--ann-shadow-2);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.hl-toolbar-dots {
+  display: inline-flex;
+  padding: 0 4px;
+}
+
+/* the round hover target around each colour dot (design .dotb): a 24px ring of quiet feedback */
+.hl-dotb {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.hl-dotb:hover {
+  background: var(--ann-surface-3);
+}
+
+/* the coloured circle itself, inside the toolbar and the popover (design .hl-dot with its inner edge) */
+.hl-toolbar .hl-dot,
+.hl-popover .hl-dot {
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.14);
+  cursor: pointer;
+}
+
+/* the chosen colour carries a surface gap and the brand ring (design .hl-dot.is-on) */
+.hl-toolbar .hl-dot-active,
+.hl-popover .hl-dot-active {
+  box-shadow:
+    0 0 0 2px var(--ann-surface),
+    0 0 0 3.5px var(--ann-accent);
+}
+
+/* the settings' dots keep the plain circle look of the base .hl-dot below */
+.settings-view .hl-dot-active {
+  outline: 2px solid var(--ann-accent);
+  outline-offset: 2px;
 }
 
 .hl-dot {
@@ -1257,19 +2062,42 @@ select.filter {
   background: #a78bfa;
 }
 
-.hl-dot-active {
-  outline: 2px solid var(--ann-accent);
-  outline-offset: 2px;
+/* the toolbar's two dividers and its quiet actions (备注, the H keycap) */
+.hl-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--ann-line);
 }
 
-.hl-note-button {
-  padding: 3px 8px;
-  border: 1px solid var(--ann-border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--ann-text);
-  font-size: 12px;
+.hl-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+  font-weight: 500;
   cursor: pointer;
+}
+
+.hl-act:hover {
+  background: var(--ann-surface-3);
+  color: var(--ann-text);
+}
+
+/* the H keycap sits in the same rhythm but is a hint, not a control */
+.hl-act-key {
+  cursor: default;
+}
+
+.hl-act-key:hover {
+  background: none;
+  color: var(--ann-text-2);
 }
 
 /* existing-highlight popover */
@@ -1278,26 +2106,40 @@ select.filter {
   z-index: 41;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  width: 240px;
-  padding: 10px;
+  width: 296px;
+  padding: 12px;
   border: 1px solid var(--ann-border);
-  border-radius: 8px;
+  border-radius: 14px;
   background: var(--ann-surface);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
+  color: var(--ann-text);
+  box-shadow: var(--ann-shadow-modal);
+  font-size: 13px;
+}
+
+.hl-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .hl-popover-colors {
-  display: flex;
-  gap: 6px;
+  display: inline-flex;
+}
+
+.hl-popover-name {
+  color: var(--ann-muted);
+  font-size: 11px;
 }
 
 .hl-popover textarea {
   box-sizing: border-box;
   width: 100%;
+  margin-top: 10px;
+  min-height: 56px;
   padding: 6px 8px;
   border: 1px solid var(--ann-border);
-  border-radius: 5px;
+  border-radius: 7px;
   background: var(--ann-page);
   color: var(--ann-text);
   font-size: 12.5px;
@@ -1306,7 +2148,15 @@ select.filter {
 
 .hl-popover-actions {
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.hl-popover-hint {
+  flex: 1;
+  color: var(--ann-muted);
+  font-size: 11px;
 }
 
 .hl-notice {
@@ -1315,20 +2165,31 @@ select.filter {
   color: var(--ann-muted);
 }
 
-/* highlight rows (side panel and highlight view) */
+/* the reading rail's highlight rows (design .hli): the colour bar is the left border — its colour comes
+   from the -yellow/… modifiers below, so no border shorthand after them may reset it — and a hairline
+   separates the items */
+.reading-hl-list {
+  padding: 0;
+}
+
 .hl-row {
   display: block;
   width: 100%;
-  margin-bottom: 10px;
-  padding: 8px 10px;
+  margin: 0;
+  padding: 12px 16px;
   border: 0;
-  border-left: 3px solid var(--ann-border);
-  border-radius: 4px;
-  background: var(--ann-surface-alt);
+  border-left: 4px solid var(--ann-border);
+  border-bottom: 1px solid var(--ann-line);
+  border-radius: 0;
+  background: none;
   color: var(--ann-text);
   font: inherit;
   text-align: left;
   cursor: pointer;
+}
+
+.hl-row:hover {
+  background: var(--ann-surface);
 }
 
 .hl-row-yellow {
@@ -1352,14 +2213,24 @@ select.filter {
 }
 
 .hl-quote {
-  font-size: 12.5px;
-  line-height: 1.5;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .hl-note-text {
-  margin-top: 4px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+}
+
+.hl-note-text svg {
+  flex: none;
+  margin-top: 2px;
   color: var(--ann-muted);
-  font-size: 11.5px;
 }
 
 /* the highlights view: a card per clip, its highlights inside, the cards flowing down the columns */
@@ -1373,87 +2244,135 @@ select.filter {
   break-inside: avoid;
 }
 
-.hl-group-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--ann-border);
-  border-radius: 6px 6px 0 0;
-  background: var(--ann-surface-alt);
-}
-
-.hl-group-title {
-  flex: 1 1 100%;
-  font-size: 13.5px;
-  font-weight: 600;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-}
-
-.hl-group-meta {
-  margin-right: auto;
-  color: var(--ann-muted);
-  font-size: 11.5px;
-}
-
-.hl-group-rows {
-  padding: 10px 12px 2px;
-}
-
 /* ── Property panel and properties page (extension.md §2.4, §4.1) ── */
 
 .prop-panel {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
 }
 
+/* the property row (design .prow, visual.md §4): icon and name left, the value editor right, one aligned
+   name column; a quiet hover wash, and the third cell kept for the row's own affordance */
 .prop-row {
   display: grid;
-  grid-template-columns: 130px 1fr;
+  grid-template-columns: 124px minmax(0, 1fr) 22px;
   align-items: center;
   gap: 8px;
+  min-height: 34px;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+.prop-row:hover {
+  background: var(--ann-surface-alt);
 }
 
 .prop-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   color: var(--ann-muted);
-  font-size: 12px;
+  font-size: 13px;
+  cursor: default;
+}
+
+.prop-name svg {
+  flex: none;
+  color: var(--ann-subtle);
+}
+
+/* the ellipsis lives on the text span: a flex label's own overflow never collapses to "…" */
+.prop-name-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.prop-name svg {
-  vertical-align: -2px;
+/* the drawer's label takes the room the value editor leaves; the table's name keeps its natural
+   width so the 固定/内置 tag follows the name, not the cell's far end */
+.prop-name .prop-name-text {
+  flex: 1;
 }
 
-.prop-row input[type='text'],
-.prop-row input[type='number'],
-.prop-row input[type='date'],
-.prop-row input[type='datetime-local'] {
+.prop-value {
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--ann-text);
+}
+
+/* the value editor at rest is plain text: no edge, no fill — hover draws a hairline, focus the input look
+   (design .pa-in; still the one real input, never a click-to-swap component) */
+.prop-input {
   box-sizing: border-box;
   width: 100%;
-  padding: 6px 8px;
-  border: 1px solid var(--ann-border);
-  border-radius: 5px;
-  background: var(--ann-page);
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
   color: var(--ann-text);
-  font-size: 12.5px;
+  font-size: 13.5px;
+}
+
+.prop-input::placeholder {
+  color: var(--ann-subtle);
+}
+
+.prop-input:hover {
+  border-color: var(--ann-border);
+}
+
+.prop-input:focus,
+.prop-input:focus-visible {
+  border-color: var(--ann-accent);
+  background: var(--ann-surface);
+  box-shadow: 0 0 0 3px var(--ann-ring);
+  outline: 0;
 }
 
 .prop-list {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
 }
 
 .prop-list .tag {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+}
+
+.prop-list-plus {
+  flex: none;
+  color: var(--ann-subtle);
+}
+
+/* the list's own input is bare: the chips already show the box language, the plus signposts where to type */
+.prop-input-bare {
+  min-width: 3.5rem;
+  flex: 1 1 6rem;
+  min-height: 24px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  font-size: 13px;
+}
+
+.prop-input-bare:hover,
+.prop-input-bare:focus,
+.prop-input-bare:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.prop-input-bare:focus-visible {
+  outline: 2px solid var(--ann-accent);
+  outline-offset: 1px;
 }
 
 .tag-remove {
@@ -1465,14 +2384,304 @@ select.filter {
   font-size: 12px;
 }
 
+/* the read-only rows (system fields) keep the grid and its alignment, muted, with the lock in the third cell */
+.prop-ro .prop-value {
+  color: var(--ann-text-2);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prop-sys-link {
+  color: var(--ann-accent-text);
+}
+
+.prop-sys-h {
+  margin: 10px 6px 4px;
+  color: var(--ann-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.prop-px {
+  display: grid;
+  place-items: center;
+  color: var(--ann-subtle);
+}
+
+/* the add-property combo (design .pcombo): a framed expansion under the rows — the input on top, the
+   registry's matches (or the create branch with the type picker) under it */
+.prop-combo {
+  margin: 6px 0 4px;
+  padding: 6px;
+  border: 1px solid var(--ann-border);
+  border-radius: 12px;
+  background: var(--ann-surface);
+  box-shadow: var(--ann-shadow-2);
+}
+
+.prop-combo-in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--ann-accent);
+  border-radius: 8px;
+  box-shadow: 0 0 0 3px var(--ann-ring);
+  color: var(--ann-subtle);
+}
+
+.prop-combo-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ann-text);
+  font-size: 13px;
+}
+
+.prop-combo-input:focus,
+.prop-combo-input:focus-visible {
+  outline: 0;
+}
+
+.prop-combo-list {
+  margin-top: 6px;
+}
+
+.prop-opt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ann-text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prop-opt:hover {
+  background: var(--ann-surface-alt);
+}
+
+.prop-opt svg {
+  flex: none;
+  color: var(--ann-muted);
+}
+
+.prop-opt-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prop-opt-type {
+  flex: none;
+  color: var(--ann-subtle);
+  font-size: 12px;
+}
+
+/*
+ * The card's head (extension.md §2.3): the clip's title on the first line, the host, the count and "回到来源"
+ * below it on narrow cards — the title takes the room it needs, the link never folds.
+ */
+.hl-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 4px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--ann-line);
+  border-radius: 12px 12px 0 0;
+  background: var(--ann-surface-alt);
+}
+
+.hl-group-title {
+  flex: 1 1 calc(100% - 30px);
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* a host longer than the column ends in an ellipsis, not in a folded count */
+.hl-group-host {
+  flex: 0 1 auto;
+  max-width: 60%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ann-muted);
+  font-size: 12px;
+}
+
+/* the group's own count, a quiet chip (the "N 条" of extension.md §2.3) reading in the highlight hue */
+.hl-group-count {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--ann-line);
+  border-radius: 999px;
+  background: var(--ann-surface);
+  color: var(--ann-type-highlight-text);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.hl-group-head .link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+/* one highlight: the colour bar at its left, the quote, its note and the clip's own meta below */
+.hl-item {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+  width: 100%;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--ann-line);
+  background: none;
+  color: var(--ann-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hl-group-rows .hl-item:last-child {
+  border-bottom: 0;
+  border-radius: 0 0 12px 12px;
+}
+
+.hl-item-bar {
+  border-radius: 3px;
+  background: var(--hl-item-color, var(--ann-border));
+}
+
+.hl-item-yellow {
+  --hl-item-color: #facc15;
+}
+
+.hl-item-green {
+  --hl-item-color: #4ade80;
+}
+
+.hl-item-blue {
+  --hl-item-color: #60a5fa;
+}
+
+.hl-item-pink {
+  --hl-item-color: #f472b6;
+}
+
+.hl-item-purple {
+  --hl-item-color: #a78bfa;
+}
+
+.hl-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.hl-item-quote {
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.hl-item-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+.hl-item-note svg {
+  flex: none;
+  margin-top: 3px;
+}
+
+.hl-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 2px;
+  color: var(--ann-muted);
+  font-size: 12px;
+}
+
+.prop-combo-create {
+  margin-top: 2px;
+  padding: 8px 4px 2px;
+}
+
+.prop-combo-h {
+  margin: 0 0 6px 5px;
+  color: var(--ann-muted);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.prop-combo-help {
+  margin: 8px 0 0;
+  color: var(--ann-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.prop-combo-error {
+  margin: 8px 0 0;
+  color: color-mix(in oklab, var(--ann-danger) 80%, var(--ann-text));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.prop-combo-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.prop-add-button {
+  align-self: flex-start;
+  margin: 2px 6px;
+}
+
+.prop-add-button:hover {
+  background: none;
+}
+
+/* the properties page's own toolbar form keeps the classic framed controls (its scope, not the panel's) */
 .prop-add {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.props-toolbar .prop-add {
-  flex-wrap: wrap;
 }
 
 .prop-add input,
@@ -1485,31 +2694,438 @@ select.filter {
   font-size: 12.5px;
 }
 
-.prop-add-button {
-  align-self: flex-start;
+/* the property-type picker (design .ptypes): a three-column grid of the six types, icon and
+   name together; the checked chip carries the brand tint */
+.ptypes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
 }
 
-/* left-aligned with the list pages' content (D-62): one start for every page's title, each keeping its own width */
+.ptype {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-surface);
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ptype svg {
+  flex: none;
+  color: var(--ann-muted);
+}
+
+.ptype[aria-checked='true'] {
+  border-color: var(--ann-accent);
+  background: var(--ann-accent-soft);
+  color: var(--ann-accent-text);
+}
+
+.ptype[aria-checked='true'] svg {
+  color: var(--ann-accent-text);
+}
+
+.ptype:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── The properties page (extension.md §2.4): the registry table ── */
+
+/*
+ * The page starts where every page starts and its table fills the content area; the page-body
+ * inside it carries the scrolling, so the nav stays where it is.
+ */
 .props-page {
-  padding: 16px 16px 40px;
-  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
   width: 100%;
 }
 
-.props-page > .page-title {
-  margin-bottom: 14px;
+/* a registry wider than the window scrolls on its own, banners and head staying put */
+.props-scroll {
+  overflow-x: auto;
+}
+
+/*
+ * The registry table: a real <table> whose rows lay out as one grid (the design's .ptab), so the
+ * header keeps its column association — the roles are spelled out because the grid display drops
+ * the implicit ones.
+ */
+.props-table {
+  display: block;
+  width: 100%;
+  min-width: 640px;
+  border: 1px solid var(--ann-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--ann-surface);
+  font-size: 13px;
+}
+
+.props-table thead,
+.props-table tbody {
+  display: block;
+  width: 100%;
+}
+
+.props-table tr {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.3fr) 112px minmax(110px, 1fr) 64px 56px 56px 72px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+}
+
+.props-table th,
+.props-table td {
+  display: block;
+  min-width: 0;
+}
+
+.props-table thead tr {
+  height: 38px;
+  background: var(--ann-surface-alt);
+  border-bottom: 1px solid var(--ann-line);
+  color: var(--ann-muted);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+/* the header cells read left (the UA centres th); the usage and checkbox columns keep their own alignment */
+.props-table th {
+  text-align: left;
+}
+
+.props-table tbody tr {
+  min-height: 48px;
+  border-bottom: 1px solid var(--ann-line);
+}
+
+.props-table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+/* the usage column: right-aligned, tabular digits; the preset columns centre their lone checkbox */
+.props-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.props-table .ctr {
+  text-align: center;
+}
+
+.props-table .ctr input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  vertical-align: middle;
 }
 
 .prop-name-cell {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 6px;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 600;
 }
 
 .prop-name-cell svg {
   flex: none;
   color: var(--ann-muted);
+}
+
+/* the type reads quiet, the same face as the default-value column (design .ptab .ty/.df) */
+.prop-type {
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+.prop-default {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+/* the delete: an icon square that goes red only when it can actually be used */
+.prop-delete {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ann-text-2);
+  cursor: pointer;
+}
+
+.prop-delete:hover:not(:disabled),
+.prop-delete:focus-visible {
+  color: var(--ann-danger);
+  background: var(--ann-danger-bg);
+}
+
+/* the rail's tabs (design .rd-tab): underline tabs on the rail's own surface, the count in a small pill */
+.reading-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--ann-line);
+}
+
+.reading-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--ann-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reading-tab-current {
+  border-bottom-color: var(--ann-accent);
+  color: var(--ann-accent-text);
+}
+
+.reading-tab-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--ann-surface-3);
+  color: var(--ann-text-2);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* ── The export dialog (extension.md §2.2, storage.md §6) ── */
+
+.export-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  background: var(--ann-scrim);
+}
+
+.export-card {
+  width: min(440px, calc(100vw - 48px));
+  padding: 20px 22px;
+  border-radius: 16px;
+  background: var(--ann-surface);
+  color: var(--ann-text);
+  box-shadow: var(--ann-shadow-modal);
+  font-size: 13px;
+}
+
+.export-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.export-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+/* the state chip (design .chip with its status tint) */
+.export-state {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--ann-line);
+  border-radius: 999px;
+  background: var(--ann-surface-alt);
+  color: var(--ann-text-2);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.export-state-done {
+  border-color: color-mix(in oklab, var(--ann-success) 28%, var(--ann-surface));
+  background: var(--ann-success-bg);
+  color: var(--ann-success);
+}
+
+.export-state-partial {
+  border-color: color-mix(in oklab, var(--ann-warn) 28%, var(--ann-surface));
+  background: var(--ann-warn-bg);
+  color: color-mix(in oklab, var(--ann-warn) 70%, var(--ann-text));
+}
+
+.export-state-failed {
+  border-color: color-mix(in oklab, var(--ann-danger) 28%, var(--ann-surface));
+  background: var(--ann-danger-bg);
+  color: color-mix(in oklab, var(--ann-danger) 80%, var(--ann-text));
+}
+
+.export-intro {
+  margin: 2px 0 12px;
+  color: var(--ann-text-2);
+  line-height: 1.5;
+}
+
+/* 包含 / 不包含: two quiet columns of what the ZIP does and does not carry */
+.export-scope {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.export-scope > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.export-scope-h {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.export-scope-b {
+  margin: 0;
+  color: var(--ann-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.export-card progress {
+  display: block;
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.export-note {
+  margin: 10px 0 0;
+  color: var(--ann-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.export-card .banner {
+  margin-bottom: 2px;
+}
+
+.export-card .banner ul {
+  max-height: 96px;
+  margin: 6px 0 0;
+  padding-left: 16px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.export-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.prop-delete:disabled {
+  color: var(--ann-muted);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* the action column stacks the reason under the button, both flush right */
+.props-table .c-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* the new-definition form: the table's last row, one cell across every column */
+.prop-new-cell {
+  grid-column: 1 / -1;
+  padding: 14px 16px;
+  border-top: 1px solid var(--ann-line);
+  background: var(--ann-surface-alt);
+}
+
+.prop-new-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.prop-new-name {
+  display: flex;
+  flex: 1 1 220px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* the same face the shared field inputs wear, at the form's own height */
+.prop-new-input {
+  box-sizing: border-box;
+  height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-page);
+  color: var(--ann-text);
+  font-size: 13px;
+}
+
+.prop-new-input:focus-visible {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 3px var(--ann-ring);
+}
+
+.prop-new-types {
+  flex: 0 1 330px;
+  min-width: 0;
+}
+
+.prop-new-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ann-danger);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.prop-new-extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.prop-new-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .tag-fixed {
@@ -1538,413 +3154,751 @@ select.filter {
   line-height: 1.35;
 }
 
-.props-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 14px;
-}
-
-.props-spacer {
-  flex: 1;
-}
-
-.props-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.props-table th {
-  text-align: left;
-  padding: 6px 8px;
-  color: var(--ann-muted);
-  font-size: 12px;
-  border-bottom: 1px solid var(--ann-border);
-}
-
-.props-table td {
-  padding: 8px;
-  border-bottom: 1px solid var(--ann-border);
-  vertical-align: middle;
-}
-
-.prop-preset {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-right: 10px;
-  font-size: 12px;
-  color: var(--ann-muted);
-}
-
-/* reading side tabs */
-.reading-tabs {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 12px;
-}
-
-.reading-tab {
-  padding: 5px 10px;
-  border: 1px solid var(--ann-border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--ann-muted);
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.reading-tab-current {
-  background: var(--ann-accent-soft);
-  border-color: var(--ann-accent-text);
-  color: var(--ann-accent-text);
-  font-weight: 600;
-}
-
-/* ── Settings view, guide card, narrow-window icon rail (extension.md §2.2, §5) ── */
+/* ── Settings view (extension.md §2.5): two columns of cards ── */
 
 /*
- * The settings page scrolls inside the content column, like the list does, so the nav stays where it is
- * (visual.md §4). The view is the scroller: its side padding centres a 600px column of cards while the
- * scrollbar stays at the window edge.
+ * The view fills the content column and its .page-body carries the scrolling, so the nav stays where it
+ * is (visual.md §4). The card grid measures its own container: below ~860 the two columns become one.
  */
 .settings-view {
-  --settings-control-h: 30px;
-  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
   min-height: 0;
   width: 100%;
-  padding: 24px 16px 60px;
-  overflow-y: auto;
 }
 
-/* the settings cards keep their readable width, starting where every page starts (D-62) */
-.settings-view > * {
-  max-width: 720px;
+.settings-view .page-body {
+  container-type: inline-size;
 }
 
-.settings-view h1 {
-  margin-bottom: 18px;
-  font-size: 19px;
+.settings-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  max-width: 1080px;
+  align-items: start;
 }
 
-/* each card is a container: its rows stack their label over the control when the card itself is narrow */
-.settings-view section {
-  margin-bottom: 24px;
-  padding: 16px 18px;
-  border: 1px solid var(--ann-border);
-  border-radius: 10px;
+.settings-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+@container (max-width: 859px) {
+  .settings-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* a card: white, hairline edge, 14 radius; its own container, so a narrow card stacks its rows */
+.set {
+  border: 1px solid var(--ann-line);
+  border-radius: 14px;
   background: var(--ann-surface);
   container: settings-card / inline-size;
 }
 
-.settings-view h2 {
-  margin-bottom: 6px;
-  font-size: 14px;
+.set-h {
+  padding: 16px 20px 12px;
 }
 
-.settings-view h3 {
-  margin: 10px 0 6px;
-  font-size: 12.5px;
+.set-h h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.set-r {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+  padding: 13px 20px;
+  border-top: 1px solid var(--ann-line);
+}
+
+.set-l {
+  flex: 1;
+  min-width: 0;
+}
+
+.set-l > b {
+  display: block;
+  font-weight: 600;
+}
+
+.set-l > small {
+  display: block;
+  margin-top: 2px;
   color: var(--ann-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
 }
 
-.settings-view code {
+.set-ctl {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+/* a row whose content continues below the name line (the disabled sites, the storage bar) */
+.set-r-block {
+  flex-wrap: wrap;
+}
+
+/* a row without the hairline (the metrics banner, which opens the card) */
+.set-r-bare {
+  border-top: 0;
+}
+
+/* a note block inside a card, under the rows (the orphan report) */
+.set-pad {
+  padding: 0 20px 13px;
+}
+
+.set-note {
+  color: var(--ann-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.set-note p {
+  margin: 0 0 6px;
+}
+
+.set-note ul {
+  max-height: 100px;
+  overflow-y: auto;
+  margin: 6px 0;
+  padding-left: 16px;
   overflow-wrap: anywhere;
 }
 
-.settings-view .switch-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 10px;
-  font-size: 13px;
+.set-note code {
+  overflow-wrap: anywhere;
 }
 
-.settings-view input[type='checkbox'] {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--ann-accent);
-}
-
-/* one height for every control, so a row of mixed controls does not step */
-.settings-view select,
-.settings-view input[type='text'] {
-  height: var(--settings-control-h);
-  padding: 0 10px;
-  border: 1px solid var(--ann-border);
-  border-radius: 5px;
-  background: var(--ann-page);
-  color: var(--ann-text);
-  font-family: inherit;
-  font-size: 13px;
-}
-
-.settings-view select {
-  width: 10rem;
-}
-
-.settings-view input[type='text'] {
-  width: 100%;
-}
-
-.settings-view input[type='file'] {
-  min-width: 0;
-  max-width: 100%;
-  height: var(--settings-control-h);
-  color: var(--ann-muted);
-  font-family: inherit;
-  font-size: 12.5px;
-}
-
-.settings-view input[type='file']::file-selector-button {
-  height: var(--settings-control-h);
-  margin-right: 10px;
-  padding: 0 12px;
-  border: 1px solid var(--ann-border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--ann-text);
-  font: inherit;
-  cursor: pointer;
-}
-
-/* a slider gives way before its value wraps below it */
-.settings-view input[type='range'] {
-  flex: 0 1 12rem;
-  width: 12rem;
-  min-width: 4rem;
-  height: var(--settings-control-h);
-  margin: 0;
-  accent-color: var(--ann-accent);
-}
-
-.settings-view .sites ul {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.settings-view .sites li,
-.settings-view .mic-status {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--ann-border);
-  font-size: 13px;
-}
-
-.settings-view .mic-status-denied {
-  color: var(--ann-warn, #8a6116);
-}
-
-.settings-view .keys {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--ann-border);
-  font-size: 13px;
-}
-
-/* the colour dots are buttons too, but keep the look .hl-dot gives them */
-.settings-view button:not(.hl-dot) {
-  min-height: var(--settings-control-h);
-  padding: 5px 10px;
-  border: 1px solid var(--ann-border);
-  border-radius: 5px;
-  background: transparent;
-  color: var(--ann-text);
-  font-size: 12.5px;
-  cursor: pointer;
-}
-
-.settings-view button.link {
-  margin-top: 12px;
-}
-
-.settings-view kbd {
-  padding: 2px 6px;
-  border: 1px solid var(--ann-border);
-  border-bottom-width: 2px;
-  border-radius: 4px;
+/* the sub-form under a switch row (the watermark, the beautify style): a label column and its rows */
+.set-sub {
+  display: grid;
+  gap: 12px;
+  padding: 12px 16px 14px;
+  border-top: 1px dashed var(--ann-line);
   background: var(--ann-surface-alt);
-  font-family: ui-monospace, Menlo, monospace;
-  font-size: 11.5px;
 }
 
-.settings-view .keys-unassigned {
-  color: var(--ann-muted);
+.set-fr {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.set-fr-top {
+  align-items: flex-start;
+}
+
+.set-fr > .set-lb {
+  flex: none;
+  width: 64px;
+  color: var(--ann-text-2);
   font-size: 12.5px;
 }
 
-/* the screenshot card holds four groups; a rule and a title tell them apart */
-.settings-group {
-  margin-top: 10px;
+/* the watermark's two labels carry their own limits (at most 40 characters / PNG ≤ 512 KB):
+   a wider column so they fold at most once, where the design's short labels fit in one */
+.set-fr > .set-lb-wide {
+  width: 172px;
 }
 
-.settings-group + .settings-group {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--ann-border);
-}
-
-.settings-view .settings-group h3 {
-  margin: 0 0 8px;
-}
-
-.settings-view .settings-group .switch-row {
-  margin-top: 0;
-}
-
-/* controls that belong on one line (format and quality, the ratio chips); they wrap when the card is narrow */
-.settings-inline {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 14px;
-}
-
-/* two stacked inline rows (the recording shapes and their colour dots) breathe
-   like the rows inside one inline block do, instead of touching (真机反馈) */
-.settings-inline + .settings-inline {
-  margin-top: 8px;
-}
-
-.settings-inline .prop-preset {
-  gap: 6px;
-  height: var(--settings-control-h);
-  margin-right: 0;
-  padding: 0 10px;
+/* the switch: a native checkbox wearing role="switch", drawn by CSS — 32×18 track, 14px thumb */
+.sw {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 18px;
+  margin: 0;
   border: 1px solid var(--ann-border);
-  border-radius: 5px;
-  background: var(--ann-page);
-  color: var(--ann-text);
-  font-size: 12.5px;
+  border-radius: 999px;
+  background: var(--ann-surface-3);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
 }
 
-.settings-inline .prop-preset:has(input:checked) {
-  border-color: var(--ann-accent);
-  background: var(--ann-accent-soft);
+.sw::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  transition: transform 0.15s;
 }
 
-/* labelled rows: the label column is the same in every row of a card, the control fills the rest */
-.settings-grid {
-  display: grid;
-  gap: 10px;
-  margin-top: 10px;
+.sw:checked {
+  background: var(--ann-accent);
+  border-color: transparent;
 }
 
-.settings-field {
-  display: grid;
-  grid-template-columns: 11rem minmax(0, 1fr);
+.sw:checked::after {
+  transform: translateX(14px);
+}
+
+.sw:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw,
+  .sw::after {
+    transition: none;
+  }
+}
+
+/* the segmented control: native radios under their labels; the chosen segment is raised */
+.seg {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--ann-line);
+  border-radius: 9px;
+  background: var(--ann-surface-alt);
+}
+
+.seg-opt {
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  gap: 4px 14px;
-  min-height: var(--settings-control-h);
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 7px;
+  color: var(--ann-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
 }
 
-.settings-field-top {
-  align-items: start;
+/* the radio covers its label, so the global focus ring wraps the segment; it is never seen itself */
+.seg-in {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
 }
 
-.settings-label {
-  font-size: 13px;
-  line-height: 1.35;
+.seg-opt.is-on {
+  background: var(--ann-surface);
+  color: var(--ann-text);
+  box-shadow: var(--ann-shadow-1);
 }
 
-/* a control made of several parts: a slider and its value, a file chooser and its remove button */
-.settings-control {
-  display: flex;
-  flex-wrap: wrap;
+/* the slider: a native range on a 4px track, the filled part in the accent; the value reads beside it */
+.sl {
+  display: inline-flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
 }
 
-.settings-range {
-  flex-wrap: nowrap;
+.sl-in {
+  width: 150px;
+  max-width: 100%;
+  height: 18px;
+  margin: 0;
+  background: transparent;
 }
 
-.settings-value {
+.sl-in:disabled {
+  opacity: 0.45;
+}
+
+.sl-in::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--ann-accent) var(--sl-fill, 0%), var(--ann-surface-3) var(--sl-fill, 0%));
+}
+
+.sl-in::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -4.5px;
+  border: 2px solid var(--ann-accent);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--ann-shadow-1);
+}
+
+.sl-in::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ann-surface-3);
+}
+
+.sl-in::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ann-accent);
+}
+
+.sl-in::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--ann-accent);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--ann-shadow-1);
+}
+
+.sl-val {
   min-width: 3.5ch;
   color: var(--ann-muted);
   font-size: 12.5px;
   font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.sl-error {
+  color: var(--ann-danger);
+  font-size: 12px;
+}
+
+/* the corner picker: one radio in each corner of a small box; the chosen corner fills */
+.posbox {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 66px;
+  height: 46px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-surface-alt);
+}
+
+.pos-cell {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  background: var(--ann-surface-3);
+}
+
+.pos-tl {
+  top: 5px;
+  left: 5px;
+}
+
+.pos-tr {
+  top: 5px;
+  right: 5px;
+}
+
+.pos-bl {
+  bottom: 5px;
+  left: 5px;
+}
+
+.pos-br {
+  right: 5px;
+  bottom: 5px;
+}
+
+.pos-in {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.pos-cell.is-on {
+  background: var(--ann-accent);
+}
+
+/* the checkbox chip (design .rcheck): a native checkbox dressed as a chip; the ratio glyph shows its shape */
+.rcheck {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-page);
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rcheck-in {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.rcheck svg {
+  color: var(--ann-accent-text);
+}
+
+.rcheck .rg {
+  display: inline-block;
+  flex: none;
+  border: 1.5px solid currentcolor;
+  border-radius: 2px;
+}
+
+.rcheck.is-on {
+  border-color: color-mix(in oklab, var(--ann-accent) 55%, transparent);
+  background: var(--ann-accent-soft);
+  color: var(--ann-text);
+}
+
+/* rows of chips (the anonymize parts, the ratio presets) */
+.chip-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-row-wrap {
+  flex-basis: 100%;
+  margin-top: 8px;
+}
+
+/* the beautify background swatches: fills from the output side, a ring on the chosen one */
+.bz-sws {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bz-sw {
+  position: relative;
+  width: 23px;
+  height: 23px;
+  border-radius: 7px;
+  box-shadow: 0 0 0 1px var(--ann-border);
+  cursor: pointer;
+}
+
+.bz-in {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.bz-sw.is-on {
+  box-shadow:
+    0 0 0 2px var(--ann-surface),
+    0 0 0 3.5px var(--ann-accent);
+}
+
+.bz-none {
+  display: grid;
+  place-items: center;
+  background: repeating-linear-gradient(135deg, var(--ann-surface-3) 0 4px, var(--ann-surface-alt) 4px 8px);
+  color: var(--ann-muted);
+}
+
+/* the beautify preview: the chosen background, padding, corner and shadow around a grey placeholder card */
+.bz-preview {
+  display: grid;
+  width: 220px;
+  max-width: 100%;
+  height: 110px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.bz-preview-none {
+  background: repeating-linear-gradient(135deg, var(--ann-surface-3) 0 6px, var(--ann-surface-alt) 6px 12px);
+}
+
+.bz-preview-card {
+  width: 100%;
+  height: 100%;
+  background: var(--ann-surface-3);
+}
+
+/* the watermark sub-form's own controls */
+.wm-text {
+  box-sizing: border-box;
+  /* flexible: with the row's wide label and the counter beside it, a fixed 240px would push the
+     counter to its own line (the design's short labels leave room for a fixed one) */
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-page);
+  color: var(--ann-text);
+  font-size: 12.5px;
+}
+
+.wm-text:focus-visible {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 3px var(--ann-ring);
+}
+
+.wm-count {
+  flex: none;
+  white-space: nowrap;
+  color: var(--ann-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wm-thumb {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--ann-surface);
+  object-fit: contain;
+}
+
+/* the file chooser sits behind its own buttons (choose / change / remove) */
+.vh-input {
+  display: none;
 }
 
 .watermark-preview {
   display: block;
-  width: 260px;
+  width: 220px;
   max-width: 100%;
   height: auto;
-  aspect-ratio: 260 / 90;
+  aspect-ratio: 220 / 92;
   border: 1px solid var(--ann-border);
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
-@container settings-card (max-width: 420px) {
-  .settings-field {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .settings-view select {
-    width: 100%;
-  }
+/* the disabled sites, indented under their row */
+.sites {
+  list-style: none;
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding-left: 16px;
 }
 
+.sites li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.site-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rec-mic {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mic-status {
+  color: var(--ann-text-2);
+  font-size: 13px;
+}
+
+/* the warning stays readable on the card: the token's raw amber sits under 4.5 on white */
+.mic-status.is-denied {
+  color: color-mix(in oklab, var(--ann-warn) 62%, var(--ann-text));
+}
+
+.keys-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.keys-unassigned {
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.storage-bar {
+  flex-basis: 100%;
+  width: 100%;
+}
+
+/* the metric rows: the M-id in a tag, the value in tabular digits at the row's right end */
+.metric-val {
+  justify-content: flex-end;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-guard {
+  color: var(--ann-muted);
+}
+
+.cv-tag {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 18px;
+  padding: 0 7px;
+  border: 1px solid var(--ann-line);
+  border-radius: 999px;
+  background: var(--ann-surface-alt);
+  color: var(--ann-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* the metrics tables keep the registry table's face, each with its own columns */
+.metric-weeks,
+.metric-events {
+  min-width: 0;
+}
+
+.metric-weeks tr {
+  grid-template-columns: minmax(96px, 1.2fr) repeat(4, minmax(64px, 1fr)) minmax(72px, 0.9fr);
+}
+
+.metric-events tr {
+  grid-template-columns: minmax(0, 1fr) 64px;
+  min-height: 36px;
+}
+
+.set-tbl-h {
+  margin: 12px 20px 0;
+  color: var(--ann-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* the dots of a colour choice (the default highlight, the cursor highlight) */
 .hl-colors {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 10px;
 }
 
 .settings-view .hl-dot {
-  width: 24px;
-  height: 24px;
+  width: 22px;
+  height: 22px;
   padding: 0;
+}
+
+/* a narrow card puts its control under its name, the way the old labelled rows did */
+@container settings-card (max-width: 420px) {
+  .set-r {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .set-ctl {
+    align-items: flex-start;
+  }
+
+  .metric-val {
+    justify-content: flex-start;
+    text-align: left;
+  }
 }
 
 /* first use (extension.md §5): three cards, one per way in, then one solid action */
 .guide-card {
-  max-width: 860px;
-  margin: 0 auto 14px;
+  max-width: 960px;
   width: 100%;
-  padding: 16px 20px;
-  border: 1px solid var(--ann-border);
-  border-radius: 10px;
-  background: var(--ann-surface);
+  padding: 16px;
+  border: 1px dashed var(--ann-border);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--ann-accent) 4%, var(--ann-surface));
   font-size: 13px;
   line-height: 1.6;
 }
 
 .guide-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
 }
 
 .guide-item {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
-  padding: 12px;
-  border: 1px solid var(--ann-border);
-  border-radius: 8px;
-  background: var(--ann-surface-alt);
+  gap: 6px;
+  padding: 13px 14px;
+  border: 1px solid var(--ann-line);
+  border-radius: 12px;
+  background: var(--ann-surface);
 }
 
-.guide-item svg {
-  color: var(--ann-accent);
+.guide-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* the tile carries its type's hue; the card's own name says the type in words */
+.guide-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+
+.guide-item:where([data-view='clips']) .guide-tile {
+  background: color-mix(in oklab, var(--ann-type-clip) 13%, var(--ann-surface));
+  color: var(--ann-type-clip);
+}
+
+.guide-item:where([data-view='highlights']) .guide-tile {
+  background: color-mix(in oklab, var(--ann-type-highlight) 13%, var(--ann-surface));
+  color: var(--ann-type-highlight);
+}
+
+.guide-item:where([data-view='screenshots']) .guide-tile {
+  background: color-mix(in oklab, var(--ann-type-screenshot) 13%, var(--ann-surface));
+  color: var(--ann-type-screenshot);
 }
 
 .guide-name {
-  font-weight: 600;
+  font-weight: 650;
 }
 
 .guide-item p {
@@ -1957,33 +3911,17 @@ select.filter {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  margin-top: 14px;
+  gap: 8px 12px;
+  margin-top: 12px;
 }
 
-.guide-actions .primary {
-  padding: 8px 16px;
-  border: 0;
-  border-radius: 6px;
-  background: var(--ann-accent);
-  color: var(--ann-accent-contrast);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.guide-actions .primary:focus-visible {
-  outline: 2px solid var(--ann-accent);
-  outline-offset: 2px;
-}
-
-.guide-actions .link {
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--ann-accent-text);
+.guide-note {
+  color: var(--ann-muted);
   font-size: 12.5px;
-  cursor: pointer;
+}
+
+.guide-spacer {
+  flex: 1;
 }
 
 .guide-actions .link:hover,
@@ -1992,23 +3930,31 @@ select.filter {
 }
 
 /*
- * The nav folds to a 52px icon rail (extension.md §2.2): by hand with the fold button at any width, and by default
+ * The nav folds to a 60px icon rail (extension.md §2.2): by hand with the fold button at any width, and by default
  * in a narrow window. The App decides and sets `.is-rail` on the shell, so the rules exist once, not once per cause.
+ * What the rail keeps: the brand mark, the items' icons with their tooltips and the export icon button; the counts,
+ * the group titles, the storage meter and the shortcut hint wait for the nav to open again.
  */
 .is-rail .side {
-  width: 52px;
-  padding: 12px 6px;
+  width: 60px;
+  padding: 14px 10px;
   align-items: center;
 }
 
 .is-rail .nav-top {
   flex-direction: column;
-  gap: 6px;
-  margin: 0 0 12px;
+  gap: 8px;
+  padding: 2px 0 12px;
 }
 
 /* the wordmark is wider than the rail: the logo stands in, the text stays for screen readers */
-.is-rail .nav-group-title {
+.is-rail .nav-group-title,
+.is-rail .nav-count,
+.is-rail .nav-label,
+.is-rail .nav-export-label,
+.is-rail .nav-storage,
+.is-rail .nav-shortcut,
+.is-rail .nav-note {
   display: none;
 }
 
@@ -2019,118 +3965,84 @@ select.filter {
 .is-rail .brand::before {
   content: '';
   display: block;
-  width: 26px;
-  height: 26px;
+  width: 24px;
+  height: 24px;
   background: var(--ann-accent);
   -webkit-mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
   mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
 }
 
 .is-rail .nav-item {
-  position: relative;
   width: 40px;
-  height: 36px;
   justify-content: center;
   padding: 0;
 }
 
-.is-rail .nav-label,
-.is-rail .nav-export-label,
-.is-rail .nav-shortcut span {
-  display: none;
+.is-rail .nav-item-current::before {
+  left: -10px;
 }
 
-/* the current item's rule above (accent text on the soft tint) must not reach the badge: it is accent-filled here */
-.is-rail .nav-count,
-.is-rail .nav-item-current .nav-count {
-  position: absolute;
-  top: -3px;
-  right: -4px;
-  min-width: 15px;
-  height: 15px;
-  display: grid;
-  place-items: center;
-  padding: 0 2px;
-  border-radius: 8px;
-  background: var(--ann-accent);
-  color: var(--ann-accent-contrast);
-  font-size: 9px;
+.is-rail .nav-fold {
+  margin: 0;
+}
+
+.is-rail .nav-foot {
+  align-items: center;
 }
 
 .is-rail .nav-export {
   width: 40px;
-  min-height: 36px;
-  margin: 4px 0;
   padding: 0;
 }
 
-.is-rail .nav-shortcut {
-  width: 40px;
-  justify-content: center;
-  padding: 8px 0;
-}
-
 /* the rail has no room for the export result: it shows above the content instead */
-.is-rail .nav-note {
-  display: none;
-}
-
 .is-rail .mobile-export-status {
   display: block;
   padding: 8px 12px;
-  border-bottom: 1px solid var(--ann-border);
+  border-bottom: 1px solid var(--ann-line);
   background: var(--ann-surface);
   font-size: 12px;
   overflow-wrap: anywhere;
 }
 
-/* a touch-sized window has no hover to reveal a card's actions */
-@media (max-width: 720px) {
+/* a narrow window (extension.md §2.2): the page frame narrows, the search gives up width, the guide's
+   cards stack; a touch-sized window has no hover to reveal a card's actions — all below the 720 breakpoint */
+@media (max-width: 719.98px) {
+  .page-head,
+  .page-body {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .search-field {
+    width: 200px;
+  }
+
+  .guide-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .entry-card-actions {
     opacity: 1;
   }
 }
 
-/* the reading view's side column goes under the text when the content area is too narrow to hold both */
+/* the reading view's side column goes under the text when the content area is too narrow to hold both
+   (extension.md §4.2): the whole view scrolls as one, the rail keeping its own edge on top */
 @media (max-width: 1000px) {
-  .reading-layout {
-    flex-direction: column;
+  .reading {
+    grid-template-columns: minmax(0, 1fr);
     overflow-y: auto;
   }
 
   .reading-body {
-    flex: none;
     overflow: visible;
   }
 
   .reading-side {
-    display: block;
-    width: 100%;
+    display: flex;
+    min-height: 0;
     border-left: 0;
-    border-top: 1px solid var(--ann-border);
-    overflow: visible;
+    border-top: 1px solid var(--ann-line);
   }
-}
-
-/* The 录制 section's shape choice (annotate.md §3.2): same look as the settings' other chips. */
-.settings-view .chip {
-  padding: 4px 10px;
-  border: 1px solid var(--ann-input-border, #cbd5e1);
-  border-radius: 5px;
-  background: var(--ann-surface, #fff);
-  color: var(--ann-text, #252b31);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.settings-view .chip-active {
-  border-color: var(--ann-accent, #673ab8);
-  color: var(--ann-accent-text, #673ab8);
-  background: var(--ann-accent-soft, #f0eefb);
-}
-
-/* the highlight count reads in the highlight hue wherever it appears (the card row and the highlights view) */
-.hl-group-count {
-  color: var(--ann-type-highlight-text);
 }

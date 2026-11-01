@@ -96,7 +96,7 @@ test('in dark mode the popup text stays readable on the popup background (extens
         head: contrast('.popup-head'),
         // accent text on the dark surface and on the accent tint (真机走查 P2-8)
         link: contrast('.popup-head .link'),
-        chip: contrast('.type-chip.type-clip'),
+        meta: contrast('.popup-meta'),
         hint: contrast('.popup-foot'),
       },
       // the current view's icon is a UI indicator: 3:1
@@ -108,7 +108,7 @@ test('in dark mode the popup text stays readable on the popup background (extens
   await popup.close()
 })
 
-test('the popup draws the library icons: lucide in the rail, icon and name in every row (visual.md §3)', async ({ page, extensionId }) => {
+test('the popup draws the library icons: lucide in the rail, a type tile in every row (visual.md §3)', async ({ page, extensionId }) => {
   const popup = await openPopupWithClips(page, extensionId)
   const rail = await popup.locator('.popup-rail-item').evaluateAll(items =>
     items.map(item => {
@@ -136,16 +136,17 @@ test('the popup draws the library icons: lucide in the rail, icon and name in ev
   ])
   for (const item of rail) expect(item.offCentre, 'the icon sits in the middle of its button').toBeLessThanOrEqual(2)
 
+  // the row's tile is the icon alone in the type's tint; the name lives in the row's own title
   const rows = await popup.locator('.popup-list li').evaluateAll(items =>
     items.map(item => {
-      const chip = item.querySelector('.type-chip')!
-      const svg = chip.querySelector('svg')
-      return { type: chip.getAttribute('data-type'), icon: svg ? [...svg.classList].find(name => name.startsWith('lucide-')) : null, text: chip.textContent!.trim() }
+      const tile = item.querySelector('.type-tile')!
+      const svg = tile.querySelector('svg')
+      return { type: tile.getAttribute('data-type'), icon: svg ? [...svg.classList].find(name => name.startsWith('lucide-')) : null, words: tile.textContent!.trim() }
     }),
   )
   expect(rows).toEqual([
-    { type: 'clip', icon: 'lucide-bookmark', text: '剪藏' },
-    { type: 'clip', icon: 'lucide-bookmark', text: '剪藏' },
+    { type: 'clip', icon: 'lucide-bookmark', words: '' },
+    { type: 'clip', icon: 'lucide-bookmark', words: '' },
   ])
   await popup.close()
 })
@@ -212,7 +213,8 @@ test('the popup annotation entry opens the layer on the page and stays off on re
 /** Makes the popup believe the active tab is an http page and the worker answers with this recording state. */
 async function popupIn(page: Page, extensionId: string, recording?: Record<string, unknown>): Promise<Page> {
   const popup = await page.context().newPage()
-  await popup.setViewportSize({ width: 340, height: 360 })
+  // tall enough that the shell's own height is the only thing that could clip it
+  await popup.setViewportSize({ width: 520, height: 600 })
   await popup.addInitScript(
     ({ recording }) => {
       const query = chrome.tabs.query.bind(chrome.tabs)
@@ -236,22 +238,43 @@ async function popupIn(page: Page, extensionId: string, recording?: Record<strin
   return popup
 }
 
-/** The block under the list, in every state: no text drawn on text, nothing past the shell's right edge. */
+/** The block under the list, in every state: no text drawn on text, nothing past the shell's
+ *  right edge, nothing cut off by the bottom edge — the window grows with its content. */
 async function expectPopupWellFormed(popup: Page): Promise<void> {
   expect(await textOverlaps(popup, '.popup-shell'), 'text drawn on text').toEqual([])
   const geometry = await popup.evaluate(() => {
     const shell = document.querySelector('.popup-shell')!
     const shellBox = shell.getBoundingClientRect()
+    const visible = (element: HTMLElement): boolean => {
+      const box = element.getBoundingClientRect()
+      if (box.width <= 0 || box.height <= 0) return false
+      const style = getComputedStyle(element)
+      return style.visibility !== 'hidden' && style.display !== 'none'
+    }
+    const outside = (element: HTMLElement): string | null => {
+      const box = element.getBoundingClientRect()
+      if (box.right > shellBox.right + 1) return `${element.className || element.tagName} right at ${Math.round(box.right)}`
+      if (box.bottom > shellBox.bottom + 1) return `${element.className || element.tagName} bottom at ${Math.round(box.bottom)}`
+      return null
+    }
     const beyond = [...shell.querySelectorAll<HTMLElement>('*')]
-      .filter(element => {
-        const box = element.getBoundingClientRect()
-        return box.width > 0 && box.right > shellBox.right + 1
-      })
-      .map(element => `${element.className || element.tagName} at ${Math.round(element.getBoundingClientRect().right)}`)
-    return { beyond, scrolls: shell.scrollWidth > shell.clientWidth + 1, list: document.querySelector('.popup-list')!.getClientRects().length }
+      .filter(visible)
+      .map(outside)
+      .filter((entry): entry is string => entry !== null)
+    return {
+      beyond,
+      scrollsSideways: shell.scrollWidth > shell.clientWidth + 1,
+      scrollsDown: shell.scrollHeight > shell.clientHeight + 1,
+      height: shellBox.height,
+      list: document.querySelector('.popup-list')!.getClientRects().length,
+    }
   })
-  expect(geometry.beyond, 'elements past the shell edge').toEqual([])
-  expect(geometry.scrolls, 'the shell scrolls sideways').toBe(false)
+  expect(geometry.beyond, 'elements past the shell edges').toEqual([])
+  expect(geometry.scrollsSideways, 'the shell scrolls sideways').toBe(false)
+  // the shell's height follows what it shows; a vertical scroll or a cut-off
+  // child means a state outgrew its window (the browser caps popups at 600)
+  expect(geometry.scrollsDown, 'the shell scrolls down').toBe(false)
+  expect(geometry.height, 'the shell stays within the browser popup cap').toBeLessThanOrEqual(600)
   expect(geometry.list, 'the list keeps its place above the block').toBeGreaterThan(0)
 }
 
@@ -324,7 +347,7 @@ for (const uiLocale of ['zh-CN', 'en-US'] as const) {
       await clearLibrary(page.context())
       // the popup opened as its own tab is the active tab, and an extension page is one content scripts cannot enter
       const popup = await page.context().newPage()
-      await popup.setViewportSize({ width: 340, height: 360 })
+      await popup.setViewportSize({ width: 520, height: 600 })
       await popup.goto(`chrome-extension://${extensionId}/popup.html`)
       await popup.locator('.popup-shell').waitFor()
       const reason = popup.locator('.popup-restricted')
@@ -393,7 +416,9 @@ for (const uiLocale of ['zh-CN', 'en-US'] as const) {
               const parent = node.parentElement
               if (!text || !parent) continue
               const size = parseFloat(getComputedStyle(parent).fontSize)
-              if (size < 12) found.push(`${parent.className}: ${text.slice(0, 20)} at ${size}px`)
+              // keycaps are the design's own 10.5px caps (extension.md §2.6); everything else is at least 12px
+              // keycaps are the design's own smaller caps (extension.md §2.6); every word is at least 12px
+              if (size < 12 && parent.tagName !== 'KBD') found.push(`${parent.className}: ${text.slice(0, 20)} at ${size}px`)
             }
           }
           return found

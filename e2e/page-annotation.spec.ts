@@ -184,6 +184,56 @@ test.describe('page annotation layer', () => {
     await expect(page.locator(LAYER)).toHaveCount(0)
   })
 
+  // The window-edge toolbar is one of the always-dark pills (visual.md §2): it looks the
+  // same whatever the system appearance is, and its icons (≥ 3:1) and its chip's words (≥ 4.5)
+  // read on the dark ground.
+  test('the toolbar is one always-dark pill in both appearances, and its icons and chip read on it', async ({ page }) => {
+    await page.goto(getScreenshotPageUrl())
+    const reading = () =>
+      page.evaluate(() => {
+        const parse = (value: string): [number, number, number] | null => {
+          const m = /^rgba?\((\d+)[, ]+(\d+)[, ]+(\d+)(?:[,/ ]+[\d.]+)?\)$/.exec(value.trim())
+          return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null
+        }
+        const luminance = (c: [number, number, number]) => {
+          const f = (v: number) => {
+            const s = v / 255
+            return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+          }
+          return 0.2126 * f(c[0]) + 0.7152 * f(c[1]) + 0.0722 * f(c[2])
+        }
+        const between = (front: string, back: string): number => {
+          const a = parse(front)
+          const b = parse(back)
+          if (!a || !b) throw new Error(`unreadable colour: ${front} over ${back}`)
+          const [hi, lo] = luminance(a) > luminance(b) ? [luminance(a), luminance(b)] : [luminance(b), luminance(a)]
+          return (hi + 0.05) / (lo + 0.05)
+        }
+        const bar = document.querySelector('[data-ann-ui="annotation-toolbar"]') as HTMLElement
+        const pill = getComputedStyle(bar).backgroundColor
+        return {
+          pill,
+          text: getComputedStyle(bar).color,
+          iconContrast: between(getComputedStyle(bar.querySelector('[data-ann-ui="annotation-tool-pen"]')!).color, pill),
+          chipContrast: between(getComputedStyle(document.querySelector('[data-ann-ui="annotation-auto-erase"]')!).color, pill),
+        }
+      })
+    const seen: Record<string, Awaited<ReturnType<typeof reading>>> = {}
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme })
+      await triggerAnnotation(page)
+      await page.locator(LAYER).waitFor()
+      await page.locator(TOOLBAR).waitFor()
+      seen[scheme] = await reading()
+      expect(seen[scheme]!.iconContrast, `the icons read on the pill (${scheme})`).toBeGreaterThanOrEqual(3)
+      expect(seen[scheme]!.chipContrast, `the auto-erase chip's words read on the pill (${scheme})`).toBeGreaterThanOrEqual(4.5)
+      await triggerAnnotation(page)
+      await expect(page.locator(LAYER)).toHaveCount(0)
+    }
+    expect(seen.dark!.pill, 'the toolbar does not follow the system appearance').toBe(seen.light!.pill)
+    expect(seen.dark!.text).toBe(seen.light!.text)
+  })
+
   test('the selection menu stays off the page while the layer is open', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
     await triggerAnnotation(page)

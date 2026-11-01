@@ -214,31 +214,77 @@ test.describe('the nav folds to an icon rail by hand (extension.md §2.2)', () =
     await expect(fold).toHaveAttribute('aria-expanded', 'true')
     await expect(library.locator('.nav-label').first()).toBeVisible()
     const wide = await widths()
-    expect(wide.nav, 'the nav is the full nav').toBeGreaterThan(180)
+    expect(wide.nav, 'the nav is the full 232px nav').toBeCloseTo(232, 0)
 
     await fold.click()
     await expect(fold).toHaveAccessibleName('展开导航')
     await expect(fold).toHaveAttribute('aria-expanded', 'false')
-    await expect.poll(async () => (await widths()).nav, 'the nav is the 52px rail').toBeLessThanOrEqual(60)
+    await expect.poll(async () => (await widths()).nav, 'the nav is the 60px rail').toBeCloseTo(60, 0)
     expect((await widths()).content - wide.content, 'the content column takes the room the nav gave up').toBeGreaterThan(140)
     await expect(library.locator('.nav-label').first()).toBeHidden()
-    // the rail keeps names for the pointer (tooltip) and the reader, and the counts
+    // the rail keeps names for the pointer (tooltip) and the reader
     await expect(library.getByRole('link', { name: '截图', exact: true })).toHaveAttribute('title', '截图')
-    await expect(library.locator('a[href="#/all"] .nav-count')).toHaveText('3')
     expect(await library.evaluate(key => localStorage.getItem(key), NAV_FOLDED_KEY), 'a fold is remembered').toBe('1')
 
     await library.reload()
     await expect(fold).toHaveAttribute('aria-expanded', 'false')
-    expect((await widths()).nav, 'still the rail after a reload').toBeLessThanOrEqual(60)
+    expect((await widths()).nav, 'still the rail after a reload').toBeCloseTo(60, 0)
 
     // the keyboard unfolds it; unfolding is no preference worth keeping
     await fold.focus()
     await library.keyboard.press('Enter')
     await expect(fold).toHaveAttribute('aria-expanded', 'true')
-    await expect.poll(async () => (await widths()).nav).toBeGreaterThan(180)
+    await expect.poll(async () => (await widths()).nav).toBeCloseTo(232, 0)
     expect(await library.evaluate(key => localStorage.getItem(key), NAV_FOLDED_KEY)).toBeNull()
     await library.reload()
     await expect(fold).toHaveAttribute('aria-expanded', 'true')
+    await library.close()
+  })
+
+  test('the width picks the default: expanded from 1100 up and down to 720, the rail below it (extension.md §2.2)', async ({ page, extensionId }) => {
+    await seed(page, extensionId)
+    const library = await page.context().newPage()
+    for (const [width, expected] of [
+      [1280, 232],
+      [1100, 232],
+      [1099, 232],
+      [900, 232],
+      [720, 232],
+      [719, 60],
+      [390, 60],
+    ] as const) {
+      await library.setViewportSize({ width, height: 800 })
+      await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+      await library.reload()
+      expect(await library.locator('.side').evaluate(element => Math.round(element.getBoundingClientRect().width)), `the nav at ${width}px`).toBe(expected)
+    }
+    await library.close()
+  })
+
+  test('the nav answers ↑ ↓ between its items, and / focuses the search (extension.md §7.2)', async ({ page, extensionId }) => {
+    await seed(page, extensionId)
+    const library = await page.context().newPage()
+    await library.setViewportSize({ width: 1180, height: 800 })
+    await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+    await library.reload()
+
+    // the arrows walk the nav items and wrap around; every item stays reachable by Tab as well
+    await library.locator('.nav-item').first().focus()
+    await library.keyboard.press('ArrowDown')
+    await expect(library.locator('.nav-item').nth(1)).toBeFocused()
+    await library.keyboard.press('ArrowUp')
+    await expect(library.locator('.nav-item').first()).toBeFocused()
+    await library.keyboard.press('ArrowUp')
+    await expect(library.locator('.nav-item').last(), 'ArrowUp wraps to the last item').toBeFocused()
+
+    // "/" lands in the search box; typing it into an input stays a keystroke
+    await library.locator('body').focus()
+    await library.keyboard.press('/')
+    await expect(library.locator('.search')).toBeFocused()
+    await library.keyboard.press('Escape')
+    await library.locator('.nav-item').first().focus()
+    await library.keyboard.press('ArrowDown')
+    await expect(library.locator('.nav-item').nth(1)).toBeFocused()
     await library.close()
   })
 
@@ -264,7 +310,7 @@ test.describe('the nav folds to an icon rail by hand (extension.md §2.2)', () =
     await library.close()
   })
 
-  test('the fold button is part of the rail: nothing in it leaves the 52px column', async ({ page, extensionId }) => {
+  test('the fold button is part of the rail: nothing in it leaves the 60px column', async ({ page, extensionId }) => {
     await seed(page, extensionId)
     const library = await page.context().newPage()
     await library.setViewportSize({ width: 390, height: 844 })
@@ -307,15 +353,17 @@ test.describe('every page opens with its title (extension.md §2.2)', () => {
           }
           return {
             title: box('h1'),
-            search: box('.search'),
+            titles: box('.page-titles'),
+            search: box('.search-field'),
             toolbar: box('.toolbar'),
             content: box('main.content'),
             sideways: document.documentElement.scrollWidth - innerWidth,
           }
         })
-        const middle = (box: { top: number; bottom: number }) => (box.top + box.bottom) / 2
         expect(row.search.left, `${hash}: the search is to the right of the title`).toBeGreaterThanOrEqual(row.title.right + 8)
-        expect(Math.abs(middle(row.search) - middle(row.title)), `${hash}: title and search sit on one row`).toBeLessThanOrEqual(8)
+        // the page head aligns to the bottom edge: the search sits beside the title and its subtitle
+        expect(row.search.top, `${hash}: the search overlaps the title's row`).toBeLessThan(row.titles.bottom - 1)
+        expect(Math.abs(row.search.bottom - row.titles.bottom), `${hash}: the search and the title block share the row's bottom edge`).toBeLessThanOrEqual(1)
         expect(row.search.right, `${hash}: the search stays inside the content column`).toBeLessThanOrEqual(row.content.right)
         expect(row.toolbar.top, `${hash}: the filters come under the title row`).toBeGreaterThanOrEqual(Math.max(row.title.bottom, row.search.bottom) - 1)
         expect(row.sideways, `${hash}: the page does not scroll sideways`).toBeLessThanOrEqual(0)
@@ -401,8 +449,8 @@ test.describe('icons and type (visual.md §3)', () => {
         }),
       )
     const expectedChips = [
-      { type: 'screenshot', icon: 'lucide-scan', text: '截图', iconBeforeText: true, iconInsideChip: true, iconSize: 12 },
-      { type: 'clip', icon: 'lucide-bookmark', text: '剪藏', iconBeforeText: true, iconInsideChip: true, iconSize: 12 },
+      { type: 'screenshot', icon: 'lucide-scan', text: '截图', iconBeforeText: true, iconInsideChip: true, iconSize: 13 },
+      { type: 'clip', icon: 'lucide-bookmark', text: '剪藏', iconBeforeText: true, iconInsideChip: true, iconSize: 13 },
     ]
     await expect.poll(() => chips('.list')).toEqual(expectedChips) // the screenshot was saved last, so it is the first card
 

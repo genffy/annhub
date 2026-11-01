@@ -31,23 +31,32 @@ textarea {
   font-family: inherit;
 }
 
-/* the compact shell: left icon rail + right content (extension.md §2.6) */
+/* the compact shell of the app's own frame (extension.md §2.6): the icon rail
+   beside the main column, the modal shadow the app's windows share. The height
+   follows what the window shows — the entry rows, the actions, the footer are
+   never clipped; the list's own five rows set the floor and the rail stretches
+   the full height with Settings at its foot */
 .popup-shell {
-  display: flex;
-  width: 340px;
-  height: 360px;
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  width: 520px;
+  min-height: 340px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--ann-surface);
+  color: var(--ann-text);
+  box-shadow: var(--ann-shadow-modal);
+  font-size: 13px;
 }
 
 .popup-rail {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  width: 44px;
-  flex: none;
-  padding: 8px 4px;
-  border-right: 1px solid var(--ann-border);
-  background: var(--ann-surface-alt);
+  gap: 4px;
+  padding: 10px 0;
+  border-right: 1px solid var(--ann-line);
+  background: var(--ann-side);
 }
 
 .popup-rail-spacer {
@@ -58,32 +67,66 @@ textarea {
   position: relative;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 9px;
   background: transparent;
-  color: var(--ann-text);
-  font-size: 15px;
+  color: var(--ann-muted);
   cursor: pointer;
 }
 
-.popup-rail-item:hover,
-.popup-rail-current {
-  background: var(--ann-accent-soft);
+.popup-rail-item:hover {
+  background: var(--ann-surface-alt);
+}
+
+/* the type views carry their hue at 78% over the text colour, like every type icon */
+.popup-rail-clip {
+  color: color-mix(in oklab, var(--ann-type-clip) 78%, var(--ann-text));
+}
+
+.popup-rail-highlight {
+  color: color-mix(in oklab, var(--ann-type-highlight) 78%, var(--ann-text));
+}
+
+.popup-rail-screenshot {
+  color: color-mix(in oklab, var(--ann-type-screenshot) 78%, var(--ann-text));
+}
+
+/* the current view: the brand tint over the rail's own ground, plus the bar on its left */
+.popup-rail-current,
+.popup-rail-current:hover {
+  background: color-mix(in oklab, var(--ann-accent) 11%, var(--ann-side));
   color: var(--ann-accent-text);
 }
 
+.popup-rail-current::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--ann-accent);
+}
+
+/* the count sits over the icon's corner with the surface behind it, not as a filled pill */
 .popup-badge {
   position: absolute;
-  right: -2px;
-  bottom: -2px;
+  top: -3px;
+  right: -5px;
+  min-width: 17px;
+  height: 16px;
   padding: 0 4px;
+  border: 1px solid var(--ann-border);
   border-radius: 8px;
-  background: var(--ann-accent);
-  color: var(--ann-accent-contrast);
+  background: var(--ann-surface);
+  color: var(--ann-muted);
   font-size: 9.5px;
+  font-weight: 600;
   line-height: 14px;
+  text-align: center;
 }
 
 .popup-body {
@@ -96,30 +139,41 @@ textarea {
 .popup-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--ann-border);
+  gap: 8px;
+  padding: 12px 14px 8px;
+}
+
+.popup-recent {
   color: var(--ann-muted);
-  font-size: 11.5px;
+  font-size: 12px;
+}
+
+.popup-head-grow {
+  flex: 1;
 }
 
 .popup-head .link {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   min-height: 24px;
   padding: 0 4px;
   margin: -4px -4px -4px 0;
   border: 0;
   background: none;
   color: var(--ann-accent-text);
-  font: inherit;
+  font-size: 12.5px;
   cursor: pointer;
+}
+
+.popup-head .link:hover {
+  text-decoration: underline;
 }
 
 .popup-list {
   list-style: none;
   margin: 0;
-  padding: 4px 6px;
+  padding: 4px 8px;
   overflow-y: auto;
   flex: 1;
 }
@@ -127,11 +181,12 @@ textarea {
 .popup-list li button {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   width: 100%;
-  padding: 6px;
+  margin: 0;
+  padding: 7px 8px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 8px;
   background: none;
   color: var(--ann-text);
   font: inherit;
@@ -143,27 +198,29 @@ textarea {
   background: var(--ann-surface-alt);
 }
 
-.popup-title {
+/* the row's own words on one line, then where and when underneath */
+.popup-rowtext {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   flex: 1;
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
 }
 
-.popup-quote {
-  display: block;
+.popup-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
 }
 
 .popup-meta {
-  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--ann-muted);
-  font-size: 11.5px;
+  font-size: 11px;
 }
 
 .popup-empty {
@@ -173,11 +230,12 @@ textarea {
   text-align: center;
 }
 
+/* the actions above the footer: the entries the page surfaces cannot host */
 .popup-actions {
   display: grid;
   gap: 8px;
-  padding: 8px 10px;
-  border-top: 1px solid var(--ann-border);
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--ann-line);
   font-size: 12px;
 }
 
@@ -194,20 +252,35 @@ textarea {
   white-space: nowrap;
 }
 
+/* the small frame the app's buttons share: outlined, with the icon beside the label */
 .popup-actions button {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  min-height: 32px;
-  padding: 6px 10px;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 10px;
   border: 1px solid var(--ann-border);
-  border-radius: 5px;
+  border-radius: 7px;
   background: var(--ann-surface);
   color: var(--ann-text);
-  font: inherit;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
+}
+
+.popup-actions button:hover:not(:disabled) {
+  background: var(--ann-surface-alt);
+}
+
+.popup-actions button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* the destructive answers keep the frame; only the text carries the colour */
+.popup-actions .popup-danger {
+  color: color-mix(in oklab, var(--ann-danger) 84%, var(--ann-text));
 }
 
 /* a restricted page says why above the entries, in readable text rather than only the titles */
@@ -226,15 +299,6 @@ textarea {
   margin-top: 1px;
 }
 
-.popup-actions button:hover:not(:disabled) {
-  background: var(--ann-accent-soft);
-}
-
-.popup-actions button:disabled {
-  opacity: 0.55;
-  cursor: default;
-}
-
 .popup-recording-line {
   display: flex;
   align-items: center;
@@ -242,6 +306,14 @@ textarea {
   min-width: 0;
   font-size: 12px;
   font-weight: 600;
+}
+
+.popup-rec {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ann-danger);
 }
 
 /* the recorded tab's title: one line, ellipsised from the left-hand clutter */
@@ -253,14 +325,6 @@ textarea {
   font-size: 12px;
 }
 
-.popup-recording-line .popup-rec {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #c4271e;
-}
-
 .popup-recording-buttons {
   display: inline-flex;
   flex: none;
@@ -269,7 +333,7 @@ textarea {
 }
 
 .popup-recording-buttons button {
-  min-height: 28px;
+  min-height: 26px;
   padding: 4px 10px;
   white-space: nowrap;
 }
@@ -297,15 +361,35 @@ textarea {
 }
 
 .popup-recording-outcome {
-  padding: 0 10px 7px;
+  padding: 0 14px 8px;
   margin: 0;
   font-size: 12px;
   color: var(--ann-muted);
 }
 
 .popup-foot {
-  padding: 7px 10px;
-  border-top: 1px solid var(--ann-border);
+  margin-top: auto;
+  padding: 9px 14px;
+  border-top: 1px solid var(--ann-line);
   color: var(--ann-muted);
   font-size: 12px;
+}
+
+/* the keycap (design kbd): the footer's shortcut hint draws one per key */
+.popup-foot kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  margin: 0 1px;
+  padding: 0 5px;
+  border: 1px solid var(--ann-border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: var(--ann-surface);
+  color: var(--ann-text-2);
+  font-family: inherit;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
 }

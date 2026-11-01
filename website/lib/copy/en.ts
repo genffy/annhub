@@ -1,4 +1,5 @@
 import type { LandingCopy } from './types'
+import { MIN_CHROME_VERSION } from '../site'
 
 // English copy. It mirrors the Chinese page key for key (the type enforces it). Product terms follow
 // docs/product/README.md §4; strings inside the product windows follow utils/ui-text.ts of the extension.
@@ -9,7 +10,7 @@ export const en: LandingCopy = {
     description: 'A local-first browser extension that keeps clips, highlights and screenshots with their source in one library, sorted by properties and exportable as Markdown.',
     ogImageAlt: 'Interface illustration with sample data',
     operatingSystem: 'Desktop browsers based on Chromium {version} or later',
-    updated: '2026-10-24',
+    updated: '2026-11-01',
   },
   header: {
     nav: [
@@ -67,7 +68,7 @@ export const en: LandingCopy = {
       {
         id: 'screenshot',
         name: 'Screenshot',
-        body: 'Drag or click to capture, annotate in place and mask identities.',
+        body: 'Drag or click to capture, annotate in place and mask identities; a long article stitches into one full-page image.',
         caption: 'Annotations and the toolbar inside a screenshot selection',
       },
       {
@@ -79,6 +80,26 @@ export const en: LandingCopy = {
     ],
     unified: {
       lead: 'They live in one library, share one set of properties, are searched together, and export as Markdown with `frontmatter`, with highlights written as `==…==`.',
+    },
+  },
+  annotate: {
+    title: 'Explain an interface: draw on the page, or record it',
+    lead: 'Feedback, walkthroughs and bug reports all come down to pointing at a screen. Draw right on the tab, then take it with you in one click.',
+    points: [
+      {
+        title: 'Draw right on the current tab',
+        body: 'Pen, highlighter, line, arrow, rectangle, ellipse, text and step numbers, in five colours and three widths; the ink follows the page content.',
+      },
+      { title: 'Take it with you', body: 'Screenshot the ink straight into the editor, or record the whole tab as a local video, with optional microphone narration.' },
+      { title: 'Viewers see every mark', body: 'The annotations and the cursor highlight are in the picture; the annotation controls are not.' },
+    ],
+    boundary:
+      'Leaving the annotation layer clears everything — nothing stays on the page, and the ink is never saved. Videos are local WebM files: never in the library, never uploaded.',
+    sketch: 'Interface illustration · Sample data',
+    captions: {
+      annotate: 'The annotation toolbar at the window edge, with an arrow, a circle and a step number drawn over the article',
+      editor: 'Into the screenshot editor with the ink: drawn back at the position it had at the moment of capture',
+      record: 'Recording: the timer and the stop button live in the popup; on the page there is only the ink and the cursor highlight — the controls stay out of the picture',
     },
   },
   story: {
@@ -104,7 +125,7 @@ export const en: LandingCopy = {
         id: 'shot',
         when: 'Mon 10:40',
         title: 'Drag around the latency curve, take a screenshot',
-        body: 'Drag or click, then annotate in place and mask identities. Confirm to save it, or copy it into your design doc; the saved one stays untouched.',
+        body: 'Drag or click, then annotate in place — the highlighter marks the lines, step numbers mark the order — and mask identities. Confirm to save it, or copy it into your design doc; the saved one stays untouched.',
         caption: 'Annotating inside the screenshot selection: the author masked, the spike circled',
       },
       {
@@ -157,6 +178,21 @@ export const en: LandingCopy = {
       },
       { title: 'Export', body: 'See the same material as Markdown, with properties, source and highlights in the file.' },
     ],
+    statics: {
+      lead: 'The screenshot editor and scrolling captures · Static illustrations',
+      items: [
+        {
+          visual: 'steps',
+          title: 'Step numbers and the highlighter',
+          body: 'Click to place increasing number badges — drag them or delete them; the highlighter is translucent, so the text under it stays readable; pen, line and highlighter each come in three widths.',
+        },
+        {
+          visual: 'stitch',
+          title: 'Scrolling capture',
+          body: 'An article longer than the window is stitched into one full-page image; the sticky header appears only in the first screen and the seams have no gaps or repeats, then it opens in the same editor.',
+        },
+      ],
+    },
     sketch: 'Interface illustration · Sample data resets on refresh',
   },
   diff: {
@@ -227,6 +263,22 @@ export const en: LandingCopy = {
         q: 'Can I export?',
         a: 'Yes. Click “Export content” in the extension to download a ZIP of Markdown files and your saved images, with properties written as frontmatter. It is meant for reading in other tools; it is not a backup that restores the AnnHub database.',
       },
+      {
+        q: 'Is the screen recording uploaded? Where does the video go?',
+        a: 'Nothing is uploaded, and there is no account. When you stop, the video downloads itself as a local WebM file; it is not an entry, it never enters the library, and it is not in the export ZIP.',
+      },
+      {
+        q: 'Why does it need the tabCapture and offscreen permissions?',
+        a: 'Both are used only while recording: `tabCapture` captures the current tab’s picture and sound, and `offscreen` runs the recording in the extension’s own background document. A recording can only be started from the toolbar popup or a shortcut.',
+      },
+      {
+        q: 'What is the minimum browser version?',
+        a: `Chrome ${MIN_CHROME_VERSION} or later. Recording hands the tab’s picture from the extension’s background to its background document, which needs Chrome ${MIN_CHROME_VERSION} or newer.`,
+      },
+      {
+        q: 'Do annotating and recording change the web page?',
+        a: 'No. The annotation layer is the extension’s own overlay: leaving it clears everything, and the ink is never saved — not into entries, settings or exports.',
+      },
     ],
   },
   closing: {
@@ -265,7 +317,7 @@ export const en: LandingCopy = {
       screenshotHint: 'Drag an area or click an element · save as image',
     },
     toast: { clipped: 'Clipped', undo: 'Undo', edit: 'Edit', undone: 'Undone' },
-    edit: { title: 'Title', tags: 'Tags', note: 'Note', more: 'More properties', done: 'Done', addTag: 'Add a tag…' },
+    edit: { title: 'Title', tags: 'Tags', note: 'Note', more: 'More properties', done: 'Done', addTag: 'Add a tag…', blurNote: 'Saves when it loses focus' },
     block: { clip: 'Clip', shot: 'Shot', parent: 'Parent', more: 'More', clipped: 'Clipped' },
     shot: {
       hint: 'Drag to select an area, click to pick an element · Esc to cancel',
@@ -273,7 +325,11 @@ export const en: LandingCopy = {
       rect: 'Rectangle',
       ellipse: 'Ellipse',
       arrow: 'Arrow',
+      line: 'Line',
       pen: 'Pen',
+      highlighter: 'Highlighter',
+      step: 'Step number',
+      width: 'Line width',
       mosaic: 'Mosaic',
       text: 'Text',
       undo: 'Undo',
@@ -283,6 +339,21 @@ export const en: LandingCopy = {
       confirm: 'Confirm',
       annotation: 'Retry amplification',
       figure: 'Figure',
+      stepsNext: 'Next: {n}',
+      stepsReset: 'Reset count',
+      stitch: { progress: 'Stitching {done} / {total}', esc: 'Esc to cancel' },
+    },
+    annotate: {
+      toolbar: 'Annotation toolbar',
+      pointer: 'Pointer: the page stays clickable',
+      autoerase: 'Auto-erase: off',
+      clear: 'Clear',
+      screenshot: 'Screenshot with the ink',
+      exit: 'Exit annotation',
+    },
+    record: {
+      status: 'Recording · {time}',
+      stop: 'Stop recording',
     },
     nav: {
       library: 'Library',

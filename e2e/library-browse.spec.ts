@@ -115,12 +115,13 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await expect(library.getByTestId('guide-card')).toBeVisible()
     await expect(library.locator('.toolbar'), 'nothing to filter yet').toHaveCount(0)
 
-    // three cards, one per way in: icon, name, one sentence
+    // three cards, one per way in: a type-coloured tile, name, one sentence
     const items = await library
       .getByTestId('guide-card')
       .locator('.guide-item')
       .evaluateAll(items =>
         items.map(item => ({
+          tile: item.querySelector('.guide-tile')?.getBoundingClientRect().width ?? 0,
           icons: item.querySelectorAll('svg').length,
           name: item.querySelector('.guide-name')?.textContent,
           sentence: item.querySelector('p')?.textContent?.length ?? 0,
@@ -128,11 +129,12 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
       )
     expect(items).toHaveLength(3)
     for (const item of items) {
+      expect(item.tile, 'a type tile on every card').toBeGreaterThanOrEqual(28)
       expect(item.icons, 'a type icon on every card').toBeGreaterThanOrEqual(1)
       expect(item.sentence, 'a sentence on every card').toBeGreaterThan(0)
     }
 
-    // one solid primary, a text link beside it, and air between them
+    // one solid primary, the borderless quiet dismiss beside it, and air between them
     const actions = await library.getByTestId('guide-card').evaluate(card => {
       const probe = document.createElement('span')
       probe.style.color = 'var(--ann-accent)'
@@ -140,24 +142,24 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
       const accent = getComputedStyle(probe).color
       probe.remove()
       const primary = card.querySelector<HTMLButtonElement>('.primary')!
-      const link = card.querySelector<HTMLButtonElement>('.link')!
-      const [primaryBox, linkBox] = [primary.getBoundingClientRect(), link.getBoundingClientRect()]
+      const dismiss = card.querySelector<HTMLButtonElement>('.ghost.quiet')!
+      const [primaryBox, dismissBox] = [primary.getBoundingClientRect(), dismiss.getBoundingClientRect()]
       return {
         accent,
         primaryFill: getComputedStyle(primary).backgroundColor,
         primaryName: primary.textContent,
-        linkBorder: getComputedStyle(link).borderTopStyle,
-        gap: Math.min(Math.abs(linkBox.left - primaryBox.right), Math.abs(linkBox.top - primaryBox.bottom)),
+        dismissBorder: getComputedStyle(dismiss).borderTopColor,
+        gap: Math.min(Math.abs(dismissBox.left - primaryBox.right), Math.abs(dismissBox.top - primaryBox.bottom)),
       }
     })
     expect(actions.primaryName).toContain('打开示例页面')
     expect(actions.primaryFill, 'the primary is the solid accent').toBe(actions.accent)
-    expect(actions.linkBorder, 'the dismiss is a text link, not a bordered button').toBe('none')
+    expect(actions.dismissBorder, 'the dismiss is a borderless quiet button').toBe('rgba(0, 0, 0, 0)')
     expect(actions.gap, 'air between the primary and the secondary').toBeGreaterThanOrEqual(12)
 
     // the empty state names both ways in, with the shortcut as the browser binds it
-    await expect(library.locator('.empty-rich')).toBeVisible()
-    await expect(library.locator('.empty-rich .empty-how').nth(1)).toContainText(/S/)
+    await expect(library.locator('.empty .empty-heading')).toBeVisible()
+    await expect(library.locator('.empty .empty-desc').nth(1)).toContainText(/S/)
 
     // the first entry brings the filter bar with it
     // sent from the extension page itself; the fixture page never navigated anywhere
@@ -176,7 +178,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await library.close()
   })
 
-  test('chosen filters sit on their own line under the controls, the count stays on the first (D-59)', async ({ page, extensionId }) => {
+  test("chosen filters sit beside the buttons as chips, the count and the way out at the row's end (extension.md §2.3)", async ({ page, extensionId }) => {
     await saveClips(page.context(), page, 3)
     const library = await page.context().newPage()
     for (const width of [1280, 1024, 390] as const) {
@@ -190,25 +192,34 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
       const rows = await library.evaluate(() => {
         const bar = document.querySelector('.toolbar')!
         const barBox = bar.getBoundingClientRect()
-        const firstTop = Math.min(...[...bar.children].filter(child => child.getBoundingClientRect().width > 0).map(child => Math.round(child.getBoundingClientRect().top)))
-        const chipsRow = bar.querySelector('.filter-chips-row')
-        const chips = [...bar.querySelectorAll('.filter-chip')]
+        const chips = [...bar.querySelectorAll('.filter-chip-on')]
+        const triggers = [...bar.querySelectorAll('.filter-button')]
         const countElement = document.querySelector('.count')!
         const countBox = countElement.getBoundingClientRect()
+        const clear = bar.querySelector('.link')!
+        const clearBox = clear.getBoundingClientRect()
+        const chipTops = chips.map(chip => Math.round(chip.getBoundingClientRect().top))
+        const firstLine = Math.min(...triggers.map(trigger => Math.round(trigger.getBoundingClientRect().top)))
         return {
-          firstTop,
-          chipTops: chips.map(chip => Math.round(chip.getBoundingClientRect().top)),
-          chipsRowTop: chipsRow ? Math.round(chipsRow.getBoundingClientRect().top) : null,
-          countTop: Math.round(countBox.top),
-          countAtRightEdge: Math.abs(countBox.right - (barBox.right - 16)) <= 2,
+          chips: chips.length,
+          chipRemovers: chips.map(chip => chip.querySelector('.filter-chip-x')?.getAttribute('aria-label') ?? ''),
+          chipTops,
+          firstLine,
+          countVisible: countBox.width > 0,
+          clearAtRowsEnd: Math.abs(clearBox.right - barBox.right) <= 2,
+          countBeforeClear: countBox.right <= clearBox.left + 1,
+          sideways: document.documentElement.scrollWidth - innerWidth,
         }
       })
-      expect(rows.chipTops.length, 'the chosen filters are on the page').toBeGreaterThanOrEqual(2)
-      for (const top of rows.chipTops) expect(top, `a chosen chip below the first line at ${width}`).toBeGreaterThan(rows.firstTop + 10)
-      // the count stays with the controls, at the right edge of its own line — never displaced below the chips
-      expect(rows.chipsRowTop, `the chips have their own row at ${width}`).not.toBeNull()
-      expect(rows.countTop, `the count stays above the chips row at ${width}`).toBeLessThan(rows.chipsRowTop!)
-      expect(rows.countAtRightEdge, `the count sits at the right end of its line at ${width}`).toBe(true)
+      expect(rows.chips, 'the chosen filters are on the page').toBeGreaterThanOrEqual(3)
+      for (const name of rows.chipRemovers) expect(name, 'a chip remover names what it removes').toContain('移除筛选')
+      // the chips share the bar's wrapped line(s) with the buttons — never a control of their own making
+      for (const top of rows.chipTops) expect(top, `a chosen chip sits on the bar's lines at ${width}`).toBeGreaterThanOrEqual(rows.firstLine - 2)
+      // the count and the clear-filters link own the row's end, whatever wrapped before them
+      expect(rows.countVisible, `the count stays on the bar at ${width}`).toBe(true)
+      expect(rows.clearAtRowsEnd, `the way out sits at the row's right end at ${width}`).toBe(true)
+      expect(rows.countBeforeClear, `the count reads before the way out at ${width}`).toBe(true)
+      expect(rows.sideways, `the page does not scroll sideways at ${width}`).toBeLessThanOrEqual(0)
     }
     await library.close()
   })
@@ -222,7 +233,10 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await library.close()
   })
 
-  test('the filter bar wraps instead of running over its neighbours or past the window edge (extension.md §2.2)', async ({ page, extensionId }) => {
+  test('the filter bar wraps instead of running over its neighbours or past the window edge, and its popovers stay in the window (extension.md §2.2)', async ({
+    page,
+    extensionId,
+  }) => {
     await saveClips(page.context(), page, 3)
     const library = await page.context().newPage()
     for (const [width, height] of [
@@ -231,7 +245,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
       [390, 844],
     ] as const) {
       await library.setViewportSize({ width, height })
-      // `prop=title` adds the operator and value controls; the "all" view adds the type filter: the widest the bar gets
+      // `prop=title` adds a condition chip; the "all" view adds the type button: the widest the bar gets
       for (const route of ['clips?prop=title', 'all?type=clip&prop=title']) {
         await library.goto(`chrome-extension://${extensionId}/library.html#/${route}`)
         await library.reload()
@@ -249,11 +263,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
               if (a.left < b.right - 1 && b.left < a.right - 1 && a.top < b.bottom - 1 && b.top < a.bottom - 1) found.push(`${parts[i]!.name} overlaps ${parts[j]!.name}`)
             }
           }
-          const label = bar.querySelector('.filter-time-label')
-          if (label && label.getBoundingClientRect().height > 20) found.push('the time label breaks over two lines')
-          // the checks above see only the bar's own children: the date range is one child holding two inputs, and
-          // a child can look fine while what it holds sticks out of it (the inputs once ran 90px past the label's
-          // box, over the count and out of the window)
+          // a child can look fine while what it holds sticks out of it (a chip's label once ran past its own frame)
           for (const part of parts) {
             for (const inner of part.element.querySelectorAll('*')) {
               const box = inner.getBoundingClientRect()
@@ -261,13 +271,24 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
                 found.push(`${part.name}: <${inner.tagName.toLowerCase()}> sticks out of its control`)
             }
           }
-          for (const input of bar.querySelectorAll<HTMLInputElement>('.filter-time input')) {
-            if (input.scrollWidth > input.clientWidth + 1) found.push('a date input clips its value or its picker button')
-          }
           if (document.documentElement.scrollWidth > innerWidth) found.push(`the page scrolls sideways (${document.documentElement.scrollWidth} > ${innerWidth})`)
           return found
         })
         expect(problems, `filter bar at ${width}px, #/${route}`).toEqual([])
+
+        // every popover the bar can open stays inside the window, whatever its trigger's place in the wrap
+        for (const dimension of ['时间', '属性', '标签', '来源']) {
+          const trigger = library.getByRole('button', { name: dimension, exact: true })
+          if ((await trigger.count()) === 0) continue
+          await trigger.click()
+          const popover = library.getByRole('dialog', { name: dimension })
+          await expect(popover, `${dimension} popover at ${width}px, #/${route}`).toBeVisible()
+          const box = (await popover.boundingBox())!
+          expect(box.x, `${dimension} popover left at ${width}px, #/${route}`).toBeGreaterThanOrEqual(0)
+          expect(box.x + box.width, `${dimension} popover right at ${width}px, #/${route}`).toBeLessThanOrEqual(width + 1)
+          await library.keyboard.press('Escape')
+          await expect(popover).toHaveCount(0)
+        }
       }
     }
     await library.close()
@@ -283,7 +304,9 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     // three clips and no screenshot: nothing is filtered, so nothing "did not match"
     const empty = library.locator('.empty')
     await expect(empty).toContainText('还没有截图')
-    await expect(empty).toContainText('Shift+S')
+    // the shortcut is the browser's real binding, the same keys the nav's hint draws as keycaps
+    const boundKeys = (await library.locator('.nav-shortcut kbd').allTextContents()).join('+')
+    await expect(empty).toContainText(boundKeys)
     await expect(empty).not.toContainText('没有匹配的结果')
     await expect(library.getByRole('button', { name: '清除筛选' })).toHaveCount(0)
 
@@ -291,7 +314,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await library.locator('.search').fill('anything')
     await expect(empty).toContainText('没有匹配的结果')
     await expect(library.locator('.search')).toHaveValue('anything')
-    await library.getByRole('button', { name: '清除筛选' }).click()
+    await library.locator('.empty').getByRole('button', { name: '清除筛选' }).click()
     await expect(empty).toContainText('还没有截图')
     await expect(library.locator('.search')).toHaveValue('')
     await expect(library.getByRole('button', { name: '清除筛选' })).toHaveCount(0)
@@ -313,7 +336,7 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await library.reload()
     await expect(library.locator('.search')).toHaveValue('nosuchword')
     await expect(library.locator('.empty')).toContainText('没有匹配的结果')
-    await library.getByRole('button', { name: '清除筛选' }).click()
+    await library.locator('.empty').getByRole('button', { name: '清除筛选' }).click()
     await expect(library.locator('.entry-card')).toHaveCount(3)
     await expect(library.locator('.search')).toHaveValue('')
     expect(library.url()).not.toContain('q=')
@@ -323,31 +346,28 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
       await library.goto(`chrome-extension://${extensionId}/library.html#/clips?${filter}`)
       await library.reload()
       await expect(library.locator('.empty'), filter).toContainText('没有匹配的结果')
-      await library.getByRole('button', { name: '清除筛选' }).click()
+      await library.locator('.empty').getByRole('button', { name: '清除筛选' }).click()
       await expect(library.locator('.entry-card'), filter).toHaveCount(3)
     }
     await library.close()
   })
 
-  test('the clear-filters link sits under the no-results message and is centred with it (extension.md §5)', async ({ page, extensionId }) => {
+  test('the clear-filters button sits under the no-results message and is centred with it (extension.md §5)', async ({ page, extensionId }) => {
     const library = await page.context().newPage()
     // an empty library is enough: any filter turns the empty answer into "no results"
     for (const hash of ['#/clips?q=nosuchword', '#/highlights?color=blue']) {
       await library.goto(`chrome-extension://${extensionId}/library.html${hash}`)
       await library.reload()
-      await expect(library.getByRole('button', { name: '清除筛选' }), hash).toBeVisible()
-      const { message, link } = await library.evaluate(() => {
+      await expect(library.locator('.empty').getByRole('button', { name: '清除筛选' }), hash).toBeVisible()
+      const { message, button } = await library.evaluate(() => {
         const empty = document.querySelector('.empty')!
-        const text = [...empty.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent?.trim())!
-        const range = document.createRange()
-        range.selectNodeContents(text)
-        const spoken = range.getBoundingClientRect()
-        const button = empty.querySelector('.link')!.getBoundingClientRect()
-        return { message: { left: spoken.left, right: spoken.right, bottom: spoken.bottom }, link: { left: button.left, right: button.right, top: button.top } }
+        const desc = empty.querySelector('.empty-desc')!.getBoundingClientRect()
+        const action = empty.querySelector('.primary')!.getBoundingClientRect()
+        return { message: desc, button: action }
       })
-      // a block button with no auto margins hugs the left edge while the message above it is centred
-      expect(Math.abs((link.left + link.right) / 2 - (message.left + message.right) / 2), `${hash}: the link is centred under the message`).toBeLessThan(2)
-      expect(link.top, `${hash}: the link is on its own line below the message`).toBeGreaterThanOrEqual(message.bottom - 1)
+      // an inline-flex button with no auto margins hugs the left edge while the message above it is centred
+      expect(Math.abs((button.left + button.right) / 2 - (message.left + message.right) / 2), `${hash}: the button is centred under the message`).toBeLessThan(2)
+      expect(button.top, `${hash}: the button is on its own line below the message`).toBeGreaterThanOrEqual(message.bottom - 1)
     }
     await library.close()
   })
@@ -376,26 +396,27 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     )
     expect(added.success).toBe(true)
     await library.reload()
-    await expect(library.locator('.hl-quote')).toHaveText(quote)
+    await expect(library.locator('.hl-item-quote')).toHaveText(quote)
 
     // a filter that excludes it: the view says nothing matches instead of claiming there are no highlights
     await library.locator('.search').fill('nosuchword')
     await expect(library.locator('.empty')).toContainText('没有匹配的结果')
     await expect(library.locator('.empty')).not.toContainText('还没有高亮')
     await expect(library.locator('.search')).toHaveValue('nosuchword')
-    await library.getByRole('button', { name: '清除筛选' }).click()
-    await expect(library.locator('.hl-quote')).toHaveText(quote)
+    await library.locator('.empty').getByRole('button', { name: '清除筛选' }).click()
+    await expect(library.locator('.hl-item-quote')).toHaveText(quote)
 
     // the colour is the one filter only this view has, and clearing resets it as well
-    const color = library.locator('select[aria-label="颜色"]')
-    await color.selectOption('blue')
+    await library.getByRole('button', { name: '颜色', exact: true }).click()
+    await library.getByRole('dialog', { name: '颜色' }).getByRole('option', { name: '蓝色' }).click()
+    await library.keyboard.press('Escape')
     await expect(library.locator('.empty')).toContainText('没有匹配的结果')
-    // the chosen colour shows as a removable chip; the select itself returns to its placeholder
-    await expect(library.locator('.filter-chip')).toHaveCount(1)
+    // the chosen colour shows as a removable chip with the colour's own dot
+    await expect(library.locator('.filter-chip-on')).toHaveCount(1)
     expect(library.url()).toContain('color=blue')
-    await library.getByRole('button', { name: '清除筛选' }).click()
-    await expect(library.locator('.hl-quote')).toHaveText(quote)
-    await expect(library.locator('.filter-chip')).toHaveCount(0)
+    await library.locator('.empty').getByRole('button', { name: '清除筛选' }).click()
+    await expect(library.locator('.hl-item-quote')).toHaveText(quote)
+    await expect(library.locator('.filter-chip-on')).toHaveCount(0)
     expect(library.url()).not.toContain('color=')
     await library.close()
   })
@@ -474,8 +495,9 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await expect(library.getByTestId('load-more')).toHaveCount(0)
 
     // the oldest entry's unique tag is a filter candidate from the whole library
-    const tagFilter = library.locator('select[aria-label*="标签"], select[aria-label*="tag"], select[aria-label*="Tag"]').first()
-    await tagFilter.selectOption('oldest-tag')
+    await library.getByRole('button', { name: '标签', exact: true }).click()
+    await library.getByRole('dialog', { name: '标签' }).getByRole('option', { name: 'oldest-tag', exact: true }).click()
+    await library.keyboard.press('Escape')
     await expect(library.locator('.entry-card')).toHaveCount(1)
     expect(library.url()).toContain('tag=oldest-tag')
     await library.close()
@@ -498,6 +520,37 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await expect(library.locator('.entry-card')).toHaveCount(2)
     await expect(library.getByTestId('list-count')).toContainText('2')
     expect(await getEntries(library.context())).toHaveLength(2)
+    await library.close()
+  })
+
+  test('the delete confirm names what a highlighted clip would take with it (extension.md §4.1)', async ({ page, extensionId }) => {
+    await clearLibrary(page.context())
+    await page.goto(`chrome-extension://${extensionId}/sample.html`)
+    await sendMessage(page, {
+      type: 'SAVE_CLIP',
+      requestId: 'r-del-hl',
+      draft: { id: 'ent_del_hl', content: 'Retries amplify the load.', sourceUrl: 'https://engineering.example.com/del', properties: { title: 'Delete me' }, via: 'menu' },
+    })
+    await sendMessage(page, {
+      type: 'ADD_HIGHLIGHT',
+      id: 'ent_del_hl',
+      highlight: { id: 'hl_del_one', start: 0, end: 7, quote: 'Retries', color: 'yellow', createdAt: Date.now() },
+    })
+
+    const library = await page.context().newPage()
+    await library.goto(`chrome-extension://${extensionId}/library.html#/all`)
+    await library.locator('.entry-card').first().click()
+    const drawer = library.locator('.drawer')
+    await drawer.locator('.drawer-header').getByRole('button', { name: '删除' }).click()
+
+    const confirm = drawer.getByRole('alertdialog')
+    await expect(confirm).toHaveAttribute('aria-modal', 'true')
+    await expect(confirm).toHaveAccessibleName('删除这条剪藏？')
+    await expect(confirm).toContainText('1 条高亮')
+    // the count is the sentence's emphasis, and the button says what it deletes
+    await expect(confirm.locator('p b')).toHaveText('1')
+    await expect(confirm.getByRole('button', { name: '删除剪藏与高亮' })).toBeVisible()
+    await expect(confirm.getByRole('button', { name: '取消' })).toBeFocused()
     await library.close()
   })
 
@@ -535,8 +588,15 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     await expect(library.getByTestId('list-count')).toContainText('1500', { timeout: 60_000 })
     await expect(library.locator('.entry-card')).toHaveCount(50)
     await expect(library.getByTestId('guide-card')).toHaveCount(0)
-    await expect(library.locator('select option[value="oldest.example"]')).toHaveCount(1)
-    await expect(library.locator('select option[value="oldest-tag"]')).toHaveCount(1)
+    // the oldest entry's distinct source and tag are filter candidates from the whole library
+    await library.getByRole('button', { name: '来源', exact: true }).click()
+    const sources = library.getByRole('dialog', { name: '来源' })
+    await expect(sources.getByRole('option', { name: 'oldest.example', exact: true })).toHaveCount(1)
+    await expect(sources.getByRole('option', { name: 'bulk.example', exact: true })).toHaveCount(1)
+    await library.keyboard.press('Escape')
+    await library.getByRole('button', { name: '标签', exact: true }).click()
+    await expect(library.getByRole('dialog', { name: '标签' }).getByRole('option', { name: 'oldest-tag', exact: true })).toHaveCount(1)
+    await library.keyboard.press('Escape')
     await library.close()
   })
 

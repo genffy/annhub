@@ -147,9 +147,7 @@ export function Drawer({
         {entry.type === 'screenshot' ? (
           <div className="ah-dsec">
             <div className="h">{ui.types.screenshot}</div>
-            <div className="ah-gt-img" style={{ border: '1px solid var(--line)', borderRadius: 10 }}>
-              {entry.image ? <ThumbArt kind={entry.image} /> : null}
-            </div>
+            <div className="ah-dshot">{entry.image ? <ThumbArt kind={entry.image} /> : null}</div>
           </div>
         ) : (
           <div className="ah-dsec">

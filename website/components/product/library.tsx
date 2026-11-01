@@ -328,6 +328,65 @@ export function EntryList({
   )
 }
 
+/** Whether the card's tag row has anything to show. */
+function hasPills(entry: Entry): boolean {
+  return entry.tags.length > 0 || typeof entry.props.project === 'string' || entry.props.reviewed === true || typeof entry.props.priority === 'number'
+}
+
+/**
+ * One entry as a card (extension.md §2.3): the preview on top — the first lines of a clip, the thumbnail of a
+ * screenshot, every card the same height — then the title (at most two lines), tags and property pills, and a last
+ * line of type, source host and time; a clip with highlights shows their count at the end of that line.
+ */
+export function EntryCard({ entry, ui, selected, onOpen }: { entry: Entry; ui: ProductUi; selected?: boolean; onOpen?: () => void }) {
+  const isShot = entry.type === 'screenshot'
+  const body = (
+    <>
+      <div className="ah-ec-prev">{isShot ? entry.image ? <ThumbArt kind={entry.image} /> : null : <div className="ah-ec-tx">{plainText(entry.content)}</div>}</div>
+      <div className="ah-ec-b">
+        <div className="ah-ec-ttl ah-clamp-2">{entry.title}</div>
+        {hasPills(entry) ? (
+          <div className="ah-ec-tags">
+            <TagList tags={entry.tags} />
+            <PropertyPills entry={entry} />
+          </div>
+        ) : null}
+        <div className="ah-ec-meta">
+          <TypeChip type={entry.type} label={ui.types[entry.type]} small />
+          <span className="ah-truncate">
+            {entry.host} · {entry.when}
+          </span>
+          {entry.highlights.length ? (
+            <span className="ah-hlc">
+              <Ic icon={Highlighter} size={13} />
+              {plural(entry.highlights.length, ui.list.highlightCount, ui.list.highlightCountOne)}
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </>
+  )
+  const cls = `ah-ecard${selected ? ' sel' : ''}`
+  return onOpen ? (
+    <button type="button" className={cls} onClick={onOpen}>
+      {body}
+    </button>
+  ) : (
+    <div className={cls}>{body}</div>
+  )
+}
+
+/** The card grid the clip and screenshot views share; “All” keeps the row list in the sample on purpose (website.md §11). */
+export function EntryGrid({ entries, ui, selectedId, onOpen }: { entries: Entry[]; ui: ProductUi; selectedId?: string; onOpen?: (id: string) => void }) {
+  return (
+    <div className="ah-egrid">
+      {entries.map(e => (
+        <EntryCard key={e.id} entry={e} ui={ui} selected={e.id === selectedId} onOpen={onOpen ? () => onOpen(e.id) : undefined} />
+      ))}
+    </div>
+  )
+}
+
 /** Highlights view: one group per clip, each line a highlight with its quote and note (extension.md §2.3). */
 export function HighlightGroups({ entries, ui, onOpen }: { entries: Entry[]; ui: ProductUi; onOpen?: (entryId: string, highlightId: string) => void }) {
   return (
@@ -359,6 +418,11 @@ export function HighlightGroups({ entries, ui, onOpen }: { entries: Entry[]; ui:
                         <span>{h.note}</span>
                       </div>
                     ) : null}
+                    <div className="ah-hr-meta">
+                      <span>{e.when}</span>
+                      <TagList tags={e.tags} />
+                      <PropertyPills entry={e} />
+                    </div>
                   </div>
                 </>
               )
@@ -376,45 +440,6 @@ export function HighlightGroups({ entries, ui, onOpen }: { entries: Entry[]; ui:
           </div>
         ))}
     </>
-  )
-}
-
-export function ScreenshotGallery({ entries, selectedId, onOpen }: { entries: Entry[]; selectedId?: string; onOpen?: (id: string) => void }) {
-  return (
-    <div className="ah-gal">
-      {entries
-        .filter(e => e.type === 'screenshot')
-        .map(e => {
-          const inner = (
-            <>
-              <div className="ah-gt-img">{e.image ? <ThumbArt kind={e.image} /> : null}</div>
-              <div className="ah-gt-b">
-                <div className="ah-b ah-clamp-1" style={{ fontSize: 13 }}>
-                  {e.title}
-                </div>
-                <div className="ah-muted" style={{ fontSize: 11 }}>
-                  {e.host} · {e.when}
-                </div>
-                {e.tags.length ? (
-                  <div className="flex flex-wrap gap-1" style={{ marginTop: 4 }}>
-                    <TagList tags={e.tags} />
-                  </div>
-                ) : null}
-              </div>
-            </>
-          )
-          const cls = `ah-gt${e.id === selectedId ? ' sel' : ''}`
-          return onOpen ? (
-            <button key={e.id} type="button" className={cls} onClick={() => onOpen(e.id)}>
-              {inner}
-            </button>
-          ) : (
-            <div key={e.id} className={cls}>
-              {inner}
-            </div>
-          )
-        })}
-    </div>
   )
 }
 

@@ -7,7 +7,7 @@ import { BrowserFrame } from '../product/browser'
 import ExportFile from '../product/export-file'
 import { Drawer, HighlightBar, Reader } from '../product/detail'
 import { addHighlight, recolor, removeHighlight, selectionOffsets } from '../product/highlight-ops'
-import { AppShell, EntryList, HighlightGroups, PageHead, PropertyTable, ScreenshotGallery, SearchBox } from '../product/library'
+import { AppShell, EntryGrid, EntryList, HighlightGroups, PageHead, PropertyTable, SearchBox } from '../product/library'
 import type { LibraryView } from '../product/library'
 import { plainText } from '../product/markdown'
 import { plural } from '../product/parts'
@@ -247,9 +247,9 @@ export default function LibraryTour({ copy }: { copy: LandingCopy }) {
           </p>
         ) : null}
         {view === 'all' ? <EntryList entries={visible} ui={ui} selectedId={openId ?? undefined} onOpen={setOpenId} /> : null}
-        {view === 'clip' ? <EntryList entries={clips} ui={ui} selectedId={openId ?? undefined} onOpen={setOpenId} /> : null}
+        {view === 'clip' ? <EntryGrid entries={clips} ui={ui} selectedId={openId ?? undefined} onOpen={setOpenId} /> : null}
         {view === 'highlight' ? <HighlightGroups entries={visible} ui={ui} onOpen={startReading} /> : null}
-        {view === 'screenshot' ? <ScreenshotGallery entries={visible} selectedId={openId ?? undefined} onOpen={setOpenId} /> : null}
+        {view === 'screenshot' ? <EntryGrid entries={visible} ui={ui} selectedId={openId ?? undefined} onOpen={setOpenId} /> : null}
       </div>
     </>
   )

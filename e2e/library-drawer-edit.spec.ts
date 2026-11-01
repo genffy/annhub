@@ -166,7 +166,10 @@ test.describe('editing the original and the context in the drawer (extension.md 
     const drawer = library.locator('.drawer')
 
     await expect(drawer.getByTestId('edit-original'), 'no way to edit the original').toHaveCount(0)
-    await expect(drawer.getByTestId('drawer-lock'), 'and the reason is written beside it').toContainText('有高亮时原文只读')
+    // the badge says how many marks hold the text; the whole sentence travels in the title for the pointer and in words for readers
+    await expect(drawer.getByTestId('drawer-lock'), 'the badge names what holds the text').toContainText('原文只读 · 1 条高亮')
+    await expect(drawer.getByTestId('drawer-lock')).toHaveAttribute('title', '有高亮时原文只读：高亮的范围依赖原文。删除全部高亮后恢复可编辑。')
+    await expect(drawer.getByTestId('drawer-lock')).toContainText('删除全部高亮后恢复可编辑')
     await expect(drawer.locator('[data-hl-id]'), 'the original still shows its highlight').not.toHaveCount(0)
     await expect(drawer.getByRole('textbox', { name: '原文（Markdown）' })).toHaveCount(0)
 
@@ -195,6 +198,74 @@ test.describe('editing the original and the context in the drawer (extension.md 
     await expect(drawer.getByTestId('edit-original')).toHaveCount(0)
     await expect(drawer.getByTestId('edit-context')).toHaveCount(0)
     await expect(drawer.getByTestId('drawer-lock')).toHaveCount(0)
+    await library.close()
+  })
+
+  test('the header keeps one row of actions in one order — 阅读, 回到来源, 删除, 关闭 (extension.md §4.1)', async ({ page, extensionId }) => {
+    await seed(page, extensionId)
+    for (const [id, width, hasRead] of [
+      ['ent_edit_plain', 1180, true],
+      ['ent_edit_shot', 1180, false],
+      ['ent_edit_plain', 390, true],
+    ] as const) {
+      const library = await page.context().newPage()
+      await library.setViewportSize({ width, height: 820 })
+      await library.goto(`chrome-extension://${extensionId}/library.html#/all?e=${id}`)
+      await library.reload()
+      const drawer = library.locator('.drawer')
+      const actions = await drawer.locator('.drawer-header button, .drawer-header a').evaluateAll(controls =>
+        controls.map(control => ({
+          name: control.getAttribute('aria-label') ?? control.textContent!.trim(),
+          tag: control.tagName.toLowerCase(),
+          top: Math.round(control.getBoundingClientRect().top),
+          face: `${getComputedStyle(control).minHeight}/${getComputedStyle(control).backgroundColor}`,
+        })),
+      )
+      expect(
+        actions.map(action => action.name),
+        `${id} at ${width}px: the order the spec names`,
+      ).toEqual([...(hasRead ? ['阅读'] : []), '回到来源', '删除', '关闭'])
+      // 阅读 and 回到来源 wear the same small outlined face; 回到来源 is a link by meaning
+      const named = actions.filter(action => action.name === '阅读' || action.name === '回到来源')
+      expect(new Set(named.map(action => action.face)).size, `${id} at ${width}px: one face for the named actions`).toBe(1)
+      expect(actions.find(action => action.name === '回到来源')!.tag).toBe('a')
+      // however narrow the drawer, the actions stay one row (they move together, not one per line)
+      expect(new Set(actions.map(action => action.top)).size, `${id} at ${width}px: actions on one row`).toBe(1)
+      await library.close()
+    }
+  })
+
+  test('the delete confirm owns the keyboard: focus starts on 取消, Tab cycles, Esc and the scrim cancel only the confirm', async ({ page, extensionId }) => {
+    await seed(page, extensionId)
+    const library = await openDrawer(page, extensionId, 'ent_edit_plain')
+    const drawer = library.locator('.drawer')
+    const deleteButton = drawer.locator('.drawer-header').getByRole('button', { name: '删除' })
+
+    await deleteButton.click()
+    const confirm = drawer.getByRole('alertdialog')
+    await expect(confirm).toHaveAttribute('aria-modal', 'true')
+    await expect(confirm).toHaveAccessibleName('删除这条条目？')
+    await expect(confirm.getByRole('button', { name: '取消' }), 'the safe answer takes the keyboard').toBeFocused()
+
+    // Tab stays between the two answers, both directions
+    await library.keyboard.press('Tab')
+    await expect(confirm.getByRole('button', { name: '删除' })).toBeFocused()
+    await library.keyboard.press('Tab')
+    await expect(confirm.getByRole('button', { name: '取消' })).toBeFocused()
+    await library.keyboard.press('Shift+Tab')
+    await expect(confirm.getByRole('button', { name: '删除' })).toBeFocused()
+
+    // Esc cancels the confirm alone — the drawer stays — and gives the keyboard back to 删除
+    await library.keyboard.press('Escape')
+    await expect(confirm).toHaveCount(0)
+    await expect(drawer).toBeVisible()
+    await expect(deleteButton).toBeFocused()
+
+    // a press on the scrim is the same way out, focus included
+    await deleteButton.click()
+    await library.mouse.click(30, 200)
+    await expect(drawer.getByRole('alertdialog')).toHaveCount(0)
+    await expect(deleteButton).toBeFocused()
     await library.close()
   })
 })

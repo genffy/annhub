@@ -9,13 +9,15 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
 import type { EntryQuery, EntryQueryResult, PropertyCondition } from '../../learning-core/query'
-import type { EntryRecord, PropertyDefinition, PropertyType } from '../../learning-core/types'
+import type { EntryRecord, PropertyDefinition } from '../../learning-core/types'
 import { markdownToPlainText } from '../../learning-core/markdown'
 import { EntryStore, type LibraryFacets } from '../../learning-core/store'
 import { buildExport, exportFileName } from '../../learning-core/export'
 import { bucketCount } from '../../learning-core/metrics'
 import { HighlightSurface } from './highlight-surface'
+import { FilterBar } from './filter-bar'
 import { PropertyPanel, type PropertyPanelHandle } from './property-panel'
+import { ExportDialog } from './export-dialog'
 import { PropertiesView } from './properties-view'
 import { SettingsView } from './settings-view'
 import { ReadingView } from './reading-view'
@@ -25,14 +27,29 @@ import { formatBytes } from '../../utils/format-bytes'
 import { relativeTime } from '../../utils/relative-time'
 import { currentUiLanguage, entryErrorText, uiText, type UiTextKey } from '../../utils/ui-text'
 import { exportFailureKey, type ExportStage } from './export-error'
-import { EMPTY_FILTERS, hasActiveFilter, isListView, listHash, readHash, readHashFor, type FilterState, type PropertyFilter, type RouteState, type View } from './route'
-import { Download, Keyboard, Lock, PanelLeftClose, PanelLeftOpen, Scan, Trash2, X } from 'lucide-react'
-import { ENTRY_TYPE_ICONS, TypeChip, VIEW_ICONS } from '../../utils/entry-icons'
+import { EMPTY_FILTERS, hasActiveFilter, isListView, listHash, readHash, readHashFor, type FilterState, type RouteState, type View } from './route'
+import {
+  ArrowUpRight,
+  BookOpen,
+  Download,
+  Highlighter,
+  Image,
+  Keyboard,
+  Lock,
+  MessageSquareText,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Scan,
+  Search,
+  Tags,
+  TextQuote,
+  Trash2,
+  X,
+} from 'lucide-react'
+import { ENTRY_TYPE_ICONS, PROPERTY_TYPE_ICONS, TypeChip, VIEW_ICONS } from '../../utils/entry-icons'
+import { orderRegistry } from './property-order'
 import { CONTENT_MAX_CHARS, CONTEXT_MAX_CHARS } from '../../learning-core/validate'
 import { ANN_SCREENSHOT_COMMAND } from '../../constants'
-
-/** The five highlight colors a highlights view can filter by (search.md §5). */
-const HIGHLIGHT_FILTER_COLORS: HighlightColor[] = ['yellow', 'green', 'blue', 'pink', 'purple']
 
 /** The nav's and the page title's words for each view. */
 const VIEW_LABEL_KEYS: Record<View, UiTextKey> = {
@@ -45,10 +62,11 @@ const VIEW_LABEL_KEYS: Record<View, UiTextKey> = {
 }
 
 /**
- * The nav folds to its icon rail when the window is this narrow, and by hand at any width (extension.md §2.2).
+ * The nav folds to its icon rail when the window is this narrow, and by hand at any width (extension.md §2.2):
+ * below 720 the rail is the default, from 720 up the nav opens (the design's 720–1099 band, foldable by hand).
  * Only a fold is remembered: unfolding is the narrow window's default undone for this visit, not a preference.
  */
-const NARROW_QUERY = '(max-width: 720px)'
+const NARROW_QUERY = '(max-width: 719.98px)'
 const NAV_FOLDED_KEY = 'annhub.navFolded'
 
 function useNarrowWindow(): boolean {
@@ -110,52 +128,8 @@ function useAssetUrl(assetId: string | undefined): string | null {
 /** One page of the list (RV-LIB-02: “显示更多” appends the next page). */
 const PAGE_SIZE = 50
 
-/**
- * One multi-select dimension of the filter bar (search.md §3: several values of one dimension OR together): a
- * select adds a value, every chosen value shows as a chip that removes it. The select's own value stays on the
- * placeholder so the same value can be re-picked after removal, and chips are plain buttons — reachable and
- * removable from the keyboard.
- */
-function MultiSelect({ ariaLabel, candidates, onAdd }: { ariaLabel: string; candidates: { value: string; label: string }[]; onAdd(value: string): void }) {
-  return (
-    <select
-      className="filter"
-      value=""
-      aria-label={ariaLabel}
-      onChange={event => {
-        if (event.target.value) onAdd(event.target.value)
-      }}
-    >
-      <option value="">{ariaLabel}: —</option>
-      {candidates.map(candidate => (
-        <option key={candidate.value} value={candidate.value}>
-          {candidate.label}
-        </option>
-      ))}
-    </select>
-  )
-}
-
 /** The search box debounces before it hits the query path (search.md §6). */
 const SEARCH_DEBOUNCE_MS = 250
-
-/** Operators per property type (search.md §3). */
-const OPERATORS: Record<PropertyType, { op: PropertyCondition['op']; key: string }[]> = {
-  text: [
-    { op: 'contains', key: 'library.op.contains' },
-    { op: 'equals', key: 'library.op.equals' },
-  ],
-  list: [{ op: 'has', key: 'library.op.has' }],
-  number: [
-    { op: 'eq', key: 'library.op.eq' },
-    { op: 'gt', key: 'library.op.gt' },
-    { op: 'lt', key: 'library.op.lt' },
-    { op: 'between', key: 'library.op.between' },
-  ],
-  checkbox: [{ op: 'is', key: 'library.op.is' }],
-  date: [{ op: 'between', key: 'library.op.between' }],
-  datetime: [{ op: 'between', key: 'library.op.between' }],
-}
 
 /** Calendar dates become [start, end) epoch bounds in the user's local timezone (search.md §3). */
 function localDayRange(from: string, to: string): { createdFrom?: number; createdTo?: number } {
@@ -234,6 +208,9 @@ export default function App() {
   const [exportSummary, setExportSummary] = useState('')
   const [exportMissing, setExportMissing] = useState<string[]>([])
   const [exportError, setExportError] = useState('')
+  /** The export command's dialog (extension.md §2.2): the nav button opens it, it runs the one export and answers with its state. */
+  const [exportDialogOpen, setExportDialogOpen] = useState(false)
+  const exportButton = useRef<HTMLButtonElement>(null)
   const [guideDismissed, setGuideDismissed] = useState(() => Boolean(localStorage.getItem('annhub.guideDismissed')))
   const [highlightResult, setHighlightResult] = useState<HighlightQueryResult>({ groups: [], total: 0 })
   const [defaultColor, setDefaultColor] = useState<HighlightColor>('yellow')
@@ -265,6 +242,7 @@ export default function App() {
   const focusAfterLoadRef = useRef<string | null>(null)
   const loadMoreButtonRef = useRef<HTMLButtonElement>(null)
   const entryGridRef = useRef<HTMLUListElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const loadedCountRef = useRef(PAGE_SIZE)
   const lastListQueryKeyRef = useRef<string | null>(null)
   const listQueryKey = route.readId ? listHash({ ...readHash(returnHashRef.current ?? '#/clips'), entryId: null }) : listHash({ ...route, entryId: null })
@@ -569,6 +547,45 @@ export default function App() {
    */
   const navView: View = route.readId ? readHash(returnHashRef.current ?? '#/clips').view : route.view
 
+  // "/" puts the keyboard in the search box (extension.md §7.2): only where one is on screen — the
+  // reading view and the two pages without list controls have no box to focus, and the drawer is modal.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key !== '/' || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return
+      if (!isListView(route.view) || route.readId || route.entryId) return
+      const active = document.activeElement
+      if (active instanceof HTMLElement && (active.closest('input, textarea, select, [contenteditable]') !== null || active.isContentEditable)) return
+      event.preventDefault()
+      searchInputRef.current?.focus()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [route.view, route.readId, route.entryId])
+
+  // The nav also answers ↑ ↓: the focus walks the nav items while every one of them stays in the Tab
+  // order (extension.md §7.2) — an addition to the keyboard, not a replacement of it.
+  const onNavKeyDown = (event: React.KeyboardEvent<HTMLElement>): void => {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    const items = [...event.currentTarget.querySelectorAll<HTMLElement>('.nav-item')]
+    const index = items.indexOf(document.activeElement as HTMLElement)
+    if (index === -1) return
+    event.preventDefault()
+    items[(index + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus()
+  }
+
+  /**
+   * The subtitle under the page title (extension.md §2.2): what the view holds — the library's make-up on “全部”,
+   * the highlights' own count and sources on “高亮”, the plain count elsewhere — and, once a filter or search is
+   * on, the count that came back for it.
+   */
+  const pageSubtitle = useMemo(() => {
+    const shown = route.view === 'highlights' ? highlightResult.total : total
+    if (hasActiveFilter(route)) return uiText('library.sub.filtered', { count: shown })
+    if (route.view === 'all') return uiText('library.sub.all', { total: counts.all, clips: counts.clips, shots: counts.screenshots })
+    if (route.view === 'highlights') return uiText('library.sub.highlights', { count: highlightResult.total, clips: highlightResult.groups.length })
+    return uiText('library.sub.count', { count: shown })
+  }, [route, total, counts, highlightResult])
+
   const viewTab = (view: View, count: number) => {
     const Icon = VIEW_ICONS[view]
     const label = uiText(VIEW_LABEL_KEYS[view])
@@ -589,35 +606,59 @@ export default function App() {
     )
   }
 
-  /** An answer with nothing in it: the view's own entry hint, or — when a filter is on — "no results" and the way out (extension.md §5). */
-  const emptyState = (hint: UiTextKey) => {
-    const filtered = hasActiveFilter(route)
-    if (route.view === 'all' && !filtered && countsReady && counts.all === 0) {
-      // an empty library explains both ways in, with the shortcut as the browser actually binds it
+  /**
+   * An answer with nothing in it (extension.md §5): with a filter on it says "no results" and offers the way out
+   * while keeping every filter; otherwise each view explains its own way in, with the shortcut as the browser
+   * actually binds it.
+   */
+  const emptyState = (view: 'all' | 'clips' | 'screenshots' | 'highlights') => {
+    if (hasActiveFilter(route)) {
       return (
-        <div className="empty empty-rich">
-          <VIEW_ICONS.all className="empty-icon" size={28} aria-hidden />
-          <p className="empty-heading">{uiText('library.empty.heading')}</p>
-          <p className="empty-how">{uiText('library.empty.how.clip')}</p>
-          <p className="empty-how">{uiText('library.empty.how.shot', { keys: shortcutKeys })}</p>
+        <div className="empty">
+          <span className="empty-icon">
+            <Search size={22} aria-hidden />
+          </span>
+          <p className="empty-heading">{uiText('library.noResults')}</p>
+          <p className="empty-desc">{uiText('library.noResults.desc')}</p>
+          <button type="button" className="primary" onClick={() => setFilter({ ...EMPTY_FILTERS })}>
+            {uiText('library.clearFilters')}
+          </button>
         </div>
       )
     }
+    if (view === 'all') {
+      // the empty library explains both ways in
+      return (
+        <div className="empty">
+          <span className="empty-icon">
+            <VIEW_ICONS.all size={22} aria-hidden />
+          </span>
+          <p className="empty-heading">{uiText('library.empty.heading')}</p>
+          <p className="empty-desc">{uiText('library.empty.how.clip')}</p>
+          <p className="empty-desc">{uiText('library.empty.how.shot', { keys: shortcutKeys })}</p>
+        </div>
+      )
+    }
+    const { title, desc } = {
+      clips: { title: uiText('library.empty.clips.title'), desc: uiText('library.empty.clips.desc') },
+      screenshots: { title: uiText('library.empty.screenshots.title'), desc: uiText('library.empty.screenshots.desc', { keys: shortcutKeys }) },
+      highlights: { title: uiText('library.empty.highlights.title'), desc: uiText('library.empty.highlights.desc') },
+    }[view]
+    const Icon = VIEW_ICONS[view]
     return (
       <div className="empty">
-        {uiText(filtered ? 'library.noResults' : hint)}
-        {filtered && (
-          <button type="button" className="link" onClick={() => setFilter({ ...EMPTY_FILTERS })}>
-            {uiText('library.clearFilters')}
-          </button>
-        )}
+        <span className="empty-icon">
+          <Icon size={22} aria-hidden />
+        </span>
+        <p className="empty-heading">{title}</p>
+        <p className="empty-desc">{desc}</p>
       </div>
     )
   }
 
   return (
     <div className={`shell${rail ? ' is-rail' : ''}`}>
-      <nav className="side" aria-label={uiText('library.name')}>
+      <nav className="side" aria-label={uiText('library.name')} onKeyDown={onNavKeyDown}>
         <div className="nav-top">
           <div className="brand">AnnHub</div>
           <button
@@ -636,49 +677,60 @@ export default function App() {
         {viewTab('clips', counts.clips)}
         {viewTab('highlights', highlightTotal)}
         {viewTab('screenshots', counts.screenshots)}
-        <div className="nav-spacer" />
         <p className="nav-group-title">{uiText('library.group.manage')}</p>
         {viewTab('properties', registry.length)}
         {viewTab('settings', 0)}
-        <p className="nav-shortcut" title={shortcutHint}>
-          <Keyboard size={16} aria-hidden />
-          <span>{shortcutHint}</span>
-        </p>
-        <button
-          type="button"
-          className="nav-export"
-          disabled={exportState === 'busy'}
-          onClick={() => void onExport()}
-          aria-label={exportState === 'busy' ? uiText('library.exporting') : uiText('library.export')}
-          title={uiText('library.export')}
-        >
-          <Download size={16} aria-hidden />
-          <span className="nav-export-label">{exportState === 'busy' ? uiText('library.exporting') : uiText('library.export')}</span>
-        </button>
-        {exportState === 'done' && (
-          <span className="nav-note">
-            {uiText('library.exportDone')} · {exportSummary}
-          </span>
-        )}
-        {exportState === 'partial' && (
-          <div className="nav-note nav-note-warn">
-            {uiText('library.exportPartial')} · {exportSummary}
-            <ul>
-              {exportMissing.map(id => (
-                <li key={id}>
-                  <code>{id}</code>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {exportState === 'failed' && <span className="nav-note nav-note-warn">{exportError}</span>}
-        {usage && usage.quota > 0 && (
-          <p className="nav-note nav-storage">
-            {uiText('library.storageUsed', { size: formatBytes(usage.usage) })}
-            <progress value={usage.usage} max={usage.quota} aria-hidden />
+        <div className="nav-foot">
+          {usage && usage.quota > 0 && (
+            <p className="nav-note nav-storage">
+              {uiText('library.storageUsed', { size: formatBytes(usage.usage) })}
+              <progress value={usage.usage} max={usage.quota} aria-hidden />
+            </p>
+          )}
+          <button
+            type="button"
+            className="nav-export"
+            ref={exportButton}
+            disabled={exportState === 'busy'}
+            onClick={() => setExportDialogOpen(true)}
+            aria-label={exportState === 'busy' ? uiText('library.exporting') : uiText('library.export')}
+            title={uiText('library.export')}
+          >
+            <Download size={16} aria-hidden />
+            <span className="nav-export-label">{exportState === 'busy' ? uiText('library.exporting') : uiText('library.export')}</span>
+          </button>
+          {exportState === 'done' && (
+            <span className="nav-note">
+              {uiText('library.exportDone')} · {exportSummary}
+            </span>
+          )}
+          {exportState === 'partial' && (
+            <div className="nav-note nav-note-warn">
+              {uiText('library.exportPartial')} · {exportSummary}
+              <ul>
+                {exportMissing.map(id => (
+                  <li key={id}>
+                    <code>{id}</code>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {exportState === 'failed' && <span className="nav-note nav-note-warn">{exportError}</span>}
+          <p className="nav-shortcut" title={shortcutHint}>
+            <Keyboard size={15} aria-hidden />
+            <span>
+              {uiText('library.shortcutHint.lead')}{' '}
+              {shortcutKeys
+                .split('+')
+                .filter(Boolean)
+                .map((key, index) => (
+                  <kbd key={`${key}-${index}`}>{key}</kbd>
+                ))}{' '}
+              {uiText('library.shortcutHint.tail')}
+            </span>
           </p>
-        )}
+        </div>
       </nav>
 
       <main className="content">
@@ -698,257 +750,202 @@ export default function App() {
               )}
             </div>
           )}
-          {isListView(route.view) && (
+          {isListView(route.view) ? (
             <>
               <header className="page-head">
-                <h1 className="page-title">{uiText(VIEW_LABEL_KEYS[route.view])}</h1>
-                <input
-                  className="search"
-                  type="search"
-                  placeholder={uiText('library.searchPlaceholder')}
-                  value={searchDraft}
-                  onChange={event => setSearchDraft(event.target.value)}
-                  aria-label={uiText('library.searchPlaceholder')}
-                />
+                <div className="page-titles">
+                  <h1 className="page-title">{uiText(VIEW_LABEL_KEYS[route.view])}</h1>
+                  <p className="page-sub">{pageSubtitle}</p>
+                </div>
+                <div className="page-actions">
+                  <div className="search-field">
+                    <Search size={15} aria-hidden />
+                    <input
+                      ref={searchInputRef}
+                      className="search"
+                      type="search"
+                      placeholder={uiText('library.searchPlaceholder')}
+                      value={searchDraft}
+                      onChange={event => setSearchDraft(event.target.value)}
+                      aria-label={uiText('library.searchPlaceholder')}
+                    />
+                    {!searchDraft && <kbd aria-hidden>/</kbd>}
+                  </div>
+                </div>
               </header>
-              {/* nothing to filter yet: the toolbar leaves an empty, unfiltered library alone (extension.md §5) */}
-              {!(countsReady && counts.all === 0 && !hasActiveFilter(route)) && (
-                <div className="toolbar" role="group" aria-label={uiText('library.filters')}>
-                  {route.view === 'all' && (
-                    <select
-                      className="filter"
-                      value={route.type}
-                      onChange={event => setFilter({ type: event.target.value as FilterState['type'] })}
-                      aria-label={uiText('library.filter.type')}
-                    >
-                      <option value="">{uiText('library.filter.type')}: —</option>
-                      <option value="clip">{uiText('library.clips')}</option>
-                      <option value="screenshot">{uiText('library.screenshots')}</option>
-                    </select>
-                  )}
-                  {route.view === 'highlights' && (
-                    <MultiSelect
-                      ariaLabel={uiText('library.filter.color')}
-                      candidates={HIGHLIGHT_FILTER_COLORS.filter(color => !route.colors.includes(color)).map(color => ({
-                        value: color,
-                        label: uiText(`library.color.${color}` as 'library.color.yellow'),
-                      }))}
-                      onAdd={color => setFilter({ colors: [...route.colors, color] })}
-                    />
-                  )}
-                  {hosts.length > 0 && (
-                    <MultiSelect
-                      ariaLabel={uiText('library.filter.host')}
-                      candidates={hosts.filter(host => !route.hosts.includes(host)).map(host => ({ value: host, label: host }))}
-                      onAdd={host => setFilter({ hosts: [...route.hosts, host] })}
-                    />
-                  )}
-                  {tags.length > 0 && (
-                    <MultiSelect
-                      ariaLabel={uiText('library.filter.tag')}
-                      candidates={tags.filter(tag => !route.tags.includes(tag)).map(tag => ({ value: tag, label: tag }))}
-                      onAdd={tag => setFilter({ tags: [...route.tags, tag] })}
-                    />
-                  )}
-                  {registry.length > 0 &&
-                    route.conditions.map((condition, index) => {
-                      const def = registry.find(item => item.name === condition.prop)
-                      const operators = def ? OPERATORS[def.type] : []
-                      const patch = (next: Partial<PropertyFilter>) => setFilter({ conditions: route.conditions.map((item, at) => (at === index ? { ...item, ...next } : item)) })
-                      const valueInput = (key: 'val' | 'val2', labelKey?: 'library.filter.value2') => {
-                        if (def!.type === 'checkbox') {
-                          return (
-                            <select
-                              className="filter filter-value"
-                              value={condition[key]}
-                              aria-label={labelKey ? uiText(labelKey) : uiText('library.filter.value')}
-                              onChange={event => patch({ [key]: event.target.value })}
-                            >
-                              <option value="">{uiText('library.filter.value')}: —</option>
-                              <option value="yes">{uiText('library.value.yes')}</option>
-                              <option value="no">{uiText('library.value.no')}</option>
-                            </select>
-                          )
-                        }
-                        const inputType = def!.type === 'number' ? 'number' : def!.type === 'date' ? 'date' : def!.type === 'datetime' ? 'datetime-local' : 'text'
-                        return (
-                          <input
-                            className="filter filter-value"
-                            type={inputType}
-                            value={condition[key]}
-                            aria-label={labelKey ? uiText(labelKey) : uiText('library.filter.value')}
-                            onChange={event => patch({ [key]: event.target.value })}
-                          />
-                        )
-                      }
-                      return (
-                        <span className="filter-set" key={`${condition.prop}-${index}`}>
-                          <span className="filter-set-row">
-                            <select
-                              className="filter"
-                              value={condition.prop}
-                              aria-label={uiText('library.filter.property')}
-                              onChange={event => {
-                                const prop = event.target.value
-                                const nextDef = registry.find(item => item.name === prop)
-                                patch({ prop, op: nextDef ? OPERATORS[nextDef.type][0]!.op : '', val: '', val2: '' })
-                              }}
-                            >
-                              <option value="">{uiText('library.filter.property')}: —</option>
-                              {registry.map(item => (
-                                <option key={item.name} value={item.name}>
-                                  {item.name}
-                                </option>
-                              ))}
-                            </select>
-                            {def && operators.length > 1 && (
-                              <select
-                                className="filter"
-                                value={condition.op}
-                                aria-label={uiText('library.filter.operator')}
-                                onChange={event => patch({ op: event.target.value, val: '', val2: '' })}
-                              >
-                                {operators.map(({ op, key: opKey }) => (
-                                  <option key={op} value={op}>
-                                    {uiText(opKey as 'library.op.contains')}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
-                            {def && valueInput('val')}
-                            {def && condition.op === 'between' && valueInput('val2', 'library.filter.value2')}
+              <div className="page-body">
+                {/* nothing to filter yet: the toolbar leaves an empty, unfiltered library alone (extension.md §5) */}
+                {!(countsReady && counts.all === 0 && !hasActiveFilter(route)) && (
+                  <FilterBar
+                    view={route.view}
+                    filters={route}
+                    hosts={hosts}
+                    tags={tags}
+                    registry={registry}
+                    countLabel={loading ? uiText('common.loading') : uiText('library.count', { count: route.view === 'highlights' ? highlightResult.total : total })}
+                    onChange={setFilter}
+                  />
+                )}
+                {countsReady && counts.all === 0 && !loading && total === 0 && !guideDismissed && (
+                  <div className="guide-card" data-testid="guide-card">
+                    <div className="guide-grid">
+                      {(
+                        [
+                          { Icon: ENTRY_TYPE_ICONS.clip, nameKey: 'library.clips', textKey: 'library.guide.clip', view: 'clips' },
+                          { Icon: ENTRY_TYPE_ICONS.screenshot, nameKey: 'library.screenshots', textKey: 'library.guide.shot', view: 'screenshots' },
+                          { Icon: VIEW_ICONS.highlights, nameKey: 'library.highlights', textKey: 'library.guide.hl', view: 'highlights' },
+                        ] as const
+                      ).map(({ Icon, nameKey, textKey, view }) => (
+                        <div className="guide-item" key={nameKey} data-view={view}>
+                          <span className="guide-item-head">
+                            <span className="guide-tile">
+                              <Icon size={17} aria-hidden />
+                            </span>
+                            <span className="guide-name">{uiText(nameKey)}</span>
                           </span>
-                        </span>
-                      )
-                    })}
-                  {registry.length > 0 && (
-                    <select
-                      className="filter"
-                      value=""
-                      aria-label={uiText('library.filter.addProperty')}
-                      onChange={event => {
-                        const prop = event.target.value
-                        if (!prop) return
-                        const def = registry.find(item => item.name === prop)
-                        setFilter({ conditions: [...route.conditions, { prop, op: def ? OPERATORS[def.type][0]!.op : '', val: '', val2: '' }] })
-                      }}
-                    >
-                      <option value="">{uiText('library.filter.addProperty')}: —</option>
-                      {registry.map(def => (
-                        <option key={def.name} value={def.name}>
-                          {def.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  <label className="filter filter-time" aria-label={uiText('library.filter.time')}>
-                    <span className="filter-time-label">{uiText('library.filter.time')}</span>
-                    <input type="date" value={route.from} aria-label={uiText('library.filter.timeFrom')} onChange={event => setFilter({ from: event.target.value })} />
-                    <span>–</span>
-                    <input type="date" value={route.to} aria-label={uiText('library.filter.timeTo')} onChange={event => setFilter({ to: event.target.value })} />
-                  </label>
-                  <span className="count" data-testid="list-count">
-                    {loading ? uiText('common.loading') : uiText('library.count', { count: route.view === 'highlights' ? highlightResult.total : total })}
-                  </span>
-                  {(route.colors.length > 0 || route.hosts.length > 0 || route.tags.length > 0 || route.conditions.length > 0) && (
-                    // every chosen value on one line under the controls (D-59), not inline with them
-                    <div className="filter-chips-row">
-                      {route.colors.map(color => (
-                        <button
-                          key={`color-${color}`}
-                          type="button"
-                          className="filter-chip"
-                          aria-label={uiText('library.filter.remove', { name: uiText(`library.color.${color}` as 'library.color.yellow') })}
-                          onClick={() => setFilter({ colors: route.colors.filter(item => item !== color) })}
-                        >
-                          <span>{uiText(`library.color.${color}` as 'library.color.yellow')}</span>
-                          <X size={11} aria-hidden />
-                        </button>
-                      ))}
-                      {route.hosts.map(host => (
-                        <button
-                          key={`host-${host}`}
-                          type="button"
-                          className="filter-chip"
-                          aria-label={uiText('library.filter.remove', { name: host })}
-                          onClick={() => setFilter({ hosts: route.hosts.filter(item => item !== host) })}
-                        >
-                          <span>{host}</span>
-                          <X size={11} aria-hidden />
-                        </button>
-                      ))}
-                      {route.tags.map(tag => (
-                        <button
-                          key={`tag-${tag}`}
-                          type="button"
-                          className="filter-chip"
-                          aria-label={uiText('library.filter.remove', { name: tag })}
-                          onClick={() => setFilter({ tags: route.tags.filter(item => item !== tag) })}
-                        >
-                          <span>#{tag}</span>
-                          <X size={11} aria-hidden />
-                        </button>
-                      ))}
-                      {route.conditions.map((condition, index) => (
-                        <button
-                          key={`cond-${condition.prop}-${index}`}
-                          type="button"
-                          className="filter-chip"
-                          aria-label={uiText('library.filter.remove', { name: condition.prop })}
-                          onClick={() => setFilter({ conditions: route.conditions.filter((_, at) => at !== index) })}
-                        >
-                          <span>{condition.prop}</span>
-                          <X size={11} aria-hidden />
-                        </button>
+                          <p>{uiText(textKey)}</p>
+                        </div>
                       ))}
                     </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          {countsReady && counts.all === 0 && !loading && total === 0 && !guideDismissed && isListView(route.view) && (
-            <div className="guide-card" data-testid="guide-card">
-              <div className="guide-grid">
-                {(
-                  [
-                    { Icon: ENTRY_TYPE_ICONS.clip, nameKey: 'library.clips', textKey: 'library.guide.clip' },
-                    { Icon: ENTRY_TYPE_ICONS.screenshot, nameKey: 'library.screenshots', textKey: 'library.guide.shot' },
-                    { Icon: VIEW_ICONS.highlights, nameKey: 'library.highlights', textKey: 'library.guide.hl' },
-                  ] as const
-                ).map(({ Icon, nameKey, textKey }) => (
-                  <div className="guide-item" key={nameKey}>
-                    <Icon size={18} aria-hidden />
-                    <span className="guide-name">{uiText(nameKey)}</span>
-                    <p>{uiText(textKey)}</p>
+                    <div className="guide-actions">
+                      <button
+                        type="button"
+                        className="primary"
+                        onClick={() => void chrome.tabs.create({ url: chrome.runtime.getURL(currentUiLanguage() === 'zh' ? 'sample.html' : 'sample.en.html') })}
+                      >
+                        <ArrowUpRight size={15} aria-hidden />
+                        {uiText('library.guide.sample')}
+                      </button>
+                      <span className="guide-note">{uiText('library.guide.note')}</span>
+                      <span className="guide-spacer" />
+                      <button
+                        type="button"
+                        className="ghost sm quiet"
+                        onClick={() => {
+                          localStorage.setItem('annhub.guideDismissed', '1')
+                          setGuideDismissed(true)
+                        }}
+                      >
+                        {uiText('library.guide.dismiss')}
+                      </button>
+                    </div>
                   </div>
-                ))}
+                )}
+                {route.view === 'highlights' ? (
+                  highlightResult.total === 0 ? (
+                    loading ? (
+                      <div className="list-loading" role="status">
+                        {uiText('common.loading')}
+                      </div>
+                    ) : (
+                      emptyState('highlights')
+                    )
+                  ) : (
+                    <div className="list">
+                      <ul className="hl-groups" data-testid="hl-groups">
+                        {highlightResult.groups.map(group => (
+                          <li key={group.clip.id} className="hl-group">
+                            <div className="hl-group-head">
+                              <span className="hl-group-title">{String(group.clip.properties['title'] ?? '')}</span>
+                              <span className="hl-group-host">{group.clip.sourceHost}</span>
+                              <span className="hl-group-count">{uiText('library.sub.count', { count: group.rows.length })}</span>
+                              {/* the source link owns the head row's right end and never folds (extension.md §2.3) */}
+                              <a className="link" href={group.clip.sourceUrl} target="_blank" rel="noopener noreferrer">
+                                {uiText('library.backToSource')}
+                                <ArrowUpRight size={13} aria-hidden />
+                              </a>
+                            </div>
+                            <div className="hl-group-rows">
+                              {group.rows.map(row => (
+                                <button
+                                  key={row.highlight.id}
+                                  type="button"
+                                  className={`hl-item hl-item-${row.highlight.color}`}
+                                  aria-label={uiText('reading.highlightLabel', {
+                                    color: uiText(`library.color.${row.highlight.color}` as 'library.color.yellow'),
+                                    text: row.highlight.quote,
+                                  })}
+                                  onClick={() => {
+                                    // going from a library highlight to the reading view reopens the entry (metrics.md §9)
+                                    void MessageUtils.sendMessage({ type: 'RECORD_EVENT', name: 'entry.reopened', props: { type: group.clip.type } })
+                                    returnHashRef.current = location.hash
+                                    location.hash = readHashFor(group.clip.id, row.highlight.id)
+                                  }}
+                                >
+                                  <i className="hl-item-bar" aria-hidden />
+                                  <span className="hl-item-body">
+                                    <span className="hl-item-quote">{row.highlight.quote}</span>
+                                    {row.highlight.note && (
+                                      <span className="hl-item-note">
+                                        <MessageSquareText size={13} aria-hidden />
+                                        <span>{row.highlight.note}</span>
+                                      </span>
+                                    )}
+                                    <span className="hl-item-meta">
+                                      <span>{relativeTime(row.highlight.createdAt)}</span>
+                                      {((group.clip.properties['tags'] as string[] | undefined) ?? []).map(tag => (
+                                        <span key={tag} className="tag">
+                                          #{tag}
+                                        </span>
+                                      ))}
+                                      {propertyPills(group.clip, registry).map(pill => (
+                                        <span key={pill.name} className="ppill">
+                                          {pill.node}
+                                        </span>
+                                      ))}
+                                    </span>
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                ) : items.length === 0 && loading ? (
+                  // the first answer is still on its way: saying "nothing here" now would be wrong
+                  <div className="list-loading" role="status">
+                    {uiText('common.loading')}
+                  </div>
+                ) : items.length === 0 ? (
+                  emptyState(route.view === 'clips' ? 'clips' : route.view === 'screenshots' ? 'screenshots' : 'all')
+                ) : (
+                  <>
+                    <div className="list">
+                      <ul className="entry-grid" ref={entryGridRef}>
+                        {items.map(entry => (
+                          <EntryCard
+                            key={entry.id}
+                            entry={entry}
+                            registry={registry}
+                            selected={route.entryId === entry.id}
+                            onOpen={() => void openEntry(entry)}
+                            onChanged={route.view === 'screenshots' ? reload : undefined}
+                          />
+                        ))}
+                      </ul>
+                    </div>
+                    {nextCursor && items.length < total && (
+                      // aria-disabled, not disabled: Chrome takes the focus off a button that becomes disabled and leaves it on the page
+                      <button
+                        ref={loadMoreButtonRef}
+                        type="button"
+                        className="link load-more"
+                        data-testid="load-more"
+                        aria-disabled={loadingMore || undefined}
+                        onClick={() => void loadMore()}
+                      >
+                        {uiText('library.loadMore', { count: total - items.length })}
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
-              <div className="guide-actions">
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={() => void chrome.tabs.create({ url: chrome.runtime.getURL(currentUiLanguage() === 'zh' ? 'sample.html' : 'sample.en.html') })}
-                >
-                  {uiText('library.guide.sample')}
-                </button>
-                <button
-                  type="button"
-                  className="link"
-                  onClick={() => {
-                    localStorage.setItem('annhub.guideDismissed', '1')
-                    setGuideDismissed(true)
-                  }}
-                >
-                  {uiText('library.guide.dismiss')}
-                </button>
-              </div>
-            </div>
-          )}
-          {route.view === 'settings' ? (
+            </>
+          ) : route.view === 'settings' ? (
             <SettingsView />
-          ) : route.view === 'properties' ? (
+          ) : (
             <PropertiesView
               onRegistryChanged={() => {
                 void MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'LIST_PROPERTIES' }).then(response => {
@@ -956,86 +953,6 @@ export default function App() {
                 })
               }}
             />
-          ) : route.view === 'highlights' ? (
-            highlightResult.total === 0 ? (
-              loading ? (
-                <div className="list-loading" role="status">
-                  {uiText('common.loading')}
-                </div>
-              ) : (
-                emptyState('library.empty.highlights')
-              )
-            ) : (
-              <div className="list">
-                <ul className="hl-groups" data-testid="hl-groups">
-                  {highlightResult.groups.map(group => (
-                    <li key={group.clip.id} className="hl-group">
-                      <div className="hl-group-head">
-                        <span className="hl-group-title">{String(group.clip.properties['title'] ?? '')}</span>
-                        <span className="hl-group-meta">
-                          {group.clip.sourceHost} · <span className="hl-group-count">{uiText('library.highlightsCount', { count: group.rows.length })}</span>
-                        </span>
-                        <a className="link" href={group.clip.sourceUrl} target="_blank" rel="noopener noreferrer">
-                          {uiText('library.backToSource')}
-                        </a>
-                      </div>
-                      <div className="hl-group-rows">
-                        {group.rows.map(row => (
-                          <button
-                            key={row.highlight.id}
-                            type="button"
-                            className={`hl-row hl-row-${row.highlight.color}`}
-                            aria-label={uiText('reading.highlightLabel', {
-                              color: uiText(`library.color.${row.highlight.color}` as 'library.color.yellow'),
-                              text: row.highlight.quote,
-                            })}
-                            onClick={() => {
-                              // going from a library highlight to the reading view reopens the entry (metrics.md §9)
-                              void MessageUtils.sendMessage({ type: 'RECORD_EVENT', name: 'entry.reopened', props: { type: group.clip.type } })
-                              returnHashRef.current = location.hash
-                              location.hash = readHashFor(group.clip.id, row.highlight.id)
-                            }}
-                          >
-                            <p className="hl-quote">{row.highlight.quote}</p>
-                            {row.highlight.note && <p className="hl-note-text">{row.highlight.note}</p>}
-                          </button>
-                        ))}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )
-          ) : items.length === 0 && loading ? (
-            // the first answer is still on its way: saying "nothing here" now would be wrong
-            <div className="list-loading" role="status">
-              {uiText('common.loading')}
-            </div>
-          ) : items.length === 0 ? (
-            emptyState(route.view === 'clips' ? 'library.empty.clips' : route.view === 'screenshots' ? 'library.empty.screenshots' : 'library.empty')
-          ) : (
-            <>
-              <div className="list">
-                <ul className="entry-grid" ref={entryGridRef}>
-                  {items.map(entry => (
-                    <EntryCard key={entry.id} entry={entry} onOpen={() => void openEntry(entry)} onChanged={route.view === 'screenshots' ? reload : undefined} />
-                  ))}
-                </ul>
-              </div>
-              {nextCursor && items.length < total && (
-                // aria-disabled, not disabled: Chrome takes the focus off a button that becomes disabled and leaves it on the page
-                <button
-                  ref={loadMoreButtonRef}
-                  type="button"
-                  className="link load-more"
-                  data-testid="load-more"
-                  aria-disabled={loadingMore || undefined}
-                  onClick={() => void loadMore()}
-                >
-                  {uiText('library.loadMore', { count: total - items.length })}
-                </button>
-              )}
-            </>
           )}
         </div>
 
@@ -1084,6 +1001,22 @@ export default function App() {
           }}
         />
       )}
+
+      {exportDialogOpen && (
+        <ExportDialog
+          phase={exportState}
+          count={counts.all}
+          summary={exportSummary}
+          missing={exportMissing}
+          error={exportError}
+          onExport={() => void onExport()}
+          onClose={() => {
+            setExportDialogOpen(false)
+            // the dialog took the keyboard from this button; closing gives it back (extension.md §4.1's rule, same shape)
+            exportButton.current?.focus()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -1091,17 +1024,73 @@ export default function App() {
 /** As much of a clip as its card shows: the first lines, and the card cuts them off where its box ends. */
 const EXCERPT_CHARS = 480
 
+/** How many custom-property pills a card and a highlight row show (extension.md §2.3). */
+const CARD_PILL_LIMIT = 2
+
+/**
+ * The custom properties a card shows as small pills (extension.md §2.3): the entry's own values, not new
+ * fields — the registry's order among the user's properties, at most two, a checkbox only when it is on, a
+ * long value ellipsized by the pill itself. A list property shows its first item.
+ */
+function propertyPills(entry: EntryRecord, registry: PropertyDefinition[]): { name: string; node: React.ReactNode }[] {
+  const pills: { name: string; node: React.ReactNode }[] = []
+  for (const def of orderRegistry(registry)) {
+    if (def.builtin || pills.length >= CARD_PILL_LIMIT) continue
+    const value = entry.properties[def.name]
+    const Icon = PROPERTY_TYPE_ICONS[def.type]
+    if (def.type === 'checkbox') {
+      if (value !== true) continue
+      pills.push({
+        name: def.name,
+        node: (
+          <>
+            <Icon size={11} aria-hidden />
+            <span className="ppill-name">{def.name}</span>
+          </>
+        ),
+      })
+      continue
+    }
+    const shown = Array.isArray(value) ? (value[0] == null ? undefined : String(value[0])) : value == null || value === '' ? undefined : String(value)
+    if (shown === undefined) continue
+    pills.push({
+      name: def.name,
+      node: (
+        <>
+          <Icon size={11} aria-hidden />
+          <span className="ppill-name">{def.name}</span>
+          <b className="ppill-value">{shown}</b>
+        </>
+      ),
+    })
+  }
+  return pills
+}
+
 /**
  * One entry in the All, Clips and Screenshots grids (extension.md §2.3): on top what it holds — the first lines of a
  * clip, the picture of a screenshot — and below its title, tags, type, source and time. Its name is the title and
  * those details; the clip's words are its description, so a reader hears what the card is before all of what it says.
  * `onChanged` gives a screenshot its own download and delete (the Screenshots view).
  */
-function EntryCard({ entry, onOpen, onChanged }: { entry: EntryRecord; onOpen(): void; onChanged?(): void }) {
+function EntryCard({
+  entry,
+  registry,
+  selected,
+  onOpen,
+  onChanged,
+}: {
+  entry: EntryRecord
+  registry: PropertyDefinition[]
+  selected?: boolean
+  onOpen(): void
+  onChanged?(): void
+}) {
   const url = useAssetUrl(entry.type === 'screenshot' ? entry.assetId : undefined)
   const title = String(entry.properties['title'] ?? '')
   const tags = (entry.properties['tags'] as string[] | undefined) ?? []
   const highlights = entry.highlights?.length ?? 0
+  const pills = propertyPills(entry, registry)
   const excerpt =
     entry.type === 'clip'
       ? markdownToPlainText(entry.content)
@@ -1109,9 +1098,9 @@ function EntryCard({ entry, onOpen, onChanged }: { entry: EntryRecord; onOpen():
           .slice(0, EXCERPT_CHARS)
       : ''
   const id = (part: string) => `card-${part}-${entry.id}`
-  const named = [title && id('title'), tags.length > 0 && id('tags'), id('meta')].filter(Boolean).join(' ')
+  const named = [title && id('title'), (tags.length > 0 || pills.length > 0) && id('tags'), id('meta')].filter(Boolean).join(' ')
   return (
-    <li className="entry-card" data-type={entry.type} data-entry-id={entry.id}>
+    <li className={`entry-card${selected ? ' entry-card-selected' : ''}`} data-type={entry.type} data-entry-id={entry.id}>
       <button type="button" className="entry-card-open" onClick={onOpen} aria-labelledby={named} aria-describedby={excerpt ? id('excerpt') : undefined}>
         {entry.type === 'clip' ? (
           <span className="entry-card-preview">
@@ -1142,23 +1131,32 @@ function EntryCard({ entry, onOpen, onChanged }: { entry: EntryRecord; onOpen():
               {title}
             </span>
           )}
-          {tags.length > 0 && (
+          {(tags.length > 0 || pills.length > 0) && (
             <span className="entry-card-tags" id={id('tags')}>
               {tags.map(tag => (
                 <span key={tag} className="tag">
                   #{tag}
                 </span>
               ))}
+              {pills.map(pill => (
+                <span key={pill.name} className="ppill">
+                  {pill.node}
+                </span>
+              ))}
             </span>
           )}
+          {/* the card's last line: type, source and time on one row, the highlight count at its end (extension.md §2.3) */}
           <span className="entry-card-meta" id={id('meta')}>
-            <span className="entry-card-meta-first">
-              <TypeChip type={entry.type} />
-              {highlights > 0 && <span className="entry-card-highlights">{uiText('library.highlightsCount', { count: highlights })}</span>}
-            </span>
+            <TypeChip type={entry.type} />
             <span className="entry-card-source">
               {entry.sourceHost} · {relativeTime(entry.createdAt)}
             </span>
+            {highlights > 0 && (
+              <span className="entry-card-highlights">
+                <Highlighter size={13} aria-hidden />
+                {uiText('library.highlightsCount', { count: highlights })}
+              </span>
+            )}
           </span>
         </span>
       </button>
@@ -1192,6 +1190,18 @@ function ScreenshotActions({ entry, url, onChanged }: { entry: EntryRecord; url:
         <Trash2 size={16} />
       </button>
     </div>
+  )
+}
+
+/** The confirm's count is its emphasis: the number lands bold wherever the localized sentence put it (zh and en differ). */
+function boldenCount(text: string, count: number) {
+  const parts = text.split(String(count))
+  return (
+    <>
+      {parts[0]}
+      <b>{count}</b>
+      {parts.slice(1).join(String(count))}
+    </>
   )
 }
 
@@ -1241,6 +1251,10 @@ function DetailDrawer({
   const restoreFocus = useRef<'content' | 'context' | null>(null)
   const propertyPanel = useRef<PropertyPanelHandle>(null)
   const drawerElement = useRef<HTMLElement>(null)
+  /** The header's "删除": the keyboard goes back to it when the confirm goes away without deleting. */
+  const deleteButton = useRef<HTMLButtonElement>(null)
+  const confirmCancelButton = useRef<HTMLButtonElement>(null)
+  const confirmDeleteButton = useRef<HTMLButtonElement>(null)
   const loadedEntryId = entry?.id
 
   const load = useCallback(async () => {
@@ -1437,6 +1451,12 @@ function DetailDrawer({
     return () => document.removeEventListener('keydown', onKey)
   }, [])
 
+  /** The confirm leaves without deleting; the keyboard goes back to the "删除" button that opened it. */
+  const closeConfirm = useCallback(() => {
+    setConfirmDelete(false)
+    deleteButton.current?.focus()
+  }, [])
+
   if (!entry) {
     return (
       <>
@@ -1450,6 +1470,7 @@ function DetailDrawer({
 
   // a clip with highlights keeps its original text as it is: their ranges point into it (entry.md §4.7)
   const contentLocked = entry.type === 'clip' && (entry.highlights?.length ?? 0) > 0
+  const highlightCount = entry.highlights?.length ?? 0
 
   return (
     <>
@@ -1457,40 +1478,63 @@ function DetailDrawer({
       <aside ref={drawerElement} className="drawer" role="dialog" aria-modal="true" aria-labelledby={`drawer-title-${entry.id}`} data-entry-id={entry.id}>
         <header className="drawer-header">
           <TypeChip type={entry.type} />
-          <span className="drawer-title" id={`drawer-title-${entry.id}`}>
-            {String(entry.properties['title'] ?? '')}
-          </span>
-          <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer" className="link">
-            {uiText('library.backToSource')}
-          </a>
-          {entry.type === 'clip' && (
-            <button type="button" className="ghost" data-testid="drawer-read" onClick={() => void flush().then(ok => ok && onOpenReading(entry.id))}>
-              {uiText('library.read')}
+          <span className="drawer-header-space" aria-hidden />
+          {/* the header's actions in one row — 阅读 / 回到来源 / 删除 / 关闭 (extension.md §4.1) */}
+          <span className="drawer-header-actions">
+            {entry.type === 'clip' && (
+              <button type="button" className="ghost sm" data-testid="drawer-read" onClick={() => void flush().then(ok => ok && onOpenReading(entry.id))}>
+                <BookOpen size={14} aria-hidden /> {uiText('library.read')}
+              </button>
+            )}
+            {/* a link by meaning, a button by look (extension.md §4.1) */}
+            <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer" className="ghost sm">
+              {uiText('library.backToSource')} <ArrowUpRight size={14} aria-hidden />
+            </a>
+            <button
+              type="button"
+              className="ghost-icon"
+              ref={deleteButton}
+              aria-label={uiText('library.delete')}
+              title={uiText('library.delete')}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 size={15} aria-hidden />
             </button>
-          )}
-          <button type="button" className="danger" onClick={() => setConfirmDelete(true)}>
-            {uiText('library.delete')}
-          </button>
-          <button type="button" className="ghost" onClick={closeWithSave} aria-label={uiText('common.close')}>
-            <X size={16} aria-hidden />
-          </button>
+            <button type="button" className="ghost-icon" onClick={closeWithSave} aria-label={uiText('common.close')} title={uiText('common.close')}>
+              <X size={15} aria-hidden />
+            </button>
+          </span>
         </header>
+        <div className="drawer-title-block">
+          <div className="drawer-title" id={`drawer-title-${entry.id}`}>
+            {String(entry.properties['title'] ?? '')}
+          </div>
+          <p className="drawer-sub">
+            {entry.sourceUrl.replace(/^https?:\/\//, '')} · {relativeTime(entry.createdAt)}
+          </p>
+        </div>
         <div className="drawer-body">
           {entry.type === 'clip' ? (
             <section className="drawer-section" aria-labelledby={`drawer-original-${entry.id}`}>
               <div className="drawer-section-head">
-                <h3 id={`drawer-original-${entry.id}`}>{uiText('library.originalText')}</h3>
-                {!contentLocked && editing !== 'content' && (
-                  <button type="button" className="link" data-testid="edit-original" aria-label={uiText('library.editOriginal')} onClick={() => startEdit('content')}>
-                    {uiText('library.edit')}
-                  </button>
+                <h3 id={`drawer-original-${entry.id}`}>
+                  <TextQuote size={13} aria-hidden /> {uiText('library.originalText')}
+                </h3>
+                <span className="drawer-section-space" aria-hidden />
+                {contentLocked ? (
+                  // the short badge says how many marks hold the text; the whole sentence sits in the title and for readers (extension.md §4.1)
+                  <span className="drawer-lock" data-testid="drawer-lock" title={uiText('reading.locked')}>
+                    <Lock size={12} aria-hidden /> <span aria-hidden>{uiText('library.originalReadOnly', { count: highlightCount })}</span>
+                    <span className="sr-only">{uiText('reading.locked')}</span>
+                  </span>
+                ) : (
+                  editing !== 'content' && (
+                    <button type="button" className="link" data-testid="edit-original" aria-label={uiText('library.editOriginal')} onClick={() => startEdit('content')}>
+                      {uiText('library.edit')}
+                    </button>
+                  )
                 )}
               </div>
-              {contentLocked && (
-                <p className="drawer-lock" data-testid="drawer-lock">
-                  <Lock size={13} aria-hidden /> {uiText('reading.locked')}
-                </p>
-              )}
               {editing === 'content' ? (
                 editor(10, uiText('library.originalMarkdown'))
               ) : (
@@ -1503,48 +1547,58 @@ function DetailDrawer({
                   }}
                 />
               )}
+              {entry.context && (
+                <div className="drawer-context">
+                  <div className="drawer-context-head">
+                    <b>{uiText('library.context')}</b>
+                    {editing !== 'context' && (
+                      <button type="button" className="link" data-testid="edit-context" aria-label={uiText('library.editContext')} onClick={() => startEdit('context')}>
+                        {uiText('library.edit')}
+                      </button>
+                    )}
+                  </div>
+                  {editing === 'context' ? editor(4, uiText('library.context')) : <p>{entry.context}</p>}
+                </div>
+              )}
             </section>
           ) : (
-            <section className="drawer-section" aria-label={uiText('library.originalText')}>
+            <section className="drawer-section" aria-label={uiText('library.image')}>
+              <div className="drawer-section-head">
+                <h3>
+                  <Image size={13} aria-hidden /> {uiText('library.image')}
+                </h3>
+                <span className="drawer-section-space" aria-hidden />
+                {assetUrl && (
+                  <button
+                    type="button"
+                    className="ghost sm"
+                    onClick={() => void chrome.downloads.download({ url: assetUrl, filename: `AnnHub/screenshot-${entry.id}.png`, saveAs: false })}
+                  >
+                    <Download size={14} aria-hidden /> {uiText('shot.tool.download')}
+                  </button>
+                )}
+              </div>
               {assetMissing ? (
                 <p className="warn">{uiText('library.imageMissing')}</p>
               ) : assetUrl ? (
-                <>
-                  <button type="button" className="drawer-image-button" onClick={() => setImageZoom(true)} aria-label={uiText('library.imagePreview')}>
-                    <img className="drawer-image" src={assetUrl} alt={String(entry.properties['title'] ?? '')} />
-                  </button>
-                  <button
-                    type="button"
-                    className="link"
-                    onClick={() => void chrome.downloads.download({ url: assetUrl, filename: `AnnHub/screenshot-${entry.id}.png`, saveAs: false })}
-                  >
-                    <Download size={16} aria-hidden /> {uiText('shot.tool.download')}
-                  </button>
-                </>
+                <button type="button" className="drawer-image-button" onClick={() => setImageZoom(true)} aria-label={uiText('library.imagePreview')}>
+                  <img className="drawer-image" src={assetUrl} alt={String(entry.properties['title'] ?? '')} />
+                </button>
               ) : (
                 <p className="hint">{uiText('common.loading')}</p>
               )}
             </section>
           )}
-          {entry.type === 'clip' && entry.context && (
-            <section className="drawer-section drawer-context" aria-labelledby={`drawer-context-${entry.id}`}>
-              <div className="drawer-section-head">
-                <h3 id={`drawer-context-${entry.id}`}>{uiText('library.context')}</h3>
-                {editing !== 'context' && (
-                  <button type="button" className="link" data-testid="edit-context" aria-label={uiText('library.editContext')} onClick={() => startEdit('context')}>
-                    {uiText('library.edit')}
-                  </button>
-                )}
-              </div>
-              {editing === 'context' ? editor(4, uiText('library.context')) : <p>{entry.context}</p>}
-            </section>
-          )}
           <section className="drawer-section">
-            <h3>{uiText('library.note')}</h3>
-            <textarea value={note} onChange={event => setNote(event.target.value)} onBlur={() => void persist()} rows={2} />
+            <h3>
+              <MessageSquareText size={13} aria-hidden /> {uiText('library.note')}
+            </h3>
+            <textarea value={note} onChange={event => setNote(event.target.value)} onBlur={() => void persist()} placeholder={uiText('library.notePlaceholder')} rows={2} />
           </section>
-          <section className="drawer-section">
-            <h3>{uiText('library.properties')}</h3>
+          <section className="drawer-section drawer-section-last">
+            <h3>
+              <Tags size={13} aria-hidden /> {uiText('library.properties')}
+            </h3>
             <PropertyPanel
               ref={propertyPanel}
               entry={entry}
@@ -1555,33 +1609,66 @@ function DetailDrawer({
               }}
             />
           </section>
-          {error && <p className="warn">{error}</p>}
+          {error && <p className="drawer-error warn">{error}</p>}
         </div>
         {confirmDelete && (
-          <div className="modal" role="alertdialog">
-            <p>{(entry.highlights?.length ?? 0) > 0 ? uiText('library.deleteWithHighlights', { count: entry.highlights!.length }) : uiText('library.deleteConfirm')}</p>
-            <div className="modal-actions">
-              <button type="button" className="ghost" onClick={() => setConfirmDelete(false)}>
-                {uiText('common.cancel')}
-              </button>
-              <button
-                type="button"
-                className="danger"
-                onClick={() => {
-                  void MessageUtils.sendMessage({ type: 'DELETE_ENTRY', id: entry.id }).then(response => {
-                    if (!response.success) {
-                      // the drawer and the entry survive; the user can retry
-                      setError(entryErrorText(response.error))
-                      setConfirmDelete(false)
-                      return
-                    }
-                    onDeleted()
-                    onClose()
-                  })
-                }}
-              >
-                {uiText('library.delete')}
-              </button>
+          <div
+            className="modal"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={`confirm-title-${entry.id}`}
+            aria-describedby={highlightCount > 0 ? `confirm-text-${entry.id}` : undefined}
+            // a press on the scrim keeps the focus where the trap put it instead of dropping it to the page
+            onMouseDown={event => event.preventDefault()}
+            // the scrim itself is a way out: like Esc and 取消 it cancels and gives the keyboard back to 删除
+            onClick={event => {
+              if (event.target === event.currentTarget) closeConfirm()
+            }}
+            onKeyDownCapture={event => {
+              // while the confirm is open it owns the keyboard: Esc cancels the confirm (not the drawer),
+              // Tab stays between the two buttons — the same capture the image zoom uses
+              if (event.key === 'Escape') {
+                event.stopPropagation()
+                closeConfirm()
+                return
+              }
+              if (event.key === 'Tab') {
+                event.stopPropagation()
+                event.preventDefault()
+                ;(document.activeElement === confirmDeleteButton.current ? confirmCancelButton : confirmDeleteButton).current?.focus()
+              }
+            }}
+          >
+            <div className="modal-card">
+              <h2 className="modal-title" id={`confirm-title-${entry.id}`}>
+                {highlightCount > 0 ? uiText('library.deleteClipTitle') : uiText('library.deleteConfirm')}
+              </h2>
+              {highlightCount > 0 && <p id={`confirm-text-${entry.id}`}>{boldenCount(uiText('library.deleteHighlightsBody', { count: highlightCount }), highlightCount)}</p>}
+              <div className="modal-actions">
+                <button type="button" className="ghost quiet" ref={confirmCancelButton} autoFocus onClick={closeConfirm}>
+                  {uiText('common.cancel')}
+                </button>
+                <button
+                  type="button"
+                  className="danger"
+                  ref={confirmDeleteButton}
+                  onClick={() => {
+                    void MessageUtils.sendMessage({ type: 'DELETE_ENTRY', id: entry.id }).then(response => {
+                      if (!response.success) {
+                        // the drawer and the entry survive; the user can retry
+                        setError(entryErrorText(response.error))
+                        closeConfirm()
+                        return
+                      }
+                      onDeleted()
+                      onClose()
+                    })
+                  }}
+                >
+                  {highlightCount > 0 && <Trash2 size={14} aria-hidden />}
+                  {highlightCount > 0 ? uiText('library.deleteWithHighlightsButton') : uiText('library.delete')}
+                </button>
+              </div>
             </div>
           </div>
         )}

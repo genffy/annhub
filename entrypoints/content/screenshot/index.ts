@@ -362,54 +362,74 @@ class ScreenshotSession {
 
   begin(): void {
     const style = this.doc.createElement('style')
+    // The picking hints, the size label, the editor toolbar with its rows and the
+    // success bubble are one always-dark pill set over the dimmed page (visual.md
+    // §2): the --annov-pill-* tokens never follow the system appearance. The
+    // text box and the error card are form-style surfaces and keep the theme
+    // tokens. The selection blue marks the page's content, not a surface, and
+    // stays what the AGENTS notes say: #4c91ff for both appearances — the draft's
+    // #3b82f6 reads worse against the dimmed page (1.29:1 vs 1.53:1 on white).
     style.textContent = `
       [${ROOT_ATTR}="${ROOT_VALUE}"] { position: fixed; inset: 0; z-index: 2147483647; pointer-events: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
       [${ROOT_ATTR}="${ROOT_VALUE}"].ann-shot-modal { pointer-events: auto; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-overlay { position: absolute; inset: 0; background: rgba(22, 26, 31, 0.58); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-hint { position: absolute; z-index: 4; top: 16px; left: 50%; transform: translateX(-50%);
-        background: var(--annov-surface, #ffffff); color: var(--annov-text, #20252b); padding: 7px 12px; border: 1px solid var(--annov-border, #d7dce1); border-radius: 4px; box-shadow: var(--annov-shadow, 0 6px 20px rgba(0, 0, 0, 0.18)); font: 13px/1.4 -apple-system, sans-serif; pointer-events: none; white-space: nowrap; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-hint b { color: var(--annov-accent-text, #673ab8); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-rect { position: absolute; box-sizing: border-box; border: 2px solid #4c91ff; background: transparent; box-shadow: 0 0 0 9999px rgba(22, 26, 31, 0.58); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-size { position: absolute; left: 0; bottom: calc(100% + 6px); padding: 2px 6px; pointer-events: none; background: var(--annov-surface, #ffffff); color: var(--annov-text, #20252b); border: 1px solid var(--annov-border, #d7dce1); border-radius: 3px; box-shadow: var(--annov-shadow, 0 6px 20px rgba(0, 0, 0, 0.18)); font: 12px/1.4 -apple-system, sans-serif; white-space: nowrap; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview { position: absolute; box-sizing: border-box; border: 2px solid #4c91ff; background: #fff; box-shadow: 0 0 0 9999px rgba(22, 26, 31, 0.58); pointer-events: auto; touch-action: none; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-overlay { position: absolute; inset: 0; background: rgb(10 14 25 / 0.58); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-hint { position: absolute; z-index: 4; top: 16px; left: 50%; transform: translateX(-50%); display: inline-flex; gap: 10px; align-items: center; padding: 7px 14px; border-radius: 999px; background: var(--annov-pill-bg, #1b1f2a); color: var(--annov-pill-text, #eceff6); font: 12px/1.4 -apple-system, sans-serif; pointer-events: none; white-space: nowrap; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-sep { color: var(--annov-pill-muted, #a9b1c4); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] kbd { box-sizing: border-box; padding: 1px 5px; border: 1px solid var(--annov-pill-kbd-line, rgb(255 255 255 / 0.22)); border-radius: 5px; background: var(--annov-pill-kbd-bg, rgb(255 255 255 / 0.12)); color: var(--annov-pill-text, #eceff6); font: 600 11px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-rect { position: absolute; box-sizing: border-box; border: 2px solid #4c91ff; background: transparent; box-shadow: 0 0 0 9999px rgb(10 14 25 / 0.58); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-size { position: absolute; left: 0; bottom: calc(100% + 6px); height: 21px; padding: 0 8px; pointer-events: none; border-radius: 6px; background: var(--annov-pill-bg, #1b1f2a); color: var(--annov-pill-text, #eceff6); font: 500 11px/21px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: nowrap; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview { position: absolute; box-sizing: border-box; border: 2px solid #4c91ff; background: #fff; box-shadow: 0 0 0 9999px rgb(10 14 25 / 0.58); pointer-events: auto; touch-action: none; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-preview textarea { position: absolute; z-index: 2; min-width: 110px; min-height: 32px; padding: 4px; box-sizing: border-box; border: 1px solid #4c91ff; background: var(--annov-surface, #fff); color: var(--annov-text, #20252b); font: 16px/1.3 -apple-system, sans-serif; resize: both; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-toolbar { position: absolute; z-index: 3; box-sizing: border-box; max-width: calc(100vw - 16px); padding: 5px; border: 1px solid var(--annov-border, #d7dce1); border-radius: 5px; background: var(--annov-surface, #fff); box-shadow: 0 6px 20px rgba(0,0,0,.22); pointer-events: auto; color: var(--annov-text, #252b31); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools { display: flex; align-items: center; width: max-content; max-width: calc(100vw - 28px); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-toolbar { position: absolute; z-index: 3; display: inline-flex; flex-direction: column; align-items: flex-end; gap: 6px; max-width: calc(100vw - 16px); pointer-events: auto; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools { display: flex; align-items: center; gap: 2px; box-sizing: border-box; width: max-content; max-width: calc(100vw - 28px); padding: 4px; border-radius: 12px; background: var(--annov-pill-bg, #1b1f2a); box-shadow: var(--annov-pill-shadow, 0 12px 30px -8px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.07)); color: var(--annov-pill-text, #eceff6); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tool-scroll { display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: thin; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tool-scroll > button, [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tool-scroll > span { flex: none; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-actions { display: flex; align-items: center; flex: none; margin-left:  5px; padding-left: 5px; border-left: 1px solid var(--annov-border, #d7dce1); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--annov-text, #252b31); cursor: pointer; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button:hover, [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-active { background: var(--annov-tool-hover-bg, #e7f1f0); color: var(--annov-tool-hover-text, #126f65); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button:disabled { opacity: .35; cursor: default; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-confirm { background: var(--annov-accent, #673ab8); color: var(--annov-on-accent, #fff); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-confirm:hover:not(:disabled) { background: var(--annov-accent-hover, #5a2fa1); color: var(--annov-on-accent, #fff); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-divider { width: 1px; height: 22px; margin: 0 3px; background: var(--annov-border, #d7dce1); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-colors { display: flex; gap: 2px; align-items: center; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-colors { flex: none; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-swatch { width: 19px; height: 19px; margin: 0 2px; border: 1px solid var(--annov-input-border, #aeb6bd); border-radius: 50%; background: var(--swatch); }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-swatch-active { outline: 2px solid #4c91ff; outline-offset: 2px; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks { display: flex; gap: 5px; padding: 5px 2px 1px; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks span { display: flex; align-items: center; gap: 3px; padding: 2px 5px; background: var(--annov-chip-bg, #edf0f2); border-radius: 3px; font: 11px/1.2 -apple-system, sans-serif; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks button { display: grid; place-items: center; padding: 0; border: 0; background: none; cursor: pointer; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-notice { padding: 4px 6px 2px; font: 12px/1.3 -apple-system, sans-serif; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-bubble { position: absolute; z-index: 5; padding: 6px 12px; border: 1px solid var(--annov-border, #d7dce1); border-radius: 6px; background: var(--annov-surface, #ffffff); color: var(--annov-text, #20252b); box-shadow: var(--annov-shadow, 0 6px 20px rgba(0, 0, 0, 0.18)); font: 12.5px/1.3 -apple-system, sans-serif; white-space: nowrap; pointer-events: none; animation: ann-shot-bubble-in 0.16s ease-out; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-actions { display: flex; align-items: center; flex: none; margin-left: 2px; padding-left: 5px; border-left: 1px solid var(--annov-pill-line, rgb(255 255 255 / 0.14)); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--annov-pill-text, #eceff6); cursor: pointer; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button:hover { background: var(--annov-pill-hover, rgb(255 255 255 / 0.12)); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-active { background: color-mix(in srgb, var(--annov-pill-focus, #b9a3f2) 28%, transparent); color: var(--annov-pill-text, #eceff6); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--annov-pill-focus, #b9a3f2) 60%, transparent); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button:disabled { opacity: .4; cursor: default; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--annov-pill-focus, #b9a3f2); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-confirm { width: 34px; background: var(--annov-pill-accent, #c9b8f5); color: var(--annov-pill-bg, #1b1f2a); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-confirm:hover:not(:disabled) { background: var(--annov-pill-accent, #c9b8f5); color: var(--annov-pill-bg, #1b1f2a); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-divider { width: 1px; align-self: stretch; margin: 6px 4px; background: var(--annov-pill-line, rgb(255 255 255 / 0.14)); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-colors { display: flex; gap: 6px; align-items: center; padding: 0 6px; flex: none; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-swatch { width: 14px; height: 14px; margin: 0; border: 0; border-radius: 50%; background: var(--swatch); box-shadow: 0 0 0 1.5px var(--annov-pill-kbd-line, rgb(255 255 255 / 0.22)); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-swatch:hover { background: var(--swatch); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-tools button.ann-shot-swatch-active { box-shadow: 0 0 0 2px var(--annov-pill-bg, #1b1f2a), 0 0 0 3.5px var(--annov-pill-text, #eceff6); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-status { display: inline-flex; align-items: center; gap: 8px; max-width: calc(100vw - 28px); box-sizing: border-box; padding: 5px 12px; border-radius: 999px; background: var(--annov-pill-bg, #1b1f2a); box-shadow: var(--annov-pill-shadow, 0 12px 30px -8px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.07)); color: var(--annov-pill-text, #eceff6); font: 12px/1.3 -apple-system, sans-serif; white-space: nowrap; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks { display: flex; gap: 5px; align-items: center; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks span { display: flex; align-items: center; gap: 4px; height: 20px; padding: 0 3px 0 7px; border-radius: 6px; background: var(--annov-pill-hover, rgb(255 255 255 / 0.12)); font: 11px/1.2 -apple-system, sans-serif; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks button { display: grid; place-items: center; width: 14px; height: 14px; padding: 0; border: 0; background: none; color: var(--annov-pill-muted, #a9b1c4); cursor: pointer; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-masks button:hover { color: var(--annov-pill-text, #eceff6); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-notice { display: flex; align-items: center; gap: 6px; max-width: 100%; box-sizing: border-box; padding: 6px 10px; border-radius: 8px; background: color-mix(in srgb, var(--annov-pill-danger, #ff9189) 14%, transparent); color: var(--annov-pill-danger, #ff9189); font: 12px/1.35 -apple-system, sans-serif; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-notice svg { flex: none; width: 14px; height: 14px; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-bubble { position: absolute; z-index: 5; display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; background: var(--annov-pill-bg, #1b1f2a); color: var(--annov-pill-text, #eceff6); box-shadow: var(--annov-pill-shadow, 0 12px 30px -8px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.07)); font: 12.5px/1.3 -apple-system, sans-serif; white-space: nowrap; pointer-events: none; animation: ann-shot-bubble-in 0.16s ease-out; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-bubble svg { flex: none; width: 14px; height: 14px; color: var(--annov-pill-ok, #61da92); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-bubble-out { opacity: 0; transition: opacity 0.2s ease-in; }
       @keyframes ann-shot-bubble-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps { display: flex; align-items: center; gap: 8px; padding: 5px 2px 1px; font: 12px/1.3 -apple-system, sans-serif; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 1px solid var(--annov-input-border, #aeb6bd); border-radius: 4px; background: transparent; color: inherit; font: inherit; cursor: pointer; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button:hover:not(:disabled) { background: var(--annov-tool-hover-bg, #e7f1f0); color: var(--annov-tool-hover-text, #126f65); }
+      @media (prefers-reduced-motion: reduce) { [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-bubble { animation: none; } [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-bubble-out { transition: none; } }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps { display: inline-flex; align-items: center; gap: 10px; box-sizing: border-box; padding: 4px 4px 4px 12px; border-radius: 10px; background: var(--annov-pill-bg, #1b1f2a); box-shadow: var(--annov-pill-shadow, 0 12px 30px -8px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.07)); color: var(--annov-pill-text, #eceff6); font: 12px/1.3 -apple-system, sans-serif; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border: 1px solid var(--annov-pill-kbd-line, rgb(255 255 255 / 0.22)); border-radius: 6px; background: transparent; color: var(--annov-pill-text, #eceff6); font: inherit; cursor: pointer; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button svg { width: 13px; height: 13px; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button:hover:not(:disabled) { background: var(--annov-pill-hover, rgb(255 255 255 / 0.12)); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-steps button:disabled { opacity: .45; cursor: default; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths { display: flex; align-items: center; gap: 2px; padding: 5px 2px 1px; font: 12px/1.3 -apple-system, sans-serif; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths { display: inline-flex; align-items: center; gap: 2px; box-sizing: border-box; padding: 4px 4px 4px 12px; border-radius: 10px; background: var(--annov-pill-bg, #1b1f2a); box-shadow: var(--annov-pill-shadow, 0 12px 30px -8px rgb(0 0 0 / 0.55), 0 0 0 1px rgb(255 255 255 / 0.07)); color: var(--annov-pill-text, #eceff6); font: 12px/1.3 -apple-system, sans-serif; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths span { margin-right: 6px; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths button { display: grid; place-items: center; width: 26px; height: 24px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; cursor: pointer; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths button:hover, [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths button.ann-shot-active { background: var(--annov-tool-hover-bg, #e7f1f0); color: var(--annov-tool-hover-text, #126f65); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths button { display: grid; place-items: center; width: 28px; height: 24px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; cursor: pointer; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths button:hover { background: var(--annov-pill-hover, rgb(255 255 255 / 0.12)); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths button.ann-shot-active { background: color-mix(in srgb, var(--annov-pill-focus, #b9a3f2) 28%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--annov-pill-focus, #b9a3f2) 60%, transparent); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths button:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--annov-pill-focus, #b9a3f2); }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-widths i { display: block; border-radius: 50%; background: currentColor; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-step-ring { position: absolute; z-index: 1; box-sizing: border-box; border: 2px solid #4c91ff; border-radius: 50%; pointer-events: none; }
       [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-step-ring button { position: absolute; top: -10px; right: -10px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 50%; background: #4c91ff; color: #fff; font: 600 15px/1 -apple-system, sans-serif; cursor: pointer; pointer-events: auto; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100vw - 32px)); min-height: 70px; padding: 18px; border: 0; border-radius: 5px; box-shadow: 0 8px 28px rgba(0,0,0,.28); font: 14px/1.5 -apple-system, sans-serif; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel button { margin-top: 12px; padding: 5px 12px; border: 1px solid var(--annov-input-border, #cbd5e1); border-radius: 4px; background: var(--annov-surface, #fff); cursor: pointer; }
-      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error { color: var(--annov-danger, #b91c1c); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel { left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(360px, calc(100vw - 32px)); min-height: 70px; box-sizing: border-box; padding: 20px 22px; border: 1px solid var(--annov-border, #d7dce1); border-radius: 16px; background: var(--annov-surface, #ffffff); color: var(--annov-text, #20252b); box-shadow: 0 16px 44px rgb(0 0 0 / 0.3); font: 13px/1.5 -apple-system, sans-serif; text-align: center; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel svg { display: block; margin: 0 auto 8px; width: 22px; height: 22px; color: var(--annov-danger, #8a2c2c); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel .ann-shot-error-title { margin: 0 0 4px; font-size: 14px; font-weight: 650; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel button { margin-top: 12px; padding: 6px 16px; border: 1px solid var(--annov-input-border, #cbd5e1); border-radius: 8px; background: var(--annov-surface, #fff); color: var(--annov-text, #20252b); font: inherit; cursor: pointer; }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel button:hover { background: var(--annov-chip-bg, #edf0f2); }
+      [${ROOT_ATTR}="${ROOT_VALUE}"] .ann-shot-error-panel .ann-shot-error { color: var(--annov-muted, #5c6670); }
     `
     this.host.appendChild(style)
 
@@ -490,24 +510,40 @@ class ScreenshotSession {
   private syncHint(): void {
     if (!this.hintEl) return
     this.hintEl.innerHTML = ''
-    // the segments read as one line; “ · ” keeps them from running together
-    // (真机走查 P3-1：“Esc to cancelAAnonymize: on”)
-    const sep = (): Text => this.textNode(' · ')
+    // the segments read as one line; the muted dots keep them from running together
+    // (真机走查 P3-1：“Esc to cancelAAnonymize: on”), and the keys ride as keycaps
+    const sep = (): HTMLElement => {
+      const dot = this.doc.createElement('span')
+      dot.className = 'ann-shot-sep'
+      dot.textContent = '·'
+      return dot
+    }
+    // one localized string, its “ · ”-separated parts re-drawn: a leading key name
+    // (“Esc 取消”, “Enter to confirm”) becomes a keycap and the words follow it
+    const segment = (part: string): Array<Node> => {
+      const keyed = /^(A|W|Esc|Enter) (.+)$/.exec(part)
+      if (!keyed) return [this.textNode(part)]
+      return [this.kbdNode(keyed[1]!), this.textNode(` ${keyed[2]!}`)]
+    }
+    const parts = uiText(this.state === 'confirming' ? 'shot.hintPending' : 'shot.hint').split(' · ')
+    for (const [index, part] of parts.entries()) {
+      if (index > 0) this.hintEl.append(sep())
+      this.hintEl.append(...segment(part))
+    }
+    // a pending frame is settled by its own keys and a click outside; the picking line would promise gestures that are not on
     this.hintEl.append(
-      // a pending frame is settled by its own keys and a click outside; the picking line would promise gestures that are not on
-      this.textNode(uiText(this.state === 'confirming' ? 'shot.hintPending' : 'shot.hint')),
       // with both identity kinds switched off in settings there is nothing for `A` to do
-      ...(this.anonymizeAvailable()
-        ? [sep(), this.boldNode('A'), this.textNode(` ${uiText('shot.anonymize', { state: uiText(this.anonymizeOn ? 'shot.on' : 'shot.off') })}`)]
-        : []),
+      ...(this.anonymizeAvailable() ? [sep(), this.kbdNode('A'), this.textNode(` ${uiText('shot.anonymize', { state: uiText(this.anonymizeOn ? 'shot.on' : 'shot.off') })}`)] : []),
       ...(this.settings?.watermark.enabled
-        ? [sep(), this.boldNode('W'), this.textNode(` ${uiText('shot.watermark', { state: uiText(this.watermarkOn ? 'shot.on' : 'shot.off') })}`)]
+        ? [sep(), this.kbdNode('W'), this.textNode(` ${uiText('shot.watermark', { state: uiText(this.watermarkOn ? 'shot.on' : 'shot.off') })}`)]
         : []),
     )
   }
 
+  /** The anonymity/watermark state moved: the picking hint reads it, and so does the editor's status strip. */
   private syncStatus(): void {
     this.syncHint()
+    this.updateToolbar()
   }
 
   private anonymizeAvailable(): boolean {
@@ -521,10 +557,29 @@ class ScreenshotSession {
     const bar = this.doc.createElement('div')
     bar.className = 'ann-shot-ratio-bar'
     bar.setAttribute('data-ann-ui', 'screenshot-ratio-bar')
+    // the draft's .rchip: a small outline of the ratio's shape, the longest side 13px
+    const glyph = (id: string): Node => {
+      if (id === 'free') {
+        const svg = this.doc.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        svg.setAttribute('viewBox', '0 0 24 24')
+        svg.setAttribute('aria-hidden', 'true')
+        svg.innerHTML = '<path d="M12 2v20" /><path d="m15 19-3 3-3-3" /><path d="m19 9 3 3-3 3" /><path d="M2 12h20" /><path d="m5 9-3 3 3 3" /><path d="m9 5 3-3 3 3" />'
+        return svg
+      }
+      const preset = ratioOf(id)
+      const box = this.doc.createElement('i')
+      box.className = 'ann-shot-rg'
+      if (preset) {
+        const k = 13 / Math.max(preset.w, preset.h)
+        box.style.width = `${Math.round(preset.w * k)}px`
+        box.style.height = `${Math.round(preset.h * k)}px`
+      }
+      return box
+    }
     const chip = (id: string, label: string) => {
       const button = this.doc.createElement('button')
       button.type = 'button'
-      button.textContent = label
+      button.append(glyph(id), this.textNode(label))
       button.className = this.ratio === id ? 'ann-shot-ratio-active' : ''
       button.setAttribute('aria-pressed', String(this.ratio === id))
       button.addEventListener('click', event => {
@@ -538,7 +593,7 @@ class ScreenshotSession {
     for (const id of this.settings.ratioPresets) bar.append(chip(id, id))
     const stitched = this.doc.createElement('button')
     stitched.type = 'button'
-    stitched.textContent = uiText('shot.stitch.button')
+    stitched.append(this.textNode(uiText('shot.stitch.button')))
     stitched.setAttribute('data-ann-ui', 'shot-stitch-button')
     stitched.setAttribute('aria-label', uiText('shot.stitch.button'))
     stitched.addEventListener('click', event => {
@@ -642,10 +697,11 @@ class ScreenshotSession {
   private textNode(t: string): Text {
     return this.doc.createTextNode(t)
   }
-  private boldNode(t: string): HTMLElement {
-    const b = this.doc.createElement('b')
-    b.textContent = t
-    return b
+  /** A key name as a keycap on the dark pill (the draft's translucent `<kbd>`). */
+  private kbdNode(t: string): HTMLElement {
+    const kbd = this.doc.createElement('kbd')
+    kbd.textContent = t
+    return kbd
   }
 
   exit(): void {
@@ -1117,6 +1173,11 @@ class ScreenshotSession {
     outline.setAttribute('data-ann-ui', 'shot-hover-outline')
     const box = el.getBoundingClientRect()
     Object.assign(outline.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` })
+    // what a click would take: the element's own kind and size, on the outline's top edge
+    const tag = this.doc.createElement('span')
+    tag.className = 'ann-shot-hover-tag'
+    tag.textContent = `${el.tagName.toLowerCase()} · ${Math.round(box.width)} × ${Math.round(box.height)}`
+    outline.appendChild(tag)
     this.host.appendChild(outline)
     this.hoverOutlineEl = outline
     this.showMarginBar(box)
@@ -1595,6 +1656,9 @@ class ScreenshotSession {
         color: this.color,
         lineWidth: this.lineWidth,
         maskCount: this.maskBoxes.length,
+        // the status strip under the tools pill: `null` is a state the settings take off the table
+        anonymize: this.anonymizeAvailable() ? this.anonymizeOn : null,
+        watermark: this.settings?.watermark.enabled ? this.watermarkOn : null,
         canUndo: this.history.length > 0,
         nextStep: nextStepNumber(this.annotations, this.stepSequence),
         beautifyOpen: this.beautifyPanel !== null,
@@ -2233,7 +2297,10 @@ class ScreenshotSession {
     el.className = 'ann-shot-bubble'
     el.setAttribute(ROOT_ATTR, 'screenshot-bubble')
     el.setAttribute('role', 'status')
-    el.textContent = message
+    // a tick in the pill's ok colour says “done” before the words do (the draft's toast)
+    el.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>'
+    el.append(this.textNode(message))
     this.host.appendChild(el)
     const width = el.offsetWidth || 120
     const height = el.offsetHeight || 30
@@ -2255,18 +2322,24 @@ class ScreenshotSession {
   private showError(message: string): void {
     this.previewEl?.remove()
     this.selectionEl?.remove()
-    if (this.overlayEl) this.overlayEl.style.background = 'rgba(22, 26, 31, 0.58)'
+    if (this.overlayEl) this.overlayEl.style.background = 'rgb(10 14 25 / 0.58)'
     const panel = this.doc.createElement('div')
-    panel.className = 'ann-shot-preview ann-shot-error-panel'
+    panel.className = 'ann-shot-error-panel'
     panel.setAttribute(ROOT_ATTR, 'screenshot-error')
     panel.style.pointerEvents = 'auto'
+    // the theme card of the draft's “页面不允许截图” board: stop icon, title, reason, way out
+    panel.innerHTML =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>'
+    const title = this.doc.createElement('div')
+    title.className = 'ann-shot-error-title'
+    title.textContent = uiText('shot.failed')
     const text = this.doc.createElement('div')
     text.className = 'ann-shot-error'
-    text.textContent = `${uiText('shot.failed')}: ${message}`
+    text.textContent = message
     const close = this.doc.createElement('button')
     close.textContent = uiText('common.close')
     close.onclick = () => exitScreenshotMode()
-    panel.append(text, close)
+    panel.append(title, text, close)
     this.host.appendChild(panel)
     this.previewEl = panel
     this.state = 'error'

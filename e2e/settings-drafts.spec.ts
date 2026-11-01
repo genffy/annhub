@@ -6,6 +6,13 @@ test('screenshot settings keep local drafts until commit (RV-LIB-05)', async ({ 
   const watermarkText = page.locator('input[maxlength="40"]')
   await expect(watermarkText).toBeVisible()
   await watermarkText.fill('Draft watermark')
+  // the counter shares the input's line (design's watermark row): neither folds under it
+  const centres = await page.evaluate(() => {
+    const input = document.querySelector<HTMLElement>('.wm-text')!.getBoundingClientRect()
+    const count = document.querySelector<HTMLElement>('.wm-count')!.getBoundingClientRect()
+    return { inputMid: input.y + input.height / 2, countMid: count.y + count.height / 2 }
+  })
+  expect(Math.abs(centres.inputMid - centres.countMid), 'the counter sits on the input line').toBeLessThanOrEqual(6)
   const readSettings = () =>
     page.evaluate(async () => {
       const stored = await chrome.storage.local.get('annhub.settings')
@@ -15,8 +22,13 @@ test('screenshot settings keep local drafts until commit (RV-LIB-05)', async ({ 
   await watermarkText.blur()
   await expect.poll(async () => (await readSettings())?.watermark?.text).toBe('Draft watermark')
 
-  await page.getByRole('combobox', { name: /下载格式|Download format/ }).selectOption('jpeg')
+  // click + a retrying assertion: the radio is controlled by the saved settings, so a re-render in the
+  // same breath as the click can blink it back for one frame before the patch lands
+  const jpeg = page.getByRole('radiogroup', { name: /下载格式|Download format/ }).getByRole('radio', { name: 'JPEG' })
+  await jpeg.click()
+  await expect(jpeg).toBeChecked()
   const quality = page.locator('input[type="range"][min="0.5"]')
+  await expect(quality).toBeEnabled()
   await quality.focus()
   await quality.press('ArrowLeft')
   await expect.poll(async () => (await readSettings())?.downloadQuality).toBe(0.85)

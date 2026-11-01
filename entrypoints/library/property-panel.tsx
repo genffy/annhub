@@ -1,17 +1,21 @@
 /**
  * The property panel shared by the detail drawer and the reading view's
  * side column (extension.md §4.1). Every row is the type icon, the name
- * and a value editor for the type; values save on blur, clearing equals
- * unset (entry.md §5.3.7). Adding a name autocompletes from the registry;
- * an unknown name asks for its type first and registers in the same write.
- * System fields show read-only; `type` and `id` are not properties at all.
+ * and a value editor for the type — the value rests as plain text until
+ * hover gives it an edge and focus gives it the input look; values save
+ * on blur, clearing equals unset (entry.md §5.3.7). Adding a name opens
+ * an inline combo that completes from the registry; an unknown name asks
+ * for its type first (the shared type picker) and registers in the same
+ * write. System fields show as read-only rows with a lock; `type` and
+ * `id` are not properties at all.
  */
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { Lock, Plus } from 'lucide-react'
 import MessageUtils from '../../utils/message'
 import type { EntryRecord, PropertyDefinition, PropertyType, PropertyValue } from '../../learning-core/types'
 import { PROPERTY_TYPE_ICONS } from '../../utils/entry-icons'
 import { normalizeTags, PROPERTY_LIST_ITEM_MAX, PROPERTY_LIST_ITEMS_MAX, PROPERTY_TEXT_MAX, TAG_LENGTH_MAX, TAGS_MAX } from '../../learning-core/properties'
-import { PROPERTY_TYPES } from '../../learning-core/types'
+import { PropertyTypePicker } from './property-type-picker'
 import { entryErrorText, uiText } from '../../utils/ui-text'
 
 interface Props {
@@ -28,11 +32,25 @@ interface EditorHandle {
   flush(): Promise<boolean>
 }
 
+/** The add-property combo's two modes: completing from the registry, or creating with a freshly picked type. */
+interface Adding {
+  mode: 'search' | 'create'
+  name: string
+  type: PropertyType
+}
+
 export const PropertyPanel = forwardRef<PropertyPanelHandle, Props>(function PropertyPanel({ entry, registry, onEntryChanged }, ref) {
-  const [adding, setAdding] = useState<{ name: string; type: PropertyType } | null>(null)
+  const [adding, setAdding] = useState<Adding | null>(null)
   const [pending, setPending] = useState<{ name: string; type: PropertyType } | null>(null)
   const [error, setError] = useState('')
   const editors = useRef(new Map<string, EditorHandle>())
+  const comboInput = useRef<HTMLInputElement>(null)
+
+  // entering the create branch unmounts the list option that was clicked: the keyboard returns to the combo's
+  // input, where the name can still be corrected (and Escape stays the combo's own, not the drawer's)
+  useEffect(() => {
+    if (adding?.mode === 'create') comboInput.current?.focus()
+  }, [adding?.mode])
 
   useImperativeHandle(ref, () => ({
     flush: async () => {
@@ -107,6 +125,30 @@ export const PropertyPanel = forwardRef<PropertyPanelHandle, Props>(function Pro
   const names = Object.keys(entry.properties)
   const PendingIcon = PROPERTY_TYPE_ICONS[pending?.type ?? 'text']
 
+  // the registry rows the combo offers: not yet on this entry, narrowed by what is typed
+  const query = adding?.name.trim().toLowerCase() ?? ''
+  const onEntry = new Set(names.map(name => name.toLowerCase()))
+  const hits = query
+    ? registry.filter(def => def.name.toLowerCase().includes(query) && !onEntry.has(def.name.toLowerCase()))
+    : registry.filter(def => !onEntry.has(def.name.toLowerCase()))
+  const exact = byKey.get(query)
+
+  /** Enter in the combo's input: takes the exact match, or an unknown name to the create branch. */
+  const comboInputKeyDown = (event: React.KeyboardEvent): void => {
+    if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+    event.preventDefault()
+    if (!adding) return
+    if (exact) void addProperty(exact.name, exact.type)
+    else if (adding.name.trim()) setAdding({ ...adding, mode: 'create' })
+  }
+
+  /** Escape closes the combo — the innermost layer — alone, wherever inside it the keyboard sits (a chip, a button). */
+  const comboKeyDown = (event: React.KeyboardEvent): void => {
+    if (event.key !== 'Escape' || event.nativeEvent.isComposing) return
+    event.stopPropagation()
+    setAdding(null)
+  }
+
   return (
     <div className="prop-panel" data-testid="prop-panel">
       {names.map(name => {
@@ -116,99 +158,156 @@ export const PropertyPanel = forwardRef<PropertyPanelHandle, Props>(function Pro
         const TypeIcon = PROPERTY_TYPE_ICONS[type]
         return (
           <div key={name} className="prop-row">
-            <label className="prop-name" title={type} htmlFor={inputId}>
-              <TypeIcon size={14} aria-hidden /> {name}
+            <label className="prop-name" title={uiText(`property.type.${type}` as 'property.type.text')} htmlFor={inputId}>
+              <TypeIcon size={14} aria-hidden /> <span className="prop-name-text">{name}</span>
             </label>
-            <DraftEditor
-              ref={handle => {
-                if (handle) editors.current.set(name, handle)
-                else editors.current.delete(name)
-              }}
-              inputId={inputId}
-              name={name}
-              type={type}
-              value={entry.properties[name]}
-              listLimit={def?.name === 'tags' ? 'tags' : 'list'}
-              onCommit={value => setValue(name, value)}
-            />
+            <div className="prop-value">
+              <DraftEditor
+                ref={handle => {
+                  if (handle) editors.current.set(name, handle)
+                  else editors.current.delete(name)
+                }}
+                inputId={inputId}
+                name={name}
+                type={type}
+                value={entry.properties[name]}
+                listLimit={def?.name === 'tags' ? 'tags' : 'list'}
+                onCommit={value => setValue(name, value)}
+              />
+            </div>
           </div>
         )
       })}
 
       {pending && (
         <div className="prop-row" data-testid="prop-row-pending">
-          <label className="prop-name" title={pending.type} htmlFor={`property-${entry.id}-pending`}>
-            <PendingIcon size={14} aria-hidden /> {pending.name}
+          <label className="prop-name" title={uiText(`property.type.${pending.type}` as 'property.type.text')} htmlFor={`property-${entry.id}-pending`}>
+            <PendingIcon size={14} aria-hidden /> <span className="prop-name-text">{pending.name}</span>
           </label>
-          <PendingEditor
-            ref={handle => {
-              if (handle) editors.current.set('__pending', handle)
-              else editors.current.delete('__pending')
-            }}
-            inputId={`property-${entry.id}-pending`}
-            type={pending.type}
-            autoFocus
-            onCommit={commitPending}
-          />
+          <div className="prop-value">
+            <PendingEditor
+              ref={handle => {
+                if (handle) editors.current.set('__pending', handle)
+                else editors.current.delete('__pending')
+              }}
+              inputId={`property-${entry.id}-pending`}
+              type={pending.type}
+              autoFocus
+              onCommit={commitPending}
+            />
+          </div>
         </div>
       )}
 
       {adding ? (
-        <div className="prop-add">
-          <input
-            autoFocus
-            list="prop-names"
-            placeholder={uiText('property.name')}
-            value={adding.name}
-            aria-label={uiText('property.name')}
-            onChange={event => setAdding({ ...adding, name: event.target.value })}
-            onKeyDown={event => {
-              if (event.key === 'Enter') addProperty(adding.name, adding.type)
-              if (event.key === 'Escape') setAdding(null)
-            }}
-          />
-          <select value={adding.type} aria-label={uiText('property.type')} onChange={event => setAdding({ ...adding, type: event.target.value as PropertyType })}>
-            {PROPERTY_TYPES.map((type: PropertyType) => (
-              <option key={type} value={type}>
-                {uiText(`property.type.${type}` as 'property.type.text')}
-              </option>
-            ))}
-          </select>
-          <button type="button" className="ghost" onClick={() => addProperty(adding.name, adding.type)}>
-            {uiText('common.save')}
-          </button>
-          <button type="button" className="ghost" onClick={() => setAdding(null)}>
-            {uiText('common.cancel')}
-          </button>
+        <div className="prop-combo" data-testid="prop-combo" onKeyDown={comboKeyDown}>
+          <div className="prop-combo-in">
+            <Plus size={15} aria-hidden />
+            <input
+              className="prop-combo-input"
+              ref={comboInput}
+              autoFocus
+              placeholder={uiText('property.namePlaceholder')}
+              value={adding.name}
+              aria-label={uiText('property.name')}
+              onChange={event => setAdding({ ...adding, name: event.target.value })}
+              onKeyDown={comboInputKeyDown}
+            />
+          </div>
+          {adding.mode === 'create' ? (
+            <div className="prop-combo-create">
+              <p className="prop-combo-h">{uiText('property.createPickType')}</p>
+              <PropertyTypePicker value={adding.type} onChange={type => setAdding({ ...adding, type })} ariaLabel={uiText('property.type')} />
+              <p className="prop-combo-help">{uiText('property.createExplainer')}</p>
+              {error && (
+                <p className="prop-combo-error" role="alert">
+                  {error}
+                </p>
+              )}
+              <div className="prop-combo-actions">
+                <button type="button" className="ghost sm" onClick={() => setAdding(null)}>
+                  {uiText('common.cancel')}
+                </button>
+                <button type="button" className="primary sm" disabled={!adding.name.trim()} onClick={() => void addProperty(adding.name, adding.type)}>
+                  {uiText('property.createAdd')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="prop-combo-list" role="group" aria-label={uiText('property.add')}>
+              {hits.slice(0, 6).map(def => {
+                const TypeIcon = PROPERTY_TYPE_ICONS[def.type]
+                return (
+                  <button key={def.name} type="button" className="prop-opt" onClick={() => void addProperty(def.name, def.type)}>
+                    <TypeIcon size={15} aria-hidden />
+                    <span className="prop-opt-name">{def.name}</span>
+                    <span className="prop-opt-type">
+                      {uiText(`property.type.${def.type}` as 'property.type.text')}
+                      {def.builtin ? ` · ${uiText('property.builtin')}` : ''}
+                    </span>
+                  </button>
+                )
+              })}
+              {adding.name.trim() && !exact && (
+                <button type="button" className="prop-opt" onClick={() => setAdding({ ...adding, mode: 'create' })}>
+                  <Plus size={15} aria-hidden />
+                  <span className="prop-opt-name">{uiText('property.create', { name: adding.name.trim() })}</span>
+                  <span className="prop-opt-type">{uiText('property.createHint')}</span>
+                </button>
+              )}
+              {hits.length === 0 && !adding.name.trim() && <p className="prop-combo-help">{uiText('property.noMatches')}</p>}
+            </div>
+          )}
         </div>
       ) : (
-        <button type="button" className="link prop-add-button" data-testid="add-property" onClick={() => setAdding({ name: '', type: 'text' })}>
+        <button type="button" className="link prop-add-button" data-testid="add-property" onClick={() => setAdding({ mode: 'search', name: '', type: 'text' })}>
           + {uiText('property.add')}
         </button>
       )}
-      <datalist id="prop-names">
-        {registry.map(def => (
-          <option key={def.name} value={def.name}>
-            {uiText(`property.type.${def.type}`)}
-          </option>
-        ))}
-      </datalist>
 
-      <dl className="drawer-system">
-        <dt>{uiText('property.type')}</dt>
-        <dd>{uiText(entry.type === 'clip' ? 'library.clips' : 'library.screenshots')}</dd>
-        <dt>{uiText('property.system.source')}</dt>
-        <dd>
-          <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer">
-            {entry.sourceHost}
+      <p className="prop-sys-h">{uiText('property.systemFields')}</p>
+      <div className="prop-row prop-ro">
+        <span className="prop-name">
+          <PROPERTY_TYPE_ICONS.text size={14} aria-hidden /> <span className="prop-name-text">{uiText('property.system.source')}</span>
+        </span>
+        <span className="prop-value">
+          {/* host and path as one readable address (extension.md §4.1); the row's ellipsis keeps it on one line */}
+          <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer" className="prop-sys-link">
+            {entry.sourceUrl.replace(/^https?:\/\//, '')}
           </a>
-        </dd>
-        <dt>{uiText('property.system.created')}</dt>
-        <dd>{new Date(entry.createdAt).toLocaleString()}</dd>
-        <dt>{uiText('property.system.updated')}</dt>
-        <dd>{new Date(entry.updatedAt).toLocaleString()}</dd>
-      </dl>
-      {error && <p className="warn">{error}</p>}
+        </span>
+        <span className="prop-px">
+          <Lock size={13} aria-hidden />
+        </span>
+      </div>
+      <div className="prop-row prop-ro">
+        <span className="prop-name">
+          <PROPERTY_TYPE_ICONS.date size={14} aria-hidden /> <span className="prop-name-text">{uiText('property.system.created')}</span>
+        </span>
+        <span className="prop-value">{new Date(entry.createdAt).toLocaleString()}</span>
+        <span className="prop-px">
+          <Lock size={13} aria-hidden />
+        </span>
+      </div>
+      <div className="prop-row prop-ro">
+        <span className="prop-name">
+          <PROPERTY_TYPE_ICONS.datetime size={14} aria-hidden /> <span className="prop-name-text">{uiText('property.system.updated')}</span>
+        </span>
+        <span className="prop-value">{new Date(entry.updatedAt).toLocaleString()}</span>
+        <span className="prop-px">
+          <Lock size={13} aria-hidden />
+        </span>
+      </div>
+      <div className="prop-row prop-ro">
+        <span className="prop-name">
+          <PROPERTY_TYPE_ICONS.text size={14} aria-hidden /> <span className="prop-name-text">{uiText('property.type')}</span>
+        </span>
+        <span className="prop-value">{uiText(entry.type === 'clip' ? 'library.clips' : 'library.screenshots')}</span>
+        <span className="prop-px">
+          <Lock size={13} aria-hidden />
+        </span>
+      </div>
+      {adding === null && error && <p className="warn">{error}</p>}
     </div>
   )
 })
@@ -301,9 +400,11 @@ const ValueEditor = forwardRef<
             </button>
           </span>
         ))}
+        <Plus size={13} aria-hidden className="prop-list-plus" />
         <input
           id={inputId}
           type="text"
+          className="prop-input prop-input-bare"
           placeholder={uiText('property.addItem')}
           aria-label={uiText('property.addItem')}
           value={listInput}
@@ -331,11 +432,21 @@ const ValueEditor = forwardRef<
     )
   }
   if (type === 'date') {
-    return <input id={inputId} type="date" autoFocus={autoFocus} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value || undefined)} />
+    return (
+      <input
+        className="prop-input"
+        id={inputId}
+        type="date"
+        autoFocus={autoFocus}
+        value={typeof value === 'string' ? value : ''}
+        onChange={event => onChange(event.target.value || undefined)}
+      />
+    )
   }
   if (type === 'datetime') {
     return (
       <input
+        className="prop-input"
         id={inputId}
         type="datetime-local"
         autoFocus={autoFocus}
@@ -347,15 +458,27 @@ const ValueEditor = forwardRef<
   if (type === 'number') {
     return (
       <input
+        className="prop-input"
         type="number"
         id={inputId}
         autoFocus={autoFocus}
+        placeholder={uiText('property.valuePlaceholder')}
         value={typeof value === 'number' ? value : ''}
         onChange={event => onChange(event.target.value === '' ? undefined : Number(event.target.value))}
       />
     )
   }
-  return <input id={inputId} type="text" autoFocus={autoFocus} value={typeof value === 'string' ? value : ''} onChange={event => onChange(event.target.value || undefined)} />
+  return (
+    <input
+      className="prop-input"
+      id={inputId}
+      type="text"
+      autoFocus={autoFocus}
+      placeholder={uiText('property.valuePlaceholder')}
+      value={typeof value === 'string' ? value : ''}
+      onChange={event => onChange(event.target.value || undefined)}
+    />
+  )
 })
 
 /** datetime-local gives minutes; the stored format needs seconds (entry.md §5.2). */

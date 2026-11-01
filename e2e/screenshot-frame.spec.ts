@@ -566,4 +566,47 @@ test.describe('precise selection (screenshot.md §1.2)', () => {
     await expect(page.locator('[data-ann-ui="shot-hover-outline"]')).toHaveCount(0)
     await expect(page.locator('[data-ann-ui="shot-margin-bar"]')).toHaveCount(0)
   })
+
+  // The frame's blue marks the page's content, not a surface, so it is one blue for both
+  // appearances. The draft's #3b82f6 was measured against the dimmed page (rgb(10 14 25 / 0.58)
+  // over white) and read 1.29:1 where the kept #4c91ff reads 1.53:1 — neither reaches 3:1 there,
+  // so the existing colour stays (the measurement rule of visual.md §2). Against the framed content itself,
+  // white and dark alike, it does reach 3:1, which is what the frame's job needs.
+  test('the frame keeps the measured blue: 2px #4c91ff, reading on the content it frames', async ({ page }) => {
+    await open(page)
+    await triggerScreenshot(page)
+    const plans = (await page.getByTestId('plans').boundingBox())!
+    await page.mouse.move(plans.x + 20, plans.y + 20)
+    await page.mouse.down()
+    await page.mouse.move(plans.x + plans.width * 0.45, plans.y + plans.height - 20, { steps: 4 })
+    await page.mouse.up()
+    const frame = await page.evaluate(() => {
+      const rect = document.querySelector('.ann-shot-rect') as HTMLElement
+      const style = getComputedStyle(rect)
+      const luminance = (hex: string) => {
+        const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16))
+        const f = (v: number) => {
+          const s = v / 255
+          return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+        }
+        return 0.2126 * f(c[0]!) + 0.7152 * f(c[1]!) + 0.0722 * f(c[2]!)
+      }
+      const contrast = (hex: string): number => {
+        const [hi, lo] = luminance(hex) > luminance('#ffffff') ? [luminance(hex), luminance('#ffffff')] : [luminance('#ffffff'), luminance(hex)]
+        return (hi + 0.05) / (lo + 0.05)
+      }
+      return {
+        colour: style.borderTopColor,
+        width: style.borderTopWidth,
+        mask: style.boxShadow,
+        onWhite: contrast('#4c91ff'),
+        onDark: (luminance('#4c91ff') + 0.05) / (luminance('#111111') + 0.05),
+      }
+    })
+    expect(frame.colour).toBe('rgb(76, 145, 255)')
+    expect(frame.width).toBe('2px')
+    expect(frame.mask, 'the page is dimmed by the draft value').toContain('rgba(10, 14, 25, 0.58)')
+    expect(frame.onWhite, 'against white content the frame reads 3:1').toBeGreaterThanOrEqual(3)
+    expect(frame.onDark, 'against dark content the frame reads 3:1').toBeGreaterThanOrEqual(3)
+  })
 })

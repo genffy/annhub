@@ -12,6 +12,7 @@ import MessageUtils from '../../utils/message'
 import { entryErrorText, failureReason, uiText } from '../../utils/ui-text'
 import { elementToMarkdown, escapeText, selectionToMarkdown } from './markdown'
 import { extractContext, extractPageMeta, resolvePermalink } from './page-meta'
+import { overlayIcon } from './icons'
 import type { BlockCandidate, BlockKind } from './blocks'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -128,39 +129,62 @@ export function showClipToast(outcome: ClipOutcome, editAnchor: Range | HTMLElem
   host.setAttribute('role', 'status')
   host.setAttribute('aria-live', 'polite')
 
+  const bar = doc.createElement('div')
+  bar.className = 'ann-clip-toast'
+  const row = doc.createElement('div')
+  row.className = 'ann-clip-toast-row'
+  const mark = doc.createElement('span')
+  mark.className = 'ann-clip-toast-icon'
+  mark.appendChild(overlayIcon(doc, 'bookmark'))
   const label = doc.createElement('span')
   label.textContent = uiText('toast.clipped')
+  const sep = doc.createElement('span')
+  sep.className = 'ann-clip-toast-sepd'
   const undo = doc.createElement('button')
   undo.textContent = uiText('toast.undo')
   const edit = doc.createElement('button')
   edit.textContent = uiText('toast.edit')
-
-  const bar = doc.createElement('div')
-  bar.className = 'ann-clip-toast'
+  row.append(mark, label, sep, undo, edit)
+  bar.appendChild(row)
   if (outcome.truncated) {
     const warn = doc.createElement('div')
     warn.className = 'ann-clip-toast-warn'
     warn.textContent = uiText('toast.truncated')
     bar.appendChild(warn)
   }
-  const row = doc.createElement('div')
-  row.className = 'ann-clip-toast-row'
-  row.append(label, undo, edit)
-  bar.appendChild(row)
+  const barFill = doc.createElement('i')
+  const tbar = doc.createElement('div')
+  tbar.className = 'ann-clip-toast-tbar'
+  tbar.setAttribute('aria-hidden', 'true')
+  tbar.appendChild(barFill)
+  bar.appendChild(tbar)
   host.appendChild(bar)
   doc.documentElement.appendChild(host)
 
   // the ~3 s countdown pauses while the user is on the toast — reading the
-  // warning or aiming at Undo — and resumes on leaving it (真机走查 P3-5)
+  // warning or aiming at Undo — and resumes on leaving it (真机走查 P3-5).
+  // The thin bar is the same countdown, not a decoration: it stops with the
+  // timer and, on leaving, restarts a whole round like the timer does.
+  const restartBar = (): void => {
+    barFill.style.animation = 'none'
+    void barFill.offsetWidth
+    barFill.style.animation = ''
+  }
   let timer = window.setTimeout(dismiss, TOAST_MS)
   const clear = () => window.clearTimeout(timer)
+  const pause = () => {
+    clear()
+    bar.classList.add('ann-clip-toast-held')
+  }
   const resume = () => {
     clear()
+    bar.classList.remove('ann-clip-toast-held')
+    restartBar()
     timer = window.setTimeout(dismiss, TOAST_MS)
   }
-  host.addEventListener('pointerenter', clear)
+  host.addEventListener('pointerenter', pause)
   host.addEventListener('pointerleave', resume)
-  host.addEventListener('focusin', clear)
+  host.addEventListener('focusin', pause)
   host.addEventListener('focusout', resume)
 
   undo.addEventListener('click', async () => {
@@ -176,7 +200,6 @@ export function showClipToast(outcome: ClipOutcome, editAnchor: Range | HTMLElem
       showUndone()
     } else {
       label.textContent = uiText('toast.undoFailed')
-      bar.classList.add('ann-clip-toast-error')
       undo.disabled = false
     }
   })
@@ -208,7 +231,12 @@ function showUndone(): void {
   host.setAttribute('aria-live', 'polite')
   const bar = document.createElement('div')
   bar.className = 'ann-clip-toast ann-clip-toast-undone'
-  bar.textContent = uiText('toast.undone')
+  const mark = document.createElement('span')
+  mark.className = 'ann-clip-toast-icon'
+  mark.appendChild(overlayIcon(document, 'undo'))
+  const label = document.createElement('span')
+  label.textContent = uiText('toast.undone')
+  bar.append(mark, label)
   host.appendChild(bar)
   document.documentElement.appendChild(host)
   window.setTimeout(() => host.remove(), TOAST_MS)
@@ -217,35 +245,41 @@ function showUndone(): void {
 /** Save failed: the reason (when there is one worth telling) and Retry stay until dismissed; nothing claims success. */
 export function showFailureToast(retry: () => void, failure?: ClipFailure): void {
   dismissToast()
-  const host = document.createElement('div')
+  const doc = document
+  const host = doc.createElement('div')
   host.setAttribute(ROOT_ATTR, 'clip-toast')
   host.setAttribute('role', 'alert')
-  const bar = document.createElement('div')
-  bar.className = 'ann-clip-toast ann-clip-toast-error'
-  const label = document.createElement('span')
+  const bar = doc.createElement('div')
+  bar.className = 'ann-clip-toast'
+  const row = doc.createElement('div')
+  row.className = 'ann-clip-toast-row'
+  const mark = doc.createElement('span')
+  mark.className = 'ann-clip-toast-icon ann-clip-toast-icon-danger'
+  mark.appendChild(overlayIcon(doc, 'alert'))
+  const label = doc.createElement('span')
   label.textContent = uiText('toast.saveFailed')
-  const reason = failureReason(failure?.code)
-  if (reason) {
-    const why = document.createElement('div')
-    why.className = 'ann-clip-toast-reason'
-    why.textContent = reason
-    bar.appendChild(why)
-  }
-  const button = document.createElement('button')
+  const button = doc.createElement('button')
   button.textContent = uiText('toast.retry')
   button.addEventListener('click', () => {
     host.remove()
     retry()
   })
-  const row = document.createElement('div')
-  row.className = 'ann-clip-toast-row'
-  row.append(label, button)
+  row.append(mark, label, button)
   bar.appendChild(row)
+  const reason = failureReason(failure?.code)
+  if (reason) {
+    const why = doc.createElement('div')
+    why.className = 'ann-clip-toast-reason'
+    why.textContent = reason
+    bar.appendChild(why)
+  }
   host.appendChild(bar)
-  document.documentElement.appendChild(host)
+  doc.documentElement.appendChild(host)
 }
 
 // ── Quick edit bubble: title, tags, note (extension.md §3) ───────────────
+// The header says when it saves, and that is the truth: persist() runs on
+// blur (a pointerdown outside), Esc, Enter in the title and Done.
 
 export function openEditBubble(outcome: ClipOutcome, anchor: Range | HTMLElement | null): void {
   const existing = document.querySelector(`[${ROOT_ATTR}="clip-edit"]`)
@@ -257,31 +291,117 @@ export function openEditBubble(outcome: ClipOutcome, anchor: Range | HTMLElement
   const panel = doc.createElement('div')
   panel.className = 'ann-clip-edit'
 
+  const head = doc.createElement('div')
+  head.className = 'ann-clip-edit-head'
+  const headTitle = doc.createElement('span')
+  headTitle.textContent = uiText('toast.clipped')
+  const headHint = doc.createElement('span')
+  headHint.className = 'ann-clip-edit-hint'
+  headHint.textContent = uiText('edit.savesOnBlur')
+  head.append(overlayIcon(doc, 'bookmark'), headTitle, headHint)
+
   const title = labeledInput(doc, 'edit.title', outcome.title)
   title.input.maxLength = 1000
-  const tags = labeledInput(doc, 'edit.tags', '')
-  tags.input.placeholder = 'tag1, tag2'
-  const note = labeledInput(doc, 'edit.note', '')
-  note.input.maxLength = 2000
+
   const errorLine = doc.createElement('div')
   errorLine.className = 'ann-clip-edit-error'
   errorLine.setAttribute('aria-live', 'polite')
+
+  // tags live as chips beside the typing field: Enter or a comma commits what
+  // is typed (a paste splits the same way), Backspace on an empty field drops
+  // the last chip, blur commits the rest — the limits are the property's own
+  const chips: string[] = []
+  const tags = doc.createElement('div')
+  tags.className = 'ann-clip-edit-tags'
+  const tagsInput = doc.createElement('input')
+  tagsInput.type = 'text'
+  tagsInput.setAttribute('aria-label', uiText('edit.tags'))
+  tagsInput.placeholder = uiText('edit.tagsPlaceholder')
+  tags.appendChild(tagsInput)
+  const tagsField = fieldWrap(doc, 'edit.tags', tags)
+
+  const renderChips = (): void => {
+    for (const chip of [...tags.querySelectorAll('.ann-clip-edit-chip')]) chip.remove()
+    chips.forEach((tag, index) => {
+      const chip = doc.createElement('span')
+      chip.className = 'ann-clip-edit-chip'
+      const text = doc.createElement('span')
+      text.textContent = tag
+      const remove = doc.createElement('button')
+      remove.type = 'button'
+      remove.setAttribute('aria-label', uiText('edit.removeTag', { tag }))
+      remove.appendChild(overlayIcon(doc, 'x'))
+      remove.addEventListener('click', () => {
+        chips.splice(index, 1)
+        renderChips()
+      })
+      chip.append(text, remove)
+      tags.insertBefore(chip, tagsInput)
+    })
+  }
+
+  /** Turns the typed text into chips; a limit violation leaves the text to edit and says which. */
+  const commitTyped = (): boolean => {
+    const parts = tagsInput.value
+      .split(/[,，]/)
+      .map(tag => tag.trim())
+      .filter(Boolean)
+    if (parts.length === 0) return true
+    const all = [...chips, ...parts]
+    if (all.some(tag => tag.length > TAG_LENGTH_MAX)) {
+      errorLine.textContent = uiText('edit.error.tagTooLong', { limit: TAG_LENGTH_MAX })
+      return false
+    }
+    if (all.length > TAGS_MAX) {
+      errorLine.textContent = uiText('edit.error.tooManyTags', { limit: TAGS_MAX })
+      return false
+    }
+    chips.splice(0, chips.length, ...all)
+    tagsInput.value = ''
+    renderChips()
+    return true
+  }
+
+  tagsInput.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ',' || event.key === '，') {
+      event.preventDefault()
+      event.stopPropagation()
+      commitTyped()
+      return
+    }
+    if (event.key === 'Backspace' && tagsInput.value === '' && chips.length > 0) {
+      chips.splice(chips.length - 1, 1)
+      renderChips()
+    }
+  })
+  tagsInput.addEventListener('blur', () => {
+    if (host.isConnected) commitTyped()
+  })
+
+  const note = doc.createElement('textarea')
+  note.className = 'ann-clip-edit-note'
+  note.maxLength = 2000
+  const noteField = fieldWrap(doc, 'edit.note', note)
+
   const actions = doc.createElement('div')
   actions.className = 'ann-clip-edit-actions'
   const more = doc.createElement('button')
-  more.textContent = uiText('edit.more')
+  more.type = 'button'
+  more.className = 'ann-clip-edit-more'
+  more.append(doc.createTextNode(uiText('edit.more')), overlayIcon(doc, 'arrow-up-right'))
   more.addEventListener('click', () => {
     void MessageUtils.sendMessage({ type: 'OPEN_EXTENSION_PAGE', page: 'library', params: { entryId: outcome.entryId } })
     host.remove()
   })
   const done = doc.createElement('button')
   done.className = 'ann-clip-edit-done'
+  done.type = 'button'
   done.textContent = uiText('edit.done')
   done.addEventListener('click', () => {
     void persist()
   })
   actions.append(more, done)
-  panel.append(title.wrap, tags.wrap, note.wrap, errorLine, actions)
+  panel.append(head, title.wrap, tagsField.wrap, noteField.wrap, errorLine, actions)
   host.appendChild(panel)
   doc.documentElement.appendChild(host)
   positionNear(host, anchor)
@@ -315,10 +435,14 @@ export function openEditBubble(outcome: ClipOutcome, anchor: Range | HTMLElement
     persisting = true
     errorLine.textContent = ''
     const titleValue = title.input.value.trim()
-    const rawTags = tags.input.value
-      .split(/[,，]/)
-      .map(tag => tag.trim())
-      .filter(Boolean)
+    // chips plus whatever is still typed: a paste never split by a keypress lands here whole
+    const rawTags = [
+      ...chips,
+      ...tagsInput.value
+        .split(/[,，]/)
+        .map(tag => tag.trim())
+        .filter(Boolean),
+    ]
     if (rawTags.some(tag => tag.length > TAG_LENGTH_MAX)) {
       errorLine.textContent = uiText('edit.error.tagTooLong', { limit: TAG_LENGTH_MAX })
       persisting = false
@@ -330,7 +454,7 @@ export function openEditBubble(outcome: ClipOutcome, anchor: Range | HTMLElement
       return
     }
     const tagList = normalizeTags(rawTags)
-    const noteValue = note.input.value.trim()
+    const noteValue = note.value.trim()
 
     // only the fields the user actually changed travel; everything the
     // capture wrote (author, published, …) is out of reach of this edit
@@ -362,16 +486,21 @@ export function openEditBubble(outcome: ClipOutcome, anchor: Range | HTMLElement
   }
 }
 
-function labeledInput(doc: Document, key: 'edit.title' | 'edit.tags' | 'edit.note', value: string) {
-  const wrap = doc.createElement('label')
+function fieldWrap(doc: Document, key: 'edit.title' | 'edit.tags' | 'edit.note', control: HTMLElement) {
+  const wrap = doc.createElement('div')
   wrap.className = 'ann-clip-edit-field'
   const label = doc.createElement('span')
   label.textContent = uiText(key)
+  wrap.append(label, control)
+  return { wrap, control }
+}
+
+function labeledInput(doc: Document, key: 'edit.title', value: string) {
   const input = doc.createElement('input')
   input.type = 'text'
   input.value = value
-  wrap.append(label, input)
-  return { wrap, input }
+  const field = fieldWrap(doc, key, input)
+  return { wrap: field.wrap, input }
 }
 
 function positionNear(host: HTMLElement, anchor: Range | HTMLElement | null): void {
