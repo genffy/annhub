@@ -130,7 +130,7 @@ export default function App() {
     if (!active?.id) return
     if (withMic) {
       // the browser only asks for the microphone on a visible extension page:
-      // without a live grant the settings page asks, this does not record (annotate.md §2.1, D-43)
+      // without a live grant the settings page asks, this does not record (annotate.md §2.1)
       let granted
       try {
         granted = (await navigator.permissions.query({ name: 'microphone' as PermissionName })).state === 'granted'

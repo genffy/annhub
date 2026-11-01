@@ -70,7 +70,7 @@ function MetricRow({ id, name, value, testId }: { id: string; name: string; valu
   )
 }
 
-/** The 录制 card (extension.md §2.5): microphone grant status and the request, per annotate.md §2.1 (D-43), plus the cursor highlight. */
+/** The 录制 card (extension.md §2.5): microphone grant status and the request, per annotate.md §2.1, plus the cursor highlight. */
 function RecordingCard({ settings, patch }: { settings: ExtensionSettings; patch(next: SettingsPatch): Promise<boolean> }) {
   const [grant, setGrant] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown')
   const [requesting, setRequesting] = useState(false)

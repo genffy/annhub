@@ -48,7 +48,7 @@ AnnHub 只为以下三类重度知识工作者优化。下表是产品负责人�
 | 整页剪藏与模板系统            | 当前保存选区或一个区块，不保存整页；是否需要见 Q-10、Q-11                              | [validation.md §4](validation.md)   |
 | 平台发布与账号授权            | 真实发布动作不进入扩展域                                                               | [screenshot.md §1.1](screenshot.md) |
 | 封面、文案卡与设备外框模板    | 截图首先是资料，不是设计稿；美化只做背景、留白、圆角与阴影                             | [screenshot.md §4.4](screenshot.md) |
-| 录屏进资料库                  | 录屏是讲解用的本地视频，下载即终点；条目只有剪藏与截图两种，库不管理视频（见 D-41）    | [annotate.md §2.3](annotate.md)     |
+| 录屏进资料库                  | 录屏是讲解用的本地视频，下载即终点；条目只有剪藏与截图两种，库不管理视频               | [annotate.md §2.3](annotate.md)     |
 | 视频剪辑与后期                | 录屏不做时间轴编辑、字幕、转码与上传                                                   | [annotate.md §2.3](annotate.md)     |
 
 ## 3. 核心 Jobs-to-be-Done

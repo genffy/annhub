@@ -1390,7 +1390,7 @@ class ScreenshotSession {
 
   /**
    * The handed-over ink as editor annotations over the frame that was just
-   * captured, in one group for undo (annotate.md §1.3, D-38): the ink is
+   * captured, in one group for undo (annotate.md §1.3): the ink is
    * stored on the page, so it lands where it shows at the capture moment
    * (annotate.md §1.2, §1.3); pinned ink already sits in viewport
    * coordinates. Strokes fully outside the frame are out, strokes crossing
@@ -1532,7 +1532,7 @@ class ScreenshotSession {
     this.history = []
     this.stepSequence = 0
     this.selectedStep = null
-    // the page's ink arrives as one step of its own: one undo takes it all off again (annotate.md §1.3, D-38)
+    // the page's ink arrives as one step of its own: one undo takes it all off again (annotate.md §1.3)
     if (inkAnnotations.length > 0) this.commit(inkAnnotations)
     this.renderEditor()
   }

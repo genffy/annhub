@@ -602,7 +602,7 @@ test.describe('page annotation layer', () => {
     await page.keyboard.press('Escape')
   })
 
-  test('a touch drag draws without scrolling the page; the pointer tool hands touch back to the browser (D-69)', async ({ page }) => {
+  test('a touch drag draws without scrolling the page; the pointer tool hands touch back to the browser (annotate.md §1.2)', async ({ page }) => {
     await page.goto('http://localhost:8173/longpage.html')
     await triggerAnnotation(page)
     await page.locator(LAYER).waitFor()
@@ -643,7 +643,7 @@ test.describe('page annotation layer', () => {
     await page.keyboard.press('Escape')
   })
 
-  test('Ctrl/Cmd+Z undoes a stroke while a tool is picked; the pointer tool leaves the key to the page (D-81)', async ({ page }) => {
+  test('Ctrl/Cmd+Z undoes a stroke while a tool is picked; the pointer tool leaves the key to the page (annotate.md §1.2)', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
     await triggerAnnotation(page)
     await page.locator(LAYER).waitFor()

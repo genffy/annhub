@@ -7,7 +7,7 @@
  * where each segment lands on the final canvas (rounded to whole device
  * pixels, so a fractional device pixel ratio never blurs a seam), and which
  * of the stop conditions fires first — the page bottom, the 30-screen cap,
- * the ~40-megapixel area cap (D-49), the browser's 65535-pixel canvas edge
+ * the ~40-megapixel area cap (screenshot.md §1.5), the browser's 65535-pixel canvas edge
  * (market.md §4.7) or the library's 10 MB entry size (Q-03), estimated from
  * the first segment's real PNG weight.
  */
@@ -16,7 +16,7 @@
 export const STITCH_CAPS = {
   /** 30 screens. */
   maxSegments: 30,
-  /** About 40 million pixels (D-49): normal screens reach 30 first, a Retina screen about nine. */
+  /** About 40 million pixels (screenshot.md §1.5): normal screens reach 30 first, a Retina screen about nine. */
   maxAreaPx: 40_000_000,
   /** The browser draws nothing on a canvas side longer than this (market.md §4.7). */
   maxHeightPx: 65_535,

@@ -15,7 +15,7 @@
 import type { RecordingCommandMessage, RecordingEventMessage } from '../../types/messages'
 import { fixWebmDuration } from '../../utils/webm-duration'
 
-/** 15 minutes or about 500 MB, first reached wins (annotate.md §2.1, D-46). */
+/** 15 minutes or about 500 MB, first reached wins (annotate.md §2.1). */
 const TIME_LIMIT_MS = 15 * 60_000
 const SIZE_LIMIT_BYTES = 500 * 1024 * 1024
 

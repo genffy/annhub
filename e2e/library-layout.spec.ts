@@ -616,7 +616,7 @@ test.describe('the expanded nav: mark, groups and an outline export (extension.m
   })
 })
 
-test.describe('the card bottoms, tall captures and the reading note (extension.md §2.3, D-58)', () => {
+test.describe('the card bottoms, tall captures and the reading note (extension.md §2.3)', () => {
   /** A capture five times as tall as wide: a long page's crop. */
   async function seedTallScreenshot(page: Page, extensionId: string): Promise<void> {
     await clearLibrary(page.context())

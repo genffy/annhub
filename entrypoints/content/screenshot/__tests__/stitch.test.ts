@@ -5,7 +5,7 @@ import { STITCH_CAPS, bytesPerPixelFromSegment, canvasOffsets, estimateEntryByte
  * screenshot.md §1.5's numbers: how many screens a page takes, where each
  * segment lands on the canvas (whole device pixels, so a fractional dpr
  * never blurs a seam), and which stop condition fires first — bottom, 30
- * screens, the ~40 MP area cap (D-49), the browser's 65535-pixel edge
+ * screens, the ~40 MP area cap (screenshot.md §1.5), the browser's 65535-pixel edge
  * (market.md §4.7) or the library's 10 MB (Q-03), estimated from the first
  * segment's real PNG weight.
  */

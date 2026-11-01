@@ -277,7 +277,7 @@ Extension 不提供通用笔记编辑器。
 
 `Esc` 一次只关最里面的一层：高亮工具条，其次是高亮浮层，最后才是阅读视图或抽屉；输入法组词期间的 `Esc` 只取消组词。
 
-区块模式里的按键（`Tab`、`↑` `↓`、`Enter`、`S`、`Esc`）见 [capture.md §6.2](capture.md)，截图编辑里的按键见 [screenshot.md §1.1](screenshot.md)，录制中页面批注的单键见 [annotate.md §3.1](annotate.md)。截图与区块模式的快捷键只作用于当前标签页的顶层页面，一次只开一个会话（[capture.md §3](capture.md)），批注层开着时它们怎样响应见 [annotate.md §1.1](annotate.md)；页面批注与录屏的快捷键默认不绑定（见 [D-37](validation.md)）。所有快捷键都在浏览器的快捷键设置页绑定或修改。
+区块模式里的按键（`Tab`、`↑` `↓`、`Enter`、`S`、`Esc`）见 [capture.md §6.2](capture.md)，截图编辑里的按键见 [screenshot.md §1.1](screenshot.md)，录制中页面批注的单键见 [annotate.md §3.1](annotate.md)。截图与区块模式的快捷键只作用于当前标签页的顶层页面，一次只开一个会话（[capture.md §3](capture.md)），批注层开着时它们怎样响应见 [annotate.md §1.1](annotate.md)；页面批注与录屏的快捷键默认不绑定。所有快捷键都在浏览器的快捷键设置页绑定或修改。
 
 ### 7.2 可访问性
 

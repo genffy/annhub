@@ -38,7 +38,7 @@ import { inkToEditorAnnotations, inkToViewport, snapshotInk, type InkStroke } fr
 const ROOT_ATTR = 'data-ann-ui'
 const ROOT_VALUE = 'annotation-layer'
 
-/** The erase delays of 自动擦除 (annotate.md §1.2, D-39): off by default, two fixed choices. */
+/** The erase delays of 自动擦除 (annotate.md §1.2): off by default, two fixed choices. */
 export type AutoErase = 'off' | '3s' | '8s'
 const AUTO_ERASE_CYCLE: readonly AutoErase[] = ['off', '3s', '8s']
 const AUTO_ERASE_MS: Record<Exclude<AutoErase, 'off'>, number> = { '3s': 3000, '8s': 8000 }
@@ -383,7 +383,7 @@ export class AnnotationLayer {
     bar.appendChild(widths)
 
     // a cycle chip (off → 3 s → 8 s → off) saying its state in words: a native select was the one
-    // control in the bar that drew in the browser's face (annotate.md §1.2, D-39)
+    // control in the bar that drew in the browser's face (annotate.md §1.2)
     const erase = this.doc.createElement('button')
     erase.type = 'button'
     erase.className = 'ann-annot-erase'
@@ -470,7 +470,7 @@ export class AnnotationLayer {
     this.canvas.style.cursor = `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, crosshair`
   }
 
-  /** 开始录制时工具栏收起，停止后回来；录制中打开的批注层一开始就没有工具栏 (annotate.md §3.1, D-48)。 */
+  /** 开始录制时工具栏收起，停止后回来；录制中打开的批注层一开始就没有工具栏 (annotate.md §3.1)。 */
   setRecordingMode(active: boolean): void {
     if (this.recordingMode === active) return
     this.recordingMode = active
@@ -520,7 +520,7 @@ export class AnnotationLayer {
       return
     }
     // Ctrl/Cmd+Z undoes a step, as it does in the screenshot editor — but only while a drawing tool owns the
-    // pointer: with the pointer tool, or the focus in an input or editable area, the key belongs to the page (D-81)
+    // pointer: with the pointer tool, or the focus in an input or editable area, the key belongs to the page (annotate.md §1.2)
     if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'z') {
       if (this.tool === 'pointer') return
       const active = this.doc.activeElement
@@ -562,7 +562,7 @@ export class AnnotationLayer {
     if (!isUserInput(event) || event.button !== 0) return
     event.preventDefault()
     event.stopPropagation()
-    // one stroke at a time (annotate.md §1.2, D-69): a gesture already running, or a second finger
+    // one stroke at a time (annotate.md §1.2): a gesture already running, or a second finger
     // coming down while one draws, starts nothing of its own
     if (this.endGesture || !event.isPrimary) return
     if (this.tool === 'text') {
