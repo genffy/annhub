@@ -151,6 +151,9 @@ const UI_BLOCK_PATTERNS: RegExp[] = [
   /^view quotes$/i,
   /^\d[\d.,]*\s*[kmb]?\s*views$/i,
   /^\d+:\d{2}(?::\d{2})?$/,
+  // Medium's byline: the reading time alone, or glued to the date it sits next to
+  // ("3 min readDec 12, 2018") or to a separator dot ("4 min read·Apr 6").
+  /^\d+\s*min\s*read($|(?=\S))/i,
   /^remember me for faster sign in$/i,
   /^(sign in|sign up|log in|create account|get started)$/i,
   /^get .{0,80} stories in your inbox$/i,
@@ -175,6 +178,7 @@ const UI_LINK_PATTERNS: RegExp[] = [
   /^copy link$/i,
   /^\d[\d.,]*\s*[kmb]( views)?$/i,
   /^\d[\d.,]*\s*views$/i,
+  /^\d+\s*min\s*read/i,
 ]
 
 function isUiLinkLabel(label: string): boolean {

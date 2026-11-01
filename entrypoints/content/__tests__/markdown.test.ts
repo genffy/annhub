@@ -209,6 +209,22 @@ describe('page furniture that class detection cannot see ', () => {
     expect(md).not.toContain('0:03')
   })
 
+  it('drops Medium byline furniture with the reading time', () => {
+    const md = convert(`
+      <p>Real content stays.</p>
+      <div>3 min read</div>
+      <div>3 min readDec 12, 2018</div>
+      <div>4 min read·Apr 6</div>
+    `)
+    expect(md).toContain('Real content stays.')
+    expect(md).not.toMatch(/min read/)
+  })
+
+  it('keeps prose that merely mentions a reading time', () => {
+    const md = convert('<p>A 5 min read is worth the price.</p>')
+    expect(md).toContain('A 5 min read is worth the price.')
+  })
+
   it('drops Medium sign-in and subscribe blocks', () => {
     const md = convert(`
       <p>Article closing paragraph.</p>
