@@ -29,17 +29,16 @@
 ## 验证
 
 - 渲染与偏移换算等纯函数：`npx vitest run entrypoints/library`。
-- 页面行为：先 `rm -rf .output/chrome-mv3 && npm run build`，再跑
-- `e2e/library-browse.spec.ts`
-- `e2e/library-drawer-edit.spec.ts`
-- `e2e/library-export.spec.ts`
-- `e2e/library-layout.spec.ts`
-- `e2e/library-properties-page.spec.ts`
-- `e2e/library-property-regressions.spec.ts`
-- `e2e/library-queries.spec.ts`
-- `e2e/library-shell.spec.ts`
-- `e2e/reading-highlight.spec.ts`
-- `e2e/settings-drafts.spec.ts`
-- `e2e/popup-entry.spec.ts`。选区一律用真实鼠标和键盘操作（三击
-- 拖选
-- `dblclick`），不要程序化设置 Range 再派发合成事件；双击一个词时点词自己的中点（用 Range 量），不要点包含它的片段的中点——片段的中点可能落在邻词上。
+- 页面行为：先 `rm -rf .output/chrome-mv3 && npm run build`，再跑：
+  - `e2e/library-browse.spec.ts`
+  - `e2e/library-drawer-edit.spec.ts`
+  - `e2e/library-export.spec.ts`
+  - `e2e/library-layout.spec.ts`
+  - `e2e/library-properties-page.spec.ts`
+  - `e2e/library-property-regressions.spec.ts`
+  - `e2e/library-queries.spec.ts`
+  - `e2e/library-shell.spec.ts`
+  - `e2e/reading-highlight.spec.ts`
+  - `e2e/settings-drafts.spec.ts`
+  - `e2e/popup-entry.spec.ts`
+- 选区一律用真实鼠标和键盘操作（三击、拖选、`dblclick`），不要程序化设置 Range 再派发合成事件；双击一个词时点词自己的中点（用 Range 量），不要点包含它的片段的中点——片段的中点可能落在邻词上。
