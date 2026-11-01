@@ -32,7 +32,7 @@ test.describe('selection clip (capture.md §6.1, extension.md §2.1)', () => {
     expect(entry.content).toContain('random factor between 0 and 1')
     // context contains the selection's sentence
     expect(entry.context).toContain('saturated')
-    // Q-13: token-shaped query params never survive the save
+    // token-shaped query params never survive the save (capture.md §5)
     expect(entry.sourceUrl).not.toContain('token=')
     expect(entry.sourceUrl).toContain('utm_source=rss')
     // type presets attached the page title

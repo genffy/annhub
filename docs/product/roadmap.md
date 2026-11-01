@@ -82,16 +82,16 @@
 
 [seo-geo.md](seo-geo.md) 基础阶段的清单，下文的节号都指它。清单按代码勾选；合并到主分支才部署到线上。
 
-- [x] 两个语言页在构建时生成静态 HTML；`<html lang>` 与页面语言一致，规范地址是自己的绝对地址（§3.2）。
-- [x] HTML 里声明语言版本：本页、另一个语言页与 `x-default`（§3.2）。
-- [x] 语言版本只在 HTML 里声明一次（§3.2）；`x-default` 与根路径对其他语言的回退都指向 `/en`。
-- [x] 社交卡片（§3.3）：中英文卡片图与 `og:image:alt`，`twitter:card` 为 `summary_large_image`；`og:title` 与 `og:description` 取自页面的标题与描述。卡片图在 `website/public/og/`，生成器在 `website/scripts/og-cards/`，画面带社交账号（x.com/genffy、小红书 genffy）。
-- [x] `robots.txt`（含内容信号）与 `sitemap.xml`（§3.4、§3.5）。
+- [x] 两个语言页在构建时生成静态 HTML；`<html lang>` 与页面语言一致，规范地址是自己的绝对地址（seo-geo.md §3.2）。
+- [x] HTML 里声明语言版本：本页、另一个语言页与 `x-default`（seo-geo.md §3.2）。
+- [x] 语言版本只在 HTML 里声明一次（seo-geo.md §3.2）；`x-default` 与根路径对其他语言的回退都指向 `/en`。
+- [x] 社交卡片（seo-geo.md §3.3）：中英文卡片图与 `og:image:alt`，`twitter:card` 为 `summary_large_image`；`og:title` 与 `og:description` 取自页面的标题与描述。卡片图在 `website/public/og/`，生成器在 `website/scripts/og-cards/`，画面带社交账号（x.com/genffy、小红书 genffy）。
+- [x] `robots.txt`（含内容信号）与 `sitemap.xml`（seo-geo.md §3.4、§3.5）。
 - [x] Cloudflare 的三类 AI 爬虫策略都是 Allow（§6）：在 Cloudflare 后台设置，仓库里核对不到。
-- [x] 访问统计按访客的选择加载，Cloudflare 判断在欧洲或判断不出国家的访客先看到同意卡片，隐私政策第 9 节写明（§7.1、[permissions.md §8](permissions.md)、[website.md §20](website.md)）；站点令牌写进生产构建的环境。
+- [x] 访问统计按访客的选择加载，Cloudflare 判断在欧洲或判断不出国家的访客先看到同意卡片，隐私政策第 9 节写明（seo-geo.md §7.1、[permissions.md §8](permissions.md)、[website.md §20](website.md)）；站点令牌写进生产构建的环境。
 - [x] Cloudflare 侧开启访问统计：Web Analytics 只用手动嵌入、关掉自动注入（[部署说明](../../website/README.md)）。
 - [x] 静态托管上线验收：候选站点、生产域名切换、部署提交标识、语言跳转与真实欧洲/非欧洲的统计同意行为全部通过（[上线步骤](../../cloudflare/README.md)）。生产站点的冒烟检查 2026-10-23 通过，真实欧洲与非欧洲出口的统计同意行为 2026-10-24 复核通过。
-- [x] `FAQPage` 结构化数据（§5.1）：文字取自页面 FAQ，竞品答案带核对日期。
-- [x] 一周走查每一步的正文都在构建生成的 HTML 标记里（§4.3）：非激活步骤的正文渲染后用 `hidden` 隐藏；资料库演示窗口随滚动懒挂载，提示与要点作为服务端内容留在标记里。
-- [x] 实验室性能验收（§3.6）：Lighthouse 移动端配置，两个语言页各测三次取中位数。2026-10-12 生产源实测全部过门槛：`/en` LCP 1739ms、CLS 0、TBT 102ms（性能分 98），`/zh-CN` LCP 2468ms、CLS 0、TBT 52ms（性能分 91）；部署前旧版 `/en` 基线为 LCP 2556ms、TBT 154ms（性能分 90）。
-- [x] 按 §4.2 复核各板块的说明段落与 FAQ，改写先改 [website.md](website.md)：2026-10-24 复核。
+- [x] `FAQPage` 结构化数据（seo-geo.md §5.1）：文字取自页面 FAQ，竞品答案带核对日期。
+- [x] 一周走查每一步的正文都在构建生成的 HTML 标记里（seo-geo.md §4.3）：非激活步骤的正文渲染后用 `hidden` 隐藏；资料库演示窗口随滚动懒挂载，提示与要点作为服务端内容留在标记里。
+- [x] 实验室性能验收（seo-geo.md §3.6）：Lighthouse 移动端配置，两个语言页各测三次取中位数。2026-10-12 生产源实测全部过门槛：`/en` LCP 1739ms、CLS 0、TBT 102ms（性能分 98），`/zh-CN` LCP 2468ms、CLS 0、TBT 52ms（性能分 91）；部署前旧版 `/en` 基线为 LCP 2556ms、TBT 154ms（性能分 90）。
+- [x] 按 seo-geo.md §4.2 复核各板块的说明段落与 FAQ，改写先改 [website.md](website.md)：2026-10-24 复核。
