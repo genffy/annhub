@@ -341,6 +341,53 @@ function checkRoundLabels() {
   return { problems, detail: `${checked} text lines` }
 }
 
+// --- agents-tree: instruction files are reachable, and no @ imports ------------------------------------------------
+
+function checkAgentsTree() {
+  const agents = markdownFiles.filter(file => basename(file) === 'AGENTS.md')
+  const notes = markdownFiles.filter(file => /(^|\/)notes\/[^/]+\.md$/.test(file))
+  const targetsOf = file => {
+    const targets = new Set()
+    for (const { line } of proseLines(read(file))) {
+      const text = line.replace(/`[^`]*`/g, '')
+      for (const match of text.matchAll(/\[[^\]]*\]\(([^)\s]+)\)/g)) {
+        targets.add(posix.normalize(posix.join(dirname(file), match[1].split('#')[0])))
+      }
+    }
+    return targets
+  }
+  const problems = []
+  for (const file of [...agents, ...notes]) {
+    if (file === 'AGENTS.md') continue // the root is loaded every session, not linked
+    // the nearest AGENTS.md up the tree links it; the root does when no intermediate one exists
+    let directory = dirname(file)
+    let linker = 'AGENTS.md'
+    while (directory && directory !== '.') {
+      if (agents.includes(`${directory}/AGENTS.md`) && `${directory}/AGENTS.md` !== file) {
+        linker = `${directory}/AGENTS.md`
+        break
+      }
+      const parent = posix.dirname(directory)
+      if (parent === directory) break
+      directory = parent
+    }
+    if (!existsSync(join(root, linker)) || !targetsOf(linker).has(file)) {
+      problems.push(`${file}: [agents-tree] not linked from ${linker}`)
+    }
+  }
+  // an `@path` outside code spans or fences would be treated as an import and inlined whole
+  let scanned = 0
+  for (const file of agents) {
+    for (const { line, n } of proseLines(read(file))) {
+      scanned += 1
+      const text = line.replace(/`[^`]*`/g, '')
+      const match = /(^|\s)@[\w./~-]+/.exec(text)
+      if (match) problems.push(`${file}:${n}: [agents-tree] an @import would inline the file whole: put the path in backticks`)
+    }
+  }
+  return { problems, detail: `${agents.length} instruction files, ${notes.length} notes, ${scanned} lines scanned for imports` }
+}
+
 // --- run ----------------------------------------------------------------------------------------------------------
 
 const rules = [
@@ -352,6 +399,7 @@ const rules = [
   ['date-in-prose', checkDatesInProse],
   ['history-wording', checkHistoryWording],
   ['round-label', checkRoundLabels],
+  ['agents-tree', checkAgentsTree],
 ]
 
 const problems = []
