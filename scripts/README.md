@@ -2,9 +2,17 @@
 
 仓库根的检查与 smoke 脚本都由 `package.json` 的 scripts 调用；每个脚本的职责见文件头注释。
 
+## 体量预算
+
+单个文件按字节设预算：`AGENTS.md`、`CLAUDE.md` 与 `notes/*.md` 8 KB（单行 ≤ 300 字符），其余 `*.md` 48 KB，测试 48 KB，代码 32 KB，CSS 40 KB。`docs/design/` 的原型素材、`scripts/data/`、html、json、yaml、锁文件、图片不设预算。预算是字节不是行数（中文一个字三字节）。
+
+台账 `scripts/size-ledger.json` 记录已经超预算的存量文件，只降不升：台账里的文件不许再长（新代码进新文件）；变小后跑 `npm run check:size -- --lower` 记下新值，回到预算内条目自动删除；不手改台账（hook 会拦）。接近预算时按职责拆新文件，不按行数拆。
+
+读取纪律：台账里的文件和超预算的文档不要整份读——先 `grep -n` 找标题或导出，再按行段读。
+
 ## 验证入口
 
-- 提交前跑 `npm run verify`（format:check → lint → compile → vitest → check:docs → check:lockfiles → check:consistency）。`check:docs` 核对相对链接、`文档.md §N.M` 节号引用、被引用的编号有定义，以及正文的写法；格式由 Prettier 负责，ESLint 只管正确性。
+- 提交前跑 `npm run verify`（format:check → lint → compile → vitest → check:docs → check:size → check:lockfiles → check:consistency）。`check:docs` 核对相对链接、`文档.md §N.M` 节号引用、被引用的编号有定义，以及正文的写法；格式由 Prettier 负责，ESLint 只管正确性。
 - 扩展构建 `npm run build`（`.output` 不随源码自动重建）；浏览器 E2E 先构建再 `npx playwright test <spec>`，手工 Chrome 实测见 [e2e/README.md](../e2e/README.md)。
 - 官网静态部署：`cd website && npm run build && npm run start`；另一个终端在仓库根运行 `WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node scripts/smoke-website.mjs --local`。
 

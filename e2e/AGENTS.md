@@ -14,9 +14,20 @@
 - 断言下载用 service worker 里的 `chrome.downloads.search`：后台发起的下载不会触发 Playwright 的页面 download 事件。
 - 清库用 `clearLibrary`，它清 entries、assets 和两个派生检索 store，保留 properties store：内置属性注册表被清掉后，service worker 不会重新播种，之后每次保存都会校验失败。
 - 要让条目像用户编辑那样变化，用 `helpers.ts` 的 `updateEntry`（走 `UPDATE_ENTRY`）。直接写 IndexedDB 会绕过与条目同事务更新的派生检索文档，之后按标签、来源等筛选查询就看不到这次改动；直写只用来播种大量条目（第一次查询会按条目数发现派生文档对不上而整体重建）。
-- 用 fixture 验证浏览器可观察行为和持久化结果。采集、截图、检索或消息协议变化时选择相应调用链测试；断线、重启、失败和取消属于相关流程的必要边界。写操作之后既断言库，也断言界面（列表的卡片数、总数、导航计数、徽章）：只查库发现不了“库里改了、界面没变”（`library-browse.spec.ts` 的删除用例是范例）。下一步操作之前等的也是界面，不是库：service worker 先提交、再回复，页面收到回复才画出标记、清掉选区、关掉工具条。库里刚有、回复未到时按 `Esc`，关掉的是还开着的工具条而不是阅读视图；这时双击下一处，新的选区和工具条会被迟到的回复清掉（测试：`reading-highlight.spec.ts`）。
+- 用 fixture 验证浏览器可观察行为和持久化结果。
+- 采集、截图、检索或消息协议变化时选择相应调用链测试；
+- 断线、重启、失败和取消属于相关流程的必要边界。
+- 写操作之后既断言库，也断言界面（列表的卡片数、总数、导航计数、徽章）：只查库发现不了“库里改了、界面没变”（`library-browse.spec.ts` 的删除用例是范例）。
+- 下一步操作之前等的也是界面，不是库：service worker 先提交、再回复，页面收到回复才画出标记、清掉选区、关掉工具条。
+- 库里刚有、回复未到时按 `Esc`，关掉的是还开着的工具条而不是阅读视图；
+- 这时双击下一处，新的选区和工具条会被迟到的回复清掉（测试：`reading-highlight.spec.ts`）。
 - `fixtures.ts` 有一个自动的 `pageErrors` 守卫：用例里任何页面（含扩展页面、内容脚本在页面里的浮层）抛出未捕获错误，或打印 `console.error`，该用例就失败。唯一放行的是“资源加载失败”（夹具页引用了不存在的主机，浏览器还会要 `/favicon.ico`）；新增放行项要写明理由，不要为了求绿放宽。
-- 专项夹具：`keyboard-blocks`、`timeline.html`（X 式时间线：帖子列紧挨侧栏，Parent 停在帖子、离开与 Esc 收起描边，胶囊的左右缘留在帖子内）、`media`（视频帖与滚到第二张的多图轮播：`screenshot-media.spec.ts` 读预览画布像素，断言当前视频帧与当前幻灯在元素截图里）、`columns`（三栏页：内栏自滚、窗口 scrollY 为 0 时，划词菜单仍贴内栏的选区）、`longpage.html`（滚动长图的五屏长页）、`virtualfeed.html`（回收单元格的虚拟时间线，同一个结构路径在不同滚动高度是另一条帖子；测试：`screenshot-frame.spec.ts` 的“沿用上次取景框时页面不动”）。`page-shapes.spec.ts` 在真实浏览器里验识别与转换。
+- 专项夹具：`keyboard-blocks`
+- `timeline.html`（X 式时间线：帖子列紧挨侧栏，Parent 停在帖子、离开与 Esc 收起描边，胶囊的左右缘留在帖子内）
+- `media`（视频帖与滚到第二张的多图轮播：`screenshot-media.spec.ts` 读预览画布像素，断言当前视频帧与当前幻灯在元素截图里）
+- `columns`（三栏页：内栏自滚、窗口 scrollY 为 0 时，划词菜单仍贴内栏的选区）
+- `longpage.html`（滚动长图的五屏长页）
+- `virtualfeed.html`（回收单元格的虚拟时间线，同一个结构路径在不同滚动高度是另一条帖子；测试：`screenshot-frame.spec.ts` 的“沿用上次取景框时页面不动”）。`page-shapes.spec.ts` 在真实浏览器里验识别与转换。
 
 ## 按需读取
 

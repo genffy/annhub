@@ -20,11 +20,12 @@
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
-    "verify": "npm run format:check && npm run lint && npm run compile && npm test && npm run check:docs && npm run check:lockfiles && npm run check:consistency",
+    "verify": "npm run format:check && npm run lint && npm run compile && npm test && npm run check:docs && npm run check:size && npm run check:lockfiles && npm run check:consistency",
     "postinstall": "wxt prepare",
     "website:dev": "cd website && npm run dev",
     "website:build": "cd website && npm ci && npm run build",
-    "website:start": "cd website && npm run start"
+    "website:start": "cd website && npm run start",
+    "check:size": "node scripts/check-size.mjs"
   },
   "dependencies": {
     "@wxt-dev/i18n": "^0.2.4",
