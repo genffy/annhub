@@ -1,7 +1,6 @@
 # Learning Core 约定
 
-> 适用于当前 `learning-core/` 实现；不是未来 monorepo 的目标划分。全局规则见根目录 `AGENTS.md`。
-> 更新：2026-10-10。
+> 适用范围：`learning-core/`。全局规则见根目录 [AGENTS.md](../AGENTS.md)。
 
 ## 边界与实现点
 
