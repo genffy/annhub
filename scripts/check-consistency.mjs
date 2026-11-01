@@ -429,6 +429,75 @@ function checkSkills() {
   }
 }
 
+// --- Website components: every `ah-` class they use has a rule of its own in the website's stylesheets. ------
+
+/**
+ * The `ah-` class names a website source file really uses. Comments are not code, an SVG marker `id="ah-…"` and its
+ * `url(#ah-…)` reference are identifiers rather than classes, and the static prefix of a template such as
+ * `ah-t-${kind}` (which ends in `-`) is not a name yet.
+ */
+function websiteClassNames(source) {
+  const code = source
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/^[ \t]*\/\/.*$/gm, '')
+    .replace(/\bid\s*=\s*(['"])[^'"]*\1/g, '')
+  const names = new Set()
+  for (const match of code.matchAll(/(?<![\w$#./-])ah-[A-Za-z0-9][\w-]*/g)) if (!match[0].endsWith('-')) names.add(match[0])
+  return names
+}
+
+/**
+ * Whether `name` has a rule of its own: some selector where `.name` starts its compound — what stands before the `.`
+ * is the start of a selector (the beginning, whitespace, a combinator or a comma) — and no other class follows in
+ * the same compound. `.ah-pop.static` is therefore not a rule of `.ah-pop`'s own, while `.a .ah-pop`, `.ah-pop:hover`
+ * and rules inside `@media` are.
+ */
+function hasOwnRule(css, name) {
+  return new RegExp(`(?:^|[\\s>+~,])\\.${name}(?![\\w-])(?!\\.[\\w-])`).test(css)
+}
+
+/** The selector an occurrence belongs to, so a failure can say what the stylesheets have instead. */
+function selectorAround(css, index) {
+  let start = index
+  while (start > 0 && /[\w$:.-]/.test(css[start - 1])) start -= 1
+  const end = ['{', '\n', ','].reduce((nearest, character) => {
+    const found = css.indexOf(character, index)
+    return found === -1 ? nearest : Math.min(nearest, found)
+  }, css.length)
+  return css.slice(start, end).trim()
+}
+
+function checkWebsiteClasses() {
+  const css = files
+    .filter(file => file.startsWith('website/') && file.endsWith('.css'))
+    .map(file => read(file) ?? '')
+    .join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+
+  const users = new Map()
+  for (const file of files.filter(file => file.startsWith('website/') && /\.[cm]?[jt]sx?$/.test(file))) {
+    for (const name of websiteClassNames(read(file) ?? '')) {
+      if (!users.has(name)) users.set(name, new Set())
+      users.get(name).add(file)
+    }
+  }
+
+  for (const [name, usedIn] of users) {
+    if (hasOwnRule(css, name)) continue
+    const closest = [...css.matchAll(new RegExp(`\\.${name}(?![\\w-])`, 'g'))].map(match => selectorAround(css, match.index))
+    fail(
+      name,
+      `is used by ${[...usedIn].join(', ')} but has no rule of its own in the website's CSS` +
+        (closest.length > 0
+          ? ` (closest: ${closest
+              .slice(0, 2)
+              .map(selector => `"${selector}"`)
+              .join(', ')})`
+          : ' (no stylesheet mentions it)'),
+    )
+  }
+}
+
 checkNode()
 checkNext()
 checkTailwind()
@@ -436,6 +505,7 @@ checkCloudflare()
 checkMinimumChrome()
 checkPackageDirectories()
 checkGate()
+checkWebsiteClasses()
 checkSkills()
 
 if (problems.length > 0) {

@@ -1,7 +1,7 @@
 # AnnHub 工程约定
 
 > 本文件只放跨目录通用规则。当前代码的局部维护提示见下表的 `AGENTS.md`。
-> 更新：2026-10-31。
+> 更新：2026-11-01。
 
 ## 项目与真源
 
@@ -69,6 +69,7 @@
 | `package.json` 的 `scripts`、CI 任务      | `verify` 与 CI 运行同样的命令；`.github/rulesets/main.json` 的必需检查名；本文件「验证入口」                                                                                                                                                                           |
 | 新增、移动或删除 skill                    | `.agents/skills/<name>` 与 `.claude/skills/<name>` 同时存在且是同一个目录（一个是另一个的软链接）；只想手动调用时两边的开关都写上；`check:consistency` 核对目录                                                                                                        |
 | `wxt.config.ts` 的权限与最低版本          | [docs/product/permissions.md](docs/product/permissions.md)；隐私政策页 `website/public/privacy-policy.html` 里的权限表（`utils/__tests__/legal-pages.test.ts` 核对它，不核对文档）；商店的权限说明；官网 `lib/site.ts` 的 `MIN_CHROME_VERSION`                         |
+| 官网组件的 `ah-*` 类名与样式选择器        | 每个用到的 `ah-*` 类在官网样式里都有自己的规则（选择器里 `.类名` 开头一个复合选择器，后面不紧跟另一个类），`check:consistency` 核对                                                                                                                                    |
 
 ## 验证入口
 

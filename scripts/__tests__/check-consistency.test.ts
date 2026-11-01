@@ -393,6 +393,51 @@ describe('check-consistency', () => {
     })
   })
 
+  describe('website ah- classes', () => {
+    const tsx = (classes: string) => `export function Scene() {\n  return <span className="${classes}" />\n}\n`
+
+    it('catches a class no stylesheet mentions', () => {
+      expectFailure(
+        {
+          'website/components/product/scene.tsx': tsx('ah ah-scene ah-ghost'),
+          'website/components/product/scene.css': '.ah-scene { color: red }\n',
+        },
+        'ah-ghost: is used by website/components/product/scene.tsx but has no rule of its own',
+        'no stylesheet mentions it',
+      )
+    })
+
+    it('catches a class that only ever appears inside a compound selector', () => {
+      expectFailure(
+        {
+          'website/components/product/scene.tsx': tsx('ah ah-scene ah-host static'),
+          'website/components/product/scene.css': '.ah-scene { color: red }\n.ah-host.static { position: relative }\n',
+        },
+        'ah-host: is used by website/components/product/scene.tsx but has no rule of its own',
+        'closest: ".ah-host.static"',
+      )
+    })
+
+    it('counts an SVG marker id, a comment and a template prefix as no class, and a rule inside @media as a rule', () => {
+      const { status, output } = check({
+        'website/components/product/scene.tsx': `export function Scene({ kind }: { kind: string }) {
+  /* the old menu was .ah-menu */
+  // the capsule before it was .ah-pill too
+  return (
+    <svg>
+      <marker id="ah-arrow-head" />
+      <path markerEnd="url(#ah-arrow-head)" />
+      <span className={\`ah ah-scene ah-narrow ah-t-\${kind}\`} />
+    </svg>
+  )
+}
+`,
+        'website/components/product/scene.css': '.ah-scene { color: red }\n@media (max-width: 600px) {\n  .ah-narrow { color: blue }\n}\n',
+      })
+      expect(status, output).toBe(0)
+    })
+  })
+
   describe('skills', () => {
     const skill = (name: string) => `---\nname: ${name}\ndescription: test\n---\n`
     const linked = { '.claude/skills/verify': '../../.agents/skills/verify' }

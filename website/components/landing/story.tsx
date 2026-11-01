@@ -24,11 +24,11 @@ export default function Story({ copy }: { copy: LandingCopy }) {
   const reading = entryById(sample, sample.reading)
   const hit = entryById(sample, sample.search.hits[0]!)
 
-  // `select` opens the quick-edit bubble below the selection, so it gets the taller stage the bubble needs
-  const web = (focus: 'select' | 'block', offset: number) => (
-    <Fit width={840} height={focus === 'select' ? 680 : 500}>
-      <BrowserFrame title={page.title} url={url} width={840} height={focus === 'select' ? 680 : 500}>
-        <RetriesArticle ui={ui} page={page} focus={focus} offset={offset} quickEdit={focus === 'select' ? sample.quickEdit : undefined} />
+  // the quick-edit bubble hangs below the selection, so that step needs the taller stage
+  const web = (focus: 'quick-edit' | 'block', offset: number) => (
+    <Fit width={840} height={focus === 'quick-edit' ? 710 : 500}>
+      <BrowserFrame title={page.title} url={url} width={840} height={focus === 'quick-edit' ? 710 : 500}>
+        <RetriesArticle ui={ui} page={page} offset={offset} {...(focus === 'quick-edit' ? { focus, quickEdit: sample.quickEdit } : { focus })} />
       </BrowserFrame>
     </Fit>
   )
@@ -44,7 +44,7 @@ export default function Story({ copy }: { copy: LandingCopy }) {
   )
 
   const scenes: Record<StoryStep['id'], ReactNode> = {
-    select: web('select', 70),
+    select: web('quick-edit', 90),
     block: web('block', 300),
     shot: (
       <Fit width={760} height={470}>

@@ -221,7 +221,10 @@ export function HeroArticle({ ui, menu = true, toast = false }: { ui: ProductUi;
   )
 }
 
-/** The retries article of the walkthrough, in the language of the page. */
+/**
+ * The retries article of the walkthrough, in the language of the page. `quick-edit` is the step after the clip toast:
+ * the selected sentence with the quick-edit bubble under it (the toast and the menu are separate moments, not this one).
+ */
 export function RetriesArticle({
   ui,
   page,
@@ -232,13 +235,10 @@ export function RetriesArticle({
 }: {
   ui: ProductUi
   page: RetriesPage
-  /** `select`: a selection with the menu on the first section; `block`: the pointer rests on the second section. */
-  focus: 'select' | 'block' | 'none'
   /** How far the page is scrolled, in pixels. */
   offset?: number
   toast?: 'clipped' | 'undone'
-  quickEdit?: { title: string; tags: string[]; note: string }
-}) {
+} & ({ focus: 'quick-edit'; quickEdit: { title: string; tags: string[]; note: string } } | { focus: 'block' | 'none'; quickEdit?: undefined })) {
   const [before, after] = page.storm.body.split(page.storm.selection)
   return (
     <div className="ah-pg" style={{ minHeight: '100%', marginTop: -offset }}>
@@ -258,17 +258,12 @@ export function RetriesArticle({
           <div className="ah-h2">{page.storm.heading}</div>
           <p>
             {before}
-            {focus === 'select' ? (
+            {focus === 'quick-edit' ? (
               <span className="ah-sel ah-anchor">
                 {page.storm.selection}
-                <Anchored place="above">
-                  <SelectionMenu ui={ui} hover={0} />
+                <Anchored place="below">
+                  <QuickEdit ui={ui} data={quickEdit} />
                 </Anchored>
-                {quickEdit ? (
-                  <Anchored place="below">
-                    <QuickEdit ui={ui} data={quickEdit} />
-                  </Anchored>
-                ) : null}
               </span>
             ) : (
               page.storm.selection
