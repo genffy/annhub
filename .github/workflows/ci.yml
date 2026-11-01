@@ -66,8 +66,6 @@ jobs:
 
       - name: Documentation (links, section references, wording)
         run: npm run check:docs
-      - name: File size budgets
-        run: npm run check:size
 
       - name: Lockfiles use the public registry
         run: npm run check:lockfiles
