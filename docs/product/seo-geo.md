@@ -1,8 +1,5 @@
 # 官网的 SEO 与 GEO
 
-> 层级：website
-> 状态：官网被搜索引擎与 AI 搜索发现、理解和引用的目标契约
-> 更新：2026-11-01
 
 本文规定官网在传统搜索（SEO）与生成式 AI 搜索（GEO）里的技术契约、内容写法和衡量方式。页面的信息架构与文案以 [website.md](website.md) 为准，产品定义以 [product.md §1](product.md) 为准，官网收集的访问数据以 [permissions.md §8](permissions.md) 为准，指标口径以 [metrics.md §11](metrics.md) 为准，搜索与 AI 平台的外部事实见 [market.md §4.6](market.md)。交付状态只看 [roadmap.md](roadmap.md)；待定的决策、风险与问题在 [validation.md](validation.md)。
 
