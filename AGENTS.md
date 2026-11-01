@@ -1,7 +1,6 @@
 # AnnHub 工程约定
 
 > 本文件只放跨目录通用规则。当前代码的局部维护提示见下表的 `AGENTS.md`。
-> 更新：2026-11-01。
 
 ## 项目与真源
 
@@ -11,6 +10,13 @@
 - 新功能的规格与代码在同一个 PR 里进入仓库，流程见 [docs/product/AGENTS.md](docs/product/AGENTS.md)。没有产品文档依据的代码、文案或配置，发现时删除，而不是兼容或隔离。
 - 本文件不复制数据结构、消息清单、目标包结构或产品决策。当前字段与消息看源码，已确认但仍在迭代的产品结论看 `docs/product/`。
 - 待确认的产品决策（`D-`）连同各自的默认在 [validation.md 第 2 节](docs/product/validation.md)：实现不等回复，先按默认走，确认的结果与默认不同再调整。只有真机才能验收的项在 [roadmap.md 第 5 节](docs/product/roadmap.md)。
+
+## 文档怎么写
+
+- 只写现在是什么：不写日期、版本、状态标签、轮次、修复经过；什么时候改的看 git，交付状态只在 [roadmap.md](docs/product/roadmap.md)。
+- 约束连同原因写成一句现在时；细节放进被引用的文档，不在约定里复述实现。
+- 引用节号一律写成 `文档.md §N.M`；被引用过的节不移动、不复用。稳定编号（`D-`、`Q-`、`RK-`、`M-`、`US-` 等）不改号、不复用。
+- 机器检查是 `npm run check:docs`（链接、节号引用、编号引用、写法）。
 
 ## 按目录读取
 
@@ -46,7 +52,7 @@
 
 ## 联动一致性（强制）
 
-环境、依赖、构建和部署的值同时写在多个文件里。只改其中一处、漏掉其余，是反复出现的错误（运行环境、框架与部署配置都出现过），类型检查和单测发现不了。
+环境、依赖、构建和部署的值同时写在多个文件里。只改其中一处、漏掉其余，类型检查和单测发现不了。
 
 1. **先找全，再动手。** 改任何版本号、包名、目录名、命令或 CI / 部署配置之前，先 `git grep` 这个值，列出全部出现处，范围至少含 `.github/`、`cloudflare/`、`website/wrangler.json`、各 `package.json`、`README.md` 和 `docs/`。改完再搜一遍，确认没有残留。
 2. **一个值一个真源。** 其余位置引用它或与它一致；不新增第二份真源，文档和本文件不抄版本号（抄了就会过期）。
@@ -69,11 +75,12 @@
 | `package.json` 的 `scripts`、CI 任务      | `verify` 与 CI 运行同样的命令；`.github/rulesets/main.json` 的必需检查名；本文件「验证入口」                                                                                                                                                                           |
 | 新增、移动或删除 skill                    | `.agents/skills/<name>` 与 `.claude/skills/<name>` 同时存在且是同一个目录（一个是另一个的软链接）；只想手动调用时两边的开关都写上；`check:consistency` 核对目录                                                                                                        |
 | `wxt.config.ts` 的权限与最低版本          | [docs/product/permissions.md](docs/product/permissions.md)；隐私政策页 `website/public/privacy-policy.html` 里的权限表（`utils/__tests__/legal-pages.test.ts` 核对它，不核对文档）；商店的权限说明；官网 `lib/site.ts` 的 `MIN_CHROME_VERSION`                         |
+| 移动、重编号或删除被引用的节或编号        | `check:docs` 兜底：引用不只在 `docs/`，源码、测试和 `docs/design/` 也有；引用与定义在同一个提交里一起改                                                                                                                                                                |
 | 官网组件的 `ah-*` 类名与样式选择器        | 每个用到的 `ah-*` 类在官网样式里都有自己的规则（选择器里 `.类名` 开头一个复合选择器，后面不紧跟另一个类），`check:consistency` 核对                                                                                                                                    |
 
 ## 验证入口
 
-- 提交前跑 `npm run verify`（format:check → lint → compile → vitest → check:docs → check:lockfiles → check:consistency）。`check:docs` 核对文档的相对链接、`文档.md §N.M` 节号引用与被引用的编号（`D-`、`US-` 等）都有定义。格式由 Prettier 负责，`npm run format` 一次修复；ESLint 只管正确性。
+- 提交前跑 `npm run verify`（format:check → lint → compile → vitest → check:docs → check:lockfiles → check:consistency）。`check:docs` 核对文档的相对链接、`文档.md §N.M` 节号引用、被引用的编号（`D-`、`US-` 等）有定义，以及正文的写法（日期、状态标签与叙事残留）。格式由 Prettier 负责，`npm run format` 一次修复；ESLint 只管正确性。
 - 扩展构建：`npm run build`。浏览器 E2E：先构建，再 `npx playwright test <spec>`；现有 `.output` 不会因源码变化自动重建。手工 Chrome 实测见 [e2e/README.md](e2e/README.md)。
 - 官网静态部署：`cd website && npm run build && npm run start`；另一个终端在仓库根运行 `WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node scripts/smoke-website.mjs --local`。
 - 按改动范围运行相关测试；消息协议和截图链路的最低验证见对应目录约定。
