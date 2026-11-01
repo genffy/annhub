@@ -114,7 +114,7 @@ npm run compile
 ### 测试与提交前检查
 
 ```bash
-npm run verify                    # 格式、ESLint、类型、vitest、文档链接、锁文件注册表、联动一致性
+npm run verify                    # 格式、ESLint、类型、vitest、文档检查（链接、节号与编号引用）、锁文件注册表、联动一致性
 npm run build && npx playwright test
 ```
 

@@ -73,7 +73,7 @@
 
 ## 验证入口
 
-- 提交前跑 `npm run verify`（format:check → lint → compile → vitest → check:docs → check:lockfiles → check:consistency）。格式由 Prettier 负责，`npm run format` 一次修复；ESLint 只管正确性。
+- 提交前跑 `npm run verify`（format:check → lint → compile → vitest → check:docs → check:lockfiles → check:consistency）。`check:docs` 核对文档的相对链接、`文档.md §N.M` 节号引用与被引用的编号（`D-`、`US-` 等）都有定义。格式由 Prettier 负责，`npm run format` 一次修复；ESLint 只管正确性。
 - 扩展构建：`npm run build`。浏览器 E2E：先构建，再 `npx playwright test <spec>`；现有 `.output` 不会因源码变化自动重建。手工 Chrome 实测见 [e2e/README.md](e2e/README.md)。
 - 官网静态部署：`cd website && npm run build && npm run start`；另一个终端在仓库根运行 `WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node scripts/smoke-website.mjs --local`。
 - 按改动范围运行相关测试；消息协议和截图链路的最低验证见对应目录约定。
