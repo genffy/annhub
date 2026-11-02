@@ -1,5 +1,7 @@
 {
   "docs/product/market.md": 77824,
   "e2e/real-chrome-scenarios.md": 52224,
+  "entrypoints/content/annotation/layer.ts": 49152,
+  "entrypoints/content/screenshot/index.ts": 100352,
   "entrypoints/content/screenshot/index.ts": 112640
 }
