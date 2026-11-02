@@ -50,7 +50,7 @@ jobs:
           curl --fail --silent --show-error --location \
             "https://github.com/rhysd/actionlint/releases/download/${ACTIONLINT_VERSION}/actionlint_${version}_checksums.txt" \
             --output "$dir/checksums.txt"
-          grep "actionlint_${version}_linux_amd64.tar.gz" "$dir/checksums.txt" | sha256sum --check --status
+          grep "actionlint_${version}_linux_amd64.tar.gz" "$dir/checksums.txt" | (cd "$dir" && sha256sum --check --status)
           tar --extract --gzip --file "$dir/actionlint.tar.gz" --directory "$dir" actionlint
           "$dir/actionlint" --version
 
