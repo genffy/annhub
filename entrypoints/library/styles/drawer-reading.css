@@ -1,0 +1,1098 @@
+/* ── The detail drawer, the Markdown rendering rules, and the reading view with in-library highlights (extension.md §4, capture.md §3.1). ── */
+
+/* ── Detail drawer (extension.md §4.1) ── */
+
+/* the design's “scrim” is a transparent click area: clicking outside closes, and the page behind is not dimmed */
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 19;
+  background: transparent;
+}
+
+.drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(440px, 100vw);
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--ann-line);
+  background: var(--ann-surface);
+  box-shadow: -18px 0 40px -18px rgb(15 23 42 / 0.28);
+  z-index: 20;
+}
+
+.drawer-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px 12px 18px;
+  border-bottom: 1px solid var(--ann-line);
+}
+
+.drawer-header-space {
+  flex: 1;
+}
+
+/* the header's actions move as one row — [阅读] [回到来源] [删除] [关闭] (extension.md §4.1) — and stay
+   at the row's right end however narrow the drawer gets */
+.drawer-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* "回到来源" is an <a>: keep it from growing the underline a button never has */
+.drawer-header a.ghost:hover,
+.drawer-header a.ghost:focus-visible {
+  text-decoration: none;
+}
+
+/* the title block under the header (design .dtitle): the entry's name, then where and when it came from */
+.drawer-title-block {
+  padding: 14px 18px 6px;
+}
+
+.drawer-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.drawer-sub {
+  margin-top: 3px;
+  color: var(--ann-muted);
+  font-size: 11.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* the sections (design .dsec): one hairline between them, the last one open toward the footer edge */
+.drawer-section {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--ann-line);
+}
+
+.drawer-section-last {
+  border-bottom: 0;
+}
+
+/* a child selector: the clip's Markdown renders inside a section too, and its `##` is an h3 (it was drawn as one of these labels) */
+.drawer-section > h3 {
+  margin-bottom: 8px;
+  font-size: 11.5px;
+  color: var(--ann-muted);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.drawer-section > h3 svg {
+  vertical-align: -2px;
+  margin-right: 1px;
+}
+
+.drawer-section-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.drawer-section-head > h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--ann-muted);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.drawer-section-space {
+  flex: 1;
+}
+
+.drawer-section-head .link {
+  flex: none;
+  font-size: 12px;
+}
+
+/* why the original text cannot be edited: a small lock badge beside the section title; the whole sentence
+   travels in the title attribute and, in words, for readers of the badge (extension.md §4.1) */
+.drawer-lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ann-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.drawer-lock svg {
+  flex: none;
+}
+
+.drawer-edit-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.drawer-section textarea.drawer-edit {
+  min-height: 7rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+/* the screenshot's picture (design .gt-img in the drawer): whole, centred in a bounded frame */
+.drawer-image {
+  display: block;
+  max-width: 100%;
+  max-height: 210px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.drawer-image-button {
+  display: grid;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--ann-line);
+  border-radius: 10px;
+  background: var(--ann-surface-alt);
+  cursor: zoom-in;
+  overflow: hidden;
+}
+
+.image-zoom {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.82);
+}
+
+.image-zoom > button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  color: white;
+}
+
+.image-zoom img {
+  max-width: 94vw;
+  max-height: 88vh;
+  object-fit: contain;
+}
+
+/* the context as a quiet box under the original (design .ctxbox): supplementary, not a peer section */
+.drawer-context {
+  margin-top: 10px;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: var(--ann-surface-alt);
+  color: var(--ann-muted);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.drawer-context-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.drawer-context-head b {
+  color: var(--ann-text-2);
+  font-size: 11.5px;
+}
+
+.drawer-context p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* an edit error at the drawer's foot (a delete that failed): inside the padded flow, not glued to an edge */
+.drawer-error {
+  padding: 10px 18px;
+}
+
+.field {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.field span {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--ann-muted);
+  font-size: 11.5px;
+}
+
+/* the shared text controls (design .input/.textarea): 32 tall, 8 radius; every select joins
+   them. Inputs and selects take the height itself, so a view can still give its own rows
+   one lower height; a textarea's height stays with its content */
+.field input,
+.drawer-section textarea,
+select {
+  box-sizing: border-box;
+  padding: 6px 10px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-page);
+  color: var(--ann-text);
+  font-size: 13px;
+}
+
+.field input,
+select {
+  height: 32px;
+}
+
+.field input,
+.drawer-section textarea {
+  width: 100%;
+}
+
+.field input:focus-visible,
+.drawer-section textarea:focus-visible,
+select:focus-visible {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 3px var(--ann-ring);
+}
+
+.warn {
+  color: var(--ann-danger);
+  font-size: 12.5px;
+}
+
+/* a control that cannot be used looks it: faded, no pointer; the reason, where there is one, is written beside it */
+.ghost:disabled,
+.primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* a delete that cannot happen is quiet: a whole column of red buttons that all say "no" shouts over the
+   table; the word beside it carries the reason, the title the whole sentence (extension.md §2.4) */
+.danger:disabled {
+  border-color: var(--ann-border);
+  color: var(--ann-muted);
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/*
+ * the next page is on its way: the link waits, so a second click cannot ask for the same page again. It is
+ * aria-disabled, not disabled, so the keyboard stays on it until the page arrives.
+ */
+.load-more[aria-disabled='true'] {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/*
+ * The shared button frame (design .btn): 32 tall, 8 radius, weight 500. `.ghost` is the outlined
+ * secondary, `.danger` the same frame in the danger colour, `.primary` the brand fill. The small
+ * 28 is `.sm` below; the borderless ghost is `.ghost.quiet`; the icon-only square is `.ghost-icon`.
+ */
+.ghost,
+.danger,
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-surface);
+  color: var(--ann-text);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ghost:hover:not(:disabled),
+.danger:hover:not(:disabled) {
+  background: var(--ann-surface-alt);
+}
+
+.primary {
+  border-color: transparent;
+  background: var(--ann-accent);
+  color: var(--ann-accent-contrast);
+}
+
+.primary:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--ann-accent) 86%, #000);
+}
+
+/* the danger button keeps the secondary frame; only its text carries the colour */
+.danger {
+  color: color-mix(in oklab, var(--ann-danger) 84%, var(--ann-text));
+}
+
+/* the quiet ghost (design .btn-ghost): no border, no fill — the word is the button, and the wash
+   arrives on hover. A dialog's cancel, the reading view's back, the popover's delete */
+.ghost.quiet {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ann-text-2);
+}
+
+.ghost.quiet:hover:not(:disabled) {
+  background: var(--ann-surface-alt);
+}
+
+/* the small button of a settings row or an inline form (design .btn sm): 28 tall, one notch quieter */
+.ghost.sm,
+.danger.sm,
+.primary.sm {
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font-size: 12px;
+}
+
+.ghost.sm svg,
+.danger.sm svg,
+.primary.sm svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* the design's focus ring: a surface gap, then the soft accent ring. The global outline from
+   tokens.css stays on top of it — it carries the ≥3:1 contrast and survives forced colours,
+   where box-shadows disappear */
+.ghost:focus-visible,
+.danger:focus-visible,
+.primary:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--ann-surface),
+    0 0 0 4px var(--ann-ring);
+}
+
+/* the icon-only ghost (design .btn-ghost.btn-icon): borderless and quiet — the drawer's 删除 and 关闭,
+   where a drawn border on every icon would weigh the header down */
+.ghost-icon {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ann-text-2);
+  cursor: pointer;
+}
+
+.ghost-icon:hover {
+  background: var(--ann-surface-alt);
+  color: var(--ann-text);
+}
+
+/* the delete confirm (extension.md §4.1): the scrim dims the drawer beneath it and keeps the drawer's
+   controls away from the keyboard, and one card holds the question and its two answers */
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  background: var(--ann-scrim);
+}
+
+.modal-card {
+  width: min(420px, calc(100vw - 48px));
+  padding: 20px 22px;
+  border-radius: 16px;
+  background: var(--ann-surface);
+  box-shadow: var(--ann-shadow-modal);
+}
+
+.modal-title {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.modal-card p {
+  margin: 6px 0 0;
+  color: var(--ann-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.modal-card p b {
+  color: var(--ann-text);
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+/* ── Markdown view (capture.md §3.1 rendering rules) ── */
+
+/* one component, three sizes (design .md / .md-sm / .md-rd): the drawer's compact copy, the page base, the reading column */
+.md-view {
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.drawer .md-view {
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.md-view > * + * {
+  margin-top: 0.65em;
+}
+
+.md-view h1,
+.md-view h2,
+.md-view h3,
+.md-view h4,
+.md-view h5,
+.md-view h6 {
+  margin-top: 1.1em;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+}
+
+.md-view > :first-child {
+  margin-top: 0;
+}
+
+.md-view h1 {
+  font-size: 1.3em;
+}
+
+.md-view h2 {
+  font-size: 1.3em;
+}
+
+.md-view h3 {
+  font-size: 1.12em;
+}
+
+.md-view h4 {
+  font-size: 1em;
+}
+
+.md-view ul,
+.md-view ol {
+  padding-left: 1.5em;
+}
+
+.md-view li {
+  margin: 0.25em 0;
+}
+
+/* a heading written as a link (“### [标题](#锚点)”) still reads as the heading,
+   not as an underlined body-sized link */
+.md-view h1 a,
+.md-view h2 a,
+.md-view h3 a,
+.md-view h4 a,
+.md-view h5 a,
+.md-view h6 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.md-view pre {
+  padding: 10px 12px;
+  border: 1px solid var(--ann-border);
+  border-radius: 6px;
+  background: var(--ann-surface-alt);
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.md-view code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--ann-surface-3);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+}
+
+.md-view pre code {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  font-size: 12px;
+}
+
+.md-view blockquote {
+  margin: 0.8em 0;
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--ann-border);
+  color: var(--ann-text-2);
+}
+
+.md-view a {
+  color: var(--ann-accent-text);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/*
+ * Tables shrink to their content and scroll sideways rather than widen the column (the drawer is 520px).
+ * The cells paint the surface so the grid reads the same on the drawer and on the reading view's page colour.
+ */
+.md-view table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  line-height: 1.5;
+}
+
+.md-view th,
+.md-view td {
+  padding: 6px 12px;
+  border: 1px solid var(--ann-border);
+  background: var(--ann-surface);
+  text-align: left;
+  vertical-align: top;
+  /* the wide table scrolls rather than shrinks: a cell's long words do not break (RV-LIB-09) */
+  overflow-wrap: normal;
+}
+
+.md-view th {
+  background: var(--ann-surface-alt);
+  font-weight: 600;
+}
+
+/* the reading view's image placeholder (design .md-img): alt text, the not-saved note and the
+   original's link in a dashed chip — the image itself never loads (capture.md §3.1) */
+.md-view .md-image-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px;
+  border: 1px dashed var(--ann-border);
+  border-radius: 7px;
+  color: var(--ann-muted);
+  font-size: 0.85em;
+}
+
+/* the draft paints the note in its faintest grey; muted keeps it readable in both appearances */
+.md-view .md-image-placeholder small {
+  color: var(--ann-muted);
+  font-size: 0.9em;
+}
+
+.md-view .md-image-placeholder a {
+  margin-left: 4px;
+}
+
+/* ── Reading view and in-library highlights (extension.md §4.2) ── */
+
+/* it fills the content area (`.content` is its positioned parent) and leaves the nav alone: the scrolling
+   text column plus the 320px rail of 高亮 / 属性 (design .rd). No ground of its own: the text column
+   keeps the content area's surface, only the rail carries the second surface */
+.reading {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  background: var(--ann-surface);
+}
+
+.reading-body {
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 32px 56px;
+}
+
+/* the bar over the column: 返回 on the left, the source on the right; it scrolls away with the text */
+.rd-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 700px;
+  margin: 0 auto 18px;
+}
+
+.rd-bar-space {
+  flex: 1;
+}
+
+.reading-back {
+  display: inline-flex;
+  flex: none;
+}
+
+/* the centred column (design .rd-col): title, meta with a hairline under it, then the article */
+.rd-col {
+  position: relative;
+  max-width: 700px;
+  margin: 0 auto;
+}
+
+.reading-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.rd-head-placeholder {
+  color: var(--ann-muted);
+}
+
+.rd-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  margin: 10px 0 22px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--ann-line);
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+.rd-meta-host {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rd-col .md-view {
+  font-size: 16px;
+  line-height: 1.85;
+}
+
+.reading-lock {
+  margin: 0 0 16px;
+  color: var(--ann-muted);
+  font-size: 12px;
+}
+
+/* the rail (design .rd-rail): its own surface, the tabs holding its top, the pane scrolling under them */
+.reading-side {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--ann-line);
+  background: var(--ann-surface-alt);
+}
+
+.reading-side-section {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 10px 10px 16px;
+}
+
+/* the rail is 40px narrower than the drawer: the property rows slim with it (design .rd-props .prow) */
+.reading-side .prop-row {
+  grid-template-columns: 96px minmax(0, 1fr) 20px;
+}
+
+.rd-empty {
+  padding: 48px 24px;
+  color: var(--ann-muted);
+  text-align: center;
+  font-size: 12.5px;
+}
+
+.hint {
+  color: var(--ann-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* highlight marks and colors (visual.md §3: color plus underline, never color alone). Design .hlm: a
+   42% tint under the words, the stronger 78%-toward-black tone as the underline */
+.md-hl {
+  position: relative;
+  border-bottom: 2px solid transparent;
+  border-radius: 3px;
+  padding: 1px 0;
+  cursor: pointer;
+}
+
+/* the highlight a link from the highlights view opened the reading view at */
+.md-hl-flash {
+  animation: md-hl-flash 1.4s ease-out;
+}
+
+@keyframes md-hl-flash {
+  from {
+    outline: 3px solid var(--ann-accent);
+    outline-offset: 2px;
+  }
+  to {
+    outline: 3px solid transparent;
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-hl-flash {
+    animation: none;
+    outline: 2px solid var(--ann-accent);
+    outline-offset: 2px;
+  }
+}
+
+.md-hl-yellow {
+  background: color-mix(in oklab, #facc15 42%, transparent);
+  border-bottom-color: color-mix(in oklab, #facc15 78%, #000);
+}
+
+.md-hl-green {
+  background: color-mix(in oklab, #4ade80 42%, transparent);
+  border-bottom-color: color-mix(in oklab, #4ade80 78%, #000);
+}
+
+.md-hl-blue {
+  background: color-mix(in oklab, #60a5fa 42%, transparent);
+  border-bottom-color: color-mix(in oklab, #60a5fa 78%, #000);
+}
+
+.md-hl-pink {
+  background: color-mix(in oklab, #f472b6 42%, transparent);
+  border-bottom-color: color-mix(in oklab, #f472b6 78%, #000);
+}
+
+.md-hl-purple {
+  background: color-mix(in oklab, #a78bfa 42%, transparent);
+  border-bottom-color: color-mix(in oklab, #a78bfa 78%, #000);
+}
+
+/* a carried note is a small dot after the words (design .hln); the words live in the note itself. The
+   accent reads on the light tints; in the dark scheme the tints sit beside the accent's own luminance,
+   so the dot takes the body colour — the one combination the tints are built to carry */
+.md-hl-note {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin: 0 2px 0 3px;
+  border-radius: 50%;
+  background: var(--ann-accent-text);
+  vertical-align: super;
+}
+
+@media (prefers-color-scheme: dark) {
+  .md-hl-note {
+    background: var(--ann-text);
+  }
+}
+
+/*
+ * The selection toolbar (design .hbar): a small pill on the app's own surface — five colour dots in round
+ * hover targets, 备注, and the H keycap — and the existing-highlight popover (design .hpop) beside its mark.
+ */
+.hl-toolbar {
+  position: fixed;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  border: 1px solid var(--ann-border);
+  border-radius: 11px;
+  background: var(--ann-surface);
+  color: var(--ann-text-2);
+  box-shadow: var(--ann-shadow-2);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.hl-toolbar-dots {
+  display: inline-flex;
+  padding: 0 4px;
+}
+
+/* the round hover target around each colour dot (design .dotb): a 24px ring of quiet feedback */
+.hl-dotb {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.hl-dotb:hover {
+  background: var(--ann-surface-3);
+}
+
+/* the coloured circle itself, inside the toolbar and the popover (design .hl-dot with its inner edge) */
+.hl-toolbar .hl-dot,
+.hl-popover .hl-dot {
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.14);
+  cursor: pointer;
+}
+
+/* the chosen colour carries a surface gap and the brand ring (design .hl-dot.is-on) */
+.hl-toolbar .hl-dot-active,
+.hl-popover .hl-dot-active {
+  box-shadow:
+    0 0 0 2px var(--ann-surface),
+    0 0 0 3.5px var(--ann-accent);
+}
+
+/* the settings' dots keep the plain circle look of the base .hl-dot below */
+.settings-view .hl-dot-active {
+  outline: 2px solid var(--ann-accent);
+  outline-offset: 2px;
+}
+
+.hl-dot {
+  width: 18px;
+  height: 18px;
+  border: 1px solid var(--ann-border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.hl-dot-yellow {
+  background: #facc15;
+}
+
+.hl-dot-green {
+  background: #4ade80;
+}
+
+.hl-dot-blue {
+  background: #60a5fa;
+}
+
+.hl-dot-pink {
+  background: #f472b6;
+}
+
+.hl-dot-purple {
+  background: #a78bfa;
+}
+
+/* the toolbar's two dividers and its quiet actions (备注, the H keycap) */
+.hl-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--ann-line);
+}
+
+.hl-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.hl-act:hover {
+  background: var(--ann-surface-3);
+  color: var(--ann-text);
+}
+
+/* the H keycap sits in the same rhythm but is a hint, not a control */
+.hl-act-key {
+  cursor: default;
+}
+
+.hl-act-key:hover {
+  background: none;
+  color: var(--ann-text-2);
+}
+
+/* existing-highlight popover */
+.hl-popover {
+  position: fixed;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  width: 296px;
+  padding: 12px;
+  border: 1px solid var(--ann-border);
+  border-radius: 14px;
+  background: var(--ann-surface);
+  color: var(--ann-text);
+  box-shadow: var(--ann-shadow-modal);
+  font-size: 13px;
+}
+
+.hl-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.hl-popover-colors {
+  display: inline-flex;
+}
+
+.hl-popover-name {
+  color: var(--ann-muted);
+  font-size: 11px;
+}
+
+.hl-popover textarea {
+  box-sizing: border-box;
+  width: 100%;
+  margin-top: 10px;
+  min-height: 56px;
+  padding: 6px 8px;
+  border: 1px solid var(--ann-border);
+  border-radius: 7px;
+  background: var(--ann-page);
+  color: var(--ann-text);
+  font-size: 12.5px;
+  resize: vertical;
+}
+
+.hl-popover-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.hl-popover-hint {
+  flex: 1;
+  color: var(--ann-muted);
+  font-size: 11px;
+}
+
+.hl-notice {
+  margin-top: 10px;
+  font-size: 12.5px;
+  color: var(--ann-muted);
+}
+
+/* the reading rail's highlight rows (design .hli): the colour bar is the left border — its colour comes
+   from the -yellow/… modifiers below, so no border shorthand after them may reset it — and a hairline
+   separates the items */
+.reading-hl-list {
+  padding: 0;
+}
+
+.hl-row {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 12px 16px;
+  border: 0;
+  border-left: 4px solid var(--ann-border);
+  border-bottom: 1px solid var(--ann-line);
+  border-radius: 0;
+  background: none;
+  color: var(--ann-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hl-row:hover {
+  background: var(--ann-surface);
+}
+
+.hl-row-yellow {
+  border-left-color: #facc15;
+}
+
+.hl-row-green {
+  border-left-color: #4ade80;
+}
+
+.hl-row-blue {
+  border-left-color: #60a5fa;
+}
+
+.hl-row-pink {
+  border-left-color: #f472b6;
+}
+
+.hl-row-purple {
+  border-left-color: #a78bfa;
+}
+
+.hl-quote {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.hl-note-text {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+}
+
+.hl-note-text svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--ann-muted);
+}
+
+/* the highlights view: a card per clip, its highlights inside, the cards flowing down the columns */
+.hl-groups {
+  column-width: var(--card-min);
+  column-gap: var(--card-gap);
+}
+
+.hl-group {
+  margin-bottom: var(--card-gap);
+  break-inside: avoid;
+}
+
