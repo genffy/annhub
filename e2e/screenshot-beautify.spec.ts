@@ -11,9 +11,24 @@ import { clearLibrary, getScreenshotPageUrl, hoverForCapsule, setSettings } from
 
 test.describe.configure({ timeout: 60_000 })
 
-
 import type { Analysis, Box } from './screenshot-editor-helpers'
-import { analyze, beautifyButton, boxOf, canvasInfo, openEditor, openPanel, panelOf, savedAsset, touches, toolbarButton, ANNOTATION_RED, PREVIEW, SESSION, SIZE_LABEL, TOOLBAR } from './screenshot-editor-helpers'
+import {
+  analyze,
+  beautifyButton,
+  boxOf,
+  canvasInfo,
+  openEditor,
+  openPanel,
+  panelOf,
+  savedAsset,
+  touches,
+  toolbarButton,
+  ANNOTATION_RED,
+  PREVIEW,
+  SESSION,
+  SIZE_LABEL,
+  TOOLBAR,
+} from './screenshot-editor-helpers'
 
 const BACKGROUNDS = [
   { name: '纯白', from: [255, 255, 255], to: [255, 255, 255] },
