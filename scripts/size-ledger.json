@@ -1,10 +1,5 @@
 {
   "docs/product/market.md": 77824,
   "e2e/real-chrome-scenarios.md": 52224,
-  "entrypoints/content/annotation/layer.ts": 49152,
-  "entrypoints/content/screenshot/index.ts": 112640,
-  "entrypoints/library/style.css": 82944,
-  "utils/ui-text.ts": 52224,
-  "entrypoints/library/App.tsx": 75776,
-  "entrypoints/library/style.css": 82944
+  "entrypoints/content/screenshot/index.ts": 112640
 }
