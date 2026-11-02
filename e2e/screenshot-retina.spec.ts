@@ -122,4 +122,3 @@ test.describe('a capture at twice the window’s size, as a Retina screen takes 
     expect(Math.abs(saved.red!.y - (start[1] - 128))).toBeLessThanOrEqual(10)
   })
 })
-
