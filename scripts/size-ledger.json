@@ -5,6 +5,5 @@
   "entrypoints/content/annotation/layer.ts": 49152,
   "entrypoints/content/screenshot/index.ts": 112640,
   "entrypoints/library/App.tsx": 75776,
-  "entrypoints/library/style.css": 82944,
-  "utils/ui-text.ts": 52224
+  "entrypoints/library/style.css": 82944
 }
