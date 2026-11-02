@@ -112,6 +112,14 @@ describe('check-size', () => {
     expect(output).toContain(`${AGENTS}: [no-ledger]`)
   })
 
+  it('rejects a ledger that names the same file twice', () => {
+    // Raw text: JSON.stringify cannot produce a duplicate key, but a ledger merge can leave one behind.
+    const ledger = `{\n  "${CODE_FILE}": ${34 * 1024},\n  "${CODE_FILE}": ${38 * 1024}\n}\n`
+    const { status, output } = check({ 'scripts/size-ledger.json': ledger, [CODE_FILE]: codeFile(BIG) })
+    expect(status).toBe(1)
+    expect(output).toContain(`${CODE_FILE}: [duplicate]`)
+  })
+
   it('never reports html, json, lockfiles or docs/design assets', () => {
     const { status } = check({
       'package-lock.json': `{ "locked": "${'x'.repeat(60000)}" }\n`,
