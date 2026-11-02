@@ -22,6 +22,7 @@
 
 import MessageUtils from '../../../utils/message'
 import { screenshotFailureText, screenshotSaveErrorText, uiText, type UiTextKey } from '../../../utils/ui-text'
+import { renderHintBar } from './hint-bar'
 import { newEntryId } from '../../../learning-core/assets'
 import { normalizeHost } from '../../../learning-core/normalize'
 import { extractPageMeta, resolvePermalink } from '../page-meta'
@@ -514,44 +515,13 @@ class ScreenshotSession {
 
   private syncHint(): void {
     if (!this.hintEl) return
-    this.hintEl.innerHTML = ''
-    // the address bar holds the keys while the page has no focus: Esc would land in the
-    // browser, so the hint says to click the page first
-    if (!this.doc.hasFocus()) {
-      const dot = this.doc.createElement('span')
-      dot.className = 'ann-shot-sep'
-      dot.textContent = '·'
-      this.hintEl.append(this.textNode(uiText('page.noFocus')), dot)
-    }
-    // the segments read as one line; the muted dots keep them from running together
-    // (without them the hint reads as one run: “Esc to cancelAAnonymize: on”),
-    // and the keys ride as keycaps
-    const sep = (): HTMLElement => {
-      const dot = this.doc.createElement('span')
-      dot.className = 'ann-shot-sep'
-      dot.textContent = '·'
-      return dot
-    }
-    // one localized string, its “ · ”-separated parts re-drawn: a leading key name
-    // (“Esc 取消”, “Enter to confirm”) becomes a keycap and the words follow it
-    const segment = (part: string): Array<Node> => {
-      const keyed = /^(A|W|Esc|Enter) (.+)$/.exec(part)
-      if (!keyed) return [this.textNode(part)]
-      return [this.kbdNode(keyed[1]!), this.textNode(` ${keyed[2]!}`)]
-    }
-    const parts = uiText(this.state === 'confirming' ? 'shot.hintPending' : 'shot.hint').split(' · ')
-    for (const [index, part] of parts.entries()) {
-      if (index > 0) this.hintEl.append(sep())
-      this.hintEl.append(...segment(part))
-    }
-    // a pending frame is settled by its own keys and a click outside; the picking line would promise gestures that are not on
-    this.hintEl.append(
-      // with both identity kinds switched off in settings there is nothing for `A` to do
-      ...(this.anonymizeAvailable() ? [sep(), this.kbdNode('A'), this.textNode(` ${uiText('shot.anonymize', { state: uiText(this.anonymizeOn ? 'shot.on' : 'shot.off') })}`)] : []),
-      ...(this.settings?.watermark.enabled
-        ? [sep(), this.kbdNode('W'), this.textNode(` ${uiText('shot.watermark', { state: uiText(this.watermarkOn ? 'shot.on' : 'shot.off') })}`)]
-        : []),
-    )
+    renderHintBar(this.doc, this.hintEl, {
+      pending: this.state === 'confirming',
+      anonymize: this.anonymizeAvailable() ? { on: this.anonymizeOn } : null,
+      watermark: this.settings?.watermark.enabled ? { on: this.watermarkOn } : null,
+      textNode: text => this.textNode(text),
+      kbdNode: key => this.kbdNode(key),
+    })
   }
 
   /** The anonymity/watermark state moved: the picking hint reads it, and so does the editor's status strip. */

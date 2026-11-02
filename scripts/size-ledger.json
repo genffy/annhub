@@ -4,7 +4,7 @@
   "e2e/real-chrome-scenarios.md": 52224,
   "e2e/screenshot-beautify.spec.ts": 50176,
   "entrypoints/content/annotation/layer.ts": 49152,
-  "entrypoints/content/screenshot/index.ts": 113664,
+  "entrypoints/content/screenshot/index.ts": 112640,
   "entrypoints/library/App.tsx": 75776,
   "entrypoints/library/settings-view.tsx": 39936,
   "entrypoints/library/style.css": 82944,
