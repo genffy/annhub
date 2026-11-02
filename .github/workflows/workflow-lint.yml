@@ -34,13 +34,28 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: stable
+      # The prebuilt release binary instead of `go run`, which compiles actionlint from source
+      # on every run. The checksum comes from the release and must match the tarball.
+      - name: Download the actionlint release binary
+        env:
+          ACTIONLINT_VERSION: v1.7.12
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/actionlint"
+          mkdir -p "$dir"
+          version="${ACTIONLINT_VERSION#v}"
+          curl --fail --silent --show-error --location \
+            "https://github.com/rhysd/actionlint/releases/download/${ACTIONLINT_VERSION}/actionlint_${version}_linux_amd64.tar.gz" \
+            --output "$dir/actionlint.tar.gz"
+          curl --fail --silent --show-error --location \
+            "https://github.com/rhysd/actionlint/releases/download/${ACTIONLINT_VERSION}/actionlint_${version}_checksums.txt" \
+            --output "$dir/checksums.txt"
+          grep "actionlint_${version}_linux_amd64.tar.gz" "$dir/checksums.txt" | sha256sum --check --status
+          tar --extract --gzip --file "$dir/actionlint.tar.gz" --directory "$dir" actionlint
+          "$dir/actionlint" --version
 
       - name: Run actionlint
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -color
+        run: $RUNNER_TEMP/actionlint/actionlint -color
 
   zizmor:
     name: zizmor
