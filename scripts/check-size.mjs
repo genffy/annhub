@@ -89,7 +89,15 @@ const read = file => readFileSync(join(root, file), 'utf8')
 
 function readLedger() {
   if (!existsSync(ledgerPath)) return null
-  return JSON.parse(read('scripts/size-ledger.json'))
+  const text = read('scripts/size-ledger.json')
+  // JSON.parse keeps only the last of duplicate keys, so a merge slip would silently raise a ceiling; name it instead.
+  const keys = [...text.matchAll(/"([^"]+)":/g)].map(match => match[1])
+  const duplicate = keys.find((key, index) => keys.indexOf(key) !== index)
+  if (duplicate) {
+    console.error(`${duplicate}: [duplicate] one entry per file; when a ledger merge conflicts, keep a single line`)
+    process.exit(1)
+  }
+  return JSON.parse(text)
 }
 
 const ledger = readLedger()
