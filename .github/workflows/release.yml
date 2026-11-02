@@ -21,8 +21,9 @@ jobs:
       artifact-metadata: write
       contents: read
 
+  # Runs alongside the gate, not after it: the zip comes from the same commit and `release`
+  # below only publishes once both have succeeded, so the build never lands unverified.
   build:
-    needs: verify
     uses: ./.github/workflows/build-extension.yml
     permissions:
       artifact-metadata: write
