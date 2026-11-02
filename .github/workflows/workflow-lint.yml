@@ -57,7 +57,8 @@ jobs:
           "$dir/actionlint" --version
 
       - name: Run actionlint
-        run: $RUNNER_TEMP/actionlint/actionlint -color
+        run: |
+          "$RUNNER_TEMP/actionlint/actionlint" -color
 
   zizmor:
     name: zizmor
