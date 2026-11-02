@@ -29,6 +29,9 @@ import { extractPageMeta, resolvePermalink } from '../page-meta'
 import { isUserInput } from '../user-input'
 import { sessionStyles } from './session-styles'
 import { ROOT_ATTR, ROOT_VALUE } from './session-roots'
+import { renderRatioBar } from './ratio-bar'
+import { pageElementsFromPoint } from './page-elements'
+import { createNoticeBubble, type NoticeBubble } from './notice-bubble'
 import { pointerSamples } from '../pointer-samples'
 import type { CaptureVia, ResponseMessage } from '../../../types/messages'
 import type { ViewportRect } from './crop'
@@ -104,9 +107,6 @@ import type { ExtensionSettings } from '../../../background-service/settings-sch
 /** Asking again this often, this many times, covers the whole second the browser's capture limit counts. */
 const CAPTURE_RATE_RETRY_MS = 400
 const CAPTURE_RATE_RETRIES = 3
-/** A success notice stays as long as the clip toast next door; the fade is counted on top. */
-const NOTICE_BUBBLE_MS = 3000
-const NOTICE_BUBBLE_FADE_MS = 200
 
 let activeSession: ScreenshotSession | null = null
 
@@ -198,8 +198,7 @@ class ScreenshotSession {
   private exited = false
   private notice: { message: string; error: boolean } | undefined
   /** The success bubble above the toolbar; errors are the toolbar's own notice row. */
-  private bubbleEl: HTMLDivElement | null = null
-  private bubbleTimer: number | null = null
+  private readonly bubble: NoticeBubble
   private textInput: HTMLTextAreaElement | null = null
   /** Where on the capture the open text box was clicked. */
   private textAt: Point = { x: 0, y: 0 }
@@ -359,6 +358,10 @@ class ScreenshotSession {
     this.via = via
     this.host = doc.createElement('div')
     this.host.setAttribute(ROOT_ATTR, ROOT_VALUE)
+    this.bubble = createNoticeBubble(doc, this.host, {
+      toolbarBox: () => (this.toolbarEl?.isConnected ? this.toolbarEl.getBoundingClientRect() : null),
+      textNode: text => this.textNode(text),
+    })
   }
 
   begin(): void {
@@ -477,55 +480,16 @@ class ScreenshotSession {
   private showRatioBar(): void {
     if (!this.settings || this.settings.ratioPresets.length === 0) return
     this.ratioBarEl?.remove()
-    const bar = this.doc.createElement('div')
-    bar.className = 'ann-shot-ratio-bar'
-    bar.setAttribute('data-ann-ui', 'screenshot-ratio-bar')
-    // the draft's .rchip: a small outline of the ratio's shape, the longest side 13px
-    const glyph = (id: string): Node => {
-      if (id === 'free') {
-        const svg = this.doc.createElementNS('http://www.w3.org/2000/svg', 'svg')
-        svg.setAttribute('viewBox', '0 0 24 24')
-        svg.setAttribute('aria-hidden', 'true')
-        svg.innerHTML = '<path d="M12 2v20" /><path d="m15 19-3 3-3-3" /><path d="m19 9 3 3-3 3" /><path d="M2 12h20" /><path d="m5 9-3 3 3 3" /><path d="m9 5 3-3 3 3" />'
-        return svg
-      }
-      const preset = ratioOf(id)
-      const box = this.doc.createElement('i')
-      box.className = 'ann-shot-rg'
-      if (preset) {
-        const k = 13 / Math.max(preset.w, preset.h)
-        box.style.width = `${Math.round(preset.w * k)}px`
-        box.style.height = `${Math.round(preset.h * k)}px`
-      }
-      return box
-    }
-    const chip = (id: string, label: string) => {
-      const button = this.doc.createElement('button')
-      button.type = 'button'
-      button.append(glyph(id), this.textNode(label))
-      button.className = this.ratio === id ? 'ann-shot-ratio-active' : ''
-      button.setAttribute('aria-pressed', String(this.ratio === id))
-      button.addEventListener('click', event => {
-        if (!isUserInput(event)) return
+    this.ratioBarEl = renderRatioBar(this.doc, this.host, {
+      ratio: this.ratio,
+      presets: this.settings.ratioPresets,
+      textNode: text => this.textNode(text),
+      onRatio: id => {
         this.ratio = id
         this.showRatioBar()
-      })
-      return button
-    }
-    bar.append(chip('free', uiText('shot.ratio.free')))
-    for (const id of this.settings.ratioPresets) bar.append(chip(id, id))
-    const stitched = this.doc.createElement('button')
-    stitched.type = 'button'
-    stitched.append(this.textNode(uiText('shot.stitch.button')))
-    stitched.setAttribute('data-ann-ui', 'shot-stitch-button')
-    stitched.setAttribute('aria-label', uiText('shot.stitch.button'))
-    stitched.addEventListener('click', event => {
-      if (!isUserInput(event)) return
-      void this.beginStitching()
+      },
+      onStitch: () => void this.beginStitching(),
     })
-    bar.appendChild(stitched)
-    this.host.appendChild(bar)
-    this.ratioBarEl = bar
   }
 
   // ── scrolling long screenshot (screenshot.md §1.5) ────────────────
@@ -644,11 +608,7 @@ class ScreenshotSession {
     }
     this.clearConfirmUi()
     this.clearHoverUi()
-    if (this.bubbleTimer !== null) {
-      this.doc.defaultView?.clearTimeout(this.bubbleTimer)
-      this.bubbleTimer = null
-    }
-    this.bubbleEl = null
+    this.bubble.dispose()
     // a session replaced while its scrolling capture runs stops the stitcher:
     // otherwise it keeps scrolling and photographing an orphaned page
     this.stitcher?.cancel()
@@ -733,14 +693,7 @@ class ScreenshotSession {
 
   /** elementsFromPoint through the confirm shield, without leaving it down. */
   private pageElementsFromPoint(x: number, y: number): Element[] {
-    if (typeof this.doc.elementsFromPoint !== 'function') return []
-    const shielded = this.host.classList.contains('ann-shot-modal')
-    if (shielded) this.host.style.pointerEvents = 'none'
-    try {
-      return this.doc.elementsFromPoint(x, y)
-    } finally {
-      if (shielded) this.host.style.pointerEvents = 'auto'
-    }
+    return pageElementsFromPoint(this.doc, this.host, x, y)
   }
 
   private onPointerDown = (e: PointerEvent) => {
@@ -2204,43 +2157,7 @@ class ScreenshotSession {
     }
     this.notice = undefined
     this.updateToolbar()
-    this.showBubble(message)
-  }
-
-  /** A success bubble anchored over the toolbar, or top-centre without one. */
-  private showBubble(message: string): void {
-    this.bubbleEl?.remove()
-    this.bubbleEl = null
-    if (this.bubbleTimer !== null) {
-      this.doc.defaultView?.clearTimeout(this.bubbleTimer)
-      this.bubbleTimer = null
-    }
-    const view = this.doc.defaultView
-    if (!view) return
-    const el = this.doc.createElement('div')
-    el.className = 'ann-shot-bubble'
-    el.setAttribute(ROOT_ATTR, 'screenshot-bubble')
-    el.setAttribute('role', 'status')
-    // a tick in the pill's ok colour says “done” before the words do (the draft's toast)
-    el.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>'
-    el.append(this.textNode(message))
-    this.host.appendChild(el)
-    const width = el.offsetWidth || 120
-    const height = el.offsetHeight || 30
-    const bar = this.toolbarEl?.isConnected ? this.toolbarEl.getBoundingClientRect() : null
-    const left = bar ? Math.max(8, Math.min(view.innerWidth - width - 8, bar.right - width)) : Math.max(8, view.innerWidth / 2 - width / 2)
-    const top = bar ? Math.max(8, bar.top - height - 8) : 64
-    Object.assign(el.style, { left: `${left}px`, top: `${top}px` })
-    this.bubbleEl = el
-    this.bubbleTimer = view.setTimeout(() => {
-      el.classList.add('ann-shot-bubble-out')
-      this.bubbleTimer = view.setTimeout(() => {
-        el.remove()
-        if (this.bubbleEl === el) this.bubbleEl = null
-        this.bubbleTimer = null
-      }, NOTICE_BUBBLE_FADE_MS)
-    }, NOTICE_BUBBLE_MS)
+    this.bubble.show(message)
   }
 
   private showError(message: string): void {
