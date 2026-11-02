@@ -419,7 +419,6 @@ describe('capsule placement stays inside the block (capture.md §6.2)', () => {
     const post = document.getElementById('post')!
     post.getBoundingClientRect = () => new DOMRect(0, 40, 800, 600)
     const body = document.getElementById('body')!
-    const sticky = document.getElementById('sticky')!
     const b1 = document.getElementById('b1')!
     const b2 = document.getElementById('b2')!
     b1.getBoundingClientRect = () => new DOMRect(766, 604, 34, 32)
