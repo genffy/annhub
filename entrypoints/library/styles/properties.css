@@ -1,0 +1,673 @@
+/* ── The property panel and the properties page with its registry table (extension.md §2.4). ── */
+
+/* ── Property panel and properties page (extension.md §2.4, §4.1) ── */
+
+.prop-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* the property row (design .prow, visual.md §4): icon and name left, the value editor right, one aligned
+   name column; a quiet hover wash, and the third cell kept for the row's own affordance */
+.prop-row {
+  display: grid;
+  grid-template-columns: 124px minmax(0, 1fr) 22px;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 2px 6px;
+  border-radius: 8px;
+}
+
+.prop-row:hover {
+  background: var(--ann-surface-alt);
+}
+
+.prop-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ann-muted);
+  font-size: 13px;
+  cursor: default;
+}
+
+.prop-name svg {
+  flex: none;
+  color: var(--ann-subtle);
+}
+
+/* the ellipsis lives on the text span: a flex label's own overflow never collapses to "…" */
+.prop-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the drawer's label takes the room the value editor leaves; the table's name keeps its natural
+   width so the 固定/内置 tag follows the name, not the cell's far end */
+.prop-name .prop-name-text {
+  flex: 1;
+}
+
+.prop-value {
+  min-width: 0;
+  font-size: 13.5px;
+  color: var(--ann-text);
+}
+
+/* the value editor at rest is plain text: no edge, no fill — hover draws a hairline, focus the input look
+   (design .pa-in; still the one real input, never a click-to-swap component) */
+.prop-input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ann-text);
+  font-size: 13.5px;
+}
+
+.prop-input::placeholder {
+  color: var(--ann-subtle);
+}
+
+.prop-input:hover {
+  border-color: var(--ann-border);
+}
+
+.prop-input:focus,
+.prop-input:focus-visible {
+  border-color: var(--ann-accent);
+  background: var(--ann-surface);
+  box-shadow: 0 0 0 3px var(--ann-ring);
+  outline: 0;
+}
+
+.prop-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.prop-list .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.prop-list-plus {
+  flex: none;
+  color: var(--ann-subtle);
+}
+
+/* the list's own input is bare: the chips already show the box language, the plus signposts where to type */
+.prop-input-bare {
+  min-width: 3.5rem;
+  flex: 1 1 6rem;
+  min-height: 24px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  font-size: 13px;
+}
+
+.prop-input-bare:hover,
+.prop-input-bare:focus,
+.prop-input-bare:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+
+.prop-input-bare:focus-visible {
+  outline: 2px solid var(--ann-accent);
+  outline-offset: 1px;
+}
+
+.tag-remove {
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--ann-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* the read-only rows (system fields) keep the grid and its alignment, muted, with the lock in the third cell */
+.prop-ro .prop-value {
+  color: var(--ann-text-2);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prop-sys-link {
+  color: var(--ann-accent-text);
+}
+
+.prop-sys-h {
+  margin: 10px 6px 4px;
+  color: var(--ann-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.prop-px {
+  display: grid;
+  place-items: center;
+  color: var(--ann-subtle);
+}
+
+/* the add-property combo (design .pcombo): a framed expansion under the rows — the input on top, the
+   registry's matches (or the create branch with the type picker) under it */
+.prop-combo {
+  margin: 6px 0 4px;
+  padding: 6px;
+  border: 1px solid var(--ann-border);
+  border-radius: 12px;
+  background: var(--ann-surface);
+  box-shadow: var(--ann-shadow-2);
+}
+
+.prop-combo-in {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 9px;
+  border: 1px solid var(--ann-accent);
+  border-radius: 8px;
+  box-shadow: 0 0 0 3px var(--ann-ring);
+  color: var(--ann-subtle);
+}
+
+.prop-combo-input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ann-text);
+  font-size: 13px;
+}
+
+.prop-combo-input:focus,
+.prop-combo-input:focus-visible {
+  outline: 0;
+}
+
+.prop-combo-list {
+  margin-top: 6px;
+}
+
+.prop-opt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  height: 32px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ann-text);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.prop-opt:hover {
+  background: var(--ann-surface-alt);
+}
+
+.prop-opt svg {
+  flex: none;
+  color: var(--ann-muted);
+}
+
+.prop-opt-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.prop-opt-type {
+  flex: none;
+  color: var(--ann-subtle);
+  font-size: 12px;
+}
+
+/*
+ * The card's head (extension.md §2.3): the clip's title on the first line, the host, the count and "回到来源"
+ * below it on narrow cards — the title takes the room it needs, the link never folds.
+ */
+.hl-group-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 4px;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--ann-line);
+  border-radius: 12px 12px 0 0;
+  background: var(--ann-surface-alt);
+}
+
+.hl-group-title {
+  flex: 1 1 calc(100% - 30px);
+  min-width: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* a host longer than the column ends in an ellipsis, not in a folded count */
+.hl-group-host {
+  flex: 0 1 auto;
+  max-width: 60%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ann-muted);
+  font-size: 12px;
+}
+
+/* the group's own count, a quiet chip (the "N 条" of extension.md §2.3) reading in the highlight hue */
+.hl-group-count {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--ann-line);
+  border-radius: 999px;
+  background: var(--ann-surface);
+  color: var(--ann-type-highlight-text);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.hl-group-head .link {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: 12.5px;
+}
+
+/* one highlight: the colour bar at its left, the quote, its note and the clip's own meta below */
+.hl-item {
+  display: grid;
+  grid-template-columns: 6px minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+  width: 100%;
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 1px solid var(--ann-line);
+  background: none;
+  color: var(--ann-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.hl-group-rows .hl-item:last-child {
+  border-bottom: 0;
+  border-radius: 0 0 12px 12px;
+}
+
+.hl-item-bar {
+  border-radius: 3px;
+  background: var(--hl-item-color, var(--ann-border));
+}
+
+.hl-item-yellow {
+  --hl-item-color: #facc15;
+}
+
+.hl-item-green {
+  --hl-item-color: #4ade80;
+}
+
+.hl-item-blue {
+  --hl-item-color: #60a5fa;
+}
+
+.hl-item-pink {
+  --hl-item-color: #f472b6;
+}
+
+.hl-item-purple {
+  --hl-item-color: #a78bfa;
+}
+
+.hl-item-body {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.hl-item-quote {
+  font-size: 14px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.hl-item-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+.hl-item-note svg {
+  flex: none;
+  margin-top: 3px;
+}
+
+.hl-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 2px;
+  color: var(--ann-muted);
+  font-size: 12px;
+}
+
+.prop-combo-create {
+  margin-top: 2px;
+  padding: 8px 4px 2px;
+}
+
+.prop-combo-h {
+  margin: 0 0 6px 5px;
+  color: var(--ann-muted);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.prop-combo-help {
+  margin: 8px 0 0;
+  color: var(--ann-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.prop-combo-error {
+  margin: 8px 0 0;
+  color: color-mix(in oklab, var(--ann-danger) 80%, var(--ann-text));
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.prop-combo-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.prop-add-button {
+  align-self: flex-start;
+  margin: 2px 6px;
+}
+
+.prop-add-button:hover {
+  background: none;
+}
+
+/* the properties page's own toolbar form keeps the classic framed controls (its scope, not the panel's) */
+.prop-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prop-add input,
+.prop-add select {
+  padding: 6px 8px;
+  border: 1px solid var(--ann-border);
+  border-radius: 5px;
+  background: var(--ann-page);
+  color: var(--ann-text);
+  font-size: 12.5px;
+}
+
+/* the property-type picker (design .ptypes): a three-column grid of the six types, icon and
+   name together; the checked chip carries the brand tint */
+.ptypes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.ptype {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 9px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-surface);
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.ptype svg {
+  flex: none;
+  color: var(--ann-muted);
+}
+
+.ptype[aria-checked='true'] {
+  border-color: var(--ann-accent);
+  background: var(--ann-accent-soft);
+  color: var(--ann-accent-text);
+}
+
+.ptype[aria-checked='true'] svg {
+  color: var(--ann-accent-text);
+}
+
+.ptype:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── The properties page (extension.md §2.4): the registry table ── */
+
+/*
+ * The page starts where every page starts and its table fills the content area; the page-body
+ * inside it carries the scrolling, so the nav stays where it is.
+ */
+.props-page {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+/* a registry wider than the window scrolls on its own, banners and head staying put */
+.props-scroll {
+  overflow-x: auto;
+}
+
+/*
+ * The registry table: a real <table> whose rows lay out as one grid (the design's .ptab), so the
+ * header keeps its column association — the roles are spelled out because the grid display drops
+ * the implicit ones.
+ */
+.props-table {
+  display: block;
+  width: 100%;
+  min-width: 640px;
+  border: 1px solid var(--ann-line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--ann-surface);
+  font-size: 13px;
+}
+
+.props-table thead,
+.props-table tbody {
+  display: block;
+  width: 100%;
+}
+
+.props-table tr {
+  display: grid;
+  grid-template-columns: minmax(170px, 1.3fr) 112px minmax(110px, 1fr) 64px 56px 56px 72px;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+}
+
+.props-table th,
+.props-table td {
+  display: block;
+  min-width: 0;
+}
+
+.props-table thead tr {
+  height: 38px;
+  background: var(--ann-surface-alt);
+  border-bottom: 1px solid var(--ann-line);
+  color: var(--ann-muted);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+/* the header cells read left (the UA centres th); the usage and checkbox columns keep their own alignment */
+.props-table th {
+  text-align: left;
+}
+
+.props-table tbody tr {
+  min-height: 48px;
+  border-bottom: 1px solid var(--ann-line);
+}
+
+.props-table tbody tr:last-child {
+  border-bottom: 0;
+}
+
+/* the usage column: right-aligned, tabular digits; the preset columns centre their lone checkbox */
+.props-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.props-table .ctr {
+  text-align: center;
+}
+
+.props-table .ctr input {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  vertical-align: middle;
+}
+
+.prop-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 600;
+}
+
+.prop-name-cell svg {
+  flex: none;
+  color: var(--ann-muted);
+}
+
+/* the type reads quiet, the same face as the default-value column (design .ptab .ty/.df) */
+.prop-type {
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+.prop-default {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+/* the delete: an icon square that goes red only when it can actually be used */
+.prop-delete {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ann-text-2);
+  cursor: pointer;
+}
+
+.prop-delete:hover:not(:disabled),
+.prop-delete:focus-visible {
+  color: var(--ann-danger);
+  background: var(--ann-danger-bg);
+}
+
+/* the rail's tabs (design .rd-tab): underline tabs on the rail's own surface, the count in a small pill */
+.reading-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--ann-line);
+}
+
+.reading-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 16px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--ann-muted);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.reading-tab-current {
+  border-bottom-color: var(--ann-accent);
+  color: var(--ann-accent-text);
+}
+
+.reading-tab-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--ann-surface-3);
+  color: var(--ann-text-2);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}

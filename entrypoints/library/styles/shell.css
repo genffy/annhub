@@ -1,0 +1,281 @@
+/* ── The library shell: left nav + right content (extension.md §2.2). ── */
+
+/* ── The library shell: left nav + right content (extension.md §2.2) ── */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* a control does not inherit its font by itself: without this every button, input and select drew in the browser's own face */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+/* a bare <a> gets the accent text colour and an underline where it belongs: on hover and focus */
+a {
+  color: var(--ann-accent-text);
+  text-decoration: none;
+}
+
+a:hover,
+a:focus-visible {
+  text-decoration: underline;
+}
+
+html,
+body {
+  height: 100%;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+  /* the content area is one surface, and the reading view reads on the same one (visual.md §4) */
+  background-color: var(--ann-surface);
+  color: var(--ann-text);
+}
+
+#root {
+  height: 100%;
+}
+
+.shell {
+  display: flex;
+  height: 100%;
+}
+
+/* the nav's own surface with a hairline against the content (extension.md §2.2); 232 open, 60 as the rail */
+.side {
+  display: flex;
+  flex-direction: column;
+  width: 232px;
+  flex: none;
+  padding: 14px 12px;
+  border-right: 1px solid var(--ann-line);
+  background: var(--ann-side);
+}
+
+.nav-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 6px 12px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* the same mask the rail paints, at the wordmark's side */
+.brand::before {
+  content: '';
+  flex: none;
+  width: 24px;
+  height: 24px;
+  background: var(--ann-accent);
+  -webkit-mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
+  mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
+}
+
+.nav-fold {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ann-muted);
+  cursor: pointer;
+}
+
+.nav-fold:hover,
+.nav-fold:focus-visible {
+  background: color-mix(in oklab, var(--ann-text) 6%, transparent);
+  color: var(--ann-text);
+}
+
+/* the two groups in the nav; the rail shows icons only (the label stays on --ann-muted: the quieter
+   --ann-subtle reads under 4.5 on the nav surface) */
+.nav-group-title {
+  margin: 0;
+  padding: 14px 10px 5px;
+  color: var(--ann-muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--ann-text-2);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.nav-item svg {
+  flex: none;
+  color: var(--ann-muted);
+}
+
+/* the type views' icons carry their hue; the current item stays one accent-coloured row, icon included */
+.nav-item:where([data-view='clips']) svg {
+  color: var(--ann-type-clip);
+}
+
+.nav-item:where([data-view='highlights']) svg {
+  color: var(--ann-type-highlight);
+}
+
+.nav-item:where([data-view='screenshots']) svg {
+  color: var(--ann-type-screenshot);
+}
+
+.nav-item-current svg {
+  color: inherit;
+}
+
+.nav-item:hover,
+.nav-item:focus-visible {
+  background: color-mix(in oklab, var(--ann-text) 5%, transparent);
+}
+
+/* the current view: tinted row, heavier word and a bar at the left edge — not colour alone (extension.md §2.2) */
+.nav-item-current {
+  background: color-mix(in oklab, var(--ann-accent) 11%, var(--ann-side));
+  color: var(--ann-accent-text);
+  font-weight: 650;
+}
+
+.nav-item-current::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--ann-accent);
+}
+
+.nav-count {
+  margin-left: auto;
+  /* the count is information, not decoration: it reads at the muted weight even though the draft
+     paints it in its faintest grey (--fg-4 measured 2.78:1 light / 3.91:1 dark) */
+  color: var(--ann-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.nav-item-current .nav-count {
+  color: inherit;
+}
+
+/* the nav's bottom block: storage meter, the export outline and the shortcut hint with its keycaps */
+.nav-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: auto;
+  padding-top: 14px;
+}
+
+.nav-export {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-surface);
+  color: var(--ann-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nav-export:hover:not(:disabled),
+.nav-export:focus-visible {
+  border-color: var(--ann-accent);
+  color: var(--ann-accent-text);
+}
+
+.nav-shortcut {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 2px;
+  color: var(--ann-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.nav-shortcut svg {
+  flex: none;
+}
+
+.nav-shortcut kbd {
+  margin: 0 1px;
+}
+
+.nav-shortcut span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.nav-note ul,
+.mobile-export-status ul {
+  max-height: 100px;
+  overflow-y: auto;
+  padding-left: 16px;
+  overflow-wrap: anywhere;
+}
+
+.mobile-export-status {
+  display: none;
+}
+
+.nav-export:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.nav-note {
+  margin: 0;
+  color: var(--ann-muted);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+
+.nav-note-warn {
+  color: var(--ann-danger);
+}
+
+/* storage: the number plus the global thin progress bar of the quota */
+.nav-storage {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+}

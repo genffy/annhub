@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
-import { join, relative, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import ts from 'typescript'
 
 /**
@@ -77,9 +77,11 @@ describe('the detector', () => {
 })
 
 describe('what the user can read is localized (extension.md §2.7)', () => {
-  const files = [...sourceFiles(join(root, 'entrypoints'), /\.(ts|tsx)$/), ...sourceFiles(join(root, 'utils'), /\.(ts|tsx)$/)].filter(
-    path => relative(root, path) !== join('utils', 'ui-text.ts'),
-  )
+  const files = [...sourceFiles(join(root, 'entrypoints'), /\.(ts|tsx)$/), ...sourceFiles(join(root, 'utils'), /\.(ts|tsx)$/)].filter(path => {
+    const relativePath = relative(root, path)
+    // the string table itself holds both languages by design
+    return relativePath !== join('utils', 'ui-text.ts') && dirname(relativePath) !== join('utils', 'ui-text')
+  })
 
   it('scans the screens and overlays', () => {
     expect(files.some(path => path.endsWith(join('library', 'App.tsx')))).toBe(true)

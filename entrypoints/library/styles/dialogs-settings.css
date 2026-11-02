@@ -1,0 +1,1132 @@
+/* ── The export dialog and the settings view, with the reduced-motion and narrow-window media queries (extension.md §2.2, §2.5, storage.md §6). ── */
+
+/* ── The export dialog (extension.md §2.2, storage.md §6) ── */
+
+.export-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  background: var(--ann-scrim);
+}
+
+.export-card {
+  width: min(440px, calc(100vw - 48px));
+  padding: 20px 22px;
+  border-radius: 16px;
+  background: var(--ann-surface);
+  color: var(--ann-text);
+  box-shadow: var(--ann-shadow-modal);
+  font-size: 13px;
+}
+
+.export-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.export-head h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+/* the state chip (design .chip with its status tint) */
+.export-state {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--ann-line);
+  border-radius: 999px;
+  background: var(--ann-surface-alt);
+  color: var(--ann-text-2);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.export-state-done {
+  border-color: color-mix(in oklab, var(--ann-success) 28%, var(--ann-surface));
+  background: var(--ann-success-bg);
+  color: var(--ann-success);
+}
+
+.export-state-partial {
+  border-color: color-mix(in oklab, var(--ann-warn) 28%, var(--ann-surface));
+  background: var(--ann-warn-bg);
+  color: color-mix(in oklab, var(--ann-warn) 70%, var(--ann-text));
+}
+
+.export-state-failed {
+  border-color: color-mix(in oklab, var(--ann-danger) 28%, var(--ann-surface));
+  background: var(--ann-danger-bg);
+  color: color-mix(in oklab, var(--ann-danger) 80%, var(--ann-text));
+}
+
+.export-intro {
+  margin: 2px 0 12px;
+  color: var(--ann-text-2);
+  line-height: 1.5;
+}
+
+/* 包含 / 不包含: two quiet columns of what the ZIP does and does not carry */
+.export-scope {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.export-scope > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.export-scope-h {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.export-scope-b {
+  margin: 0;
+  color: var(--ann-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.export-card progress {
+  display: block;
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.export-note {
+  margin: 10px 0 0;
+  color: var(--ann-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.export-card .banner {
+  margin-bottom: 2px;
+}
+
+.export-card .banner ul {
+  max-height: 96px;
+  margin: 6px 0 0;
+  padding-left: 16px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
+.export-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.prop-delete:disabled {
+  color: var(--ann-muted);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* the action column stacks the reason under the button, both flush right */
+.props-table .c-action {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* the new-definition form: the table's last row, one cell across every column */
+.prop-new-cell {
+  grid-column: 1 / -1;
+  padding: 14px 16px;
+  border-top: 1px solid var(--ann-line);
+  background: var(--ann-surface-alt);
+}
+
+.prop-new-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.prop-new-name {
+  display: flex;
+  flex: 1 1 220px;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* the same face the shared field inputs wear, at the form's own height */
+.prop-new-input {
+  box-sizing: border-box;
+  height: 32px;
+  padding: 6px 10px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-page);
+  color: var(--ann-text);
+  font-size: 13px;
+}
+
+.prop-new-input:focus-visible {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 3px var(--ann-ring);
+}
+
+.prop-new-types {
+  flex: 0 1 330px;
+  min-width: 0;
+}
+
+.prop-new-error {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ann-danger);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.prop-new-extra {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.prop-new-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.tag-fixed {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* the reason a property cannot be deleted, under the dimmed button */
+/* for a reader's ears only: laid out but not painted */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.prop-reason {
+  display: block;
+  margin-top: 3px;
+  color: var(--ann-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+/* ── Settings view (extension.md §2.5): two columns of cards ── */
+
+/*
+ * The view fills the content column and its .page-body carries the scrolling, so the nav stays where it
+ * is (visual.md §4). The card grid measures its own container: below ~860 the two columns become one.
+ */
+.settings-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+}
+
+.settings-view .page-body {
+  container-type: inline-size;
+}
+
+.settings-cards {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 16px;
+  max-width: 1080px;
+  align-items: start;
+}
+
+.settings-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+@container (max-width: 859px) {
+  .settings-cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* a card: white, hairline edge, 14 radius; its own container, so a narrow card stacks its rows */
+.set {
+  border: 1px solid var(--ann-line);
+  border-radius: 14px;
+  background: var(--ann-surface);
+  container: settings-card / inline-size;
+}
+
+.set-h {
+  padding: 16px 20px 12px;
+}
+
+.set-h h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.set-r {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+  padding: 13px 20px;
+  border-top: 1px solid var(--ann-line);
+}
+
+.set-l {
+  flex: 1;
+  min-width: 0;
+}
+
+.set-l > b {
+  display: block;
+  font-weight: 600;
+}
+
+.set-l > small {
+  display: block;
+  margin-top: 2px;
+  color: var(--ann-muted);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.set-ctl {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+}
+
+/* a row whose content continues below the name line (the disabled sites, the storage bar) */
+.set-r-block {
+  flex-wrap: wrap;
+}
+
+/* a row without the hairline (the metrics banner, which opens the card) */
+.set-r-bare {
+  border-top: 0;
+}
+
+/* a note block inside a card, under the rows (the orphan report) */
+.set-pad {
+  padding: 0 20px 13px;
+}
+
+.set-note {
+  color: var(--ann-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.set-note p {
+  margin: 0 0 6px;
+}
+
+.set-note ul {
+  max-height: 100px;
+  overflow-y: auto;
+  margin: 6px 0;
+  padding-left: 16px;
+  overflow-wrap: anywhere;
+}
+
+.set-note code {
+  overflow-wrap: anywhere;
+}
+
+/* the sub-form under a switch row (the watermark, the beautify style): a label column and its rows */
+.set-sub {
+  display: grid;
+  gap: 12px;
+  padding: 12px 16px 14px;
+  border-top: 1px dashed var(--ann-line);
+  background: var(--ann-surface-alt);
+}
+
+.set-fr {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.set-fr-top {
+  align-items: flex-start;
+}
+
+.set-fr > .set-lb {
+  flex: none;
+  width: 64px;
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+}
+
+/* the watermark's two labels carry their own limits (at most 40 characters / PNG ≤ 512 KB):
+   a wider column so they fold at most once, where the design's short labels fit in one */
+.set-fr > .set-lb-wide {
+  width: 172px;
+}
+
+/* the switch: a native checkbox wearing role="switch", drawn by CSS — 32×18 track, 14px thumb */
+.sw {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 18px;
+  margin: 0;
+  border: 1px solid var(--ann-border);
+  border-radius: 999px;
+  background: var(--ann-surface-3);
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+
+.sw::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.3);
+  transition: transform 0.15s;
+}
+
+.sw:checked {
+  background: var(--ann-accent);
+  border-color: transparent;
+}
+
+.sw:checked::after {
+  transform: translateX(14px);
+}
+
+.sw:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sw,
+  .sw::after {
+    transition: none;
+  }
+}
+
+/* the segmented control: native radios under their labels; the chosen segment is raised */
+.seg {
+  display: inline-flex;
+  flex: none;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--ann-line);
+  border-radius: 9px;
+  background: var(--ann-surface-alt);
+}
+
+.seg-opt {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 7px;
+  color: var(--ann-muted);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* the radio covers its label, so the global focus ring wraps the segment; it is never seen itself */
+.seg-in {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.seg-opt.is-on {
+  background: var(--ann-surface);
+  color: var(--ann-text);
+  box-shadow: var(--ann-shadow-1);
+}
+
+/* the slider: a native range on a 4px track, the filled part in the accent; the value reads beside it */
+.sl {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sl-in {
+  width: 150px;
+  max-width: 100%;
+  height: 18px;
+  margin: 0;
+  background: transparent;
+}
+
+.sl-in:disabled {
+  opacity: 0.45;
+}
+
+.sl-in::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--ann-accent) var(--sl-fill, 0%), var(--ann-surface-3) var(--sl-fill, 0%));
+}
+
+.sl-in::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -4.5px;
+  border: 2px solid var(--ann-accent);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--ann-shadow-1);
+}
+
+.sl-in::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ann-surface-3);
+}
+
+.sl-in::-moz-range-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--ann-accent);
+}
+
+.sl-in::-moz-range-thumb {
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--ann-accent);
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--ann-shadow-1);
+}
+
+.sl-val {
+  min-width: 3.5ch;
+  color: var(--ann-muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.sl-error {
+  color: var(--ann-danger);
+  font-size: 12px;
+}
+
+/* the corner picker: one radio in each corner of a small box; the chosen corner fills */
+.posbox {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 66px;
+  height: 46px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-surface-alt);
+}
+
+.pos-cell {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-radius: 4px;
+  background: var(--ann-surface-3);
+}
+
+.pos-tl {
+  top: 5px;
+  left: 5px;
+}
+
+.pos-tr {
+  top: 5px;
+  right: 5px;
+}
+
+.pos-bl {
+  bottom: 5px;
+  left: 5px;
+}
+
+.pos-br {
+  right: 5px;
+  bottom: 5px;
+}
+
+.pos-in {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.pos-cell.is-on {
+  background: var(--ann-accent);
+}
+
+/* the checkbox chip (design .rcheck): a native checkbox dressed as a chip; the ratio glyph shows its shape */
+.rcheck {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-page);
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.rcheck-in {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.rcheck svg {
+  color: var(--ann-accent-text);
+}
+
+.rcheck .rg {
+  display: inline-block;
+  flex: none;
+  border: 1.5px solid currentcolor;
+  border-radius: 2px;
+}
+
+.rcheck.is-on {
+  border-color: color-mix(in oklab, var(--ann-accent) 55%, transparent);
+  background: var(--ann-accent-soft);
+  color: var(--ann-text);
+}
+
+/* rows of chips (the anonymize parts, the ratio presets) */
+.chip-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip-row-wrap {
+  flex-basis: 100%;
+  margin-top: 8px;
+}
+
+/* the beautify background swatches: fills from the output side, a ring on the chosen one */
+.bz-sws {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bz-sw {
+  position: relative;
+  width: 23px;
+  height: 23px;
+  border-radius: 7px;
+  box-shadow: 0 0 0 1px var(--ann-border);
+  cursor: pointer;
+}
+
+.bz-in {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.bz-sw.is-on {
+  box-shadow:
+    0 0 0 2px var(--ann-surface),
+    0 0 0 3.5px var(--ann-accent);
+}
+
+.bz-none {
+  display: grid;
+  place-items: center;
+  background: repeating-linear-gradient(135deg, var(--ann-surface-3) 0 4px, var(--ann-surface-alt) 4px 8px);
+  color: var(--ann-muted);
+}
+
+/* the beautify preview: the chosen background, padding, corner and shadow around a grey placeholder card */
+.bz-preview {
+  display: grid;
+  width: 220px;
+  max-width: 100%;
+  height: 110px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.bz-preview-none {
+  background: repeating-linear-gradient(135deg, var(--ann-surface-3) 0 6px, var(--ann-surface-alt) 6px 12px);
+}
+
+.bz-preview-card {
+  width: 100%;
+  height: 100%;
+  background: var(--ann-surface-3);
+}
+
+/* the watermark sub-form's own controls */
+.wm-text {
+  box-sizing: border-box;
+  /* flexible: with the row's wide label and the counter beside it, a fixed 240px would push the
+     counter to its own line (the design's short labels leave room for a fixed one) */
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+  background: var(--ann-page);
+  color: var(--ann-text);
+  font-size: 12.5px;
+}
+
+.wm-text:focus-visible {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 3px var(--ann-ring);
+}
+
+.wm-count {
+  flex: none;
+  white-space: nowrap;
+  color: var(--ann-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wm-thumb {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--ann-surface);
+  object-fit: contain;
+}
+
+/* the file chooser sits behind its own buttons (choose / change / remove) */
+.vh-input {
+  display: none;
+}
+
+.watermark-preview {
+  display: block;
+  width: 220px;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 220 / 92;
+  border: 1px solid var(--ann-border);
+  border-radius: 8px;
+}
+
+/* the disabled sites, indented under their row */
+.sites {
+  list-style: none;
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 0;
+  padding-left: 16px;
+}
+
+.sites li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.site-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rec-mic {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.mic-status {
+  color: var(--ann-text-2);
+  font-size: 13px;
+}
+
+/* the warning stays readable on the card: the token's raw amber sits under 4.5 on white */
+.mic-status.is-denied {
+  color: color-mix(in oklab, var(--ann-warn) 62%, var(--ann-text));
+}
+
+.keys-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.keys-unassigned {
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+.storage-bar {
+  flex-basis: 100%;
+  width: 100%;
+}
+
+/* the metric rows: the M-id in a tag, the value in tabular digits at the row's right end */
+.metric-val {
+  justify-content: flex-end;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.metric-guard {
+  color: var(--ann-muted);
+}
+
+.cv-tag {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 18px;
+  padding: 0 7px;
+  border: 1px solid var(--ann-line);
+  border-radius: 999px;
+  background: var(--ann-surface-alt);
+  color: var(--ann-muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+/* the metrics tables keep the registry table's face, each with its own columns */
+.metric-weeks,
+.metric-events {
+  min-width: 0;
+}
+
+.metric-weeks tr {
+  grid-template-columns: minmax(96px, 1.2fr) repeat(4, minmax(64px, 1fr)) minmax(72px, 0.9fr);
+}
+
+.metric-events tr {
+  grid-template-columns: minmax(0, 1fr) 64px;
+  min-height: 36px;
+}
+
+.set-tbl-h {
+  margin: 12px 20px 0;
+  color: var(--ann-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* the dots of a colour choice (the default highlight, the cursor highlight) */
+.hl-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.settings-view .hl-dot {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+}
+
+/* a narrow card puts its control under its name, the way the old labelled rows did */
+@container settings-card (max-width: 420px) {
+  .set-r {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .set-ctl {
+    align-items: flex-start;
+  }
+
+  .metric-val {
+    justify-content: flex-start;
+    text-align: left;
+  }
+}
+
+/* first use (extension.md §5): three cards, one per way in, then one solid action */
+.guide-card {
+  max-width: 960px;
+  width: 100%;
+  padding: 16px;
+  border: 1px dashed var(--ann-border);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--ann-accent) 4%, var(--ann-surface));
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.guide-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.guide-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 13px 14px;
+  border: 1px solid var(--ann-line);
+  border-radius: 12px;
+  background: var(--ann-surface);
+}
+
+.guide-item-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* the tile carries its type's hue; the card's own name says the type in words */
+.guide-tile {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+
+.guide-item:where([data-view='clips']) .guide-tile {
+  background: color-mix(in oklab, var(--ann-type-clip) 13%, var(--ann-surface));
+  color: var(--ann-type-clip);
+}
+
+.guide-item:where([data-view='highlights']) .guide-tile {
+  background: color-mix(in oklab, var(--ann-type-highlight) 13%, var(--ann-surface));
+  color: var(--ann-type-highlight);
+}
+
+.guide-item:where([data-view='screenshots']) .guide-tile {
+  background: color-mix(in oklab, var(--ann-type-screenshot) 13%, var(--ann-surface));
+  color: var(--ann-type-screenshot);
+}
+
+.guide-name {
+  font-weight: 650;
+}
+
+.guide-item p {
+  margin: 0;
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+.guide-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin-top: 12px;
+}
+
+.guide-note {
+  color: var(--ann-muted);
+  font-size: 12.5px;
+}
+
+.guide-spacer {
+  flex: 1;
+}
+
+.guide-actions .link:hover,
+.guide-actions .link:focus-visible {
+  text-decoration: underline;
+}
+
+/*
+ * The nav folds to a 60px icon rail (extension.md §2.2): by hand with the fold button at any width, and by default
+ * in a narrow window. The App decides and sets `.is-rail` on the shell, so the rules exist once, not once per cause.
+ * What the rail keeps: the brand mark, the items' icons with their tooltips and the export icon button; the counts,
+ * the group titles, the storage meter and the shortcut hint wait for the nav to open again.
+ */
+.is-rail .side {
+  width: 60px;
+  padding: 14px 10px;
+  align-items: center;
+}
+
+.is-rail .nav-top {
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 0 12px;
+}
+
+/* the wordmark is wider than the rail: the logo stands in, the text stays for screen readers */
+.is-rail .nav-group-title,
+.is-rail .nav-count,
+.is-rail .nav-label,
+.is-rail .nav-export-label,
+.is-rail .nav-storage,
+.is-rail .nav-shortcut,
+.is-rail .nav-note {
+  display: none;
+}
+
+.is-rail .brand {
+  font-size: 0;
+}
+
+.is-rail .brand::before {
+  content: '';
+  display: block;
+  width: 24px;
+  height: 24px;
+  background: var(--ann-accent);
+  -webkit-mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
+  mask: url('../../assets/icons/logo.svg') center / contain no-repeat;
+}
+
+.is-rail .nav-item {
+  width: 40px;
+  justify-content: center;
+  padding: 0;
+}
+
+.is-rail .nav-item-current::before {
+  left: -10px;
+}
+
+.is-rail .nav-fold {
+  margin: 0;
+}
+
+.is-rail .nav-foot {
+  align-items: center;
+}
+
+.is-rail .nav-export {
+  width: 40px;
+  padding: 0;
+}
+
+/* the rail has no room for the export result: it shows above the content instead */
+.is-rail .mobile-export-status {
+  display: block;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ann-line);
+  background: var(--ann-surface);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* a narrow window (extension.md §2.2): the page frame narrows, the search gives up width, the guide's
+   cards stack; a touch-sized window has no hover to reveal a card's actions — all below the 720 breakpoint */
+@media (max-width: 719.98px) {
+  .page-head,
+  .page-body {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+  .search-field {
+    width: 200px;
+  }
+
+  .guide-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .entry-card-actions {
+    opacity: 1;
+  }
+}
+
+/* the reading view's side column goes under the text when the content area is too narrow to hold both
+   (extension.md §4.2): the whole view scrolls as one, the rail keeping its own edge on top */
+@media (max-width: 1000px) {
+  .reading {
+    grid-template-columns: minmax(0, 1fr);
+    overflow-y: auto;
+  }
+
+  .reading-body {
+    overflow: visible;
+  }
+
+  .reading-side {
+    display: flex;
+    min-height: 0;
+    border-left: 0;
+    border-top: 1px solid var(--ann-line);
+  }
+}
