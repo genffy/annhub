@@ -7,7 +7,9 @@ export default defineConfig({
   timeout: 30_000,
   retries: process.env.CI ? 1 : 0,
   workers: 1, // extensions need serial execution (shared browser context)
-  reporter: process.env.CI ? 'github' : [['html', { outputFolder: './playwright-report' }]],
+  // CI shards run the github reporter (job annotations) and keep a blob report so the
+  // merge-reports job in ci.yml can combine the shards into one HTML report on failure.
+  reporter: process.env.CI ? [['github'], ['blob', { outputDir: 'blob-report' }]] : [['html', { outputFolder: './playwright-report' }]],
   use: {
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',

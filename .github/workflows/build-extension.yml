@@ -50,11 +50,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Keep the toolchains available to the shared consistency and type checks, same as CI.
-      - name: Install website dependencies
-        working-directory: website
-        run: npm ci
-
       - name: Resolve package metadata
         id: package_meta
         run: |

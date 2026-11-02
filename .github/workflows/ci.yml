@@ -3,11 +3,18 @@ name: CI
 # The merge gate. Every job runs on pull requests, on pushes to main and in the merge queue;
 # `ci-pass` is the single status that branch protection requires.
 #
-# There is deliberately no path filter. Some tests read files outside their own directory
-# (utils/__tests__/legal-pages.test.ts reads website/public/*.html), so a list of paths that
-# "cannot affect" a job is one more hidden coupling, and it would skip a test that should fail.
-# Cut the number of runs instead: Dependabot is monthly and grouped (.github/dependabot.yml),
-# and a new push cancels the run it supersedes (concurrency below).
+# There is deliberately no trigger-level path filter: a workflow a filter skips never reports its
+# required check, and the check would stay pending and block the merge (check-consistency enforces
+# this). Instead every job classifies the pull request's changed files at runtime
+# (.github/actions/docs-only): when only markdown or docs changed, the jobs whose checks cannot be
+# affected exit immediately and only the doc checks run in `static`; pushes to main and the merge
+# queue always run everything. The skip list stays "code checks on docs-only" because the tests do
+# read across directories (utils/__tests__/legal-pages.test.ts reads website/public/*.html).
+#
+# The jobs are independent so the wall time is the slowest part, not the sum: static checks, unit
+# tests, the website build and the E2E shards run in parallel. E2E shards work because every test
+# launches its own browser profile (e2e/fixtures.ts), so a shard is one more machine running
+# workers=1.
 on:
   pull_request:
   push:
@@ -23,17 +30,22 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  extension:
-    name: Extension (format, lint, types, unit, build, E2E)
+  static:
+    name: Static (format, lint, types, docs)
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 15
     permissions:
       contents: read
+      pull-requests: read
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Classify docs-only pull requests
+        id: docs
+        uses: ./.github/actions/docs-only
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -49,6 +61,7 @@ jobs:
 
       # The consistency checks inspect both installed toolchains.
       - name: Install website dependencies
+        if: steps.docs.outputs.docs-only != 'true'
         working-directory: website
         run: npm ci
 
@@ -56,13 +69,12 @@ jobs:
         run: npm run format:check
 
       - name: Lint
+        if: steps.docs.outputs.docs-only != 'true'
         run: npm run lint
 
       - name: Type check
+        if: steps.docs.outputs.docs-only != 'true'
         run: npm run compile
-
-      - name: Unit tests
-        run: npm test
 
       - name: Documentation (links, section references, wording)
         run: npm run check:docs
@@ -75,30 +87,123 @@ jobs:
       - name: Related settings agree (Node.js, Next.js, Cloudflare, package directories)
         run: npm run check:consistency
 
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Classify docs-only pull requests
+        id: docs
+        uses: ./.github/actions/docs-only
+
+      - name: Docs-only pull request
+        if: steps.docs.outputs.docs-only == 'true'
+        run: echo "Only markdown or docs changed; the unit tests read none of it."
+
+      - name: Set up Node.js
+        if: steps.docs.outputs.docs-only != 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        if: steps.docs.outputs.docs-only != 'true'
+        run: npm ci
+
+      - name: Unit tests
+        if: steps.docs.outputs.docs-only != 'true'
+        run: npm test
+
+  e2e:
+    name: E2E (shard ${{ matrix.shard }} of 4)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      PLAYWRIGHT_SHARD: ${{ matrix.shard }}
+      PLAYWRIGHT_TOTAL_SHARDS: '4'
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Classify docs-only pull requests
+        id: docs
+        uses: ./.github/actions/docs-only
+
+      - name: Docs-only pull request
+        if: steps.docs.outputs.docs-only == 'true'
+        run: echo "Only markdown or docs changed; no browser behavior can be affected."
+
+      - name: Set up Node.js
+        if: steps.docs.outputs.docs-only != 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        if: steps.docs.outputs.docs-only != 'true'
+        run: npm ci
+
       - name: Build
+        if: steps.docs.outputs.docs-only != 'true'
         run: npm run build
 
       - name: Verify the extension package
+        if: steps.docs.outputs.docs-only != 'true'
         run: |
           set -euo pipefail
           test -f .output/chrome-mv3/manifest.json
           node -e "const m=require('./.output/chrome-mv3/manifest.json'); if(m.manifest_version!==3) throw new Error('not MV3'); console.log(m.name, m.version)"
 
+      - name: Cache the E2E browser
+        if: steps.docs.outputs.docs-only != 'true'
+        id: browser
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
       - name: Install the browser for E2E
+        if: steps.docs.outputs.docs-only != 'true' && steps.browser.outputs.cache-hit != 'true'
         run: npx playwright install --with-deps chromium
 
-      - name: E2E
-        run: npx playwright test
+      # The cache restores the browser binaries; system libraries ship with the runner image.
+      # A no-op install still verifies the cache is complete.
+      - name: Reuse the cached browser
+        if: steps.docs.outputs.docs-only != 'true' && steps.browser.outputs.cache-hit == 'true'
+        run: npx playwright install chromium
 
-      - name: Keep the Playwright report on failure
+      - name: E2E
+        if: steps.docs.outputs.docs-only != 'true'
+        run: npx playwright test --shard="$PLAYWRIGHT_SHARD/$PLAYWRIGHT_TOTAL_SHARDS"
+
+      - name: Keep the blob report for merging
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: playwright-report
-          path: |
-            playwright-report/
-            test-results/
-          retention-days: 7
+          name: blob-report-${{ matrix.shard }}
+          path: blob-report/
+          retention-days: 1
           if-no-files-found: ignore
 
   website:
@@ -108,6 +213,7 @@ jobs:
     permissions:
       artifact-metadata: write
       contents: read
+      pull-requests: read
     defaults:
       run:
         working-directory: website
@@ -117,7 +223,16 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Classify docs-only pull requests
+        id: docs
+        uses: ./.github/actions/docs-only
+
+      - name: Docs-only pull request
+        if: steps.docs.outputs.docs-only == 'true'
+        run: echo "Only markdown or docs changed; the website cannot be affected."
+
       - name: Set up Node.js
+        if: steps.docs.outputs.docs-only != 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
@@ -125,15 +240,19 @@ jobs:
           cache-dependency-path: website/package-lock.json
 
       - name: Install dependencies
+        if: steps.docs.outputs.docs-only != 'true'
         run: npm ci
 
       - name: Type check
+        if: steps.docs.outputs.docs-only != 'true'
         run: npm run typecheck
 
       - name: Lint
+        if: steps.docs.outputs.docs-only != 'true'
         run: npm run lint
 
       - name: Build
+        if: steps.docs.outputs.docs-only != 'true'
         env:
           BUILD_PRODUCTION: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         run: |
@@ -144,6 +263,7 @@ jobs:
           fi
 
       - name: Verify the actual static routes
+        if: steps.docs.outputs.docs-only != 'true'
         env:
           WEBSITE_SMOKE_ORIGIN: http://localhost:3001
           WRANGLER_SEND_METRICS: 'false'
@@ -172,10 +292,52 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
+  merge-reports:
+    name: Merge E2E reports
+    needs: [e2e]
+    if: needs.e2e.result == 'failure'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      artifact-metadata: write
+      contents: read
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Download the shard blob reports
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: blob-report-*
+          path: blob-reports
+
+      - name: Merge into one HTML report
+        run: npx playwright merge-reports --reporter html ./blob-reports
+
+      - name: Keep the Playwright report on failure
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+          if-no-files-found: error
+
   ci-pass:
     name: ci-pass
     if: always()
-    needs: [extension, website]
+    needs: [static, unit, e2e, website]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -212,6 +374,8 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
+          cache: npm
+          cache-dependency-path: website/package-lock.json
 
       - name: Skip a commit superseded on main
         id: current

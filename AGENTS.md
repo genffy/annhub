@@ -72,7 +72,7 @@
 ## 验证入口
 
 - 提交前跑 `npm run verify`；每个检查做什么、E2E 与官网冒烟怎么跑，见 [scripts/README.md](scripts/README.md)。
-- CI 跑同样的命令并加 CodeQL 与依赖审查；失败先在本地复现，不跳过、不禁用、不隔离测试求绿。任务不按路径过滤（测试会读其他目录的文件；必需检查被跳过会 pending 阻塞合并），要少跑靠 Dependabot 分组与取消过期运行。
+- CI 跑同样的命令并加 CodeQL 与依赖审查；失败先在本地复现，不跳过、不禁用、不隔离测试求绿。必需检查不用 `paths` 过滤；纯 docs 的 PR 运行时跳过读代码的检查（ci.yml 头注）。要少跑靠 Dependabot 分组与取消过期运行。
 
 ## 生成物与提交
 

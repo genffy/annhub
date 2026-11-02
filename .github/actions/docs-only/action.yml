@@ -1,0 +1,36 @@
+name: Classify docs-only pull requests
+description: >-
+  Sets the output `docs-only` to true when every changed file of a pull request is markdown or
+  docs, so the merge gate can skip the checks that cannot be affected. Emits nothing on other
+  events: pushes to main and the merge queue always run the full gate.
+outputs:
+  docs-only:
+    description: 'true when the pull request only touched markdown/docs; empty or false otherwise'
+    value: ${{ steps.classify.outputs.docs-only }}
+runs:
+  using: composite
+  steps:
+    - id: classify
+      env:
+        # Route the event fields through env instead of inline interpolation: the pull request
+        # number is third-party input and must not land in the script text (zizmor: template injection).
+        EVENT_NAME: ${{ github.event_name }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        GH_TOKEN: ${{ github.token }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        if [ "$EVENT_NAME" != 'pull_request' ]; then
+          echo "Not a pull request: the merge gate runs in full."
+          exit 0
+        fi
+        files="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/files?per_page=100" --paginate --jq '.[].filename')"
+        total="$(printf '%s\n' "$files" | grep -c . || true)"
+        docs="$(printf '%s\n' "$files" | grep -Ec '(^docs/|\.md$|\.mdx$|^LICENSE$)' || true)"
+        if [ "$total" -gt 0 ] && [ "$docs" -eq "$total" ]; then
+          echo "All ${total} changed files are docs or markdown; the checks that read code are skipped."
+          echo "docs-only=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "Code changed (${docs}/${total} docs or markdown); the merge gate runs in full."
+          echo "docs-only=false" >> "$GITHUB_OUTPUT"
+        fi
