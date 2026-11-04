@@ -21,6 +21,61 @@
 默认：拆成 monorepo 之后再做——现在官网是独立的 Next 应用，不能引用扩展目录。
 影响的文档：无（结构决定时机）。
 
+### D-82 下载的数量与大小上限
+
+背景：下载把页面里的图片与直链视频、音频取回本机；不设上限，一个大视频或一个图片很多的页面就会占满磁盘、内存或带宽。
+选项：A 固定上限，超限的项保留原地址；B 不设上限，由浏览器和磁盘空间兜底。
+默认：A。单张图片 20 MB；单个视频或音频 200 MB；一次下载最多 500 个文件、合计 1 GB；同时取回 4 个；一个请求 30 秒没有进展就放弃这一项；小于 16 像素的图片不取；资料库一次最多选 200 条；预计文件数超过 100 时建议选 ZIP；文件夹名与 Markdown 文件名最长 80 个字符。
+影响的文档：[download.md §3.2、§3.3、§4.4、§5](download.md)；[user-stories.md](user-stories.md) 的 US-DATA-07。
+
+### D-83 视频与音频在 Markdown 里的写法
+
+背景：Markdown 没有视频语法，常见写法有三种。
+选项：A 图片写法 `![标题](assets/video-001.mp4)`，是否内嵌播放取决于阅读工具，不支持的显示为坏图；B 普通链接 `[标题](assets/video-001.mp4)`，任何工具都能打开，不内嵌；C `<video>` 标签，需要原始 HTML，多数预览会过滤。
+默认：A，音频同写法。
+影响的文档：[download.md §4.3](download.md)。
+
+### D-84 取回媒体时是否带用户的 cookie
+
+背景：浏览器的“另存为”带着用户在该站点的登录状态；扩展取回时带 cookie，登录后才看得到的图就能取到，但请求会带着用户的身份发往图床。
+选项：A 不带；B 带。
+默认：A——与截图的代取一致（[screenshot.md §2](screenshot.md)），登录后才看得到的图保留原地址（Q-23）。
+影响的文档：[download.md §5.3](download.md)；[permissions.md §1](permissions.md) 里“采集唯一会产生的出站请求”一条要把下载取回的媒体算进去，§2、§3 里 `downloads`、`offscreen`、`<all_urls>` 的用途随之补充；[roadmap.md §4](roadmap.md) 里“扩展自己发出的网络请求”的门禁句；隐私政策页的数据流。
+
+### D-85 区块胶囊去掉「上一级」
+
+背景：胶囊的位置有限，下载需要一个位置；调整层级的需求由区块模式的 `↑` `↓` 和整页正文的单独入口承担。
+选项：A 去掉胶囊上的「上一级」按钮和悬停时记住所选层级的行为，区块模式的 `↑` `↓` 保留；B 保留「上一级」，胶囊变成五个动作。
+默认：A。悬停的目标始终是指针下最内层的区块。M-23 的定义不变，悬停入口的区块剪藏 `level_changed` 恒为否，M-23 里只有撤销还能反映悬停入口的误命中。
+影响的文档：[capture.md §6.2](capture.md) 的“层级”与“悬停入口”；[extension.md §2.1](extension.md)；[user-stories.md](user-stories.md) 的 US-CAP-14；[metrics.md §9](metrics.md) 里 `level_changed` 的说明；[设计稿](../design/README.md)里的区块胶囊。
+
+### D-86 还原 Referer 与新增的权限
+
+背景：浏览器的“图片另存为”带着页面的 Referer 与 cookie，所以对按 Referer 拦截的图床有效；扩展页面发出的取图请求默认没有页面的 Referer（实际带什么以 Q-24 的实测为准），这类图床可能拒绝。公开反馈称部分图床拒绝空 Referer（[V2EX 讨论](https://www.v2ex.com/t/904989)、[一个下载脚本的修复](https://github.com/little-bodhisattva/little-bodhisattva.github.io/pull/2)），未必反映现状，本项目没有复现。还原 Referer 需要权限 `declarativeNetRequestWithHostAccess`：[官方参考](https://developer.chrome.com/docs/extensions/reference/api/declarativeNetRequest)写明它安装时不显示权限警告，使用前须有主机权限，扩展已有 `<all_urls>`。
+选项：A 不还原，权限不变，被拦的图保留原地址并写进 README；B 还原 Referer，新增这一项权限，用只在下载期间存在的规则给扩展自己发出的取图请求设置 Referer；C 在页面内取图，不加权限，但受页面 CORS 限制，跨域图床大多取不到。
+默认：B，作为单独的一次交付，晚于页面下载本身；交付前先按 Q-24 验证，页面内取图或不带 Referer 的取图已能覆盖常见图床，就不新增这项权限。规则只作用于扩展自己发出的请求、本次下载涉及的图床主机，只设置 Referer 一个头，值是页面的来源，与浏览器显示该图时发的一致。
+影响的文档：[download.md §5.3、§6.1](download.md)；[permissions.md §2、§3、§4、§7](permissions.md)；隐私政策页的权限表与数据流；商店的权限说明与隐私披露；[roadmap.md §4](roadmap.md) 里权限一致的门禁句。
+
+### D-87 下载的本地事件与指标
+
+背景：[metrics.md §9](metrics.md) 规定新增事件必须登记它服务的指标，属性只能是枚举、布尔值或分桶数字，不含地址和标题。
+默认：下载结束（完成、部分、失败或取消）记一个本地事件 `download.completed`，属性：`source`（page / library）、`via`（capsule / block_mode / popup / command / drawer / reading / selection）、`scope`（block / page / entry / multi）、`form`（folder / zip）、`block_kind`（`via` 为 capsule 或 block_mode 时有，取值同 `capture.saved`）、`result`（ok / partial / failed / cancelled）、`media`（取回的媒体数，分桶）、`missing`（没取到的媒体数，分桶）。它服务一个新的下载使用率指标：近 14 天内活跃用户里，至少完成过一次下载的占比，按 `source`、`form` 分列；指标编号在实现它的 PR 里按 metrics.md 的下一个可用编号分配。
+影响的文档：[metrics.md §5、§9、§10](metrics.md)；[user-stories.md §6](user-stories.md) 里 US-CAP-21、US-DATA-07 的指标行。
+
+### D-88 资料库多选的入口
+
+背景：多选下载需要进入选择的方式，卡片的单击不能既打开抽屉又选中。
+选项：A 页头的「选择」按钮，进入选择模式后单击卡片切换选中；B 卡片悬停出现复选框，常驻选择条；C 按住 `Shift` 或 `Cmd/Ctrl` 点击卡片。
+默认：A——看得见、键盘可达，非选择模式下单击卡片的含义不变。
+影响的文档：[download.md §3.2](download.md)；[extension.md §2.2、§2.3](extension.md)。
+
+### D-89 资料库里取图用的 Referer
+
+背景：页面里的下载用当前页面的来源作 Referer（D-86）；资料库里没有那个页面，只有条目保存的来源地址。
+选项：A 条目来源页的来源；B 图片自己所在站点的来源；C 不设置。
+默认：A——与用户当时在那个页面看到图片时浏览器发的 Referer 一致。
+影响的文档：[download.md §5.3](download.md)。
+
 ## 3. 风险登记
 
 可能性与影响为初评（高、中、低），随证据更新。
@@ -35,6 +90,8 @@
 | RK-13 | 库内高亮要把渲染后的选区换算回 Markdown 偏移，换算不稳会让高亮错位或无法创建                                                                                       | 中     | 中   | 同一条剪藏刷新后高亮位置变化；跨块高亮的 `==…==` 破坏语法                               | 换算只在共享模块实现一次；用固定的 Markdown fixture 做单元测试；有高亮的剪藏原文只读                                                                                                     | [entry.md §4](entry.md)                                          |
 | RK-14 | 截图界面的预览画布与离屏克隆在页面自己的 DOM 里，页面的脚本读得到用户在这个页面上截下的像素，包括页面里跨域 iframe 的画面                                          | 低     | 中   | 出现读取截图画布的页面脚本                                                              | 会话由用户本人开始、只认可信输入、跨标签截取和代取私有网络地址都已堵上，影响只限用户主动截取的页面，现阶段接受；彻底解决要把编辑界面放进扩展自己来源的 iframe 或独立窗口，改动大，暂不做 | [screenshot.md §2](screenshot.md)                                |
 | RK-15 | 官网的语言跳转、地区 Cookie 与 AI 爬虫策略依赖 Cloudflare 边缘配置。配置缺失会使语言回退、统计改为先询问；错误的 AI 策略会拦截爬虫，自动注入统计脚本会绕过访客选择 | 低     | 中   | 语言协商或上线检查失败；非欧洲访客也被询问；爬虫请求被拦截；HTML 出现自动注入的统计脚本 | 生产规则随发布同步并检查；静态响应清除旧地区标记，未知情况先问；AI 爬虫策略保持允许，统计采用手动嵌入；上线后检查真实地区行为                                                            | [seo-geo.md §6](seo-geo.md)、[permissions.md §8](permissions.md) |
+| RK-16 | 商店审核把下载页面里的图片、视频与音频解读为促成未经授权的下载，或认为它超出单一用途，要求删减功能或权限，甚至拒绝整个扩展                                         | 中     | 高   | 审核反馈；商店政策页变动；评价里把扩展当作视频下载器                                    | 只处理用户正在看的页面里已有的地址，逐次点击，不枚举、不带 cookie；直链视频与音频最后交付、可整体摘掉；单一用途写成“把网页内容留在本机”，文案不写“视频下载器”；每 90 天复核引用的政策页  | [download.md §6.3](download.md)、RK-08                           |
+| RK-17 | 图床按 Referer 或登录状态拦截，扩展取不到页面里本来看得到的图，产物缺图                                                                                            | 中     | 中   | 某个站点的图片取回率偏低；反馈里出现“缺图”                                              | 先验证扩展取图和页面内取图的实际表现（Q-24），必要时还原 Referer（D-86）；取不到的图保留原地址并写进 README，不让整个下载失败                                                            | [download.md §5.4](download.md)、D-86                            |
 
 ## 4. 开放问题
 
@@ -52,6 +109,12 @@
 | Q-18 | 官网是否在单页之外建对比页、用例页和指南页。建的话：文案先写进 website.md；用例只针对 product.md §2 的人群；对比只用 market.md 中带日期的事实；地址与语言版本按 seo-geo.md 第 3 节                                                    | [seo-geo.md §2](seo-geo.md)                          |
 | Q-19 | 中文受众从哪里找到官网：是否向百度等中文搜索引擎提交站点，AP-5 在哪个中文 AI 搜索里跑；中文访客能否顺利打开商店并安装                                                                                                                 | [seo-geo.md §7.4](seo-geo.md)                        |
 | Q-20 | 是否采集 PDF：研究者的主要来源可能是 PDF，当前的采集只覆盖网页                                                                                                                                                                        | [capture.md §3](capture.md)                          |
+| Q-21 | 剪藏里的图片是否也存进库：阅读视图和整库导出可以离线带图，代价是库的体量，以及剪藏时要联网取回图片；现在剪藏只留原地址                                                                                                                | [download.md §1.3](download.md)                      |
+| Q-22 | 是否让用户选一个固定文件夹，由扩展直接写入，而不是写到下载目录下的子目录：可以避开“下载前询问”，代价是要用户授权文件夹，授权能保持多久需要验证                                                                                        | [download.md §4.1](download.md)                      |
+| Q-23 | 登录后才看得到的图（需要 cookie）是否取回：现在不带 cookie（D-84），这类图保留原地址；带 cookie 会让请求携带用户的身份发往图床                                                                                                        | [download.md §5.3](download.md)                      |
+| Q-24 | 扩展发出的取图请求实际带哪些头（Referer、Origin、cookie）；页面内取图（受页面 CORS 限制）是否已经够用；还原 Referer 的规则能否只作用于扩展自己的请求。出处见 D-86                                                                     | [download.md §5.3、§6.1](download.md)、D-86          |
+| Q-25 | 文件夹形态连续发起多个下载的实际表现：“下载前询问”开与关各如何；子目录是否按预期创建；浏览器给重名文件加序号后，Markdown 里的链接怎样跟上；取消后已写好的文件怎样清理                                                                 | [download.md §4.1](download.md)                      |
+| Q-26 | 大体量视频的取回与打包耗时、内存占用，以及与录屏共用同一个后台文档时的相互影响；ZIP 形态的上限是否要比文件夹形态更低                                                                                                                  | [download.md §5.2](download.md)                      |
 
 ## 5. 模板
 
