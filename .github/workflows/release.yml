@@ -17,9 +17,13 @@ concurrency:
 jobs:
   verify:
     uses: ./.github/workflows/ci.yml
+    # A called workflow's jobs may only request what this job grants, so the
+    # gate passes the union of ci.yml's job permissions (static, unit, e2e and
+    # website ask for contents, pull-requests and artifact-metadata).
     permissions:
       artifact-metadata: write
       contents: read
+      pull-requests: read
 
   # Runs alongside the gate, not after it: the zip comes from the same commit and `release`
   # below only publishes once both have succeeded, so the build never lands unverified.
