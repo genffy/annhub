@@ -1,6 +1,6 @@
 {
   "name": "annhub",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Browser extension that clips and screenshots web content with its source into one local library",
   "private": true,
   "type": "module",
