@@ -85,12 +85,12 @@ function extractQuoteCard(card: Element, pageUrl: string): PlatformContent | und
   strong.textContent = name
   byline.append(strong, ' ')
   const user = doc.createElement('a')
-  user.href = `${page.origin}/${handle}`
+  user.href = new URL(`/${handle}`, page.origin).href
   user.textContent = `@${handle}`
   byline.append(user)
   if (published) {
     const date = doc.createElement('a')
-    date.href = `${page.origin}/${handle}`
+    date.href = new URL(`/${handle}`, page.origin).href
     date.textContent = published
     byline.append(' · ', date)
   }

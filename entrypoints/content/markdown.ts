@@ -138,7 +138,7 @@ const UNDERSCORE_CLOSER = /(\w)_(?![\w_])/g
  */
 export function escapeText(text: string, escapeInterpolation = false): string {
   return text
-    .replace(escapeInterpolation ? /([\\$~])/g : /\\/g, '\\$1')
+    .replace(escapeInterpolation ? /([\\$~])/g : /(\\)/g, '\\$1')
     .replace(/==/g, '=\\=')
     .replace(ALWAYS_ESCAPED, '\\$&')
     .replace(/(^|[^\w])(_+)/g, (_match, pre: string, run: string) => `${pre}${run.replace(/_/g, '\\_')}`)
