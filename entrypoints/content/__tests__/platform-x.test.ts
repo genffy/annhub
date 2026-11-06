@@ -34,6 +34,31 @@ it('assembles semantic posts and one quote, retaining line breaks and only refer
   expect(elementToMarkdown(root).markdown).toBe(result.markdown)
 })
 
+it('quotes the role=link card and drops the quote label, subscribe description and avatar', () => {
+  const root = page(`<article>
+    <a href="/alice"><img src="https://pbs.twimg.com/profile_images/avatar.jpg">Alice</a>
+    <a href="/alice/status/123"><time datetime="2026-10-01T12:00:00Z">12h</time></a>
+    <div style="white-space:pre-wrap">Main post text</div>
+    <a href="/alice/status/123/photo/1"><img src="https://pbs.twimg.com/media/main.jpg" alt="main"></a>
+    <span style="white-space:pre-wrap">Quote</span>
+    <span style="white-space:pre-wrap">Click to Subscribe to alice</span>
+    <div role="link" tabindex="0">
+      <div data-testid="Tweet-User-Avatar"><div data-testid="UserAvatar-Container-bob"><img src="https://pbs.twimg.com/profile_images/bob.jpg"></div></div>
+      <div data-testid="User-Name"><span>Bob</span><span>@bob</span><time datetime="2026-10-02T12:00:00Z">1h</time></div>
+      <div data-testid="tweetText" style="white-space:pre-wrap">Borrowed words</div>
+      <div style="white-space:pre-wrap"><span>From X Freeze</span><a href="/XFreeze/status/9/analytics">1.1M</a></div>
+      <img src="https://pbs.twimg.com/media/quote.jpg" alt="quote">
+    </div>
+  </article>`)
+  const result = elementToMarkdown(root, undefined, 'download')
+  expect(result.platform?.meta?.title).toBe('Alice - Main post text')
+  expect(result.markdown).toContain('Main post text')
+  expect(result.markdown).toContain('> **Bob** [@bob](https://x.com/bob)')
+  expect(result.markdown).toContain('> Borrowed words')
+  for (const junk of ['Quote', 'Click to Subscribe', 'From X Freeze', '1.1M', 'avatar.jpg', 'bob.jpg']) expect(result.markdown).not.toContain(junk)
+  expect(collectMedia(root, result.markdown).map(item => item.url)).toEqual(['https://pbs.twimg.com/media/main.jpg', 'https://pbs.twimg.com/media/quote.jpg'])
+})
+
 it('uses the post ID for a media-only title and keeps a streaming video on its source page', () => {
   const root = page(
     '<article><a href="/alice">Alice</a><a href="/alice/status/123">Today</a><video src="blob:https://x.com/video" poster="https://pbs.twimg.com/media/poster.jpg"></video></article>',

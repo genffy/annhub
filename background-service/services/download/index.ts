@@ -60,23 +60,21 @@ interface ActiveRun {
   watchdog?: ReturnType<typeof setTimeout>
 }
 
-/** The `AnnHub/<root>` folders that already exist in the download history — a repeat title gets ` (2)` (download.md §4.1). */
-async function existingRootFolders(): Promise<Set<string>> {
-  const roots = new Set<string>()
+/** A re-download of the same title replaces the folder (download.md §4.1): remove the files it wrote before, so stale media never lingers unreferenced. */
+async function clearFolderFiles(basePath: string): Promise<void> {
   try {
+    const folder = basePath.replace(/^AnnHub\//, '')
     const items = await chrome.downloads.search({})
     for (const item of items) {
-      // the download manager reports the OS path: Windows writes backslashes
       const name = (item.filename ?? '').replace(/\\/g, '/')
       const at = name.lastIndexOf('/AnnHub/')
       if (at === -1) continue
-      const root = (name.slice(at + '/AnnHub/'.length).split('/')[0] ?? '').replace(/\.zip$/i, '')
-      if (root) roots.add(root)
+      if (!name.slice(at + '/AnnHub/'.length).startsWith(folder + '/')) continue
+      await chrome.downloads.removeFile(item.id).catch(() => undefined)
     }
   } catch {
-    /* no history to check against: the browser still dedupes files inside the folder */
+    /* the writes still overwrite by name; a stale file is the fallback's only cost */
   }
-  return roots
 }
 
 export class DownloadService implements IService {
@@ -164,7 +162,6 @@ export class DownloadService implements IService {
           form: settings.downloadForm,
           withMedia: true,
           lang: currentUiLanguage(),
-          takenRoots: [],
           at: Date.now(),
         })
         return MessageUtils.createResponse(true, {
@@ -238,7 +235,6 @@ export class DownloadService implements IService {
         form,
         withMedia: settings.downloadMedia && media.length > 0,
         lang: message.lang === 'zh' || message.lang === 'en' ? message.lang : currentUiLanguage(),
-        takenRoots: [...(await existingRootFolders())],
         at: Date.now(),
         meta: {
           ...(Array.isArray(message.meta.author) ? { author: message.meta.author } : {}),
@@ -282,7 +278,6 @@ export class DownloadService implements IService {
         // the dialog may override the setting for this run; an absent field means the setting (download.md §3.3)
         withMedia: message.withMedia ?? settings.downloadMedia,
         lang: message.lang === 'zh' || message.lang === 'en' ? message.lang : currentUiLanguage(),
-        takenRoots: [...(await existingRootFolders())],
         at: Date.now(),
       })
       return await this.launch({
@@ -420,6 +415,7 @@ export class DownloadService implements IService {
 
   /** The folder form (download.md §4.1): media first as their own browser downloads — the browser's real file names are what the Markdown links — then the Markdown itself. */
   private async writeFolderRun(run: ActiveRun, fetched: DownloadItemOutcome[], offline: boolean): Promise<void> {
+    await clearFolderFiles(run.plan.basePath)
     const byRef = new Map<string, DownloadItemOutcome>()
     let writeFailed = false
     for (const outcome of fetched) {
@@ -477,7 +473,7 @@ export class DownloadService implements IService {
     if (run.cancelled || this.run !== run) return null
     try {
       const id = await new Promise<number>((resolve, reject) => {
-        chrome.downloads.download({ url, filename, saveAs: false }, downloadId => {
+        chrome.downloads.download({ url, filename, saveAs: false, conflictAction: 'overwrite' }, downloadId => {
           const error = chrome.runtime.lastError
           if (error || downloadId === undefined) reject(new Error(error?.message ?? 'download refused'))
           else resolve(downloadId)

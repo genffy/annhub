@@ -12,7 +12,6 @@ import {
   batchFolderName,
   batchReadme,
   composePageMarkdown,
-  dedupeName,
   DOWNLOAD_LIMITS,
   downloadAssetPath,
   mediaReadme,
@@ -71,23 +70,16 @@ interface PlannedEntry {
 
 /**
  * Plans the library download: reads the entries and the registry, gives each
- * entry its folder (unique in the batch and against `takenRoots`, the AnnHub/
- * roots already in the download history), and collects the media. Entries
- * that no longer exist go to the multi root README's failure list.
+ * entry its folder (unique among the batch's own entries), and collects the
+ * media. Entries that no longer exist go to the multi root README's failure
+ * list.
  */
-export async function planLibraryDownload(input: {
-  entryIds: string[]
-  form: DownloadForm
-  withMedia: boolean
-  lang: ExportLanguage
-  takenRoots: string[]
-  at: number
-}): Promise<DownloadRunPlan> {
+export async function planLibraryDownload(input: { entryIds: string[]; form: DownloadForm; withMedia: boolean; lang: ExportLanguage; at: number }): Promise<DownloadRunPlan> {
   const { entryIds, form, withMedia, lang, at } = input
   const store = await initializedEntryStore()
   const [registry, records] = await Promise.all([store.listPropertyDefinitions(), Promise.all(entryIds.map(id => store.getEntry(id)))])
   const multi = entryIds.length > 1
-  const taken = new Set(input.takenRoots)
+  const taken = new Set<string>()
   const slots = new SlotCounter()
   const planned: PlannedEntry[] = []
   const failedIds: string[] = []
@@ -135,7 +127,7 @@ export async function planLibraryDownload(input: {
   }
   const media = planned.flatMap(entry => entry.items)
 
-  const basePath = multi ? `AnnHub/${dedupeName(batchFolderName(at), new Set(input.takenRoots))}` : planned[0] ? `AnnHub/${planned[0]!.plan.folder}` : 'AnnHub/download'
+  const basePath = multi ? `AnnHub/${batchFolderName(at)}` : planned[0] ? `AnnHub/${planned[0]!.plan.folder}` : 'AnnHub/download'
 
   return {
     form,
@@ -203,7 +195,6 @@ export function planPageDownload(input: {
   form: DownloadForm
   withMedia: boolean
   lang: ExportLanguage
-  takenRoots: string[]
   at: number
   meta: { author?: string[]; published?: string; description?: string; site?: string; language?: string; image?: string }
 }): DownloadRunPlan {
@@ -213,7 +204,7 @@ export function planPageDownload(input: {
   } catch {
     host = ''
   }
-  const folder = dedupeName(sanitizeTitle(input.title, host), new Set(input.takenRoots))
+  const folder = sanitizeTitle(input.title, host)
   const slots = new SlotCounter()
   // the run's file cap (download.md §5.2), less the Markdown and a possible README: the rest keep their addresses
   const room = Math.max(0, DOWNLOAD_LIMITS.maxFiles - 2)

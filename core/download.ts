@@ -76,7 +76,7 @@ function sanitizeHost(host: string): string {
   return safe && !WINDOWS_RESERVED.test(safe) ? safe : 'download'
 }
 
-/** `name`, then `name (2)`, `name (3)` … — the folder a repeat download of the same title gets (download.md §4.1). */
+/** `name`, then `name (2)`, `name (3)` … — separates same-titled entries in one batch and a README from a same-named article (download.md §4.2, §4.4). */
 export function dedupeName(name: string, taken: ReadonlySet<string>): string {
   const normalized = new Set([...taken].map(value => value.normalize('NFC').toLowerCase()))
   const exists = (value: string): boolean => normalized.has(value.normalize('NFC').toLowerCase())

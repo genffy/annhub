@@ -26,7 +26,7 @@ const downloadsDownload = vi.fn((options: { filename?: string }, callback: (id: 
 const downloadsSearch = vi.fn(async (query: { id?: number }) => {
   const id = query?.id
   const filename = id !== undefined ? landedFiles.get(id) : undefined
-  return filename === undefined ? [] : [{ state: 'complete', filename: `/tmp/downloads/${filename}` }]
+  return filename === undefined ? [] : [{ id: id as number, state: 'complete', filename: `/tmp/downloads/${filename}` }]
 })
 const localStorageMap = new Map<string, unknown>()
 const sessionStorageMap = new Map<string, unknown>()
@@ -257,6 +257,26 @@ describe('the download service (download.md §2, §3, §7)', () => {
     await dispatch({ type: 'CANCEL_DOWNLOAD' }, tabSender)
   })
 
+  it('overwrites a repeat title: clears the old folder files and writes with overwrite', async () => {
+    const oldId = 900
+    downloadsSearch.mockResolvedValueOnce([{ id: oldId, filename: '/tmp/downloads/AnnHub/A good post/assets/img-001.jpg', state: 'complete' }])
+    const removeFile = chrome.downloads.removeFile as unknown as ReturnType<typeof vi.fn>
+
+    await dispatch(PAGE_START)
+    const run = lastRunMessage()
+    await dispatch(
+      event({
+        requestId: run['requestId'] as string,
+        event: 'media',
+        outcomes: [{ ref: '|https://cdn.example.com/pic.jpg', status: 'saved', blobUrl: 'blob:abc', mime: 'image/jpeg' }],
+      }),
+      offscreenSender,
+    )
+
+    expect(removeFile).toHaveBeenCalledWith(oldId)
+    expect(downloadsDownload).toHaveBeenCalledWith(expect.objectContaining({ conflictAction: 'overwrite' }), expect.any(Function))
+  })
+
   it('reports a partial download when media could not be saved, and writes the README', async () => {
     await dispatch(PAGE_START)
     const run = lastRunMessage()
@@ -387,7 +407,7 @@ describe('planLibraryDownload (download.md §3.4)', () => {
       properties: { title: 'Shot One' },
       asset: { bytes: pngBlob(), width: 2, height: 2 },
     })
-    const plan = await planLibraryDownload({ entryIds: [clip.id, shot.id], form: 'zip', withMedia: true, lang: 'zh', takenRoots: [], at: Date.parse('2026-11-04T10:00:00') })
+    const plan = await planLibraryDownload({ entryIds: [clip.id, shot.id], form: 'zip', withMedia: true, lang: 'zh', at: Date.parse('2026-11-04T10:00:00') })
     expect(plan.basePath).toBe('AnnHub/AnnHub-download-2026-11-04')
     expect(plan.media.map(item => [item.url ?? `asset:${item.assetId}`, item.dir, item.slot])).toEqual([
       ['https://cdn.example.com/a.png', 'Clip One', 1],

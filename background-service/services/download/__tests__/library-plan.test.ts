@@ -17,7 +17,7 @@ beforeEach(() => records.clear())
 it('encodes browser-renamed media consistently for clips and stored screenshots', async () => {
   const entries = [makeClip({ content: '![](https://example.com/image.png)', context: undefined }), makeScreenshot()]
   for (const entry of entries) records.set(entry.id, entry)
-  const plan = await planLibraryDownload({ entryIds: entries.map(entry => entry.id), form: 'folder', withMedia: true, lang: 'en', takenRoots: [], at: 0 })
+  const plan = await planLibraryDownload({ entryIds: entries.map(entry => entry.id), form: 'folder', withMedia: true, lang: 'en', at: 0 })
   expect(plan.media).toHaveLength(2)
   const fileName = '媒体 (2) #100%.png'
   const result = plan.compose(
@@ -43,7 +43,6 @@ it('keeps an article titled README separate from its missing-media report', () =
     form: 'folder',
     withMedia: true,
     lang: 'en',
-    takenRoots: [],
     at: 0,
     meta: {},
   })
@@ -57,8 +56,8 @@ it('reserves files for stored screenshots and missing-media reports and separate
   const content = Array.from({ length: 300 }, (_, index) => `![image](https://example.com/${index}.png)`).join('\n')
   const entries = [makeClip({ content, context: undefined }), makeClip({ content, context: undefined }), makeScreenshot(), makeScreenshot()]
   for (const entry of entries) records.set(entry.id, entry)
-  const plan = await planLibraryDownload({ entryIds: entries.map(entry => entry.id), form: 'folder', withMedia: true, lang: 'en', takenRoots: [batchFolderName(0)], at: 0 })
-  expect(plan.basePath).toBe(`AnnHub/${batchFolderName(0)} (2)`)
+  const plan = await planLibraryDownload({ entryIds: entries.map(entry => entry.id), form: 'folder', withMedia: true, lang: 'en', at: 0 })
+  expect(plan.basePath).toBe(`AnnHub/${batchFolderName(0)}`)
   expect(plan.media.filter(item => item.assetId)).toHaveLength(2)
   const outcomes = plan.media.map(item => ({ ref: `${item.dir}|${item.url ?? `asset:${item.assetId}`}`, status: 'saved' as const, fileName: `media-${item.slot}.png` }))
   const { files, missing } = plan.compose(outcomes, false)
@@ -72,7 +71,7 @@ it('reserves files for stored screenshots and missing-media reports and separate
 it('reports a missing stored screenshot in README and renders a readable placeholder', async () => {
   const entry = makeScreenshot()
   records.set(entry.id, entry)
-  const plan = await planLibraryDownload({ entryIds: [entry.id], form: 'folder', withMedia: false, lang: 'en', takenRoots: [], at: 0 })
+  const plan = await planLibraryDownload({ entryIds: [entry.id], form: 'folder', withMedia: false, lang: 'en', at: 0 })
   const result = plan.compose([], false)
   expect(result.missing).toEqual([{ url: `annhub-asset://${entry.assetId}`, reason: 'unreachable' }])
   expect(result.files.find(file => file.path === 'README.md')!.text).toContain(entry.assetId)

@@ -40,14 +40,113 @@ const SEPARATOR_ONLY = /^·+$/
 const READING_TIME = /^\d+\s*(?:min(?:ute)?s?\s*read|分钟\s*(?:读完|阅读))$/i
 
 /** Links to engagement listings (view analytics, quote lists) are interface rows. */
-function isEngagementLink(el: Element, baseURI: string): boolean {
-  const raw = el.getAttribute('href')
+function isEngagementLink(el: Element | null, baseURI: string): boolean {
+  const raw = el?.getAttribute('href') ?? null
   try {
     const href = raw ? new URL(raw, baseURI) : undefined
     return Boolean(href && /^https?:$/.test(href.protocol) && isX(href) && /\/(analytics|quotes|retweets|likes|bookmarks)$/.test(href.pathname))
   } catch {
     return false
   }
+}
+
+/** X's quoted post in the current DOM is a `role=link` card with its own timestamp and a user avatar (Q-27); older builds nested an `article`. */
+function isQuoteCard(el: Element): boolean {
+  if (el.tagName.toLowerCase() !== 'div' || !el.matches('[role="link"]') || !el.hasAttribute('tabindex')) return false
+  if (![...el.querySelectorAll('time')].some(time => time.closest('[role="link"]') === el)) return false
+  return [...el.querySelectorAll('img')].some(img => /profile_images\//.test(resolveImageSource(img, el.ownerDocument.baseURI) ?? ''))
+}
+
+function quoteCards(article: Element): Element[] {
+  return [...article.querySelectorAll('div[role="link"]')].filter(el => el.closest('article') === article && isQuoteCard(el))
+}
+
+/** Interface-only text X renders next to its controls: the quote indicator and the subscribe button's accessible description (capture.md §3.2). */
+function isInterfaceLeaf(el: Element): boolean {
+  if (el.querySelector('p, pre, ol, ul, table, figure, blockquote, article, h1, h2, h3, h4, h5, h6, img, video, audio, time')) return false
+  const text = (el.textContent ?? '').replace(/\s+/g, ' ').trim()
+  if (!text) return false
+  // "From X Freeze" is the video credit X paints over its player, not the author's words
+  return /^quote$/i.test(text) || /^引用(帖|帖文)?$/.test(text) || /^click to (subscribe|follow)/i.test(text) || /^from\s+\S+/i.test(text)
+}
+
+/** One quoted post's content: the author line, body text and media, without the card's chrome (capture.md §3.2). */
+function extractQuoteCard(card: Element, pageUrl: string): PlatformContent | undefined {
+  const page = address(pageUrl, pageUrl)
+  if (!page || !isX(page)) return undefined
+  const doc = card.ownerDocument
+  const handle = quoteHandle(card)
+  const name = (card.querySelector('[data-testid="User-Name"]')?.textContent ?? '').split('@')[0]?.replace(/\s+/g, ' ').trim()
+  if (!handle || !name) return undefined
+  const published = quotePublication(card)
+  const output = doc.createElement('article')
+  const byline = doc.createElement('p')
+  const strong = doc.createElement('strong')
+  strong.textContent = name
+  byline.append(strong, ' ')
+  const user = doc.createElement('a')
+  user.href = `${page.origin}/${handle}`
+  user.textContent = `@${handle}`
+  byline.append(user)
+  if (published) {
+    const date = doc.createElement('a')
+    date.href = `${page.origin}/${handle}`
+    date.textContent = published
+    byline.append(' · ', date)
+  }
+  output.append(byline)
+  const win = doc.defaultView
+  const candidates = [...card.querySelectorAll('div, p')].filter(el => {
+    const inEngagement = el.closest('a[href]')
+    return (
+      /^(pre-wrap|pre-line|break-spaces)$/.test(win?.getComputedStyle(el).whiteSpace ?? '') &&
+      !el.querySelector('time') &&
+      !el.closest('button, [role="button"], [data-testid="User-Name"]') &&
+      !(inEngagement && isEngagementLink(inEngagement, doc.baseURI)) &&
+      !isInterfaceLeaf(el) &&
+      !(el.children.length === 0 && SEPARATOR_ONLY.test((el.textContent ?? '').trim()))
+    )
+  })
+  const bodies = candidates.filter(el => !candidates.some(parent => parent !== el && parent.contains(el)))
+  for (const body of bodies) {
+    const clone = copyContent(body, doc, pageUrl, true)
+    if (!clone || !cloneHasContent(clone)) continue
+    const paragraph = doc.createElement('p')
+    paragraph.append(...clone.childNodes)
+    output.append(paragraph)
+  }
+  const media = [...card.querySelectorAll('img, video')].filter(el => /\/media\//.test(resolveImageSource(el, doc.baseURI) ?? '') || el.matches('video'))
+  for (const el of media) {
+    if (bodies.some(body => body.contains(el))) continue
+    const clone = copyContent(el, doc, pageUrl, true)
+    if (clone) output.append(clone)
+  }
+  if (!output.querySelector('p, img, video')) return undefined
+  const text = bodies
+    .map(body => body.textContent ?? '')
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const excerpt = [...text].slice(0, 40).join('') || handle
+  return { element: output, sourceUrl: page.href, meta: { title: `${name} - ${excerpt}`, author: [`${name} (@${handle})`], ...(published ? { published } : {}) } }
+}
+
+function quoteHandle(card: Element): string | undefined {
+  const container = card.querySelector('[data-testid*="UserAvatar-Container-"]')
+  const fromContainer = container?.getAttribute('data-testid')?.match(/UserAvatar-Container-(.+)$/)?.[1]
+  if (fromContainer) return fromContainer
+  return /@([A-Za-z0-9_]+)/.exec(card.querySelector('[data-testid="User-Name"]')?.textContent ?? '')?.[1]
+}
+
+function quotePublication(card: Element): string | undefined {
+  const time = [...card.querySelectorAll('time[datetime]')].find(el => el.closest('[role="link"]') === card)
+  return time ? localDay(new Date(time.getAttribute('datetime') ?? '')) : undefined
+}
+
+/** A cloned body whose interface-only children were all dropped renders nothing. */
+function cloneHasContent(clone: Node): boolean {
+  if ((clone.textContent ?? '').trim()) return true
+  return clone instanceof Element && clone.querySelector('img, video, audio, pre, code, table, blockquote, h1, h2, h3, h4, h5, h6, ol, ul') !== null
 }
 
 /** Clones content without page controls and preserves author-written line breaks. */
@@ -67,10 +166,21 @@ function copyContent(node: Node, doc: Document, pageUrl: string, quoted: boolean
   )
     return null
   if (node.matches('a') && isEngagementLink(node, doc.baseURI)) return null
+  // X paints the video credit ("From X Freeze") over its player; it is interface, not the author's words.
+  if (node instanceof Element && node.children.length === 0 && /^from\s+\S+$/i.test((node.textContent ?? '').replace(/\s+/g, ' ').trim())) return null
   // A quoted post inside the copied body becomes one quote block; inside a
   // quote it stays plain so quotes never nest (capture.md §3.2).
   if (node.matches('article') && !quoted) {
     const quote = extractXContent(node, pageUrl, true)
+    if (quote) {
+      const block = doc.createElement('blockquote')
+      block.append(...quote.element.childNodes)
+      return block
+    }
+  }
+  // The current DOM wraps a quoted post in a role=link card, not a nested article (Q-27).
+  if (isQuoteCard(node) && !quoted) {
+    const quote = extractQuoteCard(node, pageUrl)
     if (quote) {
       const block = doc.createElement('blockquote')
       block.append(...quote.element.childNodes)
@@ -180,6 +290,7 @@ export function extractXContent(root: Element, pageUrl = root.ownerDocument.base
   // the read view is itself the top-level article. Anchors stay semantic:
   // headings, code, time (capture.md §3.2).
   const nested = [...article.querySelectorAll('article')].filter(el => el.parentElement?.closest('article') === article)
+  const cards = quoteCards(article)
   const ownsNoTime = (el: Element): boolean => ![...el.querySelectorAll('time')].some(time => time.closest('article') === el)
   const readView =
     nested.find(el => ownsNoTime(el) && (el.querySelector('h1') || el.querySelector('pre'))) ??
@@ -267,12 +378,15 @@ export function extractXContent(root: Element, pageUrl = root.ownerDocument.base
   const candidates = [...article.querySelectorAll('div, p')].filter(
     el =>
       own(el) &&
+      !cards.some(card => card.contains(el)) &&
       /^(pre-wrap|pre-line|break-spaces)$/.test(doc.defaultView?.getComputedStyle(el).whiteSpace ?? '') &&
       !el.closest('button, [role="button"]') &&
       // The meta row shares the text containers of a body: the timestamp's date
       // lives in the byline, view counts and quote listings are interface.
       !el.querySelector('time') &&
       ![...el.querySelectorAll('a[href]')].some(link => isEngagementLink(link, doc.baseURI)) &&
+      !(el.closest('a[href]') && isEngagementLink(el.closest('a[href]'), doc.baseURI)) &&
+      !isInterfaceLeaf(el) &&
       !(el.children.length === 0 && SEPARATOR_ONLY.test((el.textContent ?? '').trim())) &&
       // A quoted card renders its own author rows in text containers; the
       // byline above already carries them (capture.md §3.2).
@@ -280,7 +394,10 @@ export function extractXContent(root: Element, pageUrl = root.ownerDocument.base
   )
   const bodies = candidates.filter(el => !candidates.some(parent => parent !== el && parent.contains(el)))
   const media = [...article.querySelectorAll('img, video')].filter(
-    el => own(el) && (el.matches('video') || /\/media\//.test(resolveImageSource(el, doc.baseURI) ?? '') || Boolean(el.closest('a[href*="/photo/"]'))),
+    el =>
+      own(el) &&
+      !cards.some(card => card.contains(el)) &&
+      (el.matches('video') || /\/media\//.test(resolveImageSource(el, doc.baseURI) ?? '') || Boolean(el.closest('a[href*="/photo/"]'))),
   )
   if (!bodies.length && !media.length) return undefined
   const byline = doc.createElement('p')
@@ -300,7 +417,7 @@ export function extractXContent(root: Element, pageUrl = root.ownerDocument.base
   output.append(byline)
   for (const body of bodies) {
     const clone = copyContent(body, doc, url.href, quoted)
-    if (clone) {
+    if (clone && cloneHasContent(clone)) {
       const paragraph = doc.createElement('p')
       paragraph.append(...clone.childNodes)
       output.append(paragraph)
@@ -320,7 +437,7 @@ export function extractXContent(root: Element, pageUrl = root.ownerDocument.base
     }
   }
   for (const link of links) {
-    if (bodies.some(body => body.contains(link)) || link.querySelector('img, time') || !link.textContent?.trim()) continue
+    if (bodies.some(body => body.contains(link)) || cards.some(card => card.contains(link)) || link.querySelector('img, time') || !link.textContent?.trim()) continue
     const href = address(link.getAttribute('href'), page.href)
     if (!href || isX(href)) continue
     const p = doc.createElement('p')
@@ -330,7 +447,7 @@ export function extractXContent(root: Element, pageUrl = root.ownerDocument.base
     p.append(card)
     output.append(p)
   }
-  if (!quoted)
+  if (!quoted) {
     for (const quote of nested) {
       if (bodies.some(body => body.contains(quote))) continue
       const result = extractXContent(quote, pageUrl, true)
@@ -340,6 +457,15 @@ export function extractXContent(root: Element, pageUrl = root.ownerDocument.base
         output.append(block)
       }
     }
+    for (const card of cards) {
+      const result = extractQuoteCard(card, pageUrl)
+      if (result) {
+        const block = doc.createElement('blockquote')
+        block.append(...result.element.childNodes)
+        output.append(block)
+      }
+    }
+  }
   const text = bodies
     .map(body => body.textContent ?? '')
     .join(' ')
