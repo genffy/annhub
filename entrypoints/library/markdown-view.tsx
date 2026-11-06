@@ -11,9 +11,9 @@
  * marks at exactly those offsets.
  */
 import type { ReactNode } from 'react'
-import type { Highlight } from '../../learning-core/types'
-import { HIGHLIGHT_QUOTE_MAX_CHARS } from '../../learning-core/validate'
-import { closesFence, codeSpanAt, openingFence, quoteFromMarkdownRange } from '../../learning-core/markdown'
+import type { Highlight } from '../../core/types'
+import { HIGHLIGHT_QUOTE_MAX_CHARS } from '../../core/validate'
+import { closesFence, codeSpanAt, openingFence, quoteFromMarkdownRange } from '../../core/markdown'
 import { uiText } from '../../utils/ui-text'
 import { Image } from 'lucide-react'
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PROPERTY_TYPES } from '../../../learning-core/types'
+import { PROPERTY_TYPES } from '../../../core/types'
 import { nextPropertyType } from '../property-type-picker'
 
 // the grid the picker draws: three columns in the registry's order

@@ -3,8 +3,9 @@
  * (docs/product/capture.md §4, §5). Every automatic step degrades instead of
  * blocking the save.
  */
-import { CONTEXT_MAX_CHARS } from '../../learning-core/validate'
-import { normalizedContains } from '../../learning-core/normalize'
+import { CONTEXT_MAX_CHARS } from '../../core/validate'
+import { normalizedContains } from '../../core/normalize'
+import { structuredArticleMeta } from './structured-meta'
 
 // ── Context (capture.md §4) ─────────────────────────────────────────────
 
@@ -123,14 +124,16 @@ function metaContent(doc: Document, selectors: string[]): string | undefined {
 }
 
 export function extractPageMeta(doc: Document, sourceHost: string): PageMeta {
+  const structured = structuredArticleMeta(doc)
   const title = clipText(doc.title?.trim() || sourceHost, TITLE_MAX_CHARS) ?? sourceHost
-  const author = metaContent(doc, ['meta[name="author"]', 'meta[property="article:author"]'])
+  const author = structured.author || metaContent(doc, ['meta[name="author"]', 'meta[property="article:author"]'])
   const authorList = splitAuthors(author)
     .map(name => name.trim())
     .filter(name => name.length > 0 && name.length <= LIST_ITEM_MAX_CHARS)
-  const publishedRaw = metaContent(doc, ['meta[property="article:published_time"]', 'meta[name="date"]', 'meta[name="publish-date"]', 'meta[itemprop="datePublished"]'])
+  const publishedRaw =
+    structured.published || metaContent(doc, ['meta[property="article:published_time"]', 'meta[name="date"]', 'meta[name="publish-date"]', 'meta[itemprop="datePublished"]'])
   const published = /^\d{4}-\d{2}-\d{2}/.exec(publishedRaw ?? '')?.[0]
-  const description = clipText(metaContent(doc, ['meta[name="description"]', 'meta[property="og:description"]']), TEXT_MAX_CHARS)
+  const description = clipText(structured.description || metaContent(doc, ['meta[name="description"]', 'meta[property="og:description"]']), TEXT_MAX_CHARS)
   return {
     title,
     author: authorList.length > 0 ? authorList : undefined,

@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { markdownToPlainText } from '../learning-core/markdown'
+import { markdownToPlainText } from '../core/markdown'
 import { clearLibrary, getEntries, hoverForCapsule, selectUntilMenu, sendMessage, triggerBlockMode, triggerScreenshot, waitForClipToast } from './helpers'
 
 /**
@@ -139,13 +139,21 @@ test.describe('block detection on real page shapes (capture.md §6.2)', () => {
     for (const words of ['first paragraph', 'second paragraph', 'third paragraph']) expect(entry.content).toContain(words)
   })
 
-  test('a documentation page: the section run, then the whole article with 上一级', async ({ page }) => {
+  test('a documentation page: the hover clips the section run, block mode ↑ the whole article', async ({ page }) => {
     await page.goto(`${BASE}/docusaurus.html`)
     const capsule = await hoverForCapsule(page, '#docus-p2')
-    await capsule.getByRole('button', { name: '上一级' }).click()
     await capsule.getByRole('button', { name: '剪藏' }).click()
     await waitForClipToast(page)
+    const section = (await getEntries(page.context()))[0]!
+    await clearLibrary(page.context())
+
+    await page.locator('#docus-p2').click()
+    await triggerBlockMode(page)
+    await page.keyboard.press('ArrowUp')
+    await page.keyboard.press('Enter')
+    await waitForClipToast(page)
     const entry = (await getEntries(page.context()))[0]!
+    expect(entry.id).not.toBe(section.id)
     expect(entry.content).toContain('# Getting started')
     expect(entry.content).toContain('## Configuration')
   })

@@ -3,7 +3,7 @@
 > 适用范围：`entrypoints/library/` 的样式、工具栏弹窗与设置页；上级约定见 [../AGENTS.md](../AGENTS.md)。
 
 - `settings-view.tsx` 管设置。
-- 本地指标面板按 [metrics.md §5](../../../docs/product/metrics.md) 的近似口径覆盖 M-03、M-11、M-19–M-25 与 M-31（录制使用）：计算在 `learning-core/metrics.ts` 的 `metricSummaries`，经 `GET_METRICS` 一次读回，页面只渲染聚合数字。
+- 本地指标面板按 [metrics.md §5](../../../docs/product/metrics.md) 的近似口径覆盖 M-03、M-11、M-19–M-25 与 M-31（录制使用）：计算在 `core/metrics.ts` 的 `metricSummaries`，经 `GET_METRICS` 一次读回，页面只渲染聚合数字。
 - 设置页的水印预览复用输出侧的 `paintWatermark`，图片读不出来时只画文字并提示重新上传。
 - 「录制」分区显示麦克风授权状态、可就地发起授权请求（extension.md §2.5、annotate.md §2.1），并设置录制时的光标高亮——开关、形状与颜色（annotate.md §3.2）。
 

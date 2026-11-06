@@ -16,11 +16,17 @@
  * contains raw HTML; a failed conversion degrades to plain text at the
  * caller.
  */
-import { CONTENT_MAX_CHARS } from '../../learning-core/validate'
+import { collectFootnotes, formulaMarkdown, scriptText, type Footnotes } from './markdown-special'
+import { tableMarkdown } from './markdown-table'
+import { codeLanguage, preText } from './markdown-code'
+import { extractXContent, type PlatformContent } from './platform-x'
+import { CONTENT_MAX_CHARS } from '../../core/validate'
+import { resolveAudioSource, resolveImageSource, resolveVideoPoster, resolveVideoSource } from './media-source'
 
 export interface MarkdownResult {
   markdown: string
   truncated: boolean
+  platform?: Pick<PlatformContent, 'meta' | 'sourceUrl'>
 }
 
 /** A sibling run of a container: `from` (inclusive) to `to` (exclusive). */
@@ -40,7 +46,7 @@ const PAGE_CHROME_SELECTOR = [
   'audio',
   'video',
   'nav',
-  'aside',
+  'aside:not([role="note"]):not(.admonition):not(.callout)',
   'iframe',
   'noscript',
   'template',
@@ -48,6 +54,9 @@ const PAGE_CHROME_SELECTOR = [
   '[role="toolbar"]',
   '[role="navigation"]',
   '[role="complementary"]',
+  // Wiki protection badges and sister-site promotions are page UI, not article figures.
+  '.mw-indicator',
+  '.sistersitebox',
   '[aria-hidden="true"]',
   '[data-ann-ui]',
 ].join(',')
@@ -94,12 +103,16 @@ const CHROME_WORDS = new Set([
 /** Semantic containers carry content; their own id/class is not chrome evidence. */
 const CHROME_EXEMPT_TAGS = new Set(['article', 'main', 'section', 'pre', 'table', 'figure', 'blockquote'])
 
-export function isPageChrome(el: Element): boolean {
-  if (el.closest?.(PAGE_CHROME_SELECTOR)) return true
+export function isPageChrome(el: Element, download = false, expanded?: Set<Element>, tagsOnly = false): boolean {
+  const selector = expanded?.size ? PAGE_CHROME_SELECTOR.replace('[aria-hidden="true"],', '') : PAGE_CHROME_SELECTOR
+  if (el.closest?.(selector)) return true
+  const hidden = el.closest('[aria-hidden="true"]')
+  if (hidden && !expanded?.has(hidden)) return true
+  if (tagsOnly) return false
   const tag = el.tagName.toLowerCase()
   if (CHROME_EXEMPT_TAGS.has(tag)) return false
   const words = `${el.getAttribute('id') ?? ''} ${el.getAttribute('class') ?? ''}`.split(/[\s_-]+/)
-  return words.some(word => CHROME_WORDS.has(word.toLowerCase()))
+  return words.some(word => CHROME_WORDS.has(word.toLowerCase()) && !(download && /^(comments?|repl(?:y|ies))$/i.test(word)))
 }
 
 function isVisible(el: Element, win: Window): boolean {
@@ -123,9 +136,9 @@ const UNDERSCORE_CLOSER = /(\w)_(?![\w_])/g
  * heading/list/quote markers, and boundary underscores. Word-internal `_`
  * needs nothing — CommonMark does not treat it as emphasis there.
  */
-export function escapeText(text: string): string {
+export function escapeText(text: string, escapeInterpolation = false): string {
   return text
-    .replace(/\\/g, '\\\\')
+    .replace(escapeInterpolation ? /([\\$~])/g : /(\\)/g, '\\$1')
     .replace(/==/g, '=\\=')
     .replace(ALWAYS_ESCAPED, '\\$&')
     .replace(/(^|[^\w])(_+)/g, (_match, pre: string, run: string) => `${pre}${run.replace(/_/g, '\\_')}`)
@@ -193,13 +206,16 @@ class Emitter {
   private length = 0
   truncated = false
 
+  constructor(private readonly maxChars = CONTENT_MAX_CHARS) {}
+
   /** Blocks whose text starts after the budget are cut at the boundary. */
   addBlock(text: string): void {
+    if (this.truncated) return
     const block = text.trim()
     if (!block) return
     if (isUiCruft(block)) return
-    if (this.length + block.length + 2 > CONTENT_MAX_CHARS) {
-      const remaining = CONTENT_MAX_CHARS - this.length
+    if (this.length + block.length + 2 > this.maxChars) {
+      const remaining = this.maxChars - this.length - (this.current ? 2 : 0)
       if (remaining > 0) {
         const slice = block.slice(0, remaining)
         const boundary = Math.max(slice.lastIndexOf('\n\n'), slice.lastIndexOf('\n'), slice.lastIndexOf('. '), slice.lastIndexOf('。'))
@@ -224,6 +240,10 @@ class Emitter {
 const HEADINGS: Record<string, number> = { h1: 1, h2: 2, h3: 3, h4: 4, h5: 5, h6: 6 }
 
 interface Ctx {
+  tagsOnly?: boolean
+  download?: boolean
+  footnotes?: Footnotes
+  expanded?: Set<Element>
   doc: Document
   win: Window
   baseUrl: string
@@ -231,16 +251,54 @@ interface Ctx {
   quoteDepth: number
 }
 
+/** Only panels explicitly controlled by a collapsed disclosure are expanded for downloads. */
+export function expandedPanels(doc: Document): Set<Element> {
+  const panels = new Set<Element>()
+  for (const control of doc.querySelectorAll('[aria-expanded="false"][aria-controls]')) {
+    for (const id of (control.getAttribute('aria-controls') ?? '').split(/\s+/)) {
+      const panel = doc.getElementById(id)
+      if (panel && panel.getAttribute('role') !== 'tabpanel') panels.add(panel)
+    }
+  }
+  return panels
+}
+
+function visibleFor(el: Element, ctx: Ctx): boolean {
+  if (ctx.download && ctx.expanded?.has(el)) return true
+  const details = el.parentElement?.closest('details:not([open])')
+  if (!ctx.download && details && !details.querySelector(':scope > summary')?.contains(el)) return false
+  return isVisible(el, ctx.win)
+}
+
+function escaped(text: string, ctx: Ctx): string {
+  return escapeText(text, ctx.download)
+}
+
 function inlineText(node: Node, ctx: Ctx): string {
-  if (node.nodeType === Node.TEXT_NODE) return escapeText((node.textContent ?? '').replace(/\s+/g, ' '))
+  if (node.nodeType === Node.TEXT_NODE) return escaped((node.textContent ?? '').replace(/\s+/g, ' '), ctx)
   if (node.nodeType !== Node.ELEMENT_NODE) return ''
   const el = node as HTMLElement
-  if (!isVisible(el, ctx.win) || isPageChrome(el)) return ''
+  if (el.matches('video, audio, iframe') && visibleFor(el, ctx) && (!el.parentElement || !isPageChrome(el.parentElement, ctx.download, ctx.expanded, ctx.tagsOnly)))
+    return mediaLine(el, ctx) ?? ''
+  if (!visibleFor(el, ctx) || isPageChrome(el, ctx.download, ctx.expanded, ctx.tagsOnly)) return ''
+  if (ctx.footnotes?.definitions.includes(el)) return ''
+  if (ctx.download && el.matches('a[role="doc-backlink"], a.footnote-backref')) return ''
+  const reference = ctx.footnotes?.references.get(el)
+  if (reference) return `[^${reference}]`
+  const formula = formulaMarkdown(el, Boolean(ctx.download))
+  if (formula !== undefined) return formula
   const tag = el.tagName.toLowerCase()
   const text = Array.from(el.childNodes)
     .map(child => inlineText(child, ctx))
     .join('')
   switch (tag) {
+    case 'sup':
+    case 'sub':
+      return scriptText(text, tag)
+    case 'del':
+    case 's':
+    case 'strike':
+      return ctx.download && text.trim() ? `~~${text.trim()}~~` : text
     case 'strong':
     case 'b': {
       const t = text.trim()
@@ -278,8 +336,43 @@ function inlineText(node: Node, ctx: Ctx): string {
 
 function imageLine(el: Element, ctx: Ctx): string {
   const alt = (el.getAttribute('alt') ?? '').trim()
-  const src = absoluteHttp(el.getAttribute('src') ?? el.getAttribute('data-src'), ctx.baseUrl)
+  const src = resolveImageSource(el, ctx.baseUrl)
   return src ? `![${alt}](${encodeDestination(src)})` : escapeText(alt)
+}
+
+/**
+ * The one line a media element contributes: a direct http(s) video or audio
+ * address is written with the image syntax a Markdown folder download links
+ * through (download.md §4.3, §5.2); a video without one keeps its poster as
+ * the picture; an embedded player stays as a plain link to its address.
+ */
+function mediaLine(el: Element, ctx: Ctx): string | undefined {
+  const tag = el.tagName.toLowerCase()
+  const title = (el.getAttribute('title') ?? '').trim()
+  if (tag === 'iframe') {
+    const href = absoluteHttp(el.getAttribute('src'), ctx.baseUrl)
+    const label = title || (href ? safeLinkLabel(href) : '')
+    return href ? `[${label || href}](${encodeDestination(href)})` : undefined
+  }
+  if (tag === 'video' || tag === 'audio') {
+    const direct = tag === 'video' ? resolveVideoSource(el, ctx.baseUrl) : resolveAudioSource(el, ctx.baseUrl)
+    if (direct) return `![${title}](${encodeDestination(direct)})`
+    if (tag === 'video') {
+      const poster = resolveVideoPoster(el, ctx.baseUrl)
+      if (poster) return `![${title}](${encodeDestination(poster)})`
+    }
+    return undefined
+  }
+  return undefined
+}
+
+/** A readable label for an embed the page did not title: its host, not a raw URL. */
+function safeLinkLabel(href: string): string {
+  try {
+    return new URL(href).hostname
+  } catch {
+    return href
+  }
 }
 
 function absoluteHttp(href: string | null | undefined, baseUrl: string): string | undefined {
@@ -293,31 +386,72 @@ function absoluteHttp(href: string | null | undefined, baseUrl: string): string 
   }
 }
 
-const BLOCK_TAGS = new Set(['p', 'pre', 'blockquote', 'ul', 'ol', 'table', 'figure', 'hr', 'img', 'div', 'section', 'article', 'main', 'dl'])
+// video, audio and iframe are block content here (download.md §5.2): each stands on its own line as a media link
+const BLOCK_TAGS = new Set([
+  'p',
+  'pre',
+  'blockquote',
+  'ul',
+  'ol',
+  'table',
+  'figure',
+  'hr',
+  'img',
+  'video',
+  'audio',
+  'iframe',
+  'div',
+  'section',
+  'article',
+  'main',
+  'dl',
+  'details',
+  'summary',
+  'figcaption',
+])
 
 function isBlockLevel(el: Element): boolean {
+  if (el.matches('[role="note"], .admonition, .callout')) return true
+  if (el.matches('.katex-display, .mwe-math-element-display, math[display="block"], mjx-container[display="true"], script[type*="mode=display"]')) return true
   const tag = el.tagName.toLowerCase()
+  if (tag === 'span' && el.querySelector('p,pre,div,section,table,ul,ol,blockquote,h1,h2,h3,h4,h5,h6')) return true
   return Boolean(HEADINGS[tag]) || BLOCK_TAGS.has(tag)
 }
 
 /** Emits the block-level Markdown of `root` (its own tag included). */
 function emitElement(el: Element, ctx: Ctx, out: Emitter): void {
-  if (!isVisible(el, ctx.win) || isPageChrome(el)) return
   const tag = el.tagName.toLowerCase()
+  const callout = ctx.download && el.matches('[role="note"], .admonition, .callout')
+  if (ctx.footnotes?.definitions.includes(el)) return
+  const formula = formulaMarkdown(el, Boolean(ctx.download))
+  if (formula !== undefined) {
+    if (!visibleFor(el, ctx) || isPageChrome(el, ctx.download, ctx.expanded, ctx.tagsOnly)) return
+    out.addBlock(formula)
+    return
+  }
+  // media embeds are content, not chrome (download.md §5.2): what has an address
+  // becomes a line before the chrome rules drop it — only a chrome ancestor disqualifies it
+  if (tag === 'video' || tag === 'audio' || tag === 'iframe') {
+    if (!visibleFor(el, ctx) || (el.parentElement && isPageChrome(el.parentElement, ctx.download, ctx.expanded, ctx.tagsOnly))) return
+    const line = mediaLine(el, ctx)
+    if (line) out.addBlock(line)
+    return
+  }
+  if (!visibleFor(el, ctx) || (!callout && isPageChrome(el, ctx.download, ctx.expanded, ctx.tagsOnly))) return
 
   if (HEADINGS[tag]) {
     const level = Math.min(HEADINGS[tag]!, 6)
     out.addBlock(`${'#'.repeat(level)} ${inlineChildren(el, ctx).trim()}`)
     return
   }
-  switch (tag) {
+  switch (callout ? 'blockquote' : tag) {
     case 'p':
       // a <br> is a hard line break and survives as exactly two spaces + \n
       out.addBlock(inlineChildren(el, ctx).replace(/[ \t]*\n[ \t]*/g, '  \n'))
       return
     case 'pre': {
       const code = el.querySelector('code')
-      const language = /language-([\w-]+)/.exec(code?.className ?? el.className ?? '')?.[1] ?? ''
+      const language = codeLanguage(el)
       const text = preText(code ?? el)
       // the fence must be longer than any backtick run inside the code
       const fence = '`'.repeat(Math.max(3, (text.match(/`+/g)?.reduce((max, run) => Math.max(max, run.length), 0) ?? 0) + 1))
@@ -326,7 +460,7 @@ function emitElement(el: Element, ctx: Ctx, out: Emitter): void {
     }
     case 'blockquote': {
       ctx.quoteDepth++
-      const inner = new Emitter()
+      const inner = new Emitter(ctx.download ? Infinity : CONTENT_MAX_CHARS)
       emitChildren(el, { ...ctx }, inner)
       const body = inner.finish().markdown || escapeText((el.textContent ?? '').trim())
       ctx.quoteDepth--
@@ -346,41 +480,34 @@ function emitElement(el: Element, ctx: Ctx, out: Emitter): void {
       return
     }
     case 'table': {
-      const rows = Array.from(el.querySelectorAll('tr'))
-      if (rows.length === 0) return
-      const cellsOf = (tr: Element) =>
-        Array.from(tr.children).map(
-          cell =>
-            // a cell must stay one line: hard breaks collapse to spaces
-            inlineChildren(cell, ctx)
-              .replace(/\s*\n\s*/g, ' ')
-              .replace(/\|/g, '\\|')
-              .trim() || ' ',
-        )
-      const header = cellsOf(rows[0]!)
-      const body = rows.slice(1).map(cellsOf)
-      const width = Math.max(header.length, ...body.map(row => row.length))
-      const pad = (row: string[]) => [...row, ...new Array(width - row.length).fill(' ')]
-      out.addBlock([`| ${pad(header).join(' | ')} |`, `| ${new Array(width).fill('---').join(' | ')} |`, ...body.map(row => `| ${pad(row).join(' | ')} |`)].join('\n'))
+      const caption = el.querySelector(':scope > caption')
+      if (caption) out.addBlock(inlineChildren(caption, ctx))
+      out.addBlock(
+        tableMarkdown(el, cell =>
+          Array.from(cell.childNodes)
+            .map(node => {
+              const text = inlineText(node, ctx)
+              return node instanceof Element && node.matches('p, div, li') ? `\n${text}\n` : text
+            })
+            .join('')
+            .trim()
+            .replace(/\s*\n+\s*/g, ctx.download ? ' / ' : ' '),
+        ),
+      )
       return
     }
-    case 'figure': {
-      const img = el.querySelector('img')
-      const caption = el.querySelector('figcaption')
-      const parts: string[] = []
-      if (img) parts.push(imageLine(img, ctx))
-      // a figure can carry highlighted code instead of a picture (Gatsby
-      // wraps every code block in one — Overreacted 整篇丢代码)
-      for (const codeBlock of Array.from(el.querySelectorAll('pre'))) {
-        const inner = new Emitter()
-        emitElement(codeBlock, ctx, inner)
-        const md = inner.finish().markdown
-        if (md) parts.push(md)
+    case 'figure':
+      emitChildren(el, ctx, out)
+      return
+    case 'figcaption':
+      out.addBlock(`*${inlineChildren(el, ctx).trim()}*`)
+      return
+    case 'dl':
+      for (const child of el.children) {
+        if (child.matches('dt')) out.addBlock(`**${inlineChildren(child, ctx).trim()}**`)
+        else if (child.matches('dd')) emitChildren(child, ctx, out)
       }
-      if (caption?.textContent?.trim()) parts.push(`*${escapeText(caption.textContent.trim())}*`)
-      if (parts.length > 0) out.addBlock(parts.join('\n\n'))
       return
-    }
     case 'hr':
       out.addBlock('---')
       return
@@ -397,16 +524,19 @@ function emitList(el: Element, ctx: Ctx, lines: string[]): void {
   const ordered = el.tagName.toLowerCase() === 'ol'
   const indentUnit = ordered ? '   ' : '  '
   const prefix = indentUnit.repeat(ctx.listDepth)
-  const items = Array.from(el.children).filter(child => child.tagName.toLowerCase() === 'li')
+  const items = Array.from(el.children).filter(child => child.tagName.toLowerCase() === 'li' && !ctx.footnotes?.definitions.includes(child))
   items.forEach((li, index) => {
-    const marker = ordered ? `${index + 1}.` : '-'
+    const start = Number(el.getAttribute('start')) || 1
+    const marker = ordered ? `${start + index}.` : '-'
 
     const ownParts: string[] = []
+    const checkbox = li.querySelector<HTMLInputElement>('input[type="checkbox"]')
+    if (ctx.download && checkbox && checkbox.closest('li') === li) ownParts.push(checkbox.checked ? '[x] ' : '[ ] ')
     const nestedLists: Element[] = []
     const blockChildren: Element[] = []
     for (const child of Array.from(li.childNodes)) {
       if (child.nodeType === Node.TEXT_NODE) {
-        ownParts.push(escapeText((child.textContent ?? '').replace(/\s+/g, ' ')))
+        ownParts.push(escaped((child.textContent ?? '').replace(/\s+/g, ' '), ctx))
         continue
       }
       if (child.nodeType !== Node.ELEMENT_NODE) continue
@@ -416,6 +546,15 @@ function emitList(el: Element, ctx: Ctx, lines: string[]): void {
       else if (isBlockLevel(childEl)) blockChildren.push(childEl)
       else ownParts.push(inlineText(childEl, ctx))
     }
+    if (
+      !ownParts
+        .join('')
+        .replace(/^\[[x ]\]\s*/, '')
+        .trim() &&
+      blockChildren[0]?.matches('p,div') &&
+      !blockChildren[0].querySelector('p,pre,table,ul,ol,blockquote,h1,h2,h3,h4,h5,h6')
+    )
+      ownParts.push(inlineChildren(blockChildren.shift()!, ctx))
     const ownText = ownParts
       .join('')
       .replace(/[ \t]*\n[ \t]*/g, '  \n')
@@ -425,7 +564,7 @@ function emitList(el: Element, ctx: Ctx, lines: string[]): void {
     const nestedCtx = { ...ctx, listDepth: ctx.listDepth + 1 }
     for (const nested of nestedLists) emitList(nested, nestedCtx, lines)
     for (const block of blockChildren) {
-      const blockOut = new Emitter()
+      const blockOut = new Emitter(ctx.download ? Infinity : CONTENT_MAX_CHARS)
       emitElement(block, nestedCtx, blockOut)
       const text = blockOut.finish().markdown
       if (text) for (const line of text.split('\n')) lines.push(`${prefix}${indentUnit}${line}`)
@@ -437,28 +576,6 @@ function inlineChildren(el: Element, ctx: Ctx): string {
   return Array.from(el.childNodes)
     .map(node => inlineText(node, ctx))
     .join('')
-}
-
-/**
- * The source text of a highlighted code block. Highlighters that render each
- * line as its own element (Prism's `token-line`, or any display:block line)
- * carry no newline characters at all — the lines are recovered from the
- * markup (Docusaurus 代码块挤成一行).
- */
-function preText(source: Element): string {
-  const text = source.textContent ?? ''
-  if (text.includes('\n')) return text
-  const children = Array.from(source.children)
-  if (children.length >= 2) {
-    const lineish = children.filter(child => {
-      const cls = child.getAttribute('class') ?? ''
-      if (/(^|\s)token-line($|\s)/.test(cls)) return true
-      const display = source.ownerDocument?.defaultView?.getComputedStyle(child)?.display
-      return display === 'block'
-    })
-    if (lineish.length === children.length) return children.map(child => child.textContent ?? '').join('\n')
-  }
-  return text
 }
 
 /**
@@ -490,7 +607,7 @@ function emitChildren(el: Element, ctx: Ctx, out: Emitter, slice?: MarkdownSlice
   }
   for (const child of children) {
     if (child.nodeType === Node.TEXT_NODE) {
-      buffer += escapeText((child.textContent ?? '').replace(/\s+/g, ' '))
+      buffer += escaped((child.textContent ?? '').replace(/\s+/g, ' '), ctx)
       continue
     }
     if (child.nodeType !== Node.ELEMENT_NODE) continue
@@ -518,12 +635,39 @@ function sliceChildren(parent: Element, slice: MarkdownSlice): Element[] {
 // ── Public API ──────────────────────────────────────────────────────────
 
 /** Converts an element (a block clip target) to Markdown; `slice` clips it to a sibling run. */
-export function elementToMarkdown(root: Element, slice?: MarkdownSlice): MarkdownResult {
-  const ctx: Ctx = { doc: root.ownerDocument!, win: root.ownerDocument!.defaultView!, baseUrl: root.ownerDocument!.baseURI, listDepth: 0, quoteDepth: 0 }
-  const out = new Emitter()
+export function elementToMarkdown(root: Element, slice?: MarkdownSlice, purpose: 'clip' | 'download' = 'clip'): MarkdownResult {
+  const platform = slice ? undefined : extractXContent(root)
+  if (platform) root = platform.element
+  const ctx: Ctx = {
+    download: purpose === 'download',
+    footnotes: purpose === 'download' ? collectFootnotes(root) : undefined,
+    expanded: purpose === 'download' ? expandedPanels(root.ownerDocument) : undefined,
+    doc: root.ownerDocument!,
+    win: root.ownerDocument!.defaultView ?? window,
+    baseUrl: root.ownerDocument!.baseURI,
+    listDepth: 0,
+    quoteDepth: 0,
+  }
+  const out = new Emitter(ctx.download ? Infinity : CONTENT_MAX_CHARS)
   if (slice) emitChildren(root, ctx, out, slice)
   else emitElement(root, ctx, out)
-  const result = out.finish()
+  let result = out.finish()
+  if (ctx.download && !result.markdown.trim()) {
+    const retry = new Emitter(Infinity)
+    const relaxed = { ...ctx, tagsOnly: true }
+    if (slice) emitChildren(root, relaxed, retry, slice)
+    else emitElement(root, relaxed, retry)
+    result = retry.finish()
+  }
+  if (ctx.footnotes && result.markdown.trim()) {
+    ctx.footnotes.definitions.forEach((definition, index) => {
+      if (!result.markdown.includes(`[^${index + 1}]`)) return
+      const body = new Emitter(Infinity)
+      emitChildren(definition, { ...ctx, footnotes: undefined }, body)
+      const text = body.finish().markdown
+      result.markdown += `\n\n[^${index + 1}]: ${text.replace(/\n/g, '\n    ')}`
+    })
+  }
   if (!result.markdown.trim()) {
     // conversion failed → plain text, still saved (capture.md §7)
     const text = slice
@@ -531,8 +675,9 @@ export function elementToMarkdown(root: Element, slice?: MarkdownSlice): Markdow
           .map(el => el.textContent ?? '')
           .join(' ')
       : (root.textContent ?? '')
-    return { markdown: text.trim().slice(0, CONTENT_MAX_CHARS), truncated: text.length > CONTENT_MAX_CHARS }
+    return { markdown: text.trim().slice(0, ctx.download ? Infinity : CONTENT_MAX_CHARS), truncated: !ctx.download && text.length > CONTENT_MAX_CHARS }
   }
+  if (platform) result.platform = { meta: platform.meta, sourceUrl: platform.sourceUrl }
   return result
 }
 
@@ -546,12 +691,12 @@ export function selectionToMarkdown(range: Range): MarkdownResult {
   const fragment = range.cloneContents()
   const host = doc.createElement('div')
   host.appendChild(fragment)
-  const out = new Emitter()
+  const out = new Emitter(ctx.download ? Infinity : CONTENT_MAX_CHARS)
   emitChildren(host, ctx, out)
   const result = out.finish()
   if (!result.markdown.trim()) {
     const text = range.toString()
-    return { markdown: text.trim().slice(0, CONTENT_MAX_CHARS), truncated: text.length > CONTENT_MAX_CHARS }
+    return { markdown: text.trim().slice(0, ctx.download ? Infinity : CONTENT_MAX_CHARS), truncated: !ctx.download && text.length > CONTENT_MAX_CHARS }
   }
   return result
 }

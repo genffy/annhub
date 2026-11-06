@@ -239,13 +239,14 @@ hr.sep {
   height: 28px;
   padding: 0 10px;
   font-size: 12px;
-  border-radius: 7px;
+  border-radius: 8px;
 }
 
 .btn-lg {
   height: 36px;
   padding: 0 16px;
   font-size: 13.5px;
+  border-radius: 10px;
 }
 
 .btn-icon {

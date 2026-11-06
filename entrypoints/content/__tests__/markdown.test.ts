@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { elementToMarkdown, escapeText, isPageChrome } from '../markdown'
-import { markdownToPlainText } from '../../../learning-core/markdown'
-import { fold, PAGE_TEXT_CASES } from '../../../learning-core/__tests__/fixtures/page-text'
+import { markdownToPlainText } from '../../../core/markdown'
+import { fold, PAGE_TEXT_CASES } from '../../../core/__tests__/fixtures/page-text'
 
 /**
  * DOM → Markdown conversion fixtures (capture.md §3.1, RV-CAP-02). jsdom has

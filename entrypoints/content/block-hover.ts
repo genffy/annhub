@@ -21,7 +21,7 @@ import {
   type BlockKind,
 } from './blocks'
 import { isUserInput } from './user-input'
-import { overlayIcon } from './icons'
+import { overlayIcon, type OverlayIconName } from './icons'
 import { uiText } from '../../utils/ui-text'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -36,6 +36,8 @@ export interface BlockHoverHooks {
   onClip(candidate: BlockCandidate, levelChanged: boolean): void
   /** Absent in a child frame: the screenshot session belongs to the top frame's viewport. */
   onScreenshot?(candidate: BlockCandidate): void
+  /** Also top frame only (download.md §2.1): the run needs the page's own media manifest. */
+  onDownload?(candidate: BlockCandidate): void
   onDisableSite(): void
   onDisableEntry(): void
   openSettings(): void
@@ -220,13 +222,9 @@ export class BlockEntries {
     this.capsuleEl = null
     this.doc.querySelector(`[${ROOT_ATTR}="block-more"]`)?.remove()
     this.hoverCandidate = null
-    this.hoverChain = []
-    this.hoverDepth = 0
   }
 
   private hoverCandidate: BlockCandidate | null = null
-  private hoverChain: BlockCandidate[] = []
-  private hoverDepth = 0
   /** The last clip this page started, to drop a replay of the same gesture (issue #105). */
   private lastClip: { element: Element; at: number } | null = null
 
@@ -293,24 +291,14 @@ export class BlockEntries {
       this.dismissHover()
       return
     }
-    const previous = this.hoverCandidate
-    this.hoverChain = chain
-    const sameIndex = previous ? chain.findIndex(c => c.element === previous.element) : 0
-    let depth = sameIndex >= 0 ? Math.min(this.hoverDepth, sameIndex) : 0
-    let candidate = chain[depth] ?? chain[0]!
+    // the hover target is always the innermost block (capture.md §6.2): level changes are the keyboard mode's ↑↓, never the pointer's
+    const candidate = chain[0]!
     if (!this.boxContainsPoint(candidate, x, y)) {
-      const inner = chain[0]!
-      if (!this.boxContainsPoint(inner, x, y)) {
-        this.dismissHover()
-        return
-      }
-      candidate = inner
-      depth = 0
+      this.dismissHover()
+      return
     }
     this.clearLeave()
     this.hoverCandidate = candidate
-    this.hoverDepth = chain.indexOf(candidate)
-    if (this.hoverDepth < 0) this.hoverDepth = depth
     this.paintHover()
   }
 
@@ -341,67 +329,58 @@ export class BlockEntries {
     const host = this.doc.createElement('div')
     host.setAttribute(ROOT_ATTR, keyboard ? 'block-mode-capsule' : 'block-capsule')
     host.className = 'ann-block-capsule'
-    const segment = () => {
-      const sep = this.doc.createElement('span')
-      sep.className = 'ann-blk-sep'
-      return sep
+    // Icon-only (capture.md §6.2): the name lives in the tooltip and the accessible label.
+    const action = (icon: OverlayIconName, className: string, key: 'block.clip' | 'block.shot' | 'block.download', onClick: () => void): HTMLButtonElement => {
+      const button = this.doc.createElement('button')
+      button.type = 'button'
+      button.className = `ann-blk-seg ${className}`
+      button.setAttribute('aria-label', uiText(key))
+      button.title = uiText(key)
+      button.append(overlayIcon(this.doc, icon))
+      button.addEventListener('click', event => {
+        if (!isUserInput(event)) return
+        onClick()
+      })
+      return button
     }
 
-    const clip = this.doc.createElement('button')
-    clip.type = 'button'
-    clip.className = 'ann-blk-seg ann-blk-seg-clip'
-    const clipLabel = this.doc.createElement('span')
-    clipLabel.textContent = uiText('block.clip')
-    clip.append(overlayIcon(this.doc, 'bookmark'), clipLabel)
-    clip.addEventListener('click', event => {
-      if (!isUserInput(event)) return
-      this.offerClip(candidate, this.hoverDepth > 0 || this.modeLevelChanged)
-      if (!keyboard) this.hideNow()
-    })
-
-    host.append(clip)
+    host.append(
+      action('bookmark', 'ann-blk-seg-clip', 'block.clip', () => {
+        // a hover clip never changed levels (capture.md §6.2); only the keyboard mode's ↑↓ did
+        this.offerClip(candidate, !keyboard && this.modeLevelChanged)
+        if (!keyboard) this.hideNow()
+      }),
+    )
     const startScreenshot = this.hooks.onScreenshot
     if (startScreenshot) {
-      const shot = this.doc.createElement('button')
-      shot.type = 'button'
-      shot.className = 'ann-blk-seg ann-blk-seg-shot'
-      const shotLabel = this.doc.createElement('span')
-      shotLabel.textContent = uiText('block.shot')
-      shot.append(overlayIcon(this.doc, 'scan'), shotLabel)
-      shot.addEventListener('click', event => {
-        if (!isUserInput(event)) return
-        startScreenshot.call(this.hooks, candidate)
-        if (!keyboard) this.hideNow()
-      })
-      host.append(segment(), shot)
+      host.append(
+        action('scan', 'ann-blk-seg-shot', 'block.shot', () => {
+          startScreenshot.call(this.hooks, candidate)
+          if (!keyboard) this.hideNow()
+        }),
+      )
     }
-
-    if (!keyboard) {
-      const up = this.doc.createElement('button')
-      up.type = 'button'
-      up.className = 'ann-blk-sub'
-      up.setAttribute('aria-label', uiText('block.up'))
-      up.appendChild(overlayIcon(this.doc, 'chevron-up'))
-      up.disabled = this.hoverDepth >= this.hoverChain.length - 1
-      up.addEventListener('click', event => {
-        if (!isUserInput(event)) return
-        this.hoverDepth = Math.min(this.hoverDepth + 1, this.hoverChain.length - 1)
-        this.hoverCandidate = this.hoverChain[this.hoverDepth]!
-        this.paintHover()
-      })
-      host.append(segment(), up)
+    const startDownload = this.hooks.onDownload
+    if (startDownload) {
+      host.append(
+        action('download', 'ann-blk-seg-dl', 'block.download', () => {
+          startDownload.call(this.hooks, candidate)
+          if (!keyboard) this.hideNow()
+        }),
+      )
     }
 
     const more = this.doc.createElement('button')
     more.type = 'button'
     more.className = 'ann-blk-sub'
     more.setAttribute('aria-label', uiText('block.more'))
+    more.title = uiText('block.more')
     more.appendChild(overlayIcon(this.doc, 'ellipsis'))
     more.addEventListener('click', event => {
       if (!isUserInput(event)) return
       this.openMoreMenu(host)
     })
-    host.append(segment(), more)
+    host.append(more)
     return host
   }
 
@@ -571,13 +550,14 @@ export class BlockEntries {
     kind.className = 'ann-block-mode-kind'
     const hint = this.doc.createElement('span')
     hint.className = 'ann-block-mode-hint'
-    type HintPart = [keys: string[], labelKey: 'block.mode.next' | 'block.mode.level' | 'block.clip' | 'block.shot' | 'block.mode.exit', act: boolean]
+    type HintPart = [keys: string[], labelKey: 'block.mode.next' | 'block.mode.level' | 'block.clip' | 'block.shot' | 'block.download' | 'block.mode.exit', act: boolean]
     const hintParts: HintPart[] = [
       [['Tab'], 'block.mode.next', false],
       [['↑', '↓'], 'block.mode.level', false],
       [['Enter'], 'block.clip', true],
     ]
     if (this.hooks.onScreenshot) hintParts.push([['S'], 'block.shot', true])
+    if (this.hooks.onDownload) hintParts.push([['D'], 'block.download', true])
     hintParts.push([['Esc'], 'block.mode.exit', true])
     for (const [keys, labelKey, act] of hintParts) {
       for (const key of keys) {
@@ -666,6 +646,14 @@ export class BlockEntries {
         const candidate = this.modeChain[this.modeDepth]
         if (candidate && this.hooks.onScreenshot) {
           this.hooks.onScreenshot(candidate)
+          this.exitBlockMode()
+        }
+        return
+      }
+      if (event.key.toLowerCase() === 'd' && !event.metaKey && !event.ctrlKey && !event.altKey) {
+        const candidate = this.modeChain[this.modeDepth]
+        if (candidate && this.hooks.onDownload) {
+          this.hooks.onDownload(candidate)
           this.exitBlockMode()
         }
       }

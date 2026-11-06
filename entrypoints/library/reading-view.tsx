@@ -9,12 +9,13 @@
  * where it is and stays usable (extension.md §2.2).
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ArrowUpRight, MessageSquareText } from 'lucide-react'
+import { ArrowLeft, ArrowUpRight, Download, MessageSquareText } from 'lucide-react'
 import MessageUtils from '../../utils/message'
-import type { EntryRecord, HighlightColor, PropertyDefinition } from '../../learning-core/types'
+import type { EntryRecord, HighlightColor, PropertyDefinition } from '../../core/types'
 import { relativeTime } from '../../utils/relative-time'
 import { TypeChip } from '../../utils/entry-icons'
 import { HighlightSurface } from './highlight-surface'
+import type { LibraryDownload } from './download-client'
 import { PropertyPanel, type PropertyPanelHandle } from './property-panel'
 import { uiText } from '../../utils/ui-text'
 
@@ -27,9 +28,11 @@ interface Props {
   onClose(): void
   onEntryChanged(entry: EntryRecord): void
   registerFlush(flush: (() => Promise<boolean>) | null): void
+  /** The library's one download run (download.md §3.1): one entry, straight away. */
+  download: LibraryDownload
 }
 
-export function ReadingView({ entryId, highlightId = null, defaultColor, registry, onClose, onEntryChanged, registerFlush }: Props) {
+export function ReadingView({ entryId, highlightId = null, defaultColor, registry, onClose, onEntryChanged, registerFlush, download }: Props) {
   const [entry, setEntry] = useState<EntryRecord | null>(null)
   const [error, setError] = useState('')
   const [tab, setTab] = useState<'highlights' | 'properties'>('highlights')
@@ -100,6 +103,17 @@ export function ReadingView({ entryId, highlightId = null, defaultColor, registr
         <ArrowLeft size={14} aria-hidden /> {uiText('reading.back')}
       </button>
       <span className="rd-bar-space" aria-hidden />
+      {entry && (
+        <button
+          type="button"
+          className="ghost sm"
+          data-testid="reading-download"
+          title={uiText('library.downloadAsMarkdown')}
+          onClick={() => void download.start({ entryIds: [entry.id], via: 'reading' })}
+        >
+          <Download size={14} aria-hidden /> {uiText('library.download')}
+        </button>
+      )}
       {entry && (
         <a className="ghost sm" href={entry.sourceUrl} target="_blank" rel="noopener noreferrer">
           {uiText('library.backToSource')} <ArrowUpRight size={14} aria-hidden />

@@ -1130,3 +1130,42 @@
     border-top: 1px solid var(--ann-line);
   }
 }
+
+/* ── The download dialog's choices (download.md §3.3) ──────────────────── */
+
+.download-choices {
+  display: grid;
+  gap: 10px;
+  margin: 4px 0 2px;
+}
+
+.download-choice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.download-choice-h {
+  color: var(--ann-muted);
+}
+
+.download-choice .seg {
+  display: inline-flex;
+}
+
+.download-choice-media {
+  cursor: pointer;
+}
+
+.download-choice-media input {
+  accent-color: var(--ann-accent);
+}
+
+/* the settings card's plain note line (e.g. the folder form's per-file prompt) */
+.set-note {
+  margin: 2px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ann-muted);
+}

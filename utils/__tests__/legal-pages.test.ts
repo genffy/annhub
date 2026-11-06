@@ -47,6 +47,21 @@ describe('privacy policy', () => {
     expect(privacy).toMatch(/the only outbound request|唯一会产生的出站请求/i)
     expect(privacy).toContain('Limited Use')
   })
+
+  it.each([
+    ['en', /screenshot/i, /download/i, /media|video|audio/i],
+    ['zh-CN', /截图/, /下载/, /媒体|视频|音频/],
+  ])('explains download network access and permissions in %s', (locale, capture, download, media) => {
+    const section = privacy.match(new RegExp(`<section lang="${locale}"[^>]*>([\\s\\S]*?)</section>`))?.[1] ?? ''
+    const outbound = section.match(/<h2>2\.[^<]*<\/h2>([\s\S]*?)<h2>3\./)?.[1] ?? ''
+    expect(outbound).toMatch(capture)
+    expect(outbound).toMatch(download)
+    expect(outbound).toMatch(media)
+    for (const permission of ['commands', 'downloads', 'offscreen']) {
+      const row = section.match(new RegExp(`<code>${permission}</code></td><td>([^<]+)</td>`))?.[1] ?? ''
+      expect(row, `${locale}: ${permission}`).toMatch(download)
+    }
+  })
 })
 
 describe('legal pages', () => {

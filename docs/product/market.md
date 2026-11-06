@@ -190,6 +190,10 @@
 | 询问麦克风时可以只允许这一次：这样的授权在这个扩展的页面都关掉、或都在后台放了一段时间之后失效                                                                             | 开始录制前先确认授权还在，失效了回设置页再问（annotate.md §2.1）                                        | [Chromium：one_time_permissions_tracker](https://source.chromium.org/chromium/chromium/src/+/main:chrome/browser/permissions/one_time_permissions_tracker.cc)                                                                              |
 | 画布单边最多 65535 像素、面积最多约 2.68 亿像素，超出任何一项的画布什么也画不出来（实测）                                                                                  | 长图拼到 65535 像素高就停下（screenshot.md §1.5）；像素面积的上限见 [screenshot.md §1.5](screenshot.md) | [Chromium：canvas_rendering_context_host](https://source.chromium.org/chromium/chromium/src/+/main:third_party/blink/renderer/core/html/canvas/canvas_rendering_context_host.cc)                                                           |
 
+### 4.8 正文抽取库的对照
+
+核对于 2026-11-05，我们自己的对照：第 4.3 节抽样里的 21 个页面，加上 Python 文档、Anthropic 工程博客、维基百科、arXiv、GitHub issue、Hacker News 与 Stack Overflow，共 28 个；Medium 与 Stack Overflow 对无头浏览器返回 403，可评估 26 个；三种做法在同一个页面 DOM 上运行。按第 4.3 节的正文段落口径，平均召回：AnnHub 现有规则 74%，[Defuddle](https://github.com/kepano/defuddle) 96%，[Readability](https://github.com/mozilla/readability) + Turndown 90%。现有规则在 5 个没有 `article` 与 `main` 的页面上找不到正文（其中 3 个 Defuddle 退回整页再去掉界面），GitHub issue 的评论被当成界面；保留的公式、脚注、表格：现有规则 3、1、11，Defuddle 58、47、20。文章页三者相当。Defuddle 是 MIT 许可，完整构建约 770 KB，在文档克隆上取不到计算样式，复杂表格原样保留为 HTML。
+
 ## 5. AnnHub 的位置与短板
 
 核对于 2026-10-03；只对照本文已核对的事实，不引入新来源。
@@ -216,6 +220,6 @@
 
 ## 6. 来源与复核
 
-- 复核方法：逐项打开第 3 节和第 4.2 节的官方页面与来源，核对价格、限额和功能描述，更新核对日期。第 4.3 与 4.5 节的页面抽样和验证用无头浏览器重跑同样的页面，对照数字；页面改版会让个别数字变化，只看结论是否仍成立。第 4.6 节逐项打开所列的官方文档；涉及 annhub.org 的两项，重新请求首页与 `robots.txt` 核对。第 4.7 节逐项打开所列的文档与源码，标明“实测”的在当时最新的 Chrome 上重做一遍。
+- 复核方法：逐项打开第 3 节和第 4.2 节的官方页面与来源，核对价格、限额和功能描述，更新核对日期。第 4.3、4.5 与 4.8 节的页面抽样和验证用无头浏览器重跑同样的页面，对照数字；页面改版会让个别数字变化，只看结论是否仍成立。第 4.6 节逐项打开所列的官方文档；涉及 annhub.org 的两项，重新请求首页与 `robots.txt` 核对。第 4.7 节逐项打开所列的文档与源码，标明“实测”的在当时最新的 Chrome 上重做一遍。
 - 第三方比较文章多出自竞品厂商，只用于发现候选，不作为事实依据。
 - 任何用于对外页面的对比表述，必须出自本文并带核对日期（[website.md §14](website.md)）。

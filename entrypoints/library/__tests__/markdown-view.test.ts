@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import type { Highlight } from '../../../learning-core/types'
-import { fold, PAGE_TEXT_CASES } from '../../../learning-core/__tests__/fixtures/page-text'
+import type { Highlight } from '../../../core/types'
+import { fold, PAGE_TEXT_CASES } from '../../../core/__tests__/fixtures/page-text'
 import { MarkdownView, parseBlocks, quoteForRange, renderedRuns, sourceRangeFromSelection, splitTableRow } from '../markdown-view'
 import { uiText } from '../../../utils/ui-text'
 

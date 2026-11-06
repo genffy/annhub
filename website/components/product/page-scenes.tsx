@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react'
-import { ArrowUpRight, Bookmark, ChevronUp, Ellipsis, Link as LinkIcon, MessageSquareText, RotateCcw, Scan } from 'lucide-react'
+import { ArrowUpRight, Bookmark, Check, Download, Ellipsis, Link as LinkIcon, MessageSquareText, RotateCcw, Scan } from 'lucide-react'
 import { Ic } from './parts'
 import type { RetriesPage } from './sample'
 import type { ProductUi } from './types'
@@ -133,24 +133,19 @@ export function QuickEdit({ ui, data, className = '' }: { ui: ProductUi; data: {
   )
 }
 
-/** The capsule that appears next to a block the pointer rests on: Clip | Screenshot | parent | more. */
-export function BlockPill({ ui, saved, up, corner = 'tr', className = '' }: { ui: ProductUi; saved?: boolean; up?: boolean; corner?: 'tr' | 'tl'; className?: string }) {
+/** The capsule that appears next to a block the pointer rests on: four icon-only buttons — clip, screenshot, download, more — the names live in the tooltip and the accessible label (docs/product/capture.md §6.2). */
+export function BlockPill({ ui, saved, corner = 'tr', className = '' }: { ui: ProductUi; saved?: boolean; corner?: 'tr' | 'tl'; className?: string }) {
+  const seg = (icon: typeof Bookmark, label: string, cls = '') => (
+    <span key={label} className={`ah-pill-seg ${cls}`} title={label} aria-label={label}>
+      <Ic icon={icon} />
+    </span>
+  )
   return (
-    <div className={`ah ah-pill${corner === 'tl' ? ' at-tl' : ''} ${className}`} role="group">
-      <span className="ah-pill-seg">
-        <Ic icon={Bookmark} />
-        <span>{saved ? ui.block.clipped : ui.block.clip}</span>
-      </span>
-      <span className="ah-pill-seg is-alt">
-        <Ic icon={Scan} />
-        <span>{ui.block.shot}</span>
-      </span>
-      {up ? (
-        <i className="ah-pill-sub">
-          <Ic icon={ChevronUp} />
-        </i>
-      ) : null}
-      <i className="ah-pill-sub">
+    <div className={`ah ah-pill${corner === 'tl' ? ' at-tl' : ''} ${className}`} role="group" aria-label={ui.block.clip}>
+      {seg(saved ? Check : Bookmark, saved ? ui.block.clipped : ui.block.clip)}
+      {seg(Scan, ui.block.shot, 'is-alt')}
+      {seg(Download, ui.block.download, 'is-dl')}
+      <i className="ah-pill-sub" title={ui.block.more} aria-label={ui.block.more}>
         <Ic icon={Ellipsis} />
       </i>
     </div>
@@ -275,7 +270,7 @@ export function RetriesArticle({
           {focus === 'block' ? (
             <>
               <BlockOutline />
-              <BlockPill ui={ui} up />
+              <BlockPill ui={ui} />
             </>
           ) : null}
           <div className="ah-h2">{page.backoff.heading}</div>

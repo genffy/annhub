@@ -44,12 +44,13 @@ test.describe('block clip (capture.md §6.2)', () => {
     expect(entry.context).toBeUndefined()
   })
 
-  test('上一级 climbs to the article and clips it whole', async ({ page }) => {
+  test('block mode ↑ climbs to the article and clips it whole', async ({ page }) => {
     await page.goto(getCapturePageUrl())
-    const capsule = await hoverForCapsule(page, '[data-testid="section-body"]')
-    await capsule.getByRole('button', { name: /上一级|⌃/ }).click()
-
-    await page.locator('[data-ann-ui="block-capsule"]').getByRole('button', { name: '剪藏' }).click()
+    await page.locator('[data-testid="section-body"]').click()
+    await triggerBlockMode(page)
+    // the section is the starting target; ↑ walks out to the whole article (capture.md §6.2 层级)
+    await page.keyboard.press('ArrowUp')
+    await page.keyboard.press('Enter')
     await expect(page.locator('[data-ann-ui="clip-toast"]')).toBeVisible()
 
     const entries = await getEntries(page.context())
@@ -204,16 +205,27 @@ test.describe('block clip (capture.md §6.2)', () => {
     expect(asked).toBeLessThanOrEqual(2)
   })
 
-  test('Parent on a timeline climbs one post, and leave or Escape clears the outline (issue #107)', async ({ page }) => {
+  test('a timeline: the hover rests on the innermost block, and block mode ↑ climbs one post (issue #107)', async ({ page }) => {
     await page.goto('http://localhost:8173/timeline.html')
     const heightOf = (selector: string) => page.locator(selector).evaluate(el => el.getBoundingClientRect().height)
     const columnHeight = await heightOf('#feed')
     expect(columnHeight).toBeGreaterThan(5000)
 
-    const quoteCapsule = await hoverForCapsule(page, '#a-quote-p')
+    // the hover capsule has no parent button: it always outlines the innermost block
+    await hoverForCapsule(page, '#a-quote-p')
     const quoteHeight = await heightOf('[data-ann-ui="block-outline"]')
     expect(quoteHeight).toBeLessThan(400)
-    await quoteCapsule.getByRole('button', { name: /上一级|⌃/ }).click()
+    // the parent button is gone; the 更多 icon-only button remains
+    await expect(page.locator(`[data-ann-ui="block-capsule"] [aria-label="${'上一级'}"]`)).toHaveCount(0)
+
+    // block mode starts from the keyboard's own target: a real pointer move re-aims it at the quote,
+    // then ↑ outlines the enclosing post, not the column
+    await page.locator('#a-quote-p').click()
+    await triggerBlockMode(page)
+    // a raw pointer move re-aims the mode at the quote (the overlay intercepts locator actions)
+    const quoteBox = (await page.locator('#a-quote-p').boundingBox())!
+    await page.mouse.move(quoteBox.x + quoteBox.width / 2, quoteBox.y + quoteBox.height / 2)
+    await page.keyboard.press('ArrowUp')
     const postHeight = await heightOf('[data-ann-ui="block-outline"]')
     const tweetHeight = await heightOf('#a')
     expect(postHeight).toBeGreaterThan(quoteHeight)
@@ -222,15 +234,18 @@ test.describe('block clip (capture.md §6.2)', () => {
 
     await page.keyboard.press('Escape')
     await expect(page.locator('[data-ann-ui="block-outline"]')).toHaveCount(0)
-    await expect(page.locator('[data-ann-ui="block-capsule"]')).toHaveCount(0)
 
-    const nested = await hoverForCapsule(page, '#b-inner-body')
-    await nested.getByRole('button', { name: /上一级|⌃/ }).click()
+    // a nested post climbs to its enclosing post the same way
+    await page.locator('#b-inner-body').click()
+    await triggerBlockMode(page)
+    const nestedBox = (await page.locator('#b-inner-body').boundingBox())!
+    await page.mouse.move(nestedBox.x + nestedBox.width / 2, nestedBox.y + nestedBox.height / 2)
+    await page.keyboard.press('ArrowUp')
     expect(Math.abs((await heightOf('[data-ann-ui="block-outline"]')) - (await heightOf('#b')))).toBeLessThan(8)
     await page.keyboard.press('Escape')
 
-    const top = await hoverForCapsule(page, '#c-body')
-    await expect(top.getByRole('button', { name: /上一级|⌃/ })).toBeDisabled()
+    // leaving the outlined block clears the hover
+    await hoverForCapsule(page, '#c-body')
     const rail = (await page.locator('#sidebar').boundingBox())!
     await page.mouse.move(rail.x + 24, rail.y + 40)
     await expect(page.locator('[data-ann-ui="block-outline"]')).toHaveCount(0)

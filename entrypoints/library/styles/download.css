@@ -1,0 +1,517 @@
+/* ── Selection mode, the selection download dialog and the single download's status bar (download.md §3). ── */
+
+/* ── The toolbar slot: the filter bar and the selection bar take the same place at the same height ── */
+
+.toolbar-slot {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  flex: none;
+}
+
+.toolbar-slot > .toolbar {
+  flex: 1;
+  min-height: 36px;
+  min-width: 0;
+}
+
+/* the page head's 选择 shares the search box's 36 × 10 (docs/design 的控件高度) */
+.ghost.select-toggle {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+/* the search box while selecting: greyed out with the reason, the input itself gone (download.md §3.2) */
+.search-field.is-off {
+  background: var(--ann-surface-alt);
+  color: var(--ann-muted);
+  opacity: 0.78;
+  cursor: default;
+}
+
+.search-off {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* the page head's 选择 is pressed while selection mode is on */
+.select-toggle[aria-pressed='true'] {
+  border-color: color-mix(in oklab, var(--ann-accent) 45%, var(--ann-surface));
+  background: color-mix(in oklab, var(--ann-accent) 12%, var(--ann-surface));
+  color: var(--ann-accent-text);
+}
+
+/* ── The selection bar: one row, 36px, the filter bar's place (download.md §3.2) ── */
+
+.selection-bar {
+  container-type: inline-size;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 3px;
+  border: 1px solid var(--ann-line);
+  border-radius: 10px;
+  background: var(--ann-surface-alt);
+}
+
+/* 28 inside 36 with 4px on every side; the inner radius is the bar's 10 − 4 (concentric) */
+.selection-exit {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ann-text-2);
+  cursor: pointer;
+}
+
+.selection-exit:hover {
+  background: color-mix(in oklab, var(--ann-text) 6%, transparent);
+}
+
+/* the count is a pill: neutral at zero, the brand tint once something is picked */
+.selection-count {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--ann-surface-3);
+  color: var(--ann-text-2);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.selection-count.is-on {
+  background: var(--ann-accent-soft);
+  color: var(--ann-accent-text);
+}
+
+.selection-action {
+  flex: none;
+  height: 28px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.selection-action:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--ann-text) 6%, transparent);
+}
+
+.selection-action:disabled {
+  color: var(--ann-subtle);
+  cursor: default;
+}
+
+.selection-all {
+  color: var(--ann-text);
+  font-weight: 600;
+}
+
+.selection-all-short {
+  display: none;
+}
+
+.selection-hint {
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  overflow: hidden;
+  color: var(--ann-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selection-bar .primary.selection-download {
+  flex: none;
+  margin-left: auto;
+  padding: 0 12px;
+  border-radius: 6px;
+}
+
+/* the bar never wraps: the hint goes first, then the pick's count (download.md §3.2) */
+@container (max-width: 560px) {
+  .selection-hint {
+    display: none;
+  }
+}
+
+@container (max-width: 430px) {
+  .selection-all-full {
+    display: none;
+  }
+
+  .selection-all-short {
+    display: inline;
+  }
+}
+
+/* room for a marker whose centre is the card's corner; the negative margin keeps the cards themselves
+   exactly where they were, so entering selection moves nothing (download.md §3.2, §9) */
+.list {
+  padding: 10px 0 0 10px;
+  margin: -10px 0 0 -10px;
+}
+
+/* ── Cards in selection mode: a drawn checkbox whose centre is the card's corner (download.md §3.2) ── */
+
+/* the marker sits outside the card's box, so the card may not clip it while selecting */
+.entry-card-selecting {
+  overflow: visible;
+  cursor: pointer;
+  user-select: none;
+}
+
+.entry-card-selecting * {
+  user-select: none;
+}
+
+.entry-card-selecting .entry-card-open {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.entry-card-mark {
+  position: absolute;
+  z-index: 3;
+  top: -10px;
+  left: -10px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid var(--ann-subtle);
+  border-radius: 50%;
+  background: var(--ann-surface);
+  box-shadow:
+    0 0 0 2px var(--ann-surface),
+    0 1px 3px rgb(15 23 42 / 0.2);
+  color: #fff;
+  pointer-events: none;
+}
+
+.entry-card-mark svg {
+  opacity: 0;
+  stroke-width: 3;
+}
+
+.entry-card-selecting:hover > .entry-card-open {
+  border-color: color-mix(in oklab, var(--ann-accent) 40%, var(--ann-line));
+}
+
+.entry-card-selecting:hover .entry-card-mark {
+  border-color: var(--ann-accent);
+}
+
+/* selected: filled marker with the tick and a thicker edge — legible without colour */
+.entry-card-checked {
+  border-color: var(--ann-accent);
+  box-shadow: 0 0 0 1px var(--ann-accent);
+}
+
+.entry-card-checked .entry-card-mark {
+  border-color: var(--ann-accent);
+  background: var(--ann-accent);
+}
+
+.entry-card-checked .entry-card-mark svg {
+  opacity: 1;
+}
+
+/* the cap is reached and this card is not picked: it stops taking picks, and says so without colour alone */
+.entry-card-off {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.entry-card-off .entry-card-mark {
+  border-style: dashed;
+  background: var(--ann-surface-alt);
+}
+
+.entry-card-selecting .entry-card-actions {
+  display: none;
+}
+
+/* ── The single-entry status bar (download.md §3.1): the dark pill at the content column's bottom ── */
+
+.download-status {
+  position: absolute;
+  z-index: 34;
+  bottom: 22px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 9px 12px 11px 14px;
+  border-radius: 12px;
+  background: #1b1f2a;
+  color: #eceff6;
+  box-shadow: 0 10px 30px -6px rgb(0 0 0 / 0.45);
+  font-size: 12.5px;
+  transform: translateX(-50%);
+}
+
+.download-status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-status-icon {
+  display: inline-flex;
+  flex: none;
+  color: #61da92;
+}
+
+.download-status.is-warn .download-status-icon {
+  color: #d9b465;
+}
+
+.download-status.is-error .download-status-icon {
+  color: #ff9189;
+}
+
+.download-status.is-info .download-status-icon {
+  color: #c9b8f5;
+}
+
+.download-status-busy {
+  color: #c9b8f5;
+  white-space: nowrap;
+}
+
+.download-status-act,
+.download-status-close {
+  flex: none;
+  height: 24px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: #c9b8f5;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.download-status-act:hover,
+.download-status-close:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.download-status-close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  padding: 0;
+  color: #a9b1c4;
+}
+
+.download-status-track {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 0 0 12px 12px;
+  background: rgb(255 255 255 / 0.14);
+  overflow: hidden;
+}
+
+.download-status-track i {
+  display: block;
+  height: 100%;
+  background: #c9b8f5;
+  transition: width 0.2s ease;
+}
+
+.download-status-spin {
+  animation: ann-download-spin 1s linear infinite;
+}
+
+@keyframes ann-download-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .download-status-spin {
+    animation: none;
+  }
+}
+
+/* ── The selection download dialog (download.md §3.3) ── */
+
+.download-sum {
+  margin: 8px 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--ann-line);
+  border-radius: 10px;
+  background: var(--ann-surface-alt);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.download-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.download-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.download-label {
+  font-weight: 600;
+}
+
+.download-seg {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--ann-line);
+  border-radius: 8px;
+  background: var(--ann-surface-alt);
+}
+
+.download-seg .seg-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  color: var(--ann-text-2);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.download-seg .seg-item:has(input:checked) {
+  background: var(--ann-surface);
+  box-shadow: var(--ann-shadow-1);
+  color: var(--ann-text);
+  font-weight: 600;
+}
+
+.download-seg input {
+  accent-color: var(--ann-accent);
+}
+
+.download-help {
+  color: var(--ann-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.download-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  overflow-wrap: anywhere;
+}
+
+.download-media {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.download-media.is-off {
+  color: var(--ann-muted);
+  opacity: 0.7;
+}
+
+.download-advice {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ann-warn);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.download-warn {
+  margin: 0;
+  color: var(--ann-danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.download-progress-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 2px 0 6px;
+  color: var(--ann-text-2);
+  font-size: 12px;
+}
+
+.download-progress-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.download-missing {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 96px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.download-missing li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.download-missing-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ann-text-2);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.download-missing-reason {
+  flex: none;
+  color: var(--ann-muted);
+}

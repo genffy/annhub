@@ -40,7 +40,23 @@ export const test = base.extend<{
       // Linux renders glyphs with LCD subpixel antialiasing, whose red-blue fringes read as
       // "red pixels" to the colour assertions in the pixel specs; macOS and Windows headless
       // do not. Grayscale antialiasing everywhere keeps the pixels comparable across platforms.
-      args: [`--disable-extensions-except=${pathToExtension}`, `--load-extension=${pathToExtension}`, '--no-first-run', '--disable-default-apps', '--disable-lcd-text'],
+      // media.annhub.test is the fixture server under a public-looking name: the download's media
+      // fetch refuses private-network addresses (download.md §5.3), and 127.0.0.1 is one. No proxy:
+      // a system proxy answers the name before the resolver rule can, and cannot resolve it.
+      args: [
+        `--disable-extensions-except=${pathToExtension}`,
+        `--load-extension=${pathToExtension}`,
+        '--no-first-run',
+        '--disable-default-apps',
+        '--disable-lcd-text',
+        '--no-proxy-server',
+        '--host-resolver-rules=MAP media.annhub.test 127.0.0.1',
+        // The X fixtures load over https, so the browser auto-upgrades their
+        // http fixture media to an address the http-only test server cannot
+        // serve; the offscreen fetch would then refuse every item. The real
+        // sites the rules serve are https-native (download.md §5.1).
+        '--allow-running-insecure-content',
+      ],
     })
     await use(context)
     await context.close()

@@ -30,9 +30,13 @@ function press(key: string, init: KeyboardEventInit = {}): void {
 
 type Hooks = BlockHoverHooks & { onClip: ReturnType<typeof vi.fn> }
 
-function hooksFor(withScreenshot = true): Hooks {
+function hooksFor(withTopFrameEntries = true): Hooks {
   const hooks = { onClip: vi.fn(), onDisableSite: vi.fn(), onDisableEntry: vi.fn(), openSettings: vi.fn() } as unknown as Hooks
-  if (withScreenshot) hooks.onScreenshot = vi.fn()
+  // the screenshot and download actions belong to the top frame (capture.md §3, download.md §2.1)
+  if (withTopFrameEntries) {
+    hooks.onScreenshot = vi.fn()
+    hooks.onDownload = vi.fn()
+  }
   return hooks
 }
 
@@ -233,7 +237,7 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
     document.body.innerHTML = NESTED
     document.getElementById('code')!.focus()
     const { hooks } = start()
-    expect([...document.querySelectorAll('.ann-block-mode-hint kbd')].map(cap => cap.textContent)).toEqual(['Tab', '↑', '↓', 'Enter', 'S', 'Esc'])
+    expect([...document.querySelectorAll('.ann-block-mode-hint kbd')].map(cap => cap.textContent)).toEqual(['Tab', '↑', '↓', 'Enter', 'S', 'D', 'Esc'])
     press('s', { metaKey: true })
     expect(hooks.onScreenshot).not.toHaveBeenCalled()
     press('s')
@@ -275,7 +279,7 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
     await vi.advanceTimersByTimeAsync(450)
     const capsule = document.querySelector('[data-ann-ui="block-capsule"]')
     expect(capsule).not.toBeNull()
-    const labels = [...capsule!.querySelectorAll('button')].map(button => button.textContent)
+    const labels = [...capsule!.querySelectorAll('button')].map(button => button.getAttribute('aria-label') ?? button.textContent)
     expect(labels).toContain(uiText('block.clip'))
     expect(labels).not.toContain(uiText('block.shot'))
     entries.dispose()
@@ -313,7 +317,7 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
     entries.dispose()
   })
 
-  it('with the hook the capsule keeps clip, screenshot, up and more', async () => {
+  it('with the hook the capsule keeps clip, screenshot, download and more (the parent button is gone)', async () => {
     vi.useFakeTimers()
     document.body.innerHTML = NESTED
     document.elementFromPoint = vi.fn(() => document.getElementById('code'))
@@ -322,9 +326,9 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
     entries.install()
     document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
     await vi.advanceTimersByTimeAsync(450)
-    // up and more are icon-only: their accessible names come from the aria-labels
+    // more is icon-only: its accessible name comes from the aria-label
     const names = [...document.querySelectorAll('[data-ann-ui="block-capsule"] button')].map(button => button.getAttribute('aria-label') ?? button.textContent)
-    expect(names).toEqual([uiText('block.clip'), uiText('block.shot'), uiText('block.up'), uiText('block.more')])
+    expect(names).toEqual([uiText('block.clip'), uiText('block.shot'), uiText('block.download'), uiText('block.more')])
     entries.dispose()
   })
 })
@@ -514,10 +518,8 @@ async function restOn(target: Element, x = 16, y = 16): Promise<void> {
 }
 
 const outline = (): HTMLElement | null => document.querySelector('[data-ann-ui="block-outline"]')
-const parentButton = (): HTMLButtonElement => document.querySelector(`[aria-label="${uiText('block.up')}"]`) as HTMLButtonElement
-
-describe('Parent on a timeline, and leaving it (issue #107)', () => {
-  it('climbs from a quote to its post, not the column', async () => {
+describe('Hover targets on a timeline (issue #107)', () => {
+  it('always rests on the innermost block: the quote, not its post or the column', async () => {
     document.body.innerHTML = TIMELINE
     box('a-quote', 80)
     box('a', 280)
@@ -525,22 +527,16 @@ describe('Parent on a timeline, and leaving it (issue #107)', () => {
     box('col', 11578)
     await restOn(document.getElementById('a-quote-p')!)
     expect(outline()!.style.height).toBe('80px')
-    expect(parentButton().disabled).toBe(false)
-    parentButton().click()
-    expect(outline()!.style.height).toBe('280px')
-    expect(parentButton().disabled).toBe(true)
   })
 
-  it('climbs from a nested post to the enclosing post', async () => {
+  it('a nested post stays the inner post, with no parent button to leave it', async () => {
     document.body.innerHTML = TIMELINE
     box('b-inner', 120)
     box('b', 360)
     box('feed', 11578)
     await restOn(document.getElementById('b-inner-body')!)
     expect(outline()!.style.height).toBe('120px')
-    parentButton().click()
-    expect(outline()!.style.height).toBe('360px')
-    expect(parentButton().disabled).toBe(true)
+    expect(document.querySelector('[data-ann-ui="block-capsule"] .ann-blk-sub [aria-label]')).toBeNull()
   })
 
   it('↑ in block mode stays on the post', () => {
@@ -559,11 +555,11 @@ describe('Parent on a timeline, and leaving it (issue #107)', () => {
   it('Escape clears the outline when focus is on the capsule button', async () => {
     document.body.innerHTML = NESTED
     await restOn(document.getElementById('code')!)
-    const up = parentButton()
-    up.focus()
-    up.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }))
+    const clip = document.querySelector('[data-ann-ui="block-capsule"] .ann-blk-seg-clip') as HTMLButtonElement
+    clip.focus()
+    clip.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }))
     expect(outline()).not.toBeNull()
-    up.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    clip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     expect(outline()).toBeNull()
     expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
   })

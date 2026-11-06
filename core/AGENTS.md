@@ -1,10 +1,10 @@
-# Learning Core 约定
+# Core 约定
 
-> 适用范围：`learning-core/`。全局规则见根目录 [AGENTS.md](../AGENTS.md)。
+> 适用范围：`core/`。全局规则见根目录 [AGENTS.md](../AGENTS.md)。
 
 ## 边界与实现点
 
-`learning-core/` 是纯 TypeScript 领域核心，不依赖 `chrome.*`、DOM 或 React（单测跑 jsdom/fake-indexeddb）。扩展门面复用同一逻辑契约，不在调用方复制规则。
+`core/` 是纯 TypeScript 领域核心，不依赖 `chrome.*`、DOM 或 React（单测跑 jsdom/fake-indexeddb）。扩展门面复用同一逻辑契约，不在调用方复制规则。
 
 | 规则               | 文件                                                                                                                           | 契约真源                             |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
@@ -17,6 +17,7 @@
 | 检索               | `query.ts`（词命中、权重、属性运算符、keyset 分页、高亮视图；派生文档由 `indexedSummary`/`indexedText` 构造）                  | search.md                            |
 | Markdown 工具      | `markdown.ts`（纯文本化、围栏与行内代码的判定、引文换算、`==…==` 写回不跨块不破记号）                                          | storage.md §6                        |
 | ZIP 导出           | `export.ts` + `zip.ts`（store-only ZIP、frontmatter 键序、README）                                                             | storage.md §6                        |
+| 下载规则           | `download.ts`（共享限制、文件名、媒体链接与 Markdown 组稿；字节取回和任务编排由调用方负责）                                    | download.md §4、§5                   |
 | 本地指标           | `metrics.ts`（事件字典与运行时校验、分桶、串行写入、按天累计、面板汇总 `metricSummaries`、chrome.storage 注入）                | metrics.md §9、§5、§10               |
 | ID 与摘要          | `assets.ts`（`ent_`/`asset_` ID、SHA-256、单图上限初始值）                                                                     | storage.md §4（Q-03 校准上限）       |
 
@@ -45,5 +46,5 @@
 
 ## 验证
 
-- 类型、校验、存储、检索、导出、指标的改动：`npx vitest run learning-core`（含 fake-indexeddb 事务测试）。
+- 类型、校验、存储、检索、导出、下载规则、指标的改动：`npx vitest run core`（含 fake-indexeddb 事务测试）。
 - 契约变化时同步 `docs/product/` 对应真源与测试断言；新增条目类型或内置属性按 [entry.md §8](../docs/product/entry.md) 清单补齐。

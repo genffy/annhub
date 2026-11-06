@@ -16,6 +16,7 @@ function secExtension() {
     typeof extPropsGroup === 'function' && extPropsGroup(),
     typeof extSettingsGroup === 'function' && extSettingsGroup(),
     typeof extStatesGroup === 'function' && extStatesGroup(),
+    typeof extDownloadGroup === 'function' && extDownloadGroup(),
     typeof extPopupGroup === 'function' && extPopupGroup(),
     typeof extProtoGroup === 'function' && extProtoGroup(),
   ].filter(Boolean)
@@ -42,6 +43,7 @@ function secExtension() {
         ['ext-props', '属性页'],
         ['ext-settings', '设置'],
         ['ext-states', '空状态与导出'],
+        ['ext-download', '选择与下载'],
         ['ext-popup', '工具栏弹窗'],
         ['ext-proto', '可交互原型'],
       ].filter(([id]) => groups.some(g => g.includes(`id="${id}"`))),

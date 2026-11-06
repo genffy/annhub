@@ -464,6 +464,9 @@ test.describe('precise selection (screenshot.md §1.2)', () => {
     await expect.poll(async () => (await getEntries(page.context())).filter(entry => entry.type === 'screenshot')).toHaveLength(1)
 
     // Esc at the confirmation stage cancels the session outright
+    // The store commits before the save reply closes the editor; wait for
+    // the UI before starting another session (e2e/AGENTS.md).
+    await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
     await triggerScreenshot(page)
     await page.mouse.move(60, 80)
     await page.mouse.down()

@@ -201,7 +201,7 @@ test.describe('editing the original and the context in the drawer (extension.md 
     await library.close()
   })
 
-  test('the header keeps one row of actions in one order — 阅读, 回到来源, 删除, 关闭 (extension.md §4.1)', async ({ page, extensionId }) => {
+  test('the header keeps one row of actions in one order — 阅读, 下载, 回到来源, 删除, 关闭 (extension.md §4.1)', async ({ page, extensionId }) => {
     await seed(page, extensionId)
     for (const [id, width, hasRead] of [
       ['ent_edit_plain', 1180, true],
@@ -224,9 +224,9 @@ test.describe('editing the original and the context in the drawer (extension.md 
       expect(
         actions.map(action => action.name),
         `${id} at ${width}px: the order the spec names`,
-      ).toEqual([...(hasRead ? ['阅读'] : []), '回到来源', '删除', '关闭'])
+      ).toEqual([...(hasRead ? ['阅读'] : []), '下载', '回到来源', '删除', '关闭'])
       // 阅读 and 回到来源 wear the same small outlined face; 回到来源 is a link by meaning
-      const named = actions.filter(action => action.name === '阅读' || action.name === '回到来源')
+      const named = actions.filter(action => action.name === '阅读' || action.name === '下载' || action.name === '回到来源')
       expect(new Set(named.map(action => action.face)).size, `${id} at ${width}px: one face for the named actions`).toBe(1)
       expect(actions.find(action => action.name === '回到来源')!.tag).toBe('a')
       // however narrow the drawer, the actions stay one row (they move together, not one per line)

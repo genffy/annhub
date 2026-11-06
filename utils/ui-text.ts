@@ -55,6 +55,7 @@ const ERROR_TEXT: Record<string, UiTextKey> = {
   CAPTURE_RATE_LIMITED: 'shot.error.capture',
   CAPTURE_FAILED: 'shot.error.capture',
   DOWNLOAD_FAILED: 'shot.error.downloadFailed',
+  EXTENSION_CONTEXT_INVALIDATED: 'toast.extensionReloaded',
 }
 
 /** Why something failed, in words — or '' for a code that has no reason worth telling (never a raw message). */

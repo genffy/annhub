@@ -55,7 +55,7 @@ export interface ProductUi {
   menu: { clip: string; screenshot: string; clipHint: string; screenshotHint: string }
   toast: { clipped: string; undo: string; edit: string; undone: string }
   edit: { title: string; tags: string; note: string; more: string; done: string; addTag: string; blurNote: string }
-  block: { clip: string; shot: string; parent: string; more: string; clipped: string }
+  block: { clip: string; shot: string; download: string; more: string; clipped: string }
   shot: {
     hint: string
     anonymousOn: string

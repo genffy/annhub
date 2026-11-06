@@ -6,7 +6,7 @@
  * effects (RV-LIB-01).
  */
 
-import type { EntryType } from '../../learning-core/types'
+import type { EntryType } from '../../core/types'
 import type { ViewKey } from '../../utils/entry-icons'
 
 export type View = ViewKey

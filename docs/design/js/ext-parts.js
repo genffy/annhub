@@ -56,15 +56,17 @@ const tipBubble = (title, desc, style = '', extra = '') => `<div class="hm-tip t
 // 页面内小视窗：只露出网页的一段，用于局部画板
 const miniView = (inner, h = 380) => `<div class="mv" style="height:${h}px">${inner}</div>`
 
-// ── 区块剪藏：指针在区块上停下，旁边出现胶囊（剪藏 | 截图 | 上一级 | 更多）──────────
+// ── 区块剪藏：指针在区块上停下，旁边出现胶囊（四个图标：剪藏、截图、下载、更多）──────
 // 入口只是扩展自己的浮层：描边 + 一枚深色胶囊，不改网页，也不在页面上留记号。
 // o.cls 是位置：默认右上角（左右缘在区块内，上沿跨出一小段）；at-tl 左上角、at-br 右下角、at-bl 左下角；pin-top 贴着窗口里可见部分的上沿（区块比窗口高时）。
-const BLK_LABELS = { zh: { clip: '剪藏', shot: '截图', up: '上一级', more: '更多' }, en: { clip: 'Clip', shot: 'Screenshot', up: 'Select parent', more: 'More' } }
+const BLK_LABELS = { zh: { clip: '剪藏', shot: '截图', download: '下载', more: '更多' }, en: { clip: 'Clip', shot: 'Screenshot', download: 'Download', more: 'More' } }
 
 const blkPill = (o = {}) => {
   const L = BLK_LABELS[o.lang || 'zh']
+  // icon-only: the same 28px circle as the "more" button, the name in the tooltip
+  const seg = (icon, label, cls = '') => `<span class="bp-seg ${cls}" title="${label}" aria-label="${label}">${I(icon)}</span>`
   return `<div class="blk-pill ${o.cls || ''} ${o.press ? 'is-press' : ''}" style="${o.style || ''}" role="group" aria-label="${L.clip}">${o.pin ? pin(o.pin) : ''}
-    <span class="bp-seg">${I('bookmark')}<span>${o.saved ? '已剪藏' : L.clip}</span></span>${o.noShot ? '' : `<span class="bp-seg is-alt">${I('scan')}<span>${L.shot}</span></span>`}${o.up ? `<i class="sub" aria-label="${L.up}">${I('chevron-up', 'i-sm')}</i>` : ''}<i class="sub" aria-label="${L.more}">${I('ellipsis', 'i-sm')}</i>
+    ${seg('bookmark', o.saved ? '已剪藏' : L.clip, 'bp-seg-clip')}${o.noShot ? '' : seg('scan', L.shot, 'is-alt bp-seg-shot')}${o.noShot ? '' : seg('download', L.download, 'is-alt bp-seg-dl')}<i class="sub" title="${L.more}" aria-label="${L.more}">${I('ellipsis', 'i-sm')}</i>
   </div>`
 }
 

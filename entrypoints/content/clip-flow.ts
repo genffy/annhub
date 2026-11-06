@@ -4,10 +4,10 @@
  * selection and everything already typed; nothing shows success that was
  * not persisted.
  */
-import { normalizeHost } from '../../learning-core/normalize'
-import { normalizeTags, TAG_LENGTH_MAX, TAGS_MAX } from '../../learning-core/properties'
-import { CONTEXT_MAX_CHARS } from '../../learning-core/validate'
-import { newEntryId } from '../../learning-core/assets'
+import { normalizeHost } from '../../core/normalize'
+import { normalizeTags, TAG_LENGTH_MAX, TAGS_MAX } from '../../core/properties'
+import { CONTEXT_MAX_CHARS } from '../../core/validate'
+import { newEntryId } from '../../core/assets'
 import MessageUtils from '../../utils/message'
 import { entryErrorText, failureReason, uiText } from '../../utils/ui-text'
 import { elementToMarkdown, escapeText, selectionToMarkdown } from './markdown'
@@ -76,12 +76,13 @@ export async function saveBlockClip(candidate: BlockCandidate, origin: ClipOrigi
   const { element, kind, range } = candidate
   // a heading-bounded section converts (and anchors) its sibling run only
   const slice = range && range.start.parentElement === element ? { from: range.start, to: range.end } : undefined
-  const { markdown, truncated } = elementToMarkdown(element, slice)
+  const { markdown, truncated, platform } = elementToMarkdown(element, slice)
   if (!markdown.trim()) return EMPTY
   return saveClip({
     id,
     content: markdown,
-    permalink: resolvePermalink(range?.start ?? element, location.href, kind),
+    permalink: platform?.sourceUrl ?? resolvePermalink(range?.start ?? element, location.href, kind),
+    meta: platform?.meta,
     origin: { ...origin, blockKind: kind, truncated, startedAt },
   })
 }
@@ -91,9 +92,10 @@ async function saveClip(input: {
   content: string
   context?: string
   permalink: string
+  meta?: { title: string; author?: string[]; published?: string }
   origin: ClipOrigin & { truncated?: boolean; startedAt?: number }
 }): Promise<ClipResult> {
-  const meta = extractPageMeta(document, normalizeHost(location.href))
+  const meta = { ...extractPageMeta(document, normalizeHost(location.href)), ...input.meta }
   const response = await MessageUtils.sendMessage<{ entry: { id: string } }>({
     type: 'SAVE_CLIP',
     draft: {

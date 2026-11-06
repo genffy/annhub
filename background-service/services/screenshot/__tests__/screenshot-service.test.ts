@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../../utils/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
-vi.mock('../../../../learning-core/store', () => ({ EntryStore: vi.fn() }))
+vi.mock('../../../../core/store', () => ({ EntryStore: vi.fn() }))
 
 const tabEvent = () => ({ addListener: vi.fn(), removeListener: vi.fn() })
 const tabs = {

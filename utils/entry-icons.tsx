@@ -4,7 +4,7 @@
  * shows up — the library's nav and rows, the drawer, the popup's rail.
  */
 import { Bookmark, Calendar, CalendarClock, Hash, Highlighter, Library, List, Scan, Settings, SquareCheck, Tags, Text, type LucideIcon } from 'lucide-react'
-import type { EntryType, PropertyType } from '../learning-core/types'
+import type { EntryType, PropertyType } from '../core/types'
 import { uiText } from './ui-text'
 
 /** The library's views, in the nav's own words: the shape of `View` in the library's route. */

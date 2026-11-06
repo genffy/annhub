@@ -1,8 +1,8 @@
 // 可交互原型 2：资料库（左导航 + 右内容）与阅读视图。
 // 能点：切换视图、折叠导航、搜索与筛选、打开抽屉与阅读视图、在原文里选中文字创建高亮（选区会被换算成 content 里的偏移）、
-// 点已有高亮改色 / 写备注 / 删除（可撤销）、添加 / 新建 / 清除属性、属性页的预设与删除、导出。
+// 点已有高亮改色 / 写备注 / 删除（可撤销）、添加 / 新建 / 清除属性、属性页的预设与删除、导出、选择多条并下载（proto-select.js）。
 // 规则是真的：与已有高亮重叠的新选区合并；有高亮的剪藏原文只读；删除剪藏时提示高亮数；页面里剪藏的内容也会出现在这里。
-const PA = { view: 'all', read: null, tab: 'hl', rail: false, q: '', types: [], tag: '', project: '', color: '', sel: null, opened: null, on: null, adding: null, creating: null, dlg: null, progress: 0, confirm: null, bar: null, pop: null, undo: null, toast: null, focus: null, scrollTo: null, lastKeys: {}, hlColor: 'yellow', anon: true, blockOn: true, fmt: 'png', ratios: ['1:1', '4:5', '3:4', '16:9'], wm: false, bz: false }
+const PA = { view: 'all', read: null, tab: 'hl', rail: false, q: '', types: [], tag: '', project: '', color: '', sel: null, opened: null, on: null, adding: null, creating: null, dlg: null, pick: null, dl: null, dst: null, progress: 0, confirm: null, bar: null, pop: null, undo: null, toast: null, focus: null, scrollTo: null, lastKeys: {}, hlColor: 'yellow', anon: true, blockOn: true, fmt: 'png', ratios: ['1:1', '4:5', '3:4', '16:9'], wm: false, bz: false }
 
 const paNorm = s => String(s).toLowerCase().normalize('NFKC').replace(/\s+/g, ' ').trim()
 const paEmpty = v => v == null || v === '' || (Array.isArray(v) && !v.length)
@@ -79,12 +79,14 @@ const paListPage = () => {
   const total = STORE.entries.length
   const n = t => STORE.entries.filter(e => e.type === t).length
   const sub = PA.view === 'all' ? `${total} 条 · ${n('clip')} 剪藏 · ${n('screenshot')} 截图` : `${shown.length} 条`
-  const head = `<div class="phead"><div class="grow"><h1>${titles[PA.view]}</h1><div class="sub">${sub}</div></div>${paSearchBox()}</div>`
+  if (PA.pick) PA.pick.ids = PA.pick.ids.filter(id => paEntry(id))
+  // 页头右侧是搜索框与「选择」；选择中，工具条槽里的筛选条换成选择条（download.md §3.2，proto-select.js）
+  const head = `<div class="phead"><div class="grow"><h1>${titles[PA.view]}</h1><div class="sub">${sub}</div></div>${paHeadRight(shown.length)}</div>`
   let body
   if (!total) body = `${onboarding()}${emptyState('library', '还没有条目', '选中网页中的一段文字，点“剪藏”；按 ⌘⇧S 框选一张截图。')}`
   else if (!shown.length) body = emptyState('search', '没有符合条件的条目', '当前搜索词与筛选条件下没有结果。筛选条件都还保留着，可以逐个移除。', btn('清除筛选', { v: 'primary', attrs: 'data-act="clear-all"' }))
-  else body = `<div class="egrid">${shown.map(paCard).join('')}</div>`
-  return `${head}<div class="pbody" style="overflow:auto">${paFilterBar(shown.length)}${body}</div>`
+  else body = `<div class="egrid">${shown.map(PA.pick ? paPickCard : paCard).join('')}</div>`
+  return `${head}<div class="pbody has-slot" style="overflow:auto">${paSlot(shown.length, paFilterBar(shown.length))}${body}</div>`
 }
 
 // “高亮”视图：以高亮为单位，按所属剪藏分组（extension.md §2.3）
@@ -171,10 +173,10 @@ const paDrawer = e => {
   const n = (e.hls || []).length
   const q =
     e.type === 'screenshot'
-      ? `<div class="dsec"><div class="h">${I('image', 'i-sm')}图片</div><div class="gt-img" style="border:1px solid var(--line);border-radius:10px">${imgSvg(e.img)}</div></div>`
+      ? `<div class="dsec"><div class="h">${I('image', 'i-sm')}图片<span class="grow"></span>${btn('下载图片', { sm: true, icon: 'image-down', v: 'ghost', attrs: 'data-act="dl-img" aria-label="下载图片"' })}</div><div class="gt-img" style="border:1px solid var(--line);border-radius:10px">${imgSvg(e.img)}</div></div>`
       : `<div class="dsec"><div class="h">${I('quote', 'i-sm')}原文<span class="grow"></span>${n ? `<span class="t-xs muted hs g4" title="有高亮时原文只读">${I('lock', 'i-sm')}原文只读 · ${n} 条高亮</span>` : ''}</div>${paBody(e, 'md-sm')}${e.ctx ? `<div class="ctxbox"><b>语境</b>${esc(e.ctx)}</div>` : ''}</div>`
   return `<aside class="drawer" aria-label="条目详情">
-    <div class="dh">${tchip(e.type)}<span class="grow"></span>${e.type === 'clip' ? btn('阅读', { sm: true, icon: 'book-open', attrs: 'data-act="read"' }) : ''}${btn('回到来源', { sm: true, icon: 'arrow-up-right', attrs: 'data-act="src"' })}${btn('', { icon: 'trash', iconOnly: true, sm: true, v: 'ghost', attrs: 'data-act="del" aria-label="删除"' })}${btn('', { icon: 'x', iconOnly: true, sm: true, v: 'ghost', attrs: 'data-act="close" aria-label="关闭"' })}</div>
+    <div class="dh">${tchip(e.type)}<span class="grow"></span>${e.type === 'clip' ? btn('阅读', { sm: true, icon: 'book-open', attrs: 'data-act="read"' }) : ''}${btn('下载', { sm: true, icon: 'file-down', attrs: 'data-act="dl-entry" title="下载为 Markdown" aria-label="下载为 Markdown"' })}${btn('回到来源', { sm: true, icon: 'arrow-up-right', attrs: 'data-act="src"' })}${btn('', { icon: 'trash', iconOnly: true, sm: true, v: 'ghost', attrs: 'data-act="del" aria-label="删除"' })}${btn('', { icon: 'x', iconOnly: true, sm: true, v: 'ghost', attrs: 'data-act="close" aria-label="关闭"' })}</div>
     <div class="dtitle"><input class="pa-in pa-title" data-prop="title" data-fid="p-title" value="${esc(e.title)}" aria-label="标题" /><div class="t-xs muted" style="margin:3px 0 0 7px">${e.host}${e.path} · ${e.when}</div></div>
     <div class="dbody" style="overflow:auto">
       ${q}
@@ -194,7 +196,7 @@ const paReader = e => {
         : `<div class="rd-empty">${I('highlighter', 'i-lg')}<b>还没有高亮</b><span>在左边选中一段文字，点一个颜色。</span></div>`
   return `<div class="rd">
     <div class="rd-main">
-      <div class="rd-bar">${btn('返回', { sm: true, v: 'ghost', icon: 'arrow-left', attrs: 'data-act="back"' })}<span class="grow"></span>${btn('回到来源', { sm: true, icon: 'arrow-up-right', attrs: 'data-act="src"' })}</div>
+      <div class="rd-bar">${btn('返回', { sm: true, v: 'ghost', icon: 'arrow-left', attrs: 'data-act="back"' })}<span class="grow"></span>${btn('下载', { sm: true, icon: 'file-down', attrs: 'data-act="dl-entry" title="下载为 Markdown" aria-label="下载为 Markdown"' })}${btn('回到来源', { sm: true, icon: 'arrow-up-right', attrs: 'data-act="src"' })}</div>
       <div class="rd-col">
         <div class="rd-head"><h1>${esc(e.title)}</h1><div class="rd-meta">${tchip(e.type, { sm: true })}<span>${e.host}${e.path}</span><span>·</span><span>${e.when}</span>${tags(e.tags)}</div></div>
         ${paBody(e, 'md-rd')}
@@ -253,6 +255,7 @@ const paSettingsPage = () => {
 }
 
 const paDialog = () => {
+  if (PA.dl) return paDlHtml()
   if (PA.confirm) {
     const e = paEntry(PA.confirm.id)
     if (!e) return ''
@@ -288,8 +291,10 @@ function paRender(root) {
     if (el && PA.lastKeys[sel] === now[sel]) el.scrollTop = tops[sel]
   })
   PA.lastKeys = now
+  paStuck(app)
   // 键盘可达：行、芯片、图标按钮都能 Tab 到，Enter / 空格触发；fid 让重绘之后焦点回到原处
   app.querySelectorAll('.nav .pa-click, .phead .pa-click, .fbar .pa-click, .ecard, .hr, .drawer .pa-click, .rd-rail .pa-click, .rd-bar .pa-click, .ptab .pa-click, [data-dlg] .pa-click').forEach(el => {
+    if (el.closest('.dl-w')) return // 选择模式里，卡片的复选框是外层的 .dl-w，里面的卡片不再单独获得焦点
     if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '0')
     if (!el.hasAttribute('role')) el.setAttribute('role', 'button')
     if (!el.dataset.fid) el.dataset.fid = ['k', el.dataset.act, el.dataset.prop, el.dataset.v, el.dataset.id, el.dataset.hl, el.dataset.type, el.dataset.color].filter(Boolean).join(':')
@@ -347,7 +352,8 @@ function paOverlay(root) {
       <textarea class="textarea pa-fld" data-bind="hl-note" data-fid="hl-note" placeholder="写下你的想法（可选）" maxlength="${HL_LIMITS.note}" style="margin-top:10px;min-height:56px;font-size:12.5px">${esc(ph.note || '')}</textarea>
       <div class="hs g8" style="margin-top:10px"><span class="t-xs muted">失焦即保存</span><span class="grow"></span>${btn('删除', { sm: true, v: 'ghost', icon: 'trash', attrs: 'data-act="hl-del"' })}</div></div>`
   }
-  if (PA.toast) out += `<div class="toast-pos pa-toast" style="z-index:40"><div class="toast">${I(PA.toast.icon || 'circle-alert')}<span>${PA.toast.text}</span>${PA.toast.undo ? '<i class="sepd"></i><span class="act pa-click" data-act="hl-undo" tabindex="0" role="button">撤销</span>' : ''}</div></div>`
+  if (PA.dst) out += paDstHtml(root)
+  if (PA.toast) out += `<div class="toast-pos pa-toast" style="z-index:40${PA.dst ? ';bottom:72px' : ''}"><div class="toast">${I(PA.toast.icon || 'circle-alert')}<span>${PA.toast.text}</span>${PA.toast.undo ? '<i class="sepd"></i><span class="act pa-click" data-act="hl-undo" tabindex="0" role="button">撤销</span>' : ''}</div></div>`
   const keep = document.activeElement && over.contains(document.activeElement) ? { fid: document.activeElement.dataset.fid, s: document.activeElement.selectionStart, e: document.activeElement.selectionEnd } : null
   over.innerHTML = out
   if (keep && keep.fid) {
@@ -367,6 +373,7 @@ function paOpen(id) {
   PA.types = []
   PA.sel = id
   PA.adding = null
+  PA.pick = PA.dl = null
   const root = document.querySelector('#proto-app .pa-root')
   if (root) paRender(root)
   const b = document.getElementById('proto-app')
@@ -374,7 +381,8 @@ function paOpen(id) {
 }
 
 function paInit(root) {
-  root.innerHTML = '<div class="pa-app" style="height:100%"></div><div class="pa-over"></div>'
+  // .pa-live：读屏播报（选了几条、结果），不随应用重绘，所以每次变化都能读到
+  root.innerHTML = '<div class="pa-app" style="height:100%"></div><div class="pa-over"></div><div class="pa-live sr-only" role="status" aria-live="polite"></div>'
   const render = () => paRender(root)
   STORE.listeners.add(render)
 
@@ -400,6 +408,7 @@ function paInit(root) {
       undo ? 3000 : ms,
     )
   }
+  const ctx = { root, render, toast: showToast }
   const startExport = () => {
     PA.dlg = 'progress'
     PA.progress = 0
@@ -508,6 +517,8 @@ function paInit(root) {
 
   root.addEventListener('click', ev => {
     const t = ev.target
+    // 选择与下载（proto-select.js）：卡片、选择条、下载对话框与状态条的点击先在这里处理
+    if (paSelClick(ev, ctx)) return
     // 导出对话框里的按钮没有 data-act：先于其他分发，按文字处理
     const dlgBtn = t.closest('[data-dlg] button')
     if (dlgBtn && !dlgBtn.dataset.act) {
@@ -524,6 +535,7 @@ function paInit(root) {
       PA.read = null
       PA.adding = null
       PA.creating = null
+      PA.pick = PA.dl = null // 切到别的视图会退出选择并清空（download.md §3.2）
       PA.pop = PA.bar = PA.on = null
       paOverlay(root)
       return render()
@@ -694,6 +706,7 @@ function paInit(root) {
   })
 
   root.addEventListener('keydown', ev => {
+    if (paSelKey(ev, ctx)) return
     const t = ev.target
     const e = paCur()
     if (ev.key === 'Enter' && t.dataset && t.dataset.listadd && e) {
@@ -765,6 +778,9 @@ function paInit(root) {
     { passive: true },
   )
 
+  // 滚动列表时，固定在顶部的选择条下沿出现一道轻阴影（scroll 不冒泡，所以用捕获）
+  root.addEventListener('scroll', ev => ev.target.classList && ev.target.classList.contains('pbody') && paStuck(root), true)
+
   // Esc 依次关闭对话框、浮层、补全、抽屉、阅读视图。焦点在页面空白处（body）时也要生效，所以挂在 document 上
   document.addEventListener('keydown', ev => {
     if (!root.isConnected) return
@@ -772,7 +788,10 @@ function paInit(root) {
     const inField = a && /^(input|textarea)$/i.test(a.tagName)
     if (ev.key === 'Escape') {
       if (a && a !== document.body && !root.contains(a)) return
+      // 下载对话框先关；下载进行中 Esc 不关闭，只有「取消」停止下载（download.md §3.3）；再退出选择模式
+      if (PA.dl) return PA.dl.state === 'progress' ? undefined : paDlClose(ctx)
       if (PA.dlg || PA.confirm) PA.dlg = PA.confirm = null
+      else if (PA.pick) return paPickExit(ctx)
       else if (PA.pop) return closePop()
       else if (PA.bar) {
         PA.bar = null
@@ -797,7 +816,7 @@ function paInit(root) {
       // 选中文字后按 H：以默认颜色创建高亮
       ev.preventDefault()
       create(PA.hlColor, false)
-    }
+    } else if (a === document.body) paSelKey(ev, ctx) // 焦点在页面空白处时，选择模式的 Ctrl / ⌘ + A 与对话框里的 Tab 也要生效
   })
   render()
 }
@@ -812,13 +831,13 @@ function extProtoGroup() {
     body: browser(`${article({ sel: 'none', blocks: true })}<div class="pc-menu"></div><div class="pc-blk"></div><div class="pc-side-host"></div><div class="pc-layer"></div>`, { h: 1120 }),
     notes: [
       '<b>试试看（选区）</b>：在文章里选中一段文字 → 选区菜单出现，只有“剪藏”和“截图” → 点“剪藏”：一次点击就保存，约 3 秒内可以<b>撤销</b>或<b>编辑</b>（改标题、加标签、写备注）。页面上不会留下任何标记。',
-      '<b>试试看（区块）</b>：不选中任何文字，把指针停在“Three common strategies”那一节、其中的代码块或页面底部的帖子上约 0.4 秒 → 旁边出现描边和胶囊「剪藏 | 截图 | 上一级 | 更多」；代码块和帖子的右上角各有页面自己的按钮，胶囊会让开；点 ⌃ 选上一级（代码块 → 一节 → 整篇文章）。在下面资料库的“设置”里关掉区块入口，这里就不再出现。',
+      '<b>试试看（区块）</b>：不选中任何文字，把指针停在“Three common strategies”那一节、其中的代码块或页面底部的帖子上约 0.4 秒 → 旁边出现描边和胶囊（剪藏、截图、下载、更多四个图标按钮）；代码块和帖子的右上角各有页面自己的按钮，胶囊会让开；点“下载”取得示例 Markdown；真实扩展的层级调整走区块模式（代码块 → 一节 → 整篇文章）。在下面资料库的“设置”里关掉区块入口，这里就不再出现。',
       '<b>新剪藏自动带着 <code>project: 支付重试</code></b>：那是属性页里给“剪藏”勾选的类型预设；保存的条目（Markdown）会出现在下面的资料库原型里，打开后可以读和高亮。',
     ],
   })
   const app = board({
     title: '原型 · 资料库：读剪藏、划高亮（左导航 + 右内容）',
-    ref: 'extension §2.2 · §4 · entry §4 · §5.3',
+    ref: 'extension §2.2 · §4 · entry §4 · §5.3 · download §3',
     live: true,
     w: 1280,
     id: 'proto-app',
@@ -827,10 +846,12 @@ function extProtoGroup() {
       '<b>读与划（核心）</b>：点一条剪藏（例如“Retries and backpressure”那条整节）→ 抽屉里点“阅读”，或直接在抽屉的原文里：<b>选中一段文字</b>，选区旁出现五个颜色点，点一个就创建高亮；<kbd>H</kbd> 以默认颜色创建；点已有高亮改色、写备注、删除（可撤销）；选区跨过已有高亮会合并。左边导航里的“高亮”按剪藏分组列出所有高亮，点一条高亮回到阅读视图的原位置。',
       '<b>规则是真的</b>：有高亮的剪藏原文只读（抽屉里写着）；删除有高亮的剪藏会先提示高亮数；颜色在设置里选默认色。高亮不会出现在上面的“网页”里。',
       '<b>属性与壳</b>：点左侧导航切换视图、折叠成图标栏；在搜索框里输入；点标签或 <code>project</code> 小标签筛选；在抽屉或阅读视图的“属性”标签里添加属性——输入 <code>pro</code> 补全已有的 project，输入 <code>owner</code> 会让你选类型再创建，输入 <code>source</code> 或 <code>Project</code> 被就地拒绝；属性页的使用数实时变化，使用中的不能删。',
+      '<b>选择与下载（download §3）</b>：在“全部 / 剪藏 / 截图”点页头的「选择」——筛选条的位置换成选择条（同高，卡片一个像素都不动），卡片出现选中标记，搜索置灰。点卡片切换；<kbd>Shift</kbd> 加点击选一段；键盘上 <kbd>Space</kbd> / <kbd>Shift</kbd>+<kbd>Space</kbd> 做同样的事，<kbd>Ctrl</kbd> / <kbd>⌘</kbd>+<kbd>A</kbd> 全选，<kbd>Esc</kbd> 退出。点「下载所选」打开对话框：进行中可以取消，<kbd>Esc</kbd> 与点遮罩都不关闭；关闭后选择还在。想试“选满上限”，给地址加 <code>?cap=3</code>。',
+      '<b>单条下载</b>：抽屉与阅读视图顶栏的「下载」直接开始，不弹对话框，进度与结果在内容区底部的状态条里；进行中再点它，提示“上一个还在进行”。截图条目抽屉里的「下载图片」是另一件事，只取图片本身。部分与失败的样子见上面“选择与下载”里的画板。',
     ],
   })
   return group(
-    { id: 'ext-proto', title: '可交互原型', small: '', desc: '把上面静态画板里的规则接成能点的流程：页面里一步剪藏（选区或整块），资料库里读、划高亮、整理属性。两个原型共用一份数据，页面里剪藏出来的条目会出现在资料库里。' },
+    { id: 'ext-proto', title: '可交互原型', small: '', desc: '把上面静态画板里的规则接成能点的流程：页面里一步剪藏（选区或整块），资料库里读、划高亮、整理属性、选择多条并下载。两个原型共用一份数据，页面里剪藏出来的条目会出现在资料库里。' },
     row(cap),
     row(app),
   )

@@ -376,7 +376,7 @@ select:focus-visible {
 .primary.sm {
   min-height: 28px;
   padding: 0 10px;
-  border-radius: 7px;
+  border-radius: 8px;
   font-size: 12px;
 }
 
@@ -408,7 +408,7 @@ select:focus-visible {
   min-height: 28px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--ann-text-2);
   cursor: pointer;
@@ -991,7 +991,7 @@ select:focus-visible {
   min-height: 56px;
   padding: 6px 8px;
   border: 1px solid var(--ann-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ann-page);
   color: var(--ann-text);
   font-size: 12.5px;

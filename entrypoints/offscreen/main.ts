@@ -1,5 +1,6 @@
 /**
- * Offscreen recording document — annotate.md §2.
+ * Offscreen document — annotate.md §2 for the recording, download.md §4–§5
+ * for downloads.
  *
  * The service worker has no page environment, so the recording runs here: the
  * tab stream (by the stream id the worker obtained after the user's gesture)
@@ -9,11 +10,18 @@
  * collects the video in memory; the worker downloads it from the blob URL
  * this document keeps alive until the file has landed.
  *
- * Video bytes never leave the browser: the blob lives in this document, the
- * download is the worker's chrome.downloads call, and nothing is uploaded.
+ * Downloads share the same split for the same reason: this document (the
+ * extension API set here stops at messaging) fetches the media and packs the
+ * ZIP, handing each body to the worker as a blob URL it keeps alive until
+ * the run's cleanup.
+ *
+ * Bytes never leave the browser: the blobs live in this document, the
+ * downloads are the worker's chrome.downloads calls, and nothing is uploaded.
  */
-import type { RecordingCommandMessage, RecordingEventMessage } from '../../types/messages'
+import type { DownloadCancelMessage, DownloadExtractMessage, DownloadFinishMessage, DownloadRunMessage, RecordingCommandMessage, RecordingEventMessage } from '../../types/messages'
 import { fixWebmDuration } from '../../utils/webm-duration'
+import { acceptDownloadRun, cleanupDownloadRun, deliverFinish } from './download-run'
+import { extractDownloadPage } from './download-extract'
 
 /** 15 minutes or about 500 MB, first reached wins (annotate.md §2.1). */
 const TIME_LIMIT_MS = 15 * 60_000
@@ -162,13 +170,38 @@ function cleanupVideo(): void {
   unsavedVideo = null
 }
 
-chrome.runtime.onMessage.addListener((message: RecordingCommandMessage, _sender, sendResponse) => {
-  if (message.type === 'RECORDING_START') {
-    // the answer is the only word the worker gets on whether a recording exists, so it waits for it
-    void beginRecording({ ...message, type: 'RECORDING_START' }).then(started => sendResponse({ success: started }))
-    return true
-  }
-  if (message.type === 'RECORDING_STOP') stopRecording(message.stoppedBy)
-  // the download landed or the user gave up: the video's bytes can go
-  if (message.type === 'RECORDING_CLEANUP') cleanupVideo()
-})
+chrome.runtime.onMessage.addListener(
+  (message: RecordingCommandMessage | DownloadRunMessage | DownloadFinishMessage | DownloadCancelMessage | DownloadExtractMessage, sender, sendResponse) => {
+    if (message.type === 'DOWNLOAD_EXTRACT') {
+      if (sender.tab || sender.id !== chrome.runtime.id) return
+      void extractDownloadPage(message).then(
+        html => sendResponse({ success: true, data: { html } }),
+        () => sendResponse({ success: false, error: 'DOWNLOAD_FAILED' }),
+      )
+      return true
+    }
+    if (message.type === 'RECORDING_START') {
+      // the answer is the only word the worker gets on whether a recording exists, so it waits for it
+      void beginRecording({ ...message, type: 'RECORDING_START' }).then(started => sendResponse({ success: started }))
+      return true
+    }
+    if (message.type === 'RECORDING_STOP') stopRecording(message.stoppedBy)
+    // the download landed or the user gave up: the video's bytes can go
+    if (message.type === 'RECORDING_CLEANUP') cleanupVideo()
+
+    // Markdown downloads (download.md): this document fetches the media and writes the files
+    if (message.type === 'DOWNLOAD_RUN') {
+      sendResponse({ success: acceptDownloadRun(message) })
+      return
+    }
+    if (message.type === 'DOWNLOAD_FINISH') {
+      sendResponse({ success: deliverFinish(message) })
+      return
+    }
+    if (message.type === 'DOWNLOAD_CANCEL') {
+      // the answer comes when the files the run wrote are gone (download.md §2.5)
+      void cleanupDownloadRun(message).then(() => sendResponse({ success: true }))
+      return true
+    }
+  },
+)

@@ -26,7 +26,7 @@
 | `entrypoints/content/` | [选区、区块、截图与页面批注](entrypoints/content/AGENTS.md)     | 改页面侧采集、批注、截图时  |
 | `entrypoints/library/` | [应用页、阅读与高亮、属性与设置](entrypoints/library/AGENTS.md) | 改扩展页面、弹窗或样式时    |
 | `background-service/`  | [消息门面与浏览器服务](background-service/AGENTS.md)            | 改消息、handler、后台服务时 |
-| `learning-core/`       | [领域规则与 IndexedDB](learning-core/AGENTS.md)                 | 改领域规则、校验、存储时    |
+| `core/`                | [领域规则与 IndexedDB](core/AGENTS.md)                          | 改领域规则、校验、存储时    |
 | `e2e/`                 | [Playwright 与浏览器实测](e2e/AGENTS.md)                        | 写或跑浏览器测试时          |
 | `docs/product/`        | [产品文档维护与新功能流程](docs/product/AGENTS.md)              | 开始功能或改产品结论时      |
 | `website/`             | [运行方式与 Cloudflare 静态部署](website/README.md)             | 构建官网或动部署配置时      |
@@ -35,13 +35,13 @@
 
 ## 按任务读取
 
-| 任务                               | 先读                                                                                        |
-| ---------------------------------- | ------------------------------------------------------------------------------------------- |
-| 改版本号、依赖、构建、CI、部署配置 | [scripts/README.md](scripts/README.md) 的联动表                                             |
-| 加或改消息、handler                | [background-service/AGENTS.md](background-service/AGENTS.md) 与 `types/messages.ts`         |
-| 改 IndexedDB 结构或数据契约        | [learning-core/AGENTS.md](learning-core/AGENTS.md) 与 [storage.md](docs/product/storage.md) |
-| 新功能、改产品行为                 | [docs/product/AGENTS.md](docs/product/AGENTS.md)                                            |
-| 改权限或 manifest                  | [permissions.md](docs/product/permissions.md) 与联动表                                      |
+| 任务                               | 先读                                                                                |
+| ---------------------------------- | ----------------------------------------------------------------------------------- |
+| 改版本号、依赖、构建、CI、部署配置 | [scripts/README.md](scripts/README.md) 的联动表                                     |
+| 加或改消息、handler                | [background-service/AGENTS.md](background-service/AGENTS.md) 与 `types/messages.ts` |
+| 改 IndexedDB 结构或数据契约        | [core/AGENTS.md](core/AGENTS.md) 与 [storage.md](docs/product/storage.md)           |
+| 新功能、改产品行为                 | [docs/product/AGENTS.md](docs/product/AGENTS.md)                                    |
+| 改权限或 manifest                  | [permissions.md](docs/product/permissions.md) 与联动表                              |
 
 ## Agent skills
 

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Home / X</title>
+    <style>
+      body { font: 16px/1.5 sans-serif; margin: 32px; }
+      article { max-width: 640px; border: 1px solid #ccc; padding: 20px; margin: 12px; }
+      img { max-width: 160px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <article id="post" tabindex="0">
+        <a href="/alice">Alice</a>
+        <a href="/alice/status/123"><time datetime="2026-10-01T12:00:00Z">12h</time></a>
+        <div style="white-space: pre-wrap">First line
+Second line with <a href="/bob">@bob</a></div>
+        <a href="/alice/status/123/photo/1"><img src="http://media.annhub.test:8173/download-media.png" alt="Primary chart"></a>
+        <div role="group"><button>Like 99</button><a href="/alice/status/123/analytics">500 views</a></div>
+        <article>
+          <a href="/bob">Bob</a>
+          <a href="/bob/status/456"><time datetime="2026-10-02T12:00:00Z">1h</time></a>
+          <div style="white-space: pre-wrap">Quoted text</div>
+          <a href="/bob/status/456/photo/1"><img src="http://media.annhub.test:8173/download-media.png?quote" alt="Quoted chart"></a>
+        </article>
+      </article>
+    </main>
+  </body>
+</html>

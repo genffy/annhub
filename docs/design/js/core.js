@@ -19,7 +19,7 @@ let boardSeq = 0
 // h 省略时按内容高度自适应
 const board = o => {
   const id = o.id || `b${++boardSeq}`
-  const tagHtml = [o.tag && `<span class="cv-tag">${o.tag}</span>`, o.proposal && `<span class="cv-tag is-proposal">提案 · ${o.proposal === true ? '文档未定义' : `${o.proposal}（待确认）`}</span>`, o.live && `<span class="cv-tag is-live">可交互</span>`]
+  const tagHtml = [o.tag && `<span class="cv-tag">${o.tag}</span>`, o.proposal && `<span class="cv-tag is-proposal">提案 · ${o.proposal === true ? '文档未定义' : /^[DQ]-\d+$/.test(o.proposal) ? `${o.proposal}（待确认）` : o.proposal}</span>`, o.live && `<span class="cv-tag is-live">可交互</span>`]
     .filter(Boolean)
     .join('')
   const notes = o.notes && o.notes.length ? `<ol class="cv-notes">${o.notes.map(n => `<li>${n}</li>`).join('')}</ol>` : ''

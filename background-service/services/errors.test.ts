@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { QuotaError } from '../../learning-core/store'
-import { EntryValidationError } from '../../learning-core/types'
+import { QuotaError } from '../../core/store'
+import { EntryValidationError } from '../../core/types'
 import { storageErrorCode } from './errors'
 
 describe('stable storage failure codes (RV-BG-08)', () => {

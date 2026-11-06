@@ -4,13 +4,13 @@
  * store. Moved verbatim from App.tsx when the file went over its byte budget.
  */
 import { useEffect, useState } from 'react'
-import type { EntryRecord, PropertyDefinition } from '../../learning-core/types'
-import { EntryStore } from '../../learning-core/store'
+import type { EntryRecord, PropertyDefinition } from '../../core/types'
+import { EntryStore } from '../../core/store'
 import MessageUtils from '../../utils/message'
-import { markdownToPlainText } from '../../learning-core/markdown'
+import { markdownToPlainText } from '../../core/markdown'
 import { orderRegistry } from './property-order'
 import { PROPERTY_TYPE_ICONS } from '../../utils/entry-icons'
-import { Download, Highlighter, Scan, Trash2 } from 'lucide-react'
+import { Check, Download, Highlighter, Scan, Trash2 } from 'lucide-react'
 import { uiText } from '../../utils/ui-text'
 
 let assetStorePromise: Promise<EntryStore> | null = null
@@ -102,12 +102,22 @@ export function EntryCard({
   selected,
   onOpen,
   onChanged,
+  selecting,
+  checked,
+  atCap,
+  onToggleSelect,
 }: {
   entry: EntryRecord
   registry: PropertyDefinition[]
   selected?: boolean
   onOpen(): void
   onChanged?(): void
+  /** Selection mode (download.md §3.2): the card's click toggles selection instead of opening the drawer. */
+  selecting?: boolean
+  checked?: boolean
+  /** The selection is full and this card is not in it: the marker greys out and the card stops taking picks (download.md §3.2). */
+  atCap?: boolean
+  onToggleSelect?(shift: boolean): void
 }) {
   const url = useAssetUrl(entry.type === 'screenshot' ? entry.assetId : undefined)
   const title = String(entry.properties['title'] ?? '')
@@ -123,8 +133,31 @@ export function EntryCard({
   const id = (part: string) => `card-${part}-${entry.id}`
   const named = [title && id('title'), (tags.length > 0 || pills.length > 0) && id('tags'), id('meta')].filter(Boolean).join(' ')
   return (
-    <li className={`entry-card${selected ? ' entry-card-selected' : ''}`} data-type={entry.type} data-entry-id={entry.id}>
-      <button type="button" className="entry-card-open" onClick={onOpen} aria-labelledby={named} aria-describedby={excerpt ? id('excerpt') : undefined}>
+    <li
+      className={`entry-card${selected ? ' entry-card-selected' : ''}${selecting ? ' entry-card-selecting' : ''}${selecting && checked ? ' entry-card-checked' : ''}${selecting && atCap && !checked ? ' entry-card-off' : ''}`}
+      data-type={entry.type}
+      data-entry-id={entry.id}
+    >
+      <button
+        type="button"
+        className="entry-card-open"
+        onClick={event => (selecting ? onToggleSelect?.(event.shiftKey) : onOpen())}
+        onKeyDown={event => {
+          if (!selecting) return
+          // a checkbox takes Space, never Enter; Shift+Space takes the range like Shift+click (download.md §3.2)
+          if (event.key === 'Enter') {
+            event.preventDefault()
+            return
+          }
+          if (event.key === ' ') {
+            event.preventDefault()
+            onToggleSelect?.(event.shiftKey)
+          }
+        }}
+        aria-labelledby={named}
+        aria-describedby={excerpt ? id('excerpt') : undefined}
+        {...(selecting ? { 'role': 'checkbox', 'aria-checked': checked === true, 'aria-disabled': atCap && !checked ? true : undefined } : {})}
+      >
         {entry.type === 'clip' ? (
           <span className="entry-card-preview">
             <span className="entry-card-excerpt" id={id('excerpt')}>
@@ -183,6 +216,11 @@ export function EntryCard({
           </span>
         </span>
       </button>
+      {selecting && (
+        <span className="entry-card-mark" aria-hidden>
+          <Check size={12} />
+        </span>
+      )}
       {onChanged && entry.type === 'screenshot' && <ScreenshotActions entry={entry} url={url} onChanged={onChanged} />}
     </li>
   )
@@ -206,7 +244,7 @@ function ScreenshotActions({ entry, url, onChanged }: { entry: EntryRecord; url:
   }
   return (
     <div className="entry-card-actions">
-      <button type="button" disabled={!url} title={uiText('shot.tool.download')} aria-label={uiText('shot.tool.download')} onClick={() => void download()}>
+      <button type="button" disabled={!url} title={uiText('library.downloadImage')} aria-label={uiText('library.downloadImage')} onClick={() => void download()}>
         <Download size={16} />
       </button>
       <button type="button" title={uiText('library.delete')} aria-label={uiText('library.delete')} onClick={() => void remove()}>

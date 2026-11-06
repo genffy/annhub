@@ -5,7 +5,8 @@
 ## 职责与入口
 
 - `App.tsx` 是应用页的壳，`route.ts` 是 hash 路由的读写；`reading-view.tsx`、`highlight-surface.tsx`、`markdown-view.tsx` 是阅读与库内高亮，`property-panel.tsx`、`properties-view.tsx`、`property-order.ts` 管属性，`settings-view.tsx` 管设置，`filter-bar.tsx` 管筛选条，`entrypoints/popup/App.tsx` 是同一套壳的紧凑版。各部分的细则见按需读取。
-- 页面不复制领域规则：条目的查询与写入只经 `types/messages.ts` 的消息；查询、校验、归一化在 `learning-core`。页面只在三处直接开同源 IndexedDB，都是读大块字节或要求逐 Blob 处理的地方：截图卡片读图片 Blob、导出（`export-dialog.tsx` 只做界面与状态，`onExport` 用 `buildExport` 逐 Blob 构造 ZIP，把 Blob URL 交给 `chrome.downloads`，下载时机与文件名不变）、设置页清理孤儿资产。
+- 页面不复制领域规则：条目的查询与写入只经 `types/messages.ts` 的消息；查询、校验、归一化在 `core`。页面只在三处直接开同源 IndexedDB，都是读大块字节或要求逐 Blob 处理的地方：截图卡片读图片 Blob、导出（`export-dialog.tsx` 只做界面与状态，`runExport` 用 `buildExport` 逐 Blob 构造 ZIP，把 Blob URL 交给 `chrome.downloads`）、设置页清理孤儿资产；
+  下载与多选走 `START_LIBRARY_DOWNLOAD` 在后台单飞执行，页面只持状态（`download-client.ts`、`selection-mode.ts`、`selection-download.tsx`）。
 - 视图、筛选、抽屉里打开的条目和阅读视图都写入 URL hash，刷新后恢复（extension.md §2.2）；
 - 路由状态只有 URL 一个真源：`route.ts` 的 `readHash` 与 `listHash` 是一对带往返单测的纯函数，列表路由用 `e=<id>` 表示抽屉（`#/entry/<id>` 同样打开抽屉），阅读是 `#/read/<id>`，带 `?h=<高亮 id>` 时打开后滚到那条高亮（高亮视图的每条高亮都这样链接）。
 - 写 URL 只发生在用户操作里（导航链接 push，筛选 `replaceState`），不在 state 变化的 effect 里重写，也不覆盖它不认识的路由。

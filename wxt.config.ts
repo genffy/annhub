@@ -1,5 +1,5 @@
 import { defineConfig } from 'wxt'
-import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from './constants'
+import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_DOWNLOAD_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from './constants'
 import packageJson from './package.json'
 
 const extensionVersion = packageJson.version
@@ -64,6 +64,11 @@ export default defineConfig({
       // Also unbound by default (annotate.md §2.1): the toolbar popup is the primary entry.
       [ANN_RECORD_COMMAND]: {
         description: '__MSG_commandRecordTab__',
+        global: false,
+      },
+      // Unbound like the two above (download.md §2.3): the user binds it in the browser's shortcut settings.
+      [ANN_DOWNLOAD_COMMAND]: {
+        description: '__MSG_commandDownloadPage__',
         global: false,
       },
     },

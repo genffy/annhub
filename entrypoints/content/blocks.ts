@@ -11,6 +11,7 @@
  * page: an element that cannot be classified is simply not a candidate.
  */
 import { isPageChrome } from './markdown'
+import { isSemanticXPost } from './platform-x'
 
 export type BlockKind = 'post' | 'code' | 'table' | 'figure' | 'quote' | 'section' | 'article'
 
@@ -99,17 +100,18 @@ function visible(el: Element, win: Window): boolean {
 
 function classifyPost(el: Element): boolean {
   // Platform rule: an X timeline or status page post (capture.md §6.2)
-  return el.tagName.toLowerCase() === 'article' && el.getAttribute('data-testid') === 'tweet'
+  return isSemanticXPost(el) || (el.tagName.toLowerCase() === 'article' && el.getAttribute('data-testid') === 'tweet')
 }
 
-const POST_SELECTOR = 'article[data-testid="tweet"]'
+const POST_SELECTOR = 'article'
 
 /** Posts in `el` that are not a quote nested inside another post. */
 function topLevelPosts(el: Element): Element[] {
   const posts: Element[] = []
   for (const post of Array.from(el.querySelectorAll(POST_SELECTOR))) {
+    if (!classifyPost(post)) continue
     const outer = post.parentElement?.closest(POST_SELECTOR)
-    if (outer && el.contains(outer)) continue
+    if (outer && classifyPost(outer) && el.contains(outer)) continue
     posts.push(post)
   }
   return posts
@@ -265,6 +267,21 @@ function classifyDenseContainer(el: Element): boolean {
     if (isTextBlock && textLength(child) >= 20) texty++
   }
   return texty >= 3
+}
+
+/**
+ * The page's own article candidates, outermost only (download.md §2.4): the
+ * same classifiers the block rules use, so the download's main-article pick
+ * agrees with what hovering would outline. The caller takes the one holding
+ * the most text.
+ */
+export function pageArticleCandidates(doc: Document): Element[] {
+  const view = doc.defaultView
+  if (!view) return []
+  const matched = Array.from(doc.querySelectorAll('article, main, [role="article"], [role="main"], .entry-content, .post-content, .markdown-content, .markdown-body')).filter(
+    el => classifyArticle(el) && visible(el, view) && !el.closest(EXCLUDE_SELECTOR) && !el.closest('[data-ann-ui]'),
+  )
+  return matched.filter(el => !matched.some(other => other !== el && other.contains(el)))
 }
 
 /**

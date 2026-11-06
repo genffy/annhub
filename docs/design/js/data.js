@@ -107,5 +107,5 @@ const STORE = {
 const DOC_FILES = {
   product: 'product.md', entry: 'entry.md', extension: 'extension.md', capture: 'capture.md', screenshot: 'screenshot.md', search: 'search.md',
   storage: 'storage.md', metrics: 'metrics.md', validation: 'validation.md', roadmap: 'roadmap.md', examples: 'examples.md',
-  stories: 'user-stories.md', readme: 'README.md', visual: 'visual.md', market: 'market.md', website: 'website.md',
+  stories: 'user-stories.md', readme: 'README.md', visual: 'visual.md', market: 'market.md', website: 'website.md', download: 'download.md',
 }

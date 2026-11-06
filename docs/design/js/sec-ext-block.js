@@ -1,5 +1,5 @@
 // 浏览器扩展 · 页面内：区块剪藏。依据 capture §6.2、extension §2.1、market §4.3。
-// 帖子、代码块、一节、整篇文章这样的整体内容，不必先拖选：指针停在上面，旁边出现胶囊「剪藏 | 截图 | 上一级 | 更多」。
+// 帖子、代码块、一节、整篇文章这样的整体内容，不必先拖选：指针停在上面，旁边出现胶囊：四个只带图标的按钮（剪藏、截图、下载、更多）。
 
 // 一篇很长的文章：区块比窗口高，上下都延伸到窗口之外
 const longPage = () => `<div class="pg pg-rt"><div class="pg-art" style="position:relative;margin-top:-34px">
@@ -16,7 +16,7 @@ function extBlockGroup() {
     w: 760,
     body: miniView(feedPage({ blk: { pin: 2, pill: { cls: 'at-tl', pin: 1 } } }), 440),
     notes: [
-      '指针在一条帖子上停留约 400ms，帖子周围出现描边，旁边出现胶囊「剪藏 | 截图 | 更多」。<b>没有选区也能用</b>，一次点击保存整条帖子。',
+      '指针在一条帖子上停留约 400ms，帖子周围出现描边，旁边出现胶囊：四个只带图标的按钮（剪藏、截图、下载、更多）。<b>没有选区也能用</b>，一次点击保存整条帖子。',
       '帖子右上角是 X 自己的“更多”按钮，胶囊<b>改放左上角</b>，不盖住它。胶囊的左右缘留在帖子轮廓内，不伸到旁边的边栏上。位置按顺序试：右上角、左上角、右下角、左下角，再沿上沿向左，选第一个不盖住页面控件的。',
       '保存的是这条帖子的 Markdown：作者与账号、发布时间、正文、图片的替代文字、被引用的帖子；来源取帖子自己的永久链接。入口和描边是扩展自己的浮层，<b>不改网页</b>，也不会留下“已剪藏”的记号。',
     ],
@@ -26,11 +26,11 @@ function extBlockGroup() {
     title: '悬停出现 · 文档里的代码块',
     ref: 'capture §6.2 · market §4.3',
     w: 760,
-    body: miniView(docsPage({ hover: 'code', blk: { pin: 2, pill: { cls: 'at-tl', up: true, pin: 1 } } }), 440),
+    body: miniView(docsPage({ hover: 'code', blk: { pin: 2, pill: { cls: 'at-tl', pin: 1 } } }), 440),
     notes: [
       '代码块右上角是文档站自己的“复制”按钮：Docusaurus、MkDocs Material、VitePress 的抽样页面里，每个代码块都有。胶囊因此放在<b>左上角</b>，两个按钮并排，谁也不盖谁。',
       '代码块、表格、图这类<b>难以选中的单元</b>，是一次点击最有价值的地方；Obsidian Web Clipper 的高亮器也只允许点击这几种（market §4.3）。',
-      '保存为带语言标记的围栏代码块；“复制”按钮、行号和外框这些页面自己的界面不进入 Markdown。胶囊上的 <b>⌃</b> 可以选到它所在的一节。',
+      '保存为带语言标记的围栏代码块；“复制”按钮、行号和外框这些页面自己的界面不进入 Markdown。区块模式的 <kbd>↑</kbd> 可以选到它所在的一节。',
     ],
   })
 
@@ -38,7 +38,7 @@ function extBlockGroup() {
     title: '悬停出现 · 带语言标签页的代码块（文档站）',
     ref: 'capture §6.2 · §3.1 · market §4.3',
     w: 760,
-    body: miniView(docsTabsPage({ hover: true, blk: { pin: 2, pill: { cls: 'at-br', up: true, pin: 1 } } }), 420),
+    body: miniView(docsTabsPage({ hover: true, blk: { pin: 2, pill: { cls: 'at-br', pin: 1 } } }), 420),
     notes: [
       'OpenAI、Anthropic 的文档把示例放进语言标签页：标签在代码块上方，右边是页面自己的“复制”。右上角与左上角都被占住，胶囊按顺序落到<b>右下角</b>。',
       '其余语言的代码在页面里也存在，但是隐藏的（OpenAI 的 Function calling 页 94 个 <code>pre</code> 里只有 23 个可见）。<b>转换只保存当前显示的这一页</b>，想要别的语言就切过去再剪（capture §3.1）。',
@@ -50,10 +50,10 @@ function extBlockGroup() {
     title: '层级 · 从一节到整篇文章',
     ref: 'capture §6.2',
     w: 760,
-    body: miniView(retriesPage({ hover: 's2', blk: { pin: 2, pill: { up: true, pin: 1 } }, outer: { faint: true, label: 'article', pin: 3 } }), 520),
+    body: miniView(retriesPage({ hover: 's2', blk: { pin: 2, pill: { pin: 1 } }, outer: { faint: true, label: 'article', pin: 3 } }), 520),
     notes: [
       '<b>段落不是区块</b>：指针停在一段正文上，目标是它所在的一节（带标题的 <code>section</code>，或从这个标题到下一个同级标题之间的内容）；页面没有标题时才是整篇文章。',
-      '胶囊上的 <b>⌃</b> 选<b>上一级</b>（整篇 <code>article</code>，虚线框），<kbd>↑</kbd> / <kbd>↓</kbd> 在层级之间移动。顺序是：帖子、代码块、表格、图、引用 → 一节 → 文章。',
+      '在区块模式里用 <kbd>↑</kbd> / <kbd>↓</kbd> 换层级，<kbd>↑</kbd> 选上一级（整篇 <code>article</code>，虚线框）。顺序是：帖子、代码块、表格、图、引用 → 一节 → 文章。',
       '这一节存成 Markdown：标题层级、三步列表和链接都在，图片只保留占位；来源取页面地址加这一节标题的锚点，“回到来源”直接落在这一节。',
     ],
   })
@@ -67,13 +67,13 @@ function extBlockGroup() {
       <div class="sbar"></div>
       <div class="cont" style="top:8px;left:42%">${I('chevron-up', 'i-sm')} 文章在这里往上还有约 3 屏</div>
       <div class="cont" style="bottom:8px;left:42%">${I('chevron-down', 'i-sm')} 往下还有约 5 屏</div>
-      ${blkPill({ cls: 'pin-top', up: true, pin: 1, style: 'top:40px' })}
+      ${blkPill({ cls: 'pin-top', pin: 1, style: 'top:40px' })}
       <div style="position:absolute;z-index:5;left:300px;top:230px;color:#1b1f2a">${I('mouse-pointer-click', 'i-lg')}${pin(2, 'pin-r')}</div>
     </div>`,
     notes: [
       '整篇文章是很高的一块：抽样的 33 个页面里，27 个的正文容器高于 1.2 个视口，中位约 8.4 个视口。胶囊如果贴在区块自己的右上角，多数时候在视野之外。',
       '区块比窗口高时，胶囊贴着<b>窗口里可见部分的上沿</b>，指针在这篇文章里的任何位置，胶囊都在视野里；滚动时立即收起，停下后重新出现。',
-      '整篇文章靠上面的 ⌃ 或区块模式选到，不会在每一段正文上自动弹出：段落的目标是它所在的一节。',
+      '整篇文章用区块模式选到，不会在每一段正文上自动弹出：段落的目标是它所在的一节。',
     ],
   })
 
@@ -212,11 +212,11 @@ Retries without a budget are just a slower way to take your dependency down. A s
         <div class="vs g6"><span class="t-xs muted">胶囊里的“更多”菜单</span>
           <div class="menu" style="width:230px">${menuItem('ban', '在 engineering.example.com 停用', { on: true })}${menuItem('eye-off', '关闭区块剪藏入口')}${menuItem('settings', '设置…')}</div></div>
       </div></div>`,
-    notes: ['区块模式：悬停描边、<kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> 在同层区块间移动、<kbd>↑</kbd> / <kbd>↓</kbd> 换层级、<kbd>Enter</kbd> 剪藏、<kbd>S</kbd> 截图、<kbd>Esc</kbd> 退出；模式胶囊用文字说明当前的区块类型和这些按键，读屏会读出区块类型与摘要。', '悬停入口默认开启，才能被发现；整体关闭与按网站停用把干扰交给用户。设置里的开关与胶囊里的“更多”菜单是同一个状态。'],
+    notes: ['区块模式：悬停描边、<kbd>Tab</kbd> / <kbd>Shift+Tab</kbd> 在同层区块间移动、<kbd>↑</kbd> / <kbd>↓</kbd> 换层级、<kbd>Enter</kbd> 剪藏、<kbd>S</kbd> 截图、<kbd>D</kbd> 下载、<kbd>Esc</kbd> 退出；模式胶囊用文字说明当前的区块类型和这些按键，读屏会读出区块类型与摘要。', '悬停入口默认开启，才能被发现；整体关闭与按网站停用把干扰交给用户。设置里的开关与胶囊里的“更多”菜单是同一个状态。'],
   })
 
   return group(
-    { id: 'ext-block', title: '区块剪藏：指一下就留下整块', small: 'capture §6.2', desc: '帖子、代码块、一节、整篇文章这样的整体内容，不必先拖选：指针停在上面，旁边出现胶囊「剪藏 | 截图 | 上一级 | 更多」。入口只是浮层，不改网页；位置避开页面自己的控件。' },
+    { id: 'ext-block', title: '区块剪藏：指一下就留下整块', small: 'capture §6.2', desc: '帖子、代码块、一节、整篇文章这样的整体内容，不必先拖选：指针停在上面，旁边出现胶囊：四个只带图标的按钮（剪藏、截图、下载、更多）。入口只是浮层，不改网页；位置避开页面自己的控件。' },
     row(hoverFeed, hoverCode),
     row(hoverTabs, hoverSection),
     row(tall),

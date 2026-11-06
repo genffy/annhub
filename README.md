@@ -43,16 +43,18 @@ AnnHub 只解决一条主链路：
                         │ chrome.runtime.sendMessage
 ┌───────────────────────▼─────────────────────────────┐
 │ Background Service Worker                           │
-│ Entries / Screenshot / Recording / System           │
+│ Entries / Screenshot / Recording / Download / System │
 │ (settings, metrics)                                 │
 └───────────────────────┬─────────────────────────────┘
                         │ domain API
 ┌───────────────────────▼─────────────────────────────┐
-│ learning-core                                       │
+│ core                                                │
 │ normalize / validate / query / store                │
 │ IndexedDB (annhub) / Markdown ZIP export            │
 └─────────────────────────────────────────────────────┘
 ```
+
+`core` 由后台、内容脚本、资料库与 offscreen 页面共同使用；消息权限与任务编排由后台负责，图片读取、整库导出和下载打包按各入口的运行环境执行。
 
 ## 项目结构
 
@@ -67,16 +69,18 @@ annhub/
 │   │   ├── annotation/          # 页面批注层与墨迹
 │   │   └── screenshot/          # 区域/元素/滚动长图截图与匿名处理
 │   ├── library/                 # 资料库页面（浏览、阅读与高亮、属性、设置；导出的 ZIP 在这里构造）
-│   ├── offscreen/               # 录制文档：tabCapture 流在这里收成 WebM
+│   ├── offscreen/               # 录制、按需正文提取、下载媒体取回与打包
 │   ├── options/                 # 设置页
 │   └── popup/                   # 工具栏弹窗兜底入口（批注与录制的入口）
 ├── background-service/
 │   └── services/
+│       ├── download/            # 页面与资料库下载编排、取消与恢复
 │       ├── entries/             # 条目/属性/高亮/查询消息门面
+│       ├── metrics/             # 本地指标的浏览器存储适配
 │       ├── recording/           # 标签页录制编排与下载
 │       ├── screenshot/          # 截取、跨域代取、下载
 │       └── system/              # 偏好与本地指标
-├── learning-core/               # 共享领域核心，纯 TypeScript
+├── core/                        # 共享领域核心，纯 TypeScript
 ├── types/                       # 消息协议
 ├── e2e/                         # Playwright 测试
 ├── docs/                        # 产品文档、设计稿与真机测试报告

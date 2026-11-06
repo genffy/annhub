@@ -2,10 +2,13 @@ import type { ExtensionMessage, ResponseMessage, BaseMessage } from '../../types
 import { Logger } from '../logger'
 
 /** Connection-level failures a retry can fix; anything else already ran. */
-const CONNECTION_ERROR_PATTERN = /Receiving end does not exist|message port closed|Extension context invalidated/i
+const RETRYABLE_PATTERN = /Receiving end does not exist|message port closed/i
+
+/** An update or reload left this page's content script orphaned: no retry can ever reach the worker. */
+const CONTEXT_INVALIDATED_PATTERN = /Extension context invalidated/i
 
 function isConnectionError(message: string): boolean {
-  return CONNECTION_ERROR_PATTERN.test(message)
+  return RETRYABLE_PATTERN.test(message)
 }
 
 export default class MessageUtils {
@@ -27,6 +30,12 @@ export default class MessageUtils {
         return response
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
+        // The extension was updated or reloaded while this page stayed open:
+        // fail once with a stable code the caller puts into words, never retry.
+        if (CONTEXT_INVALIDATED_PATTERN.test(errorMessage)) {
+          return this.createResponse<T>(false, undefined, 'EXTENSION_CONTEXT_INVALIDATED')
+        }
 
         // Only retry when the message never reached a handler. A handler that
         // ran and failed must not run again; SAVE_* is idempotent by requestId.

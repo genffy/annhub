@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { BUILTIN_PROPERTY_DEFINITIONS } from '../../../learning-core/properties'
-import type { PropertyDefinition } from '../../../learning-core/types'
+import { BUILTIN_PROPERTY_DEFINITIONS } from '../../../core/properties'
+import type { PropertyDefinition } from '../../../core/types'
 import { isFixedProperty, orderRegistry } from '../property-order'
 
 const custom = (name: string): PropertyDefinition => ({ name, type: 'text', builtin: false, presets: [] })

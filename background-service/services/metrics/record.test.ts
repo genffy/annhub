@@ -26,8 +26,8 @@ afterEach(() => {
 async function recorders() {
   vi.resetModules()
   const record = await import('./record')
-  const { QuotaError } = await import('../../../learning-core/store')
-  const { EntryValidationError } = await import('../../../learning-core/types')
+  const { QuotaError } = await import('../../../core/store')
+  const { EntryValidationError } = await import('../../../core/types')
   return { ...record, QuotaError, EntryValidationError }
 }
 

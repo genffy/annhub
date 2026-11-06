@@ -1216,7 +1216,7 @@
   margin-left: auto;
   width: 28px;
   height: 28px;
-  border-radius: 7px;
+  border-radius: 8px;
   display: grid;
   place-items: center;
   color: var(--fg-3);
@@ -1830,7 +1830,7 @@
   gap: 6px;
   min-height: 28px;
   padding: 0 9px;
-  border-radius: 7px;
+  border-radius: 8px;
   border: 1px solid var(--brand);
   box-shadow: 0 0 0 3px var(--ring);
   background: var(--surface);
@@ -2301,10 +2301,10 @@
   flex: 1;
   width: 100%;
   min-width: 0;
-  min-height: 28px;
+  min-height: 32px;
   padding: 0 8px;
   border: 1px solid transparent;
-  border-radius: 7px;
+  border-radius: 8px;
   background: transparent;
   color: var(--fg);
   font: inherit;
@@ -2562,9 +2562,9 @@
   right: 6px;
   display: inline-flex;
   align-items: center;
-  height: 30px;
+  height: 32px;
   padding: 0 3px;
-  gap: 1px;
+  gap: 2px;
   border-radius: 999px;
   background: #1b1f2a;
   color: #eceff6;
@@ -2578,9 +2578,10 @@
 .blk-pill .bp-seg {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 10px 0 9px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border-radius: 999px;
 }
 
@@ -2590,6 +2591,14 @@
   color: #b9a3f2;
 }
 
+.blk-pill .bp-seg-shot .i {
+  color: #9fd0ff;
+}
+
+.blk-pill .bp-seg-dl .i {
+  color: #8fd6b4;
+}
+
 .blk-pill.is-press .bp-seg {
   background: rgb(255 255 255 / 0.16);
 }
@@ -2597,8 +2606,8 @@
 .blk-pill .sub {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   color: #c9cfdd;
 }

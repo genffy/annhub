@@ -8,12 +8,15 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
-import type { EntryQuery, EntryQueryResult, PropertyCondition } from '../../learning-core/query'
-import type { EntryRecord, PropertyDefinition } from '../../learning-core/types'
-import { EntryStore, type LibraryFacets } from '../../learning-core/store'
-import { buildExport, exportFileName } from '../../learning-core/export'
-import { bucketCount } from '../../learning-core/metrics'
+import type { EntryQuery, EntryQueryResult, PropertyCondition } from '../../core/query'
+import type { EntryRecord, PropertyDefinition } from '../../core/types'
+import type { LibraryFacets } from '../../core/store'
+
 import { ExportDialog } from './export-dialog'
+import { DownloadsLayer } from './downloads-layer'
+import { SelectionToolbar } from './selection-toolbar'
+import { useSelectionController } from './selection-controller'
+import { runExport } from './export-run'
 import { DetailDrawer } from './detail-drawer'
 import { EntryCard, propertyPills } from './entry-card'
 import { NAV_FOLDED_KEY, readNavFold, SideNav, useNarrowWindow } from './side-nav'
@@ -22,11 +25,11 @@ import { emptyState, onNavKeyDown } from './library-view-helpers'
 import { PropertiesView } from './properties-view'
 import { SettingsView } from './settings-view'
 import { ReadingView } from './reading-view'
-import type { HighlightQuery, HighlightQueryResult } from '../../learning-core/query'
-import type { HighlightColor } from '../../learning-core/types'
+import type { HighlightQuery, HighlightQueryResult } from '../../core/query'
+import type { HighlightColor } from '../../core/types'
 import { relativeTime } from '../../utils/relative-time'
-import { currentUiLanguage, uiText } from '../../utils/ui-text'
-import { exportFailureKey, type ExportStage } from './export-error'
+import { uiText } from '../../utils/ui-text'
+
 import { buildCondition, localDayRange, PAGE_SIZE, recordQueried, SEARCH_DEBOUNCE_MS } from './library-queries'
 import { isListView, listHash, readHash, readHashFor, type FilterState, type RouteState, type View } from './route'
 import { ArrowUpRight, MessageSquareText } from 'lucide-react'
@@ -356,6 +359,32 @@ export default function App() {
     })
   }, [refreshCounts])
 
+  const closeDrawer = useCallback(() => {
+    if (!route.entryId) return
+    const next = { ...route, entryId: null }
+    history.replaceState(null, '', listHash(next))
+    setRoute(next)
+  }, [route])
+
+  /** Entering selection saves the open drawer's pending edit before closing it (root AGENTS rule 5). */
+  const beforeSelection = useCallback(async (): Promise<boolean> => {
+    const from = routeRef.current
+    if ((await activeFlush.current?.()) === false) return false
+    if (routeRef.current !== from) return false
+    closeDrawer()
+    return true
+  }, [closeDrawer])
+
+  const selection = useSelectionController({
+    listQueryKey,
+    items,
+    total,
+    queryFor: () => queryFor(route),
+    beforeEnter: beforeSelection,
+    escapeBlocked: Boolean(route.entryId || route.readId || exportDialogOpen),
+  })
+  const { selecting, selectedIds, download: libraryDownload } = selection
+
   const openEntry = useCallback(
     async (entry: EntryRecord) => {
       drawerTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -370,44 +399,11 @@ export default function App() {
     setExportState('busy')
     setExportError('')
     setExportMissing([])
-    const store = new EntryStore('annhub')
-    let stage: ExportStage = 'build'
-    try {
-      await store.initialize()
-      const exportedAt = Date.now()
-      const summary = await buildExport({
-        exportedAt,
-        lang: currentUiLanguage(),
-        entries: await store.listEntries(),
-        registry: await store.listPropertyDefinitions(),
-        readAsset: async assetId => {
-          const asset = await store.getAsset(assetId)
-          return asset ? { metadata: asset.metadata, bytes: asset.bytes } : undefined
-        },
-      })
-      const url = URL.createObjectURL(summary.blob)
-      stage = 'download'
-      try {
-        await chrome.downloads.download({ url, filename: exportFileName(exportedAt), saveAs: false })
-      } catch (error) {
-        URL.revokeObjectURL(url)
-        throw error
-      }
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
-      void MessageUtils.sendMessage({
-        type: 'RECORD_EVENT',
-        name: 'export.completed',
-        props: { result: summary.result, missing_assets: bucketCount(summary.missingAssets.length) },
-      })
-      setExportSummary(uiText('library.exportSummary', { clips: summary.clips, screenshots: summary.screenshots, missing: summary.missingAssets.length }))
-      setExportMissing(summary.missingAssets)
-      setExportState(summary.result === 'full' ? 'done' : 'partial')
-    } catch (error) {
-      setExportError(uiText(exportFailureKey(error, stage)))
-      setExportState('failed')
-    } finally {
-      await store.close()
-    }
+    const outcome = await runExport()
+    setExportState(outcome.state)
+    setExportSummary(outcome.summary)
+    setExportMissing(outcome.missing)
+    setExportError(outcome.error)
   }, [])
 
   /**
@@ -421,7 +417,7 @@ export default function App() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== '/' || event.isComposing || event.ctrlKey || event.metaKey || event.altKey) return
-      if (!isListView(route.view) || route.readId || route.entryId) return
+      if (!isListView(route.view) || route.readId || route.entryId || selecting) return
       const active = document.activeElement
       if (active instanceof HTMLElement && (active.closest('input, textarea, select, [contenteditable]') !== null || active.isContentEditable)) return
       event.preventDefault()
@@ -429,7 +425,7 @@ export default function App() {
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [route.view, route.readId, route.entryId])
+  }, [route.view, route.readId, route.entryId, selecting])
 
   return (
     <div className={`shell${rail ? ' is-rail' : ''}`}>
@@ -473,6 +469,14 @@ export default function App() {
                 setFilter={setFilter}
                 countsReady={countsReady}
                 guideDismissed={guideDismissed}
+                {...(route.view !== 'highlights'
+                  ? {
+                      selecting,
+                      onToggleSelection: selection.toggleSelection,
+                      selectButtonRef: selection.selectButtonRef,
+                      ...(selecting ? { selectionBar: <SelectionToolbar controller={selection} /> } : {}),
+                    }
+                  : {})}
                 onDismissGuide={() => {
                   localStorage.setItem('annhub.guideDismissed', '1')
                   setGuideDismissed(true)
@@ -566,9 +570,13 @@ export default function App() {
                             key={entry.id}
                             entry={entry}
                             registry={registry}
-                            selected={route.entryId === entry.id}
+                            selected={!selecting && route.entryId === entry.id}
                             onOpen={() => void openEntry(entry)}
-                            onChanged={route.view === 'screenshots' ? reload : undefined}
+                            onChanged={!selecting && route.view === 'screenshots' ? reload : undefined}
+                            selecting={selecting}
+                            checked={selectedIds.includes(entry.id)}
+                            atCap={selection.atCap}
+                            onToggleSelect={shift => selection.toggleEntrySelection(entry, shift)}
                           />
                         ))}
                       </ul>
@@ -624,8 +632,12 @@ export default function App() {
             }}
             onEntryChanged={() => reload()}
             registerFlush={registerFlush}
+            download={libraryDownload}
           />
         )}
+
+        {/* the single-entry status bar floats over the list, the drawer and the reading column (download.md §3.1) */}
+        <DownloadsLayer controller={selection} />
       </main>
 
       {route.entryId && !route.readId && (
@@ -634,11 +646,7 @@ export default function App() {
           entryId={route.entryId}
           defaultColor={defaultColor}
           registry={registry}
-          onClose={() => {
-            const next = { ...route, entryId: null }
-            history.replaceState(null, '', listHash(next))
-            setRoute(next)
-          }}
+          onClose={closeDrawer}
           onDeleted={reload}
           onEntryChanged={reload}
           registerFlush={registerFlush}
@@ -646,6 +654,7 @@ export default function App() {
             returnHashRef.current = location.hash
             location.hash = readHashFor(id)
           }}
+          download={libraryDownload}
         />
       )}
 
@@ -667,13 +676,3 @@ export default function App() {
     </div>
   )
 }
-
-/** As much of a clip as its card shows: the first lines, and the card cuts them off where its box ends. */
-
-/** How many custom-property pills a card and a highlight row show (extension.md §2.3). */
-
-/**
- * The custom properties a card shows as small pills (extension.md §2.3): the entry's own values, not new
- * fields — the registry's order among the user's properties, at most two, a checkbox only when it is on, a
- * long value ellipsized by the pill itself. A list property shows its first item.
- */

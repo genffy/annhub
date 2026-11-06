@@ -2,6 +2,7 @@ import { Logger } from '../utils/logger'
 import { ServiceManager, type IService } from './service-manager'
 import { EventHandlerManager } from './event-handlers'
 import { EntryService } from './services/entries'
+import { DownloadService } from './services/download'
 import { RecordingService } from './services/recording'
 import { ScreenshotService } from './services/screenshot'
 import { SystemService } from './services/system'
@@ -36,7 +37,13 @@ export class BackgroundServiceManager {
     if (this.initialized) return
 
     if (!this.servicesRegistered) {
-      const services: IService[] = [EntryService.getInstance(), ScreenshotService.getInstance(), RecordingService.getInstance(), SystemService.getInstance()]
+      const services: IService[] = [
+        EntryService.getInstance(),
+        ScreenshotService.getInstance(),
+        RecordingService.getInstance(),
+        DownloadService.getInstance(),
+        SystemService.getInstance(),
+      ]
       this.serviceManager.registerServices(services)
       this.servicesRegistered = true
     }

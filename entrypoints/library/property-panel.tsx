@@ -12,9 +12,9 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { Lock, Plus } from 'lucide-react'
 import MessageUtils from '../../utils/message'
-import type { EntryRecord, PropertyDefinition, PropertyType, PropertyValue } from '../../learning-core/types'
+import type { EntryRecord, PropertyDefinition, PropertyType, PropertyValue } from '../../core/types'
 import { PROPERTY_TYPE_ICONS } from '../../utils/entry-icons'
-import { normalizeTags, PROPERTY_LIST_ITEM_MAX, PROPERTY_LIST_ITEMS_MAX, PROPERTY_TEXT_MAX, TAG_LENGTH_MAX, TAGS_MAX } from '../../learning-core/properties'
+import { normalizeTags, PROPERTY_LIST_ITEM_MAX, PROPERTY_LIST_ITEMS_MAX, PROPERTY_TEXT_MAX, TAG_LENGTH_MAX, TAGS_MAX } from '../../core/properties'
 import { PropertyTypePicker } from './property-type-picker'
 import { entryErrorText, uiText } from '../../utils/ui-text'
 

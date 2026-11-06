@@ -10,7 +10,7 @@ export const zhCN: LandingCopy = {
     description: 'AnnHub 是本地优先的浏览器扩展：把剪藏、高亮和截图连同来源存进同一个本地库，用属性分类、随时找回，并导出为 Obsidian 读得懂的 Markdown。',
     ogImageAlt: '界面示意，使用示例数据',
     operatingSystem: 'Chromium {version} 及以上内核的桌面浏览器',
-    updated: '2026-11-01',
+    updated: '2026-11-06',
   },
   header: {
     nav: [
@@ -174,12 +174,12 @@ export const zhCN: LandingCopy = {
     items: [
       { title: '断网照常用', body: '采集、阅读、检索、整理和导出都不依赖网络。' },
       { title: '不默认上传', body: '正文、URL、标题和你整理的内容不会发往 AnnHub 或任何第三方。' },
-      { title: '只读你指认的内容', body: '只在你选中文字、指一下整块或框选截图时读取页面，不读取你没有指认的内容。' },
+      { title: '只读你指认的内容', body: '读取范围由你的操作指定：选中文字、指认区块、框选截图，或明确请求下载正文。' },
       { title: '带得走', body: '导出 Markdown 和已保存的原图（一个 ZIP），属性是 frontmatter。ZIP 供其他工具阅读，不是 AnnHub 数据库的备份。' },
     ],
     exception: {
       title: '唯一的出站请求',
-      body: '截图时，扩展后台会代取页面里引用的那张跨域图片，才能把原图存下来：不带凭据，只接受公网地址。剪藏里的图片只保留原地址，阅读时不联网加载。',
+      body: '扩展后台只在你的点击之后取回页面自己引用的内容：截图里的跨域图片，以及 Markdown 下载里的图片与直链视频、音频。不带凭据，只接受公网地址，并有数量与大小上限。剪藏入库时图片只保留原地址，阅读时不联网加载。',
     },
     link: '阅读隐私政策',
     diagram: {
@@ -188,7 +188,7 @@ export const zhCN: LandingCopy = {
       settings: 'chrome.storage · 设置与本地指标',
       server: 'AnnHub 服务器',
       none: '没有',
-      fetch: '截图时代取页面里的图片',
+      fetch: '截图时代取页面里的图片，下载时取回媒体',
       page: '你正在读的网页',
     },
   },
@@ -216,7 +216,7 @@ export const zhCN: LandingCopy = {
       { q: '录屏会上传吗？视频存在哪里？', a: '不上传，也没有账号。停止录制后视频自动下载为本机的 WebM 文件；它不是条目，不进资料库，也不进“导出内容”的 ZIP。' },
       {
         q: '为什么需要 tabCapture 与 offscreen 权限？',
-        a: '都只在录制时用：`tabCapture` 录制当前标签页的画面与声音，`offscreen` 让录制在扩展自己的后台文档里进行。录制只能从工具栏弹窗或快捷键开始。',
+        a: '`tabCapture` 录制当前标签页的画面与声音，录制只能从工具栏弹窗或快捷键开始。`offscreen` 让录制、下载正文提取和媒体打包在扩展自己的后台文档里进行（数据边界见隐私政策）。',
       },
       {
         q: '最低需要什么浏览器版本？',
@@ -257,7 +257,7 @@ export const zhCN: LandingCopy = {
     menu: { clip: '剪藏', screenshot: '截图', clipHint: '保存选中的内容，之后在资料库里读和高亮', screenshotHint: '框选区域或单击元素 · 保存为图片' },
     toast: { clipped: '已剪藏', undo: '撤销', edit: '编辑', undone: '已撤销' },
     edit: { title: '标题', tags: '标签', note: '备注', more: '更多属性', done: '完成', addTag: '添加标签…', blurNote: '失焦即保存' },
-    block: { clip: '剪藏', shot: '截图', parent: '上一级', more: '更多', clipped: '已剪藏' },
+    block: { clip: '剪藏', shot: '截图', download: '下载', more: '更多', clipped: '已剪藏' },
     shot: {
       hint: '拖拽选择区域，单击选择元素 · Esc 取消',
       anonymousOn: '匿名 开 · 已遮挡 2 处',

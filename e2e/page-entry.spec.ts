@@ -88,7 +88,8 @@ test.describe('the dark bars stay dark whatever the system (visual.md §2)', () 
         height: node.getBoundingClientRect().height,
         radius: getComputedStyle(node).borderRadius,
       }))
-      const ratios = await textContrast(capsule.locator('.ann-blk-seg'))
+      // icon-only: the icon colour is the capsule's "text"
+      const ratios = await textContrast(capsule.locator('.ann-blk-seg svg'))
       return { ...styles, ratios }
     }
     const light = await readCapsule()
@@ -96,9 +97,9 @@ test.describe('the dark bars stay dark whatever the system (visual.md §2)', () 
     const dark = await readCapsule()
     expect(dark.bg).toBe('rgb(27, 31, 42)')
     expect(dark.bg).toBe(light.bg)
-    expect(dark.height, 'the capsule is a 30px pill').toBeCloseTo(30, 0)
+    expect(dark.height, 'the capsule is a 32px pill').toBeCloseTo(32, 0)
     expect(dark.radius).toBe('999px')
-    for (const ratio of dark.ratios) expect(ratio, 'a capsule label').toBeGreaterThanOrEqual(4.5)
+    for (const ratio of dark.ratios) expect(ratio, 'a capsule icon').toBeGreaterThanOrEqual(4.5)
   })
 })
 

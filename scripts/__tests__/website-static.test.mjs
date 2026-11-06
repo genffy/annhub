@@ -50,6 +50,20 @@ function fixture() {
 }
 
 describe('the deployed static artifact', () => {
+  it('resolves URL-encoded chunk paths and still rejects missing files or escaped paths', () => {
+    const directory = fixture()
+    const page = join(directory, 'en.html')
+    const original = readFileSync(page, 'utf8')
+    writeFileSync(join(directory, '_next/[locale].js'), 'chunk')
+    writeFileSync(page, original.replace('/_next/app.js', '/_next/%5Blocale%5D.js'))
+    expect(() => checkWebsiteExport({ directory })).not.toThrow()
+    rmSync(join(directory, '_next/[locale].js'))
+    expect(() => checkWebsiteExport({ directory })).toThrow('Broken static asset')
+    writeFileSync(join(directory, 'outside.js'), 'outside')
+    writeFileSync(page, original.replace('/_next/app.js', '/_next/%2e%2e/outside.js'))
+    expect(() => checkWebsiteExport({ directory })).toThrow('outside _next')
+  })
+
   it('requires the exact verified production revision', () => {
     const directory = fixture()
     expect(checkWebsiteExport({ directory, revision: 'a'.repeat(40), production: true }).analytics).toBe(true)
