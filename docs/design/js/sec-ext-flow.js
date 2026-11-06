@@ -24,7 +24,7 @@ function extFlowGroup() {
     w: 760,
     body: miniView(`${article({ sel: 'sel' })}${hoverMenu({ anchor: '.the-sel', hover: 0, pin: 1, tip: `${tipFor('clip')}${pin(2, 'pin-b')}` })}`, 400),
     notes: [
-      '选区菜单只有<b>两项</b>：剪藏、截图，顺序固定；每项是图标 + 短文本，不依赖位置。图标带各自类型的色相，但<b>文字始终在</b>。<b>菜单里没有高亮</b>：划重点发生在资料库里读剪藏的时候。',
+      '选区菜单只有<b>两项</b>：剪藏、截图，顺序固定；每项只有一个图标（30px 方形），名词在悬停/聚焦的后果卡片与读屏名称里。图标带各自类型的色相。<b>菜单里没有高亮</b>：划重点发生在资料库里读剪藏的时候。',
       '悬停或键盘聚焦约 300ms，动作旁出现一句后果，让两种保存方式的差别在入口就看得见。',
       '<b>没有表单，没有“稍后整理”</b>：剪藏一次点击完成；阅读、高亮、标签和属性都放到保存之后。',
     ],
@@ -40,7 +40,7 @@ function extFlowGroup() {
         <div class="vs g10"><div class="mh b t-sm muted">English UI</div><div style="position:relative;padding-top:58px">${hoverMenu({ static: true, lang: 'en', hover: 0, tip: tipFor('clip', 'en') })}</div></div>
         <div class="help">界面语言随浏览器界面语言：中文系语言显示中文，其他语言显示英文，没有手动切换。每条文案同时给出两种语言，保存到条目里的用户内容不翻译。</div>
       </div></div>`,
-    notes: ['英文界面的菜单项同样是名词：Clip / Screenshot。悬停提示也成对给出（“Save what you selected; read and highlight it in the library later”）。'],
+    notes: ['英文界面的菜单只有两个图标，名词在提示与读屏名称里：Clip / Screenshot。悬停提示也成对给出（“Save what you selected; read and highlight it in the library later”）。'],
   })
 
   const cell = (h, ...c) => `<tr><td>${h}</td>${c.map(x => `<td>${x}</td>`).join('')}</tr>`

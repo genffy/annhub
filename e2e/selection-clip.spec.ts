@@ -13,8 +13,9 @@ test.describe('selection clip (capture.md §6.1, extension.md §2.1)', () => {
 
     const actions = menu.locator('.ann-menu-action')
     await expect(actions).toHaveCount(2)
-    await expect(actions.nth(0)).toHaveText(/剪藏/)
-    await expect(actions.nth(1)).toHaveText(/截图/)
+    await expect(actions.nth(0)).toHaveAccessibleName('剪藏')
+    await expect(actions.nth(1)).toHaveAccessibleName('截图')
+    await expect(actions.nth(0)).toHaveAttribute('title', '剪藏')
 
     await actions.nth(0).click()
     const toast = await waitForClipToast(page)
