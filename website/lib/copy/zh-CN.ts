@@ -54,7 +54,9 @@ export const zhCN: LandingCopy = {
       { id: 'screenshot', name: '截图', body: '框选或点选，原位标注，遮住身份信息；长文章能拼成一张整页长图。', caption: '截图选区里的标注与工具栏' },
       { id: 'highlight', name: '高亮', body: '回到资料库里读剪藏，选中重点、写下想法；不改动原网页。', caption: '在资料库里选中文字，点一种颜色划高亮' },
     ],
-    unified: { lead: '它们在同一个库里，用同一套属性分类、一起检索，导出为带 `frontmatter` 的 Markdown，高亮写成 `==…==`。' },
+    unified: {
+      lead: '它们在同一个库里，用同一套属性分类、一起检索，导出为带 `frontmatter` 的 Markdown，高亮写成 `==…==`；读到一篇文章，也能一次点击连同图片取成一个断网可读的 Markdown 文件夹。',
+    },
   },
   annotate: {
     title: '讲解一个界面：画在页面上，或录下来',
@@ -175,7 +177,10 @@ export const zhCN: LandingCopy = {
       { title: '断网照常用', body: '采集、阅读、检索、整理和导出都不依赖网络。' },
       { title: '不默认上传', body: '正文、URL、标题和你整理的内容不会发往 AnnHub 或任何第三方。' },
       { title: '只读你指认的内容', body: '读取范围由你的操作指定：选中文字、指认区块、框选截图，或明确请求下载正文。' },
-      { title: '带得走', body: '导出 Markdown 和已保存的原图（一个 ZIP），属性是 frontmatter。ZIP 供其他工具阅读，不是 AnnHub 数据库的备份。' },
+      {
+        title: '带得走',
+        body: '导出 Markdown 和已保存的原图（一个 ZIP），属性是 frontmatter；页面里的文章与库里选中的条目也能单独取成一个带图片的 Markdown 文件夹。ZIP 供其他工具阅读，不是 AnnHub 数据库的备份。',
+      },
     ],
     exception: {
       title: '唯一的出站请求',
@@ -212,6 +217,10 @@ export const zhCN: LandingCopy = {
       {
         q: '能导出吗？',
         a: '可以。在扩展里点“导出内容”，下载由 Markdown 与已保存图片组成的 ZIP，属性写成 frontmatter。它适合其他工具阅读，不是可以恢复 AnnHub 数据库的备份。',
+      },
+      {
+        q: '能把一篇文章单独取成文件吗？',
+        a: '可以。在页面上指一块内容，或在资料库里选中条目，点下载就得到按标题命名的 Markdown 文件夹：正文是 Markdown，图片在同一文件夹里，断网也能读；下载不建条目。',
       },
       { q: '录屏会上传吗？视频存在哪里？', a: '不上传，也没有账号。停止录制后视频自动下载为本机的 WebM 文件；它不是条目，不进资料库，也不进“导出内容”的 ZIP。' },
       {

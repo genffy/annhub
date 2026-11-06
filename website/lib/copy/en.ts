@@ -79,7 +79,7 @@ export const en: LandingCopy = {
       },
     ],
     unified: {
-      lead: 'They live in one library, share one set of properties, are searched together, and export as Markdown with `frontmatter`, with highlights written as `==…==`.',
+      lead: 'They live in one library, share one set of properties, are searched together, and export as Markdown with `frontmatter`, with highlights written as `==…==`. Read one article and take it out as a self-contained Markdown folder — images included, readable offline.',
     },
   },
   annotate: {
@@ -221,7 +221,7 @@ export const en: LandingCopy = {
       },
       {
         title: 'Yours to take',
-        body: 'Export Markdown and your saved original images as one ZIP; properties become frontmatter. The ZIP is for reading in other tools; it is not a backup of the AnnHub database.',
+        body: 'Export Markdown and your saved original images as one ZIP; properties become frontmatter. A page’s article, or the entries you select in the library, can also come out as one Markdown folder with its images. The ZIP is for reading in other tools; it is not a backup of the AnnHub database.',
       },
     ],
     exception: {
@@ -262,6 +262,10 @@ export const en: LandingCopy = {
       {
         q: 'Can I export?',
         a: 'Yes. Click “Export content” in the extension to download a ZIP of Markdown files and your saved images, with properties written as frontmatter. It is meant for reading in other tools; it is not a backup that restores the AnnHub database.',
+      },
+      {
+        q: 'Can I take one article out as a file?',
+        a: 'Yes. Point at a block on a page, or select entries in the library, and download gives you a Markdown folder named after the title: the text as Markdown with its images beside it, readable offline. A download creates no entry.',
       },
       {
         q: 'Is the screen recording uploaded? Where does the video go?',
