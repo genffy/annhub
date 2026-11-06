@@ -7,12 +7,12 @@
  * editing here.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowUpRight, CircleStop, Info, Mic, PenLine, Video } from 'lucide-react'
+import { ArrowUpRight, CircleStop, Download, Info, Mic, PenLine, Video } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import MessageUtils from '../../utils/message'
 import type { RecordingState } from '../../types/messages'
-import type { EntryQueryResult, HighlightQueryResult } from '../../learning-core/query'
-import type { EntryRecord } from '../../learning-core/types'
+import type { EntryQueryResult, HighlightQueryResult } from '../../core/query'
+import type { EntryRecord } from '../../core/types'
 import { relativeTime } from '../../utils/relative-time'
 import { uiText } from '../../utils/ui-text'
 import { extensionPageUrl } from '../../utils/extension-pages'
@@ -171,6 +171,14 @@ export default function App() {
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!active?.id) return
     await chrome.tabs.sendMessage(active.id, { type: 'TRIGGER_ANNOTATE' }, { frameId: 0 }).catch(() => undefined)
+    window.close()
+  }, [])
+
+  // the page finds its main article and runs the download; its notice bar carries the progress (download.md §2.3)
+  const downloadThisPage = useCallback(async () => {
+    const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
+    if (!active?.id) return
+    await chrome.tabs.sendMessage(active.id, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' }, { frameId: 0 }).catch(() => undefined)
     window.close()
   }, [])
 
@@ -337,6 +345,16 @@ export default function App() {
               >
                 <Video size={14} aria-hidden />
                 {uiText('popup.record')}
+              </button>
+              <button
+                type="button"
+                data-ann-ui="popup-download"
+                disabled={!canAnnotate}
+                title={canAnnotate ? uiText('popup.download') : uiText('popup.download.restricted')}
+                onClick={() => void downloadThisPage()}
+              >
+                <Download size={14} aria-hidden />
+                {uiText('popup.download')}
               </button>
               <label className="popup-mic" data-ann-ui="popup-mic">
                 <input type="checkbox" checked={withMic} onChange={event => toggleMic(event.target.checked)} />

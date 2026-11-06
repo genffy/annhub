@@ -15,12 +15,13 @@ import { setCursorHighlight, type CursorHighlightSettings } from './cursor-highl
 import { isClipFailure, saveBlockClip, savePlainTextSelection, saveSelectionClip, showClipToast, showFailureToast, type ClipOrigin } from './clip-flow'
 import { SelectionMenu, plainTextForSelection, selectableRange } from './selection-menu'
 import { enterScreenshotMode, isScreenshotSessionActive, notifyScreenshotSession } from './screenshot'
+import { downloadBlock, downloadMainArticle, onDownloadNotice } from './download-flow'
 import { isUserInput } from './user-input'
 import { uiText } from '../../utils/ui-text'
-import { normalizeHost } from '../../learning-core/normalize'
+import { normalizeHost } from '../../core/normalize'
 import MessageUtils from '../../utils/message'
 import { Logger } from '../../utils/logger'
-import { newEntryId } from '../../learning-core/assets'
+import { newEntryId } from '../../core/assets'
 import './content.css'
 
 let selectionMenu: SelectionMenu | null = null
@@ -183,6 +184,10 @@ function wireBlockEntries(): void {
             onScreenshot: (candidate: BlockCandidate) => {
               enterScreenshotMode({ via: 'block', element: candidate.element })
             },
+            // the download entry belongs to the top frame like the screenshot's (download.md §2.1)
+            onDownload: (candidate: BlockCandidate) => {
+              downloadBlock(candidate, 'capsule')
+            },
           }
         : {}),
       onDisableSite: () => {
@@ -305,7 +310,7 @@ export default defineContentScript({
     wireCursorHighlight()
 
     chrome.runtime.onMessage.addListener(message => {
-      // the shortcut belongs to the top frame; a child frame that still hears it stays out of it
+      // the shortcuts and notices belong to the top frame; a child frame that still hears them stays out of it
       if (!isTopFrame()) return
       if (message?.type === 'TRIGGER_SCREENSHOT') {
         // the screenshot shortcut carries the ink, like the layer's own button (annotate.md §1.1)
@@ -325,6 +330,10 @@ export default defineContentScript({
         blockEntries?.enterBlockMode()
       }
       if (message?.type === 'TRIGGER_ANNOTATE') toggleAnnotationLayer()
+      // the popup's button and the unbound command: the page's main article (download.md §2.3)
+      if (message?.type === 'TRIGGER_DOWNLOAD_MAIN') void downloadMainArticle(message.via === 'command' ? 'command' : 'popup')
+      // the worker's reports about this tab's download (download.md §2.5)
+      if (message?.type === 'DOWNLOAD_NOTICE') onDownloadNotice(message)
     })
 
     Logger.info('[AnnHub] Content script ready')

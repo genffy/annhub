@@ -24,6 +24,7 @@ export type MetricEventName =
   | 'screenshot.copied'
   | 'screenshot.downloaded'
   | 'recording.downloaded'
+  | 'download.completed'
 
 /**
  * Bucketing (metrics.md §9): durations and counts never travel as raw numbers.
@@ -103,6 +104,16 @@ const EVENT_FIELDS: Record<MetricEventName, Record<string, PropertyCheck>> = {
   'screenshot.copied': { watermark: isBoolean, beautify: isBoolean },
   'screenshot.downloaded': { format: oneOf(['png', 'jpeg', 'webp']), watermark: isBoolean, beautify: isBoolean },
   'recording.downloaded': { duration: oneOf(RECORDING_DURATION_BUCKETS), mic: isBoolean, stopped_by: oneOf(['user', 'tab_closed', 'limit']) },
+  'download.completed': {
+    source: oneOf(['page', 'library']),
+    via: oneOf(['capsule', 'block_mode', 'popup', 'command', 'drawer', 'reading', 'selection']),
+    scope: oneOf(['block', 'page', 'entry', 'multi']),
+    form: oneOf(['folder', 'zip']),
+    block_kind: oneOf(['post', 'code', 'table', 'figure', 'quote', 'section', 'article']),
+    result: oneOf(['ok', 'partial', 'failed', 'cancelled']),
+    media: countBucket,
+    missing: countBucket,
+  },
 }
 
 export function validateMetricEvent(event: unknown, props: unknown): void {
@@ -287,6 +298,15 @@ export interface MetricSummaries {
   frameReuse: RateSummary
   /** M-31: recordings downloaded in the last 14 days, with their microphone share and stop reasons. */
   recordingUse: { downloads: number; withMic: number; stoppedBy: { user: number; tab_closed: number; limit: number } }
+  /** M-32: downloads completed in the last 14 days by source and form, and this install's share-of-users reading. */
+  downloadUse: {
+    downloads: number
+    cancelled: number
+    failed: number
+    bySource: { page: number; library: number }
+    byForm: { folder: number; zip: number }
+    use: HabitSummary
+  }
 }
 
 /** What `GET_METRICS` answers: the per-event totals and the §5 summaries in one read. */
@@ -448,5 +468,23 @@ export function metricSummaries(shape: MetricsStoreShape, now = Date.now()): Met
         limit: countEvents(shape, 'recording.downloaded', withProps({ stopped_by: 'limit' }), since14d),
       },
     },
+    downloadUse: (() => {
+      // “completed a download” reads as ok or partial; cancelled and failed do not (metrics.md §5, §9)
+      const completed = countEvents(shape, 'download.completed', props => props['result'] === 'ok' || props['result'] === 'partial', since14d)
+      return {
+        downloads: completed,
+        cancelled: countEvents(shape, 'download.completed', withProps({ result: 'cancelled' }), since14d),
+        failed: countEvents(shape, 'download.completed', withProps({ result: 'failed' }), since14d),
+        bySource: {
+          page: countEvents(shape, 'download.completed', withProps({ source: 'page' }), since14d),
+          library: countEvents(shape, 'download.completed', withProps({ source: 'library' }), since14d),
+        },
+        byForm: {
+          folder: countEvents(shape, 'download.completed', withProps({ form: 'folder' }), since14d),
+          zip: countEvents(shape, 'download.completed', withProps({ form: 'zip' }), since14d),
+        },
+        use: habit(completed, anyEvent14d),
+      }
+    })(),
   }
 }

@@ -1,5 +1,5 @@
-import { QuotaError } from '../../learning-core/store'
-import { EntryValidationError, type EntryErrorCode } from '../../learning-core/types'
+import { QuotaError } from '../../core/store'
+import { EntryValidationError, type EntryErrorCode } from '../../core/types'
 
 export function storageErrorCode(error: unknown): EntryErrorCode {
   if (error instanceof EntryValidationError) return error.code

@@ -12,7 +12,7 @@ import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '.
 import { readSettings } from '../../settings-schema'
 import MessageUtils from '../../../utils/message'
 import { Logger } from '../../../utils/logger'
-import { bucketRecordingDuration, type RecordingDurationBucket } from '../../../learning-core/metrics'
+import { bucketRecordingDuration, type RecordingDurationBucket } from '../../../core/metrics'
 import { recordEvent } from '../metrics/record'
 
 const OFFSCREEN_URL = 'offscreen.html'

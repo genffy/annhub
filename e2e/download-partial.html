@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Partial media</title>
+    <meta name="author" content="Ada Example" />
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 40px auto; max-width: 640px; }
+      img { display: block; margin: 12px 0; }
+      .share img { display: inline; }
+    </style>
+  </head>
+  <body>
+    <article id="post">
+      <h1>Partial media</h1>
+      <p id="good">A picture that arrives. <img id="ok-img" src="http://media.annhub.test:8173/download-media.png" alt="" width="640" height="480" /></p>
+      <p id="bad">A picture that does not. <img id="missing-img" src="http://media.annhub.test:8173/not-there.png" alt="" width="640" height="480" /></p>
+      <!-- page chrome: the converter drops it by its class word, so the download must not fetch it (download.md §5.1) -->
+      <p class="share"><img id="share-img" src="http://media.annhub.test:8173/download-media.png?share" alt="" width="32" height="32" /></p>
+      <p>The end.</p>
+    </article>
+  </body>
+</html>

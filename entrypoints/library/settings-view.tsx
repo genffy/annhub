@@ -11,8 +11,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
 import type { ExtensionSettings, SettingsPatch } from '../../background-service/settings-schema'
-import { EntryStore, type OrphanReport } from '../../learning-core/store'
-import type { MetricsPanelData } from '../../learning-core/metrics'
+import { EntryStore, type OrphanReport } from '../../core/store'
+import type { MetricsPanelData } from '../../core/metrics'
 import {
   BEAUTIFY_BACKGROUND_IDS,
   BEAUTIFY_RADII,
@@ -27,7 +27,7 @@ import {
 } from '../content/screenshot/output'
 import { formatBytes } from '../../utils/format-bytes'
 import { uiText, type UiTextKey } from '../../utils/ui-text'
-import { HIGHLIGHT_COLORS, type HighlightColor } from '../../learning-core/types'
+import { HIGHLIGHT_COLORS, type HighlightColor } from '../../core/types'
 import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
 import { ANNOTATION_COLORS } from '../content/screenshot/editor'
 import { ExternalLink } from 'lucide-react'
@@ -39,6 +39,7 @@ import { SettingsSlider } from './settings-slider'
 import { SettingsCornerPicker } from './settings-posbox'
 import { SettingsCheckChip } from './settings-check-chip'
 import { SettingsSwatches } from './settings-swatches'
+import { DownloadCard } from './download-card'
 
 /** The browser commands the shortcut hint speaks of; the browser also lists the toolbar button's own command. */
 const SHORTCUT_COMMANDS: readonly string[] = [ANN_SCREENSHOT_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_ANNOTATE_COMMAND, ANN_RECORD_COMMAND]
@@ -749,6 +750,7 @@ export function SettingsView() {
               </div>
             </section>
             <ScreenshotCard settings={settings} patch={patch} />
+            <DownloadCard settings={settings} patch={patch} />
             <WatermarkCard settings={settings} patch={patch} />
             <BeautifyCard settings={settings} patch={patch} />
           </div>

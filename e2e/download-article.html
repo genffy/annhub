@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Exponential backoff, in practice</title>
+    <meta name="author" content="Ada Example" />
+    <meta name="description" content="How retries with jitter keep a fleet alive." />
+    <meta property="article:published_time" content="2026-10-12" />
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 40px auto; max-width: 640px; }
+      img, video { display: block; margin: 12px 0; }
+      .tracker { display: none; }
+    </style>
+  </head>
+  <body>
+    <nav><a href="/">Home</a></nav>
+    <article id="post">
+      <h1>Exponential backoff, in practice</h1>
+      <p id="intro-p">
+        Retries with jitter prevent retry storms.
+        <img id="chart" src="http://media.annhub.test:8173/download-media.png" alt="" width="640" height="480" />
+      </p>
+      <h2>Why jitter</h2>
+      <p id="section-body">
+        Without jitter every client retries on the same clock tick and the fleet synchronizes its load.
+        <img id="diagram" src="http://media.annhub.test:8173/download-media.png?slot=diagram" alt="" width="480" height="320" />
+      </p>
+      <h2>A recorded talk</h2>
+      <video id="talk" src="http://media.annhub.test:8173/download-media.mp4" width="640" height="360" controls></video>
+      <img class="tracker" src="http://media.annhub.test:8173/download-media.png?tracker" width="1" height="1" alt="" />
+      <iframe title="Embedded player" src="https://videos.example.com/embed/talk" width="640" height="360"></iframe>
+      <p>The end.</p>
+    </article>
+  </body>
+</html>

@@ -1,0 +1,407 @@
+/* 资料库里的选择与下载（download.md §3）：工具条槽、选择条、选中标记、状态条、下载对话框，以及本章画板的陈列件。 */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ── 工具条槽：筛选条与选择条在同一个位置互换，槽高不变，卡片因此不动 ───────────────── */
+.dl-slot {
+  --pad: 32px;
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  /* 槽铺满滚动区的宽度（抵消 .pbody 的左右内边距），卡片从它下面经过时不会从两侧露出来；
+     它自带 14px 的上内边距，所以带槽的 .pbody 不再有上内边距：sticky 的盒子出不了它的容器 */
+  margin: 0 calc(var(--pad) * -1);
+  padding: 14px var(--pad) 0;
+  background: var(--surface);
+}
+
+.pbody.has-slot {
+  padding-top: 0;
+}
+
+.app.is-narrow .dl-slot {
+  --pad: 20px;
+}
+
+.dl-slot.is-stuck {
+  box-shadow: 0 10px 12px -10px rgb(15 23 42 / 0.3);
+}
+
+.dl-slot-in {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+}
+
+.dl-slot-in > .fbar {
+  flex: 1;
+  min-height: 36px;
+}
+
+/* 页头：「选择」按下时是品牌色底；搜索框置灰 */
+.btn[aria-pressed='true'] {
+  background: color-mix(in oklab, var(--brand) 12%, var(--surface));
+  border-color: color-mix(in oklab, var(--brand) 50%, var(--surface));
+  color: var(--brand-text);
+}
+
+.search.is-off {
+  background: var(--surface-2);
+  color: var(--fg-4);
+  opacity: 0.75;
+}
+
+/* ── 选择条：一行，高 36px，与筛选条同高 ─────────────────────────────────────────── */
+.dl-bar {
+  container-type: inline-size;
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 4px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in oklab, var(--brand) 30%, var(--surface));
+  background: color-mix(in oklab, var(--brand) 8%, var(--surface));
+}
+
+.dl-bar .btn {
+  flex: none;
+}
+
+.dl-n {
+  flex: none;
+  padding: 0 6px 0 2px;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.dl-all {
+  color: var(--brand-text);
+}
+
+/* 说明文字占中间的弹性位置：放不下时先被省略，再整体隐藏，行尾的主按钮始终靠右 */
+.dl-hint {
+  flex: 1;
+  min-width: 0;
+  padding: 0 8px;
+  overflow: hidden;
+  color: var(--fg-3);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@container (max-width: 560px) {
+  .dl-hint > span {
+    display: none;
+  }
+}
+
+@container (max-width: 430px) {
+  .dl-all .m {
+    display: none;
+  }
+}
+
+/* ── 卡片与选中标记：标记的圆心在卡片的角上，不进入内容区，不占布局 ─────────────────── */
+.dl-w {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+}
+
+.dl-w * {
+  user-select: none;
+}
+
+.dl-w > .ecard {
+  flex: 1;
+  min-width: 0;
+}
+
+.dl-mk {
+  position: absolute;
+  z-index: 3;
+  top: -10px;
+  left: -10px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  border: 1.5px solid var(--fg-4);
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 1px 3px rgb(15 23 42 / 0.2);
+  color: #fff;
+  pointer-events: none;
+}
+
+.dl-mk .i {
+  width: 12px;
+  height: 12px;
+  stroke-width: 3;
+  opacity: 0;
+}
+
+.dl-w:hover > .ecard,
+.dl-w.is-hov > .ecard {
+  border-color: color-mix(in oklab, var(--brand) 40%, var(--line));
+}
+
+.dl-w:hover .dl-mk,
+.dl-w.is-hov .dl-mk {
+  border-color: var(--brand);
+}
+
+.dl-w.is-on > .ecard {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 1px var(--brand);
+}
+
+.dl-w.is-on > .ecard .ec-b {
+  background: color-mix(in oklab, var(--brand) 7%, var(--surface));
+}
+
+.dl-w.is-on .dl-mk {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.dl-w.is-on .dl-mk .i {
+  opacity: 1;
+}
+
+/* 焦点环画在卡片上（见下），原型里通用的 outline 不再叠加 */
+.pa-root .dl-w:focus-visible {
+  outline: 0;
+}
+
+.dl-w:focus-visible > .ecard,
+.dl-w.is-focus > .ecard {
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 4px var(--ring);
+}
+
+.dl-w.is-on:focus-visible > .ecard,
+.dl-w.is-on.is-focus > .ecard {
+  box-shadow:
+    0 0 0 1px var(--brand),
+    0 0 0 3px var(--surface),
+    0 0 0 5px var(--ring);
+}
+
+/* 选满上限之后，未选中的卡片不可再选 */
+.dl-w.is-off {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.dl-w.is-off .dl-mk {
+  background: var(--surface-2);
+  border-style: dashed;
+}
+
+.dl-w .ec-prev,
+.dl-w .ec-b {
+  pointer-events: none;
+}
+
+/* ── 单条下载的状态条：浮在内容区底部，沿用页面里提示条的深色形态 ───────────────────── */
+.toast.dl-st {
+  gap: 10px;
+  padding-bottom: 9px;
+}
+
+.toast.dl-st.has-bar {
+  padding-bottom: 12px;
+}
+
+.toast.dl-st .i.spin {
+  color: #c9b8f5;
+}
+
+.toast.dl-st.is-warn .i {
+  color: oklch(0.82 0.14 80);
+}
+
+.toast.dl-st.is-info .i {
+  color: #c9b8f5;
+}
+
+.toast.dl-st .act {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-weight: 600;
+  color: #c9b8f5;
+}
+
+.toast.dl-st .act:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+.toast.dl-st .x {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: -2px;
+  border-radius: 6px;
+  color: #a9b1c4;
+}
+
+.toast.dl-st .x:hover {
+  background: rgb(255 255 255 / 0.1);
+}
+
+/* ── 下载对话框 ─────────────────────────────────────────────────────────────────── */
+.dl-sum {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 8px 0 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+}
+
+.dl-miss {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 10px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.dl-miss li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.dl-miss .u {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fg-2);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dl-miss .r {
+  flex: none;
+  color: var(--fg-3);
+}
+
+.dlg .seg > * {
+  cursor: default;
+}
+
+/* 保存位置是一个整体：放不下时整段换行，不从路径中间断开 */
+.dl-path {
+  white-space: nowrap;
+}
+
+.dlg .is-dim {
+  opacity: 0.5;
+}
+
+/* ── 本章画板的陈列件 ───────────────────────────────────────────────────────────── */
+.ex-frame {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.ex-cap {
+  margin-top: 8px;
+  color: var(--fg-3);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ex-cap b {
+  color: var(--fg);
+}
+
+/* 对位线：跨过两个面板的同一高度，说明卡片没有动 */
+.ex-gl {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  border-top: 1.5px dashed oklch(0.62 0.2 25);
+  pointer-events: none;
+}
+
+.ex-gl > span {
+  position: absolute;
+  right: 8px;
+  top: -9px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: oklch(0.62 0.2 25);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 18px;
+}
+
+.ex-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  background: var(--surface-3);
+  color: var(--fg-2);
+}
+
+.ex-badge.is-now {
+  background: color-mix(in oklab, var(--brand) 12%, var(--surface));
+  color: var(--brand-text);
+}
+
+.ex-keys {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: 0;
+  font-size: 13px;
+}
+
+.ex-keys > div {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.ex-keys .k {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}

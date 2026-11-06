@@ -1,7 +1,7 @@
 /**
  * Page text that reads like Markdown, pinned once for everything that reads what the converter writes
  * (RV-CORE-04, RK-13). The same cases run through the converter (content script), the search/quote readers
- * (learning-core) and the reading view (library): whichever of them stops agreeing with the others fails here,
+ * (core) and the reading view (library): whichever of them stops agreeing with the others fails here,
  * instead of showing up as a highlight that is off by one character in a clip nobody tested.
  *
  *   html      what the page has

@@ -21,6 +21,29 @@ export const settingsStrings = {
   'settings.shortcuts': { zh: '快捷键', en: 'Shortcuts' },
   'settings.screenshot': { zh: '截图输出', en: 'Screenshot output' },
   'settings.downloadFormat': { zh: '下载格式', en: 'Download format' },
+  'settings.download': { zh: '下载', en: 'Downloads' },
+  'metrics.m32.name': { zh: '下载使用率', en: 'Download use' },
+  'metrics.m32.none': { zh: '近 14 天没有完成过下载', en: 'No download completed in 14 days' },
+  'metrics.m32.value': {
+    zh: '近 14 天完成 {n} 次下载（页面 {page} · 资料库 {library}；文件夹 {folder} · ZIP {zip}）',
+    en: '{n} downloads in 14 days (page {page} · library {library}; folder {folder} · ZIP {zip})',
+  },
+  'settings.downloadForm': { zh: '形态', en: 'Form' },
+  'settings.downloadFormHint': {
+    zh: 'Markdown 下载落成浏览器下载目录里的文件夹，或一个 ZIP。',
+    en: "A Markdown download lands as a folder in the browser's download directory, or as one ZIP.",
+  },
+  'settings.downloadFolder': { zh: '文件夹', en: 'Folder' },
+  'settings.downloadZip': { zh: 'ZIP', en: 'ZIP' },
+  'settings.downloadMedia': { zh: '同时下载媒体', en: 'Also download media' },
+  'settings.downloadMediaHint': {
+    zh: '下载 Markdown 时一并取回页面里的图片与直链视频、音频（需要联网）。',
+    en: "Fetch the page's images and direct-link video and audio with the Markdown (needs the network).",
+  },
+  'settings.downloadAskNote': {
+    zh: '浏览器设置了“下载前询问每个文件的保存位置”时，文件夹形态会逐个弹出保存对话框，此时建议改用 ZIP。',
+    en: 'With the browser\'s "Ask where to save each file" on, the folder form prompts once per file — prefer ZIP then.',
+  },
   'settings.downloadFormatHint': {
     zh: '只作用于下载；入库和复制到剪贴板的图片始终是 PNG。',
     en: 'Applies to downloads only; saved and copied images are always PNG.',

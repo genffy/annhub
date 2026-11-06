@@ -252,6 +252,11 @@ textarea {
   white-space: nowrap;
 }
 
+/* 下载本页正文 takes the full row under the two page entries (extension.md §2.6): three half-width labels would not fit */
+.popup-actions-row [data-ann-ui='popup-download'] {
+  grid-column: 1 / -1;
+}
+
 /* the small frame the app's buttons share: outlined, with the icon beside the label */
 .popup-actions button {
   display: inline-flex;

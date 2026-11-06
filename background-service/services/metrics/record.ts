@@ -10,7 +10,7 @@ import {
   type MetricsPanelData,
   type MetricsStorage,
   type MetricsStoreShape,
-} from '../../../learning-core/metrics'
+} from '../../../core/metrics'
 import { storageErrorCode } from '../errors'
 
 let recorder: LocalMetrics | null = null

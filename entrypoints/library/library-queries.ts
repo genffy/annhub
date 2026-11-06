@@ -4,9 +4,9 @@
  * metrics.md §9). Moved verbatim from App.tsx when the file went over its byte budget.
  */
 import MessageUtils from '../../utils/message'
-import type { PropertyCondition } from '../../learning-core/query'
-import type { PropertyDefinition } from '../../learning-core/types'
-import { bucketCount } from '../../learning-core/metrics'
+import type { PropertyCondition } from '../../core/query'
+import type { PropertyDefinition } from '../../core/types'
+import { bucketCount } from '../../core/metrics'
 import type { RouteState } from './route'
 
 export function localDayRange(from: string, to: string): { createdFrom?: number; createdTo?: number } {

@@ -10,7 +10,7 @@ export const en: LandingCopy = {
     description: 'A local-first browser extension that keeps clips, highlights and screenshots with their source in one library, sorted by properties and exportable as Markdown.',
     ogImageAlt: 'Interface illustration with sample data',
     operatingSystem: 'Desktop browsers based on Chromium {version} or later',
-    updated: '2026-11-01',
+    updated: '2026-11-06',
   },
   header: {
     nav: [
@@ -217,7 +217,7 @@ export const en: LandingCopy = {
       { title: 'Nothing uploaded by default', body: 'Page text, URLs, titles and what you organise are never sent to AnnHub or any third party.' },
       {
         title: 'Reads only what you point at',
-        body: 'The extension reads a page only when you select text, point at a block or drag a screenshot, never anything you did not point at.',
+        body: 'The extension reads the content you choose through a text selection, a block, a screenshot or an explicit page download.',
       },
       {
         title: 'Yours to take',
@@ -225,8 +225,8 @@ export const en: LandingCopy = {
       },
     ],
     exception: {
-      title: 'The only outbound request',
-      body: 'When you screenshot an element, the extension’s background fetches the cross-origin image that the page itself references, so the original can be saved: no credentials, public addresses only. Images inside a clip keep only their original address and are never loaded while you read.',
+      title: 'The only outbound requests',
+      body: 'Two kinds of outbound requests leave the extension’s background, both only after your click and both only to addresses the page itself references: fetching the cross-origin image an element screenshot contains, and fetching the media a Markdown-folder download declares (images and direct-link video and audio). No credentials, public addresses only, with caps on count and size. Images inside a clip keep only their original address and are never loaded while you read.',
     },
     link: 'Read the privacy policy',
     diagram: {
@@ -235,7 +235,7 @@ export const en: LandingCopy = {
       settings: 'chrome.storage · settings & counters',
       server: 'AnnHub server',
       none: 'None',
-      fetch: 'Fetches the page’s own image for a screenshot',
+      fetch: 'Fetches the page’s own image for a screenshot, and its media for a download',
       page: 'The page you are reading',
     },
   },
@@ -269,7 +269,7 @@ export const en: LandingCopy = {
       },
       {
         q: 'Why does it need the tabCapture and offscreen permissions?',
-        a: 'Both are used only while recording: `tabCapture` captures the current tab’s picture and sound, and `offscreen` runs the recording in the extension’s own background document. A recording can only be started from the toolbar popup or a shortcut.',
+        a: '`tabCapture` captures the current tab’s picture and sound; recording starts only from the toolbar popup or a shortcut. `offscreen` runs recording, download article extraction and media packing in the extension’s own background document, under the data boundaries explained in the privacy policy.',
       },
       {
         q: 'What is the minimum browser version?',

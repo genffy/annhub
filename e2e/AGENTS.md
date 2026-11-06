@@ -10,6 +10,9 @@
 - 冷启动用 `helpers.ts` 的 `stopServiceWorker(context, page)`（CDP `ServiceWorker.stopAllWorkers`）真的停掉 worker，再断言空闲后的第一条消息立即成功（`cold-start.spec.ts`）；不要靠等待或重试掩盖冷启动。
 - 页面入口的边界（测试：`page-entry.spec.ts`）：可编辑区里不出菜单、`Enter` 只在 `Tab` 聚焦菜单项后触发、截图会话里单击链接不跳转。
 - 要在一条笔画里复现浏览器折叠的样点移动，用 CDP 的 `Input.dispatchMouseEvent` 不等回复地连发：每次 `await page.mouse.move` 都是各自一个事件，折叠不起来。批注层与录制的用例见 `page-annotation.spec.ts`、`recording-annotation.spec.ts`。
+- 下载用例（`page-download.spec.ts`、`library-download.spec.ts`）用 `download-article.html` 夹具，媒体走 `media.annhub.test`：`fixtures.ts` 的 host-resolver 规则把它映射到本机夹具服务器（取回策略拒绝私网地址，`127.0.0.1` 过不了）；
+  本机有系统代理时它会抢在解析规则前回答，所以同时加了 `--no-proxy-server`。Playwright 会把下载改名存进 artifacts，断言因此走 MIME、Markdown 内容和“链接与落盘文件一致”；长文直接读下载记录中 filename 指向的文件，下载历史里的 data URL 可能截短；
+  `AnnHub/` 目录形态与浏览器“下载前询问”的表现是真机项（roadmap.md §5、download.md §9）。
 - 滚动长图用例（`screenshot-stitch.spec.ts`）用 `longpage.html` 夹具：五屏长页带吸顶导航与懒加载图片，断言导航只在成品里出现一次、接缝不糊，`Esc` 放弃并滚回原处，成品照常可编辑、下载、入库，指标带 `frame=stitched`。
 - 断言下载用 service worker 里的 `chrome.downloads.search`：后台发起的下载不会触发 Playwright 的页面 download 事件。
 - 清库用 `clearLibrary`，它清 entries、assets 和两个派生检索 store，保留 properties store：内置属性注册表被清掉后，service worker 不会重新播种，之后每次保存都会校验失败。
@@ -24,6 +27,7 @@
 - `fixtures.ts` 有一个自动的 `pageErrors` 守卫：用例里任何页面（含扩展页面、内容脚本在页面里的浮层）抛出未捕获错误，或打印 `console.error`，该用例就失败。唯一放行的是“资源加载失败”（夹具页引用了不存在的主机，浏览器还会要 `/favicon.ico`）；新增放行项要写明理由，不要为了求绿放宽。
 - 专项夹具：`keyboard-blocks`
 - `timeline.html`（X 式时间线：帖子列紧挨侧栏，Parent 停在帖子、离开与 Esc 收起描边，胶囊的左右缘留在帖子内）
+- `x-article.html`（X 长文页的 hydrated 形态：嵌套阅读视图、og 标题、节标题、引用卡与时间戳条；测试：`platform-x.spec.ts` 的长文下载用例）
 - `media`（视频帖与滚到第二张的多图轮播：`screenshot-media.spec.ts` 读预览画布像素，断言当前视频帧与当前幻灯在元素截图里）
 - `columns`（三栏页：内栏自滚、窗口 scrollY 为 0 时，划词菜单仍贴内栏的选区）
 - `longpage.html`（滚动长图的五屏长页）

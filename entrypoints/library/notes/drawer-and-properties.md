@@ -4,7 +4,7 @@
 
 - `reading-view.tsx`、`highlight-surface.tsx`、`markdown-view.tsx` 是阅读与库内高亮；
 - `markdown-view.tsx` 是渲染以及“选区 ↔ 源文本偏移”换算的唯一实现（RK-13），界面与导出不各自换算：渲染的每个 run 带 `data-s`（源偏移；转义序列单独成 run，显示 1 个字符、占 2 个源字符），表格逐单元格渲染，围栏代码块按存下的高亮切开。
-- 引文由 `learning-core/markdown.ts` 的 `quoteFromMarkdownRange` 按源偏移拼出可见文字（`quoteForRange` 只是它的薄封装，store 合并重叠高亮时用的是同一个函数），不是源 Markdown 切片；
+- 引文由 `core/markdown.ts` 的 `quoteFromMarkdownRange` 按源偏移拼出可见文字（`quoteForRange` 只是它的薄封装，store 合并重叠高亮时用的是同一个函数），不是源 Markdown 切片；
 - 围栏与行内代码的判定也取自那里，渲染器的 `INLINE` 与 `parseBlocks` 不各自再定。
 
 - `property-panel.tsx`、`properties-view.tsx` 管属性。
@@ -16,7 +16,7 @@
 - 属性页：注册表是一张加了 `role` 的 grid 表格（`tr` 是 grid，隐式表头关联会丢，角色要写全），页头带副标题计数与“删除未使用（N）”（N 为 0 时禁用），表格上方是三条规则的提示条。
 - `title`、`tags` 置顶并标“固定”，预设两列固定勾选并灰显；
 - 删除按钮永远在行里，不可用时灰显且中性着色，下面写明原因——可见处是短词（内置/使用中，`.prop-reason`），整句在 `.sr-only` 里供 `aria-describedby` 朗读，也在按钮 `title` 里，亮暗两套外观下可见文字对比度都不低于 4.5（`e2e/library-properties-page.spec.ts`）。
-- 新建表单在表格末尾展开：类型用 `property-type-picker`，名称错误就地显示在输入下方，保存按钮在名称为空或有错时禁用——错误提前用 `learning-core/properties.ts` 的校验函数与已载入的注册表判断，不在界面里复制规则。
+- 新建表单在表格末尾展开：类型用 `property-type-picker`，名称错误就地显示在输入下方，保存按钮在名称为空或有错时禁用——错误提前用 `core/properties.ts` 的校验函数与已载入的注册表判断，不在界面里复制规则。
 - 渲染不解析原始 HTML；链接只允许 http(s)，新标签页打开并带 `rel="noopener noreferrer"`（capture.md §3.1）。围栏代码块里的高亮同样画出来（`code` 块按存下的范围切开，每段带自己的源偏移），可点、可改色、可删。
 
 - 抽屉是模态：透明的点击区域盖住左导航（点抽屉外面关闭，不压暗页面；要导出先关抽屉），焦点进入并被限制在里面，关闭后回到打开它的卡片，`Esc` 在输入法组合期间不关。

@@ -7,7 +7,7 @@ import { Search } from 'lucide-react'
 import { VIEW_ICONS } from '../../utils/entry-icons'
 import { uiText, type UiTextKey } from '../../utils/ui-text'
 import { EMPTY_FILTERS, hasActiveFilter, type FilterState, type RouteState, type View } from './route'
-import type { HighlightQueryResult } from '../../learning-core/query'
+import type { HighlightQueryResult } from '../../core/query'
 
 export const VIEW_LABEL_KEYS: Record<View, UiTextKey> = {
   all: 'library.all',

@@ -9,8 +9,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MessageSquareText, Trash2 } from 'lucide-react'
 import MessageUtils from '../../utils/message'
-import { newHighlightId } from '../../learning-core/assets'
-import { HIGHLIGHT_COLORS, type EntryRecord, type Highlight, type HighlightColor } from '../../learning-core/types'
+import { newHighlightId } from '../../core/assets'
+import { HIGHLIGHT_COLORS, type EntryRecord, type Highlight, type HighlightColor } from '../../core/types'
 import { MarkdownView, quoteForRange, sourceRangeFromSelection } from './markdown-view'
 import { entryErrorText, uiText } from '../../utils/ui-text'
 

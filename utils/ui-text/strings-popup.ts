@@ -37,6 +37,8 @@ export const popupStrings = {
   'popup.recent': { zh: '最近 5 条', en: 'Recent 5' },
   'popup.annotate': { zh: '在页面上批注', en: 'Annotate page' },
   'popup.annotate.restricted': { zh: '此类页面不能批注', en: 'This kind of page cannot be annotated' },
+  'popup.download': { zh: '下载本页正文', en: 'Download this page' },
+  'popup.download.restricted': { zh: '此页面不能下载', en: 'This page cannot be downloaded' },
   'popup.record': { zh: '录制此标签页', en: 'Record tab' },
   'popup.record.restricted': { zh: '此类页面不能录制', en: 'This kind of page cannot be recorded' },
   'popup.recording.withMic': { zh: '带麦克风', en: 'With microphone' },

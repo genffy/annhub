@@ -5,7 +5,7 @@
  * both pick a type here.
  */
 import { useRef } from 'react'
-import { PROPERTY_TYPES, type PropertyType } from '../../learning-core/types'
+import { PROPERTY_TYPES, type PropertyType } from '../../core/types'
 import { PROPERTY_TYPE_ICONS } from '../../utils/entry-icons'
 import { uiText } from '../../utils/ui-text'
 

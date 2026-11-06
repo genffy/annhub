@@ -8,7 +8,7 @@
  * buttons and never grows for a hint. The pill is always dark whatever the
  * system appearance: it floats over content, it is not a surface.
  */
-import { isBlankText } from '../../learning-core/normalize'
+import { isBlankText } from '../../core/normalize'
 import { isUserInput } from './user-input'
 import { uiText } from '../../utils/ui-text'
 

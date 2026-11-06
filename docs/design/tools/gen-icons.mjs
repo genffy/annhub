@@ -125,6 +125,11 @@ const ICONS = [
   'mouse-pointer',
   'eraser',
   'camera',
+  // 资料库里的选择与下载（download.md §3）
+  'list-checks',
+  'file-down',
+  'image-down',
+  'folder-open',
 ]
 
 // lucide-react 1.x 的模块是 .mjs 并导出 __iconData.node；0.x 是 .js 并导出 __iconNode。两种都认。

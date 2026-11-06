@@ -4,9 +4,9 @@
  * App.tsx; the state it read from the App closure now arrives as props.
  */
 import type { ReactNode, RefObject } from 'react'
-import { ArrowUpRight, Search } from 'lucide-react'
-import type { PropertyDefinition } from '../../learning-core/types'
-import type { HighlightQueryResult } from '../../learning-core/query'
+import { ArrowUpRight, ListChecks, Search } from 'lucide-react'
+import type { PropertyDefinition } from '../../core/types'
+import type { HighlightQueryResult } from '../../core/query'
 import { currentUiLanguage, uiText } from '../../utils/ui-text'
 import { ENTRY_TYPE_ICONS, VIEW_ICONS } from '../../utils/entry-icons'
 import { FilterBar } from './filter-bar'
@@ -61,6 +61,10 @@ export function ListHeader({
   countsReady,
   guideDismissed,
   onDismissGuide,
+  selecting,
+  selectionBar,
+  onToggleSelection,
+  selectButtonRef,
   children,
 }: {
   route: RouteState
@@ -78,6 +82,12 @@ export function ListHeader({
   countsReady: boolean
   guideDismissed: boolean
   onDismissGuide(): void
+  /** The three entry lists' selection mode (download.md §3.2); absent in the highlights view and the pages without lists. */
+  selecting?: boolean
+  /** The selection bar that takes the filter bar's place while selecting. */
+  selectionBar?: ReactNode
+  onToggleSelection?(): void
+  selectButtonRef?: RefObject<HTMLButtonElement | null>
   /** the lists of the active view: they are page-body children, as in the original single file */
   children?: ReactNode
 }) {
@@ -89,33 +99,60 @@ export function ListHeader({
           <p className="page-sub">{pageSubtitle(route, total, counts, highlightResult)}</p>
         </div>
         <div className="page-actions">
-          <div className="search-field">
-            <Search size={15} aria-hidden />
-            <input
-              ref={searchInputRef}
-              className="search"
-              type="search"
-              placeholder={uiText('library.searchPlaceholder')}
-              value={searchDraft}
-              onChange={event => setSearchDraft(event.target.value)}
-              aria-label={uiText('library.searchPlaceholder')}
-            />
-            {!searchDraft && <kbd aria-hidden>/</kbd>}
-          </div>
+          {selecting ? (
+            <div className="search-field is-off" aria-disabled="true" title={uiText('library.searchDisabled')}>
+              <Search size={15} aria-hidden />
+              <span className="search-off">{uiText('library.searchDisabled')}</span>
+            </div>
+          ) : (
+            <div className="search-field">
+              <Search size={15} aria-hidden />
+              <input
+                ref={searchInputRef}
+                className="search"
+                type="search"
+                placeholder={uiText('library.searchPlaceholder')}
+                value={searchDraft}
+                onChange={event => setSearchDraft(event.target.value)}
+                aria-label={uiText('library.searchPlaceholder')}
+              />
+              {!searchDraft && <kbd aria-hidden>/</kbd>}
+            </div>
+          )}
+          {onToggleSelection && (
+            <button
+              ref={selectButtonRef}
+              type="button"
+              className="ghost sm select-toggle"
+              data-testid="enter-select"
+              aria-pressed={selecting === true}
+              disabled={!selecting && (total === 0 || loading)}
+              title={!selecting && (total === 0 || loading) ? uiText('library.selectEmpty') : selecting ? uiText('library.exitSelection') : uiText('library.select')}
+              onClick={onToggleSelection}
+            >
+              <ListChecks size={14} aria-hidden /> {uiText('library.select')}
+            </button>
+          )}
         </div>
       </header>
       <div className="page-body">
-        {/* nothing to filter yet: the toolbar leaves an empty, unfiltered library alone (extension.md §5) */}
-        {!(countsReady && counts.all === 0 && !hasActiveFilter(route)) && (
-          <FilterBar
-            view={route.view}
-            filters={route}
-            hosts={hosts}
-            tags={tags}
-            registry={registry}
-            countLabel={loading ? uiText('common.loading') : uiText('library.count', { count: route.view === 'highlights' ? highlightResult.total : total })}
-            onChange={setFilter}
-          />
+        {/* the filter bar and the selection bar share one slot, so cards never move (download.md §3.2) */}
+        {selecting ? (
+          <div className="toolbar-slot is-selecting">{selectionBar}</div>
+        ) : (
+          !(countsReady && counts.all === 0 && !hasActiveFilter(route)) && (
+            <div className="toolbar-slot">
+              <FilterBar
+                view={route.view}
+                filters={route}
+                hosts={hosts}
+                tags={tags}
+                registry={registry}
+                countLabel={loading ? uiText('common.loading') : uiText('library.count', { count: route.view === 'highlights' ? highlightResult.total : total })}
+                onChange={setFilter}
+              />
+            </div>
+          )
         )}
         {countsReady && counts.all === 0 && !loading && total === 0 && !guideDismissed && (
           <div className="guide-card" data-testid="guide-card">

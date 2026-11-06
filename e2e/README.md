@@ -7,11 +7,13 @@ npm run build
 npx playwright test
 ```
 
-主链路的规格：`selection-clip`（菜单、一次点击、撤销、快速编辑、空白选区、URL 令牌清理）、`block-clip`（区块识别、层级、胶囊避让、X 永久链接、键盘模式、按站停用）、`screenshot-capture`（区域/元素入库、复制、取消、伪造事件）、`page-annotation`（批注层、墨迹、截进编辑器）、`recording-annotation`（录制中的批注与光标高亮）、`screenshot-stitch`（滚动长图）、`library-export`（搜索、抽屉、编辑、删除、唯一导出）。
+主链路的规格：`selection-clip`（菜单、一次点击、撤销、快速编辑、空白选区、URL 令牌清理）、`block-clip`（区块识别、层级、胶囊避让、X 永久链接、键盘模式、按站停用）、`screenshot-capture`（区域/元素入库、复制、取消、伪造事件）、`page-annotation`（批注层、墨迹、截进编辑器）、`recording-annotation`（录制中的批注与光标高亮）、`screenshot-stitch`（滚动长图）、`library-export`（搜索、抽屉、编辑、删除、唯一导出）、`page-download`（胶囊/`D` 键/弹窗的页面下载、响应式图片候选回退、超长正文与评论串、折叠内容与公式脚注、多图表格与列表语义、忙碌、取消）、`library-download`（抽屉与阅读下载、多选与下载对话框、设置卡）、`platform-x`（语义帖子、引用、作者元数据与媒体产物）、`source-page-download`（[来源页面结构](source-pages/README.md)中的百科公式与脚注、文档代码、issue 评论和 X 长文）。
 
 `settings-metrics.spec.ts` 在浏览器的本地日历里固定播种上周日与本周一，分别验证两周的数据；不要假设前天与昨天属于同一周，也不要混用 Node 与浏览器各自的日期。
 
 `e2e/global-setup.ts` 在 `.output/chrome-mv3` 已存在时不会自动重建。源码有变化时，必须先手动构建。fixture 服务器由 Playwright 配置启动，不需要为自动化测试另开服务。
+
+检查原生下载目录与“下载前询问”时，使用独立临时 Chrome profile，连接 CDP 必须传 `noDefaults: true`。默认连接会接管下载、改用临时目录和 UUID 文件名，不能证明浏览器自己的重名处理或保存窗口行为。磁盘预置同名图片后再下载，逐一解码 Markdown 的相对 URL 并检查文件存在；不要只比较未编码的文本。
 
 ## 真实 Chrome 场景
 
@@ -35,3 +37,5 @@ printf '%s\n' "$ANNHUB_TEST_DIR/chrome-mv3"
 ```
 
 把最后输出的真实路径传给 `install_extension`。实测 content script 注入时，在页面上选中一段文字应出现「剪藏 / 截图」两钮菜单（`[data-ann-ui="selection-menu"]`）。只操作该 MCP 的独立 profile，终止进程时须精确匹配其 `--user-data-dir`，不要影响日常 Chrome。
+
+`download-performance.spec.ts` 用本地夹具服务器测量 20 次下载，每次 10 张约 1.97 MB 的 PNG，断言 95 分位低于 5 秒并附上 JSON 测量结果；它验证本地转换、取回与落盘开销，真实图床网络表现仍按 download.md §9 验收。`download-benchmark.png` 是 1024×640 的确定性 RGB 噪声图（随机种子 417，PNG 无损压缩级别 0），不含用户内容。

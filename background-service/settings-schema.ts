@@ -3,7 +3,7 @@
  * chrome.storage. Entries and images live in IndexedDB and never here.
  */
 import { ANNOTATION_COLORS } from '../entrypoints/content/screenshot/editor'
-import { HIGHLIGHT_COLORS, type HighlightColor } from '../learning-core/types'
+import { HIGHLIGHT_COLORS, type HighlightColor } from '../core/types'
 import {
   BEAUTIFY_BACKGROUND_IDS,
   BEAUTIFY_RADII,
@@ -30,6 +30,10 @@ export interface ExtensionSettings {
   /** Screenshot download format + quality (screenshot.md §4.2). */
   downloadFormat: 'png' | 'jpeg' | 'webp'
   downloadQuality: number
+  /** Markdown downloads (download.md §4.1): one browser-download folder, or one ZIP. */
+  downloadForm: 'folder' | 'zip'
+  /** Markdown downloads fetch the page's media too (download.md §4.1); off writes Markdown only. */
+  downloadMedia: boolean
   /** Brand watermark on copy/download only (screenshot.md §4.3). */
   watermark: {
     enabled: boolean
@@ -69,6 +73,8 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   defaultHighlightColor: 'yellow',
   downloadFormat: 'png',
   downloadQuality: 0.9,
+  downloadForm: 'folder',
+  downloadMedia: true,
   watermark: {
     enabled: false,
     text: '',
@@ -149,6 +155,8 @@ const rootChecks: Record<string, Check> = {
   defaultHighlightColor: oneOf(HIGHLIGHT_COLORS),
   downloadFormat: oneOf(['png', 'jpeg', 'webp']),
   downloadQuality: between(0.5, 1),
+  downloadForm: oneOf(['folder', 'zip']),
+  downloadMedia: boolean,
   ratioPresets: value => Array.isArray(value) && value.every(item => RATIO_PRESETS.some(preset => preset.id === item)),
 }
 const watermarkChecks: Record<string, Check> = {

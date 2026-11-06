@@ -4,7 +4,7 @@
 
 ## 职责与入口
 
-- 页面里有两种采集（剪藏：选区/区块；截图）和一层页面批注（录制时的光标高亮也挂在页面上，annotate.md §3）。`index.tsx` 编排选区菜单、区块入口、区块模式、截图会话与批注层的进入/退出；高亮不在页面里（资料库读剪藏时才做）。
+- 页面里有两种采集（剪藏：选区/区块；截图）、页面下载（区块胶囊/`D` 键把区块取成 Markdown 文件夹，`download-flow.ts` 的提示条跟进度，download.md §2）和一层页面批注（录制时的光标高亮也挂在页面上，annotate.md §3）。`index.tsx` 编排选区菜单、区块入口、区块模式、截图会话与批注层的进入/退出；高亮不在页面里（资料库读剪藏时才做）。
 - `selection-menu.ts` 是两项菜单（剪藏、截图，顺序固定）：无最短长度、全空白选区不出现；
 - 选区端点在 input、textarea、contenteditable 里不出现；
 - 键盘 `Tab` 聚焦某一项后 `Enter` 才触发，没聚焦时回车属于页面；
@@ -20,12 +20,7 @@
 - 三个保存函数返回 `ClipOutcome | ClipFailure`：失败带后台的稳定错误码，`showFailureToast` 按码说明原因（配额不足时提示先导出），不认识的码只说“保存失败”，绝不回显原始信息。
 - 气泡只提交用户改动过的字段（`UPDATE_ENTRY` 的 `properties.set`、`note`），等响应成功才关闭，失败时气泡与输入都在、错误按同一套码显示在气泡里；
 - 标签超限在提交前就地提示。
-- `markdown.ts` 是唯一的 DOM→Markdown 转换（链接、标题层级、列表、代码块、表格、强调；页面界面与隐藏内容剔除；100k 块边界截断），选区与区块共用，不各自实现。
-- 约定：`<br>` 是硬换行（行尾两个空格），表格单元格内折叠为空格；
-- 嵌套列表缩进到父项内容列；
-- 页面界面按 class/id 的**词**匹配剔除（语义容器不做 class 启发式）；
-- 文本节点里的 Markdown 记号按字面转义（`escapeText`），渲染器 `entrypoints/library/markdown-view.tsx` 的 `inlineRuns` 与 `learning-core/markdown.ts` 的纯文本化共用同一个转义约定，改一处要三处一起改。
-- `page-meta.ts`：语境提取（取选区两端最近的块级祖先，上限、包含选区）、页面 meta（author/published/description/title）与永久链接（X 帖子 status 链接、一节标题锚点、其余页面地址）。meta 过长或不合规时降级而不是让保存失败：title、description 在字符边界截断并折叠换行，多位作者按分隔符拆开、超长单项丢弃。
+- 转换器由剪藏与下载共用，按用途输出；平台提取、元数据和转换细则见 [notes/content-conversion.md](notes/content-conversion.md)。
 
 ## 输入信任与站点规则
 
@@ -38,6 +33,7 @@
 
 | 主题                   | 文件                                                                 |
 | ---------------------- | -------------------------------------------------------------------- |
+| 内容转换与元数据       | [notes/content-conversion.md](notes/content-conversion.md)           |
 | 页面批注与录制         | [annotation/AGENTS.md](annotation/AGENTS.md)                         |
 | 截图会话、选区与匿名   | [screenshot/AGENTS.md](screenshot/AGENTS.md)                         |
 | 美化、水印、序号与线宽 | [screenshot/notes/editor-tools.md](screenshot/notes/editor-tools.md) |
@@ -48,6 +44,6 @@
 
 - 改转换、识别、菜单或胶囊：跑 `npx vitest run`（相关单测）并构建后跑对应 E2E（`e2e/selection-clip.spec.ts`、`e2e/block-clip.spec.ts`、`e2e/screenshot-capture.spec.ts`、`e2e/page-entry.spec.ts`、`e2e/page-shapes.spec.ts`）。
 - `page-shapes` 用平铺文档、div 汤、Docusaurus、长文（标题直接在 `main` 里、引言占满窗口、图里有代码）、带 meta 的文章、各类内容形状和页面界面类名的夹具，在真实浏览器里验识别与转换；
-- 转换器的转义约定还要跑 `learning-core/__tests__/fixtures/page-text.ts` 的共享夹具（`__tests__/markdown.test.ts` 里）。
+- 转换器的转义约定还要跑 `core/__tests__/fixtures/page-text.ts` 的共享夹具（`__tests__/markdown.test.ts` 里）。
 
 改批注、截图各自要跑的测试见对应子文件；改源码必须 `rm -rf .output/chrome-mv3 && npm run build` 再测 E2E，`.output` 不随源码变化重建。

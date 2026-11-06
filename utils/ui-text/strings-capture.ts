@@ -1,6 +1,8 @@
 /** Selection menu, clip toast and quick edit, block capsule and mode, the screenshot session, the stitched capture and the page-annotation layer (extension.md §2-3, capture.md §6, screenshot.md §1-5, annotate.md §1).
  *  Moved verbatim from ui-text.ts when the string table went over its byte budget. */
 export const captureStrings = {
+  'download.zipFailed': { zh: 'ZIP 打包失败，正文已保留。重试将改用文件夹下载。', en: 'ZIP packing failed; the text is kept. Retry downloads a folder.' },
+  'capture.sourceVideo': { zh: '视频', en: 'Video' },
   // selection menu (extension.md §2.1)
   'menu.clip': { zh: '剪藏', en: 'Clip' },
   'menu.clip.hint': { zh: '保存选中的内容，之后在资料库里读和高亮', en: 'Save the selection to read and highlight later' },
@@ -31,7 +33,7 @@ export const captureStrings = {
   // block capsule + block mode (capture.md §6.2)
   'block.clip': { zh: '剪藏', en: 'Clip' },
   'block.shot': { zh: '截图', en: 'Shot' },
-  'block.up': { zh: '上一级', en: 'Parent' },
+  'block.download': { zh: '下载', en: 'Download' },
   'block.more': { zh: '更多', en: 'More' },
   'block.disableSite': { zh: '在此网站停用', en: 'Disable on this site' },
   'block.disableEntry': { zh: '关闭区块剪藏入口', en: 'Turn off block entry' },
@@ -47,6 +49,21 @@ export const captureStrings = {
   'block.kind.quote': { zh: '引用', en: 'Quote' },
   'block.kind.section': { zh: '一节', en: 'Section' },
   'block.kind.article': { zh: '文章', en: 'Article' },
+  // the download notice bar (download.md §2.5)
+  'download.progress': { zh: '正在下载 {done}/{total}', en: 'Downloading {done}/{total}' },
+  'download.cancel': { zh: '取消', en: 'Cancel' },
+  'download.done': { zh: '已下载', en: 'Downloaded' },
+  'download.partial': { zh: '部分下载：{count} 项媒体未保存', en: 'Partial download: {count} media not saved' },
+  'download.showFiles': { zh: '显示文件', en: 'Show file' },
+  'download.cancelled': { zh: '已取消下载', en: 'Download cancelled' },
+  'download.cancelledNote': {
+    zh: '已写好的文件已删除；浏览器建好的空文件夹留在下载目录里。',
+    en: 'The files already written were deleted; an empty folder the browser made stays in the download folder.',
+  },
+  'download.failed': { zh: '下载失败', en: 'Download failed' },
+  'download.failedReason': { zh: '下载没有完成，正文没有丢，可重试。', en: 'The download did not finish; the text is kept — try again.' },
+  'download.busyReason': { zh: '上一个下载还在进行。', en: 'The previous download is still running.' },
+  'download.noArticle': { zh: '没找到正文，请把指针停在正文上选一个区块', en: 'No main article found — rest the pointer on the body text and pick a block' },
   // screenshot session (screenshot.md §1)
   'shot.hint': { zh: '拖拽选择区域，单击选择元素 · Esc 取消', en: 'Drag to select an area, click to pick an element · Esc to cancel' },
   'page.noFocus': { zh: '页面没有键盘焦点，先点一下页面', en: 'The page has no keyboard focus — click it first' },

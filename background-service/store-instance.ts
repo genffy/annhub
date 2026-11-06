@@ -2,7 +2,7 @@
  * The single EntryStore connection for the service worker; services share
  * it so transactions serialize through one IndexedDB database handle.
  */
-import { EntryStore } from '../learning-core/store'
+import { EntryStore } from '../core/store'
 
 let instance: EntryStore | null = null
 

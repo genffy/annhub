@@ -1,6 +1,6 @@
 // 可交互原型 1：页面里的两种剪藏与截图。保存的条目写入共享的 STORE，资料库原型里能看到。
 // 规则是真的：剪藏一次点击，约 3 秒内可撤销、可编辑；选区菜单只有“剪藏”和“截图”，页面上不留任何标记。
-// 区块剪藏：指针停在帖子、代码块、一节这样的区块上约 400ms，旁边出现胶囊「剪藏 | 截图 | 上一级 | 更多」；位置避开页面自己的控件（帖子右上角的“更多”、代码块右上角的“复制”）。
+// 区块剪藏：指针停在帖子、代码块、一节这样的区块上约 400ms，旁边出现胶囊「剪藏 | 截图 | 下载 | 更多」；位置避开页面自己的控件（帖子右上角的“更多”、代码块右上角的“复制”）。
 const PC = { toast: null, edit: null, pos: null, log: { clip: 0, block: 0, screenshot: 0 }, mine: [], seq: 0, blk: null }
 
 // 类型预设（entry.md §5.4）：自定义属性勾选了该类型且有默认值，就自动附加
@@ -230,22 +230,21 @@ function pcInit(root) {
     }
   })
 
-  // ── 区块剪藏：悬停约 400ms 出现胶囊，⌃ 选上一级 ──────────────────────────────
-  // 状态：PC.blk = { el, key, pinned }。选了上一级之后就“钉住”，指针还在这个块里时不再回到最内层；离开这个块才恢复
+  // ── 区块动作：悬停约 400ms 出现胶囊，目标是指针下最内层的区块 ─────────────
+  // 状态：PC.blk = { el, key }。层级调整走区块模式，悬停胶囊只操作当前区块。
   const blkRect = el => {
     const vr = view.getBoundingClientRect()
     const r = el.getBoundingClientRect()
     return { left: (r.left - vr.left) / scale() + view.scrollLeft, top: (r.top - vr.top) / scale() + view.scrollTop, width: r.width / scale(), height: r.height / scale() }
   }
-  const drawBlk = (el, pinned = false) => {
+  const drawBlk = el => {
     const key = el.dataset.blk
-    PC.blk = { el, key, pinned }
+    PC.blk = { el, key }
     pillHover = false
     const r = blkRect(el)
-    const up = el.parentElement && el.parentElement.closest('[data-blk]')
     blkHost.innerHTML = `<i class="blk ${key === 'article' ? 'is-faint' : ''}" style="inset:auto;left:${r.left - 8}px;top:${r.top - 6}px;width:${r.width + 16}px;height:${r.height + 12}px"><em>${PC_BLOCKS[key].label}</em></i>
       <div class="blk-pill pc-pill" style="right:auto;left:0;top:0" role="group" aria-label="剪藏">
-        <span class="bp-seg pa-click" data-blk-act="clip" tabindex="0" role="button">${I('bookmark')}<span>剪藏</span></span><span class="bp-seg is-alt pa-click" data-blk-act="shot" tabindex="0" role="button">${I('scan')}<span>截图</span></span>${up ? `<i class="sub pa-click" data-blk-act="up" tabindex="0" role="button" aria-label="上一级">${I('chevron-up', 'i-sm')}</i>` : ''}<i class="sub pa-click" data-blk-act="off" tabindex="0" role="button" aria-label="更多">${I('ellipsis', 'i-sm')}</i></div>`
+        <span class="bp-seg pa-click" data-blk-act="clip" tabindex="0" role="button">${I('bookmark')}<span>剪藏</span></span><span class="bp-seg is-alt pa-click" data-blk-act="shot" tabindex="0" role="button">${I('scan')}<span>截图</span></span><span class="bp-seg is-alt pa-click" data-blk-act="download" tabindex="0" role="button">${I('download')}<span>下载</span></span><i class="sub pa-click" data-blk-act="off" tabindex="0" role="button" aria-label="更多">${I('ellipsis', 'i-sm')}</i></div>`
     // 位置：右上角、左上角、右下角、左下角，选第一个不盖住页面自己的控件（data-ctl）的；块比窗口高时贴着可见部分的上沿
     const pill = blkHost.querySelector('.pc-pill')
     const w = pill.offsetWidth
@@ -273,10 +272,6 @@ function pcInit(root) {
     if (typeof PA !== 'undefined' && PA.blockOn === false) return hideBlk()
     if (PC.edit || window.getSelection().toString().trim()) return
     clearTimeout(leave)
-    if (PC.blk && PC.blk.pinned) {
-      if (PC.blk.el.contains(ev.target)) return
-      PC.blk.pinned = false
-    }
     const el = pick(ev.target)
     if (!el) {
       clearTimeout(dwell)
@@ -304,9 +299,15 @@ function pcInit(root) {
     const a = ev.target.closest('[data-blk-act]')
     if (!a || !PC.blk) return
     const act = a.dataset.blkAct
-    if (act === 'up') {
-      const up = PC.blk.el.parentElement.closest('[data-blk]')
-      if (up) drawBlk(up, true)
+    if (act === 'download') {
+      const url = URL.createObjectURL(new Blob([PC_BLOCKS[PC.blk.key].md], { type: 'text/markdown;charset=utf-8' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'AnnHub-example.md'
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      hideBlk()
+      setText('download', '已下载原型示例 Markdown · 不创建资料库条目', 2600)
     } else if (act === 'shot') {
       const key = PC.blk.key
       hideBlk()

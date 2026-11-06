@@ -1,5 +1,5 @@
-import { FIXED_PRESET_PROPERTIES } from '../../learning-core/properties'
-import type { PropertyDefinition } from '../../learning-core/types'
+import { FIXED_PRESET_PROPERTIES } from '../../core/properties'
+import type { PropertyDefinition } from '../../core/types'
 
 /** `title` and `tags` are attached to every entry and their presets cannot be turned off (entry.md §5.4). */
 export function isFixedProperty(name: string): boolean {

@@ -100,7 +100,7 @@ const hlCount = e => (e.hls && e.hls.length ? `<span class="hlc">${I('highlighte
 // 下部是标题（最多两行）与标签，最后一行是类型、来源主机与相对时间。o: { sel, hov, pin, act }，act 是截图视图悬停出现的下载与删除
 const entryCard = (e, o = {}) => `<div class="ecard ${o.sel ? 'sel' : ''} ${o.hov ? 'hov' : ''}">
   ${o.pin ? pin(o.pin, 'pin-in') : ''}
-  <div class="ec-prev">${e.type === 'screenshot' ? imgSvg(e.img) : `<div class="ec-tx">${esc(mdPlain(e.content))}</div>`}${o.act ? `<div class="ec-act">${btn('', { icon: 'download', iconOnly: true, sm: true })}${btn('', { icon: 'trash', iconOnly: true, sm: true })}</div>` : ''}</div>
+  <div class="ec-prev">${e.type === 'screenshot' ? imgSvg(e.img) : `<div class="ec-tx">${esc(mdPlain(e.content))}</div>`}${o.act ? `<div class="ec-act">${btn('', { icon: 'image-down', iconOnly: true, sm: true, attrs: 'aria-label="下载图片" title="下载图片"' })}${btn('', { icon: 'trash', iconOnly: true, sm: true, attrs: 'aria-label="删除"' })}</div>` : ''}</div>
   <div class="ec-b"><div class="ec-ttl clamp-2">${esc(e.title)}</div>${e.tags.length || propPills(e) ? `<div class="hs g4 wrap">${tags(e.tags)}${propPills(e)}</div>` : ''}<div class="ec-meta">${tchip(e.type, { sm: true })}<span class="truncate">${e.host} · ${e.when}</span>${hlCount(e)}</div></div>
 </div>`
 
@@ -180,11 +180,11 @@ const propCombo = (o = {}) => {
 }
 
 // ── 详情抽屉 ─────────────────────────────────────────────────────────────
-const drawerHead = e => `<div class="dh">${tchip(e.type)}<span class="grow"></span>${e.type === 'clip' ? btn('阅读', { sm: true, icon: 'book-open' }) : ''}${btn('回到来源', { sm: true, icon: 'arrow-up-right' })}${btn('', { icon: 'trash', iconOnly: true, sm: true, v: 'ghost' })}${btn('', { icon: 'x', iconOnly: true, sm: true, v: 'ghost' })}</div>`
+const drawerHead = e => `<div class="dh">${tchip(e.type)}<span class="grow"></span>${e.type === 'clip' ? btn('阅读', { sm: true, icon: 'book-open' }) : ''}${btn('下载', { sm: true, icon: 'file-down', attrs: 'title="下载为 Markdown" aria-label="下载为 Markdown"' })}${btn('回到来源', { sm: true, icon: 'arrow-up-right' })}${btn('', { icon: 'trash', iconOnly: true, sm: true, v: 'ghost' })}${btn('', { icon: 'x', iconOnly: true, sm: true, v: 'ghost' })}</div>`
 
 const drawerContent = (e, o = {}) => {
   if (e.type === 'screenshot')
-    return `<div class="dsec"><div class="h">${I('image', 'i-sm')}图片<span class="grow"></span>${btn('下载', { sm: true, icon: 'download', v: 'ghost' })}</div><div class="gt-img" style="border:1px solid var(--line);border-radius:10px">${imgSvg(e.img)}</div></div>`
+    return `<div class="dsec"><div class="h">${I('image', 'i-sm')}图片<span class="grow"></span>${btn('下载图片', { sm: true, icon: 'image-down', v: 'ghost' })}</div><div class="gt-img" style="border:1px solid var(--line);border-radius:10px">${imgSvg(e.img)}</div></div>`
   const n = e.hls.length
   const lock = n ? `<span class="t-xs muted hs g4" title="有高亮时原文只读">${I('lock', 'i-sm')}原文只读 · ${n} 条高亮</span>` : ''
   return `<div class="dsec"><div class="h">${I('quote', 'i-sm')}原文<span class="grow"></span>${lock}</div><div class="md md-sm">${mdRender(e.content, e.hls, { on: o.hlOn })}</div>${e.ctx ? `<div class="ctxbox"><b>语境</b>${esc(e.ctx)}</div>` : ''}</div>`
@@ -307,7 +307,7 @@ const hlItem = (h, o = {}) => `<div class="hli c-${h.c} ${o.on === h.id ? 'on' :
 // 阅读视图：正文居中，右栏是“高亮 / 属性”两个标签；o: { tab, on, sel, overlay, pins }
 const reader = (e, o = {}) => `<div class="rd">
   <div class="rd-main">
-    <div class="rd-bar">${btn('返回', { sm: true, v: 'ghost', icon: 'arrow-left' })}<span class="grow"></span>${btn('回到来源', { sm: true, icon: 'arrow-up-right' })}</div>
+    <div class="rd-bar">${btn('返回', { sm: true, v: 'ghost', icon: 'arrow-left' })}<span class="grow"></span>${btn('下载', { sm: true, icon: 'file-down', attrs: 'title="下载为 Markdown" aria-label="下载为 Markdown"' })}${btn('回到来源', { sm: true, icon: 'arrow-up-right' })}</div>
     <div class="rd-col" style="position:relative">
       <div class="rd-head"><h1>${esc(e.title)}</h1><div class="rd-meta">${tchip(e.type, { sm: true })}<span>${e.host}${e.path}</span><span>·</span><span>${e.when}</span>${tags(e.tags)}</div></div>
       <div class="md md-rd">${mdRender(e.content, e.hls, { on: o.on, sel: o.sel, pins: o.pinsMd })}</div>

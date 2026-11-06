@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Slow media</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 40px auto; max-width: 640px; }
+      img { display: block; margin: 12px 0; }
+    </style>
+  </head>
+  <body>
+    <!-- the cancel case (download.md §2.5): one medium whose bytes arrive slowly. It has no
+         src, so the page's load event does not wait 15 seconds; the delay stays inside the
+         download's own fetch, which is what cancel has to stop. -->
+    <article id="slow-post">
+      <h1>Slow post</h1>
+      <p id="slow-p">
+        This medium takes a moment.
+        <img id="slow-img" data-src="http://media.annhub.test:8173/download-media.png?delay=15000" alt="slow" width="320" height="240" />
+      </p>
+    </article>
+  </body>
+</html>

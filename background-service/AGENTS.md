@@ -4,25 +4,25 @@
 
 ## 服务边界
 
-- `index.ts` 注册四个服务：`services/entries`（条目/属性的消息门面）、`services/screenshot`（截取、跨域代取、下载、入库）、`services/recording`（标签页录制：状态机、badge 与下载，视频本身在 `entrypoints/offscreen` 收，annotate.md §2）、`services/system`（偏好、本地指标）。
+- `index.ts` 注册五个服务：`services/entries`（条目/属性的消息门面）、`services/screenshot`（截取、跨域代取、下载、入库）、`services/recording`（标签页录制：状态机、badge 与下载，视频本身在 `entrypoints/offscreen` 收，annotate.md §2）、`services/download`（Markdown 下载：全局单飞、组稿与指标，取回与打包在 offscreen、落盘在 worker，download.md §4–§5）、`services/system`（偏好、本地指标）。
 - `service-manager.ts` 管生命周期与消息分发；
-- `event-handlers/command-handler.ts` 接四条命令（区域截图、区块模式、批注、录制开关，后两条默认不绑定，annotate.md §1.1、§2.1），前三条只发给标签页的顶层框架（`frameId: 0`），录制开关在 worker 内直接走 `RecordingService`，没有注入式兜底（清单里没有 `scripting`）。
+- `event-handlers/command-handler.ts` 接五条命令（区域截图、区块模式、批注、录制开关、下载本页正文，后三条默认不绑定，annotate.md §1.1、§2.1，download.md §2.3），前三条只发给标签页的顶层框架（`frameId: 0`），录制开关在 worker 内直接走 `RecordingService`，没有注入式兜底（清单里没有 `scripting`）。
 - 共享 IndexedDB 连接走 `store-instance.ts` 的单例；服务不各自开库。
 - 新消息先在 `types/messages.ts` 登记，再同步 handler、调用方和测试。读用户数据、写类消息按 `sender.ts` 校验，不要再复制判断。
 
 发送者三档与每个 handler 的校验清单见 [notes/sender-rules.md](notes/sender-rules.md)。
 
-- `entrypoints/background/index.ts` 在脚本顶层同步注册 `runtime.onMessage`（MV3 要求：空闲后被消息唤醒时，监听器必须已经存在），处理器先 `await whenReady()`（四个服务初始化完成）再 `dispatchMessage`，未知类型立即返回错误。不要把注册挪到任何异步初始化之后（测试：`e2e/cold-start.spec.ts`，用 `helpers.ts` 的 `stopServiceWorker` 真的停掉 worker）。
+- `entrypoints/background/index.ts` 在脚本顶层同步注册 `runtime.onMessage`（MV3 要求：空闲后被消息唤醒时，监听器必须已经存在），处理器先 `await whenReady()`（所有服务初始化完成）再 `dispatchMessage`，未知类型立即返回错误。不要把注册挪到任何异步初始化之后（测试：`e2e/cold-start.spec.ts`，用 `helpers.ts` 的 `stopServiceWorker` 真的停掉 worker）。
 - `SAVE_CLIP`、`SAVE_SCREENSHOT` 带 `requestId` 和调用方生成的条目 ID：`service-manager.ts` 缓存执行中的 Promise（键含发送者），并发的同一请求共用一次执行；worker 重启之后的重试靠 `saveEntry` 对同一 ID 返回已存的记录（内容不同则 `ENTRY_CONTENT_INVALID`）。`MessageUtils.sendMessage` 只对“没有接收者 / 端口已关闭”这类连接错误重试（50ms、200ms），处理器已经跑过并失败的不重试。
-- 协议是字段级的：`UPDATE_ENTRY` 的 `note`、`context` 用 `null` 清除（JSON 会丢掉 `undefined`），`properties` 是 `{ set, unset, newDefinitions }`；高亮是 `ADD_HIGHLIGHT`、`UPDATE_HIGHLIGHT`、`REMOVE_HIGHLIGHT`、`RESTORE_HIGHLIGHT` 四个操作，每个在 store 的一个事务里读-改-写并返回最新条目，重叠高亮的合并只在 `learning-core/store.ts` 里一份。
+- 协议是字段级的：`UPDATE_ENTRY` 的 `note`、`context` 用 `null` 清除（JSON 会丢掉 `undefined`），`properties` 是 `{ set, unset, newDefinitions }`；高亮是 `ADD_HIGHLIGHT`、`UPDATE_HIGHLIGHT`、`REMOVE_HIGHLIGHT`、`RESTORE_HIGHLIGHT` 四个操作，每个在 store 的一个事务里读-改-写并返回最新条目，重叠高亮的合并只在 `core/store.ts` 里一份。
 - 失败一律回稳定错误码，不回原始 message：条目写入沿用 `entry.md §6` 的码，配额不足是 `STORAGE_QUOTA_EXCEEDED`、其余存储错误是 `OPERATION_FAILED`（`services/errors.ts` 的 `storageErrorCode`）；
 - 截图链路是 `CaptureError`（`CAPTURE_NOT_VISIBLE`、`CAPTURE_RATE_LIMITED`、`CAPTURE_FAILED`、`DOWNLOAD_FAILED`），代取失败是 `IMAGE_FETCH_FAILED`。
 - 细节只进日志，页面按码本地化（`utils/ui-text.ts` 的 `failureReason`）。
 
 ## 领域接线
 
-- `services/entries` 只做消息到 `learning-core/store` 的适配：保存前 `cleanSourceUrl` 去令牌参数、按注册表附加类型预设，不复制领域规则。预设是唯一的入口：页面提取值只对预设内的属性生效（`presetProperties`），取消的预设不再写入；`SAVE_SCREENSHOT` 同样带页面 meta（author/published/description），给勾了截图预设的属性取值（entry.md §5.4）。属性筛选、排序、分页全部经 `learning-core/query`。
-- 查询路径：`QUERY_ENTRIES` 无筛选、无搜索词的首页走 `by-created` 索引游标，只取一页；其余经 `store.indexedQuery`，读内存里的摘要，带搜索词才读检索文本。`QUERY_FACETS` 读摘要，一次返回计数、来源与标签候选、高亮总数，不让页面为此取回整库。`LIST_PROPERTIES` 默认只读注册表，`includeUsage` 才统计使用数。列表响应里的条目正文截到 500 字符，阅读与抽屉用 `GET_ENTRY` 取全文。摘要与检索文本的维护规则见 `learning-core/AGENTS.md`。
+- `services/entries` 只做消息到 `core/store` 的适配：保存前 `cleanSourceUrl` 去令牌参数、按注册表附加类型预设，不复制领域规则。预设是唯一的入口：页面提取值只对预设内的属性生效（`presetProperties`），取消的预设不再写入；`SAVE_SCREENSHOT` 同样带页面 meta（author/published/description），给勾了截图预设的属性取值（entry.md §5.4）。属性筛选、排序、分页全部经 `core/query`。
+- 查询路径：`QUERY_ENTRIES` 无筛选、无搜索词的首页走 `by-created` 索引游标，只取一页；其余经 `store.indexedQuery`，读内存里的摘要，带搜索词才读检索文本。`QUERY_FACETS` 读摘要，一次返回计数、来源与标签候选、高亮总数，不让页面为此取回整库。`LIST_PROPERTIES` 默认只读注册表，`includeUsage` 才统计使用数。列表响应里的条目正文截到 500 字符，阅读与抽屉用 `GET_ENTRY` 取全文。摘要与检索文本的维护规则见 `core/AGENTS.md`。
 - ZIP 导出不在后台：资料库页面用同源 IndexedDB 与 `buildExport` 逐个 Blob 构造 ZIP，把 Blob URL 交给 `chrome.downloads.download`。后台没有导出消息（根 `AGENTS.md` 第 2 条）。
 - `services/screenshot`：`CAPTURE_VISIBLE_TAB` 只拍发送者所在窗口且前后各查一次活动状态，不要用 `WINDOW_ID_CURRENT`；
 - 浏览器每秒只给两次截取，第三次被拒（错误里带 `MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`）时回 `CAPTURE_RATE_LIMITED`，由页面里的截图会话等过这一秒再要；
@@ -46,5 +46,5 @@
 ## 验证
 
 - 消息协议或服务注册变化：`npm run compile`、对应 service 单测、相关 E2E。
-- 持久化变化：`npx vitest run learning-core` 加对应 service 单测；截图链路跑 `e2e/screenshot-capture.spec.ts`。
+- 持久化变化：`npx vitest run core` 加对应 service 单测；截图链路跑 `e2e/screenshot-capture.spec.ts`。
 - 查询路径：`e2e/library-browse.spec.ts` 用 1 万条真实体量的数据验证两个预算——热查询 200 ms，worker 重启后每个视图 2.5 秒内就绪。

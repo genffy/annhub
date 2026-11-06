@@ -8,7 +8,7 @@ Do not open a public issue for a security problem. You can expect an acknowledge
 
 ## Scope
 
-- The browser extension (`entrypoints/`, `background-service/`, `learning-core/`).
+- The browser extension (`entrypoints/`, `background-service/`, `core/`).
 - The build and release pipeline (`.github/`).
 
 ## What AnnHub is designed to protect

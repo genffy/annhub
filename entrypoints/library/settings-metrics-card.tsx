@@ -4,7 +4,7 @@
  * budget.
  */
 import type { ReactNode } from 'react'
-import type { CaptureTimingSummary, HabitSummary, MetricsPanelData } from '../../learning-core/metrics'
+import type { CaptureTimingSummary, HabitSummary, MetricsPanelData } from '../../core/metrics'
 import { uiText } from '../../utils/ui-text'
 import { SettingsCard } from './settings-card'
 
@@ -105,6 +105,22 @@ export function MetricsCard({ panel, loadMetrics }: { panel: MetricsPanelData | 
                     user: summaries.recordingUse.stoppedBy.user,
                     tab: summaries.recordingUse.stoppedBy.tab_closed,
                     limit: summaries.recordingUse.stoppedBy.limit,
+                  })
+            }
+          />
+          <MetricRow
+            id="M-32"
+            name={uiText('metrics.m32.name')}
+            testId="metrics-m32"
+            value={
+              summaries.downloadUse.downloads === 0
+                ? uiText('metrics.m32.none')
+                : uiText('metrics.m32.value', {
+                    n: summaries.downloadUse.downloads,
+                    page: summaries.downloadUse.bySource.page,
+                    library: summaries.downloadUse.bySource.library,
+                    folder: summaries.downloadUse.byForm.folder,
+                    zip: summaries.downloadUse.byForm.zip,
                   })
             }
           />

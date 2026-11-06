@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync, statSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { SITE_ORIGIN } from '../website/lib/site.ts'
 import { staticHeaders, staticRedirects, websiteOutput } from './website-static.mjs'
@@ -34,7 +34,11 @@ export function checkWebsiteExport({ directory = websiteOutput, revision, produc
     )
     const assets = [...html.matchAll(/(?:src|href)="(\/_next\/[^"?]+)(?:\?[^" ]*)?"/g)].map(match => match[1])
     assert.ok(assets.some(path => path.endsWith('.js')) && assets.some(path => path.endsWith('.css')), `No local scripts/styles: ${locale}`)
-    for (const asset of assets) assert.ok(existsSync(resolve(directory, `.${asset}`)), `Broken static asset: ${asset}`)
+    for (const asset of assets) {
+      const target = resolve(directory, `.${decodeURIComponent(asset)}`)
+      assert.ok(target.startsWith(`${resolve(directory, '_next')}${sep}`), `Static asset outside _next: ${asset}`)
+      assert.ok(existsSync(target) && statSync(target).isFile(), `Broken static asset: ${asset}`)
+    }
   }
   // the branded 404 page: not indexed, no analytics consent, and in each language an exit to the library and one to the home page
   const notFound = read('404.html')

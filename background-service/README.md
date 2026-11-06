@@ -14,11 +14,14 @@ start-up rules live in [AGENTS.md](AGENTS.md).
 1. **EntryService** — entries, properties, highlights and queries (`services/entries`); the export ZIP is built in the library page, not here
 2. **ScreenshotService** — capture, image fetch, download, screenshot save (`services/screenshot`)
 3. **RecordingService** — tab-recording state machine, toolbar badge and the finished video's download (`services/recording`); the video itself is assembled by the offscreen recording document (`entrypoints/offscreen`)
-4. **SystemService** — settings and local metrics (`services/system`)
+4. **DownloadService** — page and library Markdown downloads (`services/download`); coordinates one global download, file naming, cancellation, recovery and metrics, with extraction and media packing in the offscreen document
+5. **SystemService** — settings and local metrics (`services/system`)
+
+Shared domain rules, IndexedDB access, Markdown conversion helpers and export formatting live in [core](../core/AGENTS.md). The worker uses `store-instance.ts` to share one database connection; library and offscreen pages also use the core for asset reads and packing.
 
 ## Event Handlers
 
-1. **CommandHandler** — shortcut commands (`browser.commands.onCommand`); the trigger goes to the top frame only (`frameId: 0`)
+1. **CommandHandler** — shortcut commands (`browser.commands.onCommand`); page actions go to the top frame only (`frameId: 0`), while recording is handled in the worker
 2. **InstallationHandler** — installation and update events (`browser.runtime.onInstalled`)
 
 ### Add new service
@@ -40,13 +43,16 @@ start-up rules live in [AGENTS.md](AGENTS.md).
 background-service/
 ├── index.ts                    # BackgroundServiceManager
 ├── service-manager.ts          # Service manager + message dispatch
+├── store-instance.ts           # Shared worker database connection
 ├── README.md                   # This document
 ├── event-handlers/             # Event handlers
 │   ├── index.ts
 │   ├── command-handler.ts
 │   └── installation-handler.ts
 └── services/                   # All services
+    ├── download/
     ├── entries/
+    ├── metrics/
     ├── recording/
     ├── screenshot/
     └── system/

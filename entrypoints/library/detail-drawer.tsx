@@ -4,14 +4,15 @@
  * went over its byte budget.
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { EntryRecord, PropertyDefinition, HighlightColor } from '../../learning-core/types'
+import type { EntryRecord, PropertyDefinition, HighlightColor } from '../../core/types'
 import { PropertyPanel, type PropertyPanelHandle } from './property-panel'
 import { HighlightSurface } from './highlight-surface'
 import MessageUtils from '../../utils/message'
 import { relativeTime } from '../../utils/relative-time'
-import { CONTENT_MAX_CHARS, CONTEXT_MAX_CHARS } from '../../learning-core/validate'
+import { CONTENT_MAX_CHARS, CONTEXT_MAX_CHARS } from '../../core/validate'
 import { ArrowUpRight, BookOpen, Download, Image, Lock, MessageSquareText, Tags, TextQuote, Trash2, X } from 'lucide-react'
-import { uiText } from '../../utils/ui-text'
+import { entryErrorText, uiText } from '../../utils/ui-text'
+import type { LibraryDownload } from './download-client'
 
 function boldenCount(text: string, count: number) {
   const parts = text.split(String(count))
@@ -44,6 +45,7 @@ export function DetailDrawer({
   onEntryChanged,
   registerFlush,
   onOpenReading,
+  download,
 }: {
   entryId: string
   defaultColor: HighlightColor
@@ -53,6 +55,8 @@ export function DetailDrawer({
   onEntryChanged(): void
   registerFlush(flush: (() => Promise<boolean>) | null): void
   onOpenReading(id: string): void
+  /** The library's one download run (download.md §3.1): one entry starts straight away, no prepare state. */
+  download: LibraryDownload
 }) {
   const [entry, setEntry] = useState<EntryRecord | null>(null)
   const [assetUrl, setAssetUrl] = useState<string | null>(null)
@@ -305,6 +309,15 @@ export function DetailDrawer({
                 <BookOpen size={14} aria-hidden /> {uiText('library.read')}
               </button>
             )}
+            <button
+              type="button"
+              className="ghost sm"
+              data-testid="drawer-download"
+              title={uiText('library.downloadAsMarkdown')}
+              onClick={() => void download.start({ entryIds: [entry.id], via: 'drawer' })}
+            >
+              <Download size={14} aria-hidden /> {uiText('library.download')}
+            </button>
             {/* a link by meaning, a button by look (extension.md §4.1) */}
             <a href={entry.sourceUrl} target="_blank" rel="noopener noreferrer" className="ghost sm">
               {uiText('library.backToSource')} <ArrowUpRight size={14} aria-hidden />
@@ -391,9 +404,11 @@ export function DetailDrawer({
                   <button
                     type="button"
                     className="ghost sm"
+                    aria-label={uiText('library.downloadImage')}
+                    title={uiText('library.downloadImage')}
                     onClick={() => void chrome.downloads.download({ url: assetUrl, filename: `AnnHub/screenshot-${entry.id}.png`, saveAs: false })}
                   >
-                    <Download size={14} aria-hidden /> {uiText('shot.tool.download')}
+                    <Download size={14} aria-hidden /> {uiText('library.downloadImage')}
                   </button>
                 )}
               </div>

@@ -56,7 +56,7 @@ function extReadGroup() {
     body: appInTab(
       shell({
         active: 'clip',
-        main: `${pageHead({ title: '剪藏', sub: '71 条', right: searchBox({}) })}
+        main: `${pageHead({ title: '剪藏', sub: '71 条', right: dlHeadRight(false) })}
           <div class="pbody">${fbar({ noType: true, count: '共 71 条' })}${entryList(['e1', 'e2', 'e4', 'e5', 'e6'], { sel: 'e2' })}</div>`,
         drawer: drawer(e2, { pin: 1 }),
       }),
