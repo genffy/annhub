@@ -184,11 +184,14 @@ export class SelectionMenu {
   }
 
   private action(key: 'menu.clip' | 'menu.screenshot', className: string, _icon: string) {
+    const name = uiText(key)
     const button = this.doc.createElement('button')
     button.className = `ann-menu-action ${className}`
     button.setAttribute('role', 'menuitem')
+    // icon-only: the name lives in the consequence card and the accessible name
+    button.setAttribute('aria-label', name)
+    button.title = name
     button.type = 'button'
-    button.textContent = uiText(key)
     button.addEventListener('pointerenter', () => this.showHint(key))
     button.addEventListener('focus', () => this.showHint(key))
     button.addEventListener('pointerleave', () => this.clearHint())

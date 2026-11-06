@@ -35,7 +35,7 @@ const article = (o = {}) => {
   </div>`
 }
 
-// 选区菜单（extension.md §2.1）：两项，顺序固定为剪藏、截图；图标 + 短文本，菜单项都用名词。没有“高亮”
+// 选区菜单（extension.md §2.1）：两项，顺序固定为剪藏、截图；只有图标，名词在后果卡片与读屏名称里。没有“高亮”
 const HM_LABELS = {
   zh: { clip: '剪藏', shot: '截图' },
   en: { clip: 'Clip', shot: 'Screenshot' },
@@ -43,7 +43,7 @@ const HM_LABELS = {
 
 const hoverMenu = (o = {}) => {
   const L = HM_LABELS[o.lang || 'zh']
-  const b = (t, label, i) => `<div class="hm-b t-${t} ${o.hover === i ? 'is-hover' : ''} ${o.focus === i ? 'is-focus' : ''}" role="button" aria-label="${label}">${I(TYPES[t].icon)}<span>${label}</span></div>`
+  const b = (t, label, i) => `<div class="hm-b t-${t} ${o.hover === i ? 'is-hover' : ''} ${o.focus === i ? 'is-focus' : ''}" role="button" aria-label="${label}" title="${label}">${I(TYPES[t].icon)}</div>`
   return `<div class="hm ${o.below ? 'below' : ''} ${o.static ? 'static' : ''}" ${o.anchor ? `data-anchor="${o.anchor}" data-place="${o.below ? 'below' : 'above'}"` : ''} style="${o.style || ''}">
     ${o.pin ? pin(o.pin) : ''}
     ${b('clip', L.clip, 0)}${b('screenshot', L.shot, 1)}

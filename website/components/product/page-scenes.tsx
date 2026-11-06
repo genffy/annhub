@@ -9,7 +9,7 @@ const cssVar = (name: string, value: string): CSSProperties => ({ [name]: value 
 
 // ── overlays the extension draws on a page ───────────────────────────────────────────────────────
 
-/** Selection menu: exactly two items, Clip then Screenshot, icon + word (docs/product/extension.md §2.1). */
+/** Selection menu: exactly two items, Clip then Screenshot — icon-only, the names live in the tip and the accessible name (docs/product/extension.md §2.1). */
 export function SelectionMenu({
   ui,
   hover,
@@ -39,19 +39,13 @@ export function SelectionMenu({
       <span className="ah-hm-row">
         {items.map((it, i) => {
           const cls = `ah-hm-b ah-t-${it.kind}${hover === i ? ' is-hover' : ''}`
-          const inner = (
-            <>
-              <Ic icon={it.icon} />
-              <span>{it.label}</span>
-            </>
-          )
           return onPick ? (
-            <button key={it.kind} type="button" className={cls} onMouseDown={e => e.preventDefault()} onClick={() => onPick(it.kind)}>
-              {inner}
+            <button key={it.kind} type="button" className={cls} title={it.label} aria-label={it.label} onMouseDown={e => e.preventDefault()} onClick={() => onPick(it.kind)}>
+              <Ic icon={it.icon} />
             </button>
           ) : (
-            <span key={it.kind} className={cls}>
-              {inner}
+            <span key={it.kind} className={cls} title={it.label} aria-label={it.label}>
+              <Ic icon={it.icon} />
             </span>
           )
         })}

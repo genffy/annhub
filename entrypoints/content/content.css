@@ -156,19 +156,19 @@
   gap: 2px;
 }
 
+/* icon-only: the two actions are 30px squares, the names live in the
+   consequence card and the accessible name (extension.md §2.1) */
 [data-ann-ui='selection-menu'] .ann-menu-action {
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  width: 30px;
   height: 30px;
-  padding: 0 11px 0 10px;
+  padding: 0;
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--annov-pill-text);
-  font-size: 12.5px;
-  font-weight: 500;
-  white-space: nowrap;
   cursor: pointer;
 }
 
