@@ -36,8 +36,12 @@ function resolveUnder(root: string, requestPath: string): string | undefined {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://localhost')
   const requestPath = url.pathname
-  // e2e-only slow serving, capped: a download under way is cancellable only while media is on its way
-  const delay = Math.min(Number(url.searchParams.get('delay') ?? 0) || 0, 30_000)
+  // e2e-only slow serving, fixed steps: the fixtures ask for a 15 s wait so a
+  // download under way stays cancellable while its media is in flight; anything
+  // else serves at once, so a page can never stall the suite on an arbitrary wait.
+  const SLOW_STEPS = [15_000] as const
+  const requested = Number(url.searchParams.get('delay') ?? 0) || 0
+  const delay = SLOW_STEPS.reduce((best, step) => (step <= requested ? step : best), 0)
   const fixtureUrl = requestPath === '/' ? '/test.html' : requestPath
   // The server only exposes explicit fixture media from e2e/.
   const fixturePath = resolveUnder(fixtureDir, fixtureUrl)

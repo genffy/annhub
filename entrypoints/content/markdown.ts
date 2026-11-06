@@ -136,9 +136,9 @@ const UNDERSCORE_CLOSER = /(\w)_(?![\w_])/g
  * heading/list/quote markers, and boundary underscores. Word-internal `_`
  * needs nothing — CommonMark does not treat it as emphasis there.
  */
-export function escapeText(text: string): string {
+export function escapeText(text: string, escapeInterpolation = false): string {
   return text
-    .replace(/\\/g, '\\\\')
+    .replace(escapeInterpolation ? /([\\$~])/g : /\\/g, '\\$1')
     .replace(/==/g, '=\\=')
     .replace(ALWAYS_ESCAPED, '\\$&')
     .replace(/(^|[^\w])(_+)/g, (_match, pre: string, run: string) => `${pre}${run.replace(/_/g, '\\_')}`)
@@ -271,8 +271,7 @@ function visibleFor(el: Element, ctx: Ctx): boolean {
 }
 
 function escaped(text: string, ctx: Ctx): string {
-  const value = escapeText(text)
-  return ctx.download ? value.replace(/[$~]/g, '\\$&') : value
+  return escapeText(text, ctx.download)
 }
 
 function inlineText(node: Node, ctx: Ctx): string {

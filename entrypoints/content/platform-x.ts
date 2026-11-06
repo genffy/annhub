@@ -133,9 +133,11 @@ function extractQuoteCard(card: Element, pageUrl: string): PlatformContent | und
 
 function quoteHandle(card: Element): string | undefined {
   const container = card.querySelector('[data-testid*="UserAvatar-Container-"]')
-  const fromContainer = container?.getAttribute('data-testid')?.match(/UserAvatar-Container-(.+)$/)?.[1]
-  if (fromContainer) return fromContainer
-  return /@([A-Za-z0-9_]+)/.exec(card.querySelector('[data-testid="User-Name"]')?.textContent ?? '')?.[1]
+  const candidate =
+    container?.getAttribute('data-testid')?.match(/UserAvatar-Container-(.+)$/)?.[1] ??
+    /@([A-Za-z0-9_]+)/.exec(card.querySelector('[data-testid="User-Name"]')?.textContent ?? '')?.[1]
+  // The handle goes into a URL and a text node: keep only X's actual username characters.
+  return candidate?.match(/^([A-Za-z0-9_]+)$/)?.[1]
 }
 
 function quotePublication(card: Element): string | undefined {
