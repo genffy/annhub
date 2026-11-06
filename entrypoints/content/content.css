@@ -183,21 +183,15 @@
 
 /* each icon carries its type's hue mixed toward white (the draft's
    color-mix(in oklab, --ann-type-* 60%, #fff) with the light-set hue; a
-   data-URI stroke cannot read a variable, and the pill is always dark) */
+   data-URI stroke cannot read a variable, and the pill is always dark).
+   The values are the design's mix: oklch(0.73 0.10 258) and oklch(0.736 0.072 178). */
 [data-ann-ui='selection-menu'] .ann-menu-clip::before {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233666cd' stroke-width='2'%3E%3Cpath d='m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237fa9e7' stroke-width='2'%3E%3Cpath d='m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z'/%3E%3C/svg%3E");
 }
 
 [data-ann-ui='selection-menu'] .ann-menu-shot::before {
   /* lucide "scan" (extension.md §2.1, visual.md §3): the same icon the library uses for screenshots */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23367b65' stroke-width='2'%3E%3Cpath d='M3 7V5a2 2 0 0 1 2-2h2'/%3E%3Cpath d='M17 3h2a2 2 0 0 1 2 2v2'/%3E%3Cpath d='M21 17v2a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M7 21H5a2 2 0 0 1-2-2v-2'/%3E%3Cpath d='M7 12h10'/%3E%3C/svg%3E");
-}
-
-[data-ann-ui='selection-menu'] .ann-menu-sep {
-  width: 1px;
-  align-self: stretch;
-  margin: 6px 3px;
-  background: var(--annov-pill-line);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2376b9aa' stroke-width='2'%3E%3Cpath d='M3 7V5a2 2 0 0 1 2-2h2'/%3E%3Cpath d='M17 3h2a2 2 0 0 1 2 2v2'/%3E%3Cpath d='M21 17v2a2 2 0 0 1-2 2h-2'/%3E%3Cpath d='M7 21H5a2 2 0 0 1-2-2v-2'/%3E%3Cpath d='M7 12h10'/%3E%3C/svg%3E");
 }
 
 [data-ann-ui='selection-menu'] .ann-menu-action:hover {
