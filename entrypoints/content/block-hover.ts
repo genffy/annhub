@@ -21,7 +21,7 @@ import {
   type BlockKind,
 } from './blocks'
 import { isUserInput } from './user-input'
-import { overlayIcon } from './icons'
+import { overlayIcon, type OverlayIconName } from './icons'
 import { uiText } from '../../utils/ui-text'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -329,68 +329,58 @@ export class BlockEntries {
     const host = this.doc.createElement('div')
     host.setAttribute(ROOT_ATTR, keyboard ? 'block-mode-capsule' : 'block-capsule')
     host.className = 'ann-block-capsule'
-    const segment = () => {
-      const sep = this.doc.createElement('span')
-      sep.className = 'ann-blk-sep'
-      return sep
+    // Icon-only (capture.md §6.2): the name lives in the tooltip and the accessible label.
+    const action = (icon: OverlayIconName, className: string, key: 'block.clip' | 'block.shot' | 'block.download', onClick: () => void): HTMLButtonElement => {
+      const button = this.doc.createElement('button')
+      button.type = 'button'
+      button.className = `ann-blk-seg ${className}`
+      button.setAttribute('aria-label', uiText(key))
+      button.title = uiText(key)
+      button.append(overlayIcon(this.doc, icon))
+      button.addEventListener('click', event => {
+        if (!isUserInput(event)) return
+        onClick()
+      })
+      return button
     }
 
-    const clip = this.doc.createElement('button')
-    clip.type = 'button'
-    clip.className = 'ann-blk-seg ann-blk-seg-clip'
-    const clipLabel = this.doc.createElement('span')
-    clipLabel.textContent = uiText('block.clip')
-    clip.append(overlayIcon(this.doc, 'bookmark'), clipLabel)
-    clip.addEventListener('click', event => {
-      if (!isUserInput(event)) return
-      // a hover clip never changed levels (capture.md §6.2); only the keyboard mode's ↑↓ did
-      this.offerClip(candidate, !keyboard && this.modeLevelChanged)
-      if (!keyboard) this.hideNow()
-    })
-
-    host.append(clip)
+    host.append(
+      action('bookmark', 'ann-blk-seg-clip', 'block.clip', () => {
+        // a hover clip never changed levels (capture.md §6.2); only the keyboard mode's ↑↓ did
+        this.offerClip(candidate, !keyboard && this.modeLevelChanged)
+        if (!keyboard) this.hideNow()
+      }),
+    )
     const startScreenshot = this.hooks.onScreenshot
     if (startScreenshot) {
-      const shot = this.doc.createElement('button')
-      shot.type = 'button'
-      shot.className = 'ann-blk-seg ann-blk-seg-shot'
-      const shotLabel = this.doc.createElement('span')
-      shotLabel.textContent = uiText('block.shot')
-      shot.append(overlayIcon(this.doc, 'scan'), shotLabel)
-      shot.addEventListener('click', event => {
-        if (!isUserInput(event)) return
-        startScreenshot.call(this.hooks, candidate)
-        if (!keyboard) this.hideNow()
-      })
-      host.append(segment(), shot)
+      host.append(
+        action('scan', 'ann-blk-seg-shot', 'block.shot', () => {
+          startScreenshot.call(this.hooks, candidate)
+          if (!keyboard) this.hideNow()
+        }),
+      )
     }
-
     const startDownload = this.hooks.onDownload
     if (startDownload) {
-      const dl = this.doc.createElement('button')
-      dl.type = 'button'
-      dl.className = 'ann-blk-seg ann-blk-seg-dl'
-      const dlLabel = this.doc.createElement('span')
-      dlLabel.textContent = uiText('block.download')
-      dl.append(overlayIcon(this.doc, 'download'), dlLabel)
-      dl.addEventListener('click', event => {
-        if (!isUserInput(event)) return
-        startDownload.call(this.hooks, candidate)
-        if (!keyboard) this.hideNow()
-      })
-      host.append(segment(), dl)
+      host.append(
+        action('download', 'ann-blk-seg-dl', 'block.download', () => {
+          startDownload.call(this.hooks, candidate)
+          if (!keyboard) this.hideNow()
+        }),
+      )
     }
 
     const more = this.doc.createElement('button')
     more.type = 'button'
     more.className = 'ann-blk-sub'
     more.setAttribute('aria-label', uiText('block.more'))
+    more.title = uiText('block.more')
     more.appendChild(overlayIcon(this.doc, 'ellipsis'))
     more.addEventListener('click', event => {
       if (!isUserInput(event)) return
       this.openMoreMenu(host)
     })
-    host.append(segment(), more)
+    host.append(more)
     return host
   }
 

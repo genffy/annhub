@@ -29,7 +29,7 @@ const dlBar = (o = {}) => {
   const a = o.attrs || {}
   return `<div class="dl-bar" role="toolbar" aria-label="选择">${o.pin ? pin(o.pin) : ''}
     ${btn('', { icon: 'x', iconOnly: true, sm: true, v: 'ghost', attrs: `aria-label="退出选择" title="退出选择 · Esc" ${a.done || ''}` })}
-    <span class="dl-n tnum" role="status" aria-live="polite">已选 ${n} 条</span>
+    <span class="dl-n tnum${n > 0 ? ' on' : ''}" role="status" aria-live="polite">已选 ${n} 条</span>
     ${btn(`全选<span class="m"> ${m} 条</span>`, { sm: true, v: 'ghost', cls: 'dl-all', off: over || (n > 0 && n >= m) || m === 0, attrs: a.all || '' })}
     ${btn('清除', { sm: true, v: 'ghost', off: n === 0, attrs: a.clear || '' })}
     <span class="dl-hint"><span>${hint}</span></span>

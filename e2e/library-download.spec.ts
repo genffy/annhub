@@ -335,7 +335,7 @@ test.describe('library downloads (download.md §3)', () => {
     await enterSelection(library)
     const bar = library.getByTestId('selection-bar')
     const box = await bar.boundingBox()
-    expect(Math.round(box!.height)).toBe(28)
+    expect(Math.round(box!.height)).toBe(36)
     // no second line: the content still fits the bar's line box
     const overflow = await bar.evaluate(element => ({ scroll: element.scrollWidth, client: element.clientWidth }))
     expect(overflow.scroll).toBeLessThanOrEqual(overflow.client)

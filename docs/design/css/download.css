@@ -68,26 +68,41 @@
   gap: 6px;
   min-width: 0;
   height: 36px;
-  padding: 0 4px;
+  padding: 0 3px;
   border-radius: 10px;
-  border: 1px solid color-mix(in oklab, var(--brand) 30%, var(--surface));
-  background: color-mix(in oklab, var(--brand) 8%, var(--surface));
+  border: 1px solid var(--line);
+  background: var(--surface-2);
 }
 
+/* 28 inside 36 with 4px on every side; the inner radius is the bar's 10 − 4 (concentric) */
 .dl-bar .btn {
   flex: none;
+  border-radius: 6px;
 }
 
+/* the count is a pill: neutral at zero, the brand tint once something is picked */
 .dl-n {
+  display: inline-flex;
+  align-items: center;
   flex: none;
-  padding: 0 6px 0 2px;
-  font-size: 13px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--fg-2);
+  font-size: 12px;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.dl-all {
+.dl-n.on {
+  background: color-mix(in oklab, var(--brand) 12%, var(--surface));
   color: var(--brand-text);
+}
+
+.dl-all {
+  color: var(--fg);
 }
 
 /* 说明文字占中间的弹性位置：放不下时先被省略，再整体隐藏，行尾的主按钮始终靠右 */

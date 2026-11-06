@@ -266,7 +266,7 @@ textarea {
   min-height: 28px;
   padding: 0 10px;
   border: 1px solid var(--ann-border);
-  border-radius: 7px;
+  border-radius: 8px;
   background: var(--ann-surface);
   color: var(--ann-text);
   font-size: 12px;
@@ -338,7 +338,7 @@ textarea {
 }
 
 .popup-recording-buttons button {
-  min-height: 26px;
+  min-height: 28px;
   padding: 4px 10px;
   white-space: nowrap;
 }

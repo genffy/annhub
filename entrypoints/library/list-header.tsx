@@ -123,7 +123,7 @@ export function ListHeader({
             <button
               ref={selectButtonRef}
               type="button"
-              className="ghost sm select-toggle"
+              className="ghost select-toggle"
               data-testid="enter-select"
               aria-pressed={selecting === true}
               disabled={!selecting && (total === 0 || loading)}

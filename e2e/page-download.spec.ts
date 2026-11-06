@@ -192,10 +192,10 @@ test.describe('page downloads (download.md §2, §4, §5)', () => {
     await page.locator('#post h1').hover()
     const capsule = page.locator('[data-ann-ui="block-capsule"]')
     await expect(capsule).toBeVisible()
-    await expect(capsule.locator('button', { hasText: '下载' })).toBeVisible()
-    // the parent button is gone; the actions are 剪藏 | 截图 | 下载 | 更多 (capture.md §6.2)
+    // icon-only: the name is the accessible label and the tooltip (capture.md §6.2)
+    await expect(capsule.getByRole('button', { name: '下载' })).toBeVisible()
     await expect(capsule.locator('.ann-blk-sub')).toHaveCount(1)
-    await capsule.locator('button', { hasText: '下载' }).click()
+    await capsule.getByRole('button', { name: '下载' }).click()
 
     await waitForDoneNotice(page, '已下载')
     const items = await landed(page)
@@ -326,7 +326,7 @@ test.describe('page downloads (download.md §2, §4, §5)', () => {
     await page.locator('#post h1').hover()
     const capsule = page.locator('[data-ann-ui="block-capsule"]')
     await expect(capsule).toBeVisible()
-    await capsule.locator('button', { hasText: '下载' }).click()
+    await capsule.getByRole('button', { name: '下载' }).click()
     await waitForDoneNotice(page, '已下载')
 
     const items = await landed(page)

@@ -5,13 +5,22 @@
 .toolbar-slot {
   display: flex;
   align-items: center;
-  min-height: 28px;
+  min-height: 36px;
   flex: none;
 }
 
 .toolbar-slot > .toolbar {
   flex: 1;
+  min-height: 36px;
   min-width: 0;
+}
+
+/* the page head's 选择 shares the search box's 36 × 10 (docs/design 的控件高度) */
+.ghost.select-toggle {
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font-size: 13px;
 }
 
 /* the search box while selecting: greyed out with the reason, the input itself gone (download.md §3.2) */
@@ -46,43 +55,57 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
-  height: 28px;
-  padding: 0 4px 0 2px;
-  border: 1px solid color-mix(in oklab, var(--ann-accent) 30%, var(--ann-surface));
+  height: 36px;
+  padding: 0 3px;
+  border: 1px solid var(--ann-line);
   border-radius: 10px;
-  background: color-mix(in oklab, var(--ann-accent) 8%, var(--ann-surface));
+  background: var(--ann-surface-alt);
 }
 
+/* 28 inside 36 with 4px on every side; the inner radius is the bar's 10 − 4 (concentric) */
 .selection-exit {
   display: grid;
   flex: none;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   background: none;
   color: var(--ann-text-2);
   cursor: pointer;
 }
 
 .selection-exit:hover {
-  background: color-mix(in oklab, var(--ann-accent) 12%, transparent);
+  background: color-mix(in oklab, var(--ann-text) 6%, transparent);
 }
 
+/* the count is a pill: neutral at zero, the brand tint once something is picked */
 .selection-count {
+  display: inline-flex;
+  align-items: center;
   flex: none;
-  padding: 0 6px 0 2px;
-  font-size: 13px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: var(--ann-surface-3);
+  color: var(--ann-text-2);
+  font-size: 12px;
   font-weight: 650;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.selection-count.is-on {
+  background: var(--ann-accent-soft);
+  color: var(--ann-accent-text);
 }
 
 .selection-action {
   flex: none;
-  height: 24px;
-  padding: 0 8px;
+  height: 28px;
+  padding: 0 9px;
   border: 0;
   border-radius: 6px;
   background: none;
@@ -94,7 +117,7 @@
 }
 
 .selection-action:hover:not(:disabled) {
-  background: color-mix(in oklab, var(--ann-accent) 10%, transparent);
+  background: color-mix(in oklab, var(--ann-text) 6%, transparent);
 }
 
 .selection-action:disabled {
@@ -103,7 +126,7 @@
 }
 
 .selection-all {
-  color: var(--ann-accent-text);
+  color: var(--ann-text);
   font-weight: 600;
 }
 
@@ -122,9 +145,11 @@
   white-space: nowrap;
 }
 
-.selection-download {
+.selection-bar .primary.selection-download {
   flex: none;
   margin-left: auto;
+  padding: 0 12px;
+  border-radius: 6px;
 }
 
 /* the bar never wraps: the hint goes first, then the pick's count (download.md §3.2) */

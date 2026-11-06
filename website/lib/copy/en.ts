@@ -318,7 +318,7 @@ export const en: LandingCopy = {
     },
     toast: { clipped: 'Clipped', undo: 'Undo', edit: 'Edit', undone: 'Undone' },
     edit: { title: 'Title', tags: 'Tags', note: 'Note', more: 'More properties', done: 'Done', addTag: 'Add a tag…', blurNote: 'Saves when it loses focus' },
-    block: { clip: 'Clip', shot: 'Shot', parent: 'Parent', more: 'More', clipped: 'Clipped' },
+    block: { clip: 'Clip', shot: 'Shot', download: 'Download', more: 'More', clipped: 'Clipped' },
     shot: {
       hint: 'Drag to select an area, click to pick an element · Esc to cancel',
       anonymousOn: 'Anonymize: on · 2 areas masked',

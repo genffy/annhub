@@ -965,9 +965,9 @@ button.ah-hm-b:hover {
   right: 6px;
   display: inline-flex;
   align-items: center;
-  height: 30px;
+  height: 32px;
   padding: 0 3px;
-  gap: 1px;
+  gap: 2px;
   border-radius: 999px;
   background: #1b1f2a;
   color: #eceff6;
@@ -986,9 +986,10 @@ button.ah-hm-b:hover {
 .ah-pill-seg {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 24px;
-  padding: 0 10px 0 9px;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   border-radius: 999px;
 }
 
@@ -1002,6 +1003,10 @@ button.ah-hm-b:hover {
   color: #9fd0ff;
 }
 
+.ah-pill-seg.is-dl .ah-i {
+  color: #8fd6b4;
+}
+
 .ah-pill-seg.is-press {
   background: rgb(255 255 255 / 0.16);
 }
@@ -1009,8 +1014,8 @@ button.ah-hm-b:hover {
 .ah-pill-sub {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   color: #c9cfdd;
 }

@@ -257,7 +257,7 @@ export const zhCN: LandingCopy = {
     menu: { clip: '剪藏', screenshot: '截图', clipHint: '保存选中的内容，之后在资料库里读和高亮', screenshotHint: '框选区域或单击元素 · 保存为图片' },
     toast: { clipped: '已剪藏', undo: '撤销', edit: '编辑', undone: '已撤销' },
     edit: { title: '标题', tags: '标签', note: '备注', more: '更多属性', done: '完成', addTag: '添加标签…', blurNote: '失焦即保存' },
-    block: { clip: '剪藏', shot: '截图', parent: '上一级', more: '更多', clipped: '已剪藏' },
+    block: { clip: '剪藏', shot: '截图', download: '下载', more: '更多', clipped: '已剪藏' },
     shot: {
       hint: '拖拽选择区域，单击选择元素 · Esc 取消',
       anonymousOn: '匿名 开 · 已遮挡 2 处',

@@ -279,7 +279,7 @@ describe('a child frame offers clipping only (capture.md §3)', () => {
     await vi.advanceTimersByTimeAsync(450)
     const capsule = document.querySelector('[data-ann-ui="block-capsule"]')
     expect(capsule).not.toBeNull()
-    const labels = [...capsule!.querySelectorAll('button')].map(button => button.textContent)
+    const labels = [...capsule!.querySelectorAll('button')].map(button => button.getAttribute('aria-label') ?? button.textContent)
     expect(labels).toContain(uiText('block.clip'))
     expect(labels).not.toContain(uiText('block.shot'))
     entries.dispose()

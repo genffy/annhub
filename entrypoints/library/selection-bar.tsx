@@ -43,7 +43,7 @@ export function SelectionBar({ selectedCount, filteredTotal, onSelectAll, onClea
       <button type="button" className="selection-exit" aria-label={uiText('library.exitSelection')} title={uiText('library.exitSelection')} onClick={onExit}>
         <X size={15} aria-hidden />
       </button>
-      <span className="selection-count" ref={count} role="status" aria-live="polite">
+      <span className={selectedCount > 0 ? 'selection-count is-on' : 'selection-count'} ref={count} role="status" aria-live="polite">
         {uiText('library.selectedCount', { count: selectedCount })}
       </span>
       <button

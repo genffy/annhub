@@ -59,7 +59,7 @@ function secSystem() {
         <div class="hs between"><span class="mono" style="font-size:14px;letter-spacing:.1em">656 × 332</span><span class="t-xs muted">等宽 · 尺寸标签、代码、frontmatter</span></div></div>`),
       specGroup('间距、圆角、阴影', '4px 基准。圆角随容器层级递增，对话框最大。', `<div class="vs g16">
         <div><div class="t-xs muted" style="margin-bottom:6px">间距（4 / 8 / 12 / 16 / 20 / 24 / 32）</div><div class="hs g8" style="align-items:flex-end">${[4, 8, 12, 16, 20, 24, 32].map(n => `<div class="vs g4" style="align-items:center"><i style="display:block;width:${n}px;height:${n}px;background:color-mix(in oklab,var(--brand) 30%,var(--surface));border-radius:2px"></i><span class="t-xs muted tnum">${n}</span></div>`).join('')}</div></div>
-        <div><div class="t-xs muted" style="margin-bottom:6px">圆角：控件 8 · 芯片 6 · 卡片与列表 12 · 对话框 16 · 胶囊 999</div><div class="hs g10">${[6, 8, 12, 16, 999].map(r => `<i style="display:block;width:52px;height:36px;border:1.5px solid var(--line-2);background:var(--surface-2);border-radius:${Math.min(r, 18)}px"></i>`).join('')}</div></div>
+        <div><div class="t-xs muted" style="margin-bottom:6px">圆角：控件 8 · 大控件 10 · 条内动作 6 · 芯片 6 · 卡片与列表 12 · 对话框 16 · 胶囊 999</div><div class="hs g10">${[6, 8, 12, 16, 999].map(r => `<i style="display:block;width:52px;height:36px;border:1.5px solid var(--line-2);background:var(--surface-2);border-radius:${Math.min(r, 18)}px"></i>`).join('')}</div></div>
         <div><div class="t-xs muted" style="margin-bottom:8px">阴影：卡片 · 浮层 · 对话框 · 窗口</div><div class="hs g14" style="gap:16px;padding:6px 4px 12px">${['--sh-1', '--sh-2', '--sh-modal', '--sh-window'].map(v => `<i style="display:block;width:68px;height:44px;border-radius:12px;background:var(--surface);box-shadow:var(${v})"></i>`).join('')}</div></div></div>`),
     ),
   )
@@ -81,7 +81,7 @@ function secSystem() {
       <tr><td>详情抽屉</td><td class="mono">440</td><td>覆盖在内容之上，Esc 或点击遮罩关闭；窄窗口里占满内容区</td></tr>
       <tr><td>阅读视图</td><td class="mono">正文最大 700 · 右栏 320</td><td>正文居中，右栏是“高亮 / 属性”两个标签，与抽屉共用属性面板；窄窗口里右栏收到正文下方（extension §4.2），本稿没有单独画这一态</td></tr>
       <tr><td>断点</td><td class="mono">1100 · 720</td><td>≥ 1100 展开；720–1099 默认展开、可手动折叠；&lt; 720 默认折叠为图标栏。任何宽度都不换成顶部导航</td></tr>
-      <tr><td>控件高度</td><td class="mono">导航项 34 · 属性行 34 · 按钮 32 · 搜索 36</td><td>可点击区域不低于 28px；主要按钮 32–36px</td></tr>
+      <tr><td>控件高度</td><td class="mono">导航项 34 · 属性行 34 · 按钮 32（大 36）· 搜索 36 · 工具栏行 36 · 条内动作 28</td><td>可点击区域不低于 28px；工具栏行高 36，行内的动作 28（四边 4px，同心圆角）；大按钮 36</td></tr>
       <tr><td>弹窗</td><td class="mono">520 × 340 · 图标栏 52</td><td>同一套壳的紧凑版，右侧只列最近 5 条</td></tr>
     </tbody></table></div>`,
     notes: ['这些数值只在设计稿里维护；docs/product 只写规则（“所有页面都是左导航 + 右内容；窄窗口折叠为图标栏，不出现顶部导航”），具体宽度与断点以本稿为准。'],
@@ -123,7 +123,7 @@ function secSystem() {
       <div class="vs g12"><div class="mh">导航与筛选</div>
         <div class="app" style="height:auto;display:block;background:transparent"><div class="hs g8"><div class="nav" style="border:1px solid var(--line);border-radius:10px;padding:6px 6px 6px 12px;width:150px">${navItem(NAV[0], 'x', 'zh')}${navItem(NAV[1], 'x', 'zh')}${navItem(NAV[2], 'highlight', 'zh')}</div><div class="nav" style="border:1px solid var(--line);border-radius:10px;padding:6px 6px 6px 12px;width:154px">${navItem(NAV[0], 'x', 'en')}${navItem(NAV[1], 'x', 'en')}${navItem(NAV[2], 'highlight', 'en')}</div></div></div>
         <div class="hs g6 wrap"><span class="fchip">${I('globe')}来源${I('chevron-down')}</span><span class="fchip on">${I('tag')}标签：retry${I('x')}</span></div>
-        <div class="hs g8"><div class="search" style="height:32px">${I('search')}<span>搜索条目…</span><span class="grow"></span><kbd>/</kbd></div></div>
+        <div class="hs g8"><div class="search">${I('search')}<span>搜索条目…</span><span class="grow"></span><kbd>/</kbd></div></div>
         <div class="hs g6 wrap">${keys('/')}<span class="t-xs muted">聚焦搜索</span>${keys('Esc')}<span class="t-xs muted">关闭抽屉</span></div></div>
       <div class="vs g12"><div class="mh">条目与属性</div>
         <div class="hs g6 wrap">${TYPE_ORDER.map(t => tchip(t)).join('')}<span class="hlc">${I('highlighter', 'i-sm')}3 高亮</span></div>
