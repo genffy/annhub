@@ -140,13 +140,7 @@ export class SelectionMenu {
     const buttons = shot ? [clip.button, shot.button] : [clip.button]
     const row = this.doc.createElement('div')
     row.className = 'ann-menu-row'
-    if (shot) {
-      const sep = this.doc.createElement('span')
-      sep.className = 'ann-menu-sep'
-      row.append(clip.button, sep, shot.button)
-    } else {
-      row.append(clip.button)
-    }
+    row.append(...buttons)
     // the consequence card lives in the same host but outside the layout:
     // empty it renders nothing, and the pill is never taller for a hint
     const tip = this.doc.createElement('div')
