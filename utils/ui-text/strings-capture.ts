@@ -15,6 +15,10 @@ export const captureStrings = {
   'toast.undone': { zh: '已撤销', en: 'Undone' },
   'toast.undoFailed': { zh: '撤销失败，请重试', en: 'Undo failed. Try again.' },
   'toast.saveFailed': { zh: '保存失败', en: 'Save failed' },
+  'toast.extensionReloaded': {
+    zh: '扩展已更新，刷新页面后重试',
+    en: 'The extension was updated — reload the page, then try again',
+  },
   'toast.retry': { zh: '重试', en: 'Retry' },
   'toast.truncated': {
     zh: '内容过长，只保存了前 100,000 个字符，可改选其中一节再剪藏',
