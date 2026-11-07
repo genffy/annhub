@@ -39,6 +39,8 @@ export interface PlanOutcome {
 export interface DownloadRunPlan {
   form: DownloadForm
   basePath: string
+  /** The folder name the product's Markdown file follows; the service renames it when the disk already holds the desired name (download.md §4.1, D-94). */
+  productName: string
   withMedia: boolean
   media: DownloadPlanItem[]
   /** The Markdown and README files, once every medium has an outcome. */
@@ -128,10 +130,12 @@ export async function planLibraryDownload(input: { entryIds: string[]; form: Dow
   const media = planned.flatMap(entry => entry.items)
 
   const basePath = multi ? `AnnHub/${batchFolderName(at)}` : planned[0] ? `AnnHub/${planned[0]!.plan.folder}` : 'AnnHub/download'
+  const productName = multi ? batchFolderName(at) : planned[0] ? planned[0]!.plan.folder : 'download'
 
-  return {
+  const plan: DownloadRunPlan = {
     form,
     basePath,
+    productName,
     withMedia,
     media,
     totalMedia: all.length,
@@ -174,12 +178,13 @@ export async function planLibraryDownload(input: { entryIds: string[]; form: Dow
         const readme = mediaReadme(lang, missing, { offline, skipped })
         // the multi root holds one folder per entry; a single entry's base path already is its folder (download.md §4.2)
         const at = multi ? `${entry.plan.folder}/` : ''
-        files.push({ path: `${at}${markdownFileName(entry.plan.folder, Boolean(readme))}`, text: markdown })
+        files.push({ path: `${at}${markdownFileName(multi ? entry.plan.folder : plan.productName, Boolean(readme))}`, text: markdown })
         if (readme) files.push({ path: `${at}README.md`, text: readme })
       }
       return { files, missing: allMissing }
     },
   }
+  return plan
 }
 
 function imageMissing(lang: ExportLanguage): string {
@@ -210,9 +215,10 @@ export function planPageDownload(input: {
   const room = Math.max(0, DOWNLOAD_LIMITS.maxFiles - 2)
   const kept = input.withMedia ? input.media.slice(0, room) : []
   const items: DownloadPlanItem[] = kept.map(medium => ({ ...medium, dir: '', slot: slots.next('', medium.kind) }))
-  return {
+  const plan: DownloadRunPlan = {
     form: input.form,
     basePath: `AnnHub/${folder}`,
+    productName: folder,
     withMedia: input.withMedia,
     media: items,
     totalMedia: input.withMedia ? input.media.length : 0,
@@ -229,9 +235,10 @@ export function planPageDownload(input: {
       const markdown = composePageMarkdown({ title: input.title, sourceUrl: input.sourceUrl, ...input.meta }, input.markdown, mediaOutcomes, input.at)
       const readme = mediaReadme(input.lang, input.withMedia ? mediaOutcomes : [], { offline, skipped: !input.withMedia && input.media.length > 0 })
       // the base path already holds the folder: <标题>.md and README.md sit inside it (download.md §4.2)
-      const files = [{ path: markdownFileName(folder, Boolean(readme)), text: markdown }]
+      const files = [{ path: markdownFileName(plan.productName, Boolean(readme)), text: markdown }]
       if (readme) files.push({ path: 'README.md', text: readme })
       return { files, missing: input.withMedia ? mediaOutcomes.flatMap(item => (item.status === 'missing' ? [{ url: item.url, reason: item.reason }] : [])) : [] }
     },
   }
+  return plan
 }
