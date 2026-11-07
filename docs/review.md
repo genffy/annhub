@@ -161,6 +161,31 @@
 2. docs/product/README.md 第 1 节与 product.md 一致；`npm run check:docs` 通过。
 3. PR 里有产品负责人对措辞的确认。
 
+### 录屏可靠性（真机新发现）
+
+一个 PR（随 RV-REC-01…04 的 PR 补充提交登记）。
+
+#### RV-REC-05 offscreen 文档的旧会话状态会永久阻塞新录制（中）
+
+**问题**
+
+- 真机复核发现：一次录制正常结束（视频下载完成）之后，下一次从弹窗开始录制报“录制失败”，换页面也一样；`chrome.offscreen.closeDocument()` 重建 offscreen 文档后立刻恢复。
+- 原因：`entrypoints/offscreen/main.ts` 的模块级 `recording`、`unsavedVideo`、`starting` 守卫着 `beginRecording`，`RECORDING_CLEANUP` 没有送达（worker 在下载等待期被杀、重启后恢复路径没把清理补上）时，旧状态留在文档里，新的 RECORDING_START 被它挡下且没有恢复路径；offscreen 文档不随录制结束而关闭，状态跟着它活到浏览器重启。
+- 现有单测都从干净文档出发，测不到这个残留。
+
+**要求**
+
+1. 复现：单测或真机步骤写清（真机已复现：正常完成一次录制并下载后，第二次开始失败，重建 offscreen 后恢复）。
+2. 修：`RECORDING_START` 被模块守卫拒绝时，核对文档自身状态与 worker 路由（`GET_RECORDING_STATE`/session 记录）——两边都没有活的录制与待下载视频时，清掉模块状态并放行这次开始；或把“视频已落盘/放弃”的清理做成 worker 重发也能到达的幂等操作。
+3. 不加关闭 offscreen 文档的代码（RV-BG-11 的约定不变）。
+4. 测试用例名带本编号。
+
+**验收**
+
+1. 复现用例改后通过：同一 offscreen 文档上，第一次录制正常结束后第二次能直接开始。
+2. `git grep -n closeDocument` 只出现在测试里。
+3. 真机：连续两次从弹窗录制并停止，第二次不需要重建文档。
+
 ## 3. 已知问题
 
 没有条目。接受一条已知问题时按 §1 第 2 条写：现象与位置、为什么现在不修、影响与绕行、锁定当前行为的用例、什么情况下重新处理。
