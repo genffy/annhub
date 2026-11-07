@@ -11,20 +11,20 @@ export class Logger {
     }
   }
 
-  static info(message: string, ...args: any[]): void {
+  static info(message: string, ...args: unknown[]): void {
     if (this.isProduction) return
     console.log(`${this.prefix} [INFO]`, message, ...args)
   }
 
-  static warn(message: string, ...args: any[]): void {
+  static warn(message: string, ...args: unknown[]): void {
     console.warn(`${this.prefix} [WARN]`, message, ...args)
   }
 
-  static error(message: string, ...args: any[]): void {
+  static error(message: string, ...args: unknown[]): void {
     console.error(`${this.prefix} [ERROR]`, message, ...args)
   }
 
-  static debug(message: string, ...args: any[]): void {
+  static debug(message: string, ...args: unknown[]): void {
     if (this.isProduction) return
     console.debug(`${this.prefix} [DEBUG]`, message, ...args)
   }

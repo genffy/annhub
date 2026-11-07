@@ -43,9 +43,11 @@ const service = RecordingService.getInstance()
 const extensionSender = { url: 'chrome-extension://abc/popup.html', tab: undefined } as unknown as chrome.runtime.MessageSender
 const tabSender = { url: 'https://example.com/post', tab: { id: 7 }, frameId: 0 } as unknown as chrome.runtime.MessageSender
 
+type LooseHandler = (message: Record<string, unknown>, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>
+
 async function dispatch(message: Record<string, unknown>, sender: chrome.runtime.MessageSender): Promise<ResponseMessage> {
   await service.initialize()
-  const handlers = service.getMessageHandlers()
+  const handlers = service.getMessageHandlers() as unknown as Record<string, LooseHandler>
   const handler = handlers[message.type as string]
   if (!handler) throw new Error(`no handler for ${String(message.type)}`)
   return handler(message, sender)

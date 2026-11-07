@@ -6,7 +6,7 @@
  * origin surface (the page's notice bar, the library's dialog), and records
  * the one metric. Nothing a download touches becomes an entry.
  */
-import type { IService } from '../../service-manager'
+import type { IService, MessageHandlers } from '../../service-manager'
 import type {
   DownloadFinishMessage,
   DownloadItemOutcome,
@@ -114,7 +114,7 @@ export class DownloadService implements IService {
     Logger.info('[DownloadService] Initialized')
   }
 
-  getMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
+  getMessageHandlers(): MessageHandlers {
     return {
       EXTRACT_DOWNLOAD_PAGE: async (message, sender): Promise<ResponseMessage> => {
         if (!isTopFrameTabSender(sender)) return forbiddenResponse()

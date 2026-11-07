@@ -43,7 +43,7 @@ describe('CAPTURE_VISIBLE_TAB', () => {
 
   it("photographs the sender's own window, not the current one", async () => {
     tabs.get.mockResolvedValue({ id: 7, windowId: 42, active: true })
-    const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
+    const response = await handlers.CAPTURE_VISIBLE_TAB!({ type: 'CAPTURE_VISIBLE_TAB' }, page({ id: 7, windowId: 42 }))
     expect(response).toMatchObject({ success: true, data: { dataUrl: 'data:image/png;base64,AAAA' } })
     expect(tabs.get).toHaveBeenCalledWith(7)
     expect(tabs.captureVisibleTab).toHaveBeenCalledWith(42, { format: 'png' }, expect.any(Function))
@@ -51,7 +51,7 @@ describe('CAPTURE_VISIBLE_TAB', () => {
 
   it('takes nothing for a page that is not the tab on screen: a background tab cannot photograph the one in front', async () => {
     tabs.get.mockResolvedValue({ id: 7, windowId: 42, active: false })
-    const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
+    const response = await handlers.CAPTURE_VISIBLE_TAB!({ type: 'CAPTURE_VISIBLE_TAB' }, page({ id: 7, windowId: 42 }))
     expect(response.success).toBe(false)
     expect(response.error).toBe('CAPTURE_NOT_VISIBLE')
     expect(response.data).toBeUndefined()
@@ -60,7 +60,7 @@ describe('CAPTURE_VISIBLE_TAB', () => {
 
   it('discards the picture when the user switched tabs while it was taken', async () => {
     tabs.get.mockResolvedValueOnce({ id: 7, windowId: 42, active: true }).mockResolvedValueOnce({ id: 7, windowId: 42, active: false })
-    const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
+    const response = await handlers.CAPTURE_VISIBLE_TAB!({ type: 'CAPTURE_VISIBLE_TAB' }, page({ id: 7, windowId: 42 }))
     expect(tabs.captureVisibleTab).toHaveBeenCalledTimes(1)
     expect(response).toMatchObject({ success: false, error: 'CAPTURE_NOT_VISIBLE' })
     expect(response.data).toBeUndefined()
@@ -71,7 +71,7 @@ describe('CAPTURE_VISIBLE_TAB', () => {
     ['a frame inside the page', page({ id: 7, windowId: 42 }, 3)],
     ['a sender with a tab that has no id', page({ windowId: 42 })],
   ])('refuses %s', async (_label, sender) => {
-    const response = await handlers.CAPTURE_VISIBLE_TAB!({}, sender)
+    const response = await handlers.CAPTURE_VISIBLE_TAB!({ type: 'CAPTURE_VISIBLE_TAB' }, sender)
     expect(response.success).toBe(false)
     // a code the page can localize — never an English sentence that would reach the user
     expect(response.error).toBe('CAPTURE_NOT_VISIBLE')
@@ -85,7 +85,7 @@ describe('CAPTURE_VISIBLE_TAB', () => {
       callback(undefined)
       runtime.lastError = undefined
     })
-    const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
+    const response = await handlers.CAPTURE_VISIBLE_TAB!({ type: 'CAPTURE_VISIBLE_TAB' }, page({ id: 7, windowId: 42 }))
     expect(response).toMatchObject({ success: false, error: 'CAPTURE_FAILED' })
     expect(JSON.stringify(response)).not.toContain('Cannot access')
     expect(Logger.error).toHaveBeenCalledWith(expect.any(String), 'CAPTURE_FAILED', 'Cannot access contents of the page.')
@@ -98,7 +98,7 @@ describe('CAPTURE_VISIBLE_TAB', () => {
       callback(undefined)
       runtime.lastError = undefined
     })
-    const response = await handlers.CAPTURE_VISIBLE_TAB!({}, page({ id: 7, windowId: 42 }))
+    const response = await handlers.CAPTURE_VISIBLE_TAB!({ type: 'CAPTURE_VISIBLE_TAB' }, page({ id: 7, windowId: 42 }))
     expect(response).toMatchObject({ success: false, error: 'CAPTURE_RATE_LIMITED' })
     expect(JSON.stringify(response)).not.toContain('quota')
     // the worker does not wait: its timers can fire seconds late
@@ -109,7 +109,7 @@ describe('CAPTURE_VISIBLE_TAB', () => {
 describe('FETCH_IMAGE', () => {
   const fetchMock = vi.fn()
   const png = () => new Response(new Uint8Array([137, 80, 78, 71]), { headers: { 'content-type': 'image/png' } })
-  const ask = (url: string, sender = page({ id: 7, windowId: 42 })) => handlers.FETCH_IMAGE!({ url }, sender)
+  const ask = (url: string, sender = page({ id: 7, windowId: 42 })) => handlers.FETCH_IMAGE!({ type: 'FETCH_IMAGE', url }, sender)
 
   beforeEach(() => {
     fetchMock.mockReset()
@@ -186,8 +186,8 @@ describe('image message validation (RV-BG-02)', () => {
     downloads.download.mockReset()
     downloads.download.mockImplementation((_options, callback) => callback(1))
     const sender = page({ id: 7, windowId: 42 })
-    const badExtension = await handlers.DOWNLOAD_IMAGE!({ dataUrl: 'data:image/png;base64,AAAA', extension: 'html' }, sender)
-    const badBytes = await handlers.DOWNLOAD_IMAGE!({ dataUrl: 'data:image/png;base64,AAAA', extension: 'png' }, sender)
+    const badExtension = await handlers.DOWNLOAD_IMAGE!({ type: 'DOWNLOAD_IMAGE', dataUrl: 'data:image/png;base64,AAAA', extension: 'html' }, sender)
+    const badBytes = await handlers.DOWNLOAD_IMAGE!({ type: 'DOWNLOAD_IMAGE', dataUrl: 'data:image/png;base64,AAAA', extension: 'png' }, sender)
     expect(badExtension.success).toBe(false)
     expect(badBytes.success).toBe(false)
     expect(downloads.download).not.toHaveBeenCalled()
@@ -201,7 +201,7 @@ describe('image message validation (RV-BG-02)', () => {
       callback(undefined)
       runtime.lastError = undefined
     })
-    const response = await handlers.DOWNLOAD_IMAGE!({ dataUrl: png, extension: 'png' }, page({ id: 7, windowId: 42 }))
+    const response = await handlers.DOWNLOAD_IMAGE!({ type: 'DOWNLOAD_IMAGE', dataUrl: png, extension: 'png' }, page({ id: 7, windowId: 42 }))
     expect(response).toMatchObject({ success: false, error: 'DOWNLOAD_FAILED' })
     expect(JSON.stringify(response)).not.toContain('canceled')
   })
@@ -209,28 +209,34 @@ describe('image message validation (RV-BG-02)', () => {
   it('rejects empty and non-PNG screenshot bytes before storage', async () => {
     const sender = page({ id: 7, windowId: 42 })
     for (const dataUrl of ['data:image/png;base64,', 'data:image/jpeg;base64,AAAA', 'data:image/png;base64,AAAA']) {
-      const response = await handlers.SAVE_SCREENSHOT!({ data: { dataUrl, width: 1, height: 1, sourceUrl: 'https://page.example/a', title: 'Shot', via: 'menu' } }, sender)
+      const response = await handlers.SAVE_SCREENSHOT!(
+        { type: 'SAVE_SCREENSHOT', data: { dataUrl, width: 1, height: 1, sourceUrl: 'https://page.example/a', title: 'Shot', via: 'menu' } },
+        sender,
+      )
       expect(response).toMatchObject({ success: false, error: 'ENTRY_ASSET_MISSING' })
     }
   })
 })
 
 describe('REMEMBER_FRAME and READ_FRAME (screenshot.md §1.4)', () => {
-  const frame = { kind: 'box', pageX: 10, pageY: 20, width: 300, height: 200 }
+  const frame = { kind: 'box' as const, pageX: 10, pageY: 20, width: 300, height: 200 }
   const top = (tabId: number, url: string) => ({ id: 'ext-id', url, tab: { id: tabId }, frameId: 0 }) as chrome.runtime.MessageSender
 
   it("keeps the asking tab's frame for its page and gives it back there only", async () => {
-    expect(await handlers.REMEMBER_FRAME!({ record: frame }, top(5, 'https://shop.example/pricing?period=monthly'))).toMatchObject({ success: true })
-    expect((await handlers.READ_FRAME!({}, top(5, 'https://shop.example/pricing?period=yearly'))).data).toEqual({ record: frame })
-    expect((await handlers.READ_FRAME!({}, top(6, 'https://shop.example/pricing'))).data, 'another tab').toEqual({ record: null })
-    expect((await handlers.READ_FRAME!({}, top(5, 'https://shop.example/checkout'))).data, 'another page').toEqual({ record: null })
+    expect(await handlers.REMEMBER_FRAME!({ type: 'REMEMBER_FRAME', record: frame }, top(5, 'https://shop.example/pricing?period=monthly'))).toMatchObject({ success: true })
+    expect((await handlers.READ_FRAME!({ type: 'READ_FRAME' }, top(5, 'https://shop.example/pricing?period=yearly'))).data).toEqual({ record: frame })
+    expect((await handlers.READ_FRAME!({ type: 'READ_FRAME' }, top(6, 'https://shop.example/pricing'))).data, 'another tab').toEqual({ record: null })
+    expect((await handlers.READ_FRAME!({ type: 'READ_FRAME' }, top(5, 'https://shop.example/checkout'))).data, 'another page').toEqual({ record: null })
   })
 
   it('serves the top frame of a tab only, and refuses a frame the session would not build', async () => {
     for (const sender of [page({ id: 7 }, 3), library, { id: 'other', url: 'https://shop.example/' } as chrome.runtime.MessageSender]) {
-      expect((await handlers.REMEMBER_FRAME!({ record: frame }, sender)).error).toContain('Forbidden')
-      expect((await handlers.READ_FRAME!({}, sender)).error).toContain('Forbidden')
+      expect((await handlers.REMEMBER_FRAME!({ type: 'REMEMBER_FRAME', record: frame }, sender)).error).toContain('Forbidden')
+      expect((await handlers.READ_FRAME!({ type: 'READ_FRAME' }, sender)).error).toContain('Forbidden')
     }
-    expect(await handlers.REMEMBER_FRAME!({ record: { ...frame, width: -1 } }, top(5, 'https://shop.example/'))).toMatchObject({ success: false, error: 'FRAME_INVALID' })
+    expect(await handlers.REMEMBER_FRAME!({ type: 'REMEMBER_FRAME', record: { ...frame, width: -1 } }, top(5, 'https://shop.example/'))).toMatchObject({
+      success: false,
+      error: 'FRAME_INVALID',
+    })
   })
 })

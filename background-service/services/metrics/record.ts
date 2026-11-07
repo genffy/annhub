@@ -5,11 +5,13 @@
 import {
   bucketCaptureDuration,
   LocalMetrics,
+  type CaptureVia,
   type MetricEventName,
   type MetricEventProps,
   type MetricsPanelData,
   type MetricsStorage,
   type MetricsStoreShape,
+  type ScreenshotFrame,
 } from '../../../core/metrics'
 import { storageErrorCode } from '../errors'
 
@@ -39,12 +41,12 @@ export async function recordEvent(name: MetricEventName, props: MetricEventProps
 
 export interface CaptureSavedInput {
   type: 'clip' | 'screenshot'
-  via: 'menu' | 'block' | 'shortcut'
+  via: CaptureVia
   blockKind?: string
   levelChanged?: boolean
   truncated?: boolean
   durationMs?: number
-  frame?: 'drag' | 'element' | 'reused'
+  frame?: ScreenshotFrame
 }
 
 export async function recordCaptureSaved(input: CaptureSavedInput): Promise<void> {
