@@ -5,13 +5,13 @@ import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_DOWNLOAD_COMMAND, ANN
 /**
  * The browser commands (extension.md §7.1): region screenshot, block mode and
  * the page-annotation, recording and download entries (the latter three
- * unbound by default, annotate.md §1.1, download.md §2.3). The first three tell the active tab's content script; the
- * recording toggle drives the RecordingService in the worker itself. There is
- * no injection fallback — page scripts are statically registered, and pages
- * without one refresh or use the toolbar popup (permissions.md §4). The
- * message goes to the top frame only: the content script also runs in
- * same-origin child frames, and a broadcast would start a session in every
- * one of them.
+ * unbound by default, annotate.md §1.1, download.md §2.3). Four of them tell
+ * the active tab's content script; the recording toggle drives the
+ * RecordingService in the worker itself. There is no injection fallback —
+ * page scripts are statically registered, and pages without one refresh or
+ * use the toolbar popup (permissions.md §4). The message goes to the top
+ * frame only: the content script also runs in same-origin child frames, and
+ * a broadcast would start a session in every one of them.
  */
 export class CommandHandler {
   private commandListener?: (command: string) => void
@@ -29,10 +29,9 @@ export class CommandHandler {
           // the download command shares the popup's road (download.md §2.3): the page finds its main article
           await this.sendToActiveTab({ type: 'TRIGGER_DOWNLOAD_MAIN', via: 'command' })
         } else if (command === ANN_RECORD_COMMAND) {
-          // the shortcut toggles: start, or stop what is being recorded (annotate.md §2.1)
-          const recording = RecordingService.getInstance()
-          if (recording.currentState().status === 'recording') await recording.stopFromCommand()
-          else await recording.startFromCommand()
+          // the shortcut toggles: start, or stop what is being recorded (annotate.md §2.1);
+          // the read waits for the route's recovery, so the first press after a restart stops (RV-REC-02)
+          await RecordingService.getInstance().toggleFromCommand()
         } else {
           Logger.warn('[CommandHandler] Unknown command:', command)
         }

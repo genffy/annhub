@@ -210,6 +210,55 @@ test('the popup annotation entry opens the layer on the page and stays off on re
   await restricted.close()
 })
 
+test('the record button asks for the stream by targetTabId and hands it to START_RECORDING (annotate.md §2.1, RV-REC-01)', async ({ page, extensionId }) => {
+  await page.goto(getCapturePageUrl())
+  const popup = await page.context().newPage()
+  await popup.addInitScript(() => {
+    // the popup runs as a tab here: make the fixture page the window's active tab for the query
+    const query = chrome.tabs.query.bind(chrome.tabs)
+    chrome.tabs.query = ((info: chrome.tabs.QueryInfo, callback?: (tabs: chrome.tabs.Tab[]) => void) => {
+      if (!info?.active) return query(info, callback as never)
+      const tabs = [{ id: 4242, url: 'https://engineering.example.com/posts/retries', title: 'Retries' } as chrome.tabs.Tab]
+      if (callback) return void callback(tabs)
+      return Promise.resolve(tabs)
+    }) as typeof chrome.tabs.query
+    // capture the stream request: the recording runs in the offscreen document, so the id
+    // must be usable outside the recorded tab — targetTabId, never consumerTabId
+    const captured = { streams: [] as Array<Record<string, unknown>>, starts: [] as Array<Record<string, unknown>>, closed: false }
+    ;(window as unknown as { __captured: typeof captured }).__captured = captured
+    chrome.tabCapture.getMediaStreamId = ((options: Record<string, unknown>) => {
+      captured.streams.push(options)
+      return Promise.resolve('stream-e2e')
+    }) as typeof chrome.tabCapture.getMediaStreamId
+    const send = chrome.runtime.sendMessage.bind(chrome.runtime)
+    chrome.runtime.sendMessage = ((...rest: unknown[]) => {
+      const type = (rest[0] as { type?: string } | undefined)?.type
+      if (type === 'START_RECORDING') {
+        captured.starts.push(rest[0] as Record<string, unknown>)
+        return Promise.resolve({ success: true })
+      }
+      return (send as (...args: unknown[]) => unknown)(...rest)
+    }) as typeof chrome.runtime.sendMessage
+    // keep the popup open so the captures can be read after the click
+    ;(window as unknown as { close: () => void }).close = () => {
+      captured.closed = true
+    }
+  })
+  await page.bringToFront()
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`)
+  const record = popup.locator('[data-ann-ui="popup-record"]')
+  await expect(record).toBeEnabled()
+  await record.click()
+  const captured = await popup.evaluate(
+    () => (window as unknown as { __captured: { streams: Array<Record<string, unknown>>; starts: Array<Record<string, unknown>>; closed: boolean } }).__captured,
+  )
+  expect(captured.streams, 'the stream is asked for the recorded tab, not a consumer inside it').toEqual([{ targetTabId: 4242 }])
+  expect(captured.starts, 'START_RECORDING carries the stream id the call returned').toHaveLength(1)
+  expect(captured.starts[0]).toMatchObject({ type: 'START_RECORDING', tabId: 4242, streamId: 'stream-e2e', withMic: false })
+  expect(captured.closed, 'the popup dismisses itself after the start is accepted').toBe(true)
+  await popup.close()
+})
+
 /** Makes the popup believe the active tab is an http page and the worker answers with this recording state. */
 async function popupIn(page: Page, extensionId: string, recording?: Record<string, unknown>): Promise<Page> {
   const popup = await page.context().newPage()
