@@ -6,7 +6,7 @@
 
 仓库包含 Chrome MV3 扩展、TypeScript 领域核心和官网；会演进为 monorepo，现有目录只是当前代码位置，不代表最终 package 划分。
 
-- 产品边界、契约与验收以 [docs/product/README.md](docs/product/README.md) 为入口；代码行为以源码和测试为准，交付状态见 [roadmap.md](docs/product/roadmap.md)。
+- 产品边界、契约与验收以 [docs/product/README.md](docs/product/README.md) 为入口；代码行为以源码和测试为准，交付状态见 [roadmap.md](docs/product/roadmap.md)，审查问题见 [review.md](docs/review.md)。
 - 新功能的规格与代码在同一个 PR 里进入仓库，流程见 [docs/product/AGENTS.md](docs/product/AGENTS.md)；没有产品文档依据的代码、文案或配置，发现时删除。
 - 待确认的决策与其默认见 [validation.md](docs/product/validation.md)：实现不等回复，先按默认走；真机验收项见 [roadmap.md 第 5 节](docs/product/roadmap.md)。
 

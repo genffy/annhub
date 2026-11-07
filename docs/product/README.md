@@ -101,6 +101,7 @@ AnnHub 是一个本地优先的浏览器扩展：把网页中值得留下的内�
 | 发布了什么、正在做什么                 | [roadmap.md](roadmap.md)（交付状态唯一入口）                          |
 | 有哪些候选的新功能                     | GitHub 上带 `enhancement` 标签的 issue（[roadmap.md §3](roadmap.md)） |
 | 哪些决策等待确认、有哪些风险与开放问题 | [validation.md](validation.md)                                        |
+| 代码审查发现、还没处理的问题           | [docs/review.md](../review.md)                                        |
 | 某条需求的验收标准                     | [user-stories.md](user-stories.md)                                    |
 | 某个指标怎么算、记录什么事件           | [metrics.md](metrics.md)                                              |
 
