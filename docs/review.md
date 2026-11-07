@@ -24,24 +24,6 @@
 
 四条都在录制链路上，一个 PR。规格是 [annotate.md §2.1、§2.4、§3.3](product/annotate.md)（开始与停止、失败、停止录制以后）；产品行为不变，只改实现。要跑的 E2E：`popup-entry.spec.ts`、`recording-annotation.spec.ts`、`page-annotation.spec.ts`、`cold-start.spec.ts`。
 
-#### RV-REC-01 弹窗取流改用 `targetTabId`（高）
-
-**问题**
-
-- 工具栏弹窗（`entrypoints/popup/App.tsx`）调用 `chrome.tabCapture.getMediaStreamId({ consumerTabId: active.id })`。设了 `consumerTabId` 的 stream id 只能由那个标签页里同源的 frame 拿去 `getUserMedia`（[tabCapture](https://developer.chrome.com/docs/extensions/reference/api/tabCapture)）。录制在 offscreen 文档里，拿不到流，弹窗显示“录制失败”；`http:` 页面上这个调用直接报错，因为 consumer 必须是安全来源。
-- 快捷键路径（`RecordingService.startFromCommand`）用的是 `targetTabId`，与 Chrome 的 [offscreen 录制指南](https://developer.chrome.com/docs/extensions/how-to/web-platform/screen-capture)一致。现有测试都替身掉了真实取流，测不到这个参数。
-
-**要求**
-
-1. 弹窗改为 `getMediaStreamId({ targetTabId: active.id })`，不传 `consumerTabId`。
-2. `e2e/popup-entry.spec.ts` 加一条：替身 `chrome.tabCapture.getMediaStreamId`，点“录制此标签页”后断言它收到 `{ targetTabId: <当前标签页 id> }`，且 `START_RECORDING` 带着它返回的 stream id。
-
-**验收**
-
-1. `git grep -n consumerTabId` 没有结果。
-2. 上面的用例通过；把参数改回 `consumerTabId` 时它失败（PR 里贴一次失败输出）。
-3. 真机：https 与 http 页面各从弹窗开始录制 10 秒再停止：角标显示 REC，弹窗显示“停止录制”，停止后 `AnnHub/recording-*.webm` 下载完成且能播放。
-
 #### RV-REC-02 录制中保活，worker 重启后状态不丢（高）
 
 **问题**
