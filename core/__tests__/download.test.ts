@@ -25,7 +25,6 @@ describe('sanitizeTitle (download.md §4.4)', () => {
   it('drops leading and trailing dots and spaces', () => {
     expect(sanitizeTitle('  . Hidden file. ', 'host.example')).toBe('Hidden file')
   })
-  // eslint-disable-next-line no-control-regex
   it('drops control characters', () => {
     expect(sanitizeTitle(`bad\u0007\u001fname`, 'host.example')).toBe('badname')
   })

@@ -4,7 +4,7 @@
  * the fetch policy, PNG download, and library persistence as a screenshot
  * entry whose asset commits in the same transaction.
  */
-import type { IService } from '../../service-manager'
+import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender, rememberCapture } from '../../sender'
 import { RESOURCE_TIMEOUT_MS, assertFetchableUrl, readImage } from './fetch-policy'
@@ -36,7 +36,7 @@ export class ScreenshotService implements IService {
     Logger.info('[ScreenshotService] Initialized')
   }
 
-  getMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
+  getMessageHandlers(): MessageHandlers {
     return {
       CAPTURE_VISIBLE_TAB: async (_message, sender): Promise<ResponseMessage> => {
         try {

@@ -1,19 +1,26 @@
 import { Logger } from '../utils/logger'
 import MessageUtils from '../utils/message'
-import type { BaseMessage, ResponseMessage } from '../types/messages'
+import type { BaseMessage, ExtensionMessage, ResponseMessage } from '../types/messages'
 import { EXTENSION_PAGES, openExtensionPage } from '../utils/extension-pages'
 import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from './sender'
 
 export type SupportedServices = 'entries' | 'screenshot' | 'recording' | 'download' | 'system'
 
-export type MessageHandler = (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>
+export type MessageHandler = (message: BaseMessage, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>
+
+type MessageOfType<K extends ExtensionMessage['type']> = Extract<ExtensionMessage, { type: K }>
+
+/** Each handler receives its own message shape; dispatch still looks handlers up by `type`. */
+export type MessageHandlers = {
+  [K in ExtensionMessage['type']]?: (message: MessageOfType<K>, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>
+}
 
 export interface IService {
   readonly name: SupportedServices
 
   initialize(): Promise<void>
 
-  getMessageHandlers(): Record<string, MessageHandler>
+  getMessageHandlers(): MessageHandlers
 
   isInitialized(): boolean
 
@@ -27,7 +34,7 @@ const RESPONSE_CACHE_LIMIT = 64
 export class ServiceManager {
   private static instance: ServiceManager
   private services: Map<string, IService> = new Map()
-  private handlers: Record<string, MessageHandler> | null = null
+  private handlers: MessageHandlers | null = null
   private responseCache = new Map<string, Promise<ResponseMessage>>()
 
   private constructor() {}
@@ -78,7 +85,7 @@ export class ServiceManager {
    * requestId so a retry after a lost response cannot save twice (RV-BG-01).
    */
   async dispatchMessage(message: BaseMessage, sender: chrome.runtime.MessageSender): Promise<ResponseMessage> {
-    const handler = this.ensureHandlers()[message.type]
+    const handler = this.ensureHandlers()[message.type as keyof MessageHandlers] as MessageHandler | undefined
     if (!handler) {
       return MessageUtils.createResponse(false, undefined, `Unknown message type: ${message.type}`)
     }
@@ -105,9 +112,9 @@ export class ServiceManager {
     }
   }
 
-  private ensureHandlers(): Record<string, MessageHandler> {
+  private ensureHandlers(): MessageHandlers {
     if (!this.handlers) {
-      const allHandlers: Record<string, MessageHandler> = {}
+      const allHandlers: MessageHandlers = {}
       for (const [serviceName, service] of this.services) {
         const handlers = service.getMessageHandlers()
         Object.assign(allHandlers, handlers)
@@ -124,7 +131,7 @@ export class ServiceManager {
    * Messages the manager itself answers. Content scripts cannot navigate to chrome-extension://
    * pages; only our own page set is openable.
    */
-  private getNavigationHandlers(): Record<string, MessageHandler> {
+  private getNavigationHandlers(): MessageHandlers {
     return {
       OPEN_EXTENSION_PAGE: async (message, sender): Promise<ResponseMessage> => {
         if (!isExtensionPageSender(sender) && !isSameOriginTabSender(sender)) return forbiddenResponse()

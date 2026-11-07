@@ -3,7 +3,7 @@
  * storage.md, search.md). Every write validates in the domain layer and
  * commits dependents in one transaction; senders are checked per message.
  */
-import type { IService } from '../../service-manager'
+import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isRecentCapture, isSameOriginTabSender, rememberCapture } from '../../sender'
 import { initializedEntryStore } from '../../store-instance'
@@ -38,7 +38,7 @@ export class EntryService implements IService {
     Logger.info(`[EntryService] Initialized (annhub IndexedDB v${DB_VERSION})`)
   }
 
-  getMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
+  getMessageHandlers(): MessageHandlers {
     return {
       SAVE_CLIP: async (message, sender): Promise<ResponseMessage> => {
         if (!trustedSender(sender)) return forbiddenResponse()

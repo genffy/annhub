@@ -8,7 +8,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
-import type { DownloadForm, DownloadMissingItem, DownloadNoticeMessage, ResponseMessage } from '../../types/messages'
+import type { DownloadForm, DownloadMissingItem, DownloadNoticeMessage } from '../../types/messages'
 import { currentUiLanguage, uiText } from '../../utils/ui-text'
 
 export type DownloadPhase = 'idle' | 'active' | 'done' | 'partial' | 'failed' | 'cancelled' | 'busy'
@@ -137,12 +137,12 @@ export function useLibraryDownload(): LibraryDownload {
       tracking.current = true
       current.current = { ...IDLE, phase: 'active', stage: 'fetch' }
       setState(current.current)
-      const response = (await MessageUtils.sendMessage<{ total?: number }>({
+      const response = await MessageUtils.sendMessage<{ total?: number }>({
         type: 'START_LIBRARY_DOWNLOAD',
         clientRunId: clientRunId.current,
         ...input,
         lang: currentUiLanguage(),
-      })) as ResponseMessage
+      })
       starting.current = false
       if (!response.success) {
         tracking.current = false

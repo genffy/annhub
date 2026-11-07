@@ -3,7 +3,7 @@ import { EntryService } from './index'
 import { rememberCapture } from '../../sender'
 import { ScreenshotService } from '../screenshot'
 import { SystemService } from '../system'
-import { ServiceManager } from '../../service-manager'
+import { ServiceManager, type MessageHandler } from '../../service-manager'
 
 vi.stubGlobal('chrome', { runtime: { id: 'annhub-test', getURL: (path: string) => `chrome-extension://annhub-test/${path}` } })
 
@@ -14,6 +14,8 @@ const crossOriginFrame = { ...sameOriginFrame, url: 'https://outside.example/chi
 
 describe('entry service sender permissions (RV-BG-02)', () => {
   const handlers = EntryService.getInstance().getMessageHandlers()
+  // This sweep only needs the sender gate, not each message's payload.
+  const looseHandlers = handlers as unknown as Record<string, MessageHandler>
 
   it('rejects content scripts for library reads, export, registry and highlight changes', async () => {
     for (const type of [
@@ -33,14 +35,16 @@ describe('entry service sender permissions (RV-BG-02)', () => {
       'REMOVE_HIGHLIGHT',
       'RESTORE_HIGHLIGHT',
     ]) {
-      const response = await handlers[type]!({ type }, contentSender)
+      const response = await looseHandlers[type]!({ type }, contentSender)
       expect(response.success, type).toBe(false)
       expect(response.error, type).toContain('Forbidden')
     }
   })
 
   it('rejects outside senders and limits content edits to the capture they just saved', async () => {
-    expect((await handlers.SAVE_CLIP!({ type: 'SAVE_CLIP' }, outsideSender)).error).toContain('Forbidden')
+    expect(
+      (await handlers.SAVE_CLIP!({ type: 'SAVE_CLIP', draft: { content: 'x', sourceUrl: 'https://page.example/a', properties: {}, via: 'menu' } }, outsideSender)).error,
+    ).toContain('Forbidden')
     expect((await handlers.DELETE_ENTRY!({ type: 'DELETE_ENTRY', id: 'other-entry' }, contentSender)).error).toContain('Forbidden')
     await rememberCapture(contentSender, 'recent-entry')
     expect((await handlers.UPDATE_ENTRY!({ type: 'UPDATE_ENTRY', id: 'other-entry', patch: { note: 'x' } }, contentSender)).error).toContain('Forbidden')
@@ -59,7 +63,7 @@ describe('entry service sender permissions (RV-BG-02)', () => {
 
   it('rejects every service handler and navigation for an outside sender', async () => {
     for (const service of [EntryService.getInstance(), ScreenshotService.getInstance(), SystemService.getInstance()]) {
-      for (const [type, handler] of Object.entries(service.getMessageHandlers())) {
+      for (const [type, handler] of Object.entries(service.getMessageHandlers() as unknown as Record<string, MessageHandler>)) {
         const response = await handler({ type }, outsideSender)
         expect(response.success, type).toBe(false)
       }

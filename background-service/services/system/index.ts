@@ -2,7 +2,7 @@
  * System service — preferences (chrome.storage layer C), local metrics and
  * storage housekeeping behind the message facade.
  */
-import type { IService } from '../../service-manager'
+import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from '../../sender'
 import { addDisabledSite, readSettings, writeSettings } from '../../settings-schema'
@@ -30,7 +30,7 @@ export class SystemService implements IService {
     Logger.info('[SystemService] Initialized')
   }
 
-  getMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
+  getMessageHandlers(): MessageHandlers {
     return {
       GET_SETTINGS: async (_message, sender): Promise<ResponseMessage> => {
         if (!trustedSender(sender)) return forbiddenResponse()

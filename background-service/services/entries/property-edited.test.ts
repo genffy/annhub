@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { UpdateEntryPatch } from '../../../types/messages'
 
 /**
  * `entry.property_edited` is recorded where UPDATE_ENTRY writes (metrics.md §9), so a tag typed into the
@@ -46,7 +47,8 @@ async function service() {
   return {
     store,
     id: entry.id,
-    update: (patch: unknown, sender = pageSender, id = entry.id) => EntryService.getInstance().getMessageHandlers().UPDATE_ENTRY!({ type: 'UPDATE_ENTRY', id, patch }, sender),
+    update: (patch: UpdateEntryPatch, sender = pageSender, id = entry.id) =>
+      EntryService.getInstance().getMessageHandlers().UPDATE_ENTRY!({ type: 'UPDATE_ENTRY', id, patch }, sender),
     edits: async () => (await metricsSnapshot())['entry.property_edited']?.byProps ?? {},
   }
 }
@@ -86,7 +88,7 @@ describe('entry.property_edited (metrics.md §9, M-20)', () => {
     vi.spyOn(store, 'listPropertyDefinitions').mockRejectedValue(new Error('registry unreadable'))
     const response = await update({ properties: { set: { tags: ['retry'] } } }, contentSender)
     expect(response.success).toBe(true)
-    expect(response.data.entry.properties.tags).toEqual(['retry'])
+    expect((response.data as { entry: { properties: Record<string, unknown> } }).entry.properties.tags).toEqual(['retry'])
     expect(await edits()).toEqual({})
   })
 })

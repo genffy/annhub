@@ -12,7 +12,7 @@ function isConnectionError(message: string): boolean {
 }
 
 export default class MessageUtils {
-  static async sendMessage<T = any>(message: ExtensionMessage, retryCount: number = 3): Promise<ResponseMessage<T>> {
+  static async sendMessage<T = unknown>(message: ExtensionMessage, retryCount: number = 3): Promise<ResponseMessage<T>> {
     const messageWithMeta = {
       ...message,
       requestId: this.generateRequestId(),
@@ -56,7 +56,7 @@ export default class MessageUtils {
     return new Promise(resolve => setTimeout(resolve, ms))
   }
 
-  static createResponse<T = any>(success: boolean, data?: T, error?: string): ResponseMessage<T> {
+  static createResponse<T = unknown>(success: boolean, data?: T, error?: string): ResponseMessage<T> {
     return {
       type: 'RESPONSE',
       success,
@@ -70,12 +70,12 @@ export default class MessageUtils {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
   }
 
-  static isValidMessage(message: any): message is BaseMessage {
-    return message && typeof message === 'object' && typeof message.type === 'string'
+  static isValidMessage(message: unknown): message is BaseMessage {
+    return typeof message === 'object' && message !== null && 'type' in message && typeof message.type === 'string'
   }
 
-  static isResponseMessage(message: any): message is ResponseMessage {
-    return message && typeof message === 'object' && typeof message.type === 'string' && typeof message.success === 'boolean'
+  static isResponseMessage(message: unknown): message is ResponseMessage {
+    return this.isValidMessage(message) && 'success' in message && typeof message.success === 'boolean'
   }
 
   static wrapAsyncHandler<T extends BaseMessage = BaseMessage>(handler: (message: T, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>) {
@@ -90,7 +90,7 @@ export default class MessageUtils {
     }
   }
 
-  static createMessageHandler(handlers: Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>>) {
+  static createMessageHandler(handlers: Record<string, (message: BaseMessage, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>>) {
     return this.wrapAsyncHandler(async (message: BaseMessage, sender: chrome.runtime.MessageSender) => {
       const handler = handlers[message.type]
       if (!handler) {

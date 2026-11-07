@@ -76,12 +76,15 @@ const tabSender = { url: 'https://blog.example.com/post', tab: { id: 7 }, frameI
 const pageSender = { url: 'chrome-extension://abc/library.html', tab: undefined } as unknown as chrome.runtime.MessageSender
 const offscreenSender = { url: 'chrome-extension://abc/offscreen.html', tab: undefined } as unknown as chrome.runtime.MessageSender
 
+type LooseHandler = (message: Record<string, unknown>, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>
+
 async function dispatch(message: object, sender: chrome.runtime.MessageSender = tabSender): Promise<ResponseMessage> {
   await service.initialize()
   const typed = message as Record<string, unknown>
-  const handler = service.getMessageHandlers()[typed['type'] as string]
+  const handlers = service.getMessageHandlers() as unknown as Record<string, LooseHandler>
+  const handler = handlers[typed['type'] as string]
   if (!handler) throw new Error(`no handler for ${String(typed['type'])}`)
-  return handler(message, sender)
+  return handler(typed, sender)
 }
 
 function lastRunMessage(): Record<string, unknown> {

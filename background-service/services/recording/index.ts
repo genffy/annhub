@@ -6,7 +6,7 @@
  * the offscreen document. The worker keeps the state the popup reads, drives
  * the badge, downloads the finished video and writes the one metric.
  */
-import type { IService } from '../../service-manager'
+import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage, RecordingEventMessage, RecordingState } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
 import { readSettings } from '../../settings-schema'
@@ -67,7 +67,7 @@ export class RecordingService implements IService {
     Logger.info('[RecordingService] Initialized')
   }
 
-  getMessageHandlers(): Record<string, (message: any, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>> {
+  getMessageHandlers(): MessageHandlers {
     return {
       START_RECORDING: async (message, sender): Promise<ResponseMessage> => {
         // only the extension's own pages — the popup — may start a recording (annotate.md §2.1)

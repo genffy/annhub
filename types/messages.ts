@@ -18,7 +18,7 @@ export interface BaseMessage {
   timestamp?: number
 }
 
-export interface ResponseMessage<T = any> {
+export interface ResponseMessage<T = unknown> {
   type: string
   success: boolean
   data?: T
