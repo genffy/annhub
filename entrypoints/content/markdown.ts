@@ -141,7 +141,7 @@ export function escapeText(text: string, escapeInterpolation = false): string {
     .replace(escapeInterpolation ? /([\\$~])/g : /(\\)/g, '\\$1')
     .replace(/==/g, '=\\=')
     .replace(ALWAYS_ESCAPED, '\\$&')
-    .replace(/(^|[^\w])(_+)/g, (_match, pre: string, run: string) => `${pre}${run.replace(/_/g, '\\_')}`)
+    .replace(/(^|[^\w])(_+)/g, (_match, pre: string, run: string) => `${pre}${run.replace(/([\\_])/g, '\\$1')}`)
     .replace(UNDERSCORE_CLOSER, '$1\\_')
     .replace(LINE_START_MARKER, (_match, pre: string, marker: string) => `${pre}${/^\d/.test(marker) ? marker.replace(/[.)]/, '\\$&') : `\\${marker}`}`)
 }
