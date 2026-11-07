@@ -332,7 +332,10 @@ describe('recording service (annotate.md §2)', () => {
     downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(43))
     runtime.sendMessage.mockClear()
     const handlers = restarted.getMessageHandlers() as unknown as Record<string, LooseHandler>
-    await handlers.RECORDING_EVENT({ type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:video', filename: 'AnnHub/recording-r.webm', durationMs: 1_000, stoppedBy: 'tab_closed', withMic: false }, extensionSender)
+    await handlers.RECORDING_EVENT(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:video', filename: 'AnnHub/recording-r.webm', durationMs: 1_000, stoppedBy: 'tab_closed', withMic: false },
+      extensionSender,
+    )
     expect(tabs.sendMessage).toHaveBeenCalledWith(7, { type: 'RECORDING_LIFECYCLE', active: false })
     expect(downloads.download).toHaveBeenCalledWith({ url: 'blob:video', filename: 'AnnHub/recording-r.webm', saveAs: false }, expect.any(Function))
     // the download the successor started lands, and the route record goes with it

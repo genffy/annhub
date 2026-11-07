@@ -249,7 +249,9 @@ test('the record button asks for the stream by targetTabId and hands it to START
   const record = popup.locator('[data-ann-ui="popup-record"]')
   await expect(record).toBeEnabled()
   await record.click()
-  const captured = await popup.evaluate(() => (window as unknown as { __captured: { streams: Array<Record<string, unknown>>; starts: Array<Record<string, unknown>>; closed: boolean } }).__captured)
+  const captured = await popup.evaluate(
+    () => (window as unknown as { __captured: { streams: Array<Record<string, unknown>>; starts: Array<Record<string, unknown>>; closed: boolean } }).__captured,
+  )
   expect(captured.streams, 'the stream is asked for the recorded tab, not a consumer inside it').toEqual([{ targetTabId: 4242 }])
   expect(captured.starts, 'START_RECORDING carries the stream id the call returned').toHaveLength(1)
   expect(captured.starts[0]).toMatchObject({ type: 'START_RECORDING', tabId: 4242, streamId: 'stream-e2e', withMic: false })
