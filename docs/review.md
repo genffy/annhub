@@ -24,34 +24,6 @@
 
 四条都在录制链路上，一个 PR。规格是 [annotate.md §2.1、§2.4、§3.3](product/annotate.md)（开始与停止、失败、停止录制以后）；产品行为不变，只改实现。要跑的 E2E：`popup-entry.spec.ts`、`recording-annotation.spec.ts`、`page-annotation.spec.ts`、`cold-start.spec.ts`。
 
-#### RV-REC-02 录制中保活，worker 重启后状态不丢（高）
-
-**问题**
-
-- `RecordingService` 的状态只在内存里。录制中 offscreen 文档不给 worker 发任何消息；Chrome 会在 worker 空闲 30 秒后终止它，只有 offscreen 文档发来的消息才重置这个计时（[service worker 生命周期](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)）。
-- worker 重启后：弹窗读到 idle，显示“录制此标签页”，角标却还是 REC，没有地方能停；快捷键被当成“开始”，对正在录的标签页再取流会失败，也停不了；停止时读到的 `tabId` 是空的，`RECORDING_LIFECYCLE` 发不出去，页面留在录制态，违反 annotate.md §3.3。
-- `RecordingService.initialize()` 排在 `EntryService` 打开 IndexedDB 之后，它注册的 `tabs.onRemoved`、`downloads.onChanged` 不在 worker 脚本的同步顶层。worker 正是被这两个事件唤醒时，事件会丢：关掉被录的标签页不触发停止，视频落盘不触发收尾。
-- 下载链路处理同一个问题的办法：`background-service/services/download/recovery.ts` 的 session 记录，加 offscreen 每 10 秒一次心跳。
-
-**要求**
-
-1. 保活：录制中、以及视频等待落盘期间，offscreen 文档每 10 秒给 worker 发一次心跳（例如给 `RECORDING_EVENT` 加 `heartbeat` 事件，先在 `types/messages.ts` 登记），worker 收到即回。
-2. 持久化：开始、停止、下载失败时，把路由状态写进 `chrome.storage.session`：`status`、`tabId`、`startedAt`、`withMic`、`micNotice`、`limitNotice`、待下载视频的 blob URL 与文件名。视频落盘或放弃后删除记录。不存标签页标题，恢复时用 `chrome.tabs.get(tabId)` 重新取。
-3. 恢复：`initialize()` 读回记录，再用 `chrome.runtime.getContexts` 核对 offscreen 文档还在；不在就清掉记录、回到 idle、清角标。恢复后按状态设置角标。
-4. 先恢复再判断：`GET_RECORDING_STATE`、`STOP_RECORDING`、`RETRY_RECORDING_DOWNLOAD`、`DISCARD_RECORDING` 和快捷键开关（`event-handlers/command-handler.ts`）都在恢复完成后才读状态。
-5. 顶层监听：被录标签页的 `tabs.onRemoved` 与视频的 `downloads.onChanged` 在 worker 脚本的同步顶层注册（参照 `entrypoints/background/index.ts` 里的 `listenForFrames()`），处理时先等恢复完成。
-6. 约定：`background-service/AGENTS.md` 加一条规则：持续超过 30 秒的流程把状态放进 `storage.session` 并在启动时恢复，由 offscreen 心跳保活，配一条中途停掉 worker 的测试。同一文件“服务边界”里讲 `command-handler.ts` 的那条改准：下载命令也只发给顶层框架（四条发给标签页，录制开关留在 worker）；`command-handler.ts` 文件头注释里的 “The first three” 一并改。
-
-**验收**
-
-1. 单测（`recording.test.ts`）：开始录制后，用同一份替身 `storage.session` 新建一个服务实例并 `initialize()`：`GET_RECORDING_STATE` 返回 `recording`，`tabId`、`startedAt` 不变；`STOP_RECORDING` 向 offscreen 发出 `RECORDING_STOP`。
-2. 单测：重启时 offscreen 文档已不在，状态回到 idle，角标清空，session 记录删除。
-3. 单测：重启后收到 `stopped` 事件，向原 `tabId` 发 `RECORDING_LIFECYCLE { active: false }`，并开始下载视频。
-4. 单测（假定时器）：录制中每 10 秒一次心跳；`RECORDING_CLEANUP` 之后心跳停止。
-5. 单测：重启后第一次按录制快捷键，执行的是停止而不是开始。
-6. 单测断言写入的内容：session 记录只含要求 2 列出的字段，没有标题、页面地址或视频字节。
-7. 真机：开始录制后，在 `chrome://serviceworker-internals` 找到 AnnHub 的 worker 点 Stop（或 60 秒以上不碰扩展），再打开弹窗：显示正在录制与已录时长；点“停止录制”后视频下载、能播放，被录页面的光标高亮消失、批注工具栏回来。再录一次，停掉 worker 后直接关掉被录的标签页：视频自动下载。
-
 #### RV-REC-03 快捷键带麦克风、尚未授权时打开设置页（中）
 
 **问题**：`RecordingService.startFromCommand` 在 worker 里用 `chrome.runtime.sendMessage` 发 `OPEN_EXTENSION_PAGE`，可这个消息的处理器就在 worker 自己身上（`service-manager.ts`）；runtime 消息不会送回发送者，设置页打不开，按快捷键什么都不发生。[annotate.md §2.1](product/annotate.md) 要求这时在新标签页打开设置页的“录制”一节，由浏览器询问麦克风。`startFromCommand` 没有单测。

@@ -6,7 +6,8 @@
 
 - `index.ts` 注册五个服务：`services/entries`（条目/属性的消息门面）、`services/screenshot`（截取、跨域代取、下载、入库）、`services/recording`（标签页录制：状态机、badge 与下载，视频本身在 `entrypoints/offscreen` 收，annotate.md §2）、`services/download`（Markdown 下载：全局单飞、组稿与指标，取回与打包在 offscreen、落盘在 worker，download.md §4–§5）、`services/system`（偏好、本地指标）。
 - `service-manager.ts` 管生命周期与消息分发；
-- `event-handlers/command-handler.ts` 接五条命令（区域截图、区块模式、批注、录制开关、下载本页正文，后三条默认不绑定，annotate.md §1.1、§2.1，download.md §2.3），前三条只发给标签页的顶层框架（`frameId: 0`），录制开关在 worker 内直接走 `RecordingService`，没有注入式兜底（清单里没有 `scripting`）。
+- `event-handlers/command-handler.ts` 接五条命令（区域截图、区块模式、批注、录制开关、下载本页正文，后三条默认不绑定，annotate.md §1.1、§2.1，download.md §2.3），其中四条发给标签页的顶层框架（`frameId: 0`），录制开关在 worker 内直接走 `RecordingService`，没有注入式兜底（清单里没有 `scripting`）。
+- 持续超过 30 秒的流程（如录屏）把路由状态放进 `chrome.storage.session` 并在 worker 启动时恢复，由 offscreen 文档每 10 秒一次心跳保活——Chrome 会在空闲 30 秒后挂起 worker，只有进来的消息重置计时，记录只放路由字段，不放标题、页面地址或内容字节（`services/recording`，测试：`recording.test.ts` 的新建实例恢复用例）。
 - 共享 IndexedDB 连接走 `store-instance.ts` 的单例；服务不各自开库。
 - 新消息先在 `types/messages.ts` 登记，再同步 handler、调用方和测试。读用户数据、写类消息按 `sender.ts` 校验，不要再复制判断。
 
