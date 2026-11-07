@@ -18,6 +18,7 @@ import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage, RecordingEventMessage, RecordingState } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
 import { readSettings } from '../../settings-schema'
+import { openExtensionPage } from '../../../utils/extension-pages'
 import MessageUtils from '../../../utils/message'
 import { Logger } from '../../../utils/logger'
 import { bucketRecordingDuration, type RecordingDurationBucket } from '../../../core/metrics'
@@ -257,8 +258,10 @@ export class RecordingService implements IService {
     try {
       const withMic = await this.readMicPreference()
       if (withMic && !(await this.micGranted())) {
-        // no live grant: the settings page asks, this does not record (annotate.md §2.1)
-        await chrome.runtime.sendMessage({ type: 'OPEN_EXTENSION_PAGE', page: 'settings', params: { recordTabId: tab.id } }).catch(() => undefined)
+        // no live grant: the settings page asks, this does not record (annotate.md §2.1).
+        // openExtensionPage goes straight to chrome.tabs — a runtime message would come
+        // back to this very worker and find no one to answer it
+        await openExtensionPage('settings', { recordTabId: tab.id }).catch(() => undefined)
         return
       }
       const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id })

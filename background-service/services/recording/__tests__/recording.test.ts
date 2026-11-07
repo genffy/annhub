@@ -15,7 +15,7 @@ import type { ResponseMessage } from '../../../../types/messages'
 
 /** The browser surface the service touches, stubbed once; the listeners register at the script's top level and stay. */
 const downloads = { download: vi.fn(), search: vi.fn(async () => [] as chrome.downloads.DownloadItem[]), onChanged: { addListener: vi.fn() } }
-const tabs = { get: vi.fn(), query: vi.fn(), sendMessage: vi.fn(async () => undefined), onRemoved: { addListener: vi.fn() } }
+const tabs = { get: vi.fn(), query: vi.fn(), sendMessage: vi.fn(async () => undefined), create: vi.fn(async () => ({})), onRemoved: { addListener: vi.fn() } }
 const tabCapture = { getMediaStreamId: vi.fn(async () => 'stream-cmd') }
 const action = { setBadgeText: vi.fn(async () => undefined), setBadgeBackgroundColor: vi.fn(async () => undefined) }
 const runtime = { sendMessage: vi.fn(async () => ({ success: true })), getContexts: vi.fn(async () => [] as unknown[]), lastError: undefined as { message: string } | undefined }
@@ -30,7 +30,7 @@ const storage = {
       for (const [key, value] of Object.entries(objects)) localStorageMap.set(key, value)
     }),
     remove: vi.fn(async (keys: string | string[]) => {
-      for (const key of [].concat(keys)) localStorageMap.delete(key)
+      for (const key of typeof keys === 'string' ? [keys] : keys) localStorageMap.delete(key)
     }),
   },
   session: {
@@ -39,7 +39,7 @@ const storage = {
       for (const [key, value] of Object.entries(objects)) sessionStorageMap.set(key, value)
     }),
     remove: vi.fn(async (keys: string | string[]) => {
-      for (const key of [].concat(keys)) sessionStorageMap.delete(key)
+      for (const key of typeof keys === 'string' ? [keys] : keys) sessionStorageMap.delete(key)
     }),
   },
 }
@@ -357,6 +357,36 @@ describe('recording service (annotate.md §2)', () => {
     expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_CLEANUP' })
     expect(sessionStorageMap.has('annhub.recording')).toBe(false)
     await windDown(47, 'AnnHub/recording-p2.webm')
+  })
+
+  it('the shortcut with 带麦克风 but no live grant opens the settings page and records nothing (annotate.md §2.1, RV-REC-03)', async () => {
+    tabs.query.mockResolvedValue([{ id: 7, url: 'https://example.com/post', title: 'A post' }])
+    permissions.query.mockResolvedValueOnce({ state: 'prompt' })
+    await service.startFromCommand()
+    expect(tabs.create).toHaveBeenCalledWith({ url: expect.stringContaining('options.html?recordTab=7') })
+    expect(tabCapture.getMediaStreamId, 'nothing records before the browser asks').not.toHaveBeenCalled()
+    expect(runtime.sendMessage, 'the worker cannot answer its own runtime message').not.toHaveBeenCalledWith(expect.objectContaining({ type: 'RECORDING_START' }))
+    const state = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string }
+    expect(state.status).toBe('idle')
+  })
+
+  it('the shortcut without the microphone takes the stream itself and starts recording (RV-REC-03)', async () => {
+    localStorageMap.set('annhub.settings', { recording: { withMic: false } })
+    await service.startFromCommand()
+    expect(tabCapture.getMediaStreamId).toHaveBeenCalledWith({ targetTabId: 7 })
+    expect(runtime.sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'RECORDING_START', streamId: 'stream-cmd' }))
+    expect(tabs.create).not.toHaveBeenCalled()
+    const state = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string }
+    expect(state.status).toBe('recording')
+    await windDown(49, 'AnnHub/recording-cmd.webm')
+  })
+
+  it('the shortcut does nothing on a restricted page (RV-REC-03)', async () => {
+    tabs.query.mockResolvedValueOnce([{ id: 9, url: 'chrome://version', title: 'chrome://version' }])
+    await service.startFromCommand()
+    expect(tabs.create).not.toHaveBeenCalled()
+    expect(tabCapture.getMediaStreamId).not.toHaveBeenCalled()
+    expect(runtime.sendMessage).not.toHaveBeenCalled()
   })
 
   it('the session record carries only the route: no title, no page URL, no video bytes (RV-REC-02)', async () => {
