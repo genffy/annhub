@@ -140,36 +140,6 @@
 8. `git grep -n clearFolderFiles` 没有结果；`git grep -n removeFile background-service/services/download/index.ts` 的每一处都属于要求 6 的三种之一。
 9. validation.md 里没有 D-94；要求 7 列出的文档都已改，`npm run check:docs` 通过。
 
-### 导出 ZIP64
-
-一个 PR。`core/export.ts` 与 `entrypoints/offscreen/download-run.ts` 调用同一个 `buildZip`，下载的 ZIP 形态一并受益，两处调用方不用改；规格的取舍见 D-95。要跑的 E2E：`library-export.spec.ts`、`library-download.spec.ts`。
-
-#### RV-CORE-10 整库导出超过 ZIP32 上限时整体失败，规格没写（低）
-
-**问题**
-
-- `core/zip.ts` 只写 ZIP32：条目超过 65,535 个，或任一文件大小、偏移、中央目录与整个归档超过 4 GB（`assertZip32`），直接抛错，什么都不生成。
-- 导出写成 `clips/<id>.md`、`screenshots/<id>.md` 和 `assets/<assetId>.png`，一张截图就是两项；三万多张截图，或图片合计约 4 GB 的库就导不出来。
-- 这时资料库显示 `library.exportError.limit`：“请先删除一部分条目再导出”（`utils/ui-text/strings-library.ts`）。导出是用户把数据带走的唯一途径，让人先删数据才能导出是反着来的。
-- [storage.md §6](product/storage.md) 没写这个上限，也没写越过时怎么办。
-
-**要求**
-
-1. 按 D-95 的默认，需要时才写 ZIP64：条目数、任一大小或偏移达到 ZIP32 的上限时，才加 ZIP64 扩展字段、ZIP64 结束记录与定位记录；没超过上限的归档与现在逐字节相同。
-2. 格式按 [PKWARE APPNOTE](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT) 的 4.3.14、4.3.15、4.5.3 节：本地头与中央头里超限的字段写 `0xFFFFFFFF`，真实值放进 ID 为 `0x0001` 的扩展字段；中央目录之后依次写 ZIP64 结束记录（`0x06064b50`）、定位记录（`0x07064b50`）和普通结束记录；用到 ZIP64 的条目，“解压所需版本”写 45。
-3. 把“算布局”（每项的偏移、要不要 ZIP64）和“写头”拆成不读数据的纯函数，单测用假的大小与偏移，不必真造 4 GB 的数据。
-4. 仍然写不出来的情形保留明确的错误：超过 `Number.MAX_SAFE_INTEGER`，或文件名超过 65,535 字节（导出路径由受控 ID 生成，碰不到）。
-5. `library.exportError.limit` 这句文案与 `entrypoints/library/export-error.ts` 里对应的分支：有了 ZIP64 就到不了的，删掉；留下的话，文案不再让用户删条目。
-6. storage.md §6 写明：普通大小的导出是普通 ZIP，超过 4 GB 或 65,535 项时是 ZIP64，以及实测能打开它的解压工具。合并前把 D-95 的结论写进 storage.md §6，从 validation.md 删掉 D-95。
-
-**验收**
-
-1. 单测加本机：65,536 个小文件的归档，单测断言 ZIP64 结束记录与定位记录都在、条目数正确；执行者在本机把它写成文件，用 `unzip -t` 和 `python3 -m zipfile -t` 各测一次，贴输出。
-2. 单测（假大小）：一项 5 GB 的文件，以及一项偏移在 4 GB 之后的文件：本地头与中央头里对应字段是 `0xFFFFFFFF`，扩展字段里是真实的大小与偏移。
-3. 单测：`core/__tests__/zip.test.ts` 现有断言不改、全部通过；没超限的小归档里没有 ZIP64 签名与 `0x0001` 扩展字段，总字节数等于各本地头（30 + 名字）、数据、中央头（46 + 名字）与 22 字节结束记录之和。
-4. storage.md §6 已写明上限与 ZIP64；validation.md 里没有 D-95；要求 5 的文案处理完成；`npm run check:docs` 通过。
-5. 真机：用 macOS“归档实用工具”打开验收 1 的归档，能解开，文件数正确。
-
 ### offscreen 归口与大 Markdown
 
 录屏可靠性与下载同名合并后再开工：两组都改创建 offscreen 文档的那一段，先做必然冲突。一个 PR，先 RV-BG-11 后 RV-DL-02。要跑的 E2E：`recording-annotation.spec.ts`、`page-download.spec.ts`、`library-download.spec.ts`、`source-page-download.spec.ts`。
