@@ -112,10 +112,6 @@ export const libraryStrings = {
   'library.downloadReason.offline': { zh: '离线，未联网取回', en: 'offline, not fetched' },
   'library.downloadReason.write-failed': { zh: '写入失败', en: 'could not write the file' },
   'library.downloadReason.limit': { zh: '超过本次下载的数量或大小上限', en: "over this download's file or size cap" },
-  'library.exportError.limit': {
-    zh: '导出失败：内容超过 ZIP 格式的上限，没有生成文件。请先删除一部分条目再导出。',
-    en: 'Export failed: the content exceeds the ZIP format limit and no file was made. Delete some entries and try again.',
-  },
   'library.exportError.quota': {
     zh: '导出失败：本机可用空间不足，没有生成文件。请释放磁盘空间后重试。',
     en: 'Export failed: not enough free space on this device, and no file was made. Free some disk space and try again.',
