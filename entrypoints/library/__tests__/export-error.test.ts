@@ -3,8 +3,8 @@ import { exportFailureKey } from '../export-error'
 import { uiText } from '../../../utils/ui-text'
 
 describe('why an export made no file (extension.md §6)', () => {
-  it('names the ZIP format limit the writer reports', () => {
-    expect(exportFailureKey(new Error('ZIP32 limit exceeded: entry count'), 'build')).toBe('library.exportError.limit')
+  it('a ZIP32 limit no longer exists: whatever the writer reports lands on the general reason (RV-CORE-10)', () => {
+    expect(exportFailureKey(new Error('ZIP64 limit exceeded: file size'), 'build')).toBe('library.exportError.general')
   })
 
   it('names a full disk, whichever stage hit it', () => {
@@ -20,7 +20,7 @@ describe('why an export made no file (extension.md §6)', () => {
   })
 
   it('every message says that no file was made, and none repeats the raw message', () => {
-    for (const key of ['library.exportError.limit', 'library.exportError.quota', 'library.exportError.download', 'library.exportError.general'] as const) {
+    for (const key of ['library.exportError.quota', 'library.exportError.download', 'library.exportError.general'] as const) {
       expect(uiText(key, {}, 'zh')).toMatch(/没有(生成|保存)/)
       expect(uiText(key, {}, 'en')).toMatch(/no file|not saved|no file was/i)
       expect(uiText(key, {}, 'en')).not.toMatch(/[一-鿿]/)
