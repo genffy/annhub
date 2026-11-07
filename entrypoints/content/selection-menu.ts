@@ -135,8 +135,8 @@ export class SelectionMenu {
     host.setAttribute(ROOT_ATTR, 'selection-menu')
     host.setAttribute('role', 'menu')
 
-    const clip = this.action('menu.clip', 'ann-menu-clip', 'bookmark')
-    const shot = this.hooks.onScreenshot ? this.action('menu.screenshot', 'ann-menu-shot', 'scan') : null
+    const clip = this.action('menu.clip', 'ann-menu-clip')
+    const shot = this.hooks.onScreenshot ? this.action('menu.screenshot', 'ann-menu-shot') : null
     const buttons = shot ? [clip.button, shot.button] : [clip.button]
     const row = this.doc.createElement('div')
     row.className = 'ann-menu-row'
@@ -183,7 +183,7 @@ export class SelectionMenu {
     this.cleanupFns.push(() => this.doc.removeEventListener('keydown', onKey, true))
   }
 
-  private action(key: 'menu.clip' | 'menu.screenshot', className: string, _icon: string) {
+  private action(key: 'menu.clip' | 'menu.screenshot', className: string) {
     const name = uiText(key)
     const button = this.doc.createElement('button')
     button.className = `ann-menu-action ${className}`

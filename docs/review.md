@@ -18,7 +18,7 @@
 
 ## 2. 待处理
 
-录屏可靠性、下载同名、导出 ZIP64、选区菜单四组可以马上并行；offscreen 归口要等录屏可靠性与下载同名合并，约定文件要等录屏可靠性与 offscreen 归口合并。
+录屏可靠性、下载同名、导出 ZIP64 三组可以马上并行；offscreen 归口要等录屏可靠性与下载同名合并，约定文件要等录屏可靠性与 offscreen 归口合并。
 
 ### 录屏可靠性
 
@@ -211,55 +211,29 @@
 1. E2E：3 MB 以上 Markdown 的文件夹形态下载成功；落盘的 Markdown 完整，最后一节在，字节数与转换结果一致。
 2. 按要求 2 改了时：`git grep -n dataUrlOf` 没有结果；单测断言为 Markdown 建的每个 `blob:` URL，在下载结束或取消后都被撤销。
 
-### 选区菜单
+### 产品定位
 
-一个 PR，可以马上开工。要跑的 E2E：`selection-clip.spec.ts`、`page-entry.spec.ts`。
+一个 PR，只改文档，可以马上开工。
 
-#### RV-CAP-12 纯图标的选区菜单与 visual.md §3 冲突；`_icon` 参数没用（低）
-
-**问题**
-
-- [visual.md §3](product/visual.md) 要求类型出现的任何地方（导航、条目卡片、徽标、详情抽屉）都同时有图标和文字。
-- [extension.md §2.1](product/extension.md) 规定选区菜单只用图标，名称在悬停或聚焦时的后果卡片与读屏名称里；菜单上的两个动作正好对应剪藏与截图两种类型。两份规格各说各的，改任一边的人都会被另一边绊住。
-- `entrypoints/content/selection-menu.ts` 的 `action(key, className, _icon)`，第三个参数不用了。
-
-**要求**（默认做法；产品负责人另有结论就按结论改）
-
-1. visual.md §3 这条加一个例外：页面上的选区菜单只用图标，名称在后果卡片与读屏名称里，见 extension.md §2.1。不改 extension.md，不改菜单的样子。
-2. 删掉 `_icon` 参数和调用处传的值。
-
-**验收**
-
-1. visual.md §3 与 extension.md §2.1 对着读不矛盾；`npm run check:docs` 通过。
-2. `git grep -n _icon entrypoints/content/selection-menu.ts` 没有结果；类型检查通过。
-3. `selection-clip.spec.ts`、`page-entry.spec.ts` 全过，菜单按钮仍有读屏名称，现有断言不改；断言读屏名称的用例名带上 visual.md §3 与本条编号。
-
-### 约定文件
-
-录屏可靠性与 offscreen 归口合并后再开工：它们会改 `background-service/AGENTS.md` 与 `sender-rules.md`。一个 PR，只改文档、注释与文档检查，不改行为。
-
-#### RV-DOC-03 约定文件里约 110 条碎句，一部分在复述实现（低）
+#### RV-DOC-02 product.md 没给下载功能定位（中）
 
 **问题**
 
-- 根 `AGENTS.md` 要求“约束连同原因写成一句现在时；细节放进被引用的文档，不在约定里复述实现”。各级 `AGENTS.md` 与 `notes/*.md` 里有约 110 条以“；”结尾的列表项：一句话被拆成几条碎句，读的人要自己拼，其中一部分在复述实现细节。最多的是 `entrypoints/content/screenshot/AGENTS.md`、`entrypoints/library/notes/shell-and-lists.md`、`entrypoints/content/screenshot/notes/editor-tools.md`、`background-service/AGENTS.md`。
-- `constants.ts` 开头的注释列了截图、区块模式、页面批注与录制命令，漏了下载命令。
+- [product.md §2.2](product/product.md) 讲了页面批注与录屏服务谁，没讲下载：它服务 product.md §2.1 的哪类人、对应 product.md §3 的哪个 Job，都没有。
+- product.md §2.3“明确不做的事”里，“稍后读收件箱与整页阅读器”写着“不抓取整页”，“整页剪藏与模板系统”写着“不保存整页”；下载却能把页面的主体文章取成文件。[download.md §1.2](product/download.md) 解释了两者不冲突（下载不建条目、不进库），product.md 里没有这句，只读产品定位的人会以为下载越了界。
+- [docs/product/README.md](product/README.md) 第 1 节“五分钟读懂”的“怎么做”与流程图只有剪藏、截图与高亮。
 
 **要求**
 
-1. 把同一句话拆出来的碎句合回完整的句子：约束加原因，一条一件事。
-2. 只是复述实现的条目（函数怎么写、调用顺序），移到相邻的 `notes/`，或在代码与测试已经说明时直接删掉；约束本身留在 `AGENTS.md`。
-3. 不改任何规则的意思；拿不准的保留原样，在 PR 描述里列出来问。
-4. 改准 `constants.ts` 开头的注释，带上下载命令。
-5. 注意字节预算：台账里的文件只许变小，变小后跑 `npm run check:size -- --lower`；约定文件不超过 8 KB。
-6. 在 `scripts/check-docs.mjs` 加一条规则兜住：`AGENTS.md` 与 `notes/*.md` 的列表项不以“；”结尾；配测试。
+1. 在 product.md §3 加一个 Job（或扩展已有的一条），写明下载服务谁、解决什么：把读到的内容带走，用别的工具打开。product.md §2.3 那两行各补半句边界：下载由用户逐次点击，产物不进资料库，与 download.md §1.2 一致。
+2. docs/product/README.md 第 1 节的“怎么做”与流程图写全 product.md 定位过的能力，含页面批注、录屏与下载。
+3. 措辞由产品负责人在 PR 评审里确认；这是产品定位，不改任何功能。
 
 **验收**
 
-1. `npm run check:docs` 列出这条新规则并通过；故意加一条以“；”结尾的列表项时它报错（PR 里贴输出）。
-2. PR 描述附一张表，列出每条被移动或删掉的规则：原位置、去向（或“删除”与理由）。验收者抽查至少 10 条，规则的意思没变。
-3. `npm run check:size` 通过；变小的台账文件已跑 `--lower`。
-4. `constants.ts` 开头的注释与 `wxt.config.ts` 里 commands 的清单一致。
+1. product.md 里有一处写明下载服务的人群与 Job；product.md §2.3 那两行与 download.md §1.2 对着读不矛盾。
+2. docs/product/README.md 第 1 节与 product.md 一致；`npm run check:docs` 通过。
+3. PR 里有产品负责人对措辞的确认。
 
 ## 3. 已知问题
 

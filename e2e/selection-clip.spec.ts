@@ -6,7 +6,7 @@ test.describe('selection clip (capture.md §6.1, extension.md §2.1)', () => {
     await clearLibrary(context)
   })
 
-  test('the menu offers exactly clip and screenshot, in that order, and clips in one click', async ({ page }) => {
+  test('the menu offers exactly clip and screenshot, in that order, icon-only with readable names (visual.md §3, RV-CAP-12)', async ({ page }) => {
     test.slow()
     await page.goto(`${getCapturePageUrl()}?token=abc&utm_source=rss`)
     const menu = await selectUntilMenu(page, '#intro-p')
