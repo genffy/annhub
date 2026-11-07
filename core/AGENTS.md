@@ -24,23 +24,23 @@
 ## 数据不变量
 
 - 每个写入在**一个** `readwrite` 事务里完成“读注册表 → 校验 → 写”（`store.ts`）：注册表读取、使用数统计与写入共享事务，涉及的 store 一次声明；非 IndexedDB 的异步（哈希、配额估算）先算好再开事务。条目与它新引入的属性定义、截图条目与图片资产、删除截图条目与图片、删除属性定义（含“删除未使用”，在同一事务里扫描使用数）都是如此。
-- 属性：`newDefinitions` 经 `validatePropertyDefinition`；
+- 属性：`newDefinitions` 经 `validatePropertyDefinition`。
 - 与既有定义（不区分大小写）类型不同 → `PROPERTY_TYPE_MISMATCH`，类型相同则保留最先创建的写法。
 - 条目 `properties` 的键保存时规范成注册表里的写法（`propertyStorageKey`）。
-- `builtin` 只由 `BUILTIN_PROPERTY_DEFINITIONS` 决定，调用方传入的忽略；
+- `builtin` 只由 `BUILTIN_PROPERTY_DEFINITIONS` 决定，调用方传入的忽略。
 - `author`、`published`、`description` 的 `presets`、`defaultValue` 可改，`title`、`tags` 固定。
-- `title` 必填、不可清空；
-- `text` 是单行；
+- `title` 必填、不可清空。
+- `text` 是单行。
 - `datetime` 要求真实存在的日期与时间（entry.md §5.2）。
 - 高亮是 store 的四个操作 `addHighlight`、`updateHighlight`、`removeHighlight`、`restoreHighlight`，各在一个事务里读-改-写并返回最新条目；有高亮的剪藏 `content` 只读（`ENTRY_CONTENT_LOCKED`）；重叠合并只在 `store.ts` 的 `mergeHighlightInto` 一份，范围是 `content` 的 UTF-16 偏移。
 - `properties` 只存值；名称与类型的唯一真源是注册表（内置五项在 `BUILTIN_PROPERTY_DEFINITIONS`，顺序决定导出键序）。
 - 派生检索文档：`search`（摘要，即去掉 `content`、`context`、`note` 的条目副本）与 `searchText`（归一化的加权字段）只服务检索，永远与条目在同一事务里写入（`saveEntry`、`updateEntry`、四个高亮操作、`deleteEntry`）。
-- `ensureIndex` 只在条目数与它们对不上、或 `version` 与 `SEARCH_INDEX_VERSION` 不同时才整体重建，不在每次 worker 冷启动时遍历条目；
+- `ensureIndex` 只在条目数与它们对不上、或 `version` 与 `SEARCH_INDEX_VERSION` 不同时才整体重建，不在每次 worker 冷启动时遍历条目。
 - 改了文档的形状就提高 `SEARCH_INDEX_VERSION`。
 - 列表、筛选、facets、高亮视图、属性使用数只读摘要，只有 `hasSearchTerms` 的查询才读 `searchText`。
 - 写测试要改条目时走 store（或 `UPDATE_ENTRY`）——直接写 `entries` 不会更新派生文档。
 - 搜索、引文与阅读视图读的是同一份 Markdown，它们的约定必须一致：`\X` 转义还原成 `X`（词内的 `_`、`*` 字面保留），下划线一律是文字（这套 Markdown 没有下划线强调），围栏只被同样字符、不更短的围栏关闭，行内代码只被长度恰好相同的反引号串关闭，代码里的内容按字面读。
-- 围栏与行内代码的判定只在本目录 `markdown.ts` 的 `openingFence`、`closesFence`、`codeSpanAt` 里写一份，读取方共用；
+- 围栏与行内代码的判定只在本目录 `markdown.ts` 的 `openingFence`、`closesFence`、`codeSpanAt` 里写一份，读取方共用。
 - 转换器的 `escapeText`、本目录的纯文本化与引文换算、`entrypoints/library/markdown-view.tsx` 的 `inlineRuns` 靠 `__tests__/fixtures/page-text.ts` 的共享夹具对齐（页面文本 → 转换器写的 Markdown → 读者看到的文字），改一处，三处的测试一起跑。
 - 图片入库统一 PNG，字节是 Blob；dataUrl 只作消息传输格式，绝不持久化。
 

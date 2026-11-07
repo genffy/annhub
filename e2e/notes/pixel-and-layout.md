@@ -7,7 +7,7 @@
 - 临时的 Playwright 配置不要放进 `test-results/`：它是默认的 `outputDir`，每次运行都会被清空（同目录里没有提交的审阅图也一起没了）。
 - 新断言先对着坏样式验一遍：把构建出的 CSS 改回出过错的样子（`.output/chrome-mv3/assets/library-*.css`），确认它红，再重建。
 - 截图编辑器的像素用例（`screenshot-beautify.spec.ts`）在页面里读画布：预览画布、剪贴板里的图（`navigator.clipboard.read`）和入库的图片都用同一个 `analyze` 量角点颜色、透明像素、红色标注的外接框与墨色深浅，断言“背景是它自己的颜色”“内容完整居中”“标注落在指针处”这类结果，不做截图比对。
-- 面板、工具栏与预览的位置用 `getBoundingClientRect` 断言互不覆盖、都在窗口内；
+- 面板、工具栏与预览的位置用 `getBoundingClientRect` 断言互不覆盖、都在窗口内。
 - 测试浏览器自己的截取永远是一个 CSS 像素一个像素（模拟 `deviceScaleFactor` 也一样），所以 Retina 要在 service worker 里把 `chrome.tabs.captureVisibleTab` 换成返回两倍大小图片的桩（`captureAtTwiceTheSize`；会话的缩放取自图片宽度除以 `innerWidth`，不取 `devicePixelRatio`），图里红绿通道随位置渐变，裁出来的任何一个像素都说明它取自窗口的哪里。
 - 选区的屏幕尺寸量 `PREVIEW` 容器，不量里面的画布：容器有 2 像素边框，画布比选区小 4 像素。
 - 文字框要用真实的鼠标与键盘（点一下、输入、`Enter`、`Esc`、点别处），Chrome 在移除有焦点的元素时同步触发 `blur`，只有真实浏览器能复现这类重入（页面抛的错会被 `pageErrors` 守卫抓到）。
