@@ -36,9 +36,17 @@ async function landed(page: import('@playwright/test').Page): Promise<{ mime: st
   )
 }
 
-/** Every Markdown text a run wrote, decoded from its data-URL downloads (the Markdown and, when present, the README). */
+/** Every Markdown text a run wrote: the folder form's files are blob: downloads now (RV-DL-02), a legacy data: URL still decodes. */
 function markdownsOf(items: { mime: string; url: string }[]): string[] {
-  return items.filter(item => item.url.startsWith('data:text/markdown')).map(item => Buffer.from(item.url.split(',')[1] ?? '', 'base64').toString('utf8'))
+  return items
+    .filter(item => item.mime === 'text/markdown' || item.url.startsWith('data:text/markdown'))
+    .map(item => (item.url.startsWith('data:text/markdown') ? Buffer.from(item.url.split(',')[1] ?? '', 'base64').toString('utf8') : ''))
+    .filter(text => text.length > 0 || items.length === 0)
+}
+/** The folder form's Markdown text, read from the file it landed as (blob: URLs carry no text). */
+async function markdownFromFile(page: import('@playwright/test').Page): Promise<string> {
+  const files = (await landed(page)).filter(item => item.mime === 'text/markdown' || item.url.startsWith('data:text/markdown'))
+  return readFile(files[files.length - 1]!.path, 'utf8')
 }
 
 function markdownOf(items: { mime: string; url: string }[]): string {
@@ -160,14 +168,27 @@ test.describe('page downloads (download.md §2, §4, §5)', () => {
     })
     await downloadMainArticle(page)
     await waitForDoneNotice(page, '已下载')
-    // Read the landed file: download history may abbreviate a long data URL.
-    const file = (await landed(page)).find(item => item.url.startsWith('data:text/markdown'))!
-    const markdown = await readFile(file.path, 'utf8')
+    // Read the landed file: the folder form's Markdown is a blob: download now, its URL carries no text.
+    const markdown = await markdownFromFile(page)
     expect(markdown.length).toBeGreaterThan(100_000)
     expect(markdown).toContain('Alice: Last comment')
     expect(markdown).toContain('Bob: Last reply')
     expect(markdown).toContain('ARTICLE END')
     expect(markdown).not.toContain('Reply action')
+  })
+
+  test('a Markdown past the data-URL limit still lands whole (folder form, RV-DL-02)', async ({ page }) => {
+    await page.goto(ARTICLE_URL)
+    // about 3.8 MB of converted Markdown: past Chromium's ~2 MB data: URL cap, the old path failed here
+    await page.locator('#post').evaluate(el => {
+      el.innerHTML = `<h1>Very long article</h1><p>${'Very long page content. '.repeat(160_000)}</p><p>LONGPAGE END</p>`
+    })
+    await downloadMainArticle(page)
+    await waitForDoneNotice(page, '已下载')
+    const markdown = await markdownFromFile(page)
+    expect(Buffer.byteLength(markdown)).toBeGreaterThan(3_000_000)
+    expect(markdown).toContain('# Very long article')
+    expect(markdown).toContain('LONGPAGE END')
   })
 
   test('a failed large srcset candidate falls back and still produces a complete download', async ({ page }) => {

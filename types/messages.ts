@@ -223,6 +223,8 @@ export interface RecordingState {
   micNotice?: 'denied' | 'missing' | 'busy'
   /** A download that failed keeps the video until it is retried or discarded (annotate.md §2.4). */
   failedDownload?: { filename: string }
+  /** True while the worker holds the finished video for the disk — the offscreen document's stale-state recovery asks for it (RV-REC-05). Not for display. */
+  holdsVideo?: boolean
 }
 
 export interface StartRecordingMessage extends BaseMessage {

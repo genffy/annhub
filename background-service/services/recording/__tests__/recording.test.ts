@@ -286,6 +286,19 @@ describe('recording service (annotate.md §2)', () => {
     await windDown(40, 'AnnHub/recording-hb.webm')
   })
 
+  it('answers holdsVideo while the finished video waits, and clears it when it lands (RV-REC-05)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    expect(((await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { holdsVideo?: boolean }).holdsVideo, 'a live recording holds no finished video').toBe(false)
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(51))
+    await dispatch(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:video', filename: 'AnnHub/recording-hv.webm', durationMs: 1_000, stoppedBy: 'user', withMic: false },
+      extensionSender,
+    )
+    expect(((await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { holdsVideo?: boolean }).holdsVideo).toBe(true)
+    await onDownloadChanged({ id: 51, state: { previous: 'in_progress', current: 'complete' } })
+    expect(((await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { holdsVideo?: boolean }).holdsVideo).toBe(false)
+  })
+
   it('a restarted worker reads the route back: still recording, and the stop reaches the offscreen document (RV-REC-02)', async () => {
     await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: true }, extensionSender)
     const live = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { startedAt?: number }
