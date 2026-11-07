@@ -1,5 +1,7 @@
 # AnnHub
 
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16415/badge)](https://www.bestpractices.dev/projects/16415)
+
 > 把网页里值得留下的内容，剪藏、截图存进同一个本地库，再在库里读、划高亮。
 
 AnnHub 是一个本地优先的浏览器扩展：选中网页内容或指一下整块内容，一步剪藏；或框选画面截图。它们连同来源保存为统一的条目，之后在资料库里阅读、划出高亮，用可扩展的属性分类，需要时检索、回到原页面，或导出为 Markdown。
