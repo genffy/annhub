@@ -146,7 +146,9 @@ export default function App() {
     setStartFailure(null)
     let streamId: string | undefined
     try {
-      streamId = await chrome.tabCapture.getMediaStreamId({ consumerTabId: active.id })
+      // the stream id must be one the offscreen document can take (annotate.md §2.1):
+      // targetTabId, not consumerTabId — a consumer-scoped id is only usable inside that tab
+      streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: active.id })
     } catch {
       streamId = undefined
     }

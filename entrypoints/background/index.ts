@@ -3,6 +3,7 @@ import backgroundServiceManager from '../../background-service'
 import MessageUtils from '../../utils/message'
 import type { BaseMessage } from '../../types/messages'
 import { listenForFrames } from '../../background-service/services/screenshot/frame-memory'
+import { listenForRecording } from '../../background-service/services/recording'
 
 /** Mutations the open library pages listen for, to refresh their lists without a reload ). */
 const MUTATION_MESSAGE_TYPES = new Set(['SAVE_CLIP', 'SAVE_SCREENSHOT', 'UPDATE_ENTRY', 'DELETE_ENTRY', 'ADD_HIGHLIGHT', 'UPDATE_HIGHLIGHT', 'REMOVE_HIGHLIGHT'])
@@ -14,6 +15,13 @@ export default defineBackground(() => {
   // at the top level, so a tab event that wakes the worker reaches them; chrome.storage.session stays closed to
   // content scripts (sender.ts keeps the captures it trusts there).
   listenForFrames()
+
+  // The recording's route lives in chrome.storage.session and its events in the tab and
+  // download listeners: both must exist before the worker's first await, or a cold start
+  // drops the very event that woke it — a tab closing stops the recording, a download
+  // landing finishes it (annotate.md §2.4, RV-REC-02). Handlers wait for the route's
+  // recovery before they read any state.
+  listenForRecording()
 
   // MV3 service workers must register listeners in the synchronous top level:
   // a cold-started worker would otherwise drop the very message that woke it.

@@ -5,18 +5,27 @@
  * user gesture (or the command handler's), and the actual recording runs in
  * the offscreen document. The worker keeps the state the popup reads, drives
  * the badge, downloads the finished video and writes the one metric.
+ *
+ * The state outlives the worker: a route record in chrome.storage.session is
+ * written as the recording moves (start, stop, download failure) and read
+ * back on startup, because Chrome suspends this worker after ~30 s idle and
+ * the offscreen document's heartbeat is what wakes it again (annotate.md
+ * §2.4, RV-REC-02). The tab and download listeners register at the worker
+ * script's top level (listenForRecording), not here — an initialize() that
+ * runs after other services would drop the very event that woke the worker.
  */
 import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage, RecordingEventMessage, RecordingState } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
-import { readSettings } from '../../settings-schema'
+import { readSettings, writeSettings } from '../../settings-schema'
+import { openExtensionPage } from '../../../utils/extension-pages'
 import MessageUtils from '../../../utils/message'
 import { Logger } from '../../../utils/logger'
 import { bucketRecordingDuration, type RecordingDurationBucket } from '../../../core/metrics'
 import { recordEvent } from '../metrics/record'
 
 const OFFSCREEN_URL = 'offscreen.html'
-const SETTINGS_KEY = 'annhub.settings'
+const SESSION_KEY = 'annhub.recording'
 
 /** The page classes a tab may be recorded on; everything else (chrome://, the store) has no entry (annotate.md §2.4). */
 function recordableUrl(url: string | undefined): boolean {
@@ -26,6 +35,18 @@ function recordableUrl(url: string | undefined): boolean {
   } catch {
     return false
   }
+}
+
+/** The route a restarted worker reads back; only these fields — never the tab title, the page URL or video bytes. */
+interface PersistedRecordingRoute {
+  status: 'recording' | 'pending-download' | 'download-failed'
+  tabId?: number
+  startedAt?: number
+  withMic: boolean
+  micNotice?: 'denied' | 'missing' | 'busy'
+  limitNotice?: 'time' | 'size'
+  /** The video waiting for the disk: the offscreen document keeps the blob URL alive until the cleanup. */
+  pending?: { blobUrl: string; filename: string }
 }
 
 interface FinishedRecording {
@@ -42,8 +63,10 @@ export class RecordingService implements IService {
   private state: RecordingState = { status: 'idle', withMic: false }
   /** A finished video on its way to the disk: the blob URL the offscreen document keeps alive until the file has landed. */
   private pendingDownload: { blobUrl: string; filename: string; downloadId?: number; meta: FinishedRecording } | null = null
-  private downloadListener?: (delta: chrome.downloads.DownloadDelta) => void
-  private tabRemovedListener?: (tabId: number) => void
+  /** The tab whose recording produced the pending download; the route record keeps it after the state moved to idle. */
+  private recordedTabId?: number
+  /** Set by initialize(): the recovery read has run, and every state read waits for it (RV-REC-02). */
+  private ready: Promise<void> = Promise.resolve()
 
   static getInstance(): RecordingService {
     RecordingService.instance ??= new RecordingService()
@@ -53,18 +76,85 @@ export class RecordingService implements IService {
   async initialize(): Promise<void> {
     if (this.initDone) return
     this.initDone = true
-    this.downloadListener = delta => {
-      if (!this.pendingDownload || delta.id !== this.pendingDownload.downloadId || !delta.state) return
-      if (delta.state.current === 'complete') void this.finishDownload()
-      if (delta.state.current === 'interrupted') void this.failDownload()
-    }
-    chrome.downloads.onChanged.addListener(this.downloadListener)
-    // closing the recorded tab stops the recording and downloads what is there (annotate.md §2.4)
-    this.tabRemovedListener = tabId => {
-      if (this.state.status === 'recording' && this.state.tabId === tabId) void this.stopRecording('tab_closed')
-    }
-    chrome.tabs.onRemoved.addListener(this.tabRemovedListener)
+    this.ready = this.recover()
+    await this.ready
     Logger.info('[RecordingService] Initialized')
+  }
+
+  /** Reads the route back before any state read answers: a restart mid-recording must not look idle (annotate.md §2.4, RV-REC-02). */
+  private async recover(): Promise<void> {
+    const stored = (await chrome.storage.session.get(SESSION_KEY).catch(() => ({}))) as Record<string, unknown>
+    const route = stored[SESSION_KEY] as PersistedRecordingRoute | undefined
+    if (!route) return
+    const contexts = await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT] }).catch(() => [])
+    if (contexts.length === 0) {
+      // the recorder died with its document: nothing to stop, nothing to download
+      await chrome.storage.session.remove(SESSION_KEY).catch(() => undefined)
+      this.resetToIdle()
+      return
+    }
+    this.recordedTabId = route.tabId
+    if (route.status === 'recording') {
+      // the title is not stored: the tab is asked for it again
+      const tab = route.tabId !== undefined ? await chrome.tabs.get(route.tabId).catch(() => undefined) : undefined
+      this.state = {
+        status: 'recording',
+        withMic: route.withMic,
+        ...(route.tabId !== undefined ? { tabId: route.tabId } : {}),
+        ...(tab?.title ? { tabTitle: tab.title } : {}),
+        ...(route.startedAt !== undefined ? { startedAt: route.startedAt } : {}),
+        ...(route.micNotice ? { micNotice: route.micNotice } : {}),
+      }
+    } else if (route.pending) {
+      this.pendingDownload = {
+        blobUrl: route.pending.blobUrl,
+        filename: route.pending.filename,
+        meta: {
+          durationMs: 0,
+          withMic: route.withMic,
+          stoppedBy: route.limitNotice ? 'limit' : 'user',
+          ...(route.limitNotice ? { limit: route.limitNotice } : {}),
+        },
+      }
+      this.state = {
+        status: route.status === 'download-failed' ? 'download-failed' : 'idle',
+        withMic: false,
+        ...(route.limitNotice ? { limitNotice: route.limitNotice } : {}),
+        ...(route.micNotice ? { micNotice: route.micNotice } : {}),
+        ...(route.status === 'download-failed' ? { failedDownload: { filename: route.pending.filename } } : {}),
+      }
+    }
+    this.syncBadge()
+    if (route.status === 'pending-download') await this.resumePendingDownload()
+  }
+
+  /** Writes the route the next worker will read; a live flow with nothing to carry deletes the record. */
+  private async persistRoute(): Promise<void> {
+    const route: PersistedRecordingRoute | null =
+      this.state.status === 'recording'
+        ? {
+            status: 'recording',
+            withMic: this.state.withMic,
+            ...(this.state.tabId !== undefined ? { tabId: this.state.tabId } : {}),
+            ...(this.state.startedAt !== undefined ? { startedAt: this.state.startedAt } : {}),
+            ...(this.state.micNotice ? { micNotice: this.state.micNotice } : {}),
+          }
+        : this.pendingDownload
+          ? {
+              status: this.state.status === 'download-failed' ? 'download-failed' : 'pending-download',
+              withMic: false,
+              ...(this.recordedTabId !== undefined ? { tabId: this.recordedTabId } : {}),
+              ...(this.state.limitNotice ? { limitNotice: this.state.limitNotice } : {}),
+              ...(this.state.micNotice ? { micNotice: this.state.micNotice } : {}),
+              pending: { blobUrl: this.pendingDownload.blobUrl, filename: this.pendingDownload.filename },
+            }
+          : null
+    try {
+      if (route) await chrome.storage.session.set({ [SESSION_KEY]: route })
+      else await chrome.storage.session.remove(SESSION_KEY)
+    } catch {
+      // the record is a restart's road map; a storage failure must not break the live flow
+    }
   }
 
   getMessageHandlers(): MessageHandlers {
@@ -77,11 +167,13 @@ export class RecordingService implements IService {
 
       GET_RECORDING_STATE: async (_message, sender): Promise<ResponseMessage> => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
+        await this.ready
         return MessageUtils.createResponse(true, this.state)
       },
 
       STOP_RECORDING: async (_message, sender): Promise<ResponseMessage> => {
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
+        await this.ready
         if (this.state.status !== 'recording') return MessageUtils.createResponse(false, undefined, 'RECORDING_NOT_ACTIVE')
         await this.stopRecording('user')
         return MessageUtils.createResponse(true, this.state)
@@ -89,6 +181,7 @@ export class RecordingService implements IService {
 
       RETRY_RECORDING_DOWNLOAD: async (_message, sender): Promise<ResponseMessage> => {
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
+        await this.ready
         if (this.state.status !== 'download-failed' || !this.pendingDownload) return MessageUtils.createResponse(false, undefined, 'RECORDING_NOT_ACTIVE')
         await this.downloadPending()
         return MessageUtils.createResponse(true, this.state)
@@ -96,10 +189,13 @@ export class RecordingService implements IService {
 
       DISCARD_RECORDING: async (_message, sender): Promise<ResponseMessage> => {
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
+        await this.ready
         if (this.state.status !== 'download-failed') return MessageUtils.createResponse(false, undefined, 'RECORDING_NOT_ACTIVE')
         await this.tellOffscreen({ type: 'RECORDING_CLEANUP' })
         this.pendingDownload = null
+        this.recordedTabId = undefined
         this.state = { status: 'idle', withMic: false }
+        await this.persistRoute()
         this.syncBadge()
         return MessageUtils.createResponse(true, this.state)
       },
@@ -107,6 +203,7 @@ export class RecordingService implements IService {
       /** The recorded tab asks on load whether a recording is live (annotate.md §3.2): read-only, no user data. */
       RECORDING_STATUS: async (_message, sender): Promise<ResponseMessage> => {
         if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
+        await this.ready
         const settings = await readSettings()
         return MessageUtils.createResponse(true, { recording: this.state.status === 'recording', cursorHighlight: settings.recording.cursorHighlight })
       },
@@ -124,27 +221,46 @@ export class RecordingService implements IService {
     return this.initDone
   }
 
-  /** For the command toggle: the state as it stands (extension.md §7.1). */
-  currentState(): RecordingState {
+  /** The recorded tab closed: stop and download what is there; waits for the route's recovery first (RV-REC-02). */
+  async onTabRemoved(tabId: number): Promise<void> {
+    await this.ready
+    if (this.state.status === 'recording' && this.state.tabId === tabId) await this.stopRecording('tab_closed')
+  }
+
+  /** The recorded video landed or broke; waits for the route's recovery first (RV-REC-02). */
+  async onDownloadDelta(delta: chrome.downloads.DownloadDelta): Promise<void> {
+    await this.ready
+    if (!this.pendingDownload || delta.id !== this.pendingDownload.downloadId || !delta.state) return
+    if (delta.state.current === 'complete') await this.finishDownload()
+    if (delta.state.current === 'interrupted') await this.failDownload()
+  }
+
+  /** The command toggle's state read, after the route's recovery (extension.md §7.1, RV-REC-02). */
+  async currentStateAfterRecovery(): Promise<RecordingState> {
+    await this.ready
     return this.state
   }
 
   /** The command's stop half: the same road the popup's button takes. */
   async stopFromCommand(): Promise<void> {
+    await this.ready
     if (this.state.status !== 'recording') return
     await this.stopRecording('user')
   }
 
   /** The command entry (extension.md §7.1): the shortcut counts as the user's gesture, so the worker asks for the stream itself. */
   async startFromCommand(): Promise<void> {
+    await this.ready
     if (this.state.status !== 'idle') return
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!tab?.id || !recordableUrl(tab.url)) return
     try {
       const withMic = await this.readMicPreference()
       if (withMic && !(await this.micGranted())) {
-        // no live grant: the settings page asks, this does not record (annotate.md §2.1)
-        await chrome.runtime.sendMessage({ type: 'OPEN_EXTENSION_PAGE', page: 'settings', params: { recordTabId: tab.id } }).catch(() => undefined)
+        // no live grant: the settings page asks, this does not record (annotate.md §2.1).
+        // openExtensionPage goes straight to chrome.tabs — a runtime message would come
+        // back to this very worker and find no one to answer it
+        await openExtensionPage('settings', { recordTabId: tab.id }).catch(() => undefined)
         return
       }
       const streamId = await chrome.tabCapture.getMediaStreamId({ targetTabId: tab.id })
@@ -155,9 +271,16 @@ export class RecordingService implements IService {
     }
   }
 
+  /** The shortcut's toggle, read after the recovery: the first press after a restart stops the live recording (RV-REC-02). */
+  async toggleFromCommand(): Promise<void> {
+    await this.ready
+    if (this.state.status === 'recording') await this.stopFromCommand()
+    else await this.startFromCommand()
+  }
+
   private async readMicPreference(): Promise<boolean> {
-    const stored = await chrome.storage.local.get(SETTINGS_KEY)
-    return (stored[SETTINGS_KEY] as { recording?: { withMic?: boolean } } | undefined)?.recording?.withMic === true
+    // through the settings schema: the same validated, serialized writes the popup's choice takes (RV-REC-04)
+    return (await readSettings()).recording.withMic
   }
 
   private async micGranted(): Promise<boolean> {
@@ -192,9 +315,12 @@ export class RecordingService implements IService {
     const answer = await this.tellOffscreen({ type: 'RECORDING_START', streamId, withMic })
     if (!answer.ok) {
       this.state = { status: 'idle', withMic: false, ...(this.state.micNotice ? { micNotice: this.state.micNotice } : {}) }
+      await this.persistRoute()
       this.syncBadge()
       return MessageUtils.createResponse(false, undefined, 'RECORDING_FAILED')
     }
+    this.recordedTabId = tabId
+    await this.persistRoute()
     this.syncBadge()
     await this.broadcastLifecycle(true)
     return MessageUtils.createResponse(true, this.state)
@@ -206,7 +332,9 @@ export class RecordingService implements IService {
     // no recorder is left to report a stop: the state must not wait for one that never comes
     if (!answer.ok) {
       await this.broadcastLifecycle(false)
-      this.resetToIdle()
+      this.state = { status: 'idle', withMic: false }
+      await this.persistRoute()
+      this.syncBadge()
     }
   }
 
@@ -229,16 +357,23 @@ export class RecordingService implements IService {
 
   private async handleEvent(message: RecordingEventMessage): Promise<void> {
     switch (message.event) {
+      case 'heartbeat': {
+        // the answer keeps the worker alive; there is nothing to route
+        return
+      }
       case 'mic-unavailable': {
         // the video keeps going with the tab's sound; the popup says why and the choice is unchecked (annotate.md §2.4)
         this.state = { ...this.state, withMic: false, micNotice: message.micNotice ?? 'denied' }
+        await this.persistRoute()
         await writeMicPreference(false)
         return
       }
       case 'failed': {
         // the tab stream never opened: back to idle, the user can try again
         await this.broadcastLifecycle(false)
+        this.recordedTabId = undefined
         this.state = { status: 'idle', withMic: false }
+        await this.persistRoute()
         this.syncBadge()
         return
       }
@@ -246,7 +381,10 @@ export class RecordingService implements IService {
         await this.broadcastLifecycle(false)
         if (!message.blobUrl || !message.filename) {
           // a stop without a file leaves nothing to download: the state goes back, as a stop that never came would not
-          this.resetToIdle()
+          this.recordedTabId = undefined
+          this.state = { status: 'idle', withMic: false }
+          await this.persistRoute()
+          this.syncBadge()
           return
         }
         this.pendingDownload = {
@@ -266,6 +404,7 @@ export class RecordingService implements IService {
           // the reason the microphone is missing outlives the recording, so the popup can still say it
           ...(this.state.micNotice ? { micNotice: this.state.micNotice } : {}),
         }
+        await this.persistRoute()
         await this.downloadPending()
         return
       }
@@ -293,13 +432,30 @@ export class RecordingService implements IService {
     }
   }
 
+  /** A restart during the wait for the disk: adopt the download the browser still runs, or start it again (RV-REC-02). */
+  private async resumePendingDownload(): Promise<void> {
+    const pending = this.pendingDownload
+    if (!pending) return
+    const items = await chrome.downloads.search({ url: pending.blobUrl }).catch(() => [])
+    const item = items[0]
+    if (!item) {
+      await this.downloadPending()
+      return
+    }
+    if (item.state === 'complete') await this.finishDownload()
+    else if (item.state === 'interrupted') await this.failDownload()
+    else pending.downloadId = item.id
+  }
+
   private async finishDownload(): Promise<void> {
     const pending = this.pendingDownload
     if (!pending) return
     const { meta } = pending
     await this.tellOffscreen({ type: 'RECORDING_CLEANUP' })
     this.pendingDownload = null
+    this.recordedTabId = undefined
     this.state = { status: 'idle', withMic: false, ...(meta.stoppedBy === 'limit' ? { limitNotice: meta.limit ?? 'time' } : {}) }
+    await this.persistRoute()
     this.syncBadge()
     // recording.downloaded is about the file that landed (metrics.md §9, M-31)
     const duration: RecordingDurationBucket = bucketRecordingDuration(meta.durationMs)
@@ -310,6 +466,7 @@ export class RecordingService implements IService {
     if (!this.pendingDownload) return
     // the video stays until 重新下载 succeeds or the user gives up (annotate.md §2.4)
     this.state = { status: 'download-failed', withMic: false, failedDownload: { filename: this.pendingDownload.filename } }
+    await this.persistRoute()
     this.syncBadge()
   }
 
@@ -349,8 +506,21 @@ export class RecordingService implements IService {
   }
 }
 
+/**
+ * Registered at the worker script's synchronous top level (entrypoints/background/index.ts,
+ * next to listenForFrames): the tab and download events a cold-started worker must not
+ * drop. The handlers wait for the route's recovery before they read any state (RV-REC-02).
+ */
+export function listenForRecording(): void {
+  chrome.downloads.onChanged.addListener(delta => {
+    void RecordingService.getInstance().onDownloadDelta(delta)
+  })
+  // closing the recorded tab stops the recording and downloads what is there (annotate.md §2.4)
+  chrome.tabs.onRemoved.addListener(tabId => {
+    void RecordingService.getInstance().onTabRemoved(tabId)
+  })
+}
+
 async function writeMicPreference(withMic: boolean): Promise<void> {
-  const stored = await chrome.storage.local.get(SETTINGS_KEY)
-  const current = (stored[SETTINGS_KEY] ?? {}) as Record<string, unknown>
-  await chrome.storage.local.set({ [SETTINGS_KEY]: { ...current, recording: { ...((current.recording as { withMic?: boolean } | undefined) ?? {}), withMic } } })
+  await writeSettings({ recording: { withMic } })
 }
