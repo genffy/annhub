@@ -33,8 +33,8 @@ import { initializedEntryStore } from '../../store-instance'
 import { currentUiLanguage } from '../../../utils/ui-text'
 import { forgetDownload, interruptedDownload, rememberDownload, type DownloadOrigin, type DownloadRunMetric } from './recovery'
 import { normalizePath, occupiedNames, rememberProduct, resolveName } from './ownership'
+import { ensureOffscreenDocument } from '../../offscreen-document'
 
-const OFFSCREEN_URL = 'offscreen.html'
 /** A run whose offscreen document died silently must not block the next download forever (download.md §8). */
 const RUN_WATCHDOG_MS = 2_000
 
@@ -646,15 +646,8 @@ export class DownloadService implements IService {
   // ── The offscreen document ──────────────────────────────────────────────
 
   private async ensureOffscreenDocument(): Promise<void> {
-    if (typeof chrome.runtime.getContexts === 'function') {
-      const contexts = await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT] })
-      if (contexts.length > 0) return
-    }
-    await chrome.offscreen.createDocument({
-      url: OFFSCREEN_URL,
-      reasons: [chrome.offscreen.Reason.BLOBS, chrome.offscreen.Reason.DOM_PARSER],
-      justification: 'Extracting the requested page, fetching its media and packing its Markdown download (download.md §2, §4, §5)',
-    })
+    // the one document both flows share (RV-BG-11)
+    await ensureOffscreenDocument()
   }
 
   private async tellOffscreen(message: object): Promise<{ ok: boolean }> {

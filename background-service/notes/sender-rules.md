@@ -14,6 +14,7 @@
     `CANCEL_DOWNLOAD` 与 `SHOW_DOWNLOAD_FILE` 扩展页面与顶层框架都可用（取消、显示刚落地的文件，download.md §2.5）。
 
 - 下载运行的心跳只来自 offscreen；`../services/download/recovery.ts` 的 session 记录只含任务 ID、通知目标与统计字段，worker 重启时清理旧运行并报告失败，不持久化正文、标题或媒体。
-- `EXTRACT_DOWNLOAD_PAGE` 只收顶层标签页的正文快照，转交 `DOWNLOAD_EXTRACT` 给 offscreen；后者只接本扩展无标签页上下文的消息，提取结果不持久化、不联网。
+- `EXTRACT_DOWNLOAD_PAGE` 只收顶层标签页的正文快照，转交 `DOWNLOAD_EXTRACT` 给 offscreen；提取结果不持久化、不联网。
+- offscreen 文档（录制与下载共用一个）只接受扩展后台的消息：监听开头统一核对发送者没有标签页上下文且 id 是本扩展，其余一律忽略不回应（RV-BG-11）；页面里的内容脚本与别的扩展都够不到它。
 - 资料库下载的 `clientRunId` 随通知和恢复记录传回，页面只处理自己发起的运行，避免其他标签页的结束通知覆盖正在启动的下载。
 - Markdown 媒体链接使用 `core/download.ts` 的 `downloadAssetPath` 编码实际落盘文件名，浏览器添加重名序号或用户改名后，空格、括号与片段符号仍指向同一文件。

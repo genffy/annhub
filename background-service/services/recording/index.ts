@@ -17,6 +17,7 @@
 import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage, RecordingEventMessage, RecordingState } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
+import { ensureOffscreenDocument } from '../../offscreen-document'
 import { readSettings, writeSettings } from '../../settings-schema'
 import { openExtensionPage } from '../../../utils/extension-pages'
 import MessageUtils from '../../../utils/message'
@@ -24,7 +25,6 @@ import { Logger } from '../../../utils/logger'
 import { bucketRecordingDuration, type RecordingDurationBucket } from '../../../core/metrics'
 import { recordEvent } from '../metrics/record'
 
-const OFFSCREEN_URL = 'offscreen.html'
 const SESSION_KEY = 'annhub.recording'
 
 /** The page classes a tab may be recorded on; everything else (chrome://, the store) has no entry (annotate.md §2.4). */
@@ -168,7 +168,9 @@ export class RecordingService implements IService {
       GET_RECORDING_STATE: async (_message, sender): Promise<ResponseMessage> => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         await this.ready
-        return MessageUtils.createResponse(true, this.state)
+        // holdsVideo: the offscreen document's stale-state recovery asks whether the worker
+        // still wants the finished video (RV-REC-05); the popup ignores the field
+        return MessageUtils.createResponse(true, { ...this.state, holdsVideo: this.pendingDownload !== null })
       },
 
       STOP_RECORDING: async (_message, sender): Promise<ResponseMessage> => {
@@ -485,15 +487,8 @@ export class RecordingService implements IService {
   }
 
   private async ensureOffscreenDocument(): Promise<void> {
-    if (typeof chrome.runtime.getContexts === 'function') {
-      const contexts = await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT] })
-      if (contexts.length > 0) return
-    }
-    await chrome.offscreen.createDocument({
-      url: OFFSCREEN_URL,
-      reasons: [chrome.offscreen.Reason.USER_MEDIA],
-      justification: 'Recording the tab the user asked to record (annotate.md §2)',
-    })
+    // the one document both flows share (RV-BG-11)
+    await ensureOffscreenDocument()
   }
 
   private async tellOffscreen(message: { type: string } & Record<string, unknown>): Promise<{ ok: boolean }> {
