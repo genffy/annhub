@@ -1,5 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RecordingService, listenForRecording } from '../index'
+import { writeSettings } from '../../../settings-schema'
 import type { ResponseMessage } from '../../../../types/messages'
 
 /**
@@ -140,7 +141,8 @@ describe('recording service (annotate.md §2)', () => {
     await windDown(2, 'AnnHub/recording-t2.webm')
   })
 
-  it('a mic that fails at start keeps recording video-only and unchecks 带麦克风', async () => {
+  it('a mic that fails at start keeps recording video-only, unchecks 带麦克风 through the settings schema, and keeps the other keys (annotate.md §2.4, RV-REC-04)', async () => {
+    localStorageMap.set('annhub.settings', { recording: { withMic: true }, downloadFormat: 'png', blockEntryEnabled: true })
     await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: true }, extensionSender)
     await dispatch({ type: 'RECORDING_EVENT', event: 'mic-unavailable', micNotice: 'denied' }, extensionSender)
     const state = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string; withMic: boolean; micNotice?: string }
@@ -148,7 +150,21 @@ describe('recording service (annotate.md §2)', () => {
     expect(state.withMic).toBe(false)
     expect(state.micNotice).toBe('denied')
     expect(storage.local.set).toHaveBeenCalledWith({ 'annhub.settings': expect.objectContaining({ recording: expect.objectContaining({ withMic: false }) }) })
+    const settings = localStorageMap.get('annhub.settings') as { downloadFormat: string; blockEntryEnabled: boolean; recording: { withMic: boolean } }
+    expect(settings.downloadFormat, 'the untouched keys are not reset by the mic write').toBe('png')
+    expect(settings.blockEntryEnabled).toBe(true)
     await windDown(3, 'AnnHub/recording-t3.webm')
+  })
+
+  it('the mic write and a preference write at the same time both survive (RV-REC-04)', async () => {
+    localStorageMap.set('annhub.settings', { recording: { withMic: true }, downloadFormat: 'png' })
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: true }, extensionSender)
+    // the settings page saves a format choice — the same serialized write SET_SETTINGS takes — while the microphone dies
+    await Promise.all([dispatch({ type: 'RECORDING_EVENT', event: 'mic-unavailable', micNotice: 'denied' }, extensionSender), writeSettings({ downloadFormat: 'jpeg' })])
+    const settings = localStorageMap.get('annhub.settings') as { downloadFormat: string; recording: { withMic: boolean } }
+    expect(settings.recording.withMic).toBe(false)
+    expect(settings.downloadFormat).toBe('jpeg')
+    await windDown(50, 'AnnHub/recording-cc.webm')
   })
 
   it('downloads the finished video into AnnHub/, clears the badge, and the metric waits for the completion report', async () => {

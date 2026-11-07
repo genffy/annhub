@@ -17,7 +17,7 @@
 import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage, RecordingEventMessage, RecordingState } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
-import { readSettings } from '../../settings-schema'
+import { readSettings, writeSettings } from '../../settings-schema'
 import { openExtensionPage } from '../../../utils/extension-pages'
 import MessageUtils from '../../../utils/message'
 import { Logger } from '../../../utils/logger'
@@ -25,7 +25,6 @@ import { bucketRecordingDuration, type RecordingDurationBucket } from '../../../
 import { recordEvent } from '../metrics/record'
 
 const OFFSCREEN_URL = 'offscreen.html'
-const SETTINGS_KEY = 'annhub.settings'
 const SESSION_KEY = 'annhub.recording'
 
 /** The page classes a tab may be recorded on; everything else (chrome://, the store) has no entry (annotate.md §2.4). */
@@ -280,8 +279,8 @@ export class RecordingService implements IService {
   }
 
   private async readMicPreference(): Promise<boolean> {
-    const stored = await chrome.storage.local.get(SETTINGS_KEY)
-    return (stored[SETTINGS_KEY] as { recording?: { withMic?: boolean } } | undefined)?.recording?.withMic === true
+    // through the settings schema: the same validated, serialized writes the popup's choice takes (RV-REC-04)
+    return (await readSettings()).recording.withMic
   }
 
   private async micGranted(): Promise<boolean> {
@@ -523,7 +522,5 @@ export function listenForRecording(): void {
 }
 
 async function writeMicPreference(withMic: boolean): Promise<void> {
-  const stored = await chrome.storage.local.get(SETTINGS_KEY)
-  const current = (stored[SETTINGS_KEY] ?? {}) as Record<string, unknown>
-  await chrome.storage.local.set({ [SETTINGS_KEY]: { ...current, recording: { ...((current.recording as { withMic?: boolean } | undefined) ?? {}), withMic } } })
+  await writeSettings({ recording: { withMic } })
 }

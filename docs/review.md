@@ -20,34 +20,6 @@
 
 录屏可靠性、下载同名、导出 ZIP64 三组可以马上并行；offscreen 归口要等录屏可靠性与下载同名合并，约定文件要等录屏可靠性与 offscreen 归口合并。
 
-### 录屏可靠性
-
-四条都在录制链路上，一个 PR。规格是 [annotate.md §2.1、§2.4、§3.3](product/annotate.md)（开始与停止、失败、停止录制以后）；产品行为不变，只改实现。要跑的 E2E：`popup-entry.spec.ts`、`recording-annotation.spec.ts`、`page-annotation.spec.ts`、`cold-start.spec.ts`。
-
-#### RV-REC-03 快捷键带麦克风、尚未授权时打开设置页（中）
-
-**问题**：`RecordingService.startFromCommand` 在 worker 里用 `chrome.runtime.sendMessage` 发 `OPEN_EXTENSION_PAGE`，可这个消息的处理器就在 worker 自己身上（`service-manager.ts`）；runtime 消息不会送回发送者，设置页打不开，按快捷键什么都不发生。[annotate.md §2.1](product/annotate.md) 要求这时在新标签页打开设置页的“录制”一节，由浏览器询问麦克风。`startFromCommand` 没有单测。
-
-**要求**：直接调用 `utils/extension-pages.ts` 的 `openExtensionPage('settings', { recordTabId })`；为 `startFromCommand` 补单测。
-
-**验收**
-
-1. `git grep -n OPEN_EXTENSION_PAGE background-service` 只剩处理器、文档与测试，没有 worker 给自己发这条消息的调用。
-2. 单测：勾着“带麦克风”、麦克风权限不是 granted 时，调用 `openExtensionPage('settings', { recordTabId })`，不取流、不开始录制。
-3. 单测：不带麦克风时用 `targetTabId` 取流并开始录制；`chrome://` 页面什么都不做。
-4. 真机：在 `chrome://extensions/shortcuts` 给录制绑定快捷键，把扩展的麦克风权限重置为“询问”，勾上“带麦克风”后按快捷键：新标签页打开设置页的录制一节，浏览器弹出麦克风询问。
-
-#### RV-REC-04 录屏改走设置模块（低）
-
-**问题**：`RecordingService` 的 `readMicPreference` 与模块里的 `writeMicPreference` 直接读写 `chrome.storage.local` 的 `annhub.settings`，绕过 `settings-schema.ts` 的校验与串行写入；与弹窗的 `SET_SETTINGS` 同时写时会互相覆盖。`settings-schema.ts` 有 `readSettings()`、`writeSettings()`，`SettingsPatch` 支持 `recording.withMic`。
-
-**要求**：两处改用 `readSettings()` 与 `writeSettings({ recording: { withMic: false } })`，删掉本地的 `SETTINGS_KEY`。
-
-**验收**
-
-1. `git grep -n "annhub.settings" background-service/services` 没有结果。
-2. 单测：麦克风不可用时走 `writeSettings`，其他设置键不变；与一次 `SET_SETTINGS` 同时发生时，两边的修改都保留。
-
 ### 下载同名
 
 一个 PR。这是行为改动，规格、用户故事与代码同一个 PR 改；规格的取舍见 D-94。要跑的 E2E：`page-download.spec.ts`、`library-download.spec.ts`、`source-page-download.spec.ts`。
