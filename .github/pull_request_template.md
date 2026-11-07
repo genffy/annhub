@@ -17,3 +17,4 @@
 - [ ] No secrets, page content or attachment bytes in logs, fixtures or screenshots
 - [ ] No test was skipped, disabled or loosened to get green
 - [ ] Docs describe what the code in this PR does; delivery status is only in `docs/product/roadmap.md`
+- [ ] Review findings (`RV-…`) this PR handles are gone from `docs/review.md` §2: fixed, with a test case whose name carries the ID, or moved to `docs/review.md` §3 as known issues
