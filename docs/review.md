@@ -18,7 +18,7 @@
 
 ## 2. 待处理
 
-录屏可靠性、下载同名、导出 ZIP64、产品定位、选区菜单五组可以马上并行；offscreen 归口要等录屏可靠性与下载同名合并，约定文件要等录屏可靠性与 offscreen 归口合并。
+录屏可靠性、下载同名、导出 ZIP64、选区菜单四组可以马上并行；offscreen 归口要等录屏可靠性与下载同名合并，约定文件要等录屏可靠性与 offscreen 归口合并。
 
 ### 录屏可靠性
 
@@ -210,30 +210,6 @@
 
 1. E2E：3 MB 以上 Markdown 的文件夹形态下载成功；落盘的 Markdown 完整，最后一节在，字节数与转换结果一致。
 2. 按要求 2 改了时：`git grep -n dataUrlOf` 没有结果；单测断言为 Markdown 建的每个 `blob:` URL，在下载结束或取消后都被撤销。
-
-### 产品定位
-
-一个 PR，只改文档，可以马上开工。
-
-#### RV-DOC-02 product.md 没给下载功能定位（中）
-
-**问题**
-
-- [product.md §2.2](product/product.md) 讲了页面批注与录屏服务谁，没讲下载：它服务 product.md §2.1 的哪类人、对应 product.md §3 的哪个 Job，都没有。
-- product.md §2.3“明确不做的事”里，“稍后读收件箱与整页阅读器”写着“不抓取整页”，“整页剪藏与模板系统”写着“不保存整页”；下载却能把页面的主体文章取成文件。[download.md §1.2](product/download.md) 解释了两者不冲突（下载不建条目、不进库），product.md 里没有这句，只读产品定位的人会以为下载越了界。
-- [docs/product/README.md](product/README.md) 第 1 节“五分钟读懂”的“怎么做”与流程图只有剪藏、截图与高亮。
-
-**要求**
-
-1. 在 product.md §3 加一个 Job（或扩展已有的一条），写明下载服务谁、解决什么：把读到的内容带走，用别的工具打开。product.md §2.3 那两行各补半句边界：下载由用户逐次点击，产物不进资料库，与 download.md §1.2 一致。
-2. docs/product/README.md 第 1 节的“怎么做”与流程图写全 product.md 定位过的能力，含页面批注、录屏与下载。
-3. 措辞由产品负责人在 PR 评审里确认；这是产品定位，不改任何功能。
-
-**验收**
-
-1. product.md 里有一处写明下载服务的人群与 Job；product.md §2.3 那两行与 download.md §1.2 对着读不矛盾。
-2. docs/product/README.md 第 1 节与 product.md 一致；`npm run check:docs` 通过。
-3. PR 里有产品负责人对措辞的确认。
 
 ### 选区菜单
 
