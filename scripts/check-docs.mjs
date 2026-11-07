@@ -388,6 +388,28 @@ function checkAgentsTree() {
   return { problems, detail: `${agents.length} instruction files, ${notes.length} notes, ${scanned} lines scanned for imports` }
 }
 
+// --- list-tail: a convention-file list item does not end on "；" -----------------
+
+/** `AGENTS.md` and `notes/*.md` carry rules as list items; a "；" on an item's
+ * last line means the sentence was split into fragments (RV-DOC-03). A "；"
+ * is fine while the item keeps going on the next line. */
+function checkListTail() {
+  const targets = markdownFiles.filter(file => basename(file) === 'AGENTS.md' || /(^|\/)notes\/[^/]+\.md$/.test(file))
+  const problems = []
+  for (const file of targets) {
+    const lines = [...proseLines(read(file))]
+    for (let index = 0; index < lines.length; index += 1) {
+      const { line, n } = lines[index]
+      if (!line.trimEnd().endsWith('；')) continue
+      const next = lines[index + 1]?.line ?? ''
+      // the item continues when the next prose line is not a new item or a heading
+      const continues = next.trim() !== '' && !/^\s*[-*]\s/.test(next) && !/^#{1,6}\s/.test(next) && !/^\s*\|/.test(next) && !/^\s*\d+\.\s/.test(next)
+      if (!continues) problems.push(`${file}:${n}: [list-tail] a list item ends on "；" — merge the fragments into one sentence (RV-DOC-03)`)
+    }
+  }
+  return { problems, detail: `${targets.length} convention files, list tails checked` }
+}
+
 // --- run ----------------------------------------------------------------------------------------------------------
 
 const rules = [
@@ -400,6 +422,7 @@ const rules = [
   ['history-wording', checkHistoryWording],
   ['round-label', checkRoundLabels],
   ['agents-tree', checkAgentsTree],
+  ['list-tail', checkListTail],
 ]
 
 const problems = []

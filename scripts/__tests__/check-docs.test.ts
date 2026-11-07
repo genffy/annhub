@@ -183,4 +183,17 @@ describe('check-docs', () => {
     expect(status).toBe(1)
     expect(output).toContain(`e2e/toolbar.spec.ts:3: [retired-id] ${Q1} is cited but not defined in any Markdown`)
   })
+
+  it('names a convention-file list item that ends on a fragment mark, and lets a continued item pass (RV-DOC-03)', () => {
+    const broken = check({
+      'entrypoints/library/notes/x.md': edit('entrypoints/library/notes/x.md', 'A card grid, fifty per page.', 'A card grid, fifty per page；\n- one more line'),
+    })
+    expect(broken.status).toBe(1)
+    expect(broken.output).toMatch(/entrypoints\/library\/notes\/x\.md:\d+: \[list-tail\]/)
+    // the mark mid-item is fine: the item keeps going on the next line
+    const continued = check({
+      'entrypoints/library/notes/x.md': '# Lists\n\n- A card grid, fifty per page；\n  the page keeps counting up.\n',
+    })
+    expect(continued.status).toBe(0)
+  })
 })
