@@ -94,52 +94,6 @@
 1. `git grep -n "annhub.settings" background-service/services` 没有结果。
 2. 单测：麦克风不可用时走 `writeSettings`，其他设置键不变；与一次 `SET_SETTINGS` 同时发生时，两边的修改都保留。
 
-### 下载同名
-
-一个 PR。这是行为改动，规格、用户故事与代码同一个 PR 改；规格的取舍见 D-94。要跑的 E2E：`page-download.spec.ts`、`library-download.spec.ts`、`source-page-download.spec.ts`。
-
-#### RV-DL-01 重新下载按标题覆盖，而且先删后写（中）
-
-**问题**
-
-- [download.md §4.1](product/download.md) 规定同一个标题再次下载时覆盖原文件夹，先清除它写过的文件再写入。实现是 `background-service/services/download/index.ts` 的 `clearFolderFiles`：`writeFolderRun` 一开始、还没写任何新文件，就对下载历史里 `AnnHub/<文件夹>/` 下的每一项调用 `chrome.downloads.removeFile`，从磁盘上永久删除。
-- 标题不是身份。两篇不同的文章清洗后同名（都叫“Home”，或前 80 个字符相同），就共用一个文件夹，下载第二篇会删掉第一篇。
-- 资料库多选的批次文件夹按日期取名（`library-plan.ts` 里的 `batchFolderName`）：同一天下载第二批，第一批整个被删。
-- 先删后写：删完之后取消、断网、浏览器拒绝某个文件或后台文档被关闭，旧文件已经没了，新的又不完整。下载常用来留下可能消失的内容（会被删的帖子），这时丢的可能是唯一一份。
-- ZIP 形态不先删，但同样按标题覆盖（download.md §4.1 的“重名直接覆盖同名 ZIP”），不同文章同名时后一个顶掉前一个。
-- 现有单测里只有 `overwrites a repeat title…` 一条（`download.test.ts`），上面几种情形都没有覆盖。
-
-**要求**
-
-1. 身份与取名按 D-94 的默认；产品负责人在 PR 评审里给了不同结论，就按结论改。取下一个没被占用的名字用 `core/download.ts` 的 `dedupeName`。
-2. 归属记录：`chrome.storage.local` 里一个键（如 `annhub.downloadFolders`），只存哈希与时间：`{ <路径的 SHA-256>: { owner: <身份的 SHA-256>, at } }`，最多 500 条，超出删最旧的；不存地址、标题或文件名。路径先转小写、做 Unicode NFC 归一化再取哈希，因为 macOS 与 Windows 的文件名不分大小写；查下载历史时同样不分大小写。一次下载全部落盘之后才写记录。
-3. 文件夹形态、ZIP 形态和资料库多选的批次文件夹都按要求 1 取名。
-4. 写入：
-   - 新名字：每个文件都用 `conflictAction: 'uniquify'`，宁可多出 ` (1)` 也不覆盖磁盘上已有的文件。
-   - 替换：媒体用 `uniquify` 写成新文件（Markdown 本来就按落盘后的实际文件名链接，download.md §4.1）；Markdown 和 README 最后写，用 `overwrite`。Markdown 落盘之后，才删除这个文件夹里本次没写到的旧文件。ZIP 替换用 `overwrite`：浏览器在新文件写完时才替换旧的。
-   - 删旧文件时先排除本次写过的路径：下载历史里旧的那一项可能与新文件同路径，删它等于删掉新文件。
-5. 取消与失败：取消时只删本次新建的文件（download.md §2.5），失败时按 download.md §8 保留已写好的文件；两种情况都不删、不覆盖任何旧文件，旧 Markdown 里的链接都还能打开。重试按同一身份重走一遍，成功后清掉旧文件和上次失败留下的文件。
-6. 删掉 `clearFolderFiles`。`chrome.downloads.removeFile` 只出现在三处：没写完的单个文件、取消时删本次的文件（`removeDownload`）、替换成功后删旧文件。
-7. 规格与文档，同一个 PR：
-   - download.md §2.5、§4.1、§4.4、§8、§9 里讲覆盖的句子改成新行为；download.md §4.2 写明替换后媒体名可能带 ` (1)`；download.md §6.2 加上归属记录；
-   - user-stories.md 里 US-CAP-21、US-DATA-07 的验收；
-   - permissions.md §1 与隐私政策 `website/public/privacy-policy.html`（中英文两处）写明这份本地记录；
-   - roadmap.md：下载那一行写的是商店里的行为，不改（RV-DOC-01 把它并入 roadmap §2）；在 roadmap §3“待发布”加一行写新的同名处理，来源一列填 issue，没有就填本 PR；
-   - 合并前把 D-94 的结论写进 download.md §4.1、§4.4，从 validation.md 删掉 D-94。
-8. 现有用例 `overwrites a repeat title…` 断言的是要改掉的行为，按验收 2 改写；这是行为变更，不算删测试。
-
-**验收**
-
-1. 单测：不同来源、同一标题先后下载（文件夹形态），落到 `AnnHub/<标题>/` 与 `AnnHub/<标题> (2)/`，`removeFile` 一次也没有被调用。
-2. 单测：同一来源再次下载成功，还是同一个文件夹；媒体用 `uniquify`，Markdown 用 `overwrite`；Markdown 落盘后才对旧媒体调用 `removeFile`，对本次写过的路径一次也不调用。
-3. 单测：同一来源再次下载，媒体写到一半时取消、或某个文件被浏览器中断：旧文件一个也没有被 `removeFile`，旧 Markdown 没被覆盖；取消时被删的只有本次新建的文件。
-4. 单测：同一天两次资料库多选，落到两个批次文件夹，第二个带 ` (2)`，第一批不受影响。资料库单条：同一条再下载替换；标题相同的另一条落到 ` (2)`。
-5. 单测：ZIP 形态，不同来源同名得到 `<标题> (2).zip`；同一来源 `overwrite` 原来的 ZIP。
-6. 单测：没有归属记录、下载历史里已有文件的文件夹，换名字，不删任何文件；只有大小写不同的两个标题算同一个名字；归属记录里只有哈希与时间，写第 501 条时最旧的一条被删。
-7. E2E（扩充 `page-download.spec.ts`，做不到就真机）：同一页面下载两次，第二次在进度过半时取消：第一次的文件夹完整，文件清单与 Markdown 的链接一致。再下载一次并完成：文件夹里恰好是新 Markdown 引用的文件，没有多余的旧媒体。两篇标题相同的不同文章各下载一次：两个文件夹都完整。
-8. `git grep -n clearFolderFiles` 没有结果；`git grep -n removeFile background-service/services/download/index.ts` 的每一处都属于要求 6 的三种之一。
-9. validation.md 里没有 D-94；要求 7 列出的文档都已改，`npm run check:docs` 通过。
-
 ### 导出 ZIP64
 
 一个 PR。`core/export.ts` 与 `entrypoints/offscreen/download-run.ts` 调用同一个 `buildZip`，下载的 ZIP 形态一并受益，两处调用方不用改；规格的取舍见 D-95。要跑的 E2E：`library-export.spec.ts`、`library-download.spec.ts`。

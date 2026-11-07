@@ -99,6 +99,7 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 <li><strong>Images</strong> — the processed screenshot bytes, exactly as you confirmed them (cropping, anonymization, mosaic and annotations applied). The unprocessed screen capture is never kept.</li>
 <li><strong>Settings</strong> — interface and capture preferences (block-entry switch and disabled sites, screenshot anonymization default, and similar).</li>
 <li><strong>Local counters</strong> — aggregate counts and timings (for example how many clips were saved this week) shown on the Settings page. They contain no page text, no URL and no title, and they are never sent anywhere.</li>
+<li><strong>Download folder ownership</strong> — for each Markdown download that completed, a note of which source the product belonged to, stored only as two hashes (of the product's path and of the source) plus a timestamp, so downloading again replaces its own product and never touches another article's folder. At most 500 notes are kept, oldest dropped first; no address, title or file name is stored.</li>
 </ul>
 <div class="highlight">
 <strong>All of this stays on your device:</strong> in your browser (IndexedDB and the extension's own <code>chrome.storage</code> areas, including a screenshot frame note kept in the session area that page scripts cannot read). The Markdown ZIP you export is an ordinary file that you own and manage.
@@ -170,6 +171,7 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 <li><strong>图片</strong>——你确认过的截图字节（裁剪、匿名、马赛克与标注已应用）。未处理的屏幕原图不会保留。</li>
 <li><strong>设置</strong>——界面与采集偏好（区块入口开关与已停用网站、截图匿名默认值等）。</li>
 <li><strong>本地计数</strong>——设置页展示的聚合数字与耗时（例如本周保存了多少条剪藏）。不含页面文字、URL 和标题，也从不上传。</li>
+<li><strong>下载产物归属</strong>——每次完成的 Markdown 下载记一条它属于哪个来源：只存两个哈希（产物路径与来源）加一个时间戳，让再次下载替换它自己的产物、绝不碰别的文章的文件夹。最多 500 条，超出删最旧的；不存地址、标题或文件名。</li>
 </ul>
 <div class="highlight">
 <strong>以上全部只留在你的设备上：</strong>在浏览器的 IndexedDB 与扩展自己的 <code>chrome.storage</code> 区域里（包括记着上次截图取景框的会话区域，页面脚本读不到它）。你导出的 Markdown ZIP 是普通文件，由你自己保管。

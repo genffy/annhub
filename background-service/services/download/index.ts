@@ -32,6 +32,7 @@ import { planLibraryDownload, planPageDownload, type DownloadRunPlan } from './l
 import { initializedEntryStore } from '../../store-instance'
 import { currentUiLanguage } from '../../../utils/ui-text'
 import { forgetDownload, interruptedDownload, rememberDownload, type DownloadOrigin, type DownloadRunMetric } from './recovery'
+import { normalizePath, occupiedNames, rememberProduct, resolveName } from './ownership'
 
 const OFFSCREEN_URL = 'offscreen.html'
 /** A run whose offscreen document died silently must not block the next download forever (download.md §8). */
@@ -41,13 +42,17 @@ const PAGE_VIAS = new Set<DownloadVia>(['capsule', 'block_mode', 'popup', 'comma
 const LIBRARY_VIAS = new Set<DownloadVia>(['drawer', 'reading', 'selection'])
 
 type RunOrigin = DownloadOrigin
-type WrittenFile = { id: number; name: string } | null
+type WrittenFile = { id: number; name: string; path: string } | null
 
 interface ActiveRun {
   requestId: string
   origin: RunOrigin
   metric: DownloadRunMetric
   plan: DownloadRunPlan
+  /** The source this run's product belongs to (download.md §4.1): the cleaned page address, the entry id, or a fresh batch. */
+  identity: string
+  /** True when the run replaces a path this very identity wrote before (D-94): its old files are swept after the Markdown lands. */
+  replacing: boolean
   /** The offscreen document's per-item report, kept for the outcome counts at completion. */
   outcomes: DownloadItemOutcome[]
   missing: DownloadMissingItem[]
@@ -58,23 +63,6 @@ interface ActiveRun {
   writes: Set<Promise<WrittenFile>>
   ending?: boolean
   watchdog?: ReturnType<typeof setTimeout>
-}
-
-/** A re-download of the same title replaces the folder (download.md §4.1): remove the files it wrote before, so stale media never lingers unreferenced. */
-async function clearFolderFiles(basePath: string): Promise<void> {
-  try {
-    const folder = basePath.replace(/^AnnHub\//, '')
-    const items = await chrome.downloads.search({})
-    for (const item of items) {
-      const name = (item.filename ?? '').replace(/\\/g, '/')
-      const at = name.lastIndexOf('/AnnHub/')
-      if (at === -1) continue
-      if (!name.slice(at + '/AnnHub/'.length).startsWith(folder + '/')) continue
-      await chrome.downloads.removeFile(item.id).catch(() => undefined)
-    }
-  } catch {
-    /* the writes still overwrite by name; a stale file is the fallback's only cost */
-  }
 }
 
 export class DownloadService implements IService {
@@ -227,9 +215,12 @@ export class DownloadService implements IService {
     try {
       const settings = await readSettings()
       const form: DownloadForm = message.form === 'zip' || message.form === 'folder' ? message.form : settings.downloadForm
+      // the identity is the cleaned source address — the anchor counts in it, token params never survive (download.md §4.1, D-94)
+      const identityUrl = cleanSourceUrl(sourceUrl)
+      const identity = `page:${identityUrl}`
       const plan = planPageDownload({
         title,
-        sourceUrl: cleanSourceUrl(sourceUrl),
+        sourceUrl: identityUrl,
         markdown,
         media,
         form,
@@ -245,6 +236,8 @@ export class DownloadService implements IService {
           ...(typeof message.meta.image === 'string' && /^https?:/i.test(message.meta.image) ? { image: message.meta.image } : {}),
         },
       })
+      // the identity is the cleaned source address — the anchor counts in it, token params never survive (download.md §4.1, D-94)
+      const resolved = await this.resolvePlanBase(plan, form, identity)
       return await this.launch({
         origin: { kind: 'tab', tabId },
         metric: {
@@ -255,6 +248,8 @@ export class DownloadService implements IService {
           ...(message.blockKind ? { blockKind: message.blockKind } : {}),
         },
         plan,
+        identity,
+        replacing: resolved.replacing,
       })
     } finally {
       this.startInFlight = false
@@ -280,21 +275,35 @@ export class DownloadService implements IService {
         lang: message.lang === 'zh' || message.lang === 'en' ? message.lang : currentUiLanguage(),
         at: Date.now(),
       })
+      // one entry's product belongs to the entry itself; a multi selection is a fresh batch every time (download.md §4.1, D-94)
+      const identity = entryIds.length > 1 ? `batch:${Date.now().toString(36)}:${++this.requestId}` : `entry:${entryIds[0]}`
+      const resolved = await this.resolvePlanBase(plan, form, identity)
       return await this.launch({
         origin: { kind: 'page', ...(typeof message.clientRunId === 'string' && message.clientRunId.length <= 80 ? { clientRunId: message.clientRunId } : {}) },
         metric: { source: 'library', via: message.via, scope: entryIds.length > 1 ? 'multi' : 'entry', form },
         plan,
+        identity,
+        replacing: resolved.replacing,
       })
     } finally {
       this.startInFlight = false
     }
   }
 
+  /** Picks the product name the plan writes into: this identity's recorded path is replaced, everything else on disk is taken (download.md §4.1, D-94). */
+  private async resolvePlanBase(plan: DownloadRunPlan, form: DownloadForm, identity: string): Promise<ReturnType<typeof resolveName>> {
+    const desired = plan.basePath.replace(/^AnnHub\//, '')
+    const resolved = await resolveName(desired, identity, form === 'zip' ? 'zip' : 'folder', await occupiedNames(form === 'zip' ? 'zip' : 'folder'))
+    plan.basePath = `AnnHub/${resolved.name}`
+    plan.productName = resolved.name
+    return resolved
+  }
+
   private canStart(): boolean {
     return this.run === null && !this.startInFlight && !this.extracting
   }
 
-  private async launch(input: { origin: RunOrigin; metric: ActiveRun['metric']; plan: DownloadRunPlan }): Promise<ResponseMessage> {
+  private async launch(input: { origin: RunOrigin; metric: ActiveRun['metric']; plan: DownloadRunPlan; identity: string; replacing: boolean }): Promise<ResponseMessage> {
     const requestId = `dl_${Date.now().toString(36)}_${++this.requestId}`
     const run: ActiveRun = { requestId, ...input, outcomes: [], missing: [], downloadIds: [], cancelled: false, abort: new AbortController(), writes: new Set() }
     this.run = run
@@ -378,8 +387,9 @@ export class DownloadService implements IService {
         return
       }
       case 'zip': {
-        // the packed archive as a blob URL the offscreen document keeps alive until the cleanup
-        const landed = message.blobUrl ? await this.writeDownload(run, message.blobUrl, `${run.plan.basePath}.zip`) : null
+        // the packed archive as a blob URL the offscreen document keeps alive until the cleanup;
+        // a replacement swaps the archive when the new one has finished writing (download.md §4.4)
+        const landed = message.blobUrl ? await this.writeDownload(run, message.blobUrl, `${run.plan.basePath}.zip`, run.replacing ? 'overwrite' : 'uniquify') : null
         const missing = run.missing.length
         const saved = run.outcomes.filter(item => item.status === 'saved').length
         await this.finishRun(
@@ -413,11 +423,17 @@ export class DownloadService implements IService {
     return run.plan.media.find(item => `${item.dir}|${item.url ?? `asset:${item.assetId ?? ''}`}` === ref)
   }
 
-  /** The folder form (download.md §4.1): media first as their own browser downloads — the browser's real file names are what the Markdown links — then the Markdown itself. */
+  /**
+   * The folder form (download.md §4.1): media first as their own browser downloads — the browser's real file names are
+   * what the Markdown links — then the Markdown and README. Media always write `uniquify`: a name on disk is never
+   * overwritten, a replaced product's new media land beside the old ones as ` (1)`. A replacement's Markdown and README
+   * write last, `overwrite`; once the Markdown has landed, the folder's files this run did not write are removed —
+   * never before, so a cancel or failure leaves the previous version whole (download.md §8).
+   */
   private async writeFolderRun(run: ActiveRun, fetched: DownloadItemOutcome[], offline: boolean): Promise<void> {
-    await clearFolderFiles(run.plan.basePath)
     const byRef = new Map<string, DownloadItemOutcome>()
     let writeFailed = false
+    const writtenPaths = new Set<string>()
     for (const outcome of fetched) {
       if (run.cancelled || this.run !== run) return
       if (outcome.status === 'saved' && outcome.blobUrl && outcome.mime) {
@@ -425,9 +441,10 @@ export class DownloadService implements IService {
         const name = item ? mediaSlotName(item.kind, item.slot, outcome.mime) : 'file.bin'
         // an empty dir (the page form's root) must not become a double slash in the path
         const dir = item?.dir ? `${item.dir}/` : ''
-        const landed = await this.writeDownload(run, outcome.blobUrl, `${run.plan.basePath}/${dir}assets/${name}`)
+        const landed = await this.writeDownload(run, outcome.blobUrl, `${run.plan.basePath}/${dir}assets/${name}`, 'uniquify')
         if (run.cancelled || this.run !== run) return
         if (!landed) writeFailed = true
+        else writtenPaths.add(normalizePath(landed.path))
         byRef.set(
           outcome.ref,
           landed
@@ -445,11 +462,15 @@ export class DownloadService implements IService {
     const { files, missing: missingItems } = run.plan.compose(finalOutcomes, offline)
     let first: number | null = null
     for (const file of files) {
-      const landed = await this.writeDownload(run, dataUrlOf(file.text), `${run.plan.basePath}/${file.path}`)
+      const landed = await this.writeDownload(run, dataUrlOf(file.text), `${run.plan.basePath}/${file.path}`, run.replacing ? 'overwrite' : 'uniquify')
       if (!landed) writeFailed = true
+      else writtenPaths.add(normalizePath(landed.path))
       if (landed && first === null) first = landed.id
       if (this.run !== run || run.cancelled) return
     }
+    // the Markdown has landed: the folder's stale files go — the previous version's media, and anything a failed
+    // attempt of this same product left behind. A run with a failed write keeps everything for download.md §8.
+    if (run.replacing && !writeFailed) await this.sweepReplacedFolder(run, writtenPaths)
     const missing = missingItems.length
     await this.finishRun(
       run,
@@ -461,19 +482,37 @@ export class DownloadService implements IService {
     )
   }
 
-  /** One browser download of this run: no saveAs prompt (download.md §4.1), waited to its final state, answered with the id and the file's real base name. */
-  private writeDownload(run: ActiveRun, url: string, filename: string): Promise<WrittenFile> {
-    const pending = this.performWrite(run, url, filename)
+  /** Deletes the replaced folder's files this run did not write — an old item may share a path with a new file, so the written paths are excluded (download.md §4.1). */
+  private async sweepReplacedFolder(run: ActiveRun, writtenPaths: Set<string>): Promise<void> {
+    try {
+      const folder = normalizePath(run.plan.basePath.replace(/^AnnHub\//, ''))
+      const items = await chrome.downloads.search({})
+      for (const item of items) {
+        const lower = normalizePath((item.filename ?? '').replace(/\\/g, '/'))
+        const at = lower.lastIndexOf('/annhub/')
+        if (at === -1) continue
+        if (!lower.slice(at + '/annhub/'.length).startsWith(`${folder}/`)) continue
+        if (writtenPaths.has(lower)) continue
+        await chrome.downloads.removeFile(item.id).catch(() => undefined)
+      }
+    } catch {
+      /* a closed history only leaves stale files until the next replacement */
+    }
+  }
+
+  /** One browser download of this run: no saveAs prompt (download.md §4.1), waited to its final state, answered with the id and the file's real path. */
+  private writeDownload(run: ActiveRun, url: string, filename: string, conflict: 'uniquify' | 'overwrite'): Promise<WrittenFile> {
+    const pending = this.performWrite(run, url, filename, conflict)
     run.writes.add(pending)
     void pending.finally(() => run.writes.delete(pending))
     return pending
   }
 
-  private async performWrite(run: ActiveRun, url: string, filename: string): Promise<WrittenFile> {
+  private async performWrite(run: ActiveRun, url: string, filename: string, conflict: 'uniquify' | 'overwrite'): Promise<WrittenFile> {
     if (run.cancelled || this.run !== run) return null
     try {
       const id = await new Promise<number>((resolve, reject) => {
-        chrome.downloads.download({ url, filename, saveAs: false, conflictAction: 'overwrite' }, downloadId => {
+        chrome.downloads.download({ url, filename, saveAs: false, conflictAction: conflict }, downloadId => {
           const error = chrome.runtime.lastError
           if (error || downloadId === undefined) reject(new Error(error?.message ?? 'download refused'))
           else resolve(downloadId)
@@ -491,8 +530,9 @@ export class DownloadService implements IService {
         return null
       }
       const items = await chrome.downloads.search({ id }).catch(() => [])
-      const name = items[0]?.filename?.split(/[\\/]/).pop()
-      return name ? { id, name } : null
+      const path = items[0]?.filename?.replace(/\\/g, '/')
+      const name = path?.split('/').pop()
+      return path && name ? { id, name, path } : null
     } catch (error) {
       Logger.info('[DownloadService] One file of the download was refused:', error)
       return null
@@ -560,6 +600,11 @@ export class DownloadService implements IService {
     run.abort.abort()
     await this.tellOffscreen({ type: 'DOWNLOAD_CANCEL', requestId: run.requestId }) // a completed run answers instantly; a failed one still has files to remove
     await forgetDownload(run.requestId)
+    // the ownership record lands only once the run's files are all on the disk (download.md §4.1, D-94)
+    if (result === 'ok' || result === 'partial') {
+      const productPath = run.metric.form === 'zip' ? `${run.plan.basePath}.zip` : run.plan.basePath
+      await rememberProduct(productPath, run.identity, Date.now()).catch(() => undefined)
+    }
     this.clearRun(run)
     await this.notify(run, {
       type: 'DOWNLOAD_NOTICE',
