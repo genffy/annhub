@@ -29,6 +29,11 @@
     "postcss": "^8.5.31",
     "tailwindcss": "^3.4.19",
     "typescript": "^6.0.3",
-    "wrangler": "4.152.0"
+    "wrangler": "4.158.0"
+  },
+  "overrides": {
+    "@typescript-eslint/typescript-estree": {
+      "minimatch": "11.0.5"
+    }
   }
 }
