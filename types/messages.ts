@@ -253,7 +253,8 @@ export interface DiscardRecordingMessage extends BaseMessage {
 /** Lifecycle reports from the offscreen document; the worker turns them into state, badge and metrics. */
 export interface RecordingEventMessage extends BaseMessage {
   type: 'RECORDING_EVENT'
-  event: 'started' | 'mic-unavailable' | 'stopped' | 'failed'
+  /** `heartbeat` keeps the suspended-after-30 s worker alive while the recording or its video waits (annotate.md §2.4). */
+  event: 'started' | 'mic-unavailable' | 'stopped' | 'failed' | 'heartbeat'
   /** For `stopped`: the blob URL the offscreen document keeps alive until the download lands. */
   blobUrl?: string
   filename?: string

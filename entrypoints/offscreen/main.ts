@@ -22,6 +22,7 @@ import type { DownloadCancelMessage, DownloadExtractMessage, DownloadFinishMessa
 import { fixWebmDuration } from '../../utils/webm-duration'
 import { acceptDownloadRun, cleanupDownloadRun, deliverFinish } from './download-run'
 import { extractDownloadPage } from './download-extract'
+import { syncHeartbeat } from './heartbeat'
 
 /** 15 minutes or about 500 MB, first reached wins (annotate.md §2.1). */
 const TIME_LIMIT_MS = 15 * 60_000
@@ -158,16 +159,19 @@ async function startCapture(message: RecordingCommandMessage & { type: 'RECORDIN
     // local time, the same 口径 as the screenshot filename (storage.md §6)
     const filename = `AnnHub/recording-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.webm`
     unsavedVideo = { blobUrl, filename, durationMs, withMic }
+    syncHeartbeat(() => report('heartbeat'), true)
     report('stopped', { blobUrl, filename, durationMs, stoppedBy, withMic, ...(limit ? { limit } : {}) })
   }
   recorder.start(1000)
   report('started', {})
+  syncHeartbeat(() => report('heartbeat'), true)
   return true
 }
 
 function cleanupVideo(): void {
   if (unsavedVideo) URL.revokeObjectURL(unsavedVideo.blobUrl)
   unsavedVideo = null
+  syncHeartbeat(() => report('heartbeat'), false)
 }
 
 chrome.runtime.onMessage.addListener(
