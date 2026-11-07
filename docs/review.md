@@ -20,51 +20,79 @@
 
 录屏可靠性、下载同名、导出 ZIP64 三组可以马上并行；offscreen 归口要等录屏可靠性与下载同名合并，约定文件要等录屏可靠性与 offscreen 归口合并。
 
-### 下载同名
+### 录屏可靠性
 
-一个 PR。这是行为改动，规格、用户故事与代码同一个 PR 改；规格的取舍见 D-94。要跑的 E2E：`page-download.spec.ts`、`library-download.spec.ts`、`source-page-download.spec.ts`。
+四条都在录制链路上，一个 PR。规格是 [annotate.md §2.1、§2.4、§3.3](product/annotate.md)（开始与停止、失败、停止录制以后）；产品行为不变，只改实现。要跑的 E2E：`popup-entry.spec.ts`、`recording-annotation.spec.ts`、`page-annotation.spec.ts`、`cold-start.spec.ts`。
 
-#### RV-DL-01 重新下载按标题覆盖，而且先删后写（中）
+#### RV-REC-01 弹窗取流改用 `targetTabId`（高）
 
 **问题**
 
-- [download.md §4.1](product/download.md) 规定同一个标题再次下载时覆盖原文件夹，先清除它写过的文件再写入。实现是 `background-service/services/download/index.ts` 的 `clearFolderFiles`：`writeFolderRun` 一开始、还没写任何新文件，就对下载历史里 `AnnHub/<文件夹>/` 下的每一项调用 `chrome.downloads.removeFile`，从磁盘上永久删除。
-- 标题不是身份。两篇不同的文章清洗后同名（都叫“Home”，或前 80 个字符相同），就共用一个文件夹，下载第二篇会删掉第一篇。
-- 资料库多选的批次文件夹按日期取名（`library-plan.ts` 里的 `batchFolderName`）：同一天下载第二批，第一批整个被删。
-- 先删后写：删完之后取消、断网、浏览器拒绝某个文件或后台文档被关闭，旧文件已经没了，新的又不完整。下载常用来留下可能消失的内容（会被删的帖子），这时丢的可能是唯一一份。
-- ZIP 形态不先删，但同样按标题覆盖（download.md §4.1 的“重名直接覆盖同名 ZIP”），不同文章同名时后一个顶掉前一个。
-- 现有单测里只有 `overwrites a repeat title…` 一条（`download.test.ts`），上面几种情形都没有覆盖。
+- 工具栏弹窗（`entrypoints/popup/App.tsx`）调用 `chrome.tabCapture.getMediaStreamId({ consumerTabId: active.id })`。设了 `consumerTabId` 的 stream id 只能由那个标签页里同源的 frame 拿去 `getUserMedia`（[tabCapture](https://developer.chrome.com/docs/extensions/reference/api/tabCapture)）。录制在 offscreen 文档里，拿不到流，弹窗显示“录制失败”；`http:` 页面上这个调用直接报错，因为 consumer 必须是安全来源。
+- 快捷键路径（`RecordingService.startFromCommand`）用的是 `targetTabId`，与 Chrome 的 [offscreen 录制指南](https://developer.chrome.com/docs/extensions/how-to/web-platform/screen-capture)一致。现有测试都替身掉了真实取流，测不到这个参数。
 
 **要求**
 
-1. 身份与取名按 D-94 的默认；产品负责人在 PR 评审里给了不同结论，就按结论改。取下一个没被占用的名字用 `core/download.ts` 的 `dedupeName`。
-2. 归属记录：`chrome.storage.local` 里一个键（如 `annhub.downloadFolders`），只存哈希与时间：`{ <路径的 SHA-256>: { owner: <身份的 SHA-256>, at } }`，最多 500 条，超出删最旧的；不存地址、标题或文件名。路径先转小写、做 Unicode NFC 归一化再取哈希，因为 macOS 与 Windows 的文件名不分大小写；查下载历史时同样不分大小写。一次下载全部落盘之后才写记录。
-3. 文件夹形态、ZIP 形态和资料库多选的批次文件夹都按要求 1 取名。
-4. 写入：
-   - 新名字：每个文件都用 `conflictAction: 'uniquify'`，宁可多出 ` (1)` 也不覆盖磁盘上已有的文件。
-   - 替换：媒体用 `uniquify` 写成新文件（Markdown 本来就按落盘后的实际文件名链接，download.md §4.1）；Markdown 和 README 最后写，用 `overwrite`。Markdown 落盘之后，才删除这个文件夹里本次没写到的旧文件。ZIP 替换用 `overwrite`：浏览器在新文件写完时才替换旧的。
-   - 删旧文件时先排除本次写过的路径：下载历史里旧的那一项可能与新文件同路径，删它等于删掉新文件。
-5. 取消与失败：取消时只删本次新建的文件（download.md §2.5），失败时按 download.md §8 保留已写好的文件；两种情况都不删、不覆盖任何旧文件，旧 Markdown 里的链接都还能打开。重试按同一身份重走一遍，成功后清掉旧文件和上次失败留下的文件。
-6. 删掉 `clearFolderFiles`。`chrome.downloads.removeFile` 只出现在三处：没写完的单个文件、取消时删本次的文件（`removeDownload`）、替换成功后删旧文件。
-7. 规格与文档，同一个 PR：
-   - download.md §2.5、§4.1、§4.4、§8、§9 里讲覆盖的句子改成新行为；download.md §4.2 写明替换后媒体名可能带 ` (1)`；download.md §6.2 加上归属记录；
-   - user-stories.md 里 US-CAP-21、US-DATA-07 的验收；
-   - permissions.md §1 与隐私政策 `website/public/privacy-policy.html`（中英文两处）写明这份本地记录；
-   - roadmap.md：下载那一行写的是商店里的行为，不改（RV-DOC-01 把它并入 roadmap §2）；在 roadmap §3“待发布”加一行写新的同名处理，来源一列填 issue，没有就填本 PR；
-   - 合并前把 D-94 的结论写进 download.md §4.1、§4.4，从 validation.md 删掉 D-94。
-8. 现有用例 `overwrites a repeat title…` 断言的是要改掉的行为，按验收 2 改写；这是行为变更，不算删测试。
+1. 弹窗改为 `getMediaStreamId({ targetTabId: active.id })`，不传 `consumerTabId`。
+2. `e2e/popup-entry.spec.ts` 加一条：替身 `chrome.tabCapture.getMediaStreamId`，点“录制此标签页”后断言它收到 `{ targetTabId: <当前标签页 id> }`，且 `START_RECORDING` 带着它返回的 stream id。
 
 **验收**
 
-1. 单测：不同来源、同一标题先后下载（文件夹形态），落到 `AnnHub/<标题>/` 与 `AnnHub/<标题> (2)/`，`removeFile` 一次也没有被调用。
-2. 单测：同一来源再次下载成功，还是同一个文件夹；媒体用 `uniquify`，Markdown 用 `overwrite`；Markdown 落盘后才对旧媒体调用 `removeFile`，对本次写过的路径一次也不调用。
-3. 单测：同一来源再次下载，媒体写到一半时取消、或某个文件被浏览器中断：旧文件一个也没有被 `removeFile`，旧 Markdown 没被覆盖；取消时被删的只有本次新建的文件。
-4. 单测：同一天两次资料库多选，落到两个批次文件夹，第二个带 ` (2)`，第一批不受影响。资料库单条：同一条再下载替换；标题相同的另一条落到 ` (2)`。
-5. 单测：ZIP 形态，不同来源同名得到 `<标题> (2).zip`；同一来源 `overwrite` 原来的 ZIP。
-6. 单测：没有归属记录、下载历史里已有文件的文件夹，换名字，不删任何文件；只有大小写不同的两个标题算同一个名字；归属记录里只有哈希与时间，写第 501 条时最旧的一条被删。
-7. E2E（扩充 `page-download.spec.ts`，做不到就真机）：同一页面下载两次，第二次在进度过半时取消：第一次的文件夹完整，文件清单与 Markdown 的链接一致。再下载一次并完成：文件夹里恰好是新 Markdown 引用的文件，没有多余的旧媒体。两篇标题相同的不同文章各下载一次：两个文件夹都完整。
-8. `git grep -n clearFolderFiles` 没有结果；`git grep -n removeFile background-service/services/download/index.ts` 的每一处都属于要求 6 的三种之一。
-9. validation.md 里没有 D-94；要求 7 列出的文档都已改，`npm run check:docs` 通过。
+1. `git grep -n consumerTabId` 没有结果。
+2. 上面的用例通过；把参数改回 `consumerTabId` 时它失败（PR 里贴一次失败输出）。
+3. 真机：https 与 http 页面各从弹窗开始录制 10 秒再停止：角标显示 REC，弹窗显示“停止录制”，停止后 `AnnHub/recording-*.webm` 下载完成且能播放。
+
+#### RV-REC-02 录制中保活，worker 重启后状态不丢（高）
+
+**问题**
+
+- `RecordingService` 的状态只在内存里。录制中 offscreen 文档不给 worker 发任何消息；Chrome 会在 worker 空闲 30 秒后终止它，只有 offscreen 文档发来的消息才重置这个计时（[service worker 生命周期](https://developer.chrome.com/docs/extensions/develop/concepts/service-workers/lifecycle)）。
+- worker 重启后：弹窗读到 idle，显示“录制此标签页”，角标却还是 REC，没有地方能停；快捷键被当成“开始”，对正在录的标签页再取流会失败，也停不了；停止时读到的 `tabId` 是空的，`RECORDING_LIFECYCLE` 发不出去，页面留在录制态，违反 annotate.md §3.3。
+- `RecordingService.initialize()` 排在 `EntryService` 打开 IndexedDB 之后，它注册的 `tabs.onRemoved`、`downloads.onChanged` 不在 worker 脚本的同步顶层。worker 正是被这两个事件唤醒时，事件会丢：关掉被录的标签页不触发停止，视频落盘不触发收尾。
+- 下载链路处理同一个问题的办法：`background-service/services/download/recovery.ts` 的 session 记录，加 offscreen 每 10 秒一次心跳。
+
+**要求**
+
+1. 保活：录制中、以及视频等待落盘期间，offscreen 文档每 10 秒给 worker 发一次心跳（例如给 `RECORDING_EVENT` 加 `heartbeat` 事件，先在 `types/messages.ts` 登记），worker 收到即回。
+2. 持久化：开始、停止、下载失败时，把路由状态写进 `chrome.storage.session`：`status`、`tabId`、`startedAt`、`withMic`、`micNotice`、`limitNotice`、待下载视频的 blob URL 与文件名。视频落盘或放弃后删除记录。不存标签页标题，恢复时用 `chrome.tabs.get(tabId)` 重新取。
+3. 恢复：`initialize()` 读回记录，再用 `chrome.runtime.getContexts` 核对 offscreen 文档还在；不在就清掉记录、回到 idle、清角标。恢复后按状态设置角标。
+4. 先恢复再判断：`GET_RECORDING_STATE`、`STOP_RECORDING`、`RETRY_RECORDING_DOWNLOAD`、`DISCARD_RECORDING` 和快捷键开关（`event-handlers/command-handler.ts`）都在恢复完成后才读状态。
+5. 顶层监听：被录标签页的 `tabs.onRemoved` 与视频的 `downloads.onChanged` 在 worker 脚本的同步顶层注册（参照 `entrypoints/background/index.ts` 里的 `listenForFrames()`），处理时先等恢复完成。
+6. 约定：`background-service/AGENTS.md` 加一条规则：持续超过 30 秒的流程把状态放进 `storage.session` 并在启动时恢复，由 offscreen 心跳保活，配一条中途停掉 worker 的测试。同一文件“服务边界”里讲 `command-handler.ts` 的那条改准：下载命令也只发给顶层框架（四条发给标签页，录制开关留在 worker）；`command-handler.ts` 文件头注释里的 “The first three” 一并改。
+
+**验收**
+
+1. 单测（`recording.test.ts`）：开始录制后，用同一份替身 `storage.session` 新建一个服务实例并 `initialize()`：`GET_RECORDING_STATE` 返回 `recording`，`tabId`、`startedAt` 不变；`STOP_RECORDING` 向 offscreen 发出 `RECORDING_STOP`。
+2. 单测：重启时 offscreen 文档已不在，状态回到 idle，角标清空，session 记录删除。
+3. 单测：重启后收到 `stopped` 事件，向原 `tabId` 发 `RECORDING_LIFECYCLE { active: false }`，并开始下载视频。
+4. 单测（假定时器）：录制中每 10 秒一次心跳；`RECORDING_CLEANUP` 之后心跳停止。
+5. 单测：重启后第一次按录制快捷键，执行的是停止而不是开始。
+6. 单测断言写入的内容：session 记录只含要求 2 列出的字段，没有标题、页面地址或视频字节。
+7. 真机：开始录制后，在 `chrome://serviceworker-internals` 找到 AnnHub 的 worker 点 Stop（或 60 秒以上不碰扩展），再打开弹窗：显示正在录制与已录时长；点“停止录制”后视频下载、能播放，被录页面的光标高亮消失、批注工具栏回来。再录一次，停掉 worker 后直接关掉被录的标签页：视频自动下载。
+
+#### RV-REC-03 快捷键带麦克风、尚未授权时打开设置页（中）
+
+**问题**：`RecordingService.startFromCommand` 在 worker 里用 `chrome.runtime.sendMessage` 发 `OPEN_EXTENSION_PAGE`，可这个消息的处理器就在 worker 自己身上（`service-manager.ts`）；runtime 消息不会送回发送者，设置页打不开，按快捷键什么都不发生。[annotate.md §2.1](product/annotate.md) 要求这时在新标签页打开设置页的“录制”一节，由浏览器询问麦克风。`startFromCommand` 没有单测。
+
+**要求**：直接调用 `utils/extension-pages.ts` 的 `openExtensionPage('settings', { recordTabId })`；为 `startFromCommand` 补单测。
+
+**验收**
+
+1. `git grep -n OPEN_EXTENSION_PAGE background-service` 只剩处理器、文档与测试，没有 worker 给自己发这条消息的调用。
+2. 单测：勾着“带麦克风”、麦克风权限不是 granted 时，调用 `openExtensionPage('settings', { recordTabId })`，不取流、不开始录制。
+3. 单测：不带麦克风时用 `targetTabId` 取流并开始录制；`chrome://` 页面什么都不做。
+4. 真机：在 `chrome://extensions/shortcuts` 给录制绑定快捷键，把扩展的麦克风权限重置为“询问”，勾上“带麦克风”后按快捷键：新标签页打开设置页的录制一节，浏览器弹出麦克风询问。
+
+#### RV-REC-04 录屏改走设置模块（低）
+
+**问题**：`RecordingService` 的 `readMicPreference` 与模块里的 `writeMicPreference` 直接读写 `chrome.storage.local` 的 `annhub.settings`，绕过 `settings-schema.ts` 的校验与串行写入；与弹窗的 `SET_SETTINGS` 同时写时会互相覆盖。`settings-schema.ts` 有 `readSettings()`、`writeSettings()`，`SettingsPatch` 支持 `recording.withMic`。
+
+**要求**：两处改用 `readSettings()` 与 `writeSettings({ recording: { withMic: false } })`，删掉本地的 `SETTINGS_KEY`。
+
+**验收**
+
+1. `git grep -n "annhub.settings" background-service/services` 没有结果。
+2. 单测：麦克风不可用时走 `writeSettings`，其他设置键不变；与一次 `SET_SETTINGS` 同时发生时，两边的修改都保留。
 
 ### 导出 ZIP64
 
