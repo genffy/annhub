@@ -9,7 +9,6 @@
 import type { IService, MessageHandlers } from '../../service-manager'
 import type {
   DownloadFinishMessage,
-  DownloadItemOutcome,
   DownloadForm,
   DownloadMissingItem,
   DownloadNoticeMessage,
@@ -31,8 +30,9 @@ import { recordEvent } from '../metrics/record'
 import { planLibraryDownload, planPageDownload, type DownloadRunPlan } from './library-plan'
 import { initializedEntryStore } from '../../store-instance'
 import { currentUiLanguage } from '../../../utils/ui-text'
-import { forgetDownload, interruptedDownload, rememberDownload, type DownloadOrigin, type DownloadRunMetric } from './recovery'
-import { normalizePath, occupiedNames, rememberProduct, resolveName } from './ownership'
+import { forgetDownload, interruptedDownload, rememberDownload, type DownloadOrigin } from './recovery'
+import { occupiedNames, rememberProduct, resolveName } from './ownership'
+import { createFolderRun, type ActiveRun, type WrittenFile } from './folder-write'
 import { ensureOffscreenDocument } from '../../offscreen-document'
 
 /** A run whose offscreen document died silently must not block the next download forever (download.md §8). */
@@ -42,30 +42,6 @@ const PAGE_VIAS = new Set<DownloadVia>(['capsule', 'block_mode', 'popup', 'comma
 const LIBRARY_VIAS = new Set<DownloadVia>(['drawer', 'reading', 'selection'])
 
 type RunOrigin = DownloadOrigin
-type WrittenFile = { id: number; name: string; path: string } | null
-
-interface ActiveRun {
-  requestId: string
-  origin: RunOrigin
-  metric: DownloadRunMetric
-  plan: DownloadRunPlan
-  /** The source this run's product belongs to (download.md §4.1): the cleaned page address, the entry id, or a fresh batch. */
-  identity: string
-  /** True when the run replaces a path this very identity wrote before (D-94): its old files are swept after the Markdown lands. */
-  replacing: boolean
-  /** The offscreen document's per-item report, kept for the outcome counts at completion. */
-  outcomes: DownloadItemOutcome[]
-  missing: DownloadMissingItem[]
-  /** The browser downloads this run started, for cancel's file removal. */
-  downloadIds: number[]
-  cancelled: boolean
-  abort: AbortController
-  writes: Set<Promise<WrittenFile>>
-  /** True once a replacement's first `overwrite` has landed: past this commit point a cancel changes nothing (download.md §2.5). */
-  committed?: boolean
-  ending?: boolean
-  watchdog?: ReturnType<typeof setTimeout>
-}
 
 export class DownloadService implements IService {
   readonly name = 'download' as const
@@ -76,6 +52,15 @@ export class DownloadService implements IService {
   /** A start between its first await and the run it opens: a second start in that gap is one too many. */
   private startInFlight = false
   private extracting = false
+
+  /** The folder form's writing stage (folder-write.ts), wired to this service's run-wide operations. */
+  private readonly folderRun = createFolderRun({
+    currentRun: () => this.run,
+    itemByRef: (run, ref) => this.itemByRef(run, ref),
+    writeDownload: (run, url, filename, conflict) => this.writeDownload(run, url, filename, conflict),
+    notify: (run, notice) => this.notify(run, notice),
+    finishRun: (run, result, extra, saved, missing, missingItems) => this.finishRun(run, result, extra, saved, missing, missingItems),
+  })
 
   static getInstance(): DownloadService {
     DownloadService.instance ??= new DownloadService()
@@ -385,7 +370,7 @@ export class DownloadService implements IService {
           if (!sent.ok) await this.finishRun(run, 'failed', { errorCode: 'DOWNLOAD_FAILED' }, 0, 0)
           return
         }
-        await this.writeFolderRun(run, fetched, message.offline === true)
+        await this.folderRun(run, fetched, message.offline === true)
         return
       }
       case 'zip': {
@@ -423,103 +408,6 @@ export class DownloadService implements IService {
 
   private itemByRef(run: ActiveRun, ref: string) {
     return run.plan.media.find(item => `${item.dir}|${item.url ?? `asset:${item.assetId ?? ''}`}` === ref)
-  }
-
-  /**
-   * The folder form (download.md §4.1): media first as their own browser downloads — the browser's real file names are
-   * what the Markdown links — then the Markdown and README. Media always write `uniquify`: a name on disk is never
-   * overwritten, a replaced product's new media land beside the old ones as ` (1)`. A replacement whose media did not
-   * all land writes no Markdown or README and fails with the old version whole. A replacement's Markdown and README
-   * write last, `overwrite`; the first one to land is the commit point past which a cancel changes nothing
-   * (download.md §2.5), and once it has landed, the folder's files this run did not write are removed — never before,
-   * so a cancel or failure leaves the previous version whole (download.md §8).
-   */
-  private async writeFolderRun(run: ActiveRun, fetched: DownloadItemOutcome[], offline: boolean): Promise<void> {
-    const byRef = new Map<string, DownloadItemOutcome>()
-    let writeFailed = false
-    const writtenPaths = new Set<string>()
-    for (const outcome of fetched) {
-      if (run.cancelled || this.run !== run) return
-      if (outcome.status === 'saved' && outcome.blobUrl && outcome.mime) {
-        const item = this.itemByRef(run, outcome.ref)
-        const name = item ? mediaSlotName(item.kind, item.slot, outcome.mime) : 'file.bin'
-        // an empty dir (the page form's root) must not become a double slash in the path
-        const dir = item?.dir ? `${item.dir}/` : ''
-        const landed = await this.writeDownload(run, outcome.blobUrl, `${run.plan.basePath}/${dir}assets/${name}`, 'uniquify')
-        if (run.cancelled || this.run !== run) return
-        if (!landed) writeFailed = true
-        else writtenPaths.add(normalizePath(landed.path))
-        byRef.set(
-          outcome.ref,
-          landed
-            ? ({ ref: outcome.ref, status: 'saved', fileName: landed.name } as DownloadItemOutcome & { fileName?: string })
-            : ({ ref: outcome.ref, status: 'missing', reason: 'write-failed' } as DownloadItemOutcome),
-        )
-      } else {
-        byRef.set(outcome.ref, outcome)
-      }
-      if (run.cancelled || this.run !== run) return
-      await this.notify(run, { type: 'DOWNLOAD_NOTICE', phase: 'progress', processed: run.plan.totalMedia, total: run.plan.totalMedia, missingCount: 0, stage: 'write' })
-      if (this.run !== run) return // cancelled while writing
-    }
-    const finalOutcomes = [...byRef.values()] as Parameters<typeof run.plan.compose>[0]
-    // a replacement whose media did not all land writes no Markdown or README: the old version must not be
-    // overwritten by a Markdown that marks its own media missing. The written new media stay (download.md §8),
-    // a retry that succeeds sweeps them with the rest. A first download keeps today's behavior.
-    if (run.replacing && writeFailed) {
-      await this.finishRun(
-        run,
-        'failed',
-        { errorCode: 'DOWNLOAD_FAILED' },
-        finalOutcomes.filter(item => item.status === 'saved').length,
-        finalOutcomes.filter(item => item.status !== 'saved').length,
-      )
-      return
-    }
-    const { files, missing: missingItems } = run.plan.compose(finalOutcomes, offline)
-    let first: number | null = null
-    for (const file of files) {
-      const landed = await this.writeDownload(run, dataUrlOf(file.text), `${run.plan.basePath}/${file.path}`, run.replacing ? 'overwrite' : 'uniquify')
-      if (!landed) writeFailed = true
-      else {
-        // the first overwrite to land is the replacement's commit point: from here a cancel changes nothing (download.md §2.5)
-        if (run.replacing) run.committed = true
-        writtenPaths.add(normalizePath(landed.path))
-      }
-      if (landed && first === null) first = landed.id
-      if (this.run !== run || run.cancelled) return
-    }
-    // the Markdown has landed: the folder's stale files go — the previous version's media, and anything a failed
-    // attempt of this same product left behind. A run with a failed write keeps everything for download.md §8.
-    if (run.replacing && !writeFailed) await this.sweepReplacedFolder(run, writtenPaths)
-    const missing = missingItems.length
-    await this.finishRun(
-      run,
-      first === null || writeFailed ? 'failed' : missing > 0 ? 'partial' : 'ok',
-      first === null || writeFailed ? { errorCode: 'DOWNLOAD_FAILED' } : { downloadId: first },
-      finalOutcomes.filter(item => item.status === 'saved').length,
-      missing,
-      first === null ? [] : missingItems,
-    )
-  }
-
-  /** Deletes the replaced folder's files this run did not write — an old item may share a path with a new file, so the written paths are excluded (download.md §4.1). */
-  private async sweepReplacedFolder(run: ActiveRun, writtenPaths: Set<string>): Promise<void> {
-    try {
-      const folder = normalizePath(run.plan.basePath.replace(/^AnnHub\//, ''))
-      // limit: 0 — the browser caps an unbounded search at 1000 items, a longer history would leave old files behind
-      const items = await chrome.downloads.search({ limit: 0 })
-      for (const item of items) {
-        const lower = normalizePath((item.filename ?? '').replace(/\\/g, '/'))
-        const at = lower.lastIndexOf('/annhub/')
-        if (at === -1) continue
-        if (!lower.slice(at + '/annhub/'.length).startsWith(`${folder}/`)) continue
-        if (writtenPaths.has(lower)) continue
-        await chrome.downloads.removeFile(item.id).catch(() => undefined)
-      }
-    } catch {
-      /* a closed history only leaves stale files until the next replacement */
-    }
   }
 
   /** One browser download of this run: no saveAs prompt (download.md §4.1), waited to its final state, answered with the id and the file's real path. */
@@ -685,12 +573,4 @@ export class DownloadService implements IService {
 
 function busy(): ResponseMessage {
   return MessageUtils.createResponse(false, undefined, 'DOWNLOAD_ACTIVE')
-}
-
-/** A Markdown file's text as a data URL: the worker cannot make blob URLs, and a text file fits the data form. */
-function dataUrlOf(text: string): string {
-  const bytes = new TextEncoder().encode(text)
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return `data:text/markdown;base64,${btoa(binary)}`
 }

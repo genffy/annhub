@@ -168,7 +168,7 @@ test.describe('page downloads (download.md §2, §4, §5)', () => {
     })
     await downloadMainArticle(page)
     await waitForDoneNotice(page, '已下载')
-    // Read the landed file: the folder form's Markdown is a blob: download now, its URL carries no text.
+    // Read the landed file: the folder form's Markdown is a data: URL and decodes whole, but the file is the truth.
     const markdown = await markdownFromFile(page)
     expect(markdown.length).toBeGreaterThan(100_000)
     expect(markdown).toContain('Alice: Last comment')
