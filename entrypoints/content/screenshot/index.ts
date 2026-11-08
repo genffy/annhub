@@ -33,12 +33,13 @@ import { renderRatioBar } from './ratio-bar'
 import { pageElementsFromPoint } from './page-elements'
 import { createNoticeBubble, type NoticeBubble } from './notice-bubble'
 import { pointerSamples } from '../pointer-samples'
-import type { CaptureVia, ResponseMessage } from '../../../types/messages'
+import type { CaptureVia } from '../../../types/messages'
 import type { ViewportRect } from './crop'
 import { computeCropSource, CropError, intersectRects } from './crop'
 import { ALL_IDENTITY_PARTS, detectIdentityRects, type IdentityParts } from './detect'
 import { applyViewportAnonymization } from './anonymize'
 import { captureElement } from './element-capture'
+import { requestCapture } from './capture-rate'
 import { sectionIntervalRect } from '../blocks'
 import type { BlockCandidate } from '../blocks'
 import { createElement } from 'react'
@@ -105,10 +106,6 @@ import { permalinkForRegion } from './permalink'
 import { Stitcher, type StitchFailure } from './stitcher'
 import { inkToEditorAnnotations, inkToViewport, type InkStroke } from '../annotation/ink'
 import type { ExtensionSettings } from '../../../background-service/settings-schema'
-
-/** Asking again this often, this many times, covers the whole second the browser's capture limit counts. */
-const CAPTURE_RATE_RETRY_MS = 400
-const CAPTURE_RATE_RETRIES = 3
 
 let activeSession: ScreenshotSession | null = null
 
@@ -518,7 +515,7 @@ class ScreenshotSession {
         try {
           await doubleRaf()
           // the same rate-limit-aware path the region capture takes
-          const response = await this.requestCapture()
+          const response = await requestCapture(() => this.exited)
           if (!response.success || !response.data?.dataUrl) throw new Error(response.error ?? 'capture failed')
           return response.data.dataUrl
         } finally {
@@ -1230,7 +1227,7 @@ class ScreenshotSession {
 
     let dataUrl: string
     try {
-      const response = await this.requestCapture()
+      const response = await requestCapture(() => this.exited)
       if (!response.success || !response.data?.dataUrl) {
         throw new Error(screenshotFailureText(response.error, 'shot.error.capture'))
       }
@@ -1337,21 +1334,6 @@ class ScreenshotSession {
     }
     this.reusedFrame = false
     await this.captureElementMode(target, section, box)
-  }
-
-  /**
-   * The browser takes two captures a second and refuses a third (`CAPTURE_RATE_LIMITED`): a shot right after two
-   * others waits the second out and asks again (screenshot.md §2). The wait is here, in the page, whose timers keep
-   * time; the worker's can fire seconds late.
-   */
-  private async requestCapture(): Promise<ResponseMessage<{ dataUrl: string }>> {
-    for (let retry = 0; ; retry++) {
-      const response = await MessageUtils.sendMessage<{ dataUrl: string }>({ type: 'CAPTURE_VISIBLE_TAB', requestId: `shot-${Date.now()}` })
-      if (response.success || response.error !== 'CAPTURE_RATE_LIMITED' || retry === CAPTURE_RATE_RETRIES) return response
-      await new Promise(resolve => setTimeout(resolve, CAPTURE_RATE_RETRY_MS))
-      // cancelled while waiting: nothing more to photograph
-      if (this.exited) return response
-    }
   }
 
   private async captureElementMode(target: HTMLElement, section?: BlockCandidate['range'], sectionBox?: DOMRect): Promise<void> {
