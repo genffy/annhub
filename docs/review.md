@@ -26,32 +26,6 @@
 
 两条都在录制链路上，一起改。规格是 [annotate.md §2.1、§2.4、§2.5](product/annotate.md)（开始与停止、失败、验收与测试）与 [metrics.md §9](product/metrics.md)；产品行为不变，只改实现。要跑的 E2E：`popup-entry.spec.ts`、`recording-annotation.spec.ts`、`page-annotation.spec.ts`、`cold-start.spec.ts`。
 
-#### RV-REC-05 offscreen 守卫的判断反了，旧状态照样挡住新录制（高）
-
-**问题**
-
-- `entrypoints/offscreen/main.ts` 的 `beginRecording`：模块状态（`recording`、`unsavedVideo`、`starting`）挡路时向 worker 问 `GET_RECORDING_STATE`。注释说 worker 还持有视频才拒绝，代码却是 `if (!(await workerStillHoldsVideo())) return false`，两头正好相反。
-- worker 已经不持有视频（`RECORDING_CLEANUP` 没有送达，文档里留着旧的 `unsavedVideo`）：照样拒绝。这一条要解决的现象原样还在：下一次开始报“录制失败”，重建 offscreen 文档才恢复。
-- worker 还持有视频（上一段视频正在落盘）：撤销它的 blob URL、清掉 `unsavedVideo`，放行新录制，违反 annotate.md §2.5 的“下载完成之前不丢弃视频”。上一段落盘时，worker 的 `finishDownload` 把状态改成 idle 并发出 `RECORDING_CLEANUP`，`cleanupVideo` 随之关掉心跳；落盘失败时 `failDownload` 把状态改成下载失败。两处都不看新录制：正在进行的录制在弹窗里看不到、停不了，关掉被录的标签页也不停止。
-- 只有 `starting`（上一次开始还在等取流）时同样去问 worker，由它的回答决定放不放行；`starting` 本身就该拒绝，否则两次开始各取一路流。
-- worker 不在线时 `workerStillHoldsVideo` 返回 `true`，按现在的判断是清掉状态放行，与注释里的“保持现状”相反。
-- `entrypoints/offscreen/__tests__/main.test.ts` 没有一条用例走到这个守卫；带本编号的只有 worker 一侧 `holdsVideo` 字段的用例（`recording.test.ts`）。
-
-**要求**
-
-1. 守卫按这个顺序判断：`starting` 为真，拒绝；recorder 还在录，拒绝；其余情况问 worker——答持有视频或问不到，拒绝，`unsavedVideo` 和它的 blob URL 原样留着；明确答不持有，停掉残留的轨道、撤销旧的 blob URL、清掉模块状态，放行这次开始。
-2. 用例写在 `main.test.ts`，名字带本编号与 annotate.md §2.5，覆盖要求 1 的每个分支。
-3. 不加关闭 offscreen 文档的代码（RV-BG-11 的约定不变）。
-
-**验收**
-
-1. 单测（`main.test.ts`）：一次录制停止后没有收到 `RECORDING_CLEANUP`，worker 答不持有：下一次开始成功，旧的 blob URL 被撤销一次。
-2. 单测：上一段视频还在等待落盘，worker 答持有：开始被拒绝，`URL.revokeObjectURL` 没有被调用；随后的 `RECORDING_CLEANUP` 照常撤销它。
-3. 单测：上一次开始还在等取流时再来一次开始：拒绝，不问 worker、不取第二路流。worker 不在线（`sendMessage` 抛错）时：拒绝，模块状态不变。
-4. 单测（`recording.test.ts`）：上一段视频等待落盘时从弹窗开始，offscreen 答拒绝：状态回到 idle，上一段视频照常落盘，`recording.downloaded` 记一次。
-5. `git grep -n closeDocument` 只出现在测试里。
-6. 真机：连续两次从弹窗录制并停止，第二次不需要重建 offscreen 文档，两段视频都落盘、能播放。
-
 #### RV-REC-02 冷启动时先到的事件读到空状态，重启后录屏指标失真（中）
 
 **问题**
