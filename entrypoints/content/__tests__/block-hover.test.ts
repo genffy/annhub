@@ -399,6 +399,36 @@ describe('capsule placement stays inside the block (capture.md §6.2 位置)', (
   })
 })
 
+describe('a screenshot session owns the pointer in every state (issue #108)', () => {
+  it('the session opens: the visible capsule disappears at once, the dwell stays quiet, and it comes back after', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!, 10, 10)
+    expect(capsule()).not.toBeNull()
+
+    // the shortcut path: the session appears while the pointer is still
+    const session = document.createElement('div')
+    session.setAttribute('data-ann-ui', 'screenshot-session')
+    document.documentElement.appendChild(session)
+    await vi.waitFor(() => expect(capsule()).toBeNull())
+    expect(outline()).toBeNull()
+
+    // a key during the session never pauses the block
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+
+    // a dwell during the picking state reveals nothing
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 12, clientY: 12 }))
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(capsule()).toBeNull()
+    expect(outline()).toBeNull()
+
+    // once the session ends, the ordinary dwell reveals the same block again
+    session.remove()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 12, clientY: 12 }))
+    await vi.advanceTimersByTimeAsync(450)
+    expect(capsule()).not.toBeNull()
+  })
+})
+
 describe('the hover entry honours its surroundings', () => {
   it('drops the clip capsule while a screenshot is waiting for confirmation', async () => {
     document.body.innerHTML = NESTED

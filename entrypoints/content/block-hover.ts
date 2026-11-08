@@ -106,7 +106,7 @@ class HoverEntry {
     const onPointerMove = (event: PointerEvent): void => {
       if (!isUserInput(event)) return
       if (this.isModeActive()) return
-      if (this.screenshotConfirming()) {
+      if (this.screenshotSessionActive()) {
         this.hideNow()
         return
       }
@@ -148,7 +148,7 @@ class HoverEntry {
     // it. A resting pointer stays eligible after the page settles — the
     // stillness clock restarts and the next reveal hit-tests the page afresh.
     const onScroll = (): void => {
-      if (this.screenshotConfirming()) {
+      if (this.screenshotSessionActive()) {
         this.hideNow()
         return
       }
@@ -158,7 +158,7 @@ class HoverEntry {
     const onDragSelect = (event: PointerEvent): void => {
       if (!isUserInput(event)) return
       this.lastPointerButtons = event.buttons
-      if (this.screenshotConfirming()) {
+      if (this.screenshotSessionActive()) {
         this.hideNow()
         return
       }
@@ -168,6 +168,11 @@ class HoverEntry {
     }
     const onKeyDown = (event: KeyboardEvent): void => {
       if (!isUserInput(event) || this.isModeActive()) return
+      // a screenshot session handles its own keys: the hover stays out and never pauses
+      if (this.screenshotSessionActive()) {
+        this.hideNow()
+        return
+      }
       // Any key dismisses the hover outline. Escape still does when Parent
       // left focus on the capsule button — that click is our own UI, and
       // ignoring Escape there is what stuck the timeline outline (issue #107).
@@ -185,6 +190,12 @@ class HoverEntry {
     // the primary button can come and go without a move: the dwell's re-check reads a live answer (RV-CAP-15)
     this.doc.addEventListener('pointerup', onButtonsChange, true)
     this.doc.addEventListener('keydown', onKeyDown, true)
+    // the shortcut can open a session while the capsule is visible and the
+    // pointer is still: hide the moment the session appears, not on the next move
+    const sessionWatch = new MutationObserver(() => {
+      if (this.screenshotSessionActive()) this.hideNow()
+    })
+    sessionWatch.observe(this.doc.documentElement, { childList: true })
     this.listeners = [
       () => this.doc.removeEventListener('pointermove', onPointerMove, true),
       () => this.doc.removeEventListener('pointerleave', onLeaveWindow, true),
@@ -192,6 +203,7 @@ class HoverEntry {
       () => this.doc.removeEventListener('pointerdown', onDragSelect, true),
       () => this.doc.removeEventListener('pointerup', onButtonsChange, true),
       () => this.doc.removeEventListener('keydown', onKeyDown, true),
+      () => sessionWatch.disconnect(),
     ]
   }
 
@@ -291,26 +303,30 @@ class HoverEntry {
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
   }
 
-  /** Screenshot confirm mode owns the pointer; the clip capsule must not sit on the frame (issue #108). */
-  private screenshotConfirming(): boolean {
-    return Boolean(this.doc.querySelector('[data-ann-ui="screenshot-session"].ann-shot-modal'))
+  /**
+   * A screenshot session owns the pointer in every state — picking, confirming
+   * and the editor alike: the clip capsule never sits on it. The viewfinder is
+   * click-through, so hit-testing alone cannot keep the capsule away (issue #108).
+   */
+  private screenshotSessionActive(): boolean {
+    return Boolean(this.doc.querySelector('[data-ann-ui="screenshot-session"]'))
   }
 
   private async reveal(x: number, y: number, generation: number): Promise<void> {
     if (generation !== this.revealGeneration) return
-    if (this.screenshotConfirming()) {
+    if (this.screenshotSessionActive()) {
       this.hideNow()
       return
     }
     if (!(await this.gate.enabled())) return
     if (generation !== this.revealGeneration) return
-    if (this.screenshotConfirming()) {
+    if (this.screenshotSessionActive()) {
       this.hideNow()
       return
     }
     if (await this.gate.siteDisabled(this.doc.defaultView!.location.hostname)) return
     if (generation !== this.revealGeneration) return
-    if (this.screenshotConfirming()) {
+    if (this.screenshotSessionActive()) {
       this.hideNow()
       return
     }
