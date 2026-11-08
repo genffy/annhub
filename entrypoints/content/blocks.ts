@@ -370,16 +370,16 @@ function depth(el: Element): number {
 }
 
 /**
- * The rectangle a candidate paints: the union of a range section's sibling
- * run, or the element's own box.
+ * The union rect of a section's sibling run — the box a section paints, captures
+ * and anchors its toast against. Falls back to the element's own box when the
+ * interval holds nothing laid out.
  */
-export function candidateRect(candidate: BlockCandidate): DOMRect {
-  if (!candidate.range) return candidate.element.getBoundingClientRect()
-  const parent = candidate.range.start.parentElement
-  if (!parent) return candidate.element.getBoundingClientRect()
+export function sectionIntervalRect(element: Element, range: NonNullable<BlockCandidate['range']>): DOMRect {
+  const parent = range.start.parentElement
+  if (!parent) return element.getBoundingClientRect()
   const children = Array.from(parent.children)
-  const from = children.indexOf(candidate.range.start)
-  const to = candidate.range.end ? children.indexOf(candidate.range.end) : children.length
+  const from = children.indexOf(range.start)
+  const to = range.end ? children.indexOf(range.end) : children.length
   const boxes: DOMRect[] = []
   for (let i = from; i >= 0 && i < to; i++) {
     const child = children[i]!
@@ -387,7 +387,7 @@ export function candidateRect(candidate: BlockCandidate): DOMRect {
     if (style.display === 'none' || style.visibility === 'hidden') continue
     boxes.push(child.getBoundingClientRect())
   }
-  if (boxes.length === 0) return candidate.element.getBoundingClientRect()
+  if (boxes.length === 0) return element.getBoundingClientRect()
   const left = Math.min(...boxes.map(box => box.left))
   const top = Math.min(...boxes.map(box => box.top))
   const right = Math.max(...boxes.map(box => box.right))
@@ -395,248 +395,11 @@ export function candidateRect(candidate: BlockCandidate): DOMRect {
   return new DOMRect(left, top, right - left, bottom - top)
 }
 
-// ── Keyboard block mode helpers (capture.md §6.2) ─────────────────────────
-
 /**
- * The node a unit is anchored at: a heading-run section starts at its
- * heading (its `element` is only the shared parent), anything else is its own
- * element. Detecting from the anchor reproduces the unit; detecting from
- * `element` would not.
+ * The rectangle a candidate paints: the union of a range section's sibling
+ * run, or the element's own box.
  */
-export function candidateAnchor(candidate: BlockCandidate): Element {
-  return candidate.range?.start ?? candidate.element
-}
-
-export function sameCandidate(a: BlockCandidate, b: BlockCandidate): boolean {
-  return a.kind === b.kind && a.element === b.element && (a.range?.start ?? null) === (b.range?.start ?? null)
-}
-
-/** The chain a unit sits in, innermost first, computed from the unit itself. */
-export function chainOf(candidate: BlockCandidate, doc: Document): BlockCandidate[] {
-  return candidatesFor(candidateAnchor(candidate), doc)
-}
-
-const PEER_SELECTORS: Record<BlockKind, string> = {
-  post: 'article',
-  code: 'pre',
-  table: 'table',
-  figure: 'figure, img',
-  quote: 'blockquote',
-  section: 'section, h1, h2, h3, h4',
-  article: 'article, [role="article"], main, [role="main"], .entry-content, .post-content, .markdown-content, .markdown-body',
-}
-
-/** The elements the units of a tier are anchored at: every kind that ranks the same. */
-function tierSelector(rank: number): string {
-  const kinds = (Object.keys(KIND_RANK) as BlockKind[]).filter(kind => KIND_RANK[kind] === rank)
-  return [...new Set(kinds.flatMap(kind => PEER_SELECTORS[kind].split(', ')))].join(', ')
-}
-
-/** A dense-container article is a plain `div`; finding its peers means looking at divs. */
-const PEER_SCAN_LIMIT = 3_000
-
-/**
- * The units of the same tier as `current` — posts, code, tables, figures and
- * quotes are one tier, sections the next, articles the last (capture.md §6.2)
- * — in document order: Tab / Shift+Tab move between them. A small unit
- * inside another small unit (a picture in a post, code in a figure) is a level
- * below it, reached with ↓. Runs only when the user presses Tab — never while
- * the pointer moves — and looks inside the shadow root `current` lives in.
- */
-export function peersOf(current: BlockCandidate, doc: Document): BlockCandidate[] {
-  return inOneScan(() => {
-    const root = current.element.getRootNode()
-    const scope: ParentNode = root instanceof ShadowRoot ? root : doc
-    const rank = KIND_RANK[current.kind]
-    const denseDiv = current.kind === 'article' && current.element.tagName.toLowerCase() === 'div'
-    const selector = denseDiv ? `${PEER_SELECTORS.article}, div` : tierSelector(rank)
-    const peers: BlockCandidate[] = []
-    let scanned = 0
-    for (const target of scope.querySelectorAll(selector)) {
-      if (++scanned > PEER_SCAN_LIMIT) break
-      const chain = candidatesFor(target, doc)
-      chain.forEach((candidate, index) => {
-        if (KIND_RANK[candidate.kind] !== rank || candidateAnchor(candidate) !== target) return
-        // the chain runs outwards: a small unit after this one holds it
-        if (rank === 0 && chain.slice(index + 1).some(outer => KIND_RANK[outer.kind] === 0)) return
-        if (!peers.some(peer => sameCandidate(peer, candidate))) peers.push(candidate)
-      })
-    }
-    if (!peers.some(peer => sameCandidate(peer, current))) peers.push(current)
-    return peers.sort((a, b) => {
-      const order = candidateAnchor(a).compareDocumentPosition(candidateAnchor(b))
-      return order & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : order & Node.DOCUMENT_POSITION_PRECEDING ? 1 : 0
-    })
-  })
-}
-
-/**
- * The chain of the first unit on screen: scans down the middle of the window
- * and then the quarter lines, so a keyboard user who never moved the mouse
- * still starts on something (capture.md §6.2).
- */
-export function firstVisibleChain(doc: Document): BlockCandidate[] {
-  const view = doc.defaultView
-  if (!view) return []
-  const columns = [view.innerWidth / 2, view.innerWidth / 4, (view.innerWidth * 3) / 4]
-  try {
-    for (let y = 8; y < view.innerHeight; y += 16) {
-      for (const x of columns) {
-        const chain = candidatesAtPoint(x, y, doc)
-        if (chain.length > 0) return chain
-      }
-    }
-  } catch {
-    /* a document without hit-testing has no first unit */
-  }
-  return []
-}
-
-/** The content blocks of a page, and the elements units are: where `↓` looks for the units inside a unit. */
-const CONTENT_SELECTOR = 'p, li, dd, pre, table, figure, img, blockquote, section, article, h1, h2, h3, h4, h5, h6'
-
-/** A same-kind unit holding this much of the current unit's text is only its wrapper, not a level of its own. */
-const WRAPPER_SHARE = 0.9
-
-/** Where a section starts: a `section` element or a heading. */
-const SECTION_ANCHORS = PEER_SELECTORS.section
-
-/**
- * The chain of the first unit strictly inside `parent`, innermost first (`↓` at the innermost level enters the unit instead of doing nothing); []
- * when nothing smaller is inside. Walks the unit's own content in document
- * order — through open shadow roots, where MDN keeps its code — from the first
- * block that reaches into the window, then on down, then around: the unit found
- * may be below the window, and the mode scrolls it into view. Same-kind wrappers
- * that hold nearly all of `parent` (a docs page's `main`, its `article`, the
- * Markdown container) are not a level: outlining one would look like nothing
- * happened. An article's next level down is its sections (capture.md §6.2):
- * the one the window is in, else the next one to start, before anything
- * smaller — a quote above the first heading must not hide them.
- */
-export function childChainOf(parent: BlockCandidate, doc: Document): BlockCandidate[] {
-  return inOneScan(() => {
-    const blocks = contentBlocksOf(parent)
-    const start = Math.max(
-      0,
-      blocks.findIndex(block => block.getBoundingClientRect().bottom > 0),
-    )
-    const ordered = [...blocks.slice(start), ...blocks.slice(0, start)]
-    const parentText = unitTextLength(parent)
-    const inside = (block: Element): BlockCandidate[] =>
-      chainFrom(block, doc, parent.element).filter(
-        candidate => !sameCandidate(candidate, parent) && unitContains(parent, candidateAnchor(candidate)) && !wrapperOf(parent, candidate, parentText),
-      )
-    if (parent.kind === 'article') {
-      // the first block in the window tells which section the window is in; after it, only where sections start
-      for (const [index, block] of ordered.entries()) {
-        if (index > 0 && !block.matches(SECTION_ANCHORS)) continue
-        const inner = inside(block)
-        if (inner.some(candidate => candidate.kind === 'section')) return inner
-      }
-    }
-    for (const block of ordered) {
-      const inner = inside(block)
-      if (inner.length > 0) return inner
-    }
-    return []
-  })
-}
-
-/** The rendered content blocks inside a unit, in document order, through open shadow roots. */
-function contentBlocksOf(unit: BlockCandidate): Element[] {
-  const stack = (unit.range ? runChildren(unit.range) : childrenOf(unit.element)).reverse()
-  const blocks: Element[] = []
-  while (stack.length > 0 && blocks.length < PEER_SCAN_LIMIT) {
-    const el = stack.pop()!
-    if (el.matches(EXCLUDE_SELECTOR)) continue
-    if (el.matches(CONTENT_SELECTOR) && rendered(el)) blocks.push(el)
-    const children = childrenOf(el)
-    for (let i = children.length - 1; i >= 0; i--) stack.push(children[i]!)
-  }
-  return blocks
-}
-
-/** An element's children as the page renders them: a host's shadow tree first (MDN's code examples live there). */
-function childrenOf(el: Element): Element[] {
-  return [...Array.from(el.shadowRoot?.children ?? []), ...Array.from(el.children)]
-}
-
-/** The sibling run a heading-run section covers. */
-function runChildren(range: NonNullable<BlockCandidate['range']>): Element[] {
-  const children = Array.from(range.start.parentElement?.children ?? [])
-  const from = children.indexOf(range.start)
-  if (from < 0) return []
-  const to = range.end ? children.indexOf(range.end) : -1
-  return children.slice(from, to < 0 ? children.length : to)
-}
-
-/** Whether the page renders `el` at all: not inside a hidden subtree, a closed `details` or a hidden tab panel. */
-function rendered(el: Element): boolean {
-  // Chrome before 121 knows the visibility option only as checkVisibilityCSS
-  if (typeof el.checkVisibility === 'function') return el.checkVisibility({ visibilityProperty: true, checkVisibilityCSS: true })
-  const win = el.ownerDocument.defaultView
-  if (!win) return false
-  for (let cursor: Element | null = el; cursor; cursor = composedParent(cursor)) if (!visible(cursor, win)) return false
-  return true
-}
-
-function composedContains(ancestor: Element, node: Element): boolean {
-  for (let cursor: Element | null = node; cursor; cursor = composedParent(cursor)) if (cursor === ancestor) return true
-  return false
-}
-
-/** Whether `node` lies inside a unit: inside its element, or inside its run when it is a heading run. */
-function unitContains(unit: BlockCandidate, node: Element): boolean {
-  if (!unit.range) return composedContains(unit.element, node)
-  const run = runChildren(unit.range)
-  return run.some(child => composedContains(child, node))
-}
-
-function unitTextLength(unit: BlockCandidate): number {
-  return unit.range ? rangeTextLength(unit.element, unit.range) : textLength(unit.element)
-}
-
-/** A whole-element unit of the parent's kind that holds nearly all of it (heading runs always differ by their heading). */
-function wrapperOf(parent: BlockCandidate, candidate: BlockCandidate, parentText: number): boolean {
-  if (parent.range || candidate.range || candidate.kind !== parent.kind) return false
-  return unitTextLength(candidate) >= parentText * WRAPPER_SHARE
-}
-
-/** What a screen reader hears after the kind: the unit's own words (a run section reads only its run). */
-export function candidateSummary(candidate: BlockCandidate, limit = 80): string {
-  let text: string
-  if (candidate.range) {
-    const children = Array.from(candidate.range.start.parentElement?.children ?? [])
-    const from = Math.max(children.indexOf(candidate.range.start), 0)
-    const end = candidate.range.end ? children.indexOf(candidate.range.end) : -1
-    text = children
-      .slice(from, end < 0 ? children.length : end)
-      .map(child => child.textContent ?? '')
-      .join(' ')
-  } else {
-    text = summaryTextOf(candidate.element)
-  }
-  text = text.replace(/\s+/g, ' ').trim()
-  if (!text) {
-    const image = candidate.element.tagName.toLowerCase() === 'img' ? candidate.element : candidate.element.querySelector('img')
-    text = candidate.element.getAttribute('aria-label') ?? image?.getAttribute('alt') ?? ''
-  }
-  return text.slice(0, limit)
-}
-
-/**
- * The unit's own words, starting at its first content block: a heading or
- * paragraph inside the unit, not the page furniture that happens to sit in it
- * (Wikipedia's “Toggle the table of contents”, Medium's tags and highlight
- * markers). Falls back to the whole text when no content
- * block qualifies.
- */
-function summaryTextOf(el: HTMLElement): string {
-  const blocks = Array.from(el.querySelectorAll<HTMLElement>('h1,h2,h3,h4,h5,h6,p,li,blockquote,pre'))
-  for (const block of blocks) {
-    if (block.closest('button, nav, aside, summary, [aria-hidden="true"], [role="button"]')) continue
-    const t = (block.textContent ?? '').replace(/\s+/g, ' ').trim()
-    if (t.length >= 12) return t
-  }
-  return el.textContent ?? ''
+export function candidateRect(candidate: BlockCandidate): DOMRect {
+  if (!candidate.range) return candidate.element.getBoundingClientRect()
+  return sectionIntervalRect(candidate.element, candidate.range)
 }

@@ -612,3 +612,49 @@ describe('Hover targets on a timeline (issue #107)', () => {
     expect(outline()).toBeNull()
   })
 })
+
+describe('the shot hands over the outlined target (RV-CAP-13, capture.md §6.2)', () => {
+  it("the hover capsule's shot receives the section's interval, not the container", async () => {
+    document.body.innerHTML = FLAT
+    document.getElementById('target')!.getBoundingClientRect = () => new DOMRect(0, 0, 520, 60)
+    const hooks = hooksFor(true)
+    document.elementFromPoint = vi.fn(() => document.getElementById('target'))
+    vi.useFakeTimers()
+    for (const entries of created.splice(0)) entries.dispose()
+    const entries = new BlockEntries(document, hooks, gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(450)
+    document.querySelector('[data-ann-ui="block-capsule"] .ann-blk-seg-shot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    const candidate = (hooks.onScreenshot as ReturnType<typeof vi.fn>).mock.calls[0]![0] as BlockCandidate
+    expect(candidate.kind).toBe('section')
+    expect(candidate.element).toBe(document.querySelector('.content'))
+    expect(candidate.range?.start).toBe(document.getElementById('h-install'))
+    expect(candidate.range?.end).toBe(document.getElementById('h-usage'))
+  })
+
+  it("block mode's S receives the same interval; an element-kind block keeps its plain element", () => {
+    document.body.innerHTML = FLAT
+    document.getElementById('target')!.focus()
+    const flatHooks = hooksFor(true)
+    start(flatHooks)
+    press('s')
+    const section = (flatHooks.onScreenshot as ReturnType<typeof vi.fn>).mock.calls[0]![0] as BlockCandidate
+    expect(section.kind).toBe('section')
+    expect(section.range?.start).toBe(document.getElementById('h-install'))
+    expect(section.range?.end).toBe(document.getElementById('h-usage'))
+    for (const entries of created.splice(0)) entries.dispose()
+    document.querySelectorAll('[data-ann-ui]').forEach(node => node.remove())
+
+    document.body.innerHTML = NESTED
+    document.getElementById('code')!.focus()
+    const nestedHooks = hooksFor(true)
+    start(nestedHooks)
+    press('s')
+    const code = (nestedHooks.onScreenshot as ReturnType<typeof vi.fn>).mock.calls[0]![0] as BlockCandidate
+    expect(code.kind).toBe('code')
+    expect(code.range).toBeUndefined()
+    expect(code.element.id).toBe('code')
+  })
+})

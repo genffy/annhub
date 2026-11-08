@@ -13,7 +13,7 @@ vi.mock('../../../../utils/message', () => ({ default: { sendMessage: (...args: 
 vi.mock('html-to-image', () => ({ toCanvas: vi.fn() }))
 vi.mock('../anonymize', () => ({ anonymizeClone: vi.fn() }))
 
-import { restoreScrollPositions } from '../element-capture'
+import { captureElement, restoreScrollPositions } from '../element-capture'
 
 /** jsdom lays nothing out; hand out the box each element would have. */
 function boxOf(el: Element, rect: { x: number; y: number; w: number; h: number }): void {
@@ -134,5 +134,35 @@ describe('a scrolled carousel is rebuilt inside the clone (issue #103)', () => {
     expect((innerClone.querySelector('#a') as HTMLElement).style.visibility).toBe('hidden')
     expect((innerClone.querySelector('#b') as HTMLElement).style.transform).toBe('translate(0px, -100px)')
     expect((clone.querySelector('#c') as HTMLElement).style.transform).toBe('')
+  })
+})
+
+describe('a section interval keeps only its own children in the clone (RV-CAP-13, capture.md §6.2)', () => {
+  it('drops the runs before and after, keeping the interval half-open at the next heading', async () => {
+    const { toCanvas } = await import('html-to-image')
+    const LONG = 'This sentence is deliberately long so the block clears the 120 character minimum for sections. '.repeat(3)
+    document.body.innerHTML = `<div id="content">
+      <h2 id="h-intro">Intro</h2><p>${LONG}</p>
+      <h2 id="h-install">Install</h2><p id="p1">${LONG}</p><p id="p2">${LONG}</p>
+      <h2 id="h-usage">Usage</h2><p>${LONG}</p>
+    </div>`
+    const content = document.getElementById('content')!
+    content.getBoundingClientRect = () => new DOMRect(0, 0, 800, 2000)
+    const cloneAtRaster: Element[] = []
+    vi.mocked(toCanvas).mockImplementation(async (surface: HTMLElement) => {
+      cloneAtRaster.push(...surface.children)
+      return document.createElement('canvas')
+    })
+
+    await captureElement(content as HTMLElement, { section: { start: document.getElementById('h-install')!, end: document.getElementById('h-usage')! } })
+
+    expect(cloneAtRaster).toHaveLength(1)
+    const clone = cloneAtRaster[0]! as HTMLElement
+    expect(clone.querySelector('#h-install')).not.toBeNull()
+    expect(clone.querySelector('#p1')).not.toBeNull()
+    expect(clone.querySelector('#p2')).not.toBeNull()
+    expect(clone.querySelector('#h-intro'), 'the previous section is gone').toBeNull()
+    expect(clone.querySelector('#h-usage'), 'the next heading is the exclusive end').toBeNull()
+    expect(document.getElementById('h-intro'), 'the page itself is untouched').not.toBeNull()
   })
 })

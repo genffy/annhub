@@ -182,7 +182,8 @@ function wireBlockEntries(): void {
       ...(isTopFrame()
         ? {
             onScreenshot: (candidate: BlockCandidate) => {
-              enterScreenshotMode({ via: 'block', element: candidate.element })
+              // the target is what the outline showed: a section hands its interval, an element-kind block the element (RV-CAP-13)
+              enterScreenshotMode({ via: 'block', element: candidate.element, ...(candidate.range ? { section: candidate.range } : {}) })
             },
             // the download entry belongs to the top frame like the screenshot's (download.md §2.1)
             onDownload: (candidate: BlockCandidate) => {

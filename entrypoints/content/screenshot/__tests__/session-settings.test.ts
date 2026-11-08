@@ -355,3 +355,38 @@ function captures(): unknown[] {
 function hintText(): string {
   return (session().querySelector('.ann-shot-hint') as HTMLElement)?.textContent ?? ''
 }
+
+describe('a section target hands its interval to the capture (RV-CAP-13, capture.md §6.2)', () => {
+  beforeEach(() => {
+    sendMessage.mockImplementation((message: { type: string }) =>
+      message.type === 'GET_SETTINGS' ? Promise.resolve({ success: true, data: { ...DEFAULT_SETTINGS } }) : Promise.resolve({ success: false, error: 'stop here' }),
+    )
+  })
+
+  it("the capsule's shot on a section captures the container with its interval", async () => {
+    const LONG = 'This sentence is deliberately long so the block clears the 120 character minimum for sections. '.repeat(3)
+    document.body.innerHTML = `<div class="content" id="content">
+      <h2 id="h-install">Install</h2><p>${LONG}</p><p>${LONG}</p>
+      <h2 id="h-usage">Usage</h2><p>${LONG}</p>
+    </div>`
+    enterScreenshotMode({
+      via: 'block',
+      element: document.getElementById('content') as HTMLElement,
+      section: { start: document.getElementById('h-install')!, end: document.getElementById('h-usage')! },
+    })
+    await vi.waitFor(() => expect(captureElement).toHaveBeenCalledTimes(1))
+    const [element, options] = captureElement.mock.calls[0] as [HTMLElement, { section?: { start: Element; end: Element } }]
+    expect(element.id).toBe('content')
+    expect(options.section?.start).toBe(document.getElementById('h-install'))
+    expect(options.section?.end).toBe(document.getElementById('h-usage'))
+    exitScreenshotMode()
+  })
+
+  it('an element target still captures without an interval', async () => {
+    document.body.innerHTML = '<main><p id="post">A post the user reads.</p></main>'
+    enterScreenshotMode({ via: 'block', element: document.getElementById('post')! })
+    await vi.waitFor(() => expect(captureElement).toHaveBeenCalledTimes(1))
+    expect((captureElement.mock.calls[0] as [HTMLElement, { section?: unknown }])[1].section).toBeUndefined()
+    exitScreenshotMode()
+  })
+})

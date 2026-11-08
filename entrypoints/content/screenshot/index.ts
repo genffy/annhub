@@ -39,6 +39,8 @@ import { computeCropSource, CropError, intersectRects } from './crop'
 import { ALL_IDENTITY_PARTS, detectIdentityRects, type IdentityParts } from './detect'
 import { applyViewportAnonymization } from './anonymize'
 import { captureElement } from './element-capture'
+import { sectionIntervalRect } from '../blocks'
+import type { BlockCandidate } from '../blocks'
 import { createElement } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
@@ -114,6 +116,8 @@ export interface EnterScreenshotOptions {
   via?: CaptureVia
   /** The block capsule's target: skip selection, straight to element capture. */
   element?: HTMLElement
+  /** A section target's interval inside `element` (RV-CAP-13): the frame is the interval's union rect and the clone keeps only its children. */
+  section?: BlockCandidate['range']
   /** A pending frame to confirm (Enter) or adjust, e.g. the selection menu's screenshot path ). */
   initialRect?: ViewportRect
   /** Page-annotation ink at capture time (annotate.md §1.3): drawn back onto the capture as ordinary annotations. */
@@ -134,7 +138,7 @@ export function enterScreenshotMode(options: EnterScreenshotOptions = {}): void 
   activeSession.pendingInk = ink
   activeSession.onSessionExit = onExit
   activeSession.begin()
-  if (options.element) void activeSession.captureElementTarget(options.element)
+  if (options.element) void activeSession.captureElementTarget(options.element, options.section)
   else if (options.initialRect) activeSession.beginWithInitialRect(options.initialRect)
 }
 
@@ -1313,13 +1317,15 @@ class ScreenshotSession {
   /**
    * The block capsule's direct path: capture a known element without
    * selection. The element also becomes the remembered frame, like the
-   * click path does (区块路径的截图也记为“上次取景框”).
+   * click path does (区块路径的截图也记为“上次取景框”). A section hands its
+   * interval: the frame and the raster are the outlined run, not the
+   * container it shares with its neighbours (RV-CAP-13).
    */
-  async captureElementTarget(target: HTMLElement): Promise<void> {
+  async captureElementTarget(target: HTMLElement, section?: BlockCandidate['range']): Promise<void> {
     if (this.exited) return
     const element = this.resolveCaptureTarget(target)
     const view = this.doc.defaultView!
-    const box = element.getBoundingClientRect()
+    const box = section ? sectionIntervalRect(element, section) : element.getBoundingClientRect()
     this.pendingFrameRecord = {
       kind: 'element',
       selector: buildSelector(element),
@@ -1330,7 +1336,7 @@ class ScreenshotSession {
       pageY: box.top + view.scrollY,
     }
     this.reusedFrame = false
-    await this.captureElementMode(target)
+    await this.captureElementMode(target, section, box)
   }
 
   /**
@@ -1348,7 +1354,7 @@ class ScreenshotSession {
     }
   }
 
-  private async captureElementMode(target: HTMLElement): Promise<void> {
+  private async captureElementMode(target: HTMLElement, section?: BlockCandidate['range'], sectionBox?: DOMRect): Promise<void> {
     this.state = 'capturing'
     this.setConfirmShield(false)
     const element = this.resolveCaptureTarget(target)
@@ -1356,7 +1362,10 @@ class ScreenshotSession {
     await this.settingsLoaded
     if (this.exited) return
     try {
-      this.croppedCanvas = await captureElement(element, this.anonymizeOn ? { anonymize: this.anonymizeParts } : {})
+      this.croppedCanvas = await captureElement(element, {
+        ...(this.anonymizeOn ? { anonymize: this.anonymizeParts } : {}),
+        ...(section ? { section } : {}),
+      })
     } catch {
       // the rasterizer's own message is English and means nothing to the user
       if (!this.exited) this.showError(uiText('shot.error.element'))
@@ -1364,9 +1373,10 @@ class ScreenshotSession {
     }
     if (this.exited) return
     this.maskBoxes = []
-    const bounds = element.getBoundingClientRect()
+    // a section's frame is its interval's union rect (RV-CAP-13), the same box the outline painted
+    const bounds = section && sectionBox ? sectionBox : element.getBoundingClientRect()
     this.elementRect = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
-    this.capturedDpr = this.croppedCanvas.width / Math.max(1, element.getBoundingClientRect().width)
+    this.capturedDpr = this.croppedCanvas.width / Math.max(1, bounds.width)
     this.prepareEditor(this.consumeInk({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }))
     this.state = 'preview'
     this.showPreview()

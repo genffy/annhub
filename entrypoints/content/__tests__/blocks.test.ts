@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import {
   candidateAnchor,
   candidateRect,
+  sectionIntervalRect,
   candidateSummary,
   candidatesFor,
   chainOf,
@@ -537,4 +538,29 @@ describe('a column of posts is not a parent level (issue #107)', () => {
     const post = candidatesFor(doc.getElementById('a')!, doc)[0]!
     expect(peersOf(post, doc).map(peer => peer.element.id)).toEqual(['a', 'b', 'c'])
   })
+})
+
+describe("a section's interval as a capture frame and a DOM anchor (RV-CAP-13, RV-CAP-14)", () => {
+  it('sectionIntervalRect is the same union the outline paints (candidateRect)', () => {
+    document.body.innerHTML = FLAT_DOC
+    const section = candidatesFor(doc.querySelector('#flat-b-p')!, doc).find(candidate => candidate.kind === 'section')!
+    const original = Element.prototype.getBoundingClientRect
+    Element.prototype.getBoundingClientRect = function (this: Element) {
+      const index = ['flat-a', 'flat-a-p', 'flat-b', 'flat-b-p', 'flat-b-p2'].indexOf((this as HTMLElement).id)
+      return new DOMRect(0, index * 40, 300, 30)
+    }
+    try {
+      const byInterval = sectionIntervalRect(section.element, section.range!)
+      const painted = candidateRect(section)
+      expect({ x: byInterval.x, y: byInterval.y, width: byInterval.width, height: byInterval.height }).toEqual({
+        x: painted.x,
+        y: painted.y,
+        width: painted.width,
+        height: painted.height,
+      })
+    } finally {
+      Element.prototype.getBoundingClientRect = original
+    }
+  })
+
 })
