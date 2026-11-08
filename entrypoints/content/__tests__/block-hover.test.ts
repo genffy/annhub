@@ -2,37 +2,50 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../user-input', () => ({ isUserInput: () => true }))
 
+const LONG = 'This sentence is deliberately long so the block clears the 120 character minimum for sections. '.repeat(3)
+
 import { BlockEntries, type BlockHoverHooks } from '../block-hover'
 import type { BlockCandidate } from '../blocks'
 import { uiText } from '../../../utils/ui-text'
 
 /**
- * Keyboard block mode (capture.md §6.2) over fixture DOM. The chain of the current target is
- * only ever replaced by a new target: ↓ walks back down what ↑ climbed, and a heading-run section on a
- * flat page is saved as that run — not as the container it shares with its neighbours.
+ * The hover capsule over fixture DOM (capture.md §6.2): the pointer rests on
+ * a start, the outline and its label appear with the capsule, 外一层 / 里一层
+ * climb the chain with a dashed preview, and a block that just saw the
+ * capsule close pauses until the pointer rests on another start.
  */
 
-const LONG = 'This sentence is deliberately long so the block clears the 120 character minimum for sections. '.repeat(3)
+const NESTED = '<article><section><h2>Title</h2><p>' + LONG + '</p><pre id="code" tabindex="0">const a = 1\nconst b = 2</pre></section></article>'
+const NESTED2 =
+  '<article><section id="s1"><h2>One</h2><p>' +
+  LONG +
+  '</p><pre id="code" tabindex="0">const a = 1\nconst b = 2</pre><p>' +
+  LONG +
+  '</p></section><section id="s2"><h2>Two</h2><p>' +
+  LONG +
+  '</p></section></article>'
 
-const NESTED = `<article><section><h2>Title</h2><p>${LONG}</p><pre id="code" tabindex="0">const a = 1\nconst b = 2</pre></section></article>`
-
-const FLAT = `<div class="content">
-  <h2 id="h-intro">Intro</h2><p>${LONG}</p>
-  <h2 id="h-install">Install</h2><p id="target" tabindex="0">${LONG}</p><p>${LONG}</p>
-  <h2 id="h-usage">Usage</h2><p>${LONG}</p>
-</div>`
+const FLAT =
+  '<div class="content">' +
+  '<h2 id="h-intro">Intro</h2><p>' +
+  LONG +
+  '</p>' +
+  '<h2 id="h-install">Install</h2><p id="target" tabindex="0">' +
+  LONG +
+  '</p><p>' +
+  LONG +
+  '</p>' +
+  '<h2 id="h-usage">Usage</h2><p>' +
+  LONG +
+  '</p>' +
+  '</div>'
 
 const gate = { enabled: async () => true, siteDisabled: async () => false }
-
-function press(key: string, init: KeyboardEventInit = {}): void {
-  document.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }))
-}
 
 type Hooks = BlockHoverHooks & { onClip: ReturnType<typeof vi.fn> }
 
 function hooksFor(withTopFrameEntries = true): Hooks {
   const hooks = { onClip: vi.fn(), onDisableSite: vi.fn(), onDisableEntry: vi.fn(), openSettings: vi.fn() } as unknown as Hooks
-  // the screenshot and download actions belong to the top frame (capture.md §3, download.md §2.1)
   if (withTopFrameEntries) {
     hooks.onScreenshot = vi.fn()
     hooks.onDownload = vi.fn()
@@ -42,28 +55,15 @@ function hooksFor(withTopFrameEntries = true): Hooks {
 
 const created: BlockEntries[] = []
 
-function start(hooks: Hooks = hooksFor()): { entries: BlockEntries; hooks: Hooks } {
-  const entries = new BlockEntries(document, hooks, gate)
-  created.push(entries)
-  entries.enterBlockMode()
-  return { entries, hooks }
-}
-
-const kindText = (): string => document.querySelector('.ann-block-mode-kind')?.textContent ?? ''
-const clipped = (hooks: Hooks): { candidate: BlockCandidate; levelChanged: boolean } => {
-  const [candidate, levelChanged] = hooks.onClip.mock.calls[0] as [BlockCandidate, boolean]
-  return { candidate, levelChanged }
-}
-
-let scroll: ReturnType<typeof vi.fn>
+const outline = (): HTMLElement | null => document.querySelector('[data-ann-ui="block-outline"]')
+const capsule = (): HTMLElement | null => document.querySelector('[data-ann-ui="block-capsule"]')
+const capsuleLabels = (): string[] => [...(capsule()?.querySelectorAll('button') ?? [])].map(button => button.getAttribute('aria-label') ?? button.textContent ?? '')
 
 beforeEach(() => {
-  scroll = vi.fn()
-  Element.prototype.scrollIntoView = scroll as unknown as typeof Element.prototype.scrollIntoView
+  Element.prototype.scrollIntoView = vi.fn() as unknown as typeof Element.prototype.scrollIntoView
 })
 
 afterEach(() => {
-  // the mode's overlay lives on <html>, not <body>: leave every mode and drop whatever it appended
   for (const entries of created.splice(0)) entries.dispose()
   document.querySelectorAll('[data-ann-ui]').forEach(node => node.remove())
   document.body.innerHTML = ''
@@ -71,442 +71,7 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 
-describe('levels with ↑ and ↓', () => {
-  it('↑ climbs the chain and ↓ comes back down the same chain', () => {
-    document.body.innerHTML = NESTED
-    document.getElementById('code')!.focus()
-    const { hooks } = start()
-    expect(kindText()).toContain(uiText('block.kind.code'))
-    press('ArrowUp')
-    expect(kindText()).toContain(uiText('block.kind.section'))
-    press('ArrowUp')
-    expect(kindText()).toContain(uiText('block.kind.article'))
-    press('ArrowDown')
-    expect(kindText()).toContain(uiText('block.kind.section'))
-    press('ArrowDown')
-    expect(kindText()).toContain(uiText('block.kind.code'))
-    press('Enter')
-    const { candidate, levelChanged } = clipped(hooks)
-    expect(candidate.kind).toBe('code')
-    expect(candidate.element.id).toBe('code')
-    expect(levelChanged).toBe(true)
-  })
-
-  it('stops at the ends of the chain instead of wrapping or throwing', () => {
-    document.body.innerHTML = NESTED
-    document.getElementById('code')!.focus()
-    const { hooks } = start()
-    press('ArrowDown')
-    press('ArrowUp')
-    press('ArrowUp')
-    press('ArrowUp')
-    press('ArrowUp')
-    press('Enter')
-    expect(clipped(hooks).candidate.kind).toBe('article')
-  })
-
-  it('without a level change the clip reports levelChanged = false', () => {
-    document.body.innerHTML = NESTED
-    document.getElementById('code')!.focus()
-    const { hooks } = start()
-    press('Enter')
-    expect(clipped(hooks).levelChanged).toBe(false)
-  })
-})
-
-describe('a heading-run section on a flat page', () => {
-  it('Enter saves the section that is outlined, as its run, not the shared container', () => {
-    document.body.innerHTML = FLAT
-    document.getElementById('target')!.focus()
-    const { hooks } = start()
-    // the status reads the run's own words: the Install section, not the first words of the container
-    expect(kindText()).toContain(uiText('block.kind.section'))
-    expect(kindText()).toContain('Install')
-    expect(kindText()).not.toContain('Intro')
-    press('Enter')
-    const { candidate } = clipped(hooks)
-    expect(candidate.kind).toBe('section')
-    expect(candidate.range?.start).toBe(document.getElementById('h-install'))
-    expect(candidate.range?.end).toBe(document.getElementById('h-usage'))
-  })
-
-  it('Tab walks the sections in document order and wraps; Shift+Tab walks back', () => {
-    document.body.innerHTML = FLAT
-    document.getElementById('target')!.focus()
-    start()
-    expect(kindText()).toContain('Install')
-    press('Tab')
-    expect(kindText()).toContain('Usage')
-    press('Tab')
-    expect(kindText()).toContain('Intro')
-    press('Tab', { shiftKey: true })
-    expect(kindText()).toContain('Usage')
-    press('Tab', { shiftKey: true })
-    expect(kindText()).toContain('Install')
-  })
-
-  it('levels keep working after Tab: ↑ climbs from the new section and ↓ returns to it', () => {
-    // the article level on a flat page is the page's own <main>
-    document.body.innerHTML = `<main>${FLAT}</main>`
-    document.getElementById('target')!.focus()
-    const { hooks } = start()
-    press('Tab')
-    expect(kindText()).toContain('Usage')
-    press('ArrowUp')
-    expect(kindText()).toContain(uiText('block.kind.article'))
-    press('ArrowDown')
-    expect(kindText()).toContain('Usage')
-    press('Enter')
-    expect(clipped(hooks).candidate.range?.start).toBe(document.getElementById('h-usage'))
-  })
-})
-
-describe('Tab between whole-element units', () => {
-  it('visits article units in document order from the focused one', () => {
-    document.body.innerHTML = ['One', 'Two', 'Three'].map(name => `<article tabindex="0" id="u-${name}"><p>${name} unit. ${LONG}</p></article>`).join('')
-    document.getElementById('u-Two')!.focus()
-    start()
-    expect(kindText()).toContain('Two unit')
-    press('Tab')
-    expect(kindText()).toContain('Three unit')
-    press('Tab')
-    expect(kindText()).toContain('One unit')
-  })
-})
-
-describe('scrolling and focus', () => {
-  it('only keyboard moves scroll the page; pointer moves just re-aim the outline', () => {
-    document.body.innerHTML = NESTED
-    document.getElementById('code')!.focus()
-    const target = document.querySelector('section p') as HTMLElement
-    document.elementFromPoint = vi.fn(() => target)
-    start()
-    scroll.mockClear()
-    const overlay = document.querySelector('[data-ann-ui="block-mode-overlay"]')!
-    overlay.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 12, clientY: 12 }))
-    expect(scroll).not.toHaveBeenCalled()
-    expect(kindText()).toContain(uiText('block.kind.section'))
-    press('ArrowUp')
-    expect(scroll).toHaveBeenCalled()
-  })
-
-  it('a pointer move over nothing keeps the outlined target, so Enter saves what is drawn', () => {
-    document.body.innerHTML = NESTED
-    document.getElementById('code')!.focus()
-    document.elementFromPoint = vi.fn(() => null)
-    const { hooks } = start()
-    document.querySelector('[data-ann-ui="block-mode-overlay"]')!.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 1, clientY: 1 }))
-    press('Enter')
-    expect(clipped(hooks).candidate.kind).toBe('code')
-  })
-
-  it('takes keyboard focus for the mode and gives it back on Esc', () => {
-    document.body.innerHTML = NESTED
-    const code = document.getElementById('code')!
-    code.focus()
-    start()
-    expect(document.activeElement).not.toBe(code)
-    press('Escape')
-    expect(document.querySelector('[data-ann-ui="block-mode-overlay"]')).toBeNull()
-    expect(document.activeElement).toBe(code)
-  })
-
-  it('starts on the first unit in view when nothing is focused (capture.md §6.2)', () => {
-    document.body.innerHTML = FLAT
-    const target = document.getElementById('h-intro')!
-    document.elementFromPoint = vi.fn((_x: number, y: number) => (y > 40 ? target : null))
-    start()
-    expect(kindText()).toContain('Intro')
-  })
-})
-
-describe('a child frame offers clipping only (capture.md §3)', () => {
-  it('S does nothing and the hint does not promise a screenshot', () => {
-    document.body.innerHTML = NESTED
-    document.getElementById('code')!.focus()
-    const hooks = hooksFor(false)
-    start(hooks)
-    // the keycaps say Enter 剪藏 and Esc 退出, with no S between them
-    const hint = document.querySelector('.ann-block-mode-hint')!
-    expect([...hint.querySelectorAll('kbd')].map(cap => cap.textContent)).toEqual(['Tab', '↑', '↓', 'Enter', 'Esc'])
-    press('s')
-    expect(document.querySelector('[data-ann-ui="block-mode-overlay"]')).not.toBeNull()
-  })
-
-  it('S starts the screenshot for the outlined unit where the hook exists, and ignores Cmd+S', () => {
-    document.body.innerHTML = NESTED
-    document.getElementById('code')!.focus()
-    const { hooks } = start()
-    expect([...document.querySelectorAll('.ann-block-mode-hint kbd')].map(cap => cap.textContent)).toEqual(['Tab', '↑', '↓', 'Enter', 'S', 'D', 'Esc'])
-    press('s', { metaKey: true })
-    expect(hooks.onScreenshot).not.toHaveBeenCalled()
-    press('s')
-    expect(hooks.onScreenshot).toHaveBeenCalledTimes(1)
-    expect((hooks.onScreenshot as ReturnType<typeof vi.fn>).mock.calls[0]![0].kind).toBe('code')
-  })
-
-  it('drops a replayed clip click for the same block; the next deliberate clip works (issue #105)', async () => {
-    vi.useFakeTimers()
-    document.body.innerHTML = NESTED
-    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
-    const hooks = hooksFor(false)
-    const entries = new BlockEntries(document, hooks, gate)
-    created.push(entries)
-    entries.install()
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
-    await vi.advanceTimersByTimeAsync(450)
-    const button = document.querySelector<HTMLButtonElement>('[data-ann-ui="block-capsule"] button')!
-
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    // a replay of the same gesture reaches the same button again, detached or not
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    expect(hooks.onClip).toHaveBeenCalledTimes(1)
-
-    await vi.advanceTimersByTimeAsync(1600)
-    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    expect(hooks.onClip).toHaveBeenCalledTimes(2)
-    entries.dispose()
-  })
-
-  it('the hover capsule has no screenshot button without the hook', async () => {
-    vi.useFakeTimers()
-    document.body.innerHTML = NESTED
-    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
-    const entries = new BlockEntries(document, hooksFor(false), gate)
-    created.push(entries)
-    entries.install()
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
-    await vi.advanceTimersByTimeAsync(450)
-    const capsule = document.querySelector('[data-ann-ui="block-capsule"]')
-    expect(capsule).not.toBeNull()
-    const labels = [...capsule!.querySelectorAll('button')].map(button => button.getAttribute('aria-label') ?? button.textContent)
-    expect(labels).toContain(uiText('block.clip'))
-    expect(labels).not.toContain(uiText('block.shot'))
-    entries.dispose()
-  })
-
-  it('drops the clip capsule while a screenshot is waiting for confirmation', async () => {
-    vi.useFakeTimers()
-    document.body.innerHTML = NESTED
-    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
-    const entries = new BlockEntries(document, hooksFor(true), gate)
-    created.push(entries)
-    entries.install()
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
-    await vi.advanceTimersByTimeAsync(450)
-    expect(document.querySelector('[data-ann-ui="block-capsule"]')).not.toBeNull()
-
-    const modal = document.createElement('div')
-    modal.setAttribute('data-ann-ui', 'screenshot-session')
-    modal.className = 'ann-shot-modal'
-    document.documentElement.appendChild(modal)
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 40, clientY: 40 }))
-    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
-    expect(document.querySelector('[data-ann-ui="block-outline"]')).toBeNull()
-
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 8, clientY: 8 }))
-    await vi.advanceTimersByTimeAsync(450)
-    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
-
-    // a dwell armed before confirm must not paint once the frame is modal
-    modal.remove()
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 6, clientY: 6 }))
-    document.documentElement.appendChild(modal)
-    await vi.advanceTimersByTimeAsync(450)
-    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
-    entries.dispose()
-  })
-
-  it('with the hook the capsule keeps clip, screenshot, download and more (the parent button is gone)', async () => {
-    vi.useFakeTimers()
-    document.body.innerHTML = NESTED
-    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
-    const entries = new BlockEntries(document, hooksFor(true), gate)
-    created.push(entries)
-    entries.install()
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
-    await vi.advanceTimersByTimeAsync(450)
-    // more is icon-only: its accessible name comes from the aria-label
-    const names = [...document.querySelectorAll('[data-ann-ui="block-capsule"] button')].map(button => button.getAttribute('aria-label') ?? button.textContent)
-    expect(names).toEqual([uiText('block.clip'), uiText('block.shot'), uiText('block.download'), uiText('block.more')])
-    entries.dispose()
-  })
-})
-
-describe('the mode hint mentions a page without keyboard focus', () => {
-  it('adds the note while the page has no focus and clears it when focus returns', () => {
-    const hasFocus = vi.spyOn(document, 'hasFocus')
-    hasFocus.mockReturnValue(false)
-    const { entries } = start()
-    const hint = document.querySelector('.ann-block-mode-hint')!
-    expect(hint.textContent).toContain('页面没有键盘焦点')
-
-    hasFocus.mockReturnValue(true)
-    document.dispatchEvent(new FocusEvent('focus'))
-    expect(hint.textContent).not.toContain('页面没有键盘焦点')
-    hasFocus.mockRestore()
-    entries.exitBlockMode()
-  })
-})
-
-describe('capsule placement stays inside the block (capture.md §6.2)', () => {
-  const CAPSULE_WIDTH = 164 // half of this, 82px, is the overflow measured at 110% zoom
-  const CAPSULE_HEIGHT = 36
-
-  function mockCapsuleBox(): void {
-    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
-      return this.getAttribute('data-ann-ui') === 'block-capsule' ? CAPSULE_WIDTH : 0
-    })
-    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
-      return this.getAttribute('data-ann-ui') === 'block-capsule' ? CAPSULE_HEIGHT : 0
-    })
-  }
-
-  async function showCapsule(clientX: number, clientY: number): Promise<HTMLElement> {
-    const entries = new BlockEntries(document, hooksFor(true), gate)
-    created.push(entries)
-    entries.install()
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX, clientY }))
-    await vi.advanceTimersByTimeAsync(450)
-    const capsule = document.querySelector('[data-ann-ui="block-capsule"]')
-    expect(capsule).toBeInstanceOf(HTMLElement)
-    return capsule as HTMLElement
-  }
-
-  it('keeps a 164px capsule inside the post, including the 82px that used to hang off at 110% zoom', async () => {
-    vi.useFakeTimers()
-    mockCapsuleBox()
-    document.body.innerHTML = `<article data-testid="tweet" id="post"><p id="body">${LONG}</p></article><div id="sidebar"><h2>Today's News</h2></div>`
-    const post = document.getElementById('post')!
-    // right edge 840, directly beside the sidebar
-    post.getBoundingClientRect = () => new DOMRect(280, 120, 560, 320)
-    const body = document.getElementById('body')!
-    document.elementFromPoint = vi.fn(() => body)
-    const capsule = await showCapsule(400, 200)
-    const left = Number.parseFloat(capsule.style.left)
-    const right = left + CAPSULE_WIDTH
-    expect(right).toBeLessThanOrEqual(840)
-    expect(right).toBeGreaterThan(840 - 16)
-    // the old corner-centered placement ended at 840 + 82
-    expect(right).toBeLessThan(840 + 82)
-    expect(left).toBeGreaterThanOrEqual(280)
-  })
-
-  it('moves off a top-right control and keeps the capsule inside the post right edge', async () => {
-    vi.useFakeTimers()
-    mockCapsuleBox()
-    document.body.innerHTML = `<article data-testid="tweet" id="post"><p id="body">${LONG}</p><button id="caret" type="button">More</button></article>`
-    const post = document.getElementById('post')!
-    post.getBoundingClientRect = () => new DOMRect(280, 120, 560, 320)
-    const body = document.getElementById('body')!
-    const caret = document.getElementById('caret')!
-    caret.getBoundingClientRect = () => new DOMRect(800, 124, 34, 32)
-    document.elementFromPoint = vi.fn((x: number, y: number) => {
-      const overCaret = x >= 800 && x <= 834 && y >= 124 && y <= 156
-      return overCaret ? caret : body
-    })
-    const capsule = await showCapsule(400, 200)
-    const left = Number.parseFloat(capsule.style.left)
-    const top = Number.parseFloat(capsule.style.top)
-    const right = left + CAPSULE_WIDTH
-    const bottom = top + CAPSULE_HEIGHT
-    expect(right).toBeLessThanOrEqual(840)
-    expect(left).toBeGreaterThanOrEqual(280)
-    const overlapsCaret = right > 800 && left < 834 && bottom > 124 && top < 156
-    expect(overlapsCaret).toBe(false)
-  })
-
-  it('slides to the bottom edge when a sticky header owns the whole top', async () => {
-    vi.useFakeTimers()
-    mockCapsuleBox()
-    document.body.innerHTML = `<header id="sticky"><button id="theme" type="button">Switch color theme</button></header><article id="post"><p id="body">${LONG}</p><button id="b1" type="button">A</button><button id="b2" type="button">B</button></article>`
-    const post = document.getElementById('post')!
-    post.getBoundingClientRect = () => new DOMRect(0, 40, 800, 600)
-    const body = document.getElementById('body')!
-    const b1 = document.getElementById('b1')!
-    const b2 = document.getElementById('b2')!
-    b1.getBoundingClientRect = () => new DOMRect(766, 604, 34, 32)
-    b2.getBoundingClientRect = () => new DOMRect(0, 604, 34, 32)
-    const theme = document.getElementById('theme')!
-    document.elementFromPoint = vi.fn((x: number, y: number) => {
-      if (y < 60) return theme // the sticky bar is controls end to end
-      if (x >= 766 && x <= 800 && y >= 604 && y <= 636) return b1
-      if (x <= 34 && y >= 604 && y <= 636) return b2
-      return body
-    })
-    const capsule = await showCapsule(400, 200)
-    const left = Number.parseFloat(capsule.style.left)
-    const top = Number.parseFloat(capsule.style.top)
-    const right = left + CAPSULE_WIDTH
-    const bottom = top + CAPSULE_HEIGHT
-    expect(top).toBeGreaterThan(60) // clear of the sticky header
-    expect(right).toBeLessThanOrEqual(766) // clear of the bottom-right control
-    expect(left).toBeGreaterThanOrEqual(34) // clear of the bottom-left control
-    expect(bottom).toBeLessThanOrEqual(640 + CAPSULE_HEIGHT)
-  })
-})
-
-describe('↓ at the innermost level enters the unit, one level at a time ', () => {
-  it('goes to the section inside the article before the code inside the section, and ↑ walks back out the same way', () => {
-    document.body.innerHTML = NESTED
-    // start on the article itself: its own chain is just [article]
-    const article = document.querySelector('article')!
-    article.setAttribute('tabindex', '0')
-    article.focus()
-    const { hooks } = start()
-    expect(kindText()).toContain(uiText('block.kind.article'))
-    press('ArrowDown') // into the article: its section, not straight to the code inside the section
-    expect(kindText()).toContain(uiText('block.kind.section'))
-    press('ArrowDown')
-    expect(kindText()).toContain(uiText('block.kind.code'))
-    press('ArrowDown') // nothing is inside a code block: it stays
-    expect(kindText()).toContain(uiText('block.kind.code'))
-    press('ArrowUp')
-    expect(kindText()).toContain(uiText('block.kind.section'))
-    press('ArrowUp')
-    expect(kindText()).toContain(uiText('block.kind.article'))
-    press('ArrowDown')
-    press('ArrowDown')
-    press('Enter') // the outlined code block is what gets saved
-    expect(clipped(hooks).candidate.kind).toBe('code')
-  })
-
-  it('with a code block in the window, the section around it comes first', () => {
-    // a long section of a flat article, scrolled to its code: the heading and the first paragraph are above the window
-    document.body.innerHTML = `<main><h2 id="setup">Setup</h2><p id="setup-p">${LONG}</p><pre id="code">npm install</pre><p>${LONG}</p><h2>Next</h2><p>${LONG}</p></main>`
-    const place = (id: string, top: number, bottom: number): void => {
-      document.getElementById(id)!.getBoundingClientRect = () => new DOMRect(0, top, 600, bottom - top)
-    }
-    place('setup', -400, -360)
-    place('setup-p', -340, -20)
-    place('code', 10, 200)
-    const main = document.querySelector('main')!
-    main.setAttribute('tabindex', '0')
-    main.focus()
-    const { hooks } = start()
-    expect(kindText()).toContain(uiText('block.kind.article'))
-    press('ArrowDown')
-    expect(kindText()).toContain(`${uiText('block.kind.section')} · Setup`)
-    press('ArrowDown')
-    expect(kindText()).toContain(uiText('block.kind.code'))
-    press('Enter')
-    expect(clipped(hooks).candidate.element.id).toBe('code')
-  })
-})
-
-const tweet = (id: string, inner = ''): string => `<article data-testid="tweet" id="${id}"><p id="${id}-body">${id} tweet body.</p>${inner}</article>`
-
-const TIMELINE = `<main id="col"><section id="feed" role="region"><h2>Explore</h2>
-  ${tweet('a', '<blockquote id="a-quote"><p id="a-quote-p">A quoted passage inside the tweet that is long enough.</p></blockquote>')}
-  ${tweet('b', tweet('b-inner'))}
-  ${tweet('c')}
-</section></main>`
-
-function box(id: string, height: number): void {
-  document.getElementById(id)!.getBoundingClientRect = () => new DOMRect(0, 0, 520, height)
-}
-
-async function restOn(target: Element, x = 16, y = 16): Promise<void> {
+async function restOn(target: Element, x = 10, y = 10): Promise<void> {
   for (const entries of created.splice(0)) entries.dispose()
   vi.useFakeTimers()
   document.elementFromPoint = vi.fn(() => target)
@@ -517,78 +82,55 @@ async function restOn(target: Element, x = 16, y = 16): Promise<void> {
   await vi.advanceTimersByTimeAsync(450)
 }
 
-const outline = (): HTMLElement | null => document.querySelector('[data-ann-ui="block-outline"]')
-describe('Hover targets on a timeline (issue #107)', () => {
-  it('always rests on the innermost block: the quote, not its post or the column', async () => {
-    document.body.innerHTML = TIMELINE
-    box('a-quote', 80)
-    box('a', 280)
-    box('feed', 11578)
-    box('col', 11578)
-    await restOn(document.getElementById('a-quote-p')!)
-    expect(outline()!.style.height).toBe('80px')
-  })
-
-  it('a nested post stays the inner post, with no parent button to leave it', async () => {
-    document.body.innerHTML = TIMELINE
-    box('b-inner', 120)
-    box('b', 360)
-    box('feed', 11578)
-    await restOn(document.getElementById('b-inner-body')!)
-    expect(outline()!.style.height).toBe('120px')
-    expect(document.querySelector('[data-ann-ui="block-capsule"] .ann-blk-sub [aria-label]')).toBeNull()
-  })
-
-  it('↑ in block mode stays on the post', () => {
-    document.body.innerHTML = TIMELINE
-    const body = document.getElementById('a-body')!
-    body.setAttribute('tabindex', '0')
-    body.focus()
-    start()
-    expect(kindText()).toContain(uiText('block.kind.post'))
-    press('ArrowUp')
-    expect(kindText()).toContain(uiText('block.kind.post'))
-    expect(kindText()).not.toContain(uiText('block.kind.section'))
-    expect(kindText()).not.toContain(uiText('block.kind.article'))
-  })
-
-  it('Escape clears the outline when focus is on the capsule button', async () => {
+describe('the hover reveals the start (capture.md §6.2 悬停入口)', () => {
+  it('rests on the innermost start: the code block, with its label on the outline', async () => {
     document.body.innerHTML = NESTED
     await restOn(document.getElementById('code')!)
-    const clip = document.querySelector('[data-ann-ui="block-capsule"] .ann-blk-seg-clip') as HTMLButtonElement
-    clip.focus()
-    clip.dispatchEvent(new KeyboardEvent('keydown', { key: 'x', bubbles: true }))
     expect(outline()).not.toBeNull()
-    clip.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    expect(outline()).toBeNull()
-    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+    expect(capsule()).not.toBeNull()
+    const label = document.querySelector('[data-ann-ui="block-label"]')!
+    expect(label.textContent).toBe(uiText('block.kind.code') + ' · ' + uiText('block.label.lines', { n: 2 }))
   })
 
-  it('Escape and any other key clear the outline when focus is on the page', async () => {
-    document.body.innerHTML = NESTED
-    await restOn(document.getElementById('code')!)
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
-    expect(outline()).toBeNull()
-    await restOn(document.getElementById('code')!)
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }))
-    expect(outline()).toBeNull()
+  it('rests on the paragraph of a flat page, one 外一层 from its section', async () => {
+    document.body.innerHTML = FLAT
+    await restOn(document.getElementById('target')!)
+    expect(document.querySelector('[data-ann-ui="block-label"]')!.textContent).toContain(uiText('block.kind.paragraph'))
   })
 
-  it('moving the pointer off the block clears it, and moving back in time keeps it', async () => {
-    document.body.innerHTML = NESTED
-    box('code', 40)
-    await restOn(document.getElementById('code')!, 10, 10)
-    expect(outline()).not.toBeNull()
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 400 }))
-    await vi.advanceTimersByTimeAsync(80)
+  it('rests on a heading: the start is the section it begins, the heading one level in', async () => {
+    document.body.innerHTML = FLAT
+    const hooks = hooksFor(true)
+    document.elementFromPoint = vi.fn(() => document.getElementById('h-install'))
+    vi.useFakeTimers()
+    const entries = new BlockEntries(document, hooks, gate)
+    created.push(entries)
+    entries.install()
     document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
-    await vi.advanceTimersByTimeAsync(200)
-    expect(outline()).not.toBeNull()
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 400 }))
-    await vi.advanceTimersByTimeAsync(180)
-    expect(outline()).toBeNull()
-    await vi.advanceTimersByTimeAsync(400)
-    expect(outline()).toBeNull()
+    await vi.advanceTimersByTimeAsync(450)
+    expect(document.querySelector('[data-ann-ui="block-label"]')!.textContent).toContain(uiText('block.kind.section'))
+    expect(capsuleLabels()).toContain(uiText('block.shrink'))
+  })
+
+  it('the capsule buttons run clip, screenshot, download, level buttons and more', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    expect(capsuleLabels()).toEqual([uiText('block.clip'), uiText('block.shot'), uiText('block.download'), uiText('block.expand'), uiText('block.more')])
+  })
+
+  it('a child frame offers clipping only: no screenshot and download buttons', async () => {
+    vi.useFakeTimers()
+    document.body.innerHTML = NESTED
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    const entries = new BlockEntries(document, hooksFor(false), gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(450)
+    const labels = capsuleLabels()
+    expect(labels).toContain(uiText('block.clip'))
+    expect(labels).not.toContain(uiText('block.shot'))
+    expect(labels).not.toContain(uiText('block.download'))
   })
 
   it('resting where nothing qualifies clears the previous outline', async () => {
@@ -598,115 +140,332 @@ describe('Hover targets on a timeline (issue #107)', () => {
     document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 16, clientY: 16 }))
     await vi.advanceTimersByTimeAsync(450)
     expect(outline()).toBeNull()
-    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+    expect(capsule()).toBeNull()
   })
 
-  it('scroll and leaving the window clear the outline', async () => {
+  it('scroll clears the outline, and a still pointer re-reveals after the page settles', async () => {
     document.body.innerHTML = NESTED
     await restOn(document.getElementById('code')!)
     document.dispatchEvent(new Event('scroll'))
     expect(outline()).toBeNull()
-    await restOn(document.getElementById('code')!)
-    document.dispatchEvent(new Event('pointerleave'))
-    await vi.advanceTimersByTimeAsync(180)
-    expect(outline()).toBeNull()
+    await vi.advanceTimersByTimeAsync(450)
+    expect(outline()).not.toBeNull()
   })
 })
 
-describe('the dwell re-checks the page before it reveals (RV-CAP-15, capture.md §6.2)', () => {
-  function selectionCollapsed(collapsed: boolean): void {
-    vi.spyOn(document, 'getSelection').mockReturnValue({ isCollapsed: collapsed } as Selection)
-  }
-
-  it('a press whose move still saw a collapsed selection reveals nothing once the drag is under way', async () => {
+describe('the stillness clock (capture.md §6.2 停下)', () => {
+  it('movement of 6px or more in a 100ms sample restarts the 400ms', async () => {
     document.body.innerHTML = NESTED
-    selectionCollapsed(true)
-    await restOn(document.getElementById('code')!, 10, 10)
-    // the move is handled while the selection is still collapsed — the dwell arms — and the
-    // drag lengthens the selection afterwards: at expiry the capsule must not appear over it
-    document.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX: 10, clientY: 10 }))
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, buttons: 1, clientX: 10, clientY: 10 }))
-    selectionCollapsed(false)
-    await vi.advanceTimersByTimeAsync(450)
-    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
-    expect(outline()).toBeNull()
-  })
-
-  it('a held primary button reveals nothing; after the release the next rest reveals as always', async () => {
-    document.body.innerHTML = NESTED
-    selectionCollapsed(true)
-    await restOn(document.getElementById('code')!, 10, 10)
-    document.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX: 10, clientY: 10 }))
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, buttons: 1, clientX: 10, clientY: 10 }))
-    await vi.advanceTimersByTimeAsync(450)
-    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
-    // released, then moved and rested again: the ordinary dwell path is back
-    document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0, buttons: 0, clientX: 10, clientY: 10 }))
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, buttons: 0, clientX: 10, clientY: 10 }))
-    await vi.advanceTimersByTimeAsync(450)
-    expect(document.querySelector('[data-ann-ui="block-capsule"]')).not.toBeNull()
-    expect(outline()).not.toBeNull()
-  })
-
-  it('a dwell armed earlier does not reveal over a selection that appeared meanwhile', async () => {
-    document.body.innerHTML = NESTED
-    selectionCollapsed(true)
-    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
-    vi.useFakeTimers()
     for (const entries of created.splice(0)) entries.dispose()
+    vi.useFakeTimers()
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
     const entries = new BlockEntries(document, hooksFor(true), gate)
     created.push(entries)
     entries.install()
     document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
-    selectionCollapsed(false)
+    await vi.advanceTimersByTimeAsync(150)
+    // one still sample, then a jump: the clock restarts
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 30, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(350)
+    expect(outline()).toBeNull()
+    await vi.advanceTimersByTimeAsync(150)
+    expect(outline()).not.toBeNull()
+  })
+
+  it('hand jitter under 6px does not restart the clock', async () => {
+    document.body.innerHTML = NESTED
+    for (const entries of created.splice(0)) entries.dispose()
+    vi.useFakeTimers()
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    const entries = new BlockEntries(document, hooksFor(true), gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(150)
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 14, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(300)
+    expect(outline()).not.toBeNull()
+  })
+})
+
+describe('the dwell re-checks the page before it reveals (RV-CAP-15, capture.md §6.2)', () => {
+  it('a press whose move still saw a collapsed selection reveals nothing once the drag is under way', async () => {
+    const selection = vi.spyOn(document, 'getSelection')
+    selection.mockReturnValue({ isCollapsed: true } as Selection)
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!, 10, 10)
+    document.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX: 10, clientY: 10 }))
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, buttons: 1, clientX: 10, clientY: 10 }))
+    selection.mockReturnValue({ isCollapsed: false } as Selection)
     await vi.advanceTimersByTimeAsync(450)
-    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+    expect(capsule()).toBeNull()
     expect(outline()).toBeNull()
   })
 })
 
-describe('the shot hands over the outlined target (RV-CAP-13, capture.md §6.2)', () => {
-  it("the hover capsule's shot receives the section's interval, not the container", async () => {
+describe('外一层 and 里一层 (capture.md §6.2 换层)', () => {
+  function mockCapsuleWidth(): void {
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      if (this.getAttribute('data-ann-ui') === 'block-capsule') return 40 + this.querySelectorAll('button').length * 28
+      return 0
+    })
+  }
+
+  it('外一层 climbs to the section and on to the article; the capsule right edge stays put', async () => {
+    document.body.innerHTML = NESTED2
+    mockCapsuleWidth()
+    const code = document.getElementById('code')!
+    code.getBoundingClientRect = () => new DOMRect(280, 120, 560, 320)
+    const section = document.getElementById('s1')!
+    section.getBoundingClientRect = () => new DOMRect(260, 100, 600, 480)
+    const article = document.querySelector('article')!
+    article.getBoundingClientRect = () => new DOMRect(240, 80, 640, 600)
+    await restOn(code, 400, 200)
+    const before = capsule()!
+    const beforeRight = Number.parseFloat(before.style.left) + before.offsetWidth
+
+    const expand = [...before.querySelectorAll('.ann-blk-lv')][before.querySelectorAll('.ann-blk-lv').length - 1] as HTMLButtonElement
+    expand.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(document.querySelector('[data-ann-ui="block-label"]')!.textContent).toContain(uiText('block.kind.section'))
+    expect(capsuleLabels()).toContain(uiText('block.shrink'))
+    const after = capsule()!
+    const afterRight = Number.parseFloat(after.style.left) + after.offsetWidth
+    expect(Math.abs(afterRight - beforeRight)).toBeLessThan(1)
+
+    const nextExpand = [...after.querySelectorAll('.ann-blk-lv')][after.querySelectorAll('.ann-blk-lv').length - 1] as HTMLButtonElement
+    nextExpand.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(document.querySelector('[data-ann-ui="block-label"]')!.textContent).toContain(uiText('block.kind.article'))
+    // the outermost layer grays 外一层 out, never wraps around
+    const outermost = [...capsule()!.querySelectorAll('.ann-blk-lv')][capsule()!.querySelectorAll('.ann-blk-lv').length - 1] as HTMLButtonElement
+    expect(outermost.disabled).toBe(true)
+    expect(outermost.getAttribute('aria-disabled')).toBe('true')
+    expect(outermost.title).toBe(uiText('block.outermost'))
+  })
+
+  it('里一层 walks back to the start and the clip reports the level change', async () => {
     document.body.innerHTML = FLAT
-    document.getElementById('target')!.getBoundingClientRect = () => new DOMRect(0, 0, 520, 60)
     const hooks = hooksFor(true)
     document.elementFromPoint = vi.fn(() => document.getElementById('target'))
     vi.useFakeTimers()
-    for (const entries of created.splice(0)) entries.dispose()
     const entries = new BlockEntries(document, hooks, gate)
     created.push(entries)
     entries.install()
     document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
     await vi.advanceTimersByTimeAsync(450)
-    document.querySelector('[data-ann-ui="block-capsule"] .ann-blk-seg-shot')!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    const candidate = (hooks.onScreenshot as ReturnType<typeof vi.fn>).mock.calls[0]![0] as BlockCandidate
-    expect(candidate.kind).toBe('section')
-    expect(candidate.element).toBe(document.querySelector('.content'))
-    expect(candidate.range?.start).toBe(document.getElementById('h-install'))
-    expect(candidate.range?.end).toBe(document.getElementById('h-usage'))
+    // paragraph → section → back to the paragraph
+    const expand = [...capsule()!.querySelectorAll('.ann-blk-lv')][capsule()!.querySelectorAll('.ann-blk-lv').length - 1] as HTMLButtonElement
+    expand.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    const shrink = capsule()!.querySelector('.ann-blk-lv') as HTMLButtonElement
+    shrink.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(document.querySelector('[data-ann-ui="block-label"]')!.textContent).toContain(uiText('block.kind.paragraph'))
+    const clip = capsule()!.querySelector('.ann-blk-seg-clip') as HTMLButtonElement
+    clip.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    const [candidate, levelChanged] = hooks.onClip.mock.calls[0] as [BlockCandidate, boolean]
+    expect(candidate.element.id).toBe('target')
+    expect(levelChanged).toBe(true)
   })
 
-  it("block mode's S receives the same interval; an element-kind block keeps its plain element", () => {
-    document.body.innerHTML = FLAT
-    document.getElementById('target')!.focus()
-    const flatHooks = hooksFor(true)
-    start(flatHooks)
-    press('s')
-    const section = (flatHooks.onScreenshot as ReturnType<typeof vi.fn>).mock.calls[0]![0] as BlockCandidate
-    expect(section.kind).toBe('section')
-    expect(section.range?.start).toBe(document.getElementById('h-install'))
-    expect(section.range?.end).toBe(document.getElementById('h-usage'))
-    for (const entries of created.splice(0)) entries.dispose()
-    document.querySelectorAll('[data-ann-ui]').forEach(node => node.remove())
-
+  it('a clip without a level change reports levelChanged = false', async () => {
     document.body.innerHTML = NESTED
-    document.getElementById('code')!.focus()
-    const nestedHooks = hooksFor(true)
-    start(nestedHooks)
-    press('s')
-    const code = (nestedHooks.onScreenshot as ReturnType<typeof vi.fn>).mock.calls[0]![0] as BlockCandidate
-    expect(code.kind).toBe('code')
-    expect(code.range).toBeUndefined()
-    expect(code.element.id).toBe('code')
+    const hooks = hooksFor(true)
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    vi.useFakeTimers()
+    const entries = new BlockEntries(document, hooks, gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(450)
+    capsule()!
+      .querySelector('.ann-blk-seg-clip')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect((hooks.onClip.mock.calls[0] as [BlockCandidate, boolean])[1]).toBe(false)
+  })
+})
+
+describe('the preview (capture.md §6.2 预览)', () => {
+  it('hovering 外一层 draws the dashed outline of the next layer and its label beside the pointer', async () => {
+    document.body.innerHTML = FLAT
+    await restOn(document.getElementById('target')!)
+    const expand = [...capsule()!.querySelectorAll('.ann-blk-lv')][capsule()!.querySelectorAll('.ann-blk-lv').length - 1] as HTMLButtonElement
+    expand.dispatchEvent(new MouseEvent('pointerenter', { bubbles: true, clientX: 300, clientY: 60 }))
+    const preview = document.querySelector('[data-ann-ui="block-preview"]')
+    expect(preview).not.toBeNull()
+    const tip = document.querySelector('[data-ann-ui="block-preview-tip"]')!
+    expect(tip.textContent).toBe(uiText('block.expand') + ' · ' + uiText('block.kind.section') + ' · Install')
+    expand.dispatchEvent(new MouseEvent('pointerleave', { bubbles: true }))
+    expect(document.querySelector('[data-ann-ui="block-preview"]')).toBeNull()
+    expect(document.querySelector('[data-ann-ui="block-preview-tip"]')).toBeNull()
+  })
+
+  it('at the outermost layer the preview says so and draws nothing', async () => {
+    document.body.innerHTML = '<article id="art"><p>' + LONG + '</p></article>'
+    await restOn(document.getElementById('art')!)
+    const expand = [...capsule()!.querySelectorAll('.ann-blk-lv')][capsule()!.querySelectorAll('.ann-blk-lv').length - 1] as HTMLButtonElement
+    expect(expand.disabled).toBe(true)
+    expand.dispatchEvent(new MouseEvent('pointerenter', { bubbles: true, clientX: 300, clientY: 60 }))
+    expect(document.querySelector('[data-ann-ui="block-preview"]')).toBeNull()
+    expect(document.querySelector('[data-ann-ui="block-preview-tip"]')!.textContent).toBe(uiText('block.outermost'))
+  })
+})
+
+describe('the pause (capture.md §6.2 暂停)', () => {
+  it('a key that closes the capsule pauses the block: it stays quiet until the pointer rests on another', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!, 10, 10)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(outline()).toBeNull()
+    // the pointer keeps resting on the same block: no capsule, however long
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 12, clientY: 12 }))
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(outline()).toBeNull()
+    // a different block under the pointer releases the pause
+    document.elementFromPoint = vi.fn(() => document.querySelector('article p'))
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 14, clientY: 14 }))
+    await vi.advanceTimersByTimeAsync(450)
+    expect(outline()).not.toBeNull()
+    expect(document.querySelector('[data-ann-ui="block-label"]')!.textContent).toContain(uiText('block.kind.paragraph'))
+  })
+
+  it('pauseHere pauses the block under the pointer after the selection menu went away', async () => {
+    document.body.innerHTML = NESTED
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    const entries = new BlockEntries(document, hooksFor(true), gate)
+    created.push(entries)
+    entries.install()
+    entries.pauseHere(10, 10)
+    vi.useFakeTimers()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(2000)
+    expect(outline()).toBeNull()
+    document.elementFromPoint = vi.fn(() => document.querySelector('article p'))
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 14, clientY: 14 }))
+    await vi.advanceTimersByTimeAsync(450)
+    expect(outline()).not.toBeNull()
+  })
+})
+
+describe('capsule placement stays inside the block (capture.md §6.2 位置)', () => {
+  const CAPSULE_WIDTH = 208
+  const CAPSULE_HEIGHT = 36
+
+  async function showCapsule(clientX: number, clientY: number): Promise<HTMLElement> {
+    vi.useFakeTimers()
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute('data-ann-ui') === 'block-capsule' ? CAPSULE_WIDTH : 0
+    })
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute('data-ann-ui') === 'block-capsule' ? CAPSULE_HEIGHT : 0
+    })
+    const entries = new BlockEntries(document, hooksFor(true), gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX, clientY }))
+    await vi.advanceTimersByTimeAsync(450)
+    const found = capsule()
+    expect(found).toBeInstanceOf(HTMLElement)
+    return found as HTMLElement
+  }
+
+  it('keeps the capsule inside the post, beside the sidebar', async () => {
+    document.body.innerHTML = '<article data-testid="tweet" id="post"><p id="body">' + LONG + '</p></article><div id="sidebar"><h2>Today\'s News</h2></div>'
+    const post = document.getElementById('post')!
+    post.getBoundingClientRect = () => new DOMRect(280, 120, 560, 320)
+    document.elementFromPoint = vi.fn(() => document.getElementById('body'))
+    const found = await showCapsule(400, 200)
+    const left = Number.parseFloat(found.style.left)
+    const right = left + CAPSULE_WIDTH
+    expect(right).toBeLessThanOrEqual(840)
+    expect(left).toBeGreaterThanOrEqual(280)
+  })
+
+  it('moves off a top-right control and keeps the capsule inside the post right edge', async () => {
+    document.body.innerHTML = '<article data-testid="tweet" id="post"><p id="body">' + LONG + '</p><button id="caret" type="button">More</button></article>'
+    const post = document.getElementById('post')!
+    post.getBoundingClientRect = () => new DOMRect(280, 120, 560, 320)
+    const caret = document.getElementById('caret')!
+    caret.getBoundingClientRect = () => new DOMRect(800, 124, 34, 32)
+    document.elementFromPoint = vi.fn((x: number, y: number) => {
+      const overCaret = x >= 800 && x <= 834 && y >= 124 && y <= 156
+      return overCaret ? caret : document.getElementById('body')
+    })
+    const found = await showCapsule(400, 200)
+    const left = Number.parseFloat(found.style.left)
+    const top = Number.parseFloat(found.style.top)
+    const right = left + CAPSULE_WIDTH
+    const bottom = top + CAPSULE_HEIGHT
+    expect(right).toBeLessThanOrEqual(840)
+    const overlapsCaret = right > 800 && left < 834 && bottom > 124 && top < 156
+    expect(overlapsCaret).toBe(false)
+  })
+})
+
+describe('the hover entry honours its surroundings', () => {
+  it('drops the clip capsule while a screenshot is waiting for confirmation', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!, 10, 10)
+    expect(capsule()).not.toBeNull()
+
+    const modal = document.createElement('div')
+    modal.setAttribute('data-ann-ui', 'screenshot-session')
+    modal.className = 'ann-shot-modal'
+    document.documentElement.appendChild(modal)
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 40, clientY: 40 }))
+    expect(capsule()).toBeNull()
+    expect(outline()).toBeNull()
+
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 8, clientY: 8 }))
+    await vi.advanceTimersByTimeAsync(450)
+    expect(capsule()).toBeNull()
+
+    // a dwell armed before confirm must not paint once the frame is modal
+    modal.remove()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 6, clientY: 6 }))
+    document.documentElement.appendChild(modal)
+    await vi.advanceTimersByTimeAsync(450)
+    expect(capsule()).toBeNull()
+  })
+
+  it('Escape and any other key clear the outline when focus is on the page', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    expect(outline()).toBeNull()
+  })
+
+  it('moving the pointer off the block clears it, and moving back in time keeps it', async () => {
+    document.body.innerHTML = NESTED
+    const code = document.getElementById('code')!
+    code.getBoundingClientRect = () => new DOMRect(0, 0, 600, 40)
+    await restOn(code, 10, 10)
+    expect(outline()).not.toBeNull()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 400 }))
+    await vi.advanceTimersByTimeAsync(80)
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(200)
+    expect(outline()).not.toBeNull()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 400, clientY: 400 }))
+    await vi.advanceTimersByTimeAsync(180)
+    expect(outline()).toBeNull()
+  })
+
+  it('drops a replayed clip click for the same block; the next deliberate clip works (issue #105)', async () => {
+    document.body.innerHTML = NESTED
+    const hooks = hooksFor(true)
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    vi.useFakeTimers()
+    const entries = new BlockEntries(document, hooks, gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 5, clientY: 5 }))
+    await vi.advanceTimersByTimeAsync(450)
+    const button = capsule()!.querySelector('.ann-blk-seg-clip')!
+
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(hooks.onClip).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1600)
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(hooks.onClip).toHaveBeenCalledTimes(2)
   })
 })

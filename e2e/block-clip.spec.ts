@@ -22,10 +22,14 @@ test.describe('block clip (capture.md §6.2)', () => {
     await page.keyboard.press('Escape')
   })
 
-  test('hovering a paragraph clips its whole section with the heading and list', async ({ page }) => {
+  test('hovering a paragraph starts at the paragraph: 外一层 clips its whole section with the heading and list', async ({ page }) => {
     await page.goto(getCapturePageUrl())
     const capsule = await hoverForCapsule(page, '[data-testid="section-body"]')
     await expect(capsule.getByRole('button', { name: '剪藏' })).toBeVisible()
+    // the start is the innermost block: one level out is the section it sits in (capture.md §6.2)
+    await expect(page.locator('[data-ann-ui="block-label"]')).toContainText('段落')
+    await capsule.getByRole('button', { name: '外一层' }).click()
+    await expect(page.locator('[data-ann-ui="block-label"]')).toContainText('一节')
 
     await capsule.getByRole('button', { name: '剪藏' }).click()
     await expect(page.locator('[data-ann-ui="clip-toast"]')).toBeVisible()
@@ -145,6 +149,9 @@ test.describe('block clip (capture.md §6.2)', () => {
       }
     }
     await expect(outline).toBeVisible()
+    // the start is the paragraph the pointer rests on: one level out is its section (capture.md §6.2)
+    await page.keyboard.press('ArrowUp')
+    await expect(page.locator('[data-ann-ui="block-label"]')).toContainText('一节')
     await page.keyboard.press('Enter')
     await waitForClipToast(page)
 

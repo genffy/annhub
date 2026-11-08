@@ -727,6 +727,95 @@
   outline: none;
 }
 
+/* level buttons between the actions and more (capture.md §6.2 胶囊) */
+[data-ann-ui='block-capsule'] .ann-blk-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: var(--annov-pill-muted);
+  opacity: 0.4;
+}
+
+[data-ann-ui='block-capsule'] .ann-blk-lv {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--annov-pill-muted);
+  cursor: pointer;
+}
+
+[data-ann-ui='block-capsule'] .ann-blk-lv:hover:not(:disabled) {
+  background: var(--annov-pill-hover);
+  color: var(--annov-pill-text);
+}
+
+[data-ann-ui='block-capsule'] .ann-blk-lv:active:not(:disabled) {
+  background: rgb(255 255 255 / 0.16);
+}
+
+[data-ann-ui='block-capsule'] .ann-blk-lv:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+[data-ann-ui='block-capsule'] .ann-blk-lv svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* the outline's label: kind · range, on the outline's top edge (capture.md §6.2 标注) */
+[data-ann-ui='block-label'] {
+  position: fixed;
+  z-index: 2147483646;
+  max-width: 44vw;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #673ab8;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+[data-ann-ui='block-label'].ann-block-label-keyboard {
+  background: #4c91ff;
+}
+
+/* the dashed preview of the next level, and its tooltip (capture.md §6.2 预览) */
+[data-ann-ui='block-preview'] {
+  position: fixed;
+  z-index: 2147483645;
+  border: 2px dashed #673ab8;
+  border-radius: 12px;
+  pointer-events: none;
+}
+
+[data-ann-ui='block-preview-tip'] {
+  position: fixed;
+  z-index: 2147483647;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--annov-pill-bg);
+  color: var(--annov-pill-text);
+  box-shadow: var(--annov-pill-shadow);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: ann-fade-in 0.1s ease-out;
+}
+
 /* the "more" menu is a form-style overlay: theme tokens, hairline edge */
 [data-ann-ui='block-more'] {
   position: fixed;

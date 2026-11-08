@@ -40,8 +40,9 @@ import { ALL_IDENTITY_PARTS, detectIdentityRects, type IdentityParts } from './d
 import { applyViewportAnonymization } from './anonymize'
 import { captureElement } from './element-capture'
 import { requestCapture } from './capture-rate'
-import { sectionIntervalRect } from '../blocks'
+import { candidateRect, sectionIntervalRect } from '../blocks'
 import type { BlockCandidate } from '../blocks'
+import { chainForElement, layerLabel, startIndexOf } from '../target-chain'
 import { createElement } from 'react'
 import { flushSync } from 'react-dom'
 import { createRoot, type Root } from 'react-dom/client'
@@ -86,11 +87,9 @@ import {
 import { createBeautifyPanel, type BeautifyPanel } from './beautify-panel'
 import {
   HANDLES,
-  adjustHierarchy,
   boxWithinTolerance,
   buildSelector,
   collectEdges,
-  elementChain,
   expandByMargin,
   fitsInViewport,
   handleAnchor,
@@ -233,7 +232,7 @@ class ScreenshotSession {
   private previewNow: ViewportRect | null = null
   // precise selection and repeatable frames (screenshot.md §1.2, §1.4)
   private hoverEl: HTMLElement | null = null
-  private hoverChain: Element[] = []
+  private hoverChain: BlockCandidate[] = []
   private hoverIndex = 0
   private hoverOutlineEl: HTMLDivElement | null = null
   private margin = 0
@@ -319,7 +318,7 @@ class ScreenshotSession {
     }
     if (this.state === 'selecting' && this.hoverOutlineEl && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault()
-      this.hoverIndex = adjustHierarchy(this.hoverChain, this.hoverIndex, e.key === 'ArrowUp' ? 1 : -1)
+      this.hoverIndex = Math.max(0, Math.min(this.hoverChain.length - 1, this.hoverIndex + (e.key === 'ArrowUp' ? 1 : -1)))
       this.paintHover()
     }
     if (this.state === 'preview' && (e.key === 'w' || e.key === 'W') && this.settings?.watermark.enabled) {
@@ -1030,8 +1029,10 @@ class ScreenshotSession {
     }
     if (target !== this.hoverEl) {
       this.hoverEl = target
-      this.hoverChain = elementChain(this.resolveCaptureTarget(target))
-      this.hoverIndex = 0
+      // the pixel view of the target chain (capture.md §6.2): the start block,
+      // its ancestors, and the section layers a flat page inserts
+      this.hoverChain = chainForElement(target, this.doc, 'pixel')
+      this.hoverIndex = startIndexOf(this.hoverChain)
       this.paintHover()
       return
     }
@@ -1040,8 +1041,8 @@ class ScreenshotSession {
   }
 
   private paintHover(): void {
-    const el = this.hoverChain[this.hoverIndex] as HTMLElement | undefined
-    if (!el) {
+    const layer = this.hoverChain[this.hoverIndex]
+    if (!layer) {
       this.clearHoverUi()
       return
     }
@@ -1049,12 +1050,12 @@ class ScreenshotSession {
     const outline = this.doc.createElement('div')
     outline.className = 'ann-shot-hover-outline'
     outline.setAttribute('data-ann-ui', 'shot-hover-outline')
-    const box = el.getBoundingClientRect()
+    const box = candidateRect(layer)
     Object.assign(outline.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` })
-    // what a click would take: the element's own kind and size, on the outline's top edge
+    // what a click would take: the element's own name and size — a section its kind and size — on the outline's top edge
     const tag = this.doc.createElement('span')
     tag.className = 'ann-shot-hover-tag'
-    tag.textContent = `${el.tagName.toLowerCase()} · ${Math.round(box.width)} × ${Math.round(box.height)}`
+    tag.textContent = layerLabel(layer, 'pixel')
     outline.appendChild(tag)
     this.host.appendChild(outline)
     this.hoverOutlineEl = outline
@@ -1131,56 +1132,45 @@ class ScreenshotSession {
   }
 
   /**
-   * A click on a hovered element: element + margin goes the region path when
-   * the frame fits the window (the ring shows the real page); a bigger
-   * element itself goes the clone path without margin (screenshot.md §1.4).
+   * A click on a hovered layer: element (or a section's interval) + margin
+   * goes the region path when the frame fits the window (the ring shows the
+   * real page); a bigger element itself goes the clone path without margin
+   * (screenshot.md §1.4).
    */
   private captureHoveredElement(): void {
-    const el = this.hoverChain[this.hoverIndex] as HTMLElement | undefined
-    const hovered = el ?? this.hoverEl
+    const layer = this.hoverChain[this.hoverIndex]
     this.clearHoverUi()
-    if (!hovered) return
+    if (!layer) return
     const view = this.doc.defaultView!
-    const box = hovered.getBoundingClientRect()
+    const box = candidateRect(layer)
     const frame = expandByMargin({ x: box.left, y: box.top, width: box.width, height: box.height }, this.margin)
-    this.pendingFrameRecord = {
-      kind: 'element',
-      selector: buildSelector(hovered),
-      margin: this.margin,
-      width: box.width,
-      height: box.height,
-      pageX: box.left + view.scrollX,
-      pageY: box.top + view.scrollY,
-    }
+    // a section is not an element: its frame is remembered as a page place (screenshot.md §1.4)
+    this.pendingFrameRecord = layer.range
+      ? { kind: 'box', pageX: box.left + view.scrollX, pageY: box.top + view.scrollY, width: box.width, height: box.height }
+      : {
+          kind: 'element',
+          selector: buildSelector(layer.element),
+          margin: this.margin,
+          width: box.width,
+          height: box.height,
+          pageX: box.left + view.scrollX,
+          pageY: box.top + view.scrollY,
+        }
     this.reusedFrame = false
     if (fitsInViewport(frame, { width: view.innerWidth, height: view.innerHeight })) {
       this.selection = frame
       void this.captureRegionMode()
       return
     }
-    if (this.margin === 0 || !fitsInViewport({ x: box.left, y: box.top, width: box.width, height: box.height }, { width: view.innerWidth, height: view.innerHeight })) {
-      void this.captureElementMode(hovered)
+    const bareFits = fitsInViewport({ x: box.left, y: box.top, width: box.width, height: box.height }, { width: view.innerWidth, height: view.innerHeight })
+    if (this.margin === 0 || !bareFits) {
+      void this.captureElementMode(layer.element, layer.range, box)
       return
     }
     // the margin overflows the window: say so and keep the session (screenshot.md §1.4 放不下)
     this.pendingFrameRecord = null
     this.state = 'selecting'
     this.showNotice(uiText('shot.frameTooBig'))
-  }
-
-  /** Climb from an inline target to its nearest block ancestor for a sensible shot. */
-  private resolveCaptureTarget(el: HTMLElement): HTMLElement {
-    let current: HTMLElement = el
-    const view = this.doc.defaultView!
-    for (let depth = 0; depth < 6 && current.parentElement && current.parentElement !== this.doc.body; depth++) {
-      const display = view.getComputedStyle(current).display
-      if (display.startsWith('inline') && display !== 'inline-block') {
-        current = current.parentElement
-      } else {
-        break
-      }
-    }
-    return current
   }
 
   // ── region mode (captureVisibleTab) ───────────────────────────────
@@ -1320,26 +1310,40 @@ class ScreenshotSession {
    */
   async captureElementTarget(target: HTMLElement, section?: BlockCandidate['range']): Promise<void> {
     if (this.exited) return
-    const element = this.resolveCaptureTarget(target)
     const view = this.doc.defaultView!
-    const box = section ? sectionIntervalRect(element, section) : element.getBoundingClientRect()
-    this.pendingFrameRecord = {
-      kind: 'element',
-      selector: buildSelector(element),
-      margin: 0,
-      width: box.width,
-      height: box.height,
-      pageX: box.left + view.scrollX,
-      pageY: box.top + view.scrollY,
-    }
+    const box = section ? sectionIntervalRect(target, section) : target.getBoundingClientRect()
+    // the capsule's frame is remembered too; a section is a page place (screenshot.md §1.4)
+    this.pendingFrameRecord = section
+      ? { kind: 'box', pageX: box.left + view.scrollX, pageY: box.top + view.scrollY, width: box.width, height: box.height }
+      : {
+          kind: 'element',
+          selector: buildSelector(target),
+          margin: 0,
+          width: box.width,
+          height: box.height,
+          pageX: box.left + view.scrollX,
+          pageY: box.top + view.scrollY,
+        }
     this.reusedFrame = false
+    // fits in the window: crop the real pixels, the click path without margin;
+    // taller: rasterize the offscreen clone (screenshot.md §1). A zero-area box
+    // has no layout to crop (jsdom): the clone path keeps the session honest
+    if (
+      box.width > 0 &&
+      box.height > 0 &&
+      fitsInViewport({ x: box.left, y: box.top, width: box.width, height: box.height }, { width: view.innerWidth, height: view.innerHeight })
+    ) {
+      this.selection = { x: box.left, y: box.top, width: box.width, height: box.height }
+      void this.captureRegionMode()
+      return
+    }
     await this.captureElementMode(target, section, box)
   }
 
   private async captureElementMode(target: HTMLElement, section?: BlockCandidate['range'], sectionBox?: DOMRect): Promise<void> {
     this.state = 'capturing'
     this.setConfirmShield(false)
-    const element = this.resolveCaptureTarget(target)
+    const element = target
     this.rememberElementPermalink(element)
     await this.settingsLoaded
     if (this.exited) return

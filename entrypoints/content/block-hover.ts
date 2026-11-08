@@ -1,35 +1,32 @@
 /**
- * The block-clip entries (docs/product/capture.md §6.2): the hover capsule
- * (mouse) and block mode (keyboard). Both point at the same detection and
- * produce the same save; the capsule never covers the page's own controls,
- * stays inside the block's left and right edges, and stays inside the
- * window for tall blocks.
+ * The block-clip hover entry (docs/product/capture.md §6.2): the pointer
+ * rests on a start — the innermost block under it, a heading's section, or
+ * the block big enough beyond a small one — and the outline, its label and
+ * the capsule appear. The capsule clips, screenshots and downloads the
+ * outlined layer; 外一层 and 里一层 climb the target chain, a hover on them
+ * previews the next layer with a dashed outline, and the capsule never covers
+ * the page's own controls. The keyboard block mode lives in block-mode.ts and
+ * reads the same chain.
  */
-import {
-  candidateAnchor,
-  candidateRect,
-  candidatesAtPoint,
-  candidateSummary,
-  chainOf,
-  childChainOf,
-  deepElementFromPoint,
-  firstVisibleChain,
-  peersOf,
-  sameCandidate,
-  candidatesFor,
-  type BlockCandidate,
-  type BlockKind,
-} from './blocks'
 import { isUserInput } from './user-input'
-import { overlayIcon, type OverlayIconName } from './icons'
+import { overlayIcon } from './icons'
 import { uiText } from '../../utils/ui-text'
 import { positionCapsule } from './capsule-place'
+import { candidateRect, type BlockCandidate } from './blocks'
+import { chainAtPoint, isSuppressed, layerKindName, layerLabel, sameLayer, startIndexOf } from './target-chain'
+import { BlockMode } from './block-mode'
 
 const ROOT_ATTR = 'data-ann-ui'
-const DWELL_MS = 400
+/** Four still samples of 100ms each: the pointer rests ~400ms before the capsule appears. */
+const DWELL_TICKS = 4
+const TICK_MS = 100
+/** Less than this much movement per 100ms counts as still; hand jitter and trackpad drift do not restart the timer. */
+const STILL_PX = 6
 const LEAVE_MS = 150
 /** A repeat clip for the same block inside this window is a replay of one gesture, not a second save (issue #105). */
 const CLIP_REPEAT_MS = 1500
+/** A block this narrow cannot carry the full label beside the capsule: the label is the kind alone. */
+const NARROW_LABEL_PX = 260
 
 export interface BlockHoverHooks {
   onClip(candidate: BlockCandidate, levelChanged: boolean): void
@@ -42,43 +39,73 @@ export interface BlockHoverHooks {
   openSettings(): void
 }
 
-interface SettingsGate {
+export interface SettingsGate {
   enabled(): Promise<boolean>
   siteDisabled(host: string): Promise<boolean>
 }
 
-export class BlockEntries {
+/** Paints an outline and its label for a layer; the keyboard mode reuses it with its own colour. */
+export function paintOutline(doc: Document, layer: BlockCandidate, keyboard: boolean): { outline: HTMLElement; label: HTMLElement } {
+  const rect = candidateRect(layer)
+  const outline = doc.createElement('div')
+  outline.setAttribute(ROOT_ATTR, 'block-outline')
+  outline.className = keyboard ? 'ann-block-outline ann-block-outline-keyboard' : 'ann-block-outline'
+  Object.assign(outline.style, { left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' })
+  const label = doc.createElement('div')
+  label.setAttribute(ROOT_ATTR, 'block-label')
+  label.className = keyboard ? 'ann-block-label ann-block-label-keyboard' : 'ann-block-label'
+  doc.documentElement.appendChild(outline)
+  doc.documentElement.appendChild(label)
+  return { outline, label }
+}
+
+/** Places the label on the outline's top edge; a tall block pins it to the visible top, a narrow block keeps the kind alone. */
+export function placeLabel(doc: Document, label: HTMLElement, layer: BlockCandidate, capsuleLeft: number | null): void {
+  const rect = candidateRect(layer)
+  const view = doc.defaultView!
+  // a zero box has no layout to measure (jsdom): the full label stays
+  const narrow = rect.width > 0 && rect.width < NARROW_LABEL_PX
+  label.textContent = narrow ? layerKindName(layer) : layerLabel(layer, 'content')
+  const height = label.offsetHeight || 24
+  const width = label.offsetWidth || 80
+  let left = rect.left + 4
+  if (capsuleLeft !== null && capsuleLeft < rect.left + 80) left = rect.right - width - 4
+  left = Math.max(8, Math.min(view.innerWidth - width - 8, left))
+  const top = rect.top >= 4 ? rect.top - height - 4 : 4
+  Object.assign(label.style, { left: left + 'px', top: top + 'px' })
+}
+
+class HoverEntry {
+  private chain: BlockCandidate[] = []
+  private targetIndex = 0
+  private levelChanged = false
+  private paused: BlockCandidate | null = null
   private outlineEl: HTMLElement | null = null
+  private labelEl: HTMLElement | null = null
   private capsuleEl: HTMLElement | null = null
-  private dwellTimer: number | null = null
+  private previewEl: HTMLElement | null = null
+  private previewTipEl: HTMLElement | null = null
+  private tickTimer: number | null = null
+  private stillTicks = 0
+  private samplePoint = { x: 0, y: 0 }
   private leaveTimer: number | null = null
-  private modeActive = false
-  private modeLevelChanged = false
-  /** The chain of the current target, innermost first — replaced only by a new target, never rebuilt from a unit's own element. */
-  private modeChain: BlockCandidate[] = []
-  private modeDepth = 0
-  private modePainted: BlockCandidate | null = null
-  private modeOverlay: HTMLElement | null = null
-  private modeKeyHandler: ((event: KeyboardEvent) => void) | null = null
-  private modeRepaint: (() => void) | null = null
-  private modeStatusEl: HTMLElement | null = null
-  private modeKindEl: HTMLElement | null = null
-  private modeRestoreFocus: HTMLElement | null = null
   private lastPoint = { x: 0, y: 0 }
   /** The buttons of the last pointer event: a dwell that expires under a held primary button reveals nothing (RV-CAP-15). */
   private lastPointerButtons = 0
+  private revealGeneration = 0
   private listeners: (() => void)[] = []
 
   constructor(
     private readonly doc: Document,
     private readonly hooks: BlockHoverHooks,
     private readonly gate: SettingsGate,
+    private readonly isModeActive: () => boolean,
   ) {}
 
   install(): void {
     const onPointerMove = (event: PointerEvent): void => {
       if (!isUserInput(event)) return
-      if (this.modeActive) return
+      if (this.isModeActive()) return
       if (this.screenshotConfirming()) {
         this.hideNow()
         return
@@ -101,31 +128,32 @@ export class BlockEntries {
         return
       }
       // Leaving the outlined block hides it; a rest on whatever is under the
-      // pointer can still reveal the next unit (capture.md §6.2).
+      // pointer can still reveal the next start (capture.md §6.2).
       if (this.pointerOutsideHover(event.clientX, event.clientY)) {
         this.armLeave()
-        this.scheduleDwell()
-        return
+      } else {
+        this.clearLeave()
       }
-      this.clearLeave()
-      this.scheduleDwell()
+      this.ensureTick()
     }
     const onButtonsChange = (event: PointerEvent): void => {
       if (!isUserInput(event)) return
       this.lastPointerButtons = event.buttons
     }
-    const onLeaveWindow = (): void => this.scheduleLeave()
+    const onLeaveWindow = (): void => {
+      this.stopTick()
+      this.scheduleLeave()
+    }
     // A visible capsule/outline is anchored to scrolled-away positions: hide
-    // it. A pending dwell re-arms instead — the scroll event can trail the
-    // pointermove that armed it (hover-with-scroll), and a resting pointer
-    // stays eligible after the page settles.
+    // it. A resting pointer stays eligible after the page settles — the
+    // stillness clock restarts and the next reveal hit-tests the page afresh.
     const onScroll = (): void => {
       if (this.screenshotConfirming()) {
         this.hideNow()
         return
       }
-      if (this.capsuleEl || this.outlineEl) this.hideNow()
-      else if (this.dwellTimer !== null) this.scheduleDwell()
+      this.hideNow()
+      this.ensureTick()
     }
     const onDragSelect = (event: PointerEvent): void => {
       if (!isUserInput(event)) return
@@ -139,11 +167,14 @@ export class BlockEntries {
       if (event.buttons === 1) this.hideNow()
     }
     const onKeyDown = (event: KeyboardEvent): void => {
-      if (!isUserInput(event) || this.modeActive) return
+      if (!isUserInput(event) || this.isModeActive()) return
       // Any key dismisses the hover outline. Escape still does when Parent
       // left focus on the capsule button — that click is our own UI, and
       // ignoring Escape there is what stuck the timeline outline (issue #107).
       if (event.key !== 'Escape' && this.insideOwnUi(event)) return
+      // the block under the pointer pauses: it stays quiet until the pointer
+      // rests on another start (capture.md §6.2 暂停)
+      if (this.capsuleEl || this.outlineEl) this.pauseHereNow()
       this.hideNow()
     }
 
@@ -168,30 +199,43 @@ export class BlockEntries {
     this.listeners.forEach(fn => fn())
     this.listeners = []
     this.hideNow()
-    this.exitBlockMode()
+  }
+
+  hide(): void {
+    this.hideNow()
   }
 
   private insideOwnUi(event: Event): boolean {
     const target = event.target
-    return target instanceof Element && Boolean(target.closest?.(`[${ROOT_ATTR}]`))
+    return target instanceof Element && Boolean(target.closest?.('[' + ROOT_ATTR + ']'))
   }
 
-  private scheduleDwell(): void {
-    if (this.dwellTimer !== null) window.clearTimeout(this.dwellTimer)
-    const generation = ++this.revealGeneration
-    const { x, y } = this.lastPoint
-    this.dwellTimer = window.setTimeout(() => {
-      this.dwellTimer = null
-      void this.reveal(x, y, generation)
-    }, DWELL_MS)
+  /** The stillness sampler: every 100ms the pointer moves less than 6px, it is one tick stiller. */
+  private ensureTick(): void {
+    if (this.tickTimer !== null) return
+    this.samplePoint = { ...this.lastPoint }
+    this.stillTicks = 0
+    this.tickTimer = window.setInterval(() => {
+      const moved = Math.abs(this.lastPoint.x - this.samplePoint.x) >= STILL_PX || Math.abs(this.lastPoint.y - this.samplePoint.y) >= STILL_PX
+      this.samplePoint = { ...this.lastPoint }
+      this.stillTicks = moved ? 0 : this.stillTicks + 1
+      if (this.stillTicks >= DWELL_TICKS) {
+        this.stopTick()
+        this.revealGeneration++
+        void this.reveal(this.lastPoint.x, this.lastPoint.y, this.revealGeneration)
+      }
+    }, TICK_MS)
+  }
+
+  private stopTick(): void {
+    if (this.tickTimer !== null) window.clearInterval(this.tickTimer)
+    this.tickTimer = null
+    this.stillTicks = 0
   }
 
   /** Selection, an editable field, or the pointer leaving the window: drop the hover and don't reveal again. */
   private scheduleLeave(): void {
-    if (this.dwellTimer !== null) {
-      window.clearTimeout(this.dwellTimer)
-      this.dwellTimer = null
-    }
+    this.stopTick()
     if (this.leaveTimer !== null) window.clearTimeout(this.leaveTimer)
     this.leaveTimer = window.setTimeout(() => this.hideNow(), LEAVE_MS)
   }
@@ -212,15 +256,10 @@ export class BlockEntries {
     }
   }
 
-  hide(): void {
-    this.hideNow()
-  }
-
   private hideNow(): void {
     this.revealGeneration++
-    if (this.dwellTimer !== null) window.clearTimeout(this.dwellTimer)
+    this.stopTick()
     if (this.leaveTimer !== null) window.clearTimeout(this.leaveTimer)
-    this.dwellTimer = null
     this.leaveTimer = null
     this.dismissHover()
   }
@@ -228,44 +267,26 @@ export class BlockEntries {
   private dismissHover(): void {
     this.outlineEl?.remove()
     this.outlineEl = null
+    this.labelEl?.remove()
+    this.labelEl = null
     this.capsuleEl?.remove()
     this.capsuleEl = null
-    this.doc.querySelector(`[${ROOT_ATTR}="block-more"]`)?.remove()
-    this.hoverCandidate = null
+    this.clearPreview()
+    this.doc.querySelector('[' + ROOT_ATTR + '="block-more"]')?.remove()
+    this.chain = []
   }
-
-  private hoverCandidate: BlockCandidate | null = null
-  /** The last clip this page started, to drop a replay of the same gesture (issue #105). */
-  private lastClip: { element: Element; at: number } | null = null
-
-  /**
-   * One gesture clips one block once: a second fire for the same block moments
-   * after the first — whatever re-delivered the click — is dropped instead of
-   * saved as a second entry with a fresh id (issue #105). A deliberate clip of
-   * the same block again has to re-hover it, which already takes longer than
-   * the window.
-   */
-  private offerClip(candidate: BlockCandidate, levelChanged: boolean): void {
-    const now = Date.now()
-    if (this.lastClip && this.lastClip.element === candidate.element && now - this.lastClip.at < CLIP_REPEAT_MS) return
-    this.lastClip = { element: candidate.element, at: now }
-    this.hooks.onClip(candidate, levelChanged)
-  }
-
-  /** Bumped when a newer dwell or a hard dismiss invalidates an in-flight reveal. */
-  private revealGeneration = 0
 
   /** A positive border box that does not contain the point. A zero box (no layout) is not "outside". */
   private pointerOutsideHover(x: number, y: number): boolean {
-    const candidate = this.hoverCandidate
-    if (!candidate || !this.outlineEl) return false
-    const rect = candidateRect(candidate)
+    const layer = this.chain[this.targetIndex]
+    if (!layer || !this.outlineEl) return false
+    const rect = candidateRect(layer)
     if (rect.width <= 0 || rect.height <= 0) return false
     return x < rect.left || x > rect.right || y < rect.top || y > rect.bottom
   }
 
-  private boxContainsPoint(candidate: BlockCandidate, x: number, y: number): boolean {
-    const rect = candidateRect(candidate)
+  private boxContainsPoint(layer: BlockCandidate, x: number, y: number): boolean {
+    const rect = candidateRect(layer)
     if (rect.width <= 0 || rect.height <= 0) return true
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
   }
@@ -293,7 +314,7 @@ export class BlockEntries {
       this.hideNow()
       return
     }
-    const chain = candidatesAtPoint(x, y, this.doc)
+    const chain = chainAtPoint(x, y, this.doc)
     if (generation !== this.revealGeneration) return
     // Nothing under the pointer, or only a block the pointer has already left:
     // drop the previous outline instead of leaving it stuck (issue #107).
@@ -310,49 +331,96 @@ export class BlockEntries {
       this.hideNow()
       return
     }
-    // the hover target is always the innermost block (capture.md §6.2): level changes are the keyboard mode's ↑↓, never the pointer's
-    const candidate = chain[0]!
-    if (!this.boxContainsPoint(candidate, x, y)) {
+    const start = startIndexOf(chain)
+    // the block entry never appears in page furniture, and a paused block
+    // stays quiet until the pointer rests on another start (capture.md §6.2)
+    if (isSuppressed(chain, start)) {
+      this.dismissHover()
+      return
+    }
+    const target = chain[start]!
+    if (this.paused) {
+      if (sameLayer(this.paused, target)) {
+        this.dismissHover()
+        return
+      }
+      this.paused = null
+    }
+    if (!this.boxContainsPoint(target, x, y)) {
       this.dismissHover()
       return
     }
     this.clearLeave()
-    this.hoverCandidate = candidate
+    this.chain = chain
+    this.targetIndex = start
+    this.levelChanged = false
     this.paintHover()
   }
 
-  private paintHover(): void {
-    const candidate = this.hoverCandidate
-    if (!candidate) return
-    this.outlineEl?.remove()
-    const outline = this.doc.createElement('div')
-    outline.setAttribute(ROOT_ATTR, 'block-outline')
-    outline.className = 'ann-block-outline'
-    const rect = candidateRect(candidate)
-    Object.assign(outline.style, {
-      left: `${rect.left}px`,
-      top: `${rect.top + this.doc.defaultView!.scrollY - window.scrollY}px`,
-      width: `${rect.width}px`,
-      height: `${rect.height}px`,
-    })
-    ;(this.doc.documentElement as HTMLElement).appendChild(outline)
-    this.outlineEl = outline
-
-    this.capsuleEl?.remove()
-    this.capsuleEl = this.buildCapsule(candidate, false)
-    this.doc.documentElement.appendChild(this.capsuleEl)
-    positionCapsule(this.doc, this.capsuleEl, rect)
+  /** The block under the pointer pauses: it never reveals while the pointer keeps resting on it. */
+  pauseHere(x: number, y: number): void {
+    this.stopTick()
+    const chain = chainAtPoint(x, y, this.doc)
+    if (chain.length === 0) return
+    this.paused = chain[startIndexOf(chain)]!
   }
 
-  private buildCapsule(candidate: BlockCandidate, keyboard: boolean): HTMLElement {
+  pauseHereNow(): void {
+    this.pauseHere(this.lastPoint.x, this.lastPoint.y)
+  }
+
+  private paintHover(): void {
+    const layer = this.chain[this.targetIndex]
+    if (!layer) return
+    this.outlineEl?.remove()
+    this.labelEl?.remove()
+    const painted = paintOutline(this.doc, layer, false)
+    this.outlineEl = painted.outline
+    this.labelEl = painted.label
+    this.capsuleEl?.remove()
+    this.capsuleEl = this.buildCapsule()
+    this.doc.documentElement.appendChild(this.capsuleEl)
+    const rect = candidateRect(layer)
+    positionCapsule(this.doc, this.capsuleEl, rect)
+    this.placeLabel()
+  }
+
+  private placeLabel(): void {
+    const layer = this.chain[this.targetIndex]
+    if (!layer || !this.labelEl) return
+    const capsuleLeft = this.capsuleEl ? Number.parseFloat(this.capsuleEl.style.left) : null
+    placeLabel(this.doc, this.labelEl, layer, Number.isFinite(capsuleLeft) ? capsuleLeft : null)
+  }
+
+  /** A level change repaints the outline and label but keeps the capsule where it is; its right edge never moves. */
+  private repaintLevel(): void {
+    const layer = this.chain[this.targetIndex]
+    if (!layer || !this.capsuleEl) return
+    this.clearPreview()
+    const oldRight = (Number.parseFloat(this.capsuleEl.style.left) || 0) + this.capsuleEl.offsetWidth
+    const top = this.capsuleEl.style.top
+    this.outlineEl?.remove()
+    this.labelEl?.remove()
+    const painted = paintOutline(this.doc, layer, false)
+    this.outlineEl = painted.outline
+    this.labelEl = painted.label
+    this.capsuleEl.remove()
+    this.capsuleEl = this.buildCapsule()
+    this.doc.documentElement.appendChild(this.capsuleEl)
+    this.capsuleEl.style.top = top
+    this.capsuleEl.style.left = Math.max(0, oldRight - this.capsuleEl.offsetWidth) + 'px'
+    this.placeLabel()
+  }
+
+  private buildCapsule(): HTMLElement {
     const host = this.doc.createElement('div')
-    host.setAttribute(ROOT_ATTR, keyboard ? 'block-mode-capsule' : 'block-capsule')
+    host.setAttribute(ROOT_ATTR, 'block-capsule')
     host.className = 'ann-block-capsule'
     // Icon-only (capture.md §6.2): the name lives in the tooltip and the accessible label.
-    const action = (icon: OverlayIconName, className: string, key: 'block.clip' | 'block.shot' | 'block.download', onClick: () => void): HTMLButtonElement => {
+    const action = (icon: 'bookmark' | 'scan' | 'download', className: string, key: 'block.clip' | 'block.shot' | 'block.download', onClick: () => void): HTMLButtonElement => {
       const button = this.doc.createElement('button')
       button.type = 'button'
-      button.className = `ann-blk-seg ${className}`
+      button.className = 'ann-blk-seg ' + className
       button.setAttribute('aria-label', uiText(key))
       button.title = uiText(key)
       button.append(overlayIcon(this.doc, icon))
@@ -363,19 +431,19 @@ export class BlockEntries {
       return button
     }
 
+    const layer = this.chain[this.targetIndex]!
     host.append(
       action('bookmark', 'ann-blk-seg-clip', 'block.clip', () => {
-        // a hover clip never changed levels (capture.md §6.2); only the keyboard mode's ↑↓ did
-        this.offerClip(candidate, !keyboard && this.modeLevelChanged)
-        if (!keyboard) this.hideNow()
+        this.hooks.onClip(layer, this.levelChanged)
+        this.hideNow()
       }),
     )
     const startScreenshot = this.hooks.onScreenshot
     if (startScreenshot) {
       host.append(
         action('scan', 'ann-blk-seg-shot', 'block.shot', () => {
-          startScreenshot.call(this.hooks, candidate)
-          if (!keyboard) this.hideNow()
+          startScreenshot(layer)
+          this.hideNow()
         }),
       )
     }
@@ -383,11 +451,60 @@ export class BlockEntries {
     if (startDownload) {
       host.append(
         action('download', 'ann-blk-seg-dl', 'block.download', () => {
-          startDownload.call(this.hooks, candidate)
-          if (!keyboard) this.hideNow()
+          startDownload(layer)
+          this.hideNow()
         }),
       )
     }
+
+    const separator = this.doc.createElement('i')
+    separator.className = 'ann-blk-sep'
+    separator.setAttribute('aria-hidden', 'true')
+    host.append(separator)
+
+    // 里一层 appears when the current target holds a layer inside; 外一层 grays out
+    // at the outermost layer and never wraps around (capture.md §6.2 换层).
+    const levelButton = (icon: 'shrink' | 'expand', key: 'block.shrink' | 'block.expand'): HTMLButtonElement => {
+      const button = this.doc.createElement('button')
+      button.type = 'button'
+      button.className = 'ann-blk-lv'
+      button.setAttribute('aria-label', uiText(key))
+      button.title = uiText(key)
+      button.append(overlayIcon(this.doc, icon))
+      button.addEventListener('click', event => {
+        if (!isUserInput(event)) return
+        this.clearPreview()
+        this.targetIndex += icon === 'expand' ? 1 : -1
+        this.levelChanged = true
+        this.repaintLevel()
+      })
+      return button
+    }
+
+    const outermost = this.targetIndex >= this.chain.length - 1
+    const preview = (icon: 'shrink' | 'expand', button: HTMLButtonElement): void => {
+      const index = this.targetIndex + (icon === 'expand' ? 1 : -1)
+      const next = this.chain[index]
+      button.addEventListener('pointerenter', event => {
+        if (!isUserInput(event)) return
+        this.showPreview(event.clientX, event.clientY, next ?? null, icon === 'expand' ? 'block.expand' : 'block.shrink')
+      })
+      button.addEventListener('pointerleave', () => this.clearPreview())
+    }
+    if (this.targetIndex > 0) {
+      const shrink = levelButton('shrink', 'block.shrink')
+      preview('shrink', shrink)
+      host.append(shrink)
+    }
+    const expand = levelButton('expand', 'block.expand')
+    preview('expand', expand)
+    if (outermost) {
+      expand.disabled = true
+      expand.setAttribute('aria-disabled', 'true')
+      expand.title = uiText('block.outermost')
+      expand.setAttribute('aria-label', uiText('block.outermost'))
+    }
+    host.append(expand)
 
     const more = this.doc.createElement('button')
     more.type = 'button'
@@ -403,8 +520,41 @@ export class BlockEntries {
     return host
   }
 
+  /** The dashed outline of the layer a level button would switch to, and its label beside the pointer. */
+  private showPreview(x: number, y: number, layer: BlockCandidate | null, key: 'block.expand' | 'block.shrink'): void {
+    this.clearPreview()
+    const tip = this.doc.createElement('div')
+    tip.setAttribute(ROOT_ATTR, 'block-preview-tip')
+    tip.className = 'ann-block-preview-tip'
+    tip.textContent = layer ? uiText(key) + ' · ' + layerLabel(layer, 'content') : uiText('block.outermost')
+    this.doc.documentElement.appendChild(tip)
+    const view = this.doc.defaultView!
+    const width = tip.offsetWidth || 120
+    const height = tip.offsetHeight || 26
+    Object.assign(tip.style, {
+      left: Math.max(8, Math.min(view.innerWidth - width - 8, x + 12)) + 'px',
+      top: Math.max(8, Math.min(view.innerHeight - height - 8, y + 12)) + 'px',
+    })
+    this.previewTipEl = tip
+    if (!layer) return
+    const rect = candidateRect(layer)
+    const outline = this.doc.createElement('div')
+    outline.setAttribute(ROOT_ATTR, 'block-preview')
+    outline.className = 'ann-block-preview'
+    Object.assign(outline.style, { left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' })
+    this.doc.documentElement.appendChild(outline)
+    this.previewEl = outline
+  }
+
+  private clearPreview(): void {
+    this.previewEl?.remove()
+    this.previewEl = null
+    this.previewTipEl?.remove()
+    this.previewTipEl = null
+  }
+
   private openMoreMenu(anchor: HTMLElement): void {
-    const existing = this.doc.querySelector(`[${ROOT_ATTR}="block-more"]`)
+    const existing = this.doc.querySelector('[' + ROOT_ATTR + '="block-more"]')
     existing?.remove()
     const menu = this.doc.createElement('div')
     menu.setAttribute(ROOT_ATTR, 'block-more')
@@ -425,8 +575,8 @@ export class BlockEntries {
     item('block.settings', () => this.hooks.openSettings())
     this.doc.documentElement.appendChild(menu)
     const box = anchor.getBoundingClientRect()
-    menu.style.left = `${Math.max(8, box.left)}px`
-    menu.style.top = `${Math.min(box.bottom + 6, this.doc.defaultView!.innerHeight - 10)}px`
+    menu.style.left = Math.max(8, box.left) + 'px'
+    menu.style.top = Math.min(box.bottom + 6, this.doc.defaultView!.innerHeight - 10) + 'px'
     const close = (event: Event): void => {
       if (event.target instanceof Node && menu.contains(event.target)) return
       menu.remove()
@@ -434,273 +584,72 @@ export class BlockEntries {
     }
     this.doc.addEventListener('pointerdown', close, true)
   }
+}
 
-  // ── Block mode (keyboard) ─────────────────────────────────────────────
+export class BlockEntries {
+  private readonly hover: HoverEntry
+  private readonly mode: BlockMode
+  private lastClip: { element: Element; rangeStart: Element | null; at: number } | null = null
+
+  constructor(doc: Document, hooks: BlockHoverHooks, gate: SettingsGate) {
+    // One gesture clips one block once: a second fire for the same block moments
+    // after the first — whatever re-delivered the click — is dropped instead of
+    // saved as a second entry with a fresh id (issue #105). A deliberate clip of
+    // the same block again has to re-hover it, which already takes longer than
+    // the window.
+    const offerClip = (candidate: BlockCandidate, levelChanged: boolean): void => {
+      const now = Date.now()
+      // two run sections share their container: the target is the run, not the element
+      if (
+        this.lastClip &&
+        this.lastClip.element === candidate.element &&
+        (this.lastClip.rangeStart ?? null) === (candidate.range?.start ?? null) &&
+        now - this.lastClip.at < CLIP_REPEAT_MS
+      ) {
+        return
+      }
+      this.lastClip = { element: candidate.element, rangeStart: candidate.range?.start ?? null, at: now }
+      hooks.onClip(candidate, levelChanged)
+    }
+    const wrappedHooks: BlockHoverHooks = { ...hooks, onClip: offerClip }
+    this.hover = new HoverEntry(doc, wrappedHooks, gate, () => this.mode.active)
+    this.mode = new BlockMode(doc, wrappedHooks, () => this.hover.hide())
+  }
+
+  install(): void {
+    this.hover.install()
+  }
+
+  dispose(): void {
+    this.hover.dispose()
+    this.mode.dispose()
+  }
+
+  hide(): void {
+    this.hover.hide()
+  }
+
+  /** The block under the pointer pauses (capture.md §6.2 暂停), after the selection menu or the capsule went away. */
+  pauseHere(x: number, y: number): void {
+    this.hover.pauseHere(x, y)
+  }
+
+  pauseHereNow(): void {
+    this.hover.pauseHereNow()
+  }
 
   enterBlockMode(): void {
-    if (this.modeActive) {
-      this.exitBlockMode()
-      return
-    }
-    this.hideNow()
-    // The first target comes from where the user is — the focused element, else the first unit on
-    // screen (capture.md §6.2) — and is found before the overlay exists, so hit-testing sees the page.
-    const initial = this.initialModeChain()
-    this.modeActive = true
-    this.modeLevelChanged = false
-    this.modeChain = []
-    this.modeDepth = 0
-    this.modePainted = null
-
-    const overlay = this.doc.createElement('div')
-    overlay.setAttribute(ROOT_ATTR, 'block-mode-overlay')
-    overlay.className = 'ann-block-mode-overlay'
-    // One live region: the kind and the unit's own words change with the target; the key hint
-    // never changes, so it is announced once with the mode and not on every move. The "Block
-    // mode" prefix is presentation — aria-hidden keeps the announcement at "kind · summary".
-    const status = this.doc.createElement('div')
-    status.className = 'ann-block-mode-status'
-    status.setAttribute(ROOT_ATTR, 'block-mode-capsule')
-    status.setAttribute('role', 'status')
-    status.setAttribute('aria-live', 'polite')
-    status.setAttribute('aria-atomic', 'false')
-    const dot = this.doc.createElement('i')
-    dot.className = 'ann-block-mode-dot'
-    const label = this.doc.createElement('span')
-    label.className = 'ann-block-mode-label'
-    label.setAttribute('aria-hidden', 'true')
-    label.textContent = `${uiText('block.mode.label')} ·`
-    const kind = this.doc.createElement('span')
-    kind.className = 'ann-block-mode-kind'
-    const hint = this.doc.createElement('span')
-    hint.className = 'ann-block-mode-hint'
-    type HintPart = [keys: string[], labelKey: 'block.mode.next' | 'block.mode.level' | 'block.clip' | 'block.shot' | 'block.download' | 'block.mode.exit', act: boolean]
-    const hintParts: HintPart[] = [
-      [['Tab'], 'block.mode.next', false],
-      [['↑', '↓'], 'block.mode.level', false],
-      [['Enter'], 'block.clip', true],
-    ]
-    if (this.hooks.onScreenshot) hintParts.push([['S'], 'block.shot', true])
-    if (this.hooks.onDownload) hintParts.push([['D'], 'block.download', true])
-    hintParts.push([['Esc'], 'block.mode.exit', true])
-    for (const [keys, labelKey, act] of hintParts) {
-      for (const key of keys) {
-        const cap = this.doc.createElement('kbd')
-        cap.textContent = key
-        hint.appendChild(cap)
-      }
-      const words = this.doc.createElement('span')
-      if (act) words.className = 'ann-block-mode-act'
-      words.textContent = uiText(labelKey)
-      hint.appendChild(words)
-    }
-    // the address bar holds the keys while the page has no focus: Esc would land in the browser
-    this.modeHintEl = hint
-    if (!this.doc.hasFocus()) {
-      const note = this.doc.createElement('span')
-      note.className = 'ann-block-mode-nofocus'
-      note.textContent = uiText('page.noFocus')
-      hint.appendChild(note)
-    }
-    status.append(dot, label, kind, hint)
-    this.doc.documentElement.append(overlay, status)
-    this.doc.addEventListener('focus', this.modeOnFocus, true)
-    // Keys must reach this document: a user whose focus sat in a child frame would otherwise type
-    // into that frame while the mode waits here. The previous focus comes back on exit.
-    const previousFocus = this.doc.activeElement
-    this.modeRestoreFocus = previousFocus instanceof HTMLElement && previousFocus !== this.doc.body ? previousFocus : null
-    overlay.tabIndex = -1
-    overlay.focus({ preventScroll: true })
-
-    overlay.addEventListener('pointermove', event => {
-      if (!isUserInput(event)) return
-      this.lastPoint = { x: event.clientX, y: event.clientY }
-      this.refreshFromPointer()
-    })
-    // links do not respond to clicks inside the mode (capture.md §6.2)
-    overlay.addEventListener('pointerdown', event => event.preventDefault())
-
-    const onKey = (event: KeyboardEvent): void => {
-      if (!isUserInput(event)) return
-      if (!this.modeActive) return
-      event.preventDefault()
-      event.stopPropagation()
-      if (event.key === 'Escape') {
-        this.exitBlockMode()
-        return
-      }
-      if (event.key === 'Tab') {
-        this.moveToPeer(event.shiftKey ? -1 : 1)
-        return
-      }
-      if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-        // the chain stays what it was: ↓ walks back down the same chain ↑ walked up
-        const next = this.modeDepth + (event.key === 'ArrowUp' ? 1 : -1)
-        if (next >= 0 && next < this.modeChain.length) {
-          this.modeLevelChanged = true
-          this.modeDepth = next
-          this.paintMode(true)
-          return
-        }
-        // ↓ at the innermost level enters the unit (otherwise the mode stalls at
-        // the whole article), one level at a time: the outermost unit inside it first.
-        // The child chain is spliced in front, so the next ↓ goes on down it and
-        // ↑ walks back out the way ↓ came in.
-        if (event.key === 'ArrowDown' && this.modeDepth === 0) {
-          const current = this.modeChain[this.modeDepth]
-          if (!current) return
-          const inner = childChainOf(current, this.doc).filter(candidate => !this.modeChain.some(existing => sameCandidate(existing, candidate)))
-          if (inner.length === 0) return
-          this.modeLevelChanged = true
-          this.modeChain = [...inner, ...this.modeChain]
-          this.modeDepth = inner.length - 1
-          this.paintMode(true)
-        }
-        return
-      }
-      if (event.key === 'Enter') {
-        const candidate = this.modeChain[this.modeDepth]
-        if (candidate) {
-          this.offerClip(candidate, this.modeLevelChanged)
-          this.exitBlockMode()
-        }
-        return
-      }
-      if (event.key.toLowerCase() === 's' && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        const candidate = this.modeChain[this.modeDepth]
-        if (candidate && this.hooks.onScreenshot) {
-          this.hooks.onScreenshot(candidate)
-          this.exitBlockMode()
-        }
-        return
-      }
-      if (event.key.toLowerCase() === 'd' && !event.metaKey && !event.ctrlKey && !event.altKey) {
-        const candidate = this.modeChain[this.modeDepth]
-        if (candidate && this.hooks.onDownload) {
-          this.hooks.onDownload(candidate)
-          this.exitBlockMode()
-        }
-      }
-    }
-    this.doc.addEventListener('keydown', onKey, true)
-    // the outline is fixed to the window: a page that scrolls under it needs it repainted
-    const repaint = (): void => this.paintMode(false, true)
-    this.doc.addEventListener('scroll', repaint, true)
-    this.doc.defaultView?.addEventListener('resize', repaint)
-    this.modeRepaint = repaint
-    this.modeOverlay = overlay
-    this.modeKeyHandler = onKey
-    this.modeStatusEl = status
-    this.modeKindEl = kind
-    if (initial.length > 0) this.setModeChain(initial, 0, true)
-  }
-
-  private initialModeChain(): BlockCandidate[] {
-    const focused = this.doc.activeElement
-    if (focused instanceof Element && focused !== this.doc.body && focused !== this.doc.documentElement) {
-      const chain = candidatesFor(focused, this.doc)
-      if (chain.length > 0) return chain
-    }
-    return firstVisibleChain(this.doc)
-  }
-
-  /** A new target replaces the chain; the depth the user chose is kept as far as the new chain reaches. */
-  private setModeChain(chain: BlockCandidate[], depth: number, scroll: boolean): void {
-    this.modeChain = chain
-    this.modeDepth = Math.max(0, Math.min(depth, chain.length - 1))
-    this.paintMode(scroll)
-  }
-
-  private refreshFromPointer(): void {
-    if (!this.modeActive) return
-    // hit-test through the mode overlay: it sits on top of the page by design
-    if (this.modeOverlay) this.modeOverlay.style.pointerEvents = 'none'
-    const chain = candidatesAtPoint(this.lastPoint.x, this.lastPoint.y, this.doc)
-    if (this.modeOverlay) this.modeOverlay.style.pointerEvents = ''
-    // nothing under the pointer: the previous target stays, outlined, so what is painted is what Enter saves
-    if (chain.length === 0) return
-    this.setModeChain(chain, this.modeDepth, false)
-  }
-
-  /** Tab / Shift+Tab: the next or previous unit of the same kind, in document order, wrapping around. */
-  private moveToPeer(step: 1 | -1): void {
-    const current = this.modeChain[this.modeDepth]
-    if (!current) return
-    const peers = peersOf(current, this.doc)
-    if (peers.length < 2) return
-    const index = peers.findIndex(peer => sameCandidate(peer, current))
-    const next = peers[(index + step + peers.length) % peers.length]!
-    // the chain is detected from the unit itself, so ↑↓ keep working from the new position
-    const chain = chainOf(next, this.doc)
-    const depth = chain.findIndex(candidate => sameCandidate(candidate, next))
-    this.setModeChain(depth >= 0 ? chain : [next], Math.max(depth, 0), true)
-  }
-
-  /** Outlines the current target and says what it is. `scroll`: bring it into view (keyboard moves only). */
-  private paintMode(scroll: boolean, force = false): void {
-    const candidate = this.modeChain[this.modeDepth]
-    if (!candidate) return
-    if (!force && !scroll && this.modePainted && sameCandidate(this.modePainted, candidate)) return
-    this.modePainted = candidate
-    if (scroll) candidateAnchor(candidate).scrollIntoView?.({ block: 'nearest', behavior: 'instant' })
-    this.outlineEl?.remove()
-    const outline = this.doc.createElement('div')
-    outline.setAttribute(ROOT_ATTR, 'block-outline')
-    outline.className = 'ann-block-outline ann-block-outline-keyboard'
-    const rect = candidateRect(candidate)
-    Object.assign(outline.style, { left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, height: `${rect.height}px` })
-    this.doc.documentElement.appendChild(outline)
-    this.outlineEl = outline
-    if (this.modeKindEl) {
-      const kind = uiText(`block.kind.${candidate.kind}` as 'block.kind.post')
-      const summary = candidateSummary(candidate)
-      const text = summary ? `${kind} · ${summary}` : kind
-      if (this.modeKindEl.textContent !== text) this.modeKindEl.textContent = text
-    }
-  }
-
-  private modeHintEl: HTMLElement | null = null
-  private readonly modeOnFocus = (): void => {
-    if (!this.modeHintEl) return
-    const note = this.modeHintEl.querySelector('.ann-block-mode-nofocus')
-    if (this.doc.hasFocus()) note?.remove()
-    else if (!note) {
-      const added = this.doc.createElement('span')
-      added.className = 'ann-block-mode-nofocus'
-      added.textContent = uiText('page.noFocus')
-      this.modeHintEl.appendChild(added)
-    }
+    this.hover.hide()
+    this.mode.enter()
   }
 
   exitBlockMode(): void {
-    if (this.modeKeyHandler) this.doc.removeEventListener('keydown', this.modeKeyHandler, true)
-    this.doc.removeEventListener('focus', this.modeOnFocus, true)
-    if (this.modeRepaint) {
-      this.doc.removeEventListener('scroll', this.modeRepaint, true)
-      this.doc.defaultView?.removeEventListener('resize', this.modeRepaint)
-    }
-    this.modeKeyHandler = null
-    this.modeRepaint = null
-    const restoreFocus = this.modeRestoreFocus
-    this.modeRestoreFocus = null
-    this.modeOverlay?.remove()
-    this.modeOverlay = null
-    this.modeStatusEl?.remove()
-    this.modeStatusEl = null
-    this.modeKindEl = null
-    this.outlineEl?.remove()
-    this.outlineEl = null
-    this.modeActive = false
-    this.modeChain = []
-    this.modePainted = null
-    this.modeDepth = 0
-    if (restoreFocus?.isConnected) restoreFocus.focus({ preventScroll: true })
+    this.mode.exit()
   }
 
   isBlockModeActive(): boolean {
-    return this.modeActive
+    return this.mode.active
   }
 }
 
-export type { BlockKind, BlockCandidate }
-export { deepElementFromPoint }
+export type { BlockCandidate }
