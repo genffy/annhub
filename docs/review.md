@@ -5,24 +5,26 @@
 ## 1. 规则
 
 1. **编号** `RV-<区域>-<序号>`，稳定、不复用。区域：`BG` 后台、`CORE` 领域核心、`LIB` 资料库与扩展页、`CAP` 页面采集、`TEST` 测试设施、`REC` 录屏、`DL` 下载、`DOC` 文档与约定。新序号取该区域用过的最大值加一，用过的编号这样列出：`git log -p -G 'RV-[A-Z]+-[0-9]' | grep -ohE 'RV-[A-Z]+-[0-9]+' | sort -u`。
-2. **只有两种去向**，都在处理它的 PR 里完成，合并时不留第三种：
+2. **只有两种去向**，都在处理它的那一组里完成，合并时不留第三种：
    - 修好：删掉条目；产品可见的行为写进归属规格；至少一个测试用例的名字带编号，有归属规格时同时带规格节号，如 `it('… (annotate.md §3.3, RV-REC-02)')`，改动前失败、改动后通过。这个用例只在产品方向改变、规格那一节随之改写时一起改或删。
    - 接受为已知问题：条目移到 §3，补上为什么现在不修、影响与绕行、什么情况下重新处理；产品可见的局限用现在时写进归属规格；加一个锁定当前行为的用例，名字带编号。以后修好时，这个用例改成断言修好的行为，条目删掉。
 3. **纯文档的条目**（`DOC`）没有可测的行为：能用 `check:docs` 或 `check:consistency` 的断言兜住的，加断言和它的测试；兜不住的，修好直接删。
-4. **门禁**：§2 为空才能发布；§3 的每一条都有锁定当前行为的用例，由产品负责人在发布前确认仍然接受（[roadmap.md §4](product/roadmap.md)）。
+4. **门禁**：审查分支的 §2 为空才合并进 main，main 上的 §2 因此总是空的；§3 的每一条都有锁定当前行为的用例，由产品负责人在发布前确认仍然接受（[roadmap.md §4](product/roadmap.md)）。
 5. **不进本文的**：超出字节预算的文件由 `scripts/size-ledger.json` 登记；待确认的产品决策、风险与开放问题进 [validation.md](product/validation.md)，条目里只写它们的编号；候选的新功能是 GitHub issue。
-6. **条目写法**：问题（现象、位置、违反的规格）、要求、验收（编号列表，验收者逐条核对）。代码位置写文件与函数名，不写行号。相关的条目编成一组、一个 PR，组内每条一个提交；组间的先后写在 §2 开头，一组处理完时一起改。
-7. **PR**：照 `.github/pull_request_template.md` 勾选，另外给出每条验收的证据（命令输出、测试名、截图或真机步骤）、改动前失败的那次输出，以及 `git diff --stat main...HEAD`，越出这一组的文件写明原因。没做的检查写“未做”和原因。
-8. **验收**：验收者在 PR 分支上自己重跑 `npm run verify`，动了扩展代码的再 `npm run build` 并跑这一组列出的 E2E，只贴在描述里的结果不采信。逐条核对验收项：测试类读断言，确认测的就是那条说的情形；命令类自己跑；执行者做不了的真机项，验收者在真实 Chrome 里补做，记下版本与步骤。不通过就在 PR 里写明哪条、看到的现象和复现命令。
-9. **通用要求**：不手改 `package-lock.json`，不加依赖与扩展权限；日志、指标与 `chrome.storage` 里不存密钥、页面正文或附件内容，`storage.session` 里也不存页面标题；不跳过、不禁用测试，不放宽任何 `check:*` 断言；行为变了，规格、用户故事与代码同一个 PR 改。
+6. **条目写法**：问题（现象、位置、违反的规格）、要求、验收（编号列表，验收者逐条核对）。代码位置写文件与函数名，不写行号。相关的条目编成一组，一组一个 worktree（第 10 条），组内每条一个提交；组间的先后写在 §2 开头，一组合并时一起改。
+7. **交付**：执行者在 worktree 里做完，交给验收者一份交付说明：照 `.github/pull_request_template.md` 逐项核对（review.md 那一项只看本组的条目），另外给出每条验收的证据（命令输出、测试名、截图或真机步骤）、改动前失败的那次输出，以及 `git diff --stat <审查分支>...HEAD`，越出这一组的文件写明原因。没做的检查写“未做”和原因。
+8. **验收**：验收者在这一组的 worktree 里自己重跑 `npm run verify`，动了扩展代码的再 `npm run build` 并跑这一组列出的 E2E，只写在交付说明里的结果不采信。逐条核对验收项：测试类读断言，确认测的就是那条说的情形；命令类自己跑；执行者做不了的真机项，验收者在真实 Chrome 里补做，记下版本与步骤。不通过就写明哪条、看到的现象和复现命令，执行者在同一个 worktree 里接着改。
+9. **通用要求**：不手改 `package-lock.json`，不加依赖与扩展权限；日志、指标与 `chrome.storage` 里不存密钥、页面正文或附件内容，`storage.session` 里也不存页面标题；不跳过、不禁用测试，不放宽任何 `check:*` 断言；行为变了，规格、用户故事与代码在同一组里改。
+10. **审查分支**：条目登记在审查分支上，也在这条分支上消除，同一时间只有一条。主工作区（仓库本身的检出，不是另拉的 worktree）检出它，只做登记与合并，合并前不留未提交的改动。每组从审查分支拉一个 worktree，执行与验收都在里面；各组的分支不推到 GitHub：执行、验收与合并都在本机，不为每一组和外部环境往返。main 有了新提交，在主工作区把 main 合并进审查分支并跑 `npm run verify`；不变基，各组的 worktree 是从它拉出的。
+11. **合并**：验收通过才合并，执行者不合并自己的分支。合并前在 worktree 里并入审查分支的最新提交、重跑 `npm run verify`，再在主工作区用 `git merge --ff-only` 合并，审查分支上落下的就是跑过检查的那个提交。并入时 review.md 可能冲突（各组删的是相邻的节），保留别组的节；别的文件也冲突，说明两组改的代码相交，回到验收。合并后删掉 worktree 与它的分支。
 
 ## 2. 待处理
 
-下面各组互不依赖，改的代码不相交，可以马上并行；每组的 PR 删掉自己那一组，最后合并的那一组连同这句一起删。
+下面各组互不依赖，改的代码不相交，可以各开一个 worktree 并行；每组删掉自己那一组，最后合并的那一组连同这句一起删。
 
 ### 录屏可靠性
 
-两条都在录制链路上，一个 PR。规格是 [annotate.md §2.1、§2.4、§2.5](product/annotate.md)（开始与停止、失败、验收与测试）与 [metrics.md §9](product/metrics.md)；产品行为不变，只改实现。要跑的 E2E：`popup-entry.spec.ts`、`recording-annotation.spec.ts`、`page-annotation.spec.ts`、`cold-start.spec.ts`。
+两条都在录制链路上，一起改。规格是 [annotate.md §2.1、§2.4、§2.5](product/annotate.md)（开始与停止、失败、验收与测试）与 [metrics.md §9](product/metrics.md)；产品行为不变，只改实现。要跑的 E2E：`popup-entry.spec.ts`、`recording-annotation.spec.ts`、`page-annotation.spec.ts`、`cold-start.spec.ts`。
 
 #### RV-REC-05 offscreen 守卫的判断反了，旧状态照样挡住新录制（高）
 
@@ -76,7 +78,7 @@
 
 ### 下载同名
 
-一个 PR。替换的提交点是产品可见的行为，写进 [download.md §2.5、§4.1](product/download.md)；其余行为照 download.md §8 与 D-94 不变。要跑的 E2E：`page-download.spec.ts`、`library-download.spec.ts`、`source-page-download.spec.ts`。
+替换的提交点是产品可见的行为，写进 [download.md §2.5、§4.1](product/download.md)；其余行为照 download.md §8 与 D-94 不变。要跑的 E2E：`page-download.spec.ts`、`library-download.spec.ts`、`source-page-download.spec.ts`。
 
 #### RV-DL-01 同一来源替换时，失败或取消毁掉旧版本（中）
 
@@ -109,7 +111,7 @@
 
 ### 导出 ZIP64
 
-一个 PR。`core/export.ts` 与 `entrypoints/offscreen/download-run.ts` 调用同一个 `buildZip`，两处调用方不用改；规格是 [storage.md §6](product/storage.md) 的 D-95。要跑的 E2E：`library-export.spec.ts`、`library-download.spec.ts`。
+`core/export.ts` 与 `entrypoints/offscreen/download-run.ts` 调用同一个 `buildZip`，两处调用方不用改；规格是 [storage.md §6](product/storage.md) 的 D-95。要跑的 E2E：`library-export.spec.ts`、`library-download.spec.ts`。
 
 #### RV-CORE-10 越过 4 GB 的 ZIP64 归档读不出来（高）
 
@@ -121,7 +123,7 @@
 - 越界的判断都用 `>`：恰好等于 `0xFFFFFFFF` 的大小或偏移、恰好 65,535 的条目数照原样写进头里，读取方会把这个值当成“去 ZIP64 字段里取”。
 - `core/__tests__/zip.test.ts` 里注释为 `the extra keeps APPNOTE's order: sizes first (real values), then the offset` 的那几条断言，断言的正是错误的布局。
 - 整库导出与下载的 ZIP 形态都走 `buildZip`：图片合计越过 4 GB 的库得到一份打不开的 ZIP，过程中不报错。导出是用户把数据带走的唯一途径。
-- [validation.md §2](product/validation.md) 要求实现决策的 PR 删掉对应条目，validation.md 里的 D-95 还在。storage.md 的 D-95 写着“导出不再让人先删条目”，是讲变化的写法；它说几个解压工具都能打开 ZIP64 归档，实测只做过条目数越界的那一种。
+- [validation.md §2](product/validation.md) 要求实现决策的改动删掉对应条目，validation.md 里的 D-95 还在。storage.md 的 D-95 写着“导出不再让人先删条目”，是讲变化的写法；它说几个解压工具都能打开 ZIP64 归档，实测只做过条目数越界的那一种。
 
 **要求**
 
@@ -129,7 +131,7 @@
 2. 结束记录里任一字段越界（条目数、中央目录大小、中央目录偏移）就写 ZIP64 结束记录与定位记录，不只看条目本身。
 3. 越界一律按 `>=` 判断：等于 `0xFFFFFFFF` 或 `0xFFFF` 的值也走 ZIP64。
 4. 改写上面那几条断言，按要求 1–3 补布局用例（用假的大小与偏移，不读数据）。
-5. 实测：本机造两份归档，用真实工具打开，输出贴进 PR。一份是两个文件（约 3 GB 与 2 GB，可以用 `mkfile -n` 造），中央目录从 4 GB 之后开始；另一份在它们后面再加一个小文本文件，这个文件的偏移越过 4 GB。工具是 `unzip -t`、`python3 -m zipfile -t`、`bsdtar -tf` 和 macOS“归档实用工具”。
+5. 实测：本机造两份归档，用真实工具打开，输出贴进交付说明。一份是两个文件（约 3 GB 与 2 GB，可以用 `mkfile -n` 造），中央目录从 4 GB 之后开始；另一份在它们后面再加一个小文本文件，这个文件的偏移越过 4 GB。工具是 `unzip -t`、`python3 -m zipfile -t`、`bsdtar -tf` 和 macOS“归档实用工具”。
 6. 从 validation.md 删掉 D-95；storage.md §6 的 D-95 用现在时写，能打开归档的工具只写实测过的归档与工具。
 
 **验收**
@@ -143,7 +145,7 @@
 
 ### 区块胶囊的目标
 
-三条都在区块胶囊上，一个 PR：RV-CAP-13、RV-CAP-14 改 `entrypoints/content/index.tsx` 的 `wireBlockEntries`，RV-CAP-15 改 `block-hover.ts` 的 `reveal`。规格是 [capture.md §6.2](product/capture.md) 与 [screenshot.md §1](product/screenshot.md)；描边、剪藏与下载取的东西不变，截图与编辑气泡改成跟描边一致，有选区或正在拖选时胶囊不出现。取目标的规则（D-96）与误点防护（D-97）本组不预设结论，也不等它们。要跑的 E2E：`block-clip.spec.ts`、`page-shapes.spec.ts`、`screenshot-anonymize.spec.ts`、`page-entry.spec.ts`、`selection-clip.spec.ts`。
+三条都在区块胶囊上，一起改：RV-CAP-13、RV-CAP-14 改 `entrypoints/content/index.tsx` 的 `wireBlockEntries`，RV-CAP-15 改 `block-hover.ts` 的 `reveal`。规格是 [capture.md §6.2](product/capture.md) 与 [screenshot.md §1](product/screenshot.md)；描边、剪藏与下载取的东西不变，截图与编辑气泡改成跟描边一致，有选区或正在拖选时胶囊不出现。取目标的规则（D-96）与误点防护（D-97）本组不预设结论，也不等它们。要跑的 E2E：`block-clip.spec.ts`、`page-shapes.spec.ts`、`screenshot-anonymize.spec.ts`、`page-entry.spec.ts`、`selection-clip.spec.ts`。
 
 #### RV-CAP-13 胶囊与区块模式的截图丢掉一节的区间，截成整篇正文（中）
 
