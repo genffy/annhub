@@ -370,16 +370,16 @@ function depth(el: Element): number {
 }
 
 /**
- * The rectangle a candidate paints: the union of a range section's sibling
- * run, or the element's own box.
+ * The union rect of a section's sibling run — the box a section paints, captures
+ * and anchors its toast against. Falls back to the element's own box when the
+ * interval holds nothing laid out.
  */
-export function candidateRect(candidate: BlockCandidate): DOMRect {
-  if (!candidate.range) return candidate.element.getBoundingClientRect()
-  const parent = candidate.range.start.parentElement
-  if (!parent) return candidate.element.getBoundingClientRect()
+export function sectionIntervalRect(element: Element, range: NonNullable<BlockCandidate['range']>): DOMRect {
+  const parent = range.start.parentElement
+  if (!parent) return element.getBoundingClientRect()
   const children = Array.from(parent.children)
-  const from = children.indexOf(candidate.range.start)
-  const to = candidate.range.end ? children.indexOf(candidate.range.end) : children.length
+  const from = children.indexOf(range.start)
+  const to = range.end ? children.indexOf(range.end) : children.length
   const boxes: DOMRect[] = []
   for (let i = from; i >= 0 && i < to; i++) {
     const child = children[i]!
@@ -387,12 +387,36 @@ export function candidateRect(candidate: BlockCandidate): DOMRect {
     if (style.display === 'none' || style.visibility === 'hidden') continue
     boxes.push(child.getBoundingClientRect())
   }
-  if (boxes.length === 0) return candidate.element.getBoundingClientRect()
+  if (boxes.length === 0) return element.getBoundingClientRect()
   const left = Math.min(...boxes.map(box => box.left))
   const top = Math.min(...boxes.map(box => box.top))
   const right = Math.max(...boxes.map(box => box.right))
   const bottom = Math.max(...boxes.map(box => box.bottom))
   return new DOMRect(left, top, right - left, bottom - top)
+}
+
+/**
+ * The rectangle a candidate paints: the union of a range section's sibling
+ * run, or the element's own box.
+ */
+export function candidateRect(candidate: BlockCandidate): DOMRect {
+  if (!candidate.range) return candidate.element.getBoundingClientRect()
+  return sectionIntervalRect(candidate.element, candidate.range)
+}
+
+/**
+ * A DOM Range covering a section's interval — the anchor its toast and edit
+ * bubble sit against, where an element-kind block anchors on the element
+ * itself (RV-CAP-14).
+ */
+export function candidateDomRange(candidate: BlockCandidate): Range | null {
+  if (!candidate.range) return null
+  const range = candidate.element.ownerDocument.createRange()
+  range.setStartBefore(candidate.range.start)
+  // the interval ends just before the next heading, the same edge every union rect uses
+  if (candidate.range.end) range.setEndBefore(candidate.range.end)
+  else range.setEnd(candidate.element, candidate.element.childNodes.length)
+  return range
 }
 
 // ── Keyboard block mode helpers (capture.md §6.2) ─────────────────────────

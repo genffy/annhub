@@ -36,7 +36,7 @@ async function landed(page: import('@playwright/test').Page): Promise<{ mime: st
   )
 }
 
-/** Every Markdown text a run wrote: the folder form's files are blob: downloads now (RV-DL-02), a legacy data: URL still decodes. */
+/** Every Markdown text a run wrote: the worker encodes the folder form's Markdown as a data: URL (dataUrlOf). */
 function markdownsOf(items: { mime: string; url: string }[]): string[] {
   return items
     .filter(item => item.mime === 'text/markdown' || item.url.startsWith('data:text/markdown'))
@@ -168,7 +168,7 @@ test.describe('page downloads (download.md §2, §4, §5)', () => {
     })
     await downloadMainArticle(page)
     await waitForDoneNotice(page, '已下载')
-    // Read the landed file: the folder form's Markdown is a blob: download now, its URL carries no text.
+    // Read the landed file: the folder form's Markdown is a data: URL and decodes whole, but the file is the truth.
     const markdown = await markdownFromFile(page)
     expect(markdown.length).toBeGreaterThan(100_000)
     expect(markdown).toContain('Alice: Last comment')
@@ -179,7 +179,8 @@ test.describe('page downloads (download.md §2, §4, §5)', () => {
 
   test('a Markdown past the data-URL limit still lands whole (folder form, RV-DL-02)', async ({ page }) => {
     await page.goto(ARTICLE_URL)
-    // about 3.8 MB of converted Markdown: past Chromium's ~2 MB data: URL cap, the old path failed here
+    // about 3.8 MB of converted Markdown on the data: URL path — the regression case for RV-DL-02: Chromium's
+    // downloads API lands data: URLs of this size whole, and this stays green if that ever changes
     await page.locator('#post').evaluate(el => {
       el.innerHTML = `<h1>Very long article</h1><p>${'Very long page content. '.repeat(160_000)}</p><p>LONGPAGE END</p>`
     })
@@ -293,6 +294,43 @@ test.describe('page downloads (download.md §2, §4, §5)', () => {
     await expect(notice(page)).toContainText('已取消下载')
     // nothing of this run stays: no Markdown landed for it (cancel undid the run's files)
     await expect.poll(async () => (await landed(page)).filter(item => item.url.startsWith('data:text/markdown')).length, { timeout: 10_000 }).toBe(0)
+  })
+
+  test('a replacement cancelled while the slow medium is still fetching keeps the first download whole (RV-DL-01)', async ({ page }) => {
+    test.slow()
+    await page.goto(SLOW_URL)
+    // the first download of this page completes: one Markdown, one medium on the disk
+    await startSlowDownload(page)
+    await waitForDoneNotice(page, '已下载')
+    const first = await landed(page)
+    const firstMarkdown = markdownOf(first)
+    const firstMedium = first.find(item => item.mime === 'image/png')!
+    expect(firstMarkdown).toContain('Slow post')
+
+    // the same page again, cancelled while the medium is still on its way (download.md §2.5)
+    await startSlowDownload(page)
+    await expect(notice(page)).toContainText('正在下载')
+    await notice(page).getByRole('button', { name: '取消' }).click()
+    await expect(notice(page)).toContainText('已取消下载')
+    const afterCancel = await landed(page)
+    expect(afterCancel.filter(item => item.url.startsWith('data:text/markdown'))).toHaveLength(1)
+    expect(afterCancel.filter(item => item.mime === 'image/png')).toHaveLength(1)
+    expect(markdownOf(afterCancel), 'the first Markdown is untouched').toBe(firstMarkdown)
+    await expect(readFile(firstMedium.path), 'the first medium is still on the disk').resolves.toBeInstanceOf(Buffer)
+
+    // a third run of the same source completes: the new Markdown links exactly the files that landed for it
+    // (the folder's on-disk shape — the sweep of the first version's files — is a real-machine item, Q-25)
+    await startSlowDownload(page)
+    await waitForDoneNotice(page, '已下载')
+    const third = await landed(page)
+    // the history is newest first: the newest Markdown is this run's
+    const newestMarkdown = markdownOf([third.find(item => item.url.startsWith('data:text/markdown'))!])
+    const assetLink = /!\[[^\]]*\]\(assets\/([^)]+)\)/.exec(newestMarkdown)?.[1]
+    expect(assetLink).toBeTruthy()
+    const linked = third.filter(item => item.name === assetLink)
+    expect(linked).toHaveLength(1)
+    await expect(readFile(linked[0]!.path)).resolves.toBeInstanceOf(Buffer)
+    expect(linked[0]!.name, 'the replacement writes beside the old medium, never over it').not.toBe(firstMedium.name)
   })
 
   test("the popup's 下载本页正文 downloads the page's main article (§2.3)", async ({ page, extensionId }) => {

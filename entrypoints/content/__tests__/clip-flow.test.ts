@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import MessageUtils from '../../../utils/message'
-import { isClipFailure, openEditBubble, saveSelectionClip, showClipToast, showFailureToast } from '../clip-flow'
+import { blockClipAnchor, isClipFailure, openEditBubble, saveSelectionClip, showClipToast, showFailureToast } from '../clip-flow'
+import type { BlockCandidate } from '../blocks'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -165,5 +166,44 @@ describe('the tag field commits chips and refuses what the property refuses (ext
     input.value = 'retry'
     input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
     expect(bubble.querySelector('.ann-clip-edit-chip button')!.getAttribute('aria-label')).toBe('移除标签：retry')
+  })
+})
+
+describe('a block clip anchors its toast on what was clipped (RV-CAP-14)', () => {
+  const SECTION_LONG = 'This sentence is deliberately long so the block clears the 120 character minimum for sections. '.repeat(3)
+  const FLAT = `<div class="content" id="content">
+    <h2 id="h-install">Install</h2><p id="p1">${SECTION_LONG}</p><p id="p2">${SECTION_LONG}</p>
+    <h2 id="h-usage">Usage</h2><p>${SECTION_LONG}</p>
+  </div>`
+
+  function sectionCandidate(): BlockCandidate {
+    document.body.innerHTML = FLAT
+    return {
+      kind: 'section',
+      element: document.getElementById('content')!,
+      range: { start: document.getElementById('h-install')!, end: document.getElementById('h-usage')! },
+    }
+  }
+
+  it('a section anchors on its interval: the edit bubble sits beside the run, not beside the taller container', () => {
+    const candidate = sectionCandidate()
+    const anchor = blockClipAnchor(candidate)
+    expect(anchor).toBeInstanceOf(Range)
+    // jsdom lays nothing out: the run's union rect, and a container far taller than the window
+    ;(anchor as Range).getBoundingClientRect = () => new DOMRect(100, 200, 300, 80)
+    candidate.element.getBoundingClientRect = () => new DOMRect(100, 0, 300, 5000)
+    showClipToast({ entryId: 'ent_1', title: 'T', truncated: false }, anchor)
+    const edit = [...document.querySelectorAll<HTMLButtonElement>('[data-ann-ui="clip-toast"] button')].find(button => button.textContent === '编辑')!
+    edit.click()
+    const bubble = document.querySelector<HTMLElement>('[data-ann-ui="clip-edit"]')!
+    // beside the section's own bottom edge (200 + 80 + 8), never the container's clamped top (8)
+    expect(Number.parseFloat(bubble.style.top)).toBe(288)
+    expect(Number.parseFloat(bubble.style.left)).toBe(100)
+  })
+
+  it('an element-kind block keeps anchoring on the element itself', () => {
+    document.body.innerHTML = '<pre id="code">const a = 1</pre>'
+    const candidate = { kind: 'code', element: document.getElementById('code')! } as BlockCandidate
+    expect(blockClipAnchor(candidate)).toBe(candidate.element)
   })
 })
