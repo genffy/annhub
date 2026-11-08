@@ -100,6 +100,9 @@ const ICONS = [
   'mouse-pointer-click',
   'text-select',
   'panel-right',
+  // 区块胶囊的换层：外一层、里一层（capture.md §6.2）
+  'expand',
+  'shrink',
   // 截图工具栏与精确选区（screenshot.md §1.1、§1.2）
   'square',
   'circle',

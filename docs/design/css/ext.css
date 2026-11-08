@@ -2597,7 +2597,7 @@
   color: #8fd6b4;
 }
 
-.blk-pill.is-press .bp-seg {
+.blk-pill.is-press .bp-seg-clip {
   background: rgb(255 255 255 / 0.16);
 }
 
@@ -3156,6 +3156,96 @@
 .blk-pill.pin-top {
   top: 12px;
   right: 22px;
+}
+
+/* 换层按钮：（里一层）、外一层，和三个动作之间隔一条细线（capture §6.2）。胶囊靠右缘定位，多出「里一层」时向左长，「外一层」不移位 */
+.blk-pill .bp-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: rgb(255 255 255 / 0.16);
+}
+
+.blk-pill .bp-seg {
+  position: relative;
+}
+
+.blk-pill .bp-seg.bp-lv .i {
+  color: #e6e9f0;
+}
+
+.blk-pill .bp-seg.is-hot {
+  background: rgb(255 255 255 / 0.16);
+}
+
+/* 已是最外一层：变灰，不回绕；aria-disabled，读屏里仍在 */
+.blk-pill .bp-seg.is-off .i {
+  opacity: 0.3;
+}
+
+.blk-pill .bp-seg.is-off.is-hot {
+  background: rgb(255 255 255 / 0.06);
+}
+
+/* 悬停提示：按钮的名称，出现在按钮下方 */
+.blk-pill .bp-tip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  z-index: 2;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: #1b1f2a;
+  color: #eceff6;
+  font: 500 11.5px/1.45 var(--font-ui);
+  white-space: nowrap;
+  box-shadow:
+    0 6px 16px -6px rgb(0 0 0 / 0.5),
+    0 0 0 1px rgb(255 255 255 / 0.08);
+  pointer-events: none;
+}
+
+/* 换层按钮靠近胶囊右端：提示右对齐，不伸出胶囊右缘太多 */
+.blk-pill .bp-lv .bp-tip {
+  right: -6px;
+  left: auto;
+  transform: none;
+}
+
+/* 胶囊在左边时，提示向右展开，留在目标里 */
+.blk-pill.at-tl .bp-lv .bp-tip,
+.blk-pill.at-bl .bp-lv .bp-tip {
+  right: auto;
+  left: -6px;
+}
+
+/* 预览：指针停在换层按钮上时，虚线描出点下去会换到的那一层，并标出它的类型与范围；当前一层的实线不变 */
+.blk.is-preview {
+  z-index: 17;
+  border: 2px dashed var(--brand);
+  background: transparent;
+}
+
+.blk.is-preview em {
+  background: #fff;
+  color: var(--brand);
+  box-shadow: inset 0 0 0 1.5px var(--brand);
+}
+
+/* 标注与胶囊不在同一角：胶囊在左上角时，标注放在上沿的右端 */
+.blk em.at-r {
+  right: 8px;
+  left: auto;
+}
+
+/* 静态画板里被描边的段落、标题、列表：包一层定位容器，不改排版 */
+.mk {
+  position: relative;
+}
+
+.pg-art.has-outer {
+  position: relative;
 }
 
 /* 页面自己的控件：X 帖子右上角的“更多”、文档代码块右上角的“复制” */
