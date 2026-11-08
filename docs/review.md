@@ -76,39 +76,6 @@
 5. 单测：session 记录的字段断言是要求 2 的集合，并断言里面没有标题、页面地址或视频字节。
 6. 真机：带麦克风开始录制，在 `chrome://serviceworker-internals` 对 AnnHub 的 worker 点 Stop，10 秒内（offscreen 的心跳会在 10 秒内把 worker 叫醒）按录制快捷键：录制停止，视频下载、能播放。再录一次，点 Stop 后 10 秒内关掉被录的标签页：视频自动下载。
 
-### 下载同名
-
-替换的提交点是产品可见的行为，写进 [download.md §2.5、§4.1](product/download.md)；其余行为照 download.md §8 与 D-94 不变。要跑的 E2E：`page-download.spec.ts`、`library-download.spec.ts`、`source-page-download.spec.ts`。
-
-#### RV-DL-01 同一来源替换时，失败或取消毁掉旧版本（中）
-
-**问题**
-
-- download.md §2.5、§4.1、§8 要求替换时取消或失败，旧文件一个也不动，旧 Markdown 一个也不删。`background-service/services/download/index.ts` 的 `writeFolderRun` 在媒体写失败（`writeFailed`）之后照样进入 Markdown 阶段，替换时 Markdown 与 README 用 `overwrite`：旧 Markdown 被一份把这个媒体标成缺失的新 Markdown 盖掉。
-- `cancel()` 只看 `run.ending`，它到 `finishRun` 才置位。Markdown 已经盖掉旧的、`sweepReplacedFolder` 正在清旧文件时按取消：`cancel()` 删掉本次写下的全部文件，包括刚盖掉旧 Markdown 的那一份；清理不看取消，照样删完旧文件。文件夹里一个完整的版本也不剩。
-- `sweepReplacedFolder` 与 `ownership.ts` 的 `occupiedNames` 调 `chrome.downloads.search({})`，没给 `limit` 时浏览器只返回 1000 项：下载历史更长时，被占用的名字查不全，不同来源可能写进同一个文件夹，替换后的旧文件也清不全。
-- 带本编号的用例 `a cancel or an interrupted write during the media stage leaves the old files and the old Markdown whole …`（`download.test.ts`）其实是一次落到 ` (2)` 的首次下载再取消：没有替换，也没有被中断的写入，名字里说的两种情形都没测到。
-- [roadmap.md §3](product/roadmap.md) 那一行的来源写着“本 PR，无 issue”，合并之后指不到任何 PR。
-- `e2e/page-download.spec.ts` 的两处注释与代码不符：`markdownsOf` 的说明说文件夹形态的文件是 `blob:` 下载，3.8 MB 那条用例的注释说这里的写法会失败。实际上 Markdown 由 worker 的 `dataUrlOf` 编成 `data:` URL，这条用例在 `data:` 的写法上通过，是 RV-DL-02 留下的回归用例。
-
-**要求**
-
-1. 提交点：替换的第一个 `overwrite` 落盘之后，取消不起作用：`cancel()` 不删任何文件，这次下载照常写完、清完旧文件、记下归属，按完成或部分结束。提交点之前的取消照旧只删本次新建的文件。提交点写进 download.md §2.5 与 download.md §4.1。
-2. 替换时媒体阶段有一个文件没写成：不写 Markdown 与 README，这次下载按失败结束，旧版本原样留着；已经写好的新媒体按 download.md §8 留下，重试成功后清掉。首次下载不受影响。
-3. `occupiedNames` 与 `sweepReplacedFolder` 查下载历史时传 `limit: 0`（返回全部）。
-4. 改写上面那条用例：先完成一次下载并记下归属，再按同一来源替换，分别测媒体阶段取消、Markdown 落盘之后取消、媒体写入被浏览器中断三种情形。替身的 `downloads.search` 在没给 `limit` 时只返回前 1000 项，与浏览器一致。
-5. roadmap.md §3 那一行的来源写成 PR 的链接 `https://github.com/genffy/annhub/pull/179`。
-6. `e2e/page-download.spec.ts` 那两处注释照代码写：文件夹形态的 Markdown 是 `data:` URL，3.8 MB 那条是回归用例。
-
-**验收**
-
-1. 单测（替换，媒体阶段取消）：旧文件一个也没有被 `removeFile`，没有任何 `overwrite` 写入；被删的只有本次新建的媒体。
-2. 单测（替换，Markdown 落盘之后取消）：`removeFile` 没有落到本次写下的任何文件上，结果是完成；清理之后文件夹里恰好是新 Markdown 引用的文件。
-3. 单测（替换，一个媒体的写入被中断）：Markdown 与 README 都没有 `overwrite` 写入，旧文件一个也没有被删，结果是失败、可以重试；重试成功后，旧文件和上次留下的新媒体都被清掉。
-4. 单测：下载历史超过 1000 项、第 1001 项占着这个标题的名字：新下载避开它，落到 ` (2)`。
-5. E2E（扩充 `page-download.spec.ts`）：同一页面下载两次，第二次在慢媒体还在取回时取消：第一次的 Markdown 与媒体都在，内容不变。再下载一次并完成：文件夹里恰好是新 Markdown 引用的文件。
-6. `git grep -n "本 PR" docs/product/` 没有结果；download.md §2.5、§4.1 写明提交点；`e2e/page-download.spec.ts` 的注释与代码一致；`npm run check:docs` 通过。
-
 ### 导出 ZIP64
 
 `core/export.ts` 与 `entrypoints/offscreen/download-run.ts` 调用同一个 `buildZip`，两处调用方不用改；规格是 [storage.md §6](product/storage.md) 的 D-95。要跑的 E2E：`library-export.spec.ts`、`library-download.spec.ts`。

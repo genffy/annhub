@@ -61,6 +61,8 @@ interface ActiveRun {
   cancelled: boolean
   abort: AbortController
   writes: Set<Promise<WrittenFile>>
+  /** True once a replacement's first `overwrite` has landed: past this commit point a cancel changes nothing (download.md §2.5). */
+  committed?: boolean
   ending?: boolean
   watchdog?: ReturnType<typeof setTimeout>
 }
@@ -426,9 +428,11 @@ export class DownloadService implements IService {
   /**
    * The folder form (download.md §4.1): media first as their own browser downloads — the browser's real file names are
    * what the Markdown links — then the Markdown and README. Media always write `uniquify`: a name on disk is never
-   * overwritten, a replaced product's new media land beside the old ones as ` (1)`. A replacement's Markdown and README
-   * write last, `overwrite`; once the Markdown has landed, the folder's files this run did not write are removed —
-   * never before, so a cancel or failure leaves the previous version whole (download.md §8).
+   * overwritten, a replaced product's new media land beside the old ones as ` (1)`. A replacement whose media did not
+   * all land writes no Markdown or README and fails with the old version whole. A replacement's Markdown and README
+   * write last, `overwrite`; the first one to land is the commit point past which a cancel changes nothing
+   * (download.md §2.5), and once it has landed, the folder's files this run did not write are removed — never before,
+   * so a cancel or failure leaves the previous version whole (download.md §8).
    */
   private async writeFolderRun(run: ActiveRun, fetched: DownloadItemOutcome[], offline: boolean): Promise<void> {
     const byRef = new Map<string, DownloadItemOutcome>()
@@ -459,12 +463,29 @@ export class DownloadService implements IService {
       if (this.run !== run) return // cancelled while writing
     }
     const finalOutcomes = [...byRef.values()] as Parameters<typeof run.plan.compose>[0]
+    // a replacement whose media did not all land writes no Markdown or README: the old version must not be
+    // overwritten by a Markdown that marks its own media missing. The written new media stay (download.md §8),
+    // a retry that succeeds sweeps them with the rest. A first download keeps today's behavior.
+    if (run.replacing && writeFailed) {
+      await this.finishRun(
+        run,
+        'failed',
+        { errorCode: 'DOWNLOAD_FAILED' },
+        finalOutcomes.filter(item => item.status === 'saved').length,
+        finalOutcomes.filter(item => item.status !== 'saved').length,
+      )
+      return
+    }
     const { files, missing: missingItems } = run.plan.compose(finalOutcomes, offline)
     let first: number | null = null
     for (const file of files) {
       const landed = await this.writeDownload(run, dataUrlOf(file.text), `${run.plan.basePath}/${file.path}`, run.replacing ? 'overwrite' : 'uniquify')
       if (!landed) writeFailed = true
-      else writtenPaths.add(normalizePath(landed.path))
+      else {
+        // the first overwrite to land is the replacement's commit point: from here a cancel changes nothing (download.md §2.5)
+        if (run.replacing) run.committed = true
+        writtenPaths.add(normalizePath(landed.path))
+      }
       if (landed && first === null) first = landed.id
       if (this.run !== run || run.cancelled) return
     }
@@ -486,7 +507,8 @@ export class DownloadService implements IService {
   private async sweepReplacedFolder(run: ActiveRun, writtenPaths: Set<string>): Promise<void> {
     try {
       const folder = normalizePath(run.plan.basePath.replace(/^AnnHub\//, ''))
-      const items = await chrome.downloads.search({})
+      // limit: 0 — the browser caps an unbounded search at 1000 items, a longer history would leave old files behind
+      const items = await chrome.downloads.search({ limit: 0 })
       for (const item of items) {
         const lower = normalizePath((item.filename ?? '').replace(/\\/g, '/'))
         const at = lower.lastIndexOf('/annhub/')
@@ -572,7 +594,8 @@ export class DownloadService implements IService {
 
   private async cancel(): Promise<void> {
     const run = this.run
-    if (!run || run.ending) return
+    // past the replacement's commit point a cancel changes nothing: the run writes on to its own end (download.md §2.5)
+    if (!run || run.ending || run.committed) return
     run.cancelled = true
     run.abort.abort()
     // stop the fetches and the in-flight files, remove what already landed (download.md §2.5); the folder the browser made stays
