@@ -14,15 +14,24 @@ test.describe('block detection on real page shapes (capture.md §6.2)', () => {
     await clearLibrary(context)
   })
 
-  test('a flat document: hovering a paragraph starts at the paragraph; 外一层 clips its heading run, not the page', async ({ page }) => {
+  test('a flat document: the paragraph clips itself, the heading clips its whole run', async ({ page }) => {
     await page.goto(`${BASE}/flatdoc.html`)
     const capsule = await hoverForCapsule(page, '#flat-install-p')
     await expect(page.locator('[data-ann-ui="block-label"]')).toContainText('段落')
-    await capsule.getByRole('button', { name: '外一层' }).click()
-    await expect(page.locator('[data-ann-ui="block-label"]')).toContainText('一节')
     await capsule.getByRole('button', { name: '剪藏' }).click()
     await waitForClipToast(page)
-    const entry = (await getEntries(page.context()))[0]!
+    const paragraph = (await getEntries(page.context()))[0]!
+    expect(paragraph.content).toContain('Installing takes one command')
+    expect(paragraph.content).not.toContain('## Install')
+
+    // the heading's start is the section it begins (capture.md §6.2)
+    const headingCapsule = await hoverForCapsule(page, '#flat-install')
+    await expect(page.locator('[data-ann-ui="block-label"]')).toContainText('一节')
+    await headingCapsule.getByRole('button', { name: '剪藏' }).click()
+    await waitForClipToast(page)
+    const entries = await getEntries(page.context())
+    expect(entries).toHaveLength(2)
+    const entry = entries[1]!
     expect(entry.content).toContain('## Install')
     expect(entry.content).toContain('Installing takes one command')
     expect(entry.content).toContain('A second paragraph in the same section')
@@ -36,8 +45,9 @@ test.describe('block detection on real page shapes (capture.md §6.2)', () => {
     // under the rasterizer's 1200px width clamp the clone would reflow narrower than the outline: compare like for like
     await page.setViewportSize({ width: 1000, height: 700 })
     await page.goto(`${BASE}/flatdoc.html`)
-    const capsule = await hoverForCapsule(page, '#flat-install-p')
-    await capsule.getByRole('button', { name: '外一层' }).click()
+    // the heading's start is the section it begins: the shot targets the run
+    const capsule = await hoverForCapsule(page, '#flat-install')
+    await expect(page.locator('[data-ann-ui="block-label"]')).toContainText('一节')
     const outline = page.locator('[data-ann-ui="block-outline"]')
     await expect(outline).toBeVisible()
     const outlined = await outline.evaluate(element => ({ width: Number.parseFloat(element.style.width), height: Number.parseFloat(element.style.height) }))
@@ -170,24 +180,31 @@ test.describe('block detection on real page shapes (capture.md §6.2)', () => {
     expect(entry.content.trim()).toMatch(/^```\w*\nlet s = "hello";\n```$/)
   })
 
-  test('a blog made of divs: the post container is found and clipped whole', async ({ page }) => {
+  test('a blog made of divs: block mode ↑ clips the post container whole', async ({ page }) => {
     await page.goto(`${BASE}/divsoup.html`)
-    const capsule = await hoverForCapsule(page, '#soup-2')
-    await expect(page.locator('[data-ann-ui="block-label"]')).toContainText('段落')
-    await capsule.getByRole('button', { name: '外一层' }).click()
-    await expect(page.locator('[data-ann-ui="block-label"]')).toContainText('文章')
-    await capsule.getByRole('button', { name: '剪藏' }).click()
+    await page.locator('#soup-2').evaluate(element => {
+      element.setAttribute('tabindex', '0')
+      ;(element as HTMLElement).focus()
+    })
+    await triggerBlockMode(page)
+    const kind = page.locator('.ann-block-mode-kind')
+    await expect(kind).toContainText('段落')
+    await page.keyboard.press('ArrowUp')
+    await expect(kind).toContainText('文章')
+    await page.keyboard.press('Enter')
     await waitForClipToast(page)
     const entry = (await getEntries(page.context()))[0]!
     for (const words of ['first paragraph', 'second paragraph', 'third paragraph']) expect(entry.content).toContain(words)
   })
 
-  test('a documentation page: the hover clips the section run, block mode ↑ the whole article', async ({ page }) => {
+  test('a documentation page: the hover on a heading clips the section run, block mode ↑ the whole article', async ({ page }) => {
     await page.goto(`${BASE}/docusaurus.html`)
-    const capsule = await hoverForCapsule(page, '#docus-p2')
+    const capsule = await hoverForCapsule(page, '#docus-h2')
+    await expect(page.locator('[data-ann-ui="block-label"]')).toContainText('一节')
     await capsule.getByRole('button', { name: '剪藏' }).click()
     await waitForClipToast(page)
     const section = (await getEntries(page.context()))[0]!
+    expect(section.content).toContain('## Configuration')
     await clearLibrary(page.context())
 
     await page.locator('#docus-p2').click()

@@ -58,29 +58,25 @@ const miniView = (inner, h = 380) => `<div class="mv" style="height:${h}px">${in
 
 // ── 区块剪藏：指针在一块内容上停下，描边上沿标出类型与范围，旁边出现胶囊（capture §6.2）──────
 // 入口只是扩展自己的浮层：描边 + 标注 + 一枚深色胶囊，不改网页，也不在页面上留记号。
-// 按钮从左到右：剪藏、截图、下载 | （里一层）、外一层 | 更多；只带图标，名称在悬停提示与读屏名称里。
+// 按钮从左到右：剪藏、截图、下载、更多；只带图标，名称在悬停提示与读屏名称里。没有换层级的按钮：范围完全看指针停在哪里。
 // o.cls 是位置：默认右上角（左右缘在区块内，上沿跨出一小段）；at-tl 左上角、at-br 右下角、at-bl 左下角；pin-top 贴着窗口里可见部分的上沿（区块比窗口高时）。
-// o.inner：当前目标里面还有链上的层，「外一层」左边出现「里一层」；o.top：已是最外一层，「外一层」变灰；
-// o.hot：指针停着的按钮（clip / shot / download / inner / outer），画出悬停状态与提示；o.tip：提示的文字（换层按钮的提示带着下一层的标注）
 const BLK_LABELS = {
-  zh: { clip: '剪藏', shot: '截图', download: '下载', inner: '里一层', outer: '外一层', more: '更多' },
-  en: { clip: 'Clip', shot: 'Screenshot', download: 'Download', inner: 'Shrink', outer: 'Expand', more: 'More' },
+  zh: { clip: '剪藏', shot: '截图', download: '下载', more: '更多' },
+  en: { clip: 'Clip', shot: 'Screenshot', download: 'Download', more: 'More' },
 }
 
 const blkPill = (o = {}) => {
   const L = BLK_LABELS[o.lang || 'zh']
   // icon-only: the same 28px circle as the "more" button, the name in the tooltip
-  const seg = (key, icon, label, cls = '', attrs = '') =>
-    `<span class="bp-seg ${cls} ${o.hot === key ? 'is-hot' : ''}" title="${label}" aria-label="${label}" ${attrs}>${I(icon)}${o.hot === key ? `<span class="bp-tip">${o.tip || label}</span>` : ''}</span>`
-  const level = `<i class="bp-sep" aria-hidden="true"></i>${o.inner ? seg('inner', 'shrink', L.inner, 'bp-lv') : ''}${seg('outer', 'expand', L.outer, `bp-lv ${o.top ? 'is-off' : ''}`, o.top ? 'aria-disabled="true"' : '')}`
+  const seg = (icon, label, cls = '') => `<span class="bp-seg ${cls}" title="${label}" aria-label="${label}">${I(icon)}</span>`
   return `<div class="blk-pill ${o.cls || ''} ${o.press ? 'is-press' : ''}" style="${o.style || ''}" role="group" aria-label="${o.desc || L.clip}">${o.pin ? pin(o.pin) : ''}
-    ${seg('clip', 'bookmark', o.saved ? '已剪藏' : L.clip, 'bp-seg-clip')}${o.noShot ? '' : seg('shot', 'scan', L.shot, 'is-alt bp-seg-shot')}${o.noShot ? '' : seg('download', 'download', L.download, 'is-alt bp-seg-dl')}${level}<i class="sub" title="${L.more}" aria-label="${L.more}">${I('ellipsis', 'i-sm')}</i>
+    ${seg('bookmark', o.saved ? '已剪藏' : L.clip, 'bp-seg-clip')}${o.noShot ? '' : seg('scan', L.shot, 'is-alt bp-seg-shot')}${o.noShot ? '' : seg('download', L.download, 'is-alt bp-seg-dl')}<i class="sub" title="${L.more}" aria-label="${L.more}">${I('ellipsis', 'i-sm')}</i>
   </div>`
 }
 
-// o: { faint, saved, skip, preview（虚线预览下一层）, label（类型 · 范围）, labelAt: 'r'（胶囊在左上角时标注放右端）, style, pin, pill: {…blkPill 参数}, noRing（只画胶囊：换层之后胶囊留在原处） }
+// o: { faint, saved, skip, label（类型 · 范围）, labelAt: 'r'（胶囊在左上角时标注放右端）, style, pin, pill: {…blkPill 参数} }
 const blkOverlay = (o = {}) =>
-  `${o.noRing ? '' : `<i class="blk ${o.faint ? 'is-faint' : ''} ${o.saved ? 'is-saved' : ''} ${o.skip ? 'is-skip' : ''} ${o.preview ? 'is-preview' : ''}" style="${o.style || ''}" aria-hidden="true">${o.label ? `<em class="${o.labelAt === 'r' ? 'at-r' : ''}" style="${o.labelStyle || ''}">${o.label}</em>` : ''}${o.pin ? pin(o.pin, 'pin-in-r') : ''}</i>`}${o.pill ? blkPill(o.pill) : ''}`
+  `<i class="blk ${o.faint ? 'is-faint' : ''} ${o.saved ? 'is-saved' : ''} ${o.skip ? 'is-skip' : ''}" style="${o.style || ''}" aria-hidden="true">${o.label ? `<em class="${o.labelAt === 'r' ? 'at-r' : ''}" style="${o.labelStyle || ''}">${o.label}</em>` : ''}${o.pin ? pin(o.pin, 'pin-in-r') : ''}</i>${o.pill ? blkPill(o.pill) : ''}`
 
 // 社交信息流里的一条内容
 const tweet = (o = {}) => `<article class="tw ${o.hover ? 'is-hover' : ''}">
@@ -138,7 +134,7 @@ const retriesPage = (o = {}) => {
 }
 
 // 技术文档页：一节标题 + 说明 + 代码块；代码块右上角是页面自己的“复制”按钮
-// o.hover: 'code'（悬停在代码块上）| 'sec'（悬停在这一节上）；o.blk: 对应的 blkOverlay 参数；o.sec: 悬停在代码块上时，这一节另画的描边（如虚线预览）
+// o.hover: 'code'（悬停在代码块上）| 'sec'（悬停在这一节上）；o.blk: 对应的 blkOverlay 参数
 const codeBlock = (o = {}) => `<div class="codeblk ${o.hover ? 'is-hover' : ''}" ${o.attrs || ''}>
   <span class="codeblk-copy" data-ctl aria-hidden="true">${I('copy')}复制</span>
   <pre><span class="c">// 重试预算：用掉 20% 的额度就快速失败</span>
@@ -160,7 +156,7 @@ const docsPage = (o = {}) => `<div class="pg pg-docs" style="${o.style || ''}">
       <p>给每个下游设一个预算：窗口内的重试次数超过额度就快速失败，而不是继续放大负载。</p>
       ${codeBlock({ hover: o.hover === 'code', blk: o.blk })}
       <p>预算按服务端的实际承载量调，不要照抄示例里的 0.2。</p>
-      ${o.hover === 'sec' ? blkOverlay(o.blk || { pill: {} }) : o.sec ? blkOverlay(o.sec) : ''}
+      ${o.hover === 'sec' ? blkOverlay(o.blk || { pill: {} }) : ''}
     </section>
   </div>
 </div>`

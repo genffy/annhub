@@ -1,9 +1,9 @@
 /**
  * The keyboard block mode (docs/product/capture.md §6.2 区块模式): the same
  * content chain the hover capsule reads, driven by keys. Tab / Shift+Tab move
- * between the targets of the same tier, ↑ / ↓ climb the chain the way the
- * capsule's 外一层 / 里一层 do, ↓ at the innermost level enters the target
- * inside, Enter clips, S screenshots, D downloads, Esc exits.
+ * between the targets of the same tier, ↑ / ↓ climb the chain's levels (the
+ * hover capsule has no level buttons), ↓ at the innermost level enters the
+ * target inside, Enter clips, S screenshots, D downloads, Esc exits.
  */
 import { isUserInput } from './user-input'
 import { uiText } from '../../utils/ui-text'

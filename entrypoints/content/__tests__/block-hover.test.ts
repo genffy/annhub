@@ -10,21 +10,13 @@ import { uiText } from '../../../utils/ui-text'
 
 /**
  * The hover capsule over fixture DOM (capture.md §6.2): the pointer rests on
- * a start, the outline and its label appear with the capsule, 外一层 / 里一层
- * climb the chain with a dashed preview, and a block that just saw the
- * capsule close pauses until the pointer rests on another start.
+ * a start, the outline and its label appear with the capsule — the range is
+ * decided by where the pointer stops, the capsule has no level buttons — and
+ * a block that just saw the capsule close pauses until the pointer rests on
+ * another start.
  */
 
 const NESTED = '<article><section><h2>Title</h2><p>' + LONG + '</p><pre id="code" tabindex="0">const a = 1\nconst b = 2</pre></section></article>'
-const NESTED2 =
-  '<article><section id="s1"><h2>One</h2><p>' +
-  LONG +
-  '</p><pre id="code" tabindex="0">const a = 1\nconst b = 2</pre><p>' +
-  LONG +
-  '</p></section><section id="s2"><h2>Two</h2><p>' +
-  LONG +
-  '</p></section></article>'
-
 const FLAT =
   '<div class="content">' +
   '<h2 id="h-intro">Intro</h2><p>' +
@@ -92,10 +84,19 @@ describe('the hover reveals the start (capture.md §6.2 悬停入口)', () => {
     expect(label.textContent).toBe(uiText('block.kind.code') + ' · ' + uiText('block.label.lines', { n: 2 }))
   })
 
-  it('rests on the paragraph of a flat page, one 外一层 from its section', async () => {
+  it('rests on the paragraph of a flat page: the target is the paragraph itself', async () => {
     document.body.innerHTML = FLAT
     await restOn(document.getElementById('target')!)
     expect(document.querySelector('[data-ann-ui="block-label"]')!.textContent).toContain(uiText('block.kind.paragraph'))
+  })
+
+  it('rests in the gap between the blocks: the target is the article the gap belongs to', async () => {
+    document.body.innerHTML = FLAT
+    // elementFromPoint answers the shared container: the pointer is on its own gap
+    await restOn(document.querySelector('.content')!)
+    const label = document.querySelector('[data-ann-ui="block-label"]')!
+    expect(label.textContent).toContain(uiText('block.kind.article'))
+    expect(label.textContent).toContain(uiText('block.label.whole'))
   })
 
   it('rests on a heading: the start is the section it begins, the heading one level in', async () => {
@@ -108,14 +109,15 @@ describe('the hover reveals the start (capture.md §6.2 悬停入口)', () => {
     entries.install()
     document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
     await vi.advanceTimersByTimeAsync(450)
+    // the start is the section the heading begins; the heading stays one ↓ away in block mode
     expect(document.querySelector('[data-ann-ui="block-label"]')!.textContent).toContain(uiText('block.kind.section'))
-    expect(capsuleLabels()).toContain(uiText('block.shrink'))
+    expect(capsuleLabels()).toEqual([uiText('block.clip'), uiText('block.shot'), uiText('block.download'), uiText('block.more')])
   })
 
-  it('the capsule buttons run clip, screenshot, download, level buttons and more', async () => {
+  it('the capsule buttons run clip, screenshot, download and more — no level buttons', async () => {
     document.body.innerHTML = NESTED
     await restOn(document.getElementById('code')!)
-    expect(capsuleLabels()).toEqual([uiText('block.clip'), uiText('block.shot'), uiText('block.download'), uiText('block.expand'), uiText('block.more')])
+    expect(capsuleLabels()).toEqual([uiText('block.clip'), uiText('block.shot'), uiText('block.download'), uiText('block.more')])
   })
 
   it('a child frame offers clipping only: no screenshot and download buttons', async () => {
@@ -203,69 +205,8 @@ describe('the dwell re-checks the page before it reveals (RV-CAP-15, capture.md 
   })
 })
 
-describe('外一层 and 里一层 (capture.md §6.2 换层)', () => {
-  function mockCapsuleWidth(): void {
-    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
-      if (this.getAttribute('data-ann-ui') === 'block-capsule') return 40 + this.querySelectorAll('button').length * 28
-      return 0
-    })
-  }
-
-  it('外一层 climbs to the section and on to the article; the capsule right edge stays put', async () => {
-    document.body.innerHTML = NESTED2
-    mockCapsuleWidth()
-    const code = document.getElementById('code')!
-    code.getBoundingClientRect = () => new DOMRect(280, 120, 560, 320)
-    const section = document.getElementById('s1')!
-    section.getBoundingClientRect = () => new DOMRect(260, 100, 600, 480)
-    const article = document.querySelector('article')!
-    article.getBoundingClientRect = () => new DOMRect(240, 80, 640, 600)
-    await restOn(code, 400, 200)
-    const before = capsule()!
-    const beforeRight = Number.parseFloat(before.style.left) + before.offsetWidth
-
-    const expand = [...before.querySelectorAll('.ann-blk-lv')][before.querySelectorAll('.ann-blk-lv').length - 1] as HTMLButtonElement
-    expand.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    expect(document.querySelector('[data-ann-ui="block-label"]')!.textContent).toContain(uiText('block.kind.section'))
-    expect(capsuleLabels()).toContain(uiText('block.shrink'))
-    const after = capsule()!
-    const afterRight = Number.parseFloat(after.style.left) + after.offsetWidth
-    expect(Math.abs(afterRight - beforeRight)).toBeLessThan(1)
-
-    const nextExpand = [...after.querySelectorAll('.ann-blk-lv')][after.querySelectorAll('.ann-blk-lv').length - 1] as HTMLButtonElement
-    nextExpand.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    expect(document.querySelector('[data-ann-ui="block-label"]')!.textContent).toContain(uiText('block.kind.article'))
-    // the outermost layer grays 外一层 out, never wraps around
-    const outermost = [...capsule()!.querySelectorAll('.ann-blk-lv')][capsule()!.querySelectorAll('.ann-blk-lv').length - 1] as HTMLButtonElement
-    expect(outermost.disabled).toBe(true)
-    expect(outermost.getAttribute('aria-disabled')).toBe('true')
-    expect(outermost.title).toBe(uiText('block.outermost'))
-  })
-
-  it('里一层 walks back to the start and the clip reports the level change', async () => {
-    document.body.innerHTML = FLAT
-    const hooks = hooksFor(true)
-    document.elementFromPoint = vi.fn(() => document.getElementById('target'))
-    vi.useFakeTimers()
-    const entries = new BlockEntries(document, hooks, gate)
-    created.push(entries)
-    entries.install()
-    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
-    await vi.advanceTimersByTimeAsync(450)
-    // paragraph → section → back to the paragraph
-    const expand = [...capsule()!.querySelectorAll('.ann-blk-lv')][capsule()!.querySelectorAll('.ann-blk-lv').length - 1] as HTMLButtonElement
-    expand.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    const shrink = capsule()!.querySelector('.ann-blk-lv') as HTMLButtonElement
-    shrink.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    expect(document.querySelector('[data-ann-ui="block-label"]')!.textContent).toContain(uiText('block.kind.paragraph'))
-    const clip = capsule()!.querySelector('.ann-blk-seg-clip') as HTMLButtonElement
-    clip.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    const [candidate, levelChanged] = hooks.onClip.mock.calls[0] as [BlockCandidate, boolean]
-    expect(candidate.element.id).toBe('target')
-    expect(levelChanged).toBe(true)
-  })
-
-  it('a clip without a level change reports levelChanged = false', async () => {
+describe('the hover clip never reports a level change', () => {
+  it('the capsule has no level buttons, so levelChanged = false', async () => {
     document.body.innerHTML = NESTED
     const hooks = hooksFor(true)
     document.elementFromPoint = vi.fn(() => document.getElementById('code'))
@@ -279,32 +220,6 @@ describe('外一层 and 里一层 (capture.md §6.2 换层)', () => {
       .querySelector('.ann-blk-seg-clip')!
       .dispatchEvent(new MouseEvent('click', { bubbles: true }))
     expect((hooks.onClip.mock.calls[0] as [BlockCandidate, boolean])[1]).toBe(false)
-  })
-})
-
-describe('the preview (capture.md §6.2 预览)', () => {
-  it('hovering 外一层 draws the dashed outline of the next layer and its label beside the pointer', async () => {
-    document.body.innerHTML = FLAT
-    await restOn(document.getElementById('target')!)
-    const expand = [...capsule()!.querySelectorAll('.ann-blk-lv')][capsule()!.querySelectorAll('.ann-blk-lv').length - 1] as HTMLButtonElement
-    expand.dispatchEvent(new MouseEvent('pointerenter', { bubbles: true, clientX: 300, clientY: 60 }))
-    const preview = document.querySelector('[data-ann-ui="block-preview"]')
-    expect(preview).not.toBeNull()
-    const tip = document.querySelector('[data-ann-ui="block-preview-tip"]')!
-    expect(tip.textContent).toBe(uiText('block.expand') + ' · ' + uiText('block.kind.section') + ' · Install')
-    expand.dispatchEvent(new MouseEvent('pointerleave', { bubbles: true }))
-    expect(document.querySelector('[data-ann-ui="block-preview"]')).toBeNull()
-    expect(document.querySelector('[data-ann-ui="block-preview-tip"]')).toBeNull()
-  })
-
-  it('at the outermost layer the preview says so and draws nothing', async () => {
-    document.body.innerHTML = '<article id="art"><p>' + LONG + '</p></article>'
-    await restOn(document.getElementById('art')!)
-    const expand = [...capsule()!.querySelectorAll('.ann-blk-lv')][capsule()!.querySelectorAll('.ann-blk-lv').length - 1] as HTMLButtonElement
-    expect(expand.disabled).toBe(true)
-    expand.dispatchEvent(new MouseEvent('pointerenter', { bubbles: true, clientX: 300, clientY: 60 }))
-    expect(document.querySelector('[data-ann-ui="block-preview"]')).toBeNull()
-    expect(document.querySelector('[data-ann-ui="block-preview-tip"]')!.textContent).toBe(uiText('block.outermost'))
   })
 })
 
@@ -345,7 +260,7 @@ describe('the pause (capture.md §6.2 暂停)', () => {
 })
 
 describe('capsule placement stays inside the block (capture.md §6.2 位置)', () => {
-  const CAPSULE_WIDTH = 208
+  const CAPSULE_WIDTH = 152 // four icon buttons and the more menu
   const CAPSULE_HEIGHT = 36
 
   async function showCapsule(clientX: number, clientY: number): Promise<HTMLElement> {

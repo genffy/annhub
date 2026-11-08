@@ -1,7 +1,7 @@
 // 可交互原型 1：页面里的两种剪藏与截图。保存的条目写入共享的 STORE，资料库原型里能看到。
 // 规则是真的：剪藏一次点击，约 3 秒内可撤销、可编辑；选区菜单只有“剪藏”和“截图”，页面上不留任何标记。
 // 区块剪藏（capture §6.2）：指针停下约 400ms（每 100ms 移动不到 6px 算停着），描出指针下最内层的块，上沿标出类型与范围；
-// 胶囊「剪藏 · 截图 · 下载 | 里一层 · 外一层 | 更多」沿目标链换层，停在换层按钮上先用虚线描出下一层；点偏选区菜单或按键关掉胶囊之后，这一块暂停，移到别的块上才出现。
+// 范围只看指针停在哪里（指在标题上是它开头的一节，指在段落之间的空隙里是整篇文章），胶囊里只有「剪藏 · 截图 · 下载 · 更多」；点偏选区菜单或按键关掉胶囊之后，这一块暂停，移到别的块上才出现。
 const PC = { toast: null, edit: null, pos: null, log: { clip: 0, block: 0, screenshot: 0 }, mine: [], seq: 0, blk: null, pause: null }
 
 // 类型预设（entry.md §5.4）：自定义属性勾选了该类型且有默认值，就自动附加
@@ -61,7 +61,7 @@ function pcSide() {
               e => `<div style="padding:9px 11px;border:1px solid var(--line);border-radius:10px;margin-bottom:7px;display:flex;flex-direction:column;gap:3px"><div class="hs g6">${tchip(e.type, { sm: true })}<span class="t-xs muted">${e._via === 'block' ? '区块 · ' : ''}${e.when}</span></div><div class="t-sm b clamp-2">${esc(e.type === 'screenshot' ? e.title : mdPlain(e.content))}</div>${Object.entries(e.props).map(([k, v]) => `<span class="ppill">${I('text')}<span>${esc(k)}</span><b>${esc(v)}</b></span>`).join('')}</div>`,
             )
             .join('')
-        : `<div class="help">选中左侧文章里的一段文字，选区上方出现菜单；或者不选文字，把指针停在一段正文、一个标题、代码块或页面底部的帖子上，等描边、标注和胶囊出现。胶囊里的「外一层」把目标一层层换到一节、整篇文章，停在它上面先用虚线看到范围。点偏选区菜单、或按任意键关掉胶囊之后，原处这一块不再出胶囊，移到别的块上才出现。保存的内容会出现在下面的“资料库”原型里，在那里读和高亮。</div>`
+        : `<div class="help">选中左侧文章里的一段文字，选区上方出现菜单；或者不选文字，把指针停在一段正文、一个标题、代码块或页面底部的帖子上，等描边、标注和胶囊出现。范围只看指针停在哪里：停在标题上是它开头的一节，停在段落之间的空隙里是整篇文章，胶囊里没有换层级的按钮。点偏选区菜单、或按任意键关掉胶囊之后，原处这一块不再出胶囊，移到别的块上才出现。保存的内容会出现在下面的“资料库”原型里，在那里读和高亮。</div>`
     }
     <div class="help" style="margin-top:8px">页面上不会留下任何标记。${keys('Esc')} 关闭气泡</div></div>`
 }
@@ -109,7 +109,7 @@ function pcRender(root) {
   }
 }
 
-// 页面里的目标链（capture §6.2 的内容看法）：带 data-blk 的是单元（一节、文章、代码块、帖子），初始化时给段落、列表、标题打上 data-blkb（块）。
+// 页面里的目标（capture §6.2 的起点）：带 data-blk 的是单元（一节、文章、代码块、帖子），初始化时给段落、列表、标题打上 data-blkb（块）。
 // 真实实现里 Markdown 由共享的转换模块从 DOM 生成；原型里单元用写好的 Markdown，块取它的文字。
 // 外层的 Markdown 由里层拼成，描边框住什么就保存什么：一节含它的代码块，文章含一节与帖子
 const PC_CODE_MD = '```ts\n// 重试预算：用掉 20% 的额度就快速失败\nconst policy = retry({\n  budget: 0.2,\n  backoff: \'exponential\',\n  jitter: true,\n})\n```'
@@ -123,7 +123,6 @@ const PC_BLOCKS = {
 }
 const PC_BLOCK_NAMES = { p: '段落', li: '列表项', ol: '列表', ul: '列表', h1: '标题', h2: '标题', h3: '标题', h4: '标题' }
 const pcText = el => (el.textContent || '').replace(/\s+/g, ' ').trim()
-const pcLen = el => (el.textContent || '').replace(/\s/g, '').length
 const pcCut = (text, n = 16) => {
   const chars = Array.from(text)
   return chars.length > n ? `${chars.slice(0, n).join('')}…` : text
@@ -149,27 +148,20 @@ function pcMd(el) {
   return pcText(el)
 }
 
-// 指针下从里到外的链，到文章为止；start 是起点：指在标题上时是它开头的一节（标题本身留在链里，往里一层就到）
-function pcChain(target) {
-  const found = []
+// 指针下的目标：最内层的块；指针在块与块之间的空隙里，是空隙所在的那个块（整篇文章）；
+// 指在标题上，是它开头的一节（标题外面第一个单元）。范围只看指针停在哪里，胶囊上没有换层级的按钮
+function pcStartOf(target) {
+  let first = null
   for (let el = target; el && el.nodeType === 1; el = el.parentElement) {
-    if (el.dataset.blk || el.dataset.blkb !== undefined) found.push(el)
-    if (el.dataset.blk === 'article') break
+    if (el.dataset.blk || el.dataset.blkb !== undefined) {
+      first = el
+      break
+    }
   }
-  if (!found.length) return null
-  // 外一层多出的文字不到 20 个字符、也没有多出图片时，两层并成一层，范围取外面那一层
-  const layers = []
-  for (const el of found) {
-    const prev = layers[layers.length - 1]
-    if (prev && pcLen(el) - pcLen(prev) < 20 && el.querySelectorAll('img').length === prev.querySelectorAll('img').length) layers[layers.length - 1] = el
-    else layers.push(el)
+  if (first && /^h[1-4]$/.test(first.tagName.toLowerCase())) {
+    for (let el = first.parentElement; el && el.nodeType === 1; el = el.parentElement) if (el.dataset.blk) return el
   }
-  const start = /^h[1-4]$/.test(layers[0].tagName.toLowerCase()) && layers.length > 1 ? 1 : 0
-  return { layers, start }
-}
-const pcStartOf = target => {
-  const chain = target ? pcChain(target) : null
-  return chain ? chain.layers[chain.start] : null
+  return first
 }
 
 function pcInit(root) {
@@ -300,7 +292,7 @@ function pcInit(root) {
   })
 
   // ── 区块胶囊（capture §6.2）──────────────────────────────────────────────
-  // 状态：PC.blk = { chain, idx, hot, at }。idx 是链上当前的层，起点是 chain.start；hot 是指针停着的换层按钮；at 是胶囊的位置（换层时右缘不动）
+  // 状态：PC.blk = { target, saved, at }。范围只看指针停在哪里：胶囊上没有换层级的按钮；at 是胶囊的位置，定位一次，保存后重画也留在原处
   const blkRect = el => {
     const vr = view.getBoundingClientRect()
     const r = el.getBoundingClientRect()
@@ -313,18 +305,12 @@ function pcInit(root) {
     return `<i class="blk ${cls}" style="inset:auto;left:${r.left - 10}px;top:${r.top - 6}px;width:${r.width + 20}px;height:${r.height + 12}px">${label ? `<em class="${labelRight ? 'at-r' : ''}" style="top:${emTop}px">${label}</em>` : ''}</i>`
   }
   const pillHtml = () => {
-    const { chain, idx, hot } = PC.blk
-    const top = idx >= chain.layers.length - 1
-    const tip = k => (k === 'outer' ? (top ? '已是最外一层' : `外一层 · ${pcLabel(chain.layers[idx + 1])}`) : k === 'inner' ? `里一层 · ${pcLabel(chain.layers[idx - 1])}` : '')
-    const seg = (k, icon, label, cls = '', attrs = '') =>
-      `<span class="bp-seg pa-click ${cls} ${hot === k ? 'is-hot' : ''}" data-blk-act="${k}" tabindex="0" role="button" title="${label}" aria-label="${label}" ${attrs}>${I(icon)}${hot === k ? `<span class="bp-tip">${tip(k)}</span>` : ''}</span>`
-    return `<div class="blk-pill pc-pill ${PC.blk.at && PC.blk.at.leftSide ? 'at-tl' : ''}" style="right:auto;left:0;top:0" role="group" aria-label="${pcLabel(chain.layers[idx])}">${seg('clip', 'bookmark', PC.blk.saved ? '已剪藏' : '剪藏', 'bp-seg-clip')}${seg('shot', 'scan', '截图', 'is-alt bp-seg-shot')}${seg('download', 'download', '下载', 'is-alt bp-seg-dl')}<i class="bp-sep" aria-hidden="true"></i>${idx > 0 ? seg('inner', 'shrink', '里一层', 'bp-lv') : ''}${seg('outer', 'expand', '外一层', `bp-lv ${top ? 'is-off' : ''}`, top ? 'aria-disabled="true"' : '')}<i class="sub pa-click" data-blk-act="off" tabindex="0" role="button" title="更多" aria-label="更多">${I('ellipsis', 'i-sm')}</i></div>`
+    const seg = (k, icon, label, cls = '') => `<span class="bp-seg pa-click ${cls}" data-blk-act="${k}" tabindex="0" role="button" title="${label}" aria-label="${label}">${I(icon)}</span>`
+    return `<div class="blk-pill pc-pill ${PC.blk.at && PC.blk.at.leftSide ? 'at-tl' : ''}" style="right:auto;left:0;top:0" role="group" aria-label="${pcLabel(PC.blk.target)}">${seg('clip', 'bookmark', PC.blk.saved ? '已剪藏' : '剪藏', 'bp-seg-clip')}${seg('shot', 'scan', '截图', 'is-alt bp-seg-shot')}${seg('download', 'download', '下载', 'is-alt bp-seg-dl')}<i class="sub pa-click" data-blk-act="off" tabindex="0" role="button" title="更多" aria-label="更多">${I('ellipsis', 'i-sm')}</i></div>`
   }
   const paintBlk = () => {
-    const { chain, idx, hot } = PC.blk
-    const cur = chain.layers[idx]
-    const next = hot === 'outer' ? chain.layers[idx + 1] : hot === 'inner' ? chain.layers[idx - 1] : null
-    blkHost.innerHTML = ring(cur, PC.blk.saved ? 'is-saved' : '', pcLabel(cur), PC.blk.at && PC.blk.at.leftSide) + (next ? ring(next, 'is-preview', '') : '') + pillHtml()
+    const cur = PC.blk.target
+    blkHost.innerHTML = ring(cur, PC.blk.saved ? 'is-saved' : '', pcLabel(cur), PC.blk.at && PC.blk.at.leftSide) + pillHtml()
     const pill = blkHost.querySelector('.pc-pill')
     const w = pill.offsetWidth
     const h = pill.offsetHeight
@@ -342,14 +328,14 @@ function pcInit(root) {
       const at = spots.find(c => !clash(c)) || spots[0]
       const left = Math.max(8, Math.min(at.left, view.clientWidth - w - 8))
       PC.blk.at = { right: left + w, top: Math.max(view.scrollTop + 8, Math.min(at.top, view.scrollTop + view.clientHeight - h - 8)), leftSide: !!at.leftSide }
-      if (at.leftSide) return paintBlk() // 标注换到右端、提示向右展开
+      if (at.leftSide) return paintBlk() // 标注换到右端
     }
-    // 换层之后胶囊留在原处：右缘不动，多出的「里一层」长在左边
+    // 位置只算一次，保存后重画也留在原处
     pill.style.left = `${PC.blk.at.right - w}px`
     pill.style.top = `${PC.blk.at.top}px`
   }
-  const showBlk = chain => {
-    PC.blk = { chain, idx: chain.start, hot: null, at: null }
+  const showBlk = target => {
+    PC.blk = { target, saved: false, at: null }
     pillHover = false
     paintBlk()
   }
@@ -359,7 +345,7 @@ function pcInit(root) {
   }
   const insideCurrent = () => {
     if (!PC.blk || !pt) return false
-    const r = PC.blk.chain.layers[PC.blk.idx].getBoundingClientRect()
+    const r = PC.blk.target.getBoundingClientRect()
     return pt.x >= r.left - 10 && pt.x <= r.right + 10 && pt.y >= r.top - 6 && pt.y <= r.bottom + 6
   }
 
@@ -373,9 +359,9 @@ function pcInit(root) {
     if (still < 4 || !start || start === PC.pause) return
     if (typeof PA !== 'undefined' && PA.blockOn === false) return // 资料库“设置”里关掉区块入口后，这里不再出现
     if (PC.edit || window.getSelection().toString().trim() || menuHost.firstElementChild) return
-    if (PC.blk && PC.blk.chain.layers[PC.blk.chain.start] === start) return
+    if (PC.blk && PC.blk.target === start) return
     if (pillHover) return
-    showBlk(pcChain(pt.target))
+    showBlk(start)
   }
   const art = view.querySelector('.pg-art')
   // 给段落、列表、标题打上块的标记；帖子与代码块是小单元，里面不再分出块
@@ -403,36 +389,20 @@ function pcInit(root) {
     if (!ev.target.closest('.blk-pill') || !PC.blk) return
     pillHover = true
     clearTimeout(leave)
-    // 指针停在换层按钮上：虚线先描出点下去会换到的那一层，提示写出它的标注
-    const lv = ev.target.closest('[data-blk-act="outer"], [data-blk-act="inner"]')
-    const hot = lv ? lv.dataset.blkAct : null
-    if (hot !== PC.blk.hot) {
-      PC.blk.hot = hot
-      paintBlk()
-    }
   })
   blkHost.addEventListener('mouseout', ev => {
     if (!ev.target.closest('.blk-pill') || !PC.blk) return
     const into = ev.relatedTarget && ev.relatedTarget.closest ? ev.relatedTarget : null
     if (into && into.closest('.blk-pill')) return
     pillHover = false
-    if (PC.blk.hot) {
-      PC.blk.hot = null
-      paintBlk()
-    }
     scheduleHide()
   })
   blkHost.addEventListener('click', ev => {
     const a = ev.target.closest('[data-blk-act]')
     if (!a || !PC.blk) return
     const act = a.dataset.blkAct
-    const cur = PC.blk.chain.layers[PC.blk.idx]
-    if (act === 'outer' || act === 'inner') {
-      const next = PC.blk.idx + (act === 'outer' ? 1 : -1)
-      if (next < 0 || next >= PC.blk.chain.layers.length) return // 到了最外一层：不回绕
-      PC.blk.idx = next
-      paintBlk()
-    } else if (act === 'download') {
+    const cur = PC.blk.target
+    if (act === 'download') {
       const url = URL.createObjectURL(new Blob([pcMd(cur)], { type: 'text/markdown;charset=utf-8' }))
       const link = document.createElement('a')
       link.href = url
@@ -449,7 +419,6 @@ function pcInit(root) {
       setText('scan', `已以“${label}”为目标保存为截图条目 · 选区内编辑见上方“截图”画板`, 2600)
     } else if (act === 'clip') {
       PC.blk.saved = true
-      PC.blk.hot = null
       paintBlk()
       blkHost.querySelector('.pc-pill').classList.add('is-press')
       saveClip(pcMd(cur), 'block', cur.getBoundingClientRect())
@@ -516,7 +485,7 @@ function pcInit(root) {
     if (!view.isConnected) return
     // 按键关掉胶囊：这一块暂停，指针在这里再动也不会又出来
     if (PC.blk && !PC.edit && !['Shift', 'Control', 'Alt', 'Meta'].includes(ev.key)) {
-      PC.pause = PC.blk.chain.layers[PC.blk.chain.start]
+      PC.pause = PC.blk.target
       hideBlk()
       return
     }

@@ -2,11 +2,11 @@
  * The block-clip hover entry (docs/product/capture.md §6.2): the pointer
  * rests on a start — the innermost block under it, a heading's section, or
  * the block big enough beyond a small one — and the outline, its label and
- * the capsule appear. The capsule clips, screenshots and downloads the
- * outlined layer; 外一层 and 里一层 climb the target chain, a hover on them
- * previews the next layer with a dashed outline, and the capsule never covers
- * the page's own controls. The keyboard block mode lives in block-mode.ts and
- * reads the same chain.
+ * the capsule appear. The range is decided by where the pointer stops: the
+ * capsule clips, screenshots and downloads that layer, and has no level
+ * buttons; to climb the chain, use the keyboard block mode or the screenshot
+ * viewfinder's ↑ ↓. The keyboard block mode lives in block-mode.ts and reads
+ * the same chain.
  */
 import { isUserInput } from './user-input'
 import { overlayIcon } from './icons'
@@ -76,15 +76,11 @@ export function placeLabel(doc: Document, label: HTMLElement, layer: BlockCandid
 }
 
 class HoverEntry {
-  private chain: BlockCandidate[] = []
-  private targetIndex = 0
-  private levelChanged = false
+  private target: BlockCandidate | null = null
   private paused: BlockCandidate | null = null
   private outlineEl: HTMLElement | null = null
   private labelEl: HTMLElement | null = null
   private capsuleEl: HTMLElement | null = null
-  private previewEl: HTMLElement | null = null
-  private previewTipEl: HTMLElement | null = null
   private tickTimer: number | null = null
   private stillTicks = 0
   private samplePoint = { x: 0, y: 0 }
@@ -283,14 +279,13 @@ class HoverEntry {
     this.labelEl = null
     this.capsuleEl?.remove()
     this.capsuleEl = null
-    this.clearPreview()
     this.doc.querySelector('[' + ROOT_ATTR + '="block-more"]')?.remove()
-    this.chain = []
+    this.target = null
   }
 
   /** A positive border box that does not contain the point. A zero box (no layout) is not "outside". */
   private pointerOutsideHover(x: number, y: number): boolean {
-    const layer = this.chain[this.targetIndex]
+    const layer = this.target
     if (!layer || !this.outlineEl) return false
     const rect = candidateRect(layer)
     if (rect.width <= 0 || rect.height <= 0) return false
@@ -367,9 +362,9 @@ class HoverEntry {
       return
     }
     this.clearLeave()
-    this.chain = chain
-    this.targetIndex = start
-    this.levelChanged = false
+    // the hover target is always the start: the range is decided by where the
+    // pointer stops, the capsule has no level buttons (capture.md §6.2)
+    this.target = target
     this.paintHover()
   }
 
@@ -386,7 +381,7 @@ class HoverEntry {
   }
 
   private paintHover(): void {
-    const layer = this.chain[this.targetIndex]
+    const layer = this.target
     if (!layer) return
     this.outlineEl?.remove()
     this.labelEl?.remove()
@@ -396,36 +391,15 @@ class HoverEntry {
     this.capsuleEl?.remove()
     this.capsuleEl = this.buildCapsule()
     this.doc.documentElement.appendChild(this.capsuleEl)
-    const rect = candidateRect(layer)
-    positionCapsule(this.doc, this.capsuleEl, rect)
+    positionCapsule(this.doc, this.capsuleEl, candidateRect(layer))
     this.placeLabel()
   }
 
   private placeLabel(): void {
-    const layer = this.chain[this.targetIndex]
+    const layer = this.target
     if (!layer || !this.labelEl) return
     const capsuleLeft = this.capsuleEl ? Number.parseFloat(this.capsuleEl.style.left) : null
     placeLabel(this.doc, this.labelEl, layer, Number.isFinite(capsuleLeft) ? capsuleLeft : null)
-  }
-
-  /** A level change repaints the outline and label but keeps the capsule where it is; its right edge never moves. */
-  private repaintLevel(): void {
-    const layer = this.chain[this.targetIndex]
-    if (!layer || !this.capsuleEl) return
-    this.clearPreview()
-    const oldRight = (Number.parseFloat(this.capsuleEl.style.left) || 0) + this.capsuleEl.offsetWidth
-    const top = this.capsuleEl.style.top
-    this.outlineEl?.remove()
-    this.labelEl?.remove()
-    const painted = paintOutline(this.doc, layer, false)
-    this.outlineEl = painted.outline
-    this.labelEl = painted.label
-    this.capsuleEl.remove()
-    this.capsuleEl = this.buildCapsule()
-    this.doc.documentElement.appendChild(this.capsuleEl)
-    this.capsuleEl.style.top = top
-    this.capsuleEl.style.left = Math.max(0, oldRight - this.capsuleEl.offsetWidth) + 'px'
-    this.placeLabel()
   }
 
   private buildCapsule(): HTMLElement {
@@ -447,10 +421,11 @@ class HoverEntry {
       return button
     }
 
-    const layer = this.chain[this.targetIndex]!
+    const layer = this.target!
     host.append(
       action('bookmark', 'ann-blk-seg-clip', 'block.clip', () => {
-        this.hooks.onClip(layer, this.levelChanged)
+        // the hover never changes levels: only the keyboard mode's ↑ ↓ do (capture.md §6.2)
+        this.hooks.onClip(layer, false)
         this.hideNow()
       }),
     )
@@ -473,55 +448,6 @@ class HoverEntry {
       )
     }
 
-    const separator = this.doc.createElement('i')
-    separator.className = 'ann-blk-sep'
-    separator.setAttribute('aria-hidden', 'true')
-    host.append(separator)
-
-    // 里一层 appears when the current target holds a layer inside; 外一层 grays out
-    // at the outermost layer and never wraps around (capture.md §6.2 换层).
-    const levelButton = (icon: 'shrink' | 'expand', key: 'block.shrink' | 'block.expand'): HTMLButtonElement => {
-      const button = this.doc.createElement('button')
-      button.type = 'button'
-      button.className = 'ann-blk-lv'
-      button.setAttribute('aria-label', uiText(key))
-      button.title = uiText(key)
-      button.append(overlayIcon(this.doc, icon))
-      button.addEventListener('click', event => {
-        if (!isUserInput(event)) return
-        this.clearPreview()
-        this.targetIndex += icon === 'expand' ? 1 : -1
-        this.levelChanged = true
-        this.repaintLevel()
-      })
-      return button
-    }
-
-    const outermost = this.targetIndex >= this.chain.length - 1
-    const preview = (icon: 'shrink' | 'expand', button: HTMLButtonElement): void => {
-      const index = this.targetIndex + (icon === 'expand' ? 1 : -1)
-      const next = this.chain[index]
-      button.addEventListener('pointerenter', event => {
-        if (!isUserInput(event)) return
-        this.showPreview(event.clientX, event.clientY, next ?? null, icon === 'expand' ? 'block.expand' : 'block.shrink')
-      })
-      button.addEventListener('pointerleave', () => this.clearPreview())
-    }
-    if (this.targetIndex > 0) {
-      const shrink = levelButton('shrink', 'block.shrink')
-      preview('shrink', shrink)
-      host.append(shrink)
-    }
-    const expand = levelButton('expand', 'block.expand')
-    preview('expand', expand)
-    if (outermost) {
-      expand.disabled = true
-      expand.setAttribute('aria-disabled', 'true')
-      expand.title = uiText('block.outermost')
-      expand.setAttribute('aria-label', uiText('block.outermost'))
-    }
-    host.append(expand)
-
     const more = this.doc.createElement('button')
     more.type = 'button'
     more.className = 'ann-blk-sub'
@@ -534,39 +460,6 @@ class HoverEntry {
     })
     host.append(more)
     return host
-  }
-
-  /** The dashed outline of the layer a level button would switch to, and its label beside the pointer. */
-  private showPreview(x: number, y: number, layer: BlockCandidate | null, key: 'block.expand' | 'block.shrink'): void {
-    this.clearPreview()
-    const tip = this.doc.createElement('div')
-    tip.setAttribute(ROOT_ATTR, 'block-preview-tip')
-    tip.className = 'ann-block-preview-tip'
-    tip.textContent = layer ? uiText(key) + ' · ' + layerLabel(layer, 'content') : uiText('block.outermost')
-    this.doc.documentElement.appendChild(tip)
-    const view = this.doc.defaultView!
-    const width = tip.offsetWidth || 120
-    const height = tip.offsetHeight || 26
-    Object.assign(tip.style, {
-      left: Math.max(8, Math.min(view.innerWidth - width - 8, x + 12)) + 'px',
-      top: Math.max(8, Math.min(view.innerHeight - height - 8, y + 12)) + 'px',
-    })
-    this.previewTipEl = tip
-    if (!layer) return
-    const rect = candidateRect(layer)
-    const outline = this.doc.createElement('div')
-    outline.setAttribute(ROOT_ATTR, 'block-preview')
-    outline.className = 'ann-block-preview'
-    Object.assign(outline.style, { left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' })
-    this.doc.documentElement.appendChild(outline)
-    this.previewEl = outline
-  }
-
-  private clearPreview(): void {
-    this.previewEl?.remove()
-    this.previewEl = null
-    this.previewTipEl?.remove()
-    this.previewTipEl = null
   }
 
   private openMoreMenu(anchor: HTMLElement): void {
