@@ -141,6 +141,47 @@
 5. 实测：要求 5 的两份归档，四个工具都能列出或解开全部文件，`unzip -t` 与 `python3 -m zipfile -t` 没有报错；验收者在本机重跑一次。
 6. validation.md 里没有 D-95；storage.md §6 的写法与实测范围一致；`npm run check:docs` 通过。
 
+### 区块胶囊的目标
+
+两条都在 `entrypoints/content/index.tsx` 的 `wireBlockEntries` 里，一个 PR。规格是 [capture.md §6.2](product/capture.md) 与 [screenshot.md §1](product/screenshot.md)；描边、剪藏与下载取的东西不变，截图与编辑气泡改成跟描边一致。取目标的规则要不要统一成截图取景的方式是 D-96，本组不预设它的结论，也不等它。要跑的 E2E：`block-clip.spec.ts`、`page-shapes.spec.ts`、`screenshot-anonymize.spec.ts`、`page-entry.spec.ts`。
+
+#### RV-CAP-13 胶囊与区块模式的截图丢掉一节的区间，截成整篇正文（中）
+
+**问题**
+
+- `wireBlockEntries` 的 `onScreenshot` 只把 `candidate.element` 交给 `enterScreenshotMode`，`candidate.range` 丢了；区块模式的 `S` 走同一个钩子。标题与段落平铺的页面上，一节的 `element` 是装着所有标题和段落的父元素，截下来的是整篇正文，不是描边的那一节。
+- 违反 capture.md §6.2 的“「截图」以这个区块为目标”：一节的目标是那段区间。
+- 这条路径（`ScreenshotSession.captureElementTarget`）一律克隆栅格化：整篇正文有很多屏高，截取慢，画面是克隆重排出来的。
+- 实例：`https://tech.meituan.com/2026/11/02/Meituan-LongCat-2.5.html` 的正文是一个有 66 个子元素的 `div`。指针停在「4.1 面向超节点的并行策略」下的段落上，描边是这一节（标题加四段），胶囊的截图是整篇正文。
+- 没有一条用例截过一节：`block-hover.test.ts` 只断言钩子收到代码块，`screenshot-anonymize.spec.ts` 截的是夹具里的整条帖子。
+
+**要求**
+
+1. 截图的目标就是描边的那一块：整元素的区块取这个元素；一节取它的区间，取景框是 `candidateRect` 给出的外接矩形，截出来只有区间里的标题和段落。比窗口高的一节走克隆路径时，克隆里只留区间内的子元素。
+2. 胶囊与区块模式的 `S` 共用这一条路径。
+3. capture.md §6.2 与 screenshot.md §1 里“以该区块为目标元素”改成“以描边的这一块为目标”：一节不是一个元素。
+4. 用例名带本编号与 capture.md §6.2。
+
+**验收**
+
+1. 单测：标题与段落平铺的夹具上，把一节交给胶囊的截图：交给截取的范围等于 `candidateRect`，克隆里只有这一节的标题与段落，没有下一节的标题。
+2. 单测：区块模式按 `S` 得到同样的结果；整元素的区块（如代码块）截图不变。
+3. E2E（`page-shapes.spec.ts` 用 `flatdoc.html`）：指针停在某一节的段落上，点胶囊的截图：截出的图与描边同宽同高（按像素比换算，误差 1 像素以内）。
+4. capture.md §6.2、screenshot.md §1 的措辞已改；`npm run check:docs` 通过。
+5. 真机：在上面那篇文章 4.1 节的段落上点胶囊的截图，得到的只有 4.1 这一节。
+
+#### RV-CAP-14 区块剪藏后的编辑气泡离开了被剪的那一节（低）
+
+**问题**：`wireBlockEntries` 的 `onClip` 把 `candidate.element` 交给 `showClipToast` 作编辑气泡的锚点，`clip-flow.ts` 的 `positionNear` 按它的矩形摆放。一节的 `element` 是装着全文的父元素，比窗口高得多，气泡被夹到窗口顶上，不在刚剪的那一节旁边。capture.md §6.2 要求区块剪藏的提示与编辑和选区剪藏一致，选区剪藏的气泡贴着选区。
+
+**要求**：锚点用描边的那一块：一节传覆盖它区间的 `Range`（`positionNear` 本来就接受 `Range`），整元素的区块不变。用例名带本编号。
+
+**验收**
+
+1. 单测：平铺夹具上剪藏一节后点“编辑”：气泡贴着这一节的外接矩形（下沿之下或上沿之上），不按父元素摆放。
+2. 单测：整元素的区块，气泡位置不变。
+3. 真机：在上面那篇文章的 4.1 节剪藏后点“编辑”，气泡出现在 4.1 旁边。
+
 ## 3. 已知问题
 
 没有条目。接受一条已知问题时按 §1 第 2 条写：现象与位置、为什么现在不修、影响与绕行、锁定当前行为的用例、什么情况下重新处理。
