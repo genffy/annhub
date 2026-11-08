@@ -130,7 +130,7 @@ async function settleIdle(): Promise<void> {
 describe('the offscreen sender gate (RV-BG-11, notes/sender-rules.md)', () => {
   it('a tab sender cannot stop a recording, start or finish a download, or extract a page', () => {
     const tabSender = { id: 'abc', tab: { id: 7 } }
-    for (const type of ['RECORDING_STOP', 'RECORDING_START', 'DOWNLOAD_RUN', 'DOWNLOAD_FINISH', 'DOWNLOAD_EXTRACT', 'DOWNLOAD_CANCEL']) {
+    for (const type of ['RECORDING_STOP', 'RECORDING_START', 'OFFSCREEN_PING', 'DOWNLOAD_RUN', 'DOWNLOAD_FINISH', 'DOWNLOAD_EXTRACT', 'DOWNLOAD_CANCEL']) {
       const { answered, answer } = send({ type }, tabSender)
       expect(answered, type).toBe(false)
       expect(answer, type).toBeUndefined()
@@ -145,6 +145,12 @@ describe('the offscreen sender gate (RV-BG-11, notes/sender-rules.md)', () => {
       expect(answered, type).toBe(false)
       expect(answer, type).toBeUndefined()
     }
+  })
+
+  it('the recovery ping is answered for the worker (RV-REC-02)', () => {
+    const { answered, answer } = send({ type: 'OFFSCREEN_PING' }, own)
+    expect(answered).toBe(true)
+    expect((answer as { success: boolean }).success).toBe(true)
   })
 
   it('the worker itself gets through: its run request is answered', () => {

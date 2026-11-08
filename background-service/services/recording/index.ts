@@ -94,8 +94,10 @@ export class RecordingService implements IService {
     const route = stored[SESSION_KEY] as PersistedRecordingRoute | undefined
     if (!route) return
     const contexts = await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT] }).catch(() => [])
-    if (contexts.length === 0) {
-      // the recorder died with its document: nothing to stop, nothing to download
+    if (contexts.length === 0 && !(await this.offscreenAnswers())) {
+      // the recorder died with its document: nothing to stop, nothing to download. The contexts read alone
+      // is not proof — a worker cold-started by a command can see no contexts for a document that is alive
+      // (seen on a real machine, RV-REC-02), so the document itself is asked before its route is dropped.
       await chrome.storage.session.remove(SESSION_KEY).catch(() => undefined)
       this.resetToIdle()
       return
@@ -504,6 +506,27 @@ export class RecordingService implements IService {
   private async ensureOffscreenDocument(): Promise<void> {
     // the one document both flows share (RV-BG-11)
     await ensureOffscreenDocument()
+  }
+
+  /** True when the offscreen document answers a ping: the recorder is alive whatever the contexts read said (RV-REC-02). */
+  private async offscreenAnswers(): Promise<boolean> {
+    try {
+      return await new Promise<boolean>(resolve => {
+        const timer = setTimeout(() => resolve(false), 1500)
+        void chrome.runtime.sendMessage({ type: 'OFFSCREEN_PING' }).then(
+          answer => {
+            clearTimeout(timer)
+            resolve(answer?.success === true)
+          },
+          () => {
+            clearTimeout(timer)
+            resolve(false)
+          },
+        )
+      })
+    } catch {
+      return false
+    }
   }
 
   private async tellOffscreen(message: { type: string } & Record<string, unknown>): Promise<{ ok: boolean }> {

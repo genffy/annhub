@@ -19,7 +19,11 @@ const downloads = { download: vi.fn(), search: vi.fn(async () => [] as chrome.do
 const tabs = { get: vi.fn(), query: vi.fn(), sendMessage: vi.fn(async () => undefined), create: vi.fn(async () => ({})), onRemoved: { addListener: vi.fn() } }
 const tabCapture = { getMediaStreamId: vi.fn(async () => 'stream-cmd') }
 const action = { setBadgeText: vi.fn(async () => undefined), setBadgeBackgroundColor: vi.fn(async () => undefined) }
-const runtime = { sendMessage: vi.fn(async () => ({ success: true })), getContexts: vi.fn(async () => [] as unknown[]), lastError: undefined as { message: string } | undefined }
+const runtime = {
+  sendMessage: vi.fn(async (_message: { type: string }) => ({ success: true })),
+  getContexts: vi.fn(async () => [] as unknown[]),
+  lastError: undefined as { message: string } | undefined,
+}
 const offscreen = { createDocument: vi.fn(async () => undefined), Reason: { USER_MEDIA: 'USER_MEDIA' } }
 /** Real backing stores, so the metrics singleton's and the route's get→modify→set round trips are observable. */
 const localStorageMap = new Map<string, unknown>()
@@ -325,8 +329,12 @@ describe('recording service (annotate.md §2)', () => {
   it('a restart without the offscreen document goes back to idle, clears the badge and drops the record (RV-REC-02)', async () => {
     await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
     expect(sessionStorageMap.has('annhub.recording')).toBe(true)
-    // no contexts: the recorder died with its document
+    // no contexts and no answer from the document: the recorder really died with it
     runtime.getContexts.mockResolvedValue([])
+    runtime.sendMessage.mockImplementation(async (message: { type: string }) => {
+      if (message.type === 'OFFSCREEN_PING') throw new Error('no document')
+      return { success: true }
+    })
     const restarted = new RecordingService()
     await restarted.initialize()
     const handlers = restarted.getMessageHandlers() as unknown as Record<string, LooseHandler>
@@ -335,6 +343,29 @@ describe('recording service (annotate.md §2)', () => {
     expect(sessionStorageMap.has('annhub.recording')).toBe(false)
     expect(action.setBadgeText).toHaveBeenLastCalledWith({ text: '' })
     await windDown(42, 'AnnHub/recording-gone.webm')
+  })
+
+  it('a cold-started worker that sees no contexts but reaches the document keeps the recording (RV-REC-02)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    // the contexts read comes back empty on a worker a command just woke (seen on a real machine);
+    // the document answers the ping, so the route survives and the state says recording
+    runtime.getContexts.mockResolvedValue([])
+    runtime.sendMessage.mockImplementation(async (message: { type: string }) => {
+      if (message.type === 'OFFSCREEN_PING') return { success: true }
+      return { success: true }
+    })
+    const cold = new RecordingService()
+    await cold.initialize()
+    const handlers = cold.getMessageHandlers() as unknown as Record<string, LooseHandler>
+    const state = (await handlers.GET_RECORDING_STATE({}, extensionSender)).data as { status: string }
+    expect(state.status).toBe('recording')
+    expect(sessionStorageMap.has('annhub.recording')).toBe(true)
+    expect(action.setBadgeText).toHaveBeenCalledWith({ text: 'REC' })
+    // the shortcut then stops what is live instead of trying to start over it
+    runtime.sendMessage.mockClear()
+    await cold.toggleFromCommand()
+    expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_STOP', stoppedBy: 'user' })
+    await windDown(71, 'AnnHub/recording-coldkeep.webm')
   })
 
   it('a restarted worker answers the stopped event: lifecycle to the tab, video to the disk (RV-REC-02)', async () => {

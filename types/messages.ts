@@ -240,6 +240,11 @@ export interface GetRecordingStateMessage extends BaseMessage {
   type: 'GET_RECORDING_STATE'
 }
 
+/** Worker → the offscreen document: is it there? A false-empty contexts read on a cold-started worker must not orphan a live recording (RV-REC-02). */
+export interface OffscreenPingMessage extends BaseMessage {
+  type: 'OFFSCREEN_PING'
+}
+
 export interface StopRecordingMessage extends BaseMessage {
   type: 'STOP_RECORDING'
 }
@@ -541,6 +546,7 @@ export type ExtensionMessage =
   | ReadFrameMessage
   | StartRecordingMessage
   | GetRecordingStateMessage
+  | OffscreenPingMessage
   | StopRecordingMessage
   | RetryRecordingDownloadMessage
   | DiscardRecordingMessage

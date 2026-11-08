@@ -18,7 +18,15 @@
  * Bytes never leave the browser: the blobs live in this document, the
  * downloads are the worker's chrome.downloads calls, and nothing is uploaded.
  */
-import type { DownloadCancelMessage, DownloadExtractMessage, DownloadFinishMessage, DownloadRunMessage, RecordingCommandMessage, RecordingEventMessage } from '../../types/messages'
+import type {
+  DownloadCancelMessage,
+  DownloadExtractMessage,
+  DownloadFinishMessage,
+  DownloadRunMessage,
+  OffscreenPingMessage,
+  RecordingCommandMessage,
+  RecordingEventMessage,
+} from '../../types/messages'
 import { fixWebmDuration } from '../../utils/webm-duration'
 import { fromOwnBackground } from './background-sender'
 import { acceptDownloadRun, cleanupDownloadRun, deliverFinish } from './download-run'
@@ -210,11 +218,17 @@ function cleanupVideo(): void {
 }
 
 chrome.runtime.onMessage.addListener(
-  (message: RecordingCommandMessage | DownloadRunMessage | DownloadFinishMessage | DownloadCancelMessage | DownloadExtractMessage, sender, sendResponse) => {
+  (message: RecordingCommandMessage | DownloadRunMessage | DownloadFinishMessage | DownloadCancelMessage | DownloadExtractMessage | OffscreenPingMessage, sender, sendResponse) => {
     // only the extension's own background talks to this document (RV-BG-11, notes/sender-rules.md):
     // a tab sender is any page's content script, a foreign id is another extension — either one
     // could stop a recording or start a download nobody asked for. No answer, ever.
     if (!fromOwnBackground(sender)) return
+    // the worker's recovery probe (RV-REC-02): a cold-started worker's contexts read can miss this
+    // document; an answer here tells it the recorder is alive before it drops the route record
+    if (message.type === 'OFFSCREEN_PING') {
+      sendResponse({ success: true })
+      return
+    }
     if (message.type === 'DOWNLOAD_EXTRACT') {
       void extractDownloadPage(message).then(
         html => sendResponse({ success: true, data: { html } }),
