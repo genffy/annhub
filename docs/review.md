@@ -22,28 +22,7 @@
 
 下面各组互不依赖，改的代码不相交，可以各开一个 worktree 并行；每组删掉自己那一组，最后合并的那一组连同这句一起删。
 
-### 录屏可靠性
-
-#### RV-REC-02 冷启动时先到的事件读到空状态，重启后录屏指标失真（中）
-
-**问题**
-
-- 单测层已修好（review/recording 分支 4e8fd05）：恢复读由第一个读状态的入口启动（`ensureRecovered`），不再等 `initialize()`；待落盘视频的路由记录带上 `durationMs`、`withMic`、`stoppedBy` 与 `limit`，`recover()` 原样读回。`recording.test.ts` 的冷启动用例（快捷键、关标签页、下载完成先到）全部通过。
-- 真机未过（hub Chrome :9222，扩展 v2.2.0，快捷键 ⌃⇧9，worker 停止走 chrome://serviceworker-internals 的 Stop）：录制中停掉 worker，10 秒内按快捷键，四次复现都是重启的 worker 把路由记录删掉、状态回 idle，快捷键走开始路径又被 invocation 拒绝，offscreen 记录器成为孤儿、视频不落盘。删记录的只有 `recover()` 里 contexts 为空的分支；c514c21 加了 `OFFSCREEN_PING`（worker 删路由前先问文档，单测覆盖），真机复测仍失败，ping 失败的确切形态（超时、连接错误还是被抢答）未抓到。
-- 关掉被录的标签页时视频会落盘，但走的是流结束让 offscreen 自动停的路径，不是 worker 的 `tab_closed` 路径，`stopped_by` 的真实性存疑。
-
-**要求**
-
-1. 查明冷启动 worker 上 `OFFSCREEN_PING` 拿不到回答的形态（对 `recover()` 各分支加日志重跑上面的复现），修掉它；`recover()` 在文档活着时永远不删路由。
-2. 重跑真机两小项：worker Stop 后 10 秒内快捷键停止、视频落盘可播放；再录一段，Stop 后 10 秒内关被录标签页、视频自动下载，`recording.downloaded` 的 `stopped_by` 分别是 `user` 与 `tab_closed`。
-
-**验收**
-
-1. 单测：contexts 为空、ping 有回答：路由保留、状态 recording；ping 超时：按原清理走（c514c21 已有，随根因修复调整）。
-2. 真机：上面两项按 annotate.md §2.4 通过。
-3. 真机驱动提示：CDP `Input.dispatchKeyEvent` 能触发 chrome.commands；tabCapture 的 invocation 墙只挡开始不挡停止；worker 里自问自答收不到消息（读状态用 offscreen 代问或直接读 `storage.session`，注意 top-level await 的 evaluate 会静默返回 undefined）。
-
-### 下载同名### 下载同名
+### 下载同名
 
 替换的提交点是产品可见的行为，写进 [download.md §2.5、§4.1](product/download.md)；其余行为照 download.md §8 与 D-94 不变。要跑的 E2E：`page-download.spec.ts`、`library-download.spec.ts`、`source-page-download.spec.ts`。
 

@@ -406,20 +406,22 @@ export class RecordingService implements IService {
           this.syncBadge()
           return
         }
+        // named before the state moves on: the recorded tab is still this recording's tab
+        const stoppedBy = await this.stoppedByOf(message.stoppedBy)
         this.pendingDownload = {
           blobUrl: message.blobUrl,
           filename: message.filename,
           meta: {
             durationMs: message.durationMs ?? 0,
             withMic: message.withMic === true,
-            stoppedBy: message.stoppedBy ?? 'user',
+            stoppedBy,
             limit: message.limit,
           },
         }
         this.state = {
           status: 'idle',
           withMic: false,
-          ...(message.stoppedBy === 'limit' ? { limitNotice: message.limit ?? 'time' } : {}),
+          ...(stoppedBy === 'limit' ? { limitNotice: message.limit ?? 'time' } : {}),
           // the reason the microphone is missing outlives the recording, so the popup can still say it
           ...(this.state.micNotice ? { micNotice: this.state.micNotice } : {}),
         }
@@ -430,6 +432,22 @@ export class RecordingService implements IService {
       default:
         return
     }
+  }
+
+  /**
+   * Who ended the recording, named by the side that can tell (annotate.md §2.1, metrics.md §9, RV-REC-02). The
+   * offscreen document reports `user` for every stop nobody told it the cause of: when the recorded tab closes, the
+   * recorder stops itself as the tab's tracks end — a moment before this worker's tabs.onRemoved reaches it — so a
+   * closed tab and the browser's own stop-sharing look the same there. A limit is the recorder's own word and a
+   * `tab_closed` is this worker's, so both stand. For `user` the recorded tab is asked: gone means it was closed.
+   * A tab this worker cannot name (the route was dropped) leaves the report as it is, rather than guessing.
+   */
+  private async stoppedByOf(reported: 'user' | 'tab_closed' | 'limit' | undefined): Promise<'user' | 'tab_closed' | 'limit'> {
+    if (reported === 'limit' || reported === 'tab_closed') return reported
+    const tabId = this.state.tabId ?? this.recordedTabId
+    if (tabId === undefined) return 'user'
+    const tab = await chrome.tabs.get(tabId).catch(() => undefined)
+    return tab ? 'user' : 'tab_closed'
   }
 
   private async downloadPending(): Promise<void> {

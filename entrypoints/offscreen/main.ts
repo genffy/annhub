@@ -169,6 +169,7 @@ async function startCapture(message: RecordingCommandMessage & { type: 'RECORDIN
       current.limit = 'time'
       stopRecording()
     }, TIME_LIMIT_MS),
+    // only a default: a recorder whose tab stream ends stops before the worker can say why, and the worker names the cause (RV-REC-02)
     stoppedBy: 'user',
   }
   recording = current
