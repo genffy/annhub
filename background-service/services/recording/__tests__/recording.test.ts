@@ -391,6 +391,108 @@ describe('recording service (annotate.md §2)', () => {
     await windDown(47, 'AnnHub/recording-p2.webm')
   })
 
+  it('a cold start: the shortcut lands before initialize() and stops the live recording (annotate.md §2.1, RV-REC-02)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    // the offscreen document survived the restart (the heartbeat kept it alive)
+    runtime.getContexts.mockResolvedValue([{ contextType: 'OFFSCREEN_DOCUMENT' }])
+    const cold = new RecordingService()
+    runtime.sendMessage.mockClear()
+    tabCapture.getMediaStreamId.mockClear()
+    // the command arrives while the services ahead are still opening their databases
+    await cold.toggleFromCommand()
+    expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_STOP', stoppedBy: 'user' })
+    expect(tabCapture.getMediaStreamId, 'the shortcut must not take a second stream').not.toHaveBeenCalled()
+    await cold.initialize()
+    await windDown(64, 'AnnHub/recording-cold-key.webm')
+  })
+
+  it('a cold start: the recorded tab closes before initialize() and stops with the tab reason (annotate.md §2.4, RV-REC-02)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    runtime.getContexts.mockResolvedValue([{ contextType: 'OFFSCREEN_DOCUMENT' }])
+    const cold = new RecordingService()
+    runtime.sendMessage.mockClear()
+    await cold.onTabRemoved(7)
+    expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_STOP', stoppedBy: 'tab_closed' })
+    await cold.initialize()
+    await windDown(65, 'AnnHub/recording-cold-tab.webm')
+  })
+
+  it("a cold start: the video's download completion lands before initialize() and finishes the flow (RV-REC-02)", async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(66))
+    await dispatch(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:cold', filename: 'AnnHub/recording-cold-dl.webm', durationMs: 1_000, stoppedBy: 'user', withMic: false },
+      extensionSender,
+    )
+    // the browser still runs the download the previous worker started
+    downloads.search.mockResolvedValue([{ id: 66, url: 'blob:cold', state: 'in_progress' } as chrome.downloads.DownloadItem])
+    runtime.getContexts.mockResolvedValue([{ contextType: 'OFFSCREEN_DOCUMENT' }])
+    const cold = new RecordingService()
+    runtime.sendMessage.mockClear()
+    await cold.onDownloadDelta({ id: 66, state: { previous: 'in_progress', current: 'complete' } })
+    expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_CLEANUP' })
+    const handlers = cold.getMessageHandlers() as unknown as Record<string, LooseHandler>
+    const state = (await handlers.GET_RECORDING_STATE({}, extensionSender)).data as { status: string; holdsVideo?: boolean }
+    expect(state.status).toBe('idle')
+    expect(state.holdsVideo).toBe(false)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const metrics = (await storage.local.get('annhub.metrics')) as {
+      'annhub.metrics'?: { 'recording.downloaded'?: Record<string, { total: number }> }
+    }
+    expect(Object.values(metrics['annhub.metrics']!['recording.downloaded']!)[0]!.total).toBe(1)
+    await windDown(67, 'AnnHub/recording-cold-dl2.webm')
+  })
+
+  it('a mic, tab-closed 4-minute video that restarts while waiting for the disk keeps its metric whole (metrics.md §9, RV-REC-02)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: true }, extensionSender)
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(68))
+    await dispatch(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:cold4', filename: 'AnnHub/recording-cold4.webm', durationMs: 4 * 60_000, stoppedBy: 'tab_closed', withMic: true },
+      extensionSender,
+    )
+    const waiting = sessionStorageMap.get('annhub.recording') as { pending?: Record<string, unknown> }
+    expect(Object.keys(waiting.pending!).sort(), 'the pending video carries its own metric fields').toEqual(['blobUrl', 'durationMs', 'filename', 'stoppedBy', 'withMic'])
+    downloads.search.mockResolvedValue([{ id: 68, url: 'blob:cold4', state: 'in_progress' } as chrome.downloads.DownloadItem])
+    runtime.getContexts.mockResolvedValue([{ contextType: 'OFFSCREEN_DOCUMENT' }])
+    const cold = new RecordingService()
+    await cold.initialize()
+    await cold.onDownloadDelta({ id: 68, state: { previous: 'in_progress', current: 'complete' } })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const metrics = (await storage.local.get('annhub.metrics')) as {
+      'annhub.metrics': { 'recording.downloaded': Record<string, { total: number; byProps: Record<string, number> }> }
+    }
+    const day = Object.values(metrics['annhub.metrics']!['recording.downloaded']!)[0]!
+    expect(Object.keys(day.byProps)).toEqual(['duration=3-5min|mic=true|stopped_by=tab_closed'])
+    await windDown(69, 'AnnHub/recording-cold4b.webm')
+  })
+
+  it('a start from the popup while the last video waits for the disk is refused, and the waiting video still lands (annotate.md §2.5, RV-REC-05)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(70))
+    await dispatch(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:wait', filename: 'AnnHub/recording-wait.webm', durationMs: 1_000, stoppedBy: 'user', withMic: false },
+      extensionSender,
+    )
+    // the offscreen document still holds the unsaved video: it refuses the new start
+    runtime.sendMessage.mockImplementationOnce(async () => ({ success: false }))
+    const answer = await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's2', withMic: false }, extensionSender)
+    expect(answer.error).toBe('RECORDING_FAILED')
+    const state = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string; holdsVideo?: boolean }
+    expect(state.status).toBe('idle')
+    expect(state.holdsVideo, 'the waiting video is untouched').toBe(true)
+    runtime.sendMessage.mockClear()
+    onDownloadChanged({ id: 70, state: { previous: 'in_progress', current: 'complete' } })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_CLEANUP' })
+    const metrics = (await storage.local.get('annhub.metrics')) as {
+      'annhub.metrics'?: { 'recording.downloaded'?: Record<string, { total: number }> }
+    }
+    expect(Object.values(metrics['annhub.metrics']!['recording.downloaded']!)[0]!.total).toBe(1)
+    const after = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string; holdsVideo?: boolean }
+    expect(after.status).toBe('idle')
+    expect(after.holdsVideo).toBe(false)
+  })
+
   it('the shortcut with 带麦克风 but no live grant opens the settings page and records nothing (annotate.md §2.1, RV-REC-03)', async () => {
     tabs.query.mockResolvedValue([{ id: 7, url: 'https://example.com/post', title: 'A post' }])
     permissions.query.mockResolvedValueOnce({ state: 'prompt' })
@@ -435,8 +537,9 @@ describe('recording service (annotate.md §2)', () => {
     )
     const pending = sessionStorageMap.get('annhub.recording') as { pending?: Record<string, unknown> }
     expect(Object.keys(pending).sort()).toEqual(['micNotice', 'pending', 'status', 'tabId', 'withMic'])
-    expect(Object.keys(pending.pending!).sort()).toEqual(['blobUrl', 'filename'])
+    expect(Object.keys(pending.pending!).sort()).toEqual(['blobUrl', 'durationMs', 'filename', 'stoppedBy', 'withMic'])
     expect(JSON.stringify(pending), 'no page URL or bytes in the record').not.toContain('example.com/post')
+    expect(JSON.stringify(pending), 'no tab title in the record').not.toContain('A post')
     await windDown(48, 'AnnHub/recording-x.webm')
   })
 })

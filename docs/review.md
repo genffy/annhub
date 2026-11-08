@@ -22,34 +22,6 @@
 
 下面各组互不依赖，改的代码不相交，可以各开一个 worktree 并行；每组删掉自己那一组，最后合并的那一组连同这句一起删。
 
-### 录屏可靠性
-
-两条都在录制链路上，一起改。规格是 [annotate.md §2.1、§2.4、§2.5](product/annotate.md)（开始与停止、失败、验收与测试）与 [metrics.md §9](product/metrics.md)；产品行为不变，只改实现。要跑的 E2E：`popup-entry.spec.ts`、`recording-annotation.spec.ts`、`page-annotation.spec.ts`、`cold-start.spec.ts`。
-
-#### RV-REC-02 冷启动时先到的事件读到空状态，重启后录屏指标失真（中）
-
-**问题**
-
-- `background-service/services/recording/index.ts` 的 `ready` 初值是已经完成的 `Promise.resolve()`，只有 `initialize()` 才把它换成 `recover()`；而 `initialize()` 排在 `EntryService`、`ScreenshotService` 打开 IndexedDB 之后（`background-service/index.ts` 依次初始化各服务）。
-- 顶层注册的监听在冷启动时先于 `initialize()` 到达：`listenForRecording` 里的 `tabs.onRemoved`、`downloads.onChanged`，以及快捷键（`event-handlers/command-handler.ts` 调 `toggleFromCommand`）。它们的 `await this.ready` 立刻通过，读到默认的 idle：快捷键去取一路新流而不是停止，关掉被录的标签页不发 `RECORDING_STOP`（annotate.md §2.1 的停止方式，annotate.md §2.4 的“被录的标签页关闭”）。
-- 带本编号的重启用例（`recording.test.ts`）都先 `await initialize()` 再发事件，测不到这个顺序。
-- 视频等待落盘时重启：`persistRoute` 写进 session 记录的 `pending` 只有 blob URL 与文件名，`withMic` 写成 `false`；`recover()` 把时长当成 0，停止原因只分 `limit` 与 `user`。落盘后记的 `recording.downloaded`（metrics.md §9，M-31）时长落进 `<1min`，`mic` 为假，`tab_closed` 记成 `user`。
-
-**要求**
-
-1. 恢复不依赖 `initialize()` 何时被调用：第一次读状态的入口（顶层监听、消息处理、`initialize()`）谁先到谁启动 `recover()`，其余的等同一个 promise，恢复只跑一次；也可以让顶层监听先等 `backgroundServiceManager.whenReady()` 再处理。等待期间到达的事件不丢。
-2. 待落盘视频的记录带上这段视频的 `durationMs`、`withMic`、`stoppedBy` 与 `limit`，`recover()` 原样读回。它们都不是页面内容，session 记录照旧不存标题、地址与视频字节；断言记录字段集合的用例随之改。
-3. 冷启动用例按真实顺序建模：新实例先收到事件，`initialize()` 在一段延迟之后才调用（模拟 IndexedDB 打开得慢）。
-
-**验收**
-
-1. 单测：冷启动时快捷键先于 `initialize()` 到达：发出 `RECORDING_STOP { stoppedBy: 'user' }`，没有调用 `tabCapture.getMediaStreamId`。
-2. 单测：冷启动时被录标签页的关闭先于 `initialize()` 到达：发出 `RECORDING_STOP { stoppedBy: 'tab_closed' }`。
-3. 单测：冷启动时视频的下载完成事件先于 `initialize()` 到达：照常收尾，发出 `RECORDING_CLEANUP`，状态回到 idle，`recording.downloaded` 记一次。
-4. 单测：带麦克风、因关闭标签页停止、录了 4 分钟的视频，在等待落盘时重启：落盘后的 `recording.downloaded` 是 `duration: '3-5min'`、`mic: true`、`stopped_by: 'tab_closed'`。
-5. 单测：session 记录的字段断言是要求 2 的集合，并断言里面没有标题、页面地址或视频字节。
-6. 真机：带麦克风开始录制，在 `chrome://serviceworker-internals` 对 AnnHub 的 worker 点 Stop，10 秒内（offscreen 的心跳会在 10 秒内把 worker 叫醒）按录制快捷键：录制停止，视频下载、能播放。再录一次，点 Stop 后 10 秒内关掉被录的标签页：视频自动下载。
-
 ### 下载同名
 
 替换的提交点是产品可见的行为，写进 [download.md §2.5、§4.1](product/download.md)；其余行为照 download.md §8 与 D-94 不变。要跑的 E2E：`page-download.spec.ts`、`library-download.spec.ts`、`source-page-download.spec.ts`。

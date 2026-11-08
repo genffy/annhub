@@ -11,8 +11,10 @@
  * back on startup, because Chrome suspends this worker after ~30 s idle and
  * the offscreen document's heartbeat is what wakes it again (annotate.md
  * §2.4, RV-REC-02). The tab and download listeners register at the worker
- * script's top level (listenForRecording), not here — an initialize() that
- * runs after other services would drop the very event that woke the worker.
+ * script's top level (listenForRecording), not here — and the recovery read
+ * is started by whichever state read arrives first (ensureRecovered), because
+ * initialize() runs after other services have opened their databases and the
+ * event that woke the worker does not wait for that.
  */
 import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage, RecordingEventMessage, RecordingState } from '../../../types/messages'
@@ -45,8 +47,8 @@ interface PersistedRecordingRoute {
   withMic: boolean
   micNotice?: 'denied' | 'missing' | 'busy'
   limitNotice?: 'time' | 'size'
-  /** The video waiting for the disk: the offscreen document keeps the blob URL alive until the cleanup. */
-  pending?: { blobUrl: string; filename: string }
+  /** The video waiting for the disk: the offscreen document keeps the blob URL alive until the cleanup; the meta is read back for the landed video's metric (RV-REC-02). */
+  pending?: { blobUrl: string; filename: string; durationMs: number; withMic: boolean; stoppedBy: 'user' | 'tab_closed' | 'limit'; limit?: 'time' | 'size' }
 }
 
 interface FinishedRecording {
@@ -65,8 +67,8 @@ export class RecordingService implements IService {
   private pendingDownload: { blobUrl: string; filename: string; downloadId?: number; meta: FinishedRecording } | null = null
   /** The tab whose recording produced the pending download; the route record keeps it after the state moved to idle. */
   private recordedTabId?: number
-  /** Set by initialize(): the recovery read has run, and every state read waits for it (RV-REC-02). */
-  private ready: Promise<void> = Promise.resolve()
+  /** The recovery read, started by whoever reads state first — an event that beats initialize() must not find the idle default (RV-REC-02). */
+  private recovery: Promise<void> | null = null
 
   static getInstance(): RecordingService {
     RecordingService.instance ??= new RecordingService()
@@ -76,9 +78,14 @@ export class RecordingService implements IService {
   async initialize(): Promise<void> {
     if (this.initDone) return
     this.initDone = true
-    this.ready = this.recover()
-    await this.ready
+    await this.ensureRecovered()
     Logger.info('[RecordingService] Initialized')
+  }
+
+  /** The first state read starts the recovery; every later one — initialize() included — waits for the same run (RV-REC-02). */
+  private ensureRecovered(): Promise<void> {
+    this.recovery ??= this.recover()
+    return this.recovery
   }
 
   /** Reads the route back before any state read answers: a restart mid-recording must not look idle (annotate.md §2.4, RV-REC-02). */
@@ -109,11 +116,12 @@ export class RecordingService implements IService {
       this.pendingDownload = {
         blobUrl: route.pending.blobUrl,
         filename: route.pending.filename,
+        // the meta travels with the pending video, so a restart keeps the metric true (RV-REC-02)
         meta: {
-          durationMs: 0,
-          withMic: route.withMic,
-          stoppedBy: route.limitNotice ? 'limit' : 'user',
-          ...(route.limitNotice ? { limit: route.limitNotice } : {}),
+          durationMs: route.pending.durationMs,
+          withMic: route.pending.withMic,
+          stoppedBy: route.pending.stoppedBy,
+          ...(route.pending.limit ? { limit: route.pending.limit } : {}),
         },
       }
       this.state = {
@@ -146,7 +154,14 @@ export class RecordingService implements IService {
               ...(this.recordedTabId !== undefined ? { tabId: this.recordedTabId } : {}),
               ...(this.state.limitNotice ? { limitNotice: this.state.limitNotice } : {}),
               ...(this.state.micNotice ? { micNotice: this.state.micNotice } : {}),
-              pending: { blobUrl: this.pendingDownload.blobUrl, filename: this.pendingDownload.filename },
+              pending: {
+                blobUrl: this.pendingDownload.blobUrl,
+                filename: this.pendingDownload.filename,
+                durationMs: this.pendingDownload.meta.durationMs,
+                withMic: this.pendingDownload.meta.withMic,
+                stoppedBy: this.pendingDownload.meta.stoppedBy,
+                ...(this.pendingDownload.meta.limit ? { limit: this.pendingDownload.meta.limit } : {}),
+              },
             }
           : null
     try {
@@ -167,7 +182,7 @@ export class RecordingService implements IService {
 
       GET_RECORDING_STATE: async (_message, sender): Promise<ResponseMessage> => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
-        await this.ready
+        await this.ensureRecovered()
         // holdsVideo: the offscreen document's stale-state recovery asks whether the worker
         // still wants the finished video (RV-REC-05); the popup ignores the field
         return MessageUtils.createResponse(true, { ...this.state, holdsVideo: this.pendingDownload !== null })
@@ -175,7 +190,7 @@ export class RecordingService implements IService {
 
       STOP_RECORDING: async (_message, sender): Promise<ResponseMessage> => {
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
-        await this.ready
+        await this.ensureRecovered()
         if (this.state.status !== 'recording') return MessageUtils.createResponse(false, undefined, 'RECORDING_NOT_ACTIVE')
         await this.stopRecording('user')
         return MessageUtils.createResponse(true, this.state)
@@ -183,7 +198,7 @@ export class RecordingService implements IService {
 
       RETRY_RECORDING_DOWNLOAD: async (_message, sender): Promise<ResponseMessage> => {
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
-        await this.ready
+        await this.ensureRecovered()
         if (this.state.status !== 'download-failed' || !this.pendingDownload) return MessageUtils.createResponse(false, undefined, 'RECORDING_NOT_ACTIVE')
         await this.downloadPending()
         return MessageUtils.createResponse(true, this.state)
@@ -191,7 +206,7 @@ export class RecordingService implements IService {
 
       DISCARD_RECORDING: async (_message, sender): Promise<ResponseMessage> => {
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
-        await this.ready
+        await this.ensureRecovered()
         if (this.state.status !== 'download-failed') return MessageUtils.createResponse(false, undefined, 'RECORDING_NOT_ACTIVE')
         await this.tellOffscreen({ type: 'RECORDING_CLEANUP' })
         this.pendingDownload = null
@@ -205,7 +220,7 @@ export class RecordingService implements IService {
       /** The recorded tab asks on load whether a recording is live (annotate.md §3.2): read-only, no user data. */
       RECORDING_STATUS: async (_message, sender): Promise<ResponseMessage> => {
         if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
-        await this.ready
+        await this.ensureRecovered()
         const settings = await readSettings()
         return MessageUtils.createResponse(true, { recording: this.state.status === 'recording', cursorHighlight: settings.recording.cursorHighlight })
       },
@@ -225,13 +240,13 @@ export class RecordingService implements IService {
 
   /** The recorded tab closed: stop and download what is there; waits for the route's recovery first (RV-REC-02). */
   async onTabRemoved(tabId: number): Promise<void> {
-    await this.ready
+    await this.ensureRecovered()
     if (this.state.status === 'recording' && this.state.tabId === tabId) await this.stopRecording('tab_closed')
   }
 
   /** The recorded video landed or broke; waits for the route's recovery first (RV-REC-02). */
   async onDownloadDelta(delta: chrome.downloads.DownloadDelta): Promise<void> {
-    await this.ready
+    await this.ensureRecovered()
     if (!this.pendingDownload || delta.id !== this.pendingDownload.downloadId || !delta.state) return
     if (delta.state.current === 'complete') await this.finishDownload()
     if (delta.state.current === 'interrupted') await this.failDownload()
@@ -239,20 +254,20 @@ export class RecordingService implements IService {
 
   /** The command toggle's state read, after the route's recovery (extension.md §7.1, RV-REC-02). */
   async currentStateAfterRecovery(): Promise<RecordingState> {
-    await this.ready
+    await this.ensureRecovered()
     return this.state
   }
 
   /** The command's stop half: the same road the popup's button takes. */
   async stopFromCommand(): Promise<void> {
-    await this.ready
+    await this.ensureRecovered()
     if (this.state.status !== 'recording') return
     await this.stopRecording('user')
   }
 
   /** The command entry (extension.md §7.1): the shortcut counts as the user's gesture, so the worker asks for the stream itself. */
   async startFromCommand(): Promise<void> {
-    await this.ready
+    await this.ensureRecovered()
     if (this.state.status !== 'idle') return
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!tab?.id || !recordableUrl(tab.url)) return
@@ -275,7 +290,7 @@ export class RecordingService implements IService {
 
   /** The shortcut's toggle, read after the recovery: the first press after a restart stops the live recording (RV-REC-02). */
   async toggleFromCommand(): Promise<void> {
-    await this.ready
+    await this.ensureRecovered()
     if (this.state.status === 'recording') await this.stopFromCommand()
     else await this.startFromCommand()
   }
