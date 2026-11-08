@@ -53,7 +53,8 @@ export async function rememberProduct(path: string, identity: string, at: number
 export async function occupiedNames(kind: 'folder' | 'zip'): Promise<Set<string>> {
   const taken = new Set<string>()
   try {
-    const items = await chrome.downloads.search({})
+    // limit: 0 — an unbounded search returns at most 1000 items, the 1001st occupied name would be missed (RV-DL-01)
+    const items = await chrome.downloads.search({ limit: 0 })
     for (const item of items) {
       const name = (item.filename ?? '').replace(/\\/g, '/')
       const at = name.toLowerCase().lastIndexOf('/annhub/')

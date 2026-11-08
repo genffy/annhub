@@ -240,6 +240,11 @@ export interface GetRecordingStateMessage extends BaseMessage {
   type: 'GET_RECORDING_STATE'
 }
 
+/** Worker → the offscreen document: is it there? A false-empty contexts read on a cold-started worker must not orphan a live recording (RV-REC-02). */
+export interface OffscreenPingMessage extends BaseMessage {
+  type: 'OFFSCREEN_PING'
+}
+
 export interface StopRecordingMessage extends BaseMessage {
   type: 'STOP_RECORDING'
 }
@@ -261,6 +266,7 @@ export interface RecordingEventMessage extends BaseMessage {
   blobUrl?: string
   filename?: string
   durationMs?: number
+  /** For `stopped`: the cause the recorder knows — a limit it hit, or the one the worker sent along. `user` is its default, which the worker checks against the recorded tab (annotate.md §2.1, RV-REC-02). */
   stoppedBy?: 'user' | 'tab_closed' | 'limit'
   /** Which limit was hit, when stopped_by is limit (annotate.md §2.1). */
   limit?: 'time' | 'size'
@@ -541,6 +547,7 @@ export type ExtensionMessage =
   | ReadFrameMessage
   | StartRecordingMessage
   | GetRecordingStateMessage
+  | OffscreenPingMessage
   | StopRecordingMessage
   | RetryRecordingDownloadMessage
   | DiscardRecordingMessage

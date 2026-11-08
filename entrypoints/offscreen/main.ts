@@ -18,7 +18,15 @@
  * Bytes never leave the browser: the blobs live in this document, the
  * downloads are the worker's chrome.downloads calls, and nothing is uploaded.
  */
-import type { DownloadCancelMessage, DownloadExtractMessage, DownloadFinishMessage, DownloadRunMessage, RecordingCommandMessage, RecordingEventMessage } from '../../types/messages'
+import type {
+  DownloadCancelMessage,
+  DownloadExtractMessage,
+  DownloadFinishMessage,
+  DownloadRunMessage,
+  OffscreenPingMessage,
+  RecordingCommandMessage,
+  RecordingEventMessage,
+} from '../../types/messages'
 import { fixWebmDuration } from '../../utils/webm-duration'
 import { fromOwnBackground } from './background-sender'
 import { acceptDownloadRun, cleanupDownloadRun, deliverFinish } from './download-run'
@@ -71,14 +79,18 @@ let starting = false
 
 /** Starts a recording; the answer goes back to the worker, which keeps its state only when it is true. */
 async function beginRecording(message: RecordingCommandMessage & { type: 'RECORDING_START' }): Promise<boolean> {
-  if (recording || unsavedVideo || starting) {
+  // a start already on its way owns the document: a second one must not take another
+  // stream, and the worker is not asked — there is no finished video to ask about yet
+  if (starting) return false
+  if (recording && recording.recorder.state === 'recording') return false
+  if (recording || unsavedVideo) {
     // stale-state recovery (RV-REC-05): RECORDING_CLEANUP can get lost when the worker
     // dies during the download wait, and this document then holds state from a run that
-    // is over. A recorder that is still rolling is a real recording; anything else is
-    // stale unless the worker itself still wants the video (a failed download waiting
-    // for 重新下载) — the worker is asked, and only its answer blocks the start.
-    if (recording && recording.recorder.state === 'recording') return false
-    if (!(await workerStillHoldsVideo())) return false
+    // is over. A recorder that is still rolling is a real recording; anything else asks
+    // the worker, and only its clear "no video" drops the state — the video is not
+    // given up before the download has landed (annotate.md §2.5), and no answer at all
+    // (the worker is gone) counts as holding it, so the state stays for its recovery.
+    if (await workerStillHoldsVideo()) return false
     if (recording) {
       // the recorder is not rolling; stop any tracks it still holds and drop the state
       recording.stream.getTracks().forEach(track => track.stop())
@@ -97,11 +109,14 @@ async function beginRecording(message: RecordingCommandMessage & { type: 'RECORD
   }
 }
 
-/** The worker's answer on whether the finished video is still wanted (RV-REC-05). */
+/**
+ * The worker's answer on whether it still wants the finished video (RV-REC-05):
+ * true when it holds one — or when it cannot be asked, so the caller keeps the state.
+ */
 async function workerStillHoldsVideo(): Promise<boolean> {
   try {
     const answer = await chrome.runtime.sendMessage({ type: 'GET_RECORDING_STATE' })
-    return answer?.success === true && answer?.data?.holdsVideo === true
+    return !(answer?.success === true && answer?.data?.holdsVideo === false)
   } catch {
     return true // the worker is gone: keep the state, the recovery on its side owns it
   }
@@ -154,6 +169,7 @@ async function startCapture(message: RecordingCommandMessage & { type: 'RECORDIN
       current.limit = 'time'
       stopRecording()
     }, TIME_LIMIT_MS),
+    // only a default: a recorder whose tab stream ends stops before the worker can say why, and the worker names the cause (RV-REC-02)
     stoppedBy: 'user',
   }
   recording = current
@@ -203,11 +219,17 @@ function cleanupVideo(): void {
 }
 
 chrome.runtime.onMessage.addListener(
-  (message: RecordingCommandMessage | DownloadRunMessage | DownloadFinishMessage | DownloadCancelMessage | DownloadExtractMessage, sender, sendResponse) => {
+  (message: RecordingCommandMessage | DownloadRunMessage | DownloadFinishMessage | DownloadCancelMessage | DownloadExtractMessage | OffscreenPingMessage, sender, sendResponse) => {
     // only the extension's own background talks to this document (RV-BG-11, notes/sender-rules.md):
     // a tab sender is any page's content script, a foreign id is another extension — either one
     // could stop a recording or start a download nobody asked for. No answer, ever.
     if (!fromOwnBackground(sender)) return
+    // the worker's recovery probe (RV-REC-02): a cold-started worker's contexts read can miss this
+    // document; an answer here tells it the recorder is alive before it drops the route record
+    if (message.type === 'OFFSCREEN_PING') {
+      sendResponse({ success: true })
+      return
+    }
     if (message.type === 'DOWNLOAD_EXTRACT') {
       void extractDownloadPage(message).then(
         html => sendResponse({ success: true, data: { html } }),

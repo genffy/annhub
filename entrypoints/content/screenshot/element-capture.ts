@@ -22,6 +22,8 @@ import type { IdentityParts } from './detect'
 export interface ElementCaptureOptions {
   /** The identity kinds to cover in the clone; absent means no anonymization. */
   anonymize?: IdentityParts
+  /** A section's interval inside `element` (RV-CAP-13): the clone drops the container's children outside it, so the raster is the outlined run alone. */
+  section?: { start: Element; end: Element | null }
 }
 
 /** Alpha must be 1 for the color to work as the capture's own background. */
@@ -84,6 +86,7 @@ export async function captureElement(element: HTMLElement, options: ElementCaptu
 
   const clone = doc.importNode(element, true) as HTMLElement
   clone.removeAttribute('id')
+  if (options.section) keepSectionChildren(element, clone, options.section)
   surface.appendChild(clone)
   doc.body.appendChild(surface)
 
@@ -109,6 +112,30 @@ export async function captureElement(element: HTMLElement, options: ElementCaptu
   } finally {
     surface.remove()
   }
+}
+
+/**
+ * A section's clone keeps only the interval's children (RV-CAP-13): removal —
+ * unlike the scroll rebuild's hiding — is right here, because the remaining
+ * children re-packing into a shorter box is exactly the raster wanted. The
+ * interval is read from the live element (child indexes) and applied to the
+ * clone's parallel children.
+ */
+function keepSectionChildren(element: Element, clone: HTMLElement, section: { start: Element; end: Element | null }): void {
+  const children = Array.from(element.children)
+  const from = children.indexOf(section.start)
+  const to = section.end ? children.indexOf(section.end) : children.length
+  if (from < 0 || to < from) return
+  const copies = Array.from(clone.children)
+  for (const [index, child] of copies.entries()) {
+    if (index < from || index >= to) child.remove()
+  }
+  // the run's outer margins sit outside the union rect its frame paints, and the capture surface — a
+  // fixed box of its own — would otherwise lay them inside the raster; drop them so the picture is the run
+  const first = copies[from] as HTMLElement | undefined
+  const last = copies[to - 1] as HTMLElement | undefined
+  if (first) first.style.marginTop = '0'
+  if (last) last.style.marginBottom = '0'
 }
 
 /**

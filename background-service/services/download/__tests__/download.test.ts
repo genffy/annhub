@@ -32,18 +32,22 @@ const downloadsDownload = vi.fn((options: { filename?: string; conflictAction?: 
       const dot = name.lastIndexOf('.')
       const extension = dot > name.lastIndexOf('/') ? name.slice(dot) : ''
       const base = extension ? name.slice(0, dot) : name
-      name = `${base} (1)${extension}`
+      let n = 1
+      while (onDisk(`${base} (${n})${extension}`)) n++
+      name = `${base} (${n})${extension}`
     }
     diskFiles.add(name.toLowerCase())
     landedFiles.set(id, name)
   }
   callback(id)
 })
-const downloadsSearch = vi.fn(async (query: { id?: number }) => {
+const downloadsSearch = vi.fn(async (query: { id?: number; limit?: number }) => {
   const id = query?.id
   const filename = id !== undefined ? landedFiles.get(id) : undefined
   if (filename !== undefined) return [{ id: id as number, state: 'complete', filename: `/tmp/downloads/${filename}` }]
-  return historyFiles.map(item => ({ ...item, state: item.state ?? 'complete' }))
+  const all = historyFiles.map(item => ({ ...item, state: item.state ?? 'complete' }))
+  // the browser caps an unbounded search at 1000 items (RV-DL-01); limit: 0 returns everything
+  return query?.limit === 0 ? all : all.slice(0, 1000)
 })
 const localStorageMap = new Map<string, unknown>()
 const sessionStorageMap = new Map<string, unknown>()
@@ -150,6 +154,16 @@ const PAGE_START = {
   media: [{ url: 'https://cdn.example.com/pic.jpg', kind: 'image' }],
   via: 'capsule',
   blockKind: 'post',
+}
+
+/** The same source carrying two media, for replacement runs whose second write is steered by a test. */
+const PAGE_START_TWO_MEDIA = {
+  ...PAGE_START,
+  markdown: 'Words ![alt](https://cdn.example.com/pic.jpg) ![two](https://cdn.example.com/pic2.png)',
+  media: [
+    { url: 'https://cdn.example.com/pic.jpg', kind: 'image' },
+    { url: 'https://cdn.example.com/pic2.png', kind: 'image' },
+  ],
 }
 
 beforeAll(async () => {
@@ -356,22 +370,191 @@ describe('the download service (download.md §2, §3, §7)', () => {
     expect(notices()[notices().length - 1]).toMatchObject({ phase: 'done' })
   })
 
-  it('a cancel or an interrupted write during the media stage leaves the old files and the old Markdown whole (download.md §8, RV-DL-01)', async () => {
-    const removeFile = chrome.downloads.removeFile as unknown as ReturnType<typeof vi.fn>
-    // an owned folder from the previous, complete download
+  /** Completes one download of this source (one medium + Markdown) so the folder is recorded as its product, then seeds the browser history with its files. */
+  async function completeFirstDownload(): Promise<void> {
+    await dispatch(PAGE_START)
+    const run = lastRunMessage()
+    await dispatch(
+      event({
+        requestId: run['requestId'] as string,
+        event: 'media',
+        outcomes: [{ ref: '|https://cdn.example.com/pic.jpg', status: 'saved', blobUrl: 'blob:abc', mime: 'image/jpeg' }],
+      }),
+      offscreenSender,
+    )
+    expect(notices()[notices().length - 1]).toMatchObject({ phase: 'done' })
     historyFiles = [
       { id: 900, filename: '/tmp/downloads/AnnHub/A good post/assets/img-001.jpg' },
       { id: 901, filename: '/tmp/downloads/AnnHub/A good post/A good post.md' },
     ]
-    const identityOwner = 'owner'
-    localStorageMap.set('annhub.downloadFolders', { [identityOwner]: { owner: identityOwner, at: 1 } })
-    // make the record match this identity: the service hashes the identity, so seed through one real run instead
-    localStorageMap.delete('annhub.downloadFolders')
-    await dispatch(PAGE_START)
-    const run = lastRunMessage()
-    expect(run['basePath']).toBe('AnnHub/A good post (2)') // unowned history → taken
+  }
+
+  it("a replacement cancelled during the media stage removes only this run's new files, and nothing is overwritten (download.md §2.5, §8, RV-DL-01)", async () => {
+    const removeFile = chrome.downloads.removeFile as unknown as ReturnType<typeof vi.fn>
+    await completeFirstDownload()
+    removeFile.mockClear()
+    downloadsDownload.mockClear()
+
+    // the replacement carries two media; the second one's settle is held so the cancel lands mid-media-stage
+    let releaseSecond!: () => void
+    let holdEntered = false
+    const secondHeld = new Promise<void>(resolve => (releaseSecond = resolve))
+    const originalSearch = downloadsSearch.getMockImplementation()!
+    downloadsSearch.mockImplementation(async (query: { id?: number }) => {
+      if (query?.id !== undefined && landedFiles.get(query.id) === 'AnnHub/A good post/assets/img-002.png') {
+        holdEntered = true
+        await secondHeld
+      }
+      return originalSearch(query)
+    })
+    const started = await dispatch(PAGE_START_TWO_MEDIA)
+    expect(started.success).toBe(true)
+    expect(lastRunMessage()['basePath']).toBe('AnnHub/A good post')
+    const firstNewId = nextDownloadId + 1
+    const mediaEvent = dispatch(
+      event({
+        requestId: lastRunMessage()['requestId'] as string,
+        event: 'media',
+        outcomes: [
+          { ref: '|https://cdn.example.com/pic.jpg', status: 'saved', blobUrl: 'blob:new1', mime: 'image/jpeg' },
+          { ref: '|https://cdn.example.com/pic2.png', status: 'saved', blobUrl: 'blob:new2', mime: 'image/png' },
+        ],
+      }),
+      offscreenSender,
+    )
+    await vi.waitFor(() => expect(holdEntered).toBe(true))
     await dispatch({ type: 'CANCEL_DOWNLOAD' }, tabSender)
-    expect(removeFile, "the unowned folder's files are not swept by a cancelled run").not.toHaveBeenCalled()
+    releaseSecond()
+    await mediaEvent
+    downloadsSearch.mockImplementation(originalSearch)
+
+    expect(notices()[notices().length - 1]).toMatchObject({ phase: 'cancelled' })
+    expect(
+      downloadsDownload.mock.calls.every(call => (call[0] as { conflictAction?: string }).conflictAction !== 'overwrite'),
+      'the old Markdown was never overwritten',
+    ).toBe(true)
+    expect(writtenMarkdown()).toHaveLength(0)
+    const removedIds = removeFile.mock.calls.map(call => call[0] as number)
+    expect(new Set(removedIds), "only this run's new files are removed").toEqual(new Set([firstNewId, firstNewId + 1]))
+  })
+
+  it('a replacement cancelled after the new Markdown has landed changes nothing: the run completes and sweeps (download.md §2.5, RV-DL-01)', async () => {
+    const removeFile = chrome.downloads.removeFile as unknown as ReturnType<typeof vi.fn>
+    await completeFirstDownload()
+    removeFile.mockClear()
+    const started = await dispatch(PAGE_START)
+    expect(started.success).toBe(true)
+    expect(lastRunMessage()['basePath']).toBe('AnnHub/A good post')
+
+    // the sweep's history read is held, so the cancel lands after the Markdown (the commit point) but before the sweep
+    let releaseSweep!: () => void
+    let sweepEntered = false
+    const sweepHeld = new Promise<void>(resolve => (releaseSweep = resolve))
+    const originalSearch = downloadsSearch.getMockImplementation()!
+    downloadsSearch.mockImplementation(async (query: { id?: number; limit?: number }) => {
+      if (query?.id === undefined && query?.limit === 0) {
+        sweepEntered = true
+        await sweepHeld
+      }
+      return originalSearch(query)
+    })
+    const mediaEvent = dispatch(
+      event({
+        requestId: lastRunMessage()['requestId'] as string,
+        event: 'media',
+        outcomes: [{ ref: '|https://cdn.example.com/pic.jpg', status: 'saved', blobUrl: 'blob:again', mime: 'image/jpeg' }],
+      }),
+      offscreenSender,
+    )
+    await vi.waitFor(() => expect(sweepEntered).toBe(true))
+    await dispatch({ type: 'CANCEL_DOWNLOAD' }, tabSender)
+    releaseSweep()
+    await mediaEvent
+    downloadsSearch.mockImplementation(originalSearch)
+
+    expect(notices()[notices().length - 1]).toMatchObject({ phase: 'done' })
+    expect(await recordedMetric()).toMatchObject({ result: 'ok' })
+    // the sweep removed exactly the old medium; the old Markdown's path is the new Markdown's, this run's files stay
+    expect(removeFile).toHaveBeenCalledTimes(1)
+    expect(removeFile).toHaveBeenCalledWith(900)
+    const records = localStorageMap.get('annhub.downloadFolders') as Record<string, unknown>
+    expect(Object.keys(records)).toHaveLength(1)
+  })
+
+  it('a replacement whose medium is interrupted writes no Markdown or README, keeps the old version whole, and a retry sweeps everything stale (download.md §8, RV-DL-01)', async () => {
+    const removeFile = chrome.downloads.removeFile as unknown as ReturnType<typeof vi.fn>
+    await completeFirstDownload()
+    removeFile.mockClear()
+    downloadsDownload.mockClear()
+
+    // the browser breaks the second medium's write after accepting it
+    const originalSearch = downloadsSearch.getMockImplementation()!
+    downloadsSearch.mockImplementation(async (query: { id?: number }) => {
+      if (query?.id !== undefined && landedFiles.get(query.id) === 'AnnHub/A good post/assets/img-002.png') return [{ id: query.id, state: 'interrupted', filename: '' }]
+      return originalSearch(query)
+    })
+    await dispatch(PAGE_START_TWO_MEDIA)
+    expect(lastRunMessage()['basePath']).toBe('AnnHub/A good post')
+    await dispatch(
+      event({
+        requestId: lastRunMessage()['requestId'] as string,
+        event: 'media',
+        outcomes: [
+          { ref: '|https://cdn.example.com/pic.jpg', status: 'saved', blobUrl: 'blob:new1', mime: 'image/jpeg' },
+          { ref: '|https://cdn.example.com/pic2.png', status: 'saved', blobUrl: 'blob:new2', mime: 'image/png' },
+        ],
+      }),
+      offscreenSender,
+    )
+    downloadsSearch.mockImplementation(originalSearch)
+
+    expect(writtenMarkdown(), 'no Markdown or README over the old version').toHaveLength(0)
+    expect(downloadsDownload.mock.calls.every(call => (call[0] as { conflictAction?: string }).conflictAction !== 'overwrite')).toBe(true)
+    expect(
+      removeFile.mock.calls.map(call => call[0] as number),
+      'no old file is deleted; only the interrupted new one goes',
+    ).toEqual([nextDownloadId])
+    expect(notices()[notices().length - 1]).toMatchObject({ phase: 'failed', errorCode: 'DOWNLOAD_FAILED' })
+    const records = localStorageMap.get('annhub.downloadFolders') as Record<string, unknown>
+    expect(Object.keys(records), 'a failed replacement re-records nothing').toHaveLength(1)
+
+    // the retry of the same source: everything lands, and the sweep clears the old and the failed attempt's leftover media
+    historyFiles = [
+      { id: 900, filename: '/tmp/downloads/AnnHub/A good post/assets/img-001.jpg' },
+      { id: 901, filename: '/tmp/downloads/AnnHub/A good post/A good post.md' },
+      { id: 902, filename: '/tmp/downloads/AnnHub/A good post/assets/img-001 (1).jpg' },
+    ]
+    removeFile.mockClear()
+    const retry = await dispatch(PAGE_START_TWO_MEDIA)
+    expect(retry.success).toBe(true)
+    expect(lastRunMessage()['basePath']).toBe('AnnHub/A good post')
+    await dispatch(
+      event({
+        requestId: lastRunMessage()['requestId'] as string,
+        event: 'media',
+        outcomes: [
+          { ref: '|https://cdn.example.com/pic.jpg', status: 'saved', blobUrl: 'blob:retry1', mime: 'image/jpeg' },
+          { ref: '|https://cdn.example.com/pic2.png', status: 'saved', blobUrl: 'blob:retry2', mime: 'image/png' },
+        ],
+      }),
+      offscreenSender,
+    )
+    expect(notices()[notices().length - 1]).toMatchObject({ phase: 'done' })
+    expect(new Set(removeFile.mock.calls.map(call => call[0] as number)), "the old medium and the failed attempt's leftover go").toEqual(new Set([900, 902]))
+    expect(downloadsDownload).toHaveBeenLastCalledWith(
+      expect.objectContaining({ conflictAction: 'overwrite', filename: 'AnnHub/A good post/A good post.md' }),
+      expect.any(Function),
+    )
+  })
+
+  it('a download history past 1000 items still sees the 1001st occupied name (RV-DL-01)', async () => {
+    historyFiles = [
+      ...Array.from({ length: 1000 }, (_, index) => ({ id: index, filename: `/tmp/downloads/AnnHub/history-${index}/history-${index}.md` })),
+      { id: 1000, filename: '/tmp/downloads/AnnHub/A good post/A good post.md' },
+    ]
+    await dispatch(PAGE_START)
+    expect(lastRunMessage()['basePath']).toBe('AnnHub/A good post (2)')
+    await dispatch({ type: 'CANCEL_DOWNLOAD' }, tabSender)
   })
 
   it('two multi selections on the same day land in two batch folders, the second with (2) (RV-DL-01)', async () => {

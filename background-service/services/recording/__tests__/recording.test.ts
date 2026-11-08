@@ -19,7 +19,11 @@ const downloads = { download: vi.fn(), search: vi.fn(async () => [] as chrome.do
 const tabs = { get: vi.fn(), query: vi.fn(), sendMessage: vi.fn(async () => undefined), create: vi.fn(async () => ({})), onRemoved: { addListener: vi.fn() } }
 const tabCapture = { getMediaStreamId: vi.fn(async () => 'stream-cmd') }
 const action = { setBadgeText: vi.fn(async () => undefined), setBadgeBackgroundColor: vi.fn(async () => undefined) }
-const runtime = { sendMessage: vi.fn(async () => ({ success: true })), getContexts: vi.fn(async () => [] as unknown[]), lastError: undefined as { message: string } | undefined }
+const runtime = {
+  sendMessage: vi.fn(async (_message: { type: string }) => ({ success: true })),
+  getContexts: vi.fn(async () => [] as unknown[]),
+  lastError: undefined as { message: string } | undefined,
+}
 const offscreen = { createDocument: vi.fn(async () => undefined), Reason: { USER_MEDIA: 'USER_MEDIA' } }
 /** Real backing stores, so the metrics singleton's and the route's get→modify→set round trips are observable. */
 const localStorageMap = new Map<string, unknown>()
@@ -80,6 +84,15 @@ async function windDown(id: number, filename: string): Promise<void> {
   downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(id))
   await dispatch({ type: 'RECORDING_EVENT', event: 'stopped', blobUrl: `blob:${filename}`, filename, durationMs: 1_000, stoppedBy: 'user', withMic: false }, extensionSender)
   onDownloadChanged({ id, state: { previous: 'in_progress', current: 'complete' } })
+}
+
+/** The `recording.downloaded` combinations the metrics store holds (metrics.md §9), once the fire-and-forget write has settled. */
+async function downloadedCombos(): Promise<string[]> {
+  await new Promise(resolve => setTimeout(resolve, 50))
+  const stored = (await storage.local.get('annhub.metrics')) as {
+    'annhub.metrics'?: { 'recording.downloaded'?: Record<string, { byProps: Record<string, number> }> }
+  }
+  return Object.values(stored['annhub.metrics']?.['recording.downloaded'] ?? {}).flatMap(day => Object.keys(day.byProps))
 }
 
 beforeAll(async () => {
@@ -325,8 +338,12 @@ describe('recording service (annotate.md §2)', () => {
   it('a restart without the offscreen document goes back to idle, clears the badge and drops the record (RV-REC-02)', async () => {
     await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
     expect(sessionStorageMap.has('annhub.recording')).toBe(true)
-    // no contexts: the recorder died with its document
+    // no contexts and no answer from the document: the recorder really died with it
     runtime.getContexts.mockResolvedValue([])
+    runtime.sendMessage.mockImplementation(async (message: { type: string }) => {
+      if (message.type === 'OFFSCREEN_PING') throw new Error('no document')
+      return { success: true }
+    })
     const restarted = new RecordingService()
     await restarted.initialize()
     const handlers = restarted.getMessageHandlers() as unknown as Record<string, LooseHandler>
@@ -335,6 +352,29 @@ describe('recording service (annotate.md §2)', () => {
     expect(sessionStorageMap.has('annhub.recording')).toBe(false)
     expect(action.setBadgeText).toHaveBeenLastCalledWith({ text: '' })
     await windDown(42, 'AnnHub/recording-gone.webm')
+  })
+
+  it('a cold-started worker that sees no contexts but reaches the document keeps the recording (RV-REC-02)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    // the contexts read comes back empty on a worker a command just woke (seen on a real machine);
+    // the document answers the ping, so the route survives and the state says recording
+    runtime.getContexts.mockResolvedValue([])
+    runtime.sendMessage.mockImplementation(async (message: { type: string }) => {
+      if (message.type === 'OFFSCREEN_PING') return { success: true }
+      return { success: true }
+    })
+    const cold = new RecordingService()
+    await cold.initialize()
+    const handlers = cold.getMessageHandlers() as unknown as Record<string, LooseHandler>
+    const state = (await handlers.GET_RECORDING_STATE({}, extensionSender)).data as { status: string }
+    expect(state.status).toBe('recording')
+    expect(sessionStorageMap.has('annhub.recording')).toBe(true)
+    expect(action.setBadgeText).toHaveBeenCalledWith({ text: 'REC' })
+    // the shortcut then stops what is live instead of trying to start over it
+    runtime.sendMessage.mockClear()
+    await cold.toggleFromCommand()
+    expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_STOP', stoppedBy: 'user' })
+    await windDown(71, 'AnnHub/recording-coldkeep.webm')
   })
 
   it('a restarted worker answers the stopped event: lifecycle to the tab, video to the disk (RV-REC-02)', async () => {
@@ -391,6 +431,108 @@ describe('recording service (annotate.md §2)', () => {
     await windDown(47, 'AnnHub/recording-p2.webm')
   })
 
+  it('a cold start: the shortcut lands before initialize() and stops the live recording (annotate.md §2.1, RV-REC-02)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    // the offscreen document survived the restart (the heartbeat kept it alive)
+    runtime.getContexts.mockResolvedValue([{ contextType: 'OFFSCREEN_DOCUMENT' }])
+    const cold = new RecordingService()
+    runtime.sendMessage.mockClear()
+    tabCapture.getMediaStreamId.mockClear()
+    // the command arrives while the services ahead are still opening their databases
+    await cold.toggleFromCommand()
+    expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_STOP', stoppedBy: 'user' })
+    expect(tabCapture.getMediaStreamId, 'the shortcut must not take a second stream').not.toHaveBeenCalled()
+    await cold.initialize()
+    await windDown(64, 'AnnHub/recording-cold-key.webm')
+  })
+
+  it('a cold start: the recorded tab closes before initialize() and stops with the tab reason (annotate.md §2.4, RV-REC-02)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    runtime.getContexts.mockResolvedValue([{ contextType: 'OFFSCREEN_DOCUMENT' }])
+    const cold = new RecordingService()
+    runtime.sendMessage.mockClear()
+    await cold.onTabRemoved(7)
+    expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_STOP', stoppedBy: 'tab_closed' })
+    await cold.initialize()
+    await windDown(65, 'AnnHub/recording-cold-tab.webm')
+  })
+
+  it("a cold start: the video's download completion lands before initialize() and finishes the flow (RV-REC-02)", async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(66))
+    await dispatch(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:cold', filename: 'AnnHub/recording-cold-dl.webm', durationMs: 1_000, stoppedBy: 'user', withMic: false },
+      extensionSender,
+    )
+    // the browser still runs the download the previous worker started
+    downloads.search.mockResolvedValue([{ id: 66, url: 'blob:cold', state: 'in_progress' } as chrome.downloads.DownloadItem])
+    runtime.getContexts.mockResolvedValue([{ contextType: 'OFFSCREEN_DOCUMENT' }])
+    const cold = new RecordingService()
+    runtime.sendMessage.mockClear()
+    await cold.onDownloadDelta({ id: 66, state: { previous: 'in_progress', current: 'complete' } })
+    expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_CLEANUP' })
+    const handlers = cold.getMessageHandlers() as unknown as Record<string, LooseHandler>
+    const state = (await handlers.GET_RECORDING_STATE({}, extensionSender)).data as { status: string; holdsVideo?: boolean }
+    expect(state.status).toBe('idle')
+    expect(state.holdsVideo).toBe(false)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const metrics = (await storage.local.get('annhub.metrics')) as {
+      'annhub.metrics'?: { 'recording.downloaded'?: Record<string, { total: number }> }
+    }
+    expect(Object.values(metrics['annhub.metrics']!['recording.downloaded']!)[0]!.total).toBe(1)
+    await windDown(67, 'AnnHub/recording-cold-dl2.webm')
+  })
+
+  it('a mic, tab-closed 4-minute video that restarts while waiting for the disk keeps its metric whole (metrics.md §9, RV-REC-02)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: true }, extensionSender)
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(68))
+    await dispatch(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:cold4', filename: 'AnnHub/recording-cold4.webm', durationMs: 4 * 60_000, stoppedBy: 'tab_closed', withMic: true },
+      extensionSender,
+    )
+    const waiting = sessionStorageMap.get('annhub.recording') as { pending?: Record<string, unknown> }
+    expect(Object.keys(waiting.pending!).sort(), 'the pending video carries its own metric fields').toEqual(['blobUrl', 'durationMs', 'filename', 'stoppedBy', 'withMic'])
+    downloads.search.mockResolvedValue([{ id: 68, url: 'blob:cold4', state: 'in_progress' } as chrome.downloads.DownloadItem])
+    runtime.getContexts.mockResolvedValue([{ contextType: 'OFFSCREEN_DOCUMENT' }])
+    const cold = new RecordingService()
+    await cold.initialize()
+    await cold.onDownloadDelta({ id: 68, state: { previous: 'in_progress', current: 'complete' } })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    const metrics = (await storage.local.get('annhub.metrics')) as {
+      'annhub.metrics': { 'recording.downloaded': Record<string, { total: number; byProps: Record<string, number> }> }
+    }
+    const day = Object.values(metrics['annhub.metrics']!['recording.downloaded']!)[0]!
+    expect(Object.keys(day.byProps)).toEqual(['duration=3-5min|mic=true|stopped_by=tab_closed'])
+    await windDown(69, 'AnnHub/recording-cold4b.webm')
+  })
+
+  it('a start from the popup while the last video waits for the disk is refused, and the waiting video still lands (annotate.md §2.5, RV-REC-05)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(70))
+    await dispatch(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:wait', filename: 'AnnHub/recording-wait.webm', durationMs: 1_000, stoppedBy: 'user', withMic: false },
+      extensionSender,
+    )
+    // the offscreen document still holds the unsaved video: it refuses the new start
+    runtime.sendMessage.mockImplementationOnce(async () => ({ success: false }))
+    const answer = await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's2', withMic: false }, extensionSender)
+    expect(answer.error).toBe('RECORDING_FAILED')
+    const state = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string; holdsVideo?: boolean }
+    expect(state.status).toBe('idle')
+    expect(state.holdsVideo, 'the waiting video is untouched').toBe(true)
+    runtime.sendMessage.mockClear()
+    onDownloadChanged({ id: 70, state: { previous: 'in_progress', current: 'complete' } })
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_CLEANUP' })
+    const metrics = (await storage.local.get('annhub.metrics')) as {
+      'annhub.metrics'?: { 'recording.downloaded'?: Record<string, { total: number }> }
+    }
+    expect(Object.values(metrics['annhub.metrics']!['recording.downloaded']!)[0]!.total).toBe(1)
+    const after = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string; holdsVideo?: boolean }
+    expect(after.status).toBe('idle')
+    expect(after.holdsVideo).toBe(false)
+  })
+
   it('the shortcut with 带麦克风 but no live grant opens the settings page and records nothing (annotate.md §2.1, RV-REC-03)', async () => {
     tabs.query.mockResolvedValue([{ id: 7, url: 'https://example.com/post', title: 'A post' }])
     permissions.query.mockResolvedValueOnce({ state: 'prompt' })
@@ -435,8 +577,104 @@ describe('recording service (annotate.md §2)', () => {
     )
     const pending = sessionStorageMap.get('annhub.recording') as { pending?: Record<string, unknown> }
     expect(Object.keys(pending).sort()).toEqual(['micNotice', 'pending', 'status', 'tabId', 'withMic'])
-    expect(Object.keys(pending.pending!).sort()).toEqual(['blobUrl', 'filename'])
+    expect(Object.keys(pending.pending!).sort()).toEqual(['blobUrl', 'durationMs', 'filename', 'stoppedBy', 'withMic'])
     expect(JSON.stringify(pending), 'no page URL or bytes in the record').not.toContain('example.com/post')
+    expect(JSON.stringify(pending), 'no tab title in the record').not.toContain('A post')
     await windDown(48, 'AnnHub/recording-x.webm')
+  })
+
+  // The recorder stops by itself when the captured tab's tracks end, a moment before the worker's tabs.onRemoved
+  // reaches it, so the offscreen document reports its default `user` for a closed tab too. The stopped event comes
+  // first with `user`; the worker names the cause, from whether the recorded tab is still there.
+  const tabGone = (): Error => new Error('No tab with id: 7.')
+
+  it('the recorder stops first and reports user while the recorded tab is gone: the pending video and the metric say tab_closed (annotate.md §2.4, RV-REC-02)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    tabs.get.mockRejectedValue(tabGone())
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(80))
+    await dispatch(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:gone', filename: 'AnnHub/recording-gone.webm', durationMs: 1_000, stoppedBy: 'user', withMic: false },
+      extensionSender,
+    )
+    // the cause is decided before the wait for the disk, so a restart reads the same one back
+    const waiting = sessionStorageMap.get('annhub.recording') as { pending?: { stoppedBy?: string } }
+    expect(waiting.pending?.stoppedBy).toBe('tab_closed')
+    onDownloadChanged({ id: 80, state: { previous: 'in_progress', current: 'complete' } })
+    expect(await downloadedCombos()).toEqual(['duration=<1min|mic=false|stopped_by=tab_closed'])
+  })
+
+  it('the recorder stops first and reports user while the recorded tab is still open (stop sharing): the metric says user (annotate.md §2.4, RV-REC-02)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    tabs.get.mockClear()
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(81))
+    await dispatch(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:open', filename: 'AnnHub/recording-open.webm', durationMs: 1_000, stoppedBy: 'user', withMic: false },
+      extensionSender,
+    )
+    expect(tabs.get, 'the recorded tab is asked, not assumed').toHaveBeenCalledWith(7)
+    onDownloadChanged({ id: 81, state: { previous: 'in_progress', current: 'complete' } })
+    expect(await downloadedCombos()).toEqual(['duration=<1min|mic=false|stopped_by=user'])
+  })
+
+  it('a cold-started worker gets stopped before tabs.onRemoved: the closed tab is still tab_closed, and the late removal stops nothing (annotate.md §2.4, RV-REC-02)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    runtime.getContexts.mockResolvedValue([{ contextType: 'OFFSCREEN_DOCUMENT' }])
+    // the tab closing is what woke this worker: its recovery already finds the tab gone
+    tabs.get.mockRejectedValue(tabGone())
+    const cold = new RecordingService()
+    await cold.initialize()
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(82))
+    const handlers = cold.getMessageHandlers() as unknown as Record<string, LooseHandler>
+    await handlers.RECORDING_EVENT(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:cold-gone', filename: 'AnnHub/recording-cold-gone.webm', durationMs: 1_000, stoppedBy: 'user', withMic: false },
+      extensionSender,
+    )
+    await cold.onDownloadDelta({ id: 82, state: { previous: 'in_progress', current: 'complete' } })
+    expect(await downloadedCombos()).toEqual(['duration=<1min|mic=false|stopped_by=tab_closed'])
+    // tabs.onRemoved reaches the worker after the stopped event: nothing records any more, so it asks for no stop
+    runtime.sendMessage.mockClear()
+    await cold.onTabRemoved(7)
+    expect(runtime.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'RECORDING_STOP' }))
+    tabs.get.mockResolvedValue({ id: 7, url: 'https://example.com/post', title: 'A post' })
+    await windDown(83, 'AnnHub/recording-cold-gone-singleton.webm')
+  })
+
+  it('a limit the recorder reports is kept: a closed tab does not overrule it and is not even asked (annotate.md §2.4, RV-REC-02)', async () => {
+    await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
+    tabs.get.mockClear()
+    tabs.get.mockRejectedValue(tabGone())
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(84))
+    await dispatch(
+      {
+        type: 'RECORDING_EVENT',
+        event: 'stopped',
+        blobUrl: 'blob:limit',
+        filename: 'AnnHub/recording-limit.webm',
+        durationMs: 15 * 60_000,
+        stoppedBy: 'limit',
+        limit: 'time',
+        withMic: false,
+      },
+      extensionSender,
+    )
+    expect(tabs.get).not.toHaveBeenCalled()
+    onDownloadChanged({ id: 84, state: { previous: 'in_progress', current: 'complete' } })
+    expect(await downloadedCombos()).toEqual(['duration=>=10min|mic=false|stopped_by=limit'])
+  })
+
+  it('a worker that cannot name the recorded tab keeps the reported user instead of guessing tab_closed (annotate.md §2.4, RV-REC-02)', async () => {
+    const fresh = new RecordingService()
+    await fresh.initialize() // no route record: as far as it knows nothing was recorded, so there is no tab to ask about
+    tabs.get.mockClear()
+    tabs.get.mockRejectedValue(tabGone())
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(85))
+    const handlers = fresh.getMessageHandlers() as unknown as Record<string, LooseHandler>
+    await handlers.RECORDING_EVENT(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:unknown', filename: 'AnnHub/recording-unknown.webm', durationMs: 1_000, stoppedBy: 'user', withMic: false },
+      extensionSender,
+    )
+    expect(tabs.get).not.toHaveBeenCalled()
+    await fresh.onDownloadDelta({ id: 85, state: { previous: 'in_progress', current: 'complete' } })
+    expect(await downloadedCombos()).toEqual(['duration=<1min|mic=false|stopped_by=user'])
   })
 })

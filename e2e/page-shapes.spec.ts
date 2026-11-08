@@ -29,6 +29,38 @@ test.describe('block detection on real page shapes (capture.md §6.2)', () => {
     expect(entry.sourceUrl).toBe(`${BASE}/flatdoc.html#flat-install`)
   })
 
+  test("the capsule's shot of a section is the outlined run, not the whole article (RV-CAP-13, screenshot.md §1)", async ({ page }) => {
+    // under the rasterizer's 1200px width clamp the clone would reflow narrower than the outline: compare like for like
+    await page.setViewportSize({ width: 1000, height: 700 })
+    await page.goto(`${BASE}/flatdoc.html`)
+    const capsule = await hoverForCapsule(page, '#flat-install-p')
+    const outline = page.locator('[data-ann-ui="block-outline"]')
+    await expect(outline).toBeVisible()
+    const outlined = await outline.evaluate(element => ({ width: Number.parseFloat(element.style.width), height: Number.parseFloat(element.style.height) }))
+    // the outline is the Install run, not the whole article
+    expect(outlined.height).toBeLessThan(400)
+
+    await capsule.getByRole('button', { name: '截图' }).click()
+    await expect(page.locator('[data-ann-ui="screenshot-preview"]')).toBeVisible()
+    let shot: { width: number; height: number } | null = null
+    await expect
+      .poll(
+        async () => {
+          shot = await page.evaluate(() => {
+            const canvas = document.querySelector('[data-ann-ui="screenshot-preview"] canvas') as HTMLCanvasElement | null
+            return canvas && canvas.width > 0 && canvas.height > 0 ? { width: canvas.width, height: canvas.height } : null
+          })
+          return shot !== null
+        },
+        { timeout: 15_000 },
+      )
+      .toBe(true)
+    // the raster's pixel ratio comes from the width the rasterizer chose; the height must land on the outlined run's
+    const scale = shot!.width / outlined.width
+    expect(Math.abs(shot!.width / scale - outlined.width)).toBeLessThanOrEqual(1)
+    expect(Math.abs(shot!.height / scale - outlined.height)).toBeLessThanOrEqual(1)
+  })
+
   test('a flat document: keyboard block mode saves the outlined section as that run, and Tab walks the sections', async ({ page }) => {
     await page.goto(`${BASE}/flatdoc.html`)
     await page.locator('#flat-install-p').evaluate(element => {
