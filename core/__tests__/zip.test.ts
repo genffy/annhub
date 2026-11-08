@@ -71,7 +71,7 @@ describe('ZIP64 when a ZIP32 limit is reached (RV-CORE-10, D-95)', () => {
     expect(Number(central.getBigUint64(46 + 7 + 4, true))).toBe(size)
   })
 
-  it('a file whose offset sits past 4 GB: the central offset field reads 0xFFFFFFFF and the extra carries the real offset', () => {
+  it('an entry whose offset alone crosses: the extra holds only the offset, 8 bytes (RV-CORE-10)', () => {
     const first = ZIP32_MAX + 16
     const [a, b] = planZipLayout([
       { nameBytes: new TextEncoder().encode('first.bin'), size: first },
@@ -79,14 +79,72 @@ describe('ZIP64 when a ZIP32 limit is reached (RV-CORE-10, D-95)', () => {
     ]).entries
     expect(a!.zip64).toBe(true)
     expect(b!.offset).toBe(30 + 9 + 20 + first)
+    // its own sizes fit: the local header carries no extra, its size fields are real
+    const local = new DataView(localHeader(b!, 7, 0, 0).buffer)
+    expect(local.getUint16(28, true)).toBe(0)
+    expect(local.getUint32(22, true)).toBe(1)
     const central = new DataView(centralHeader(b!, 7, 0, 0).buffer)
-    // the second entry's local sizes are real (they fit); its offset field is 0xFFFFFFFF
     expect(central.getUint32(20, true)).toBe(1)
     expect(central.getUint32(42, true)).toBe(ZIP32_MAX)
-    // the extra keeps APPNOTE's order: sizes first (real values), then the offset
+    // the extra is the 0x0001 header plus exactly one 8-byte field: the real offset
+    expect(central.getUint16(30, true)).toBe(4 + 8)
     expect(central.getUint16(46 + 10, true)).toBe(0x0001)
-    expect(Number(central.getBigUint64(46 + 10 + 4, true))).toBe(1)
-    expect(Number(central.getBigUint64(46 + 10 + 20, true))).toBe(30 + 9 + 20 + first)
+    expect(central.getUint16(46 + 10 + 2, true)).toBe(8)
+    expect(Number(central.getBigUint64(46 + 10 + 4, true))).toBe(b!.offset)
+  })
+
+  it('an entry whose size and offset both cross: the extra lists the two sizes, then the offset (RV-CORE-10)', () => {
+    const size = ZIP32_MAX + 5
+    const [, b] = planZipLayout([
+      { nameBytes: new TextEncoder().encode('first.bin'), size },
+      { nameBytes: new TextEncoder().encode('second.bin'), size },
+    ]).entries
+    expect(b!.zip64).toBe(true)
+    const central = new DataView(centralHeader(b!, 7, 0, 0).buffer)
+    expect(central.getUint16(30, true)).toBe(4 + 16 + 8)
+    const at = 46 + 'second.bin'.length
+    expect(Number(central.getBigUint64(at + 4, true))).toBe(size)
+    expect(Number(central.getBigUint64(at + 12, true))).toBe(size)
+    expect(Number(central.getBigUint64(at + 20, true))).toBe(b!.offset)
+  })
+
+  it('two files under 4 GB that together cross it: the directory starts past 4 GB and the ZIP64 tail joins (RV-CORE-10)', () => {
+    const layout = planZipLayout([
+      { nameBytes: new TextEncoder().encode('a.bin'), size: 3 * 2 ** 30 },
+      { nameBytes: new TextEncoder().encode('b.bin'), size: 2 * 2 ** 30 },
+    ])
+    expect(
+      layout.entries.every(entry => !entry.zip64),
+      'no entry alone leaves ZIP32',
+    ).toBe(true)
+    expect(layout.centralStart).toBeGreaterThan(ZIP32_MAX)
+    expect(layout.zip64Eocd).toBe(true)
+    // the plain EOCD cannot say where the directory is; the locator points at the ZIP64 EOCD right behind it
+    const eocd = new DataView(endOfCentral(layout).buffer)
+    expect(eocd.getUint32(16, true)).toBe(ZIP32_MAX)
+    const locator = new DataView(zip64Locator(layout).buffer)
+    expect(Number(locator.getBigUint64(8, true))).toBe(layout.centralStart + layout.centralSize)
+  })
+
+  it('values sitting exactly on a ZIP32 limit go ZIP64: a 0xFFFFFFFF size or offset, 65,535 entries (RV-CORE-10)', () => {
+    const atSize = planZipLayout([{ nameBytes: new TextEncoder().encode('at.bin'), size: ZIP32_MAX }]).entries[0]!
+    expect(atSize.zip64).toBe(true)
+    const local = new DataView(localHeader(atSize, 1, 0, 0).buffer)
+    expect(local.getUint32(18, true)).toBe(ZIP32_MAX)
+    expect(local.getUint16(28, true)).toBe(20)
+    // an entry whose local header starts exactly at 0xFFFFFFFF: the marker and the value are the same, so the field must go 64-bit
+    const layout = planZipLayout([
+      { nameBytes: new TextEncoder().encode('first.bin'), size: ZIP32_MAX - 30 - 'first.bin'.length },
+      { nameBytes: new TextEncoder().encode('second.bin'), size: 1 },
+    ])
+    const second = layout.entries[1]!
+    expect(second.offset).toBe(ZIP32_MAX)
+    expect(second.zip64).toBe(true)
+    expect(new DataView(centralHeader(second, 1, 0, 0).buffer).getUint32(42, true)).toBe(ZIP32_MAX)
+    // 65,535 entries exactly: the plain EOCD's count field would read 0xFFFF, so the ZIP64 tail joins
+    const many = planZipLayout(Array.from({ length: 65_535 }, (_, index) => ({ nameBytes: new TextEncoder().encode(`e/${index}`), size: 1 })))
+    expect(many.zip64Eocd).toBe(true)
+    expect(new DataView(endOfCentral(many).buffer).getUint16(10, true)).toBe(0xffff)
   })
 
   it('the ZIP64 EOCD and the locator close a big archive, in that order, ahead of the plain EOCD', () => {

@@ -153,7 +153,7 @@ Instead of retrying immediately, wait `base × 2^n` and add ==a random factor be
 
 ZIP 文件名和内部路径只能由受控 ID 生成，不能直接使用网页标题；写入时转义 Markdown / YAML 内容，避免路径穿越和格式破坏。图片按 Blob 分批读取，避免为大型图片集一次性创建 Base64 字符串或把所有文件同时载入内存。导出完成前校验记录数、附件引用和写入字节数。
 
-- **D-95** 需要时才写 ZIP64：普通大小的导出是普通 ZIP32 归档；条目超过 65,535、任一文件超过 4 GB、或某个偏移越过 4 GB 时，ZIP 里才写 ZIP64 的扩展字段、结束记录与定位记录（PKWARE APPNOTE 4.3.14、4.3.15、4.5.3），导出不再让人先删条目。macOS 的归档实用工具（Archive Utility）与 `unzip`、`python3 -m zipfile` 都能打开 ZIP64 归档。
+- **D-95** 需要时才写 ZIP64：普通大小的导出是普通 ZIP32 归档；条目数到达 65,535、某个大小或偏移到达 4 GB、或中央目录的大小与偏移超出 32 位时，ZIP 里才写 ZIP64 的扩展字段、结束记录与定位记录（PKWARE APPNOTE 4.3.14、4.3.15、4.5.3），导出因此没有条目数与体量上限。用真实归档实测过能打开 ZIP64 的工具：macOS 的归档实用工具、`unzip -t`、`python3 -m zipfile -t`、`bsdtar -tf`。
 
 这个 ZIP 是供其他工具消费的开放阅读格式，不提供反向导入 AnnHub，也不用于恢复扩展的数据库。
 

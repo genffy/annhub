@@ -109,40 +109,6 @@
 5. E2E（扩充 `page-download.spec.ts`）：同一页面下载两次，第二次在慢媒体还在取回时取消：第一次的 Markdown 与媒体都在，内容不变。再下载一次并完成：文件夹里恰好是新 Markdown 引用的文件。
 6. `git grep -n "本 PR" docs/product/` 没有结果；download.md §2.5、§4.1 写明提交点；`e2e/page-download.spec.ts` 的注释与代码一致；`npm run check:docs` 通过。
 
-### 导出 ZIP64
-
-`core/export.ts` 与 `entrypoints/offscreen/download-run.ts` 调用同一个 `buildZip`，两处调用方不用改；规格是 [storage.md §6](product/storage.md) 的 D-95。要跑的 E2E：`library-export.spec.ts`、`library-download.spec.ts`。
-
-#### RV-CORE-10 越过 4 GB 的 ZIP64 归档读不出来（高）
-
-**问题**
-
-- storage.md §6 的 D-95：条目超过 65,535、任一文件超过 4 GB、或某个偏移越过 4 GB 时写 ZIP64。`core/zip.ts` 只有条目数这一种写对了。
-- `centralHeader` 的 `0x0001` 扩展字段总是先写两个大小，偏移越界时再写偏移。[PKWARE APPNOTE](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT) 的 4.5.3 节规定扩展字段只放头里写成 `0xFFFFFFFF` 的那几项，顺序是原大小、压缩后大小、本地头偏移。大小没越界、只有偏移越界的条目（4 GB 之后的每一个文件），读取方把扩展字段的头 8 个字节当成偏移，读到的是文件大小。
-- `planZipLayout` 的 `zip64Eocd` 只在有 ZIP64 条目或条目超过 65,535 个时为真。每个文件都不到 4 GB、合起来越过 4 GB 时，中央目录从 4 GB 之后开始，`endOfCentral` 把它的偏移写成 `0xFFFFFFFF`，后面却没有 ZIP64 结束记录与定位记录，读取方找不到中央目录。
-- 越界的判断都用 `>`：恰好等于 `0xFFFFFFFF` 的大小或偏移、恰好 65,535 的条目数照原样写进头里，读取方会把这个值当成“去 ZIP64 字段里取”。
-- `core/__tests__/zip.test.ts` 里注释为 `the extra keeps APPNOTE's order: sizes first (real values), then the offset` 的那几条断言，断言的正是错误的布局。
-- 整库导出与下载的 ZIP 形态都走 `buildZip`：图片合计越过 4 GB 的库得到一份打不开的 ZIP，过程中不报错。导出是用户把数据带走的唯一途径。
-- [validation.md §2](product/validation.md) 要求实现决策的改动删掉对应条目，validation.md 里的 D-95 还在。storage.md 的 D-95 写着“导出不再让人先删条目”，是讲变化的写法；它说几个解压工具都能打开 ZIP64 归档，实测只做过条目数越界的那一种。
-
-**要求**
-
-1. 扩展字段按 APPNOTE 4.5.3：中央头与本地头里只放写成 `0xFFFFFFFF` 的字段，顺序固定为原大小、压缩后大小、本地头偏移。扩展字段的长度随之变化，`planZipLayout` 算出的中央目录大小与偏移一起改。
-2. 结束记录里任一字段越界（条目数、中央目录大小、中央目录偏移）就写 ZIP64 结束记录与定位记录，不只看条目本身。
-3. 越界一律按 `>=` 判断：等于 `0xFFFFFFFF` 或 `0xFFFF` 的值也走 ZIP64。
-4. 改写上面那几条断言，按要求 1–3 补布局用例（用假的大小与偏移，不读数据）。
-5. 实测：本机造两份归档，用真实工具打开，输出贴进交付说明。一份是两个文件（约 3 GB 与 2 GB，可以用 `mkfile -n` 造），中央目录从 4 GB 之后开始；另一份在它们后面再加一个小文本文件，这个文件的偏移越过 4 GB。工具是 `unzip -t`、`python3 -m zipfile -t`、`bsdtar -tf` 和 macOS“归档实用工具”。
-6. 从 validation.md 删掉 D-95；storage.md §6 的 D-95 用现在时写，能打开归档的工具只写实测过的归档与工具。
-
-**验收**
-
-1. 单测（假大小）：只有偏移越界的条目，中央头扩展字段的数据是 8 个字节，内容是真实偏移；大小与偏移都越界的条目，扩展字段依次是两个大小和偏移。
-2. 单测（假大小）：两个各不到 4 GB、合起来越过 4 GB 的文件：`zip64Eocd` 为真，ZIP64 结束记录与定位记录在中央目录之后，普通结束记录里的中央目录偏移是 `0xFFFFFFFF`。
-3. 单测：大小恰好 `0xFFFFFFFF` 的文件、偏移恰好 `0xFFFFFFFF` 的条目、恰好 65,535 个条目，都走 ZIP64。
-4. 单测：没有越界的小归档与现在逐字节相同，现有的字节数断言照样通过。
-5. 实测：要求 5 的两份归档，四个工具都能列出或解开全部文件，`unzip -t` 与 `python3 -m zipfile -t` 没有报错；验收者在本机重跑一次。
-6. validation.md 里没有 D-95；storage.md §6 的写法与实测范围一致；`npm run check:docs` 通过。
-
 ### 区块胶囊的目标
 
 三条都在区块胶囊上，一起改：RV-CAP-13、RV-CAP-14 改 `entrypoints/content/index.tsx` 的 `wireBlockEntries`，RV-CAP-15 改 `block-hover.ts` 的 `reveal`。规格是 [capture.md §6.2](product/capture.md) 与 [screenshot.md §1](product/screenshot.md)；描边、剪藏与下载取的东西不变，截图与编辑气泡改成跟描边一致，有选区或正在拖选时胶囊不出现。取目标的规则（D-96）与误点防护（D-97）本组不预设结论，也不等它们。要跑的 E2E：`block-clip.spec.ts`、`page-shapes.spec.ts`、`screenshot-anonymize.spec.ts`、`page-entry.spec.ts`、`selection-clip.spec.ts`。
