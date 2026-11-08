@@ -147,18 +147,6 @@
 
 三条都在区块胶囊上，一起改：RV-CAP-13、RV-CAP-14 改 `entrypoints/content/index.tsx` 的 `wireBlockEntries`，RV-CAP-15 改 `block-hover.ts` 的 `reveal`。规格是 [capture.md §6.2](product/capture.md) 与 [screenshot.md §1](product/screenshot.md)；描边、剪藏与下载取的东西不变，截图与编辑气泡改成跟描边一致，有选区或正在拖选时胶囊不出现。取目标的规则（D-96）与误点防护（D-97）本组不预设结论，也不等它们。要跑的 E2E：`block-clip.spec.ts`、`page-shapes.spec.ts`、`screenshot-anonymize.spec.ts`、`page-entry.spec.ts`、`selection-clip.spec.ts`。
 
-#### RV-CAP-14 区块剪藏后的编辑气泡离开了被剪的那一节（低）
-
-**问题**：`wireBlockEntries` 的 `onClip` 把 `candidate.element` 交给 `showClipToast` 作编辑气泡的锚点，`clip-flow.ts` 的 `positionNear` 按它的矩形摆放。一节的 `element` 是装着全文的父元素，比窗口高得多，气泡被夹到窗口顶上，不在刚剪的那一节旁边。capture.md §6.2 要求区块剪藏的提示与编辑和选区剪藏一致，选区剪藏的气泡贴着选区。
-
-**要求**：锚点用描边的那一块：一节传覆盖它区间的 `Range`（`positionNear` 本来就接受 `Range`），整元素的区块不变。用例名带本编号。
-
-**验收**
-
-1. 单测：平铺夹具上剪藏一节后点“编辑”：气泡贴着这一节的外接矩形（下沿之下或上沿之上），不按父元素摆放。
-2. 单测：整元素的区块，气泡位置不变。
-3. 真机：在上面那篇文章的 4.1 节剪藏后点“编辑”，气泡出现在 4.1 旁边。
-
 #### RV-CAP-15 停留计时到期时不复查选区，拖选中也会弹出胶囊（低）
 
 **问题**

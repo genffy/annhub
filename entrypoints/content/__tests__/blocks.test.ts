@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   candidateAnchor,
+  candidateDomRange,
   candidateRect,
   sectionIntervalRect,
   candidateSummary,
@@ -563,4 +564,26 @@ describe("a section's interval as a capture frame and a DOM anchor (RV-CAP-13, R
     }
   })
 
+  it('candidateDomRange covers the run and stops before the next heading', () => {
+    document.body.innerHTML = FLAT_DOC
+    const alpha = candidatesFor(doc.querySelector('#flat-a-p')!, doc).find(candidate => candidate.kind === 'section')!
+    const domRange = candidateDomRange(alpha)
+    expect(domRange).not.toBeNull()
+    const container = alpha.element
+    expect(domRange!.startContainer).toBe(container)
+    expect(domRange!.startOffset).toBe([...container.childNodes].indexOf(doc.querySelector('#flat-a')!))
+    expect(domRange!.endContainer).toBe(container)
+    expect(domRange!.endOffset).toBe([...container.childNodes].indexOf(doc.querySelector('#flat-b')!))
+    // the last run has no next heading: the range closes at the container's end
+    const beta = candidatesFor(doc.querySelector('#flat-b-p')!, doc).find(candidate => candidate.kind === 'section')!
+    const toEnd = candidateDomRange(beta)!
+    expect(toEnd.endContainer).toBe(container)
+    expect(toEnd.endOffset).toBe(container.childNodes.length)
+  })
+
+  it('an element-kind candidate has no DOM range', () => {
+    document.body.innerHTML = `<main id="m"><section id="s"><h2>Heading</h2><p>${WORDS}</p><pre id="code">const x = 1</pre></section></main>`
+    const code = candidatesFor(doc.querySelector('#code')!, doc).find(candidate => candidate.kind === 'code')!
+    expect(candidateDomRange(code)).toBeNull()
+  })
 })

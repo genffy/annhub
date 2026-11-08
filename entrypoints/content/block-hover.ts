@@ -66,6 +66,8 @@ export class BlockEntries {
   private modeKindEl: HTMLElement | null = null
   private modeRestoreFocus: HTMLElement | null = null
   private lastPoint = { x: 0, y: 0 }
+  /** The buttons of the last pointer event: a dwell that expires under a held primary button reveals nothing (RV-CAP-15). */
+  private lastPointerButtons = 0
   private listeners: (() => void)[] = []
 
   constructor(
@@ -83,6 +85,7 @@ export class BlockEntries {
         return
       }
       this.lastPoint = { x: event.clientX, y: event.clientY }
+      this.lastPointerButtons = event.buttons
       if (this.insideOwnUi(event)) {
         // the pointer is on the capsule itself: keep it alive so the click lands
         this.clearLeave()
@@ -108,6 +111,10 @@ export class BlockEntries {
       this.clearLeave()
       this.scheduleDwell()
     }
+    const onButtonsChange = (event: PointerEvent): void => {
+      if (!isUserInput(event)) return
+      this.lastPointerButtons = event.buttons
+    }
     const onLeaveWindow = (): void => this.scheduleLeave()
     // A visible capsule/outline is anchored to scrolled-away positions: hide
     // it. A pending dwell re-arms instead — the scroll event can trail the
@@ -123,6 +130,7 @@ export class BlockEntries {
     }
     const onDragSelect = (event: PointerEvent): void => {
       if (!isUserInput(event)) return
+      this.lastPointerButtons = event.buttons
       if (this.screenshotConfirming()) {
         this.hideNow()
         return
@@ -144,12 +152,15 @@ export class BlockEntries {
     this.doc.addEventListener('pointerleave', onLeaveWindow, true)
     this.doc.addEventListener('scroll', onScroll, true)
     this.doc.addEventListener('pointerdown', onDragSelect, true)
+    // the primary button can come and go without a move: the dwell's re-check reads a live answer (RV-CAP-15)
+    this.doc.addEventListener('pointerup', onButtonsChange, true)
     this.doc.addEventListener('keydown', onKeyDown, true)
     this.listeners = [
       () => this.doc.removeEventListener('pointermove', onPointerMove, true),
       () => this.doc.removeEventListener('pointerleave', onLeaveWindow, true),
       () => this.doc.removeEventListener('scroll', onScroll, true),
       () => this.doc.removeEventListener('pointerdown', onDragSelect, true),
+      () => this.doc.removeEventListener('pointerup', onButtonsChange, true),
       () => this.doc.removeEventListener('keydown', onKeyDown, true),
     ]
   }
@@ -289,6 +300,15 @@ export class BlockEntries {
     // drop the previous outline instead of leaving it stuck (issue #107).
     if (chain.length === 0) {
       this.dismissHover()
+      return
+    }
+    // The dwell expired, but the page moved on under it: a selection that grew since the move (a drag
+    // under way) or a still-held primary button means no capsule — and a stuck outline goes with it
+    // (capture.md §6.2, RV-CAP-15). Once the selection collapses and the button is up, the next
+    // move's dwell reveals as always.
+    const selection = this.doc.getSelection()
+    if ((selection && !selection.isCollapsed) || (this.lastPointerButtons & 1) !== 0) {
+      this.hideNow()
       return
     }
     // the hover target is always the innermost block (capture.md §6.2): level changes are the keyboard mode's ↑↓, never the pointer's

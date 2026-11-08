@@ -12,7 +12,7 @@ import type { BlockCandidate } from './blocks'
 import { enterAnnotationLayer, exitAnnotationLayer, getActiveAnnotationLayer, isAnnotationLayerActive, notifyAnnotationLayer } from './annotation/layer'
 import type { InkStroke } from './annotation/ink'
 import { setCursorHighlight, type CursorHighlightSettings } from './cursor-highlight'
-import { isClipFailure, saveBlockClip, savePlainTextSelection, saveSelectionClip, showClipToast, showFailureToast, type ClipOrigin } from './clip-flow'
+import { blockClipAnchor, isClipFailure, saveBlockClip, savePlainTextSelection, saveSelectionClip, showClipToast, showFailureToast, type ClipOrigin } from './clip-flow'
 import { SelectionMenu, plainTextForSelection, selectableRange } from './selection-menu'
 import { enterScreenshotMode, isScreenshotSessionActive, notifyScreenshotSession } from './screenshot'
 import { downloadBlock, downloadMainArticle, onDownloadNotice } from './download-flow'
@@ -174,7 +174,7 @@ function wireBlockEntries(): void {
         const id = newEntryId()
         const run = async () => {
           const outcome = await saveBlockClip(candidate, { via: 'block', levelChanged }, id)
-          if (!isClipFailure(outcome)) showClipToast(outcome, candidate.element)
+          if (!isClipFailure(outcome)) showClipToast(outcome, blockClipAnchor(candidate))
           else showFailureToast(() => void run(), outcome)
         }
         void run()

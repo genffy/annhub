@@ -13,6 +13,7 @@ import { entryErrorText, failureReason, uiText } from '../../utils/ui-text'
 import { elementToMarkdown, escapeText, selectionToMarkdown } from './markdown'
 import { extractContext, extractPageMeta, resolvePermalink } from './page-meta'
 import { overlayIcon } from './icons'
+import { candidateDomRange } from './blocks'
 import type { BlockCandidate, BlockKind } from './blocks'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -117,6 +118,15 @@ async function saveClip(input: {
 }
 
 // ── Toast: 已剪藏 · 撤销 · 编辑 ──────────────────────────────────────────
+
+/**
+ * What a block clip's toast anchors on: a section on its interval — the bubble
+ * then sits beside what was clipped, not beside a container taller than the
+ * window — and an element-kind block on the element itself (RV-CAP-14).
+ */
+export function blockClipAnchor(candidate: BlockCandidate): Range | HTMLElement {
+  return candidateDomRange(candidate) ?? candidate.element
+}
 
 export interface ToastHandle {
   dismiss(): void

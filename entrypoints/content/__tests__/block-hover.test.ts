@@ -613,6 +613,58 @@ describe('Hover targets on a timeline (issue #107)', () => {
   })
 })
 
+describe('the dwell re-checks the page before it reveals (RV-CAP-15, capture.md §6.2)', () => {
+  function selectionCollapsed(collapsed: boolean): void {
+    vi.spyOn(document, 'getSelection').mockReturnValue({ isCollapsed: collapsed } as Selection)
+  }
+
+  it('a press whose move still saw a collapsed selection reveals nothing once the drag is under way', async () => {
+    document.body.innerHTML = NESTED
+    selectionCollapsed(true)
+    await restOn(document.getElementById('code')!, 10, 10)
+    // the move is handled while the selection is still collapsed — the dwell arms — and the
+    // drag lengthens the selection afterwards: at expiry the capsule must not appear over it
+    document.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX: 10, clientY: 10 }))
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, buttons: 1, clientX: 10, clientY: 10 }))
+    selectionCollapsed(false)
+    await vi.advanceTimersByTimeAsync(450)
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+    expect(outline()).toBeNull()
+  })
+
+  it('a held primary button reveals nothing; after the release the next rest reveals as always', async () => {
+    document.body.innerHTML = NESTED
+    selectionCollapsed(true)
+    await restOn(document.getElementById('code')!, 10, 10)
+    document.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, button: 0, buttons: 1, clientX: 10, clientY: 10 }))
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, buttons: 1, clientX: 10, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(450)
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+    // released, then moved and rested again: the ordinary dwell path is back
+    document.dispatchEvent(new MouseEvent('pointerup', { bubbles: true, button: 0, buttons: 0, clientX: 10, clientY: 10 }))
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, buttons: 0, clientX: 10, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(450)
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).not.toBeNull()
+    expect(outline()).not.toBeNull()
+  })
+
+  it('a dwell armed earlier does not reveal over a selection that appeared meanwhile', async () => {
+    document.body.innerHTML = NESTED
+    selectionCollapsed(true)
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    vi.useFakeTimers()
+    for (const entries of created.splice(0)) entries.dispose()
+    const entries = new BlockEntries(document, hooksFor(true), gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
+    selectionCollapsed(false)
+    await vi.advanceTimersByTimeAsync(450)
+    expect(document.querySelector('[data-ann-ui="block-capsule"]')).toBeNull()
+    expect(outline()).toBeNull()
+  })
+})
+
 describe('the shot hands over the outlined target (RV-CAP-13, capture.md §6.2)', () => {
   it("the hover capsule's shot receives the section's interval, not the container", async () => {
     document.body.innerHTML = FLAT
