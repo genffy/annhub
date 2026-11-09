@@ -21,17 +21,23 @@ function notice(page: import('@playwright/test').Page) {
 }
 
 /**
- * The run's landed downloads: what the download manager holds for this test's
- * fresh profile. Playwright's interception renames the files, so the spec
- * asserts kinds, contents and the links-to-names consistency, not the
+ * The run's landed downloads, newest first: what the download manager holds for
+ * this test's fresh profile. Playwright's interception renames the files, so the
+ * spec asserts kinds, contents and the links-to-names consistency, not the
  * AnnHub/ folder shape itself — that one is a real-machine item (roadmap.md
  * §5, download.md §9, Q-25).
+ *
+ * The order is made here, not taken from the browser: `chrome.downloads.search`
+ * promises none unless asked for one, and the unordered list differs from one
+ * browser launch to the next for the very same downloads. Ids only grow, so the
+ * largest is the newest.
  */
 async function landed(page: import('@playwright/test').Page): Promise<{ mime: string; url: string; name: string; path: string }[]> {
   const worker = await ensureServiceWorker(page.context())
   return worker.evaluate(async () =>
     (await chrome.downloads.search({}))
       .filter(item => item.state === 'complete' && item.byExtensionId === chrome.runtime.id)
+      .sort((a, b) => b.id - a.id)
       .map(item => ({ mime: item.mime ?? '', url: item.url ?? '', name: (item.filename ?? '').split(/[\\/]/).pop() ?? '', path: item.filename })),
   )
 }
@@ -43,10 +49,10 @@ function markdownsOf(items: { mime: string; url: string }[]): string[] {
     .map(item => (item.url.startsWith('data:text/markdown') ? Buffer.from(item.url.split(',')[1] ?? '', 'base64').toString('utf8') : ''))
     .filter(text => text.length > 0 || items.length === 0)
 }
-/** The folder form's Markdown text, read from the file it landed as (blob: URLs carry no text). */
+/** The newest folder-form Markdown's text, read from the file it landed as (blob: URLs carry no text). */
 async function markdownFromFile(page: import('@playwright/test').Page): Promise<string> {
   const files = (await landed(page)).filter(item => item.mime === 'text/markdown' || item.url.startsWith('data:text/markdown'))
-  return readFile(files[files.length - 1]!.path, 'utf8')
+  return readFile(files[0]!.path, 'utf8')
 }
 
 function markdownOf(items: { mime: string; url: string }[]): string {
@@ -323,7 +329,7 @@ test.describe('page downloads (download.md §2, §4, §5)', () => {
     await startSlowDownload(page)
     await waitForDoneNotice(page, '已下载')
     const third = await landed(page)
-    // the history is newest first: the newest Markdown is this run's
+    // landed() lists newest first: the first Markdown is this run's, the second is the first run's
     const newestMarkdown = markdownOf([third.find(item => item.url.startsWith('data:text/markdown'))!])
     const assetLink = /!\[[^\]]*\]\(assets\/([^)]+)\)/.exec(newestMarkdown)?.[1]
     expect(assetLink).toBeTruthy()
@@ -418,7 +424,8 @@ test.describe('page downloads (download.md §2, §4, §5)', () => {
       }, markup)
       await downloadMainArticle(page)
       await waitForDoneNotice(page, '已下载')
-      const markdown = markdownOf((await landed(page)).slice(-1))
+      // the newest Markdown is this layout's: the loop's earlier layout is still in the history, behind it
+      const markdown = markdownOf(await landed(page))
       expect(markdown).toContain('JOURNAL END')
       expect(markdown).not.toMatch(/Menu only|Hidden CSS content/)
     }
