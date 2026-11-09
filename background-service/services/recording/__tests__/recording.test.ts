@@ -292,10 +292,20 @@ describe('recording service (annotate.md §2)', () => {
 
   it('a heartbeat keeps the worker alive and touches no state (annotate.md §2.4, RV-REC-02)', async () => {
     await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
-    const before = await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)
-    const answer = await dispatch({ type: 'RECORDING_EVENT', event: 'heartbeat' }, extensionSender)
-    expect(answer.success).toBe(true)
-    expect(await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).toEqual(before)
+    // The state is what must not move. Every answer is also stamped with the clock of the moment it was made
+    // (MessageUtils.createResponse), so whole answers a millisecond apart differ in `timestamp` with no state changed:
+    // the clock is made to move between the two reads, and only their state is compared.
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      const before = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data
+      expect(before).toMatchObject({ status: 'recording' })
+      const answer = await dispatch({ type: 'RECORDING_EVENT', event: 'heartbeat' }, extensionSender)
+      expect(answer.success).toBe(true)
+      vi.setSystemTime(Date.now() + 5)
+      expect((await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data).toEqual(before)
+    } finally {
+      vi.useRealTimers()
+    }
     await windDown(40, 'AnnHub/recording-hb.webm')
   })
 

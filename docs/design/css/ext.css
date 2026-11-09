@@ -2597,7 +2597,7 @@
   color: #8fd6b4;
 }
 
-.blk-pill.is-press .bp-seg {
+.blk-pill.is-press .bp-seg-clip {
   background: rgb(255 255 255 / 0.16);
 }
 
@@ -3156,6 +3156,21 @@
 .blk-pill.pin-top {
   top: 12px;
   right: 22px;
+}
+
+/* 标注与胶囊不在同一角：胶囊在左上角时，标注放在上沿的右端 */
+.blk em.at-r {
+  right: 8px;
+  left: auto;
+}
+
+/* 静态画板里被描边的段落、标题、列表：包一层定位容器，不改排版 */
+.mk {
+  position: relative;
+}
+
+.pg-art.has-outer {
+  position: relative;
 }
 
 /* 页面自己的控件：X 帖子右上角的“更多”、文档代码块右上角的“复制” */

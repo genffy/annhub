@@ -56,22 +56,27 @@ const tipBubble = (title, desc, style = '', extra = '') => `<div class="hm-tip t
 // 页面内小视窗：只露出网页的一段，用于局部画板
 const miniView = (inner, h = 380) => `<div class="mv" style="height:${h}px">${inner}</div>`
 
-// ── 区块剪藏：指针在区块上停下，旁边出现胶囊（四个图标：剪藏、截图、下载、更多）──────
-// 入口只是扩展自己的浮层：描边 + 一枚深色胶囊，不改网页，也不在页面上留记号。
+// ── 区块剪藏：指针在一块内容上停下，描边上沿标出类型与范围，旁边出现胶囊（capture §6.2）──────
+// 入口只是扩展自己的浮层：描边 + 标注 + 一枚深色胶囊，不改网页，也不在页面上留记号。
+// 按钮从左到右：剪藏、截图、下载、更多；只带图标，名称在悬停提示与读屏名称里。没有换层级的按钮：范围完全看指针停在哪里。
 // o.cls 是位置：默认右上角（左右缘在区块内，上沿跨出一小段）；at-tl 左上角、at-br 右下角、at-bl 左下角；pin-top 贴着窗口里可见部分的上沿（区块比窗口高时）。
-const BLK_LABELS = { zh: { clip: '剪藏', shot: '截图', download: '下载', more: '更多' }, en: { clip: 'Clip', shot: 'Screenshot', download: 'Download', more: 'More' } }
+const BLK_LABELS = {
+  zh: { clip: '剪藏', shot: '截图', download: '下载', more: '更多' },
+  en: { clip: 'Clip', shot: 'Screenshot', download: 'Download', more: 'More' },
+}
 
 const blkPill = (o = {}) => {
   const L = BLK_LABELS[o.lang || 'zh']
   // icon-only: the same 28px circle as the "more" button, the name in the tooltip
   const seg = (icon, label, cls = '') => `<span class="bp-seg ${cls}" title="${label}" aria-label="${label}">${I(icon)}</span>`
-  return `<div class="blk-pill ${o.cls || ''} ${o.press ? 'is-press' : ''}" style="${o.style || ''}" role="group" aria-label="${L.clip}">${o.pin ? pin(o.pin) : ''}
+  return `<div class="blk-pill ${o.cls || ''} ${o.press ? 'is-press' : ''}" style="${o.style || ''}" role="group" aria-label="${o.desc || L.clip}">${o.pin ? pin(o.pin) : ''}
     ${seg('bookmark', o.saved ? '已剪藏' : L.clip, 'bp-seg-clip')}${o.noShot ? '' : seg('scan', L.shot, 'is-alt bp-seg-shot')}${o.noShot ? '' : seg('download', L.download, 'is-alt bp-seg-dl')}<i class="sub" title="${L.more}" aria-label="${L.more}">${I('ellipsis', 'i-sm')}</i>
   </div>`
 }
 
-// o: { faint, saved, pill: {…blkPill 参数}, label }
-const blkOverlay = (o = {}) => `<i class="blk ${o.faint ? 'is-faint' : ''} ${o.saved ? 'is-saved' : ''} ${o.skip ? 'is-skip' : ''}" aria-hidden="true">${o.label ? `<em>${o.label}</em>` : ''}${o.pin ? pin(o.pin, 'pin-in-r') : ''}</i>${o.pill ? blkPill(o.pill) : ''}`
+// o: { faint, saved, skip, label（类型 · 范围）, labelAt: 'r'（胶囊在左上角时标注放右端）, style, pin, pill: {…blkPill 参数} }
+const blkOverlay = (o = {}) =>
+  `<i class="blk ${o.faint ? 'is-faint' : ''} ${o.saved ? 'is-saved' : ''} ${o.skip ? 'is-skip' : ''}" style="${o.style || ''}" aria-hidden="true">${o.label ? `<em class="${o.labelAt === 'r' ? 'at-r' : ''}" style="${o.labelStyle || ''}">${o.label}</em>` : ''}${o.pin ? pin(o.pin, 'pin-in-r') : ''}</i>${o.pill ? blkPill(o.pill) : ''}`
 
 // 社交信息流里的一条内容
 const tweet = (o = {}) => `<article class="tw ${o.hover ? 'is-hover' : ''}">
@@ -95,29 +100,38 @@ const feedPage = (o = {}) => `<div class="pg pg-feed" style="${o.style || ''}">
   </div>
 </div>`
 
-// 一篇带分节的文章：每一节是一个可剪藏的区块。o.hover: 's2'（悬停的节）；o.blk: 该节的悬停参数；o.outer: 外层 article 的淡描边
-const retriesPage = (o = {}) => `<div class="pg pg-rt" style="${o.style || ''}">
+// 一篇带分节的文章：标题与段落平铺，一节是一层。o.marks 把描边放在指定的层上，值是 blkOverlay 的参数：
+//   lead（首个标题之前的一段）、p1（“重试风暴”的一段）、h2（“指数退避加抖动”的标题）、p2（那一节的第一段）、ol2（那一节的列表）、s1 / s2 / s3（三节）、art（整篇）
+// 旧参数照旧可用：o.hover 's1' | 's2' 与 o.blk 是那一节的描边，o.outer 是整篇的描边
+const retriesPage = (o = {}) => {
+  const m = { ...(o.marks || {}) }
+  if (o.hover === 's1' || o.hover === 's2') m[o.hover] = o.blk || { pill: {} }
+  if (o.outer) m.art = o.outer
+  const ov = k => (m[k] ? blkOverlay(m[k]) : '')
+  const wrap = (k, html) => (m[k] ? `<div class="mk">${html}${ov(k)}</div>` : html)
+  return `<div class="pg pg-rt" style="${o.style || ''}">
   <div class="pg-nav"><b>engineering.example.com</b><span>Articles</span><span>Topics</span><span>About</span></div>
-  <div class="pg-art ${o.outer ? 'has-outer' : ''}">
-    ${o.outer ? blkOverlay(o.outer) : ''}
+  <div class="pg-art ${m.art ? 'has-outer' : ''}">
+    ${ov('art')}
     <h1>Retries and backpressure</h1>
     <div class="pg-by">Platform Engineering · Updated Sep 12 · 7 min read</div>
-    <p>A retry is a bet that the next attempt will succeed. When the dependency is already failing, it is a bet against everyone else.</p>
-    <section class="sx ${o.hover === 's1' ? 'is-hover' : ''}">
+    ${wrap('lead', '<p>A retry is a bet that the next attempt will succeed. When the dependency is already failing, it is a bet against everyone else.</p>')}
+    <section class="sx ${m.s1 ? 'is-hover' : ''}">
       <h2>重试风暴</h2>
-      <p>依赖已经饱和时，每一次重试都在给一个正在失败的系统加负载；没有预算，所有客户端会同时重试。</p>
-      ${o.hover === 's1' ? blkOverlay(o.blk || { pill: {} }) : ''}
+      ${wrap('p1', '<p>依赖已经饱和时，每一次重试都在给一个正在失败的系统加负载；没有预算，所有客户端会同时重试。</p>')}
+      ${ov('s1')}
     </section>
-    <section class="sx ${o.hover === 's2' ? 'is-hover' : ''}">
-      <h2>指数退避加抖动</h2>
-      <p>重试不要立刻发出：每次失败后把等待时间翻倍，直到上限，再乘一个 0–1 的<b>随机因子</b>，让客户端不再同时重试。</p>
-      <ol><li>从一个较小的基础间隔开始。</li><li>每次失败后翻倍，不超过上限。</li><li>乘一个 0–1 的随机因子（抖动）。</li></ol>
+    <section class="sx ${m.s2 ? 'is-hover' : ''}">
+      ${wrap('h2', '<h2>指数退避加抖动</h2>')}
+      ${wrap('p2', '<p>重试不要立刻发出：每次失败后把等待时间翻倍，直到上限，再乘一个 0–1 的<b>随机因子</b>，让客户端不再同时重试。</p>')}
+      ${wrap('ol2', '<ol><li>从一个较小的基础间隔开始。</li><li>每次失败后翻倍，不超过上限。</li><li>乘一个 0–1 的随机因子（抖动）。</li></ol>')}
       <p>完整推导见 <a>AWS 架构博客</a>。</p>
-      ${o.hover === 's2' ? blkOverlay(o.blk || { pill: {} }) : ''}
+      ${ov('s2')}
     </section>
-    <section class="sx"><h2>重试预算</h2><p>给每个下游设一个重试配额，用完就快速失败。</p></section>
+    <section class="sx"><h2>重试预算</h2><p>给每个下游设一个重试配额，用完就快速失败。</p>${ov('s3')}</section>
   </div>
 </div>`
+}
 
 // 技术文档页：一节标题 + 说明 + 代码块；代码块右上角是页面自己的“复制”按钮
 // o.hover: 'code'（悬停在代码块上）| 'sec'（悬停在这一节上）；o.blk: 对应的 blkOverlay 参数

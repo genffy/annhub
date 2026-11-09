@@ -116,7 +116,11 @@ function wireSelectionMenu(): void {
         // a click on a menu button momentarily collapses the selection; give it a grace period
         window.setTimeout(() => {
           const now = document.getSelection()
-          if (!now || !now.toString().trim()) selectionMenu?.dismiss()
+          if (!now || !now.toString().trim()) {
+            selectionMenu?.dismiss()
+            // the selection collapsed: the block under the pointer pauses (capture.md §6.2 暂停)
+            blockEntries?.pauseHereNow()
+          }
         }, 200)
         return
       }
@@ -134,7 +138,11 @@ function wireSelectionMenu(): void {
   const onPointerDown = (event: PointerEvent): void => {
     if (!isUserInput(event)) return
     if (insideOwnUi(event)) return
-    if (selectionMenu?.isShowing()) selectionMenu.dismiss()
+    if (selectionMenu?.isShowing()) {
+      selectionMenu.dismiss()
+      // a click on the page closed the menu: the block under the pointer pauses (capture.md §6.2 暂停)
+      blockEntries?.pauseHere(event.clientX, event.clientY)
+    }
   }
 
   document.addEventListener('pointerup', onPointerUp)

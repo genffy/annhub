@@ -172,7 +172,7 @@ function isValidDate(date: string): boolean {
 
 // ── Permalinks (capture.md §5) ──────────────────────────────────────────
 
-type PermalinkKind = 'post' | 'code' | 'table' | 'figure' | 'quote' | 'section' | 'article'
+type PermalinkKind = 'block' | 'post' | 'code' | 'table' | 'figure' | 'quote' | 'section' | 'article'
 
 /**
  * The block's own permalink when a platform rule matches, otherwise

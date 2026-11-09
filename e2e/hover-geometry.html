@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Hover geometry</title>
+    <style>
+      body {
+        margin: 0;
+        font: 16px/1.5 system-ui, sans-serif;
+      }
+      main {
+        margin: 0 auto;
+        max-width: 720px;
+        padding: 10px 24px 400px;
+      }
+      /* the first block starts 10px under the top of the window: the label above its outline would sit outside it */
+      #first {
+        margin: 0;
+      }
+      /* narrower than the capsule: the capsule comes up under a pointer resting on it */
+      #tiny {
+        width: 140px;
+        margin: 40px 0;
+      }
+      #narrow {
+        width: 200px;
+        margin: 40px 0;
+      }
+      .card {
+        border: 1px solid #ccc;
+        margin: 24px 0;
+      }
+      .toolbar {
+        display: flex;
+        justify-content: space-between;
+        padding: 4px 8px;
+        background: #eee;
+      }
+      pre {
+        margin: 0;
+        padding: 8px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <p id="first">The first paragraph sits ten pixels below the top of the window and has plenty of words in it.</p>
+      <p id="tiny">Tiny block</p>
+      <p id="narrow">A narrow paragraph with enough words to need its label.</p>
+      <section id="short">
+        <h2 id="short-h">Tiny section</h2>
+        <p>a few words</p>
+      </section>
+      <section id="full">
+        <h2>A real section</h2>
+        <p>This section has well over one hundred and twenty characters of text, so it counts as a layer of its own and not as a plain block on the page.</p>
+        <div class="card">
+          <div class="toolbar">
+            <span>bash</span><button type="button">Copy</button>
+          </div>
+          <pre id="code">
+line one
+line two
+line three
+line four
+</pre
+          >
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

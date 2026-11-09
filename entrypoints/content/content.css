@@ -727,6 +727,28 @@
   outline: none;
 }
 
+/* the outline's label: kind · range, on the outline's top edge (capture.md §6.2 标注) */
+[data-ann-ui='block-label'] {
+  position: fixed;
+  z-index: 2147483646;
+  max-width: 44vw;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #673ab8;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+[data-ann-ui='block-label'].ann-block-label-keyboard {
+  background: #4c91ff;
+}
+
 /* the "more" menu is a form-style overlay: theme tokens, hairline edge */
 [data-ann-ui='block-more'] {
   position: fixed;
