@@ -298,20 +298,23 @@ function pcInit(root) {
     const r = el.getBoundingClientRect()
     return { left: (r.left - vr.left) / scale() + view.scrollLeft, top: (r.top - vr.top) / scale() + view.scrollTop, width: r.width / scale(), height: r.height / scale() }
   }
-  const ring = (el, cls, label, labelRight) => {
+  // 标注的字取自页面文字：这里只留一个空的 <em>，字在 paintBlk 里用 textContent 写进去，不当 HTML 再解析一遍
+  const ring = (el, cls, labelRight) => {
     const r = blkRect(el)
     // 目标比窗口高时，标注贴着窗口里可见部分的上沿
     const emTop = Math.max(-10, view.scrollTop - (r.top - 6) + 8)
-    return `<i class="blk ${cls}" style="inset:auto;left:${r.left - 10}px;top:${r.top - 6}px;width:${r.width + 20}px;height:${r.height + 12}px">${label ? `<em class="${labelRight ? 'at-r' : ''}" style="top:${emTop}px">${label}</em>` : ''}</i>`
+    return `<i class="blk ${cls}" style="inset:auto;left:${r.left - 10}px;top:${r.top - 6}px;width:${r.width + 20}px;height:${r.height + 12}px"><em class="${labelRight ? 'at-r' : ''}" style="top:${emTop}px"></em></i>`
   }
   const pillHtml = () => {
     const seg = (k, icon, label, cls = '') => `<span class="bp-seg pa-click ${cls}" data-blk-act="${k}" tabindex="0" role="button" title="${label}" aria-label="${label}">${I(icon)}</span>`
-    return `<div class="blk-pill pc-pill ${PC.blk.at && PC.blk.at.leftSide ? 'at-tl' : ''}" style="right:auto;left:0;top:0" role="group" aria-label="${pcLabel(PC.blk.target)}">${seg('clip', 'bookmark', PC.blk.saved ? '已剪藏' : '剪藏', 'bp-seg-clip')}${seg('shot', 'scan', '截图', 'is-alt bp-seg-shot')}${seg('download', 'download', '下载', 'is-alt bp-seg-dl')}<i class="sub pa-click" data-blk-act="off" tabindex="0" role="button" title="更多" aria-label="更多">${I('ellipsis', 'i-sm')}</i></div>`
+    return `<div class="blk-pill pc-pill ${PC.blk.at && PC.blk.at.leftSide ? 'at-tl' : ''}" style="right:auto;left:0;top:0" role="group">${seg('clip', 'bookmark', PC.blk.saved ? '已剪藏' : '剪藏', 'bp-seg-clip')}${seg('shot', 'scan', '截图', 'is-alt bp-seg-shot')}${seg('download', 'download', '下载', 'is-alt bp-seg-dl')}<i class="sub pa-click" data-blk-act="off" tabindex="0" role="button" title="更多" aria-label="更多">${I('ellipsis', 'i-sm')}</i></div>`
   }
   const paintBlk = () => {
     const cur = PC.blk.target
-    blkHost.innerHTML = ring(cur, PC.blk.saved ? 'is-saved' : '', pcLabel(cur), PC.blk.at && PC.blk.at.leftSide) + pillHtml()
+    blkHost.innerHTML = ring(cur, PC.blk.saved ? 'is-saved' : '', PC.blk.at && PC.blk.at.leftSide) + pillHtml()
+    blkHost.querySelector('.blk em').textContent = pcLabel(cur)
     const pill = blkHost.querySelector('.pc-pill')
+    pill.setAttribute('aria-label', pcLabel(cur))
     const w = pill.offsetWidth
     const h = pill.offsetHeight
     if (!PC.blk.at) {
