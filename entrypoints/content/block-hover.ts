@@ -11,7 +11,7 @@
 import { isUserInput } from './user-input'
 import { overlayIcon } from './icons'
 import { uiText } from '../../utils/ui-text'
-import { positionCapsule } from './capsule-place'
+import { positionCapsule, type PlacedBox } from './capsule-place'
 import { candidateRect, type BlockCandidate } from './blocks'
 import { chainAtPoint, isSuppressed, layerKindName, layerLabel, sameLayer, startIndexOf } from './target-chain'
 import { BlockMode } from './block-mode'
@@ -59,20 +59,54 @@ export function paintOutline(doc: Document, layer: BlockCandidate, keyboard: boo
   return { outline, label }
 }
 
-/** Places the label on the outline's top edge; a tall block pins it to the visible top, a narrow block keeps the kind alone. */
-export function placeLabel(doc: Document, label: HTMLElement, layer: BlockCandidate, capsuleLeft: number | null): void {
+/** The air kept between the label and what it sits next to: the outline's top edge and the capsule. */
+const LABEL_AIR = 4
+
+/** Whether two boxes touch, with a little air between them. */
+function boxesTouch(a: PlacedBox, b: PlacedBox): boolean {
+  return a.left < b.right + LABEL_AIR && a.right > b.left - LABEL_AIR && a.top < b.bottom + LABEL_AIR && a.bottom > b.top - LABEL_AIR
+}
+
+/**
+ * Places the label above the outline's top edge, at its left end (right end
+ * when the capsule sits at the left). A block too close to the top of the
+ * window for that pins the label to the visible top; a block narrower than
+ * 260px, or one whose label would touch the capsule, keeps the kind alone, and
+ * a kind that still touches goes up above the capsule (capture.md §6.2
+ * 标注怎样写). The capsule is the box `positionCapsule` placed: its rectangle
+ * read back is still 4px into its entry animation.
+ */
+export function placeLabel(doc: Document, label: HTMLElement, layer: BlockCandidate, capsule: PlacedBox | null): void {
   const rect = candidateRect(layer)
   const view = doc.defaultView!
   // a zero box has no layout to measure (jsdom): the full label stays
-  const narrow = rect.width > 0 && rect.width < NARROW_LABEL_PX
-  label.textContent = narrow ? layerKindName(layer) : layerLabel(layer, 'content')
-  const height = label.offsetHeight || 24
-  const width = label.offsetWidth || 80
-  let left = rect.left + 4
-  if (capsuleLeft !== null && capsuleLeft < rect.left + 80) left = rect.right - width - 4
-  left = Math.max(8, Math.min(view.innerWidth - width - 8, left))
-  const top = rect.top >= 4 ? rect.top - height - 4 : 4
-  Object.assign(label.style, { left: left + 'px', top: top + 'px' })
+  const laidOut = rect.width > 0
+  const capsuleBox = laidOut ? capsule : null
+  const place = (text: string): PlacedBox => {
+    label.textContent = text
+    const height = label.offsetHeight || 24
+    const width = label.offsetWidth || 80
+    let left = rect.left + 4
+    // the capsule in the left half of the block (its right corner was taken): the label takes the right end
+    if (capsuleBox && (capsuleBox.left + capsuleBox.right) / 2 < rect.left + rect.width / 2) left = rect.right - width - 4
+    left = Math.max(8, Math.min(view.innerWidth - width - 8, left))
+    // above the top edge when there is room for it in the window, else pinned to the visible top
+    const above = rect.top - height - LABEL_AIR
+    const top = above >= 4 ? above : 4
+    return { left, top, right: left + width, bottom: top + height }
+  }
+  const kind = layerKindName(layer)
+  let box = place(laidOut && rect.width < NARROW_LABEL_PX ? kind : layerLabel(layer, 'content'))
+  if (capsuleBox && boxesTouch(box, capsuleBox)) {
+    if (label.textContent !== kind) box = place(kind)
+    // even the kind alone runs into it (a block barely wider than the capsule): the label goes up above the capsule
+    if (boxesTouch(box, capsuleBox)) {
+      const height = box.bottom - box.top
+      const lifted = capsuleBox.top - height - LABEL_AIR
+      if (lifted >= 4) box = { ...box, top: lifted, bottom: lifted + height }
+    }
+  }
+  Object.assign(label.style, { left: box.left + 'px', top: box.top + 'px' })
 }
 
 class HoverEntry {
@@ -136,7 +170,12 @@ class HoverEntry {
       if (!isUserInput(event)) return
       this.lastPointerButtons = event.buttons
     }
-    const onLeaveWindow = (): void => {
+    // pointerleave does not bubble, yet this capture listener hears every element the pointer leaves:
+    // only leaving the document is leaving the window. An element that appears under a resting pointer
+    // (our own capsule, a popover) fires a leave towards it, and nothing moved.
+    const onLeaveWindow = (event: PointerEvent): void => {
+      const next = event.relatedTarget
+      if (next instanceof Node && next.ownerDocument === this.doc) return
       this.stopTick()
       this.scheduleLeave()
     }
@@ -391,15 +430,8 @@ class HoverEntry {
     this.capsuleEl?.remove()
     this.capsuleEl = this.buildCapsule()
     this.doc.documentElement.appendChild(this.capsuleEl)
-    positionCapsule(this.doc, this.capsuleEl, candidateRect(layer))
-    this.placeLabel()
-  }
-
-  private placeLabel(): void {
-    const layer = this.target
-    if (!layer || !this.labelEl) return
-    const capsuleLeft = this.capsuleEl ? Number.parseFloat(this.capsuleEl.style.left) : null
-    placeLabel(this.doc, this.labelEl, layer, Number.isFinite(capsuleLeft) ? capsuleLeft : null)
+    const capsuleBox = positionCapsule(this.doc, this.capsuleEl, candidateRect(layer))
+    placeLabel(this.doc, painted.label, layer, capsuleBox)
   }
 
   private buildCapsule(): HTMLElement {

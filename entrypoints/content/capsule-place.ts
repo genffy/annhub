@@ -12,7 +12,20 @@
 /** How far the capsule sits inside the block's left and right edges. */
 const CAPSULE_EDGE_INSET = 6
 
-export function positionCapsule(doc: Document, capsule: HTMLElement, rect: DOMRect): void {
+/** A box in window coordinates. */
+export interface PlacedBox {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
+/**
+ * Places the capsule and returns the box it took. That box is the layout one:
+ * the capsule's entry animation moves it 4px while it fades in, so reading its
+ * rectangle back at this moment would be 4px off.
+ */
+export function positionCapsule(doc: Document, capsule: HTMLElement, rect: DOMRect): PlacedBox {
   const view = doc.defaultView!
   const box = { width: capsule.offsetWidth || 260, height: capsule.offsetHeight || 36 }
   const visibleTop = Math.max(rect.top, 0)
@@ -70,6 +83,7 @@ export function positionCapsule(doc: Document, capsule: HTMLElement, rect: DOMRe
   }
   capsule.style.left = `${left}px`
   capsule.style.top = `${top}px`
+  return { left, top, right: left + box.width, bottom: top + box.height }
 }
 
 /** Sample points across the would-be capsule box for page controls under it. */

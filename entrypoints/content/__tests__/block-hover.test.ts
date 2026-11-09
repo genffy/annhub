@@ -4,8 +4,10 @@ vi.mock('../user-input', () => ({ isUserInput: () => true }))
 
 const LONG = 'This sentence is deliberately long so the block clears the 120 character minimum for sections. '.repeat(3)
 
-import { BlockEntries, type BlockHoverHooks } from '../block-hover'
+import { BlockEntries, paintOutline, placeLabel, type BlockHoverHooks } from '../block-hover'
+import type { PlacedBox } from '../capsule-place'
 import type { BlockCandidate } from '../blocks'
+import { layerKindName, layerLabel } from '../target-chain'
 import { uiText } from '../../../utils/ui-text'
 
 /**
@@ -152,6 +154,142 @@ describe('the hover reveals the start (capture.md §6.2 悬停入口)', () => {
     expect(outline()).toBeNull()
     await vi.advanceTimersByTimeAsync(450)
     expect(outline()).not.toBeNull()
+  })
+})
+
+describe('leaving the window is not an element appearing under the pointer (capture.md §6.2 收起)', () => {
+  it('the capsule coming up under a resting pointer fires a leave towards it: the hover stays', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    expect(capsule()).not.toBeNull()
+    // what Chrome does when an element appears under a pointer that has not moved: the old chain is left towards it
+    document.getElementById('code')!.dispatchEvent(new MouseEvent('pointerleave', { relatedTarget: capsule() }))
+    await vi.advanceTimersByTimeAsync(400)
+    expect(capsule()).not.toBeNull()
+    expect(outline()).not.toBeNull()
+  })
+
+  it('so does any element of the page that comes up under it', async () => {
+    document.body.innerHTML = NESTED + '<div id="popover">hello</div>'
+    await restOn(document.getElementById('code')!)
+    document.getElementById('code')!.dispatchEvent(new MouseEvent('pointerleave', { relatedTarget: document.getElementById('popover') }))
+    await vi.advanceTimersByTimeAsync(400)
+    expect(capsule()).not.toBeNull()
+  })
+
+  it('the pointer leaving the document closes the hover after 150ms', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    document.getElementById('code')!.dispatchEvent(new MouseEvent('pointerleave', { relatedTarget: null }))
+    await vi.advanceTimersByTimeAsync(100)
+    expect(capsule()).not.toBeNull()
+    await vi.advanceTimersByTimeAsync(100)
+    expect(capsule()).toBeNull()
+    expect(outline()).toBeNull()
+  })
+
+  it('a leave towards another document (a frame beside this one) is leaving this one', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    const elsewhere = document.implementation.createHTMLDocument('frame').createElement('div')
+    document.getElementById('code')!.dispatchEvent(new MouseEvent('pointerleave', { relatedTarget: elsewhere }))
+    await vi.advanceTimersByTimeAsync(200)
+    expect(capsule()).toBeNull()
+  })
+})
+
+describe('the label sits above the outline, in view, and gives way to the capsule (capture.md §6.2 标注怎样写)', () => {
+  const LABEL_HEIGHT = 24
+  const CAPSULE_WIDTH = 152
+  const CAPSULE_HEIGHT = 36
+
+  beforeEach(() => {
+    // jsdom has no layout: the label is 8px a character, 24px tall
+    vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute('data-ann-ui') === 'block-label' ? (this.textContent ?? '').length * 8 : 0
+    })
+    vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockImplementation(function (this: HTMLElement) {
+      return this.getAttribute('data-ann-ui') === 'block-label' ? LABEL_HEIGHT : 0
+    })
+  })
+
+  function layerAt(left: number, top: number, width: number, height = 200): BlockCandidate {
+    document.body.innerHTML = '<p id="para">' + LONG + '</p>'
+    const element = document.getElementById('para') as HTMLElement
+    element.getBoundingClientRect = () => new DOMRect(left, top, width, height)
+    return { kind: 'block', blockShape: 'paragraph', element }
+  }
+
+  /** The box `positionCapsule` reports for a capsule at this corner. */
+  function capsuleAt(left: number, top: number): PlacedBox {
+    return { left, top, right: left + CAPSULE_WIDTH, bottom: top + CAPSULE_HEIGHT }
+  }
+
+  function place(layer: BlockCandidate, capsule: PlacedBox | null): HTMLElement {
+    const { label } = paintOutline(document, layer, false)
+    placeLabel(document, label, layer, capsule)
+    return label
+  }
+
+  it('sits above the top edge, at its left end, when the window has room', () => {
+    const label = place(layerAt(100, 100, 600), null)
+    expect(label.style.left).toBe('104px')
+    expect(label.style.top).toBe(100 - LABEL_HEIGHT - 4 + 'px')
+  })
+
+  it('a block near the top of the window pins the label to the visible top instead of above the window', () => {
+    // 10px from the top: above the edge would be −18px
+    expect(place(layerAt(100, 10, 600), null).style.top).toBe('4px')
+    // a block taller than the window, scrolled so its top is far above
+    expect(place(layerAt(100, -300, 600, 2000), null).style.top).toBe('4px')
+    // just enough room: 33 − 24 − 4 = 5
+    expect(place(layerAt(100, 33, 600), null).style.top).toBe('5px')
+  })
+
+  it('a block narrower than 260px keeps the kind alone; a wider one the full label', () => {
+    const narrow = layerAt(100, 100, 240)
+    expect(place(narrow, null).textContent).toBe(layerKindName(narrow))
+    const wide = layerAt(100, 100, 320)
+    expect(place(wide, null).textContent).toBe(layerLabel(wide, 'content'))
+    expect(layerLabel(wide, 'content').length).toBeGreaterThan(layerKindName(wide).length)
+  })
+
+  it('a label that would touch the capsule keeps the kind alone; one clear of it keeps the words', () => {
+    // the capsule sits in the block's right-top corner, 6px inside: in a 300px block it meets the label
+    const middling = layerAt(100, 100, 300)
+    const touching = place(middling, capsuleAt(400 - CAPSULE_WIDTH - 6, 82))
+    expect(touching.textContent).toBe(layerKindName(middling))
+    // in a wide block it is far from the label
+    const wide = layerAt(100, 100, 600)
+    const clear = place(wide, capsuleAt(700 - CAPSULE_WIDTH - 6, 82))
+    expect(clear.textContent).toBe(layerLabel(wide, 'content'))
+    // a capsule on the same side but below the label's rows does not touch it either
+    const below = place(middling, capsuleAt(400 - CAPSULE_WIDTH - 6, 140))
+    expect(below.textContent).toBe(layerLabel(middling, 'content'))
+  })
+
+  it('a kind that still touches the capsule (a block barely wider than it) goes up above the capsule', () => {
+    // 170px wide: the capsule fills it from 12px in, and even the kind alone meets it
+    const layer = layerAt(100, 100, 170)
+    const label = place(layer, capsuleAt(270 - CAPSULE_WIDTH - 6, 82))
+    expect(label.textContent).toBe(layerKindName(layer))
+    expect(label.style.top).toBe(82 - LABEL_HEIGHT - 4 + 'px')
+    // no room above the capsule: the label stays pinned to the top
+    const cramped = place(layerAt(100, 20, 170), capsuleAt(270 - CAPSULE_WIDTH - 6, 2))
+    expect(cramped.style.top).toBe('4px')
+  })
+
+  it('a capsule at the left end sends the label to the right end of the top edge', () => {
+    const layer = layerAt(100, 100, 600)
+    const label = place(layer, capsuleAt(106, 82))
+    const width = (label.textContent ?? '').length * 8
+    expect(label.style.left).toBe(700 - width - 4 + 'px')
+  })
+
+  it('a block with no layout (jsdom) keeps the full label whatever the capsule', () => {
+    document.body.innerHTML = '<p id="para">' + LONG + '</p>'
+    const layer: BlockCandidate = { kind: 'block', blockShape: 'paragraph', element: document.getElementById('para') as HTMLElement }
+    expect(place(layer, capsuleAt(0, 0)).textContent).toBe(layerLabel(layer, 'content'))
   })
 })
 
@@ -311,6 +449,24 @@ describe('capsule placement stays inside the block (capture.md §6.2 位置)', (
     expect(right).toBeLessThanOrEqual(840)
     const overlapsCaret = right > 800 && left < 834 && bottom > 124 && top < 156
     expect(overlapsCaret).toBe(false)
+  })
+
+  it('the label gives way to the capsule where it was placed, not where its entry animation still holds it', async () => {
+    // the capsule fades in 4px low: its rectangle, read back at once, is that far off its layout box
+    vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+      const node = this as HTMLElement
+      if (node.getAttribute('data-ann-ui') !== 'block-capsule') return new DOMRect(0, 0, 0, 0)
+      return new DOMRect(Number.parseFloat(node.style.left), Number.parseFloat(node.style.top) + 4, CAPSULE_WIDTH, CAPSULE_HEIGHT)
+    })
+    document.body.innerHTML = '<p id="para">' + LONG + '</p>'
+    const para = document.getElementById('para')!
+    // 170px: the capsule fills the right-top corner and even the kind alone meets it
+    para.getBoundingClientRect = () => new DOMRect(100, 100, 170, 200)
+    document.elementFromPoint = vi.fn(() => para)
+    const found = await showCapsule(150, 150)
+    const label = document.querySelector('[data-ann-ui="block-label"]') as HTMLElement
+    // 24px tall with no layout, and the 4px of air above the capsule's own top
+    expect(Number.parseFloat(label.style.top)).toBe(Number.parseFloat(found.style.top) - 24 - 4)
   })
 })
 

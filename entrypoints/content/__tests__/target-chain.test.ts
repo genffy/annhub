@@ -5,6 +5,7 @@ import {
   blockStartElement,
   chainAtPoint,
   chainForElement,
+  chainHolding,
   childChainOf,
   contentLayers,
   firstVisibleChain,
@@ -142,6 +143,17 @@ describe('the start (capture.md §6.2 起点)', () => {
     expect(startIndexOf(chain)).toBe(0)
   })
 
+  it('a heading in a <section> too short to be one starts at the heading: the section is a block', () => {
+    document.body.innerHTML = '<main><p>' + LONG + '</p><section id="tiny"><h2 id="h">Tiny</h2><p>a few words</p></section></main>'
+    const chain = chainForElement(doc.getElementById('h')!, doc)
+    expect(kinds(chain)).not.toContain('section')
+    expect(startIndexOf(chain)).toBe(0)
+    document.body.innerHTML = '<main><p>' + LONG + '</p><section id="full"><h2 id="h">Full</h2><p>' + LONG + '</p></section></main>'
+    const full = chainForElement(doc.getElementById('h')!, doc)
+    expect(kinds(full)).toContain('section')
+    expect(full[startIndexOf(full)]!.kind).toBe('section')
+  })
+
   it('a block smaller than 30×10 yields to the first big-enough ancestor', () => {
     document.body.innerHTML = '<main id="m"><div id="small">' + LONG + '</div><p>' + LONG + '</p></main>'
     const small = doc.getElementById('small')!
@@ -268,6 +280,48 @@ describe('labels (capture.md §6.2 标注)', () => {
     expect(label(table)).toBe(uiText('block.kind.table') + ' · ' + uiText('block.label.cells', { rows: 3, cols: 2 }))
   })
 
+  it('a code block counts the lines of its pre, not the card around it, and the newline ending the last line opens none', () => {
+    document.body.innerHTML = '<main><div id="card"><div class="head">bash\nCopy\nRun</div><pre id="code">a\nb\nc\n</pre></div><p>' + LONG + '</p></main>'
+    const card = chainForElement(doc.getElementById('code')!, doc)[0]!
+    // the card merged in: its element is the wrapper, the toolbar words are not code lines
+    expect(card.element.id).toBe('card')
+    expect(label(card)).toBe(uiText('block.kind.code') + ' · ' + uiText('block.label.lines', { n: 3 }))
+    const bare = { kind: 'code' as const, element: doc.getElementById('code')! }
+    expect(label(bare)).toBe(uiText('block.kind.code') + ' · ' + uiText('block.label.lines', { n: 3 }))
+    doc.getElementById('code')!.textContent = 'one line'
+    expect(label(bare)).toBe(uiText('block.kind.code') + ' · ' + uiText('block.label.lines', { n: 1 }))
+  })
+
+  it("a block's words leave out the page's own interface: a toolbar, a share bar, a button", () => {
+    document.body.innerHTML =
+      '<main><div id="card"><div class="toolbar">Copy code</div><button>Run</button><p id="body">The words the block really opens with, and more.</p></div><p>' +
+      LONG +
+      '</p></main>'
+    const block = { kind: 'block' as const, blockShape: 'block' as const, element: doc.getElementById('card')! }
+    expect(label(block)).toBe(uiText('block.kind.block') + ' · The words the bl…')
+    // only the interface: no words, the kind alone
+    doc.getElementById('body')!.remove()
+    expect(label(block)).toBe(uiText('block.kind.block'))
+    // a quote reads the same way
+    const quote = { kind: 'quote' as const, element: doc.createElement('blockquote') }
+    quote.element.innerHTML = '<span class="share">Share this</span>Quoted words that carry the point.'
+    doc.body.appendChild(quote.element)
+    expect(label(quote)).toBe(uiText('block.kind.quote') + ' · Quoted words tha…')
+  })
+
+  it('the words of two blocks written with no whitespace between them stay apart; an inline element does not split a word', () => {
+    // minified markup: the heading and the paragraph meet in the source
+    document.body.innerHTML = '<main><div id="short"><h2>Tiny section</h2><p>a few words</p></div><p id="inline">Hel<b>lo</b> there, friends</p><p>' + LONG + '</p></main>'
+    const wrapper = { kind: 'block' as const, blockShape: 'block' as const, element: doc.getElementById('short')! }
+    expect(label(wrapper)).toBe(uiText('block.kind.block') + ' · Tiny section a f…')
+    const inline = { kind: 'block' as const, blockShape: 'paragraph' as const, element: doc.getElementById('inline')! }
+    expect(label(inline)).toBe(uiText('block.kind.paragraph') + ' · Hello there, fri…')
+    // text straight in the wrapper, after a block child, is a line of its own too
+    document.body.innerHTML = '<main><div id="mixed"><p>One two</p>three four five six</div><p>' + LONG + '</p></main>'
+    const mixed = { kind: 'block' as const, blockShape: 'block' as const, element: doc.getElementById('mixed')! }
+    expect(label(mixed)).toBe(uiText('block.kind.block') + ' · One two three fo…')
+  })
+
   it('a figure shows its caption, or its size without one', () => {
     const figure = chainForElement(doc.querySelector('#figure')!, doc)[0]!
     expect(label(figure)).toBe(uiText('block.kind.figure') + ' · p99')
@@ -343,6 +397,115 @@ describe('keyboard tiers (capture.md §6.2 同档)', () => {
     expect(peersOf(picture, doc).map(peer => peer.element.id)).toEqual(['one', 'two'])
   })
 
+  it('a layer that merged a wrapper is one Tab stop: a paragraph in a div, a code card, a figure card', () => {
+    document.body.innerHTML =
+      '<article><p id="a">A. ' +
+      LONG +
+      '</p><div id="w"><p id="inner">Wrapped. ' +
+      LONG +
+      '</p></div><div id="card"><div class="toolbar">bash</div><pre id="code">const a = 1</pre></div>' +
+      '<div id="fig"><figure><img alt="chart" src="https://img.example/1.png" /><figcaption>chart</figcaption></figure></div><p id="b">B. ' +
+      LONG +
+      '</p></article>'
+    const current = chainForElement(doc.getElementById('a')!, doc)[0]!
+    const peers = peersOf(current, doc)
+    expect(peers.map(peer => peer.element.id)).toEqual(['a', 'w', 'card', 'fig', 'b'])
+    expect(peers.map(peer => peer.kind)).toEqual(['block', 'block', 'code', 'figure', 'block'])
+    // standing on a merged layer, the tier is the same one
+    const card = peers[2]!
+    expect(peersOf(card, doc).map(peer => peer.element.id)).toEqual(['a', 'w', 'card', 'fig', 'b'])
+  })
+
+  it('stops are in reading order: the heading inside a wrapper comes before the table the wrapper merged onto', () => {
+    // the section adds only "Data" to the table, so it merges onto it; the table is more than 20 characters
+    // for the heading to merge the other way round, so the heading is a stop of its own
+    document.body.innerHTML =
+      '<main><p id="a">A. ' +
+      LONG +
+      '</p><section id="data"><h2 id="dh">Data</h2><table id="t"><tbody><tr><td>Attempt</td><td>Base</td></tr><tr><td>1</td><td>200ms</td></tr><tr><td>2</td><td>400ms</td></tr></tbody></table></section>' +
+      '<p id="b">B. ' +
+      LONG +
+      '</p></main>'
+    const table = chainForElement(doc.getElementById('t')!, doc)[0]!
+    expect(table).toMatchObject({ kind: 'table' })
+    expect(table.element.id).toBe('data')
+    // the wrapper's own element is scanned first, but the stop stands where the table does
+    expect(peersOf(table, doc).map(peer => peer.element.id)).toEqual(['a', 'dh', 'data', 'b'])
+    // the same from the heading
+    const heading = chainForElement(doc.getElementById('dh')!, doc)[0]!
+    expect(heading).toMatchObject({ kind: 'block', blockShape: 'heading' })
+    expect(peersOf(heading, doc).map(peer => peer.element.id)).toEqual(['a', 'dh', 'data', 'b'])
+  })
+
+  it('one outline is one stop: a card reached from its tiny language tag is still the code block', () => {
+    document.body.innerHTML =
+      '<article><p id="a">A. ' +
+      LONG +
+      '</p><div id="card"><div id="lang">ts</div><pre id="code">const a = 1; const b = 2; const c = 3;</pre></div><p id="b">B. ' +
+      LONG +
+      '</p></article>'
+    // the tag is too small to start anything: its start is the card, which it leaves a block (the code adds more than 20 characters)
+    doc.getElementById('lang')!.getBoundingClientRect = () => new DOMRect(10, 10, 16, 16)
+    doc.getElementById('card')!.getBoundingClientRect = () => new DOMRect(0, 0, 600, 200)
+    const fromTag = chainForElement(doc.getElementById('lang')!, doc)
+    const onTag = fromTag[startIndexOf(fromTag)]!
+    expect(onTag.kind).toBe('block')
+    expect(onTag.element.id).toBe('card')
+    // from the code the same card merges into a code block
+    expect(chainForElement(doc.getElementById('code')!, doc)[0]).toMatchObject({ kind: 'code' })
+    const current = chainForElement(doc.getElementById('a')!, doc)[0]!
+    const peers = peersOf(current, doc)
+    expect(peers.map(peer => peer.element.id)).toEqual(['a', 'card', 'b'])
+    expect(peers[1]!.kind).toBe('code')
+    // standing on the card as a block, Tab starts from that very layer
+    const fromThere = peersOf(onTag, doc)
+    expect(fromThere.map(peer => peer.element.id)).toEqual(['a', 'card', 'b'])
+    expect(fromThere[1]).toBe(onTag)
+  })
+
+  it("the page's own interface is no Tab stop", () => {
+    document.body.innerHTML = '<article><p id="a">A. ' + LONG + '</p><div class="share-bar">Share this story with friends</div><p id="b">B. ' + LONG + '</p></article>'
+    const current = chainForElement(doc.getElementById('a')!, doc)[0]!
+    expect(peersOf(current, doc).map(peer => peer.element.id)).toEqual(['a', 'b'])
+  })
+
+  it('a Tab press measures a container shared by hundreds of paragraphs once', () => {
+    document.body.innerHTML = '<main id="m">' + Array.from({ length: 300 }, (_, i) => '<p id="p' + i + '">Paragraph ' + i + '. ' + LONG + '</p>').join('') + '</main>'
+    const main = doc.getElementById('m')!
+    const read = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent')!.get!
+    let reads = 0
+    Object.defineProperty(main, 'textContent', {
+      configurable: true,
+      get() {
+        reads++
+        return read.call(main)
+      },
+    })
+    const current = chainForElement(doc.getElementById('p0')!, doc)[0]!
+    reads = 0
+    expect(peersOf(current, doc)).toHaveLength(300)
+    // each measure of main (its length, its non-whitespace length) happens once per press, not once per paragraph
+    expect(reads).toBeLessThanOrEqual(4)
+  })
+
+  it('chainHolding finds the chain of a merged layer from what is inside it, and nothing for a layer the page does not have', () => {
+    document.body.innerHTML = '<main><div id="card"><div class="toolbar">bash</div><pre id="code">const a = 1</pre></div><p>' + LONG + '</p></main>'
+    const card = chainForElement(doc.getElementById('code')!, doc)[0]!
+    expect(card).toMatchObject({ kind: 'code' })
+    expect(card.element.id).toBe('card')
+    // from the wrapper alone there is no merge, so its own chain has no code block
+    expect(chainForElement(doc.getElementById('card')!, doc)[0]!.kind).toBe('block')
+    const held = chainHolding(card, doc)
+    expect(kinds(held)).toEqual(['code', 'article'])
+    expect(held[0]!.element.id).toBe('card')
+    // a layer that is its own anchor's chain needs no search
+    const paragraph = chainForElement(doc.querySelector('main > p')!, doc)[0]!
+    expect(chainHolding(paragraph, doc)[0]!.element).toBe(paragraph.element)
+    // a layer whose element the page no longer has
+    const gone = { kind: 'code' as const, element: doc.createElement('div') }
+    expect(chainHolding(gone, doc)).toEqual([])
+  })
+
   it('Tab between whole-element units of the article tier', () => {
     document.body.innerHTML = ['One', 'Two', 'Three'].map(name => '<article tabindex="0" id="u-' + name + '"><p>' + name + ' unit. ' + LONG + '</p></article>').join('')
     const article = chainForElement(doc.getElementById('u-Two')!, doc)[0]!
@@ -401,7 +564,7 @@ describe('childChainOf: what ↓ enters (capture.md §6.2 换层与进入)', () 
   })
 
   it('reaches code in an open shadow root (MDN)', () => {
-    document.body.innerHTML = '<main><section id="s"><h2>Fetch</h2><div id="host"></div></section></main>'
+    document.body.innerHTML = '<main><section id="s"><h2>Fetch</h2><p>' + LONG + '</p><div id="host"></div></section></main>'
     const shadow = doc.getElementById('host')!.attachShadow({ mode: 'open' })
     shadow.innerHTML = '<pre id="shadow-code">fetch(url)</pre>'
     const chain = childChainOf(unit('section', 's'), doc)

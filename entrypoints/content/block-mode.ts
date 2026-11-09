@@ -8,7 +8,7 @@
 import { isUserInput } from './user-input'
 import { uiText } from '../../utils/ui-text'
 import { candidateAnchor, sameCandidate, type BlockCandidate } from './blocks'
-import { chainAtPoint, chainForElement, childChainOf, firstVisibleChain, isSuppressed, layerStatus, peersOf, startIndexOf } from './target-chain'
+import { chainAtPoint, chainForElement, chainHolding, childChainOf, firstVisibleChain, isSuppressed, layerStatus, peersOf, startIndexOf } from './target-chain'
 import { paintOutline, placeLabel } from './block-hover'
 
 const ROOT_ATTR = 'data-ann-ui'
@@ -35,6 +35,8 @@ export class BlockMode {
   private repaint: (() => void) | null = null
   private restoreFocus: HTMLElement | null = null
   private lastPoint = { x: 0, y: 0 }
+  /** The start the pointer last brought the mode to: the level the user chose stays while the pointer moves inside it. */
+  private pointerStart: BlockCandidate | null = null
 
   constructor(
     private readonly doc: Document,
@@ -56,6 +58,7 @@ export class BlockMode {
     this.chain = []
     this.depth = 0
     this.painted = null
+    this.pointerStart = initial.length > 0 ? initial[startIndexOf(initial)]! : null
 
     const overlay = this.doc.createElement('div')
     overlay.setAttribute(ROOT_ATTR, 'block-mode-overlay')
@@ -224,7 +227,12 @@ export class BlockMode {
     if (this.overlayEl) this.overlayEl.style.pointerEvents = ''
     // nothing under the pointer or a paused region: the previous target stays, outlined, so what is painted is what Enter saves
     if (chain.length === 0 || isSuppressed(chain, startIndexOf(chain))) return
-    this.setChain(chain, startIndexOf(chain), false)
+    const start = startIndexOf(chain)
+    // only a new start brings the level back to the start (capture.md §6.2 起点): a hand that drifts
+    // inside the same start keeps the ↑ ↓ the user pressed, and the Tab target they moved to
+    if (this.pointerStart && sameCandidate(this.pointerStart, chain[start]!)) return
+    this.pointerStart = chain[start]!
+    this.setChain(chain, start, false)
   }
 
   /** Tab / Shift+Tab: the next or previous target of the same tier, in document order, wrapping around. */
@@ -236,7 +244,7 @@ export class BlockMode {
     const index = peers.findIndex(peer => sameCandidate(peer, current))
     const next = peers[(index + step + peers.length) % peers.length]!
     // the chain is detected from the target itself, so ↑↓ keep working from the new position
-    const chain = chainForElement(candidateAnchor(next), this.doc)
+    const chain = chainHolding(next, this.doc)
     const depth = chain.findIndex(candidate => sameCandidate(candidate, next))
     this.setChain(depth >= 0 ? chain : [next], Math.max(depth, 0), true)
   }
@@ -297,6 +305,7 @@ export class BlockMode {
     this.chain = []
     this.painted = null
     this.depth = 0
+    this.pointerStart = null
     if (restoreFocus?.isConnected) restoreFocus.focus({ preventScroll: true })
   }
 

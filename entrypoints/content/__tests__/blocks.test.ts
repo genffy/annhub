@@ -12,7 +12,9 @@ import {
   composedParent,
   deepElementFromPoint,
   feedColumn,
+  inOneScan,
   isArticleElement,
+  nonWsTextLength,
   pageArticleCandidates,
   runSectionsFor,
   runSpansWhole,
@@ -101,6 +103,18 @@ describe('each layer kind classifies (capture.md §6.2 目标链里的层)', () 
     expect(classifyElementAt(bare)).toMatchObject([{ kind: 'block', blockShape: 'block' }])
   })
 
+  it('section: needs 120 characters of text like an article; a shorter section is a block', () => {
+    const section = (chars: number): HTMLElement => {
+      const el = doc.createElement('section')
+      // "Title" is 5 of the characters the section holds
+      el.innerHTML = '<h2>Title</h2><p>' + 'x'.repeat(chars - 5) + '</p>'
+      doc.body.appendChild(el)
+      return el
+    }
+    expect(classifyElementAt(section(119))).toMatchObject([{ kind: 'block', blockShape: 'block' }])
+    expect(classifyElementAt(section(120))).toMatchObject([{ kind: 'section' }])
+  })
+
   it('article: article/[role=article]/main/content containers, with the 120-char floor', () => {
     expect(classifyElementAt(doc.querySelector('main')!)).toMatchObject([{ kind: 'article' }])
     const bare = doc.createElement('article')
@@ -134,6 +148,36 @@ describe('each layer kind classifies (capture.md §6.2 目标链里的层)', () 
     chrome.textContent = 'x'.repeat(300)
     doc.body.appendChild(chrome)
     expect(classifyElementAt(chrome)).toMatchObject([{ kind: 'block' }])
+  })
+})
+
+describe('nonWsTextLength (capture.md §6.2 内容看法: 不算空白)', () => {
+  it('counts the characters that are not whitespace', () => {
+    const el = doc.createElement('p')
+    el.textContent = ' a b\n\tc  '
+    expect(nonWsTextLength(el)).toBe(3)
+  })
+
+  it('is measured once per scan: a container many targets share is read once, and afresh by the next scan', () => {
+    const main = doc.querySelector('main')!
+    const read = Object.getOwnPropertyDescriptor(Node.prototype, 'textContent')!.get!
+    let reads = 0
+    Object.defineProperty(main, 'textContent', {
+      configurable: true,
+      get() {
+        reads++
+        return read.call(main)
+      },
+    })
+    inOneScan(() => {
+      for (let i = 0; i < 50; i++) nonWsTextLength(main)
+    })
+    expect(reads).toBe(1)
+    // the page may change between two key presses: nothing is kept outside a scan
+    reads = 0
+    nonWsTextLength(main)
+    nonWsTextLength(main)
+    expect(reads).toBe(2)
   })
 })
 

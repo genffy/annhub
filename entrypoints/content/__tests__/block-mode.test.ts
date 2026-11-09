@@ -216,6 +216,112 @@ describe('the start on a flat page', () => {
   })
 })
 
+describe('the pointer and the level (capture.md §6.2 起点)', () => {
+  const overlay = (): Element => document.querySelector('[data-ann-ui="block-mode-overlay"]')!
+  const move = (): void => {
+    overlay().dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 12, clientY: 12 }))
+  }
+
+  it('a pointer drifting inside the same start keeps the level ↑ chose; a new start brings the level back', () => {
+    document.body.innerHTML = NESTED2
+    const code = document.getElementById('code')!
+    // not the lone paragraph of section two, which merges into its section
+    const other = document.querySelector('#s1 p') as HTMLElement
+    document.elementFromPoint = vi.fn(() => code)
+    start()
+    expect(kindText()).toContain(uiText('block.kind.code'))
+    press('ArrowUp')
+    expect(kindText()).toContain(uiText('block.kind.section'))
+    move()
+    move()
+    expect(kindText(), 'the pointer is still on the same start').toContain(uiText('block.kind.section'))
+    document.elementFromPoint = vi.fn(() => other)
+    move()
+    expect(kindText(), 'a new start').toContain(uiText('block.kind.paragraph'))
+    press('ArrowUp')
+    expect(kindText()).toContain(uiText('block.kind.section'))
+    document.elementFromPoint = vi.fn(() => code)
+    move()
+    expect(kindText(), 'back on the code: a new start again').toContain(uiText('block.kind.code'))
+  })
+
+  it('the level chosen before the pointer ever moved survives the first drift inside that start', () => {
+    document.body.innerHTML = NESTED2
+    document.getElementById('code')!.focus()
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    start()
+    press('ArrowUp')
+    move()
+    expect(kindText()).toContain(uiText('block.kind.section'))
+  })
+
+  it('a pointer drifting inside the start the mode began at does not undo a Tab', () => {
+    document.body.innerHTML = NESTED2
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    start()
+    press('Tab')
+    const afterTab = kindText()
+    expect(afterTab).toContain(uiText('block.kind.paragraph'))
+    move()
+    expect(kindText()).toBe(afterTab)
+  })
+
+  it('↓ into a child chain also holds while the pointer drifts', () => {
+    document.body.innerHTML = NESTED2
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    start()
+    press('ArrowUp')
+    press('ArrowUp')
+    expect(kindText()).toContain(uiText('block.kind.article'))
+    press('ArrowDown')
+    move()
+    expect(kindText()).toContain(uiText('block.kind.section'))
+  })
+})
+
+describe('Tab stops on a layer that merged a wrapper', () => {
+  const CARD =
+    '<article><p id="a" tabindex="0">A. ' +
+    LONG +
+    '</p><div id="card"><div class="toolbar">bash</div><pre id="code">const a = 1;</pre></div><div id="w"><p id="inner">Wrapped. ' +
+    LONG +
+    '</p></div><p id="b">B. ' +
+    LONG +
+    '</p></article>'
+
+  it('visits the code card as a code block, and ↑ ↓ still work from it', () => {
+    document.body.innerHTML = CARD
+    document.getElementById('a')!.focus()
+    const { hooks } = start()
+    expect(kindText()).toContain('A. ')
+    press('Tab')
+    expect(kindText()).toContain(uiText('block.kind.code'))
+    press('ArrowUp')
+    expect(kindText()).toContain(uiText('block.kind.article'))
+    press('ArrowDown')
+    expect(kindText()).toContain(uiText('block.kind.code'))
+    press('Enter')
+    const { candidate } = clipped(hooks)
+    expect(candidate.kind).toBe('code')
+    expect(candidate.element.id).toBe('card')
+  })
+
+  it('visits a paragraph a div wraps, between the code card and the next paragraph, and wraps around', () => {
+    document.body.innerHTML = CARD
+    document.getElementById('a')!.focus()
+    start()
+    press('Tab')
+    press('Tab')
+    expect(kindText()).toContain('Wrapped.')
+    press('Tab')
+    expect(kindText()).toContain('B. ')
+    press('Tab')
+    expect(kindText()).toContain('A. ')
+    press('Tab', { shiftKey: true })
+    expect(kindText()).toContain('B. ')
+  })
+})
+
 describe('Tab between whole-element units', () => {
   it('visits article units in document order from the focused one', () => {
     document.body.innerHTML = ['One', 'Two', 'Three'].map(name => '<article tabindex="0" id="u-' + name + '"><p>' + name + ' unit. ' + LONG + '</p></article>').join('')

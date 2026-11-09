@@ -22,6 +22,9 @@ export type BlockShape = 'paragraph' | 'listItem' | 'list' | 'heading' | 'block'
 
 export const SMALL_UNITS: readonly BlockKind[] = ['post', 'code', 'table', 'figure', 'quote']
 
+/** A section or an article needs this many characters of text to be a layer (capture.md §6.2 目标链里的层). */
+const SECTION_MIN_CHARS = 120
+
 export interface BlockCandidate {
   kind: BlockKind
   /** Set when the layer is a block: what to call it (段落、列表项、列表、标题、块). */
@@ -90,11 +93,11 @@ export function blockShapeOf(el: Element): BlockShape {
  * article, the Markdown container); the page does not change while they are
  * measured.
  */
-let scan: { texts: Map<Element, number>; holdsArticle: Map<Element, boolean>; feeds: Map<Element, boolean> } | null = null
+let scan: { texts: Map<Element, number>; nonWs: Map<Element, number>; holdsArticle: Map<Element, boolean>; feeds: Map<Element, boolean> } | null = null
 
 export function inOneScan<T>(run: () => T): T {
   if (scan) return run()
-  scan = { texts: new Map(), holdsArticle: new Map(), feeds: new Map() }
+  scan = { texts: new Map(), nonWs: new Map(), holdsArticle: new Map(), feeds: new Map() }
   try {
     return run()
   } finally {
@@ -110,9 +113,16 @@ export function textLength(el: Element): number {
   return length
 }
 
-/** Text length with whitespace stripped out entirely (capture.md §6.2 内容看法: 多出的文字不到 20 个字符，不算空白). */
+/**
+ * Text length with whitespace stripped out entirely (capture.md §6.2 内容看法: 多出的文字不到 20 个字符，不算空白).
+ * Cached inside one scan like textLength: every target of a Tab press shares the same big containers.
+ */
 export function nonWsTextLength(el: Element): number {
-  return (el.textContent ?? '').replace(/\s/g, '').length
+  const known = scan?.nonWs.get(el)
+  if (known !== undefined) return known
+  const length = (el.textContent ?? '').replace(/\s/g, '').length
+  scan?.nonWs.set(el, length)
+  return length
 }
 
 function holdsArticle(el: Element): boolean {
@@ -241,7 +251,7 @@ export function runSectionsFor(el: Element, child: Element): Array<NonNullable<B
         break
       }
     }
-    if (rangeTextLength(el, run) < 120) return runs
+    if (rangeTextLength(el, run) < SECTION_MIN_CHARS) return runs
     runs.push(run)
     index = children.indexOf(heading) - 1
   }
@@ -320,10 +330,11 @@ export function classifyElementAt(el: Element): BlockCandidate[] {
     if (classifyFigure(el)) return [{ kind: 'figure', element }]
     if (classifyQuote(el)) return [{ kind: 'quote', element }]
     if (isArticleElement(el)) {
-      if (textLength(el) < 120) return []
+      if (textLength(el) < SECTION_MIN_CHARS) return []
       return [{ kind: 'article', element }]
     }
-    if (el.tagName.toLowerCase() === 'section') {
+    // a section needs the words of one, like an article (capture.md §6.2 一节): a short one is a block
+    if (el.tagName.toLowerCase() === 'section' && textLength(el) >= SECTION_MIN_CHARS) {
       const heading = el.querySelector('h1, h2, h3, h4')
       if (heading) return [{ kind: 'section', element }]
     }

@@ -25,19 +25,13 @@
 - 库里刚有、回复未到时按 `Esc`，关掉的是还开着的工具条而不是阅读视图。
 - 这时双击下一处，新的选区和工具条会被迟到的回复清掉（测试：`reading-highlight.spec.ts`）。
 - `fixtures.ts` 有一个自动的 `pageErrors` 守卫：用例里任何页面（含扩展页面、内容脚本在页面里的浮层）抛出未捕获错误，或打印 `console.error`，该用例就失败。唯一放行的是“资源加载失败”（夹具页引用了不存在的主机，浏览器还会要 `/favicon.ico`）；新增放行项要写明理由，不要为了求绿放宽。
-- 专项夹具：`keyboard-blocks`
-- `timeline.html`（X 式时间线：帖子列紧挨侧栏，Parent 停在帖子、离开与 Esc 收起描边，胶囊的左右缘留在帖子内）
-- `x-article.html`（X 长文页的 hydrated 形态：嵌套阅读视图、og 标题、节标题、引用卡与时间戳条；测试：`platform-x.spec.ts` 的长文下载用例）
-- `media`（视频帖与滚到第二张的多图轮播：`screenshot-media.spec.ts` 读预览画布像素，断言当前视频帧与当前幻灯在元素截图里）
-- `columns`（三栏页：内栏自滚、窗口 scrollY 为 0 时，划词菜单仍贴内栏的选区）
-- `longpage.html`（滚动长图的五屏长页）
-- `virtualfeed.html`（回收单元格的虚拟时间线，同一个结构路径在不同滚动高度是另一条帖子；测试：`screenshot-frame.spec.ts` 的“沿用上次取景框时页面不动”）。`page-shapes.spec.ts` 在真实浏览器里验识别与转换。
 
 ## 按需读取
 
-| 主题                         | 文件                                                   |
-| ---------------------------- | ------------------------------------------------------ |
-| 版式与像素断言（不截屏比对） | [notes/pixel-and-layout.md](notes/pixel-and-layout.md) |
+| 主题                             | 文件                                                   |
+| -------------------------------- | ------------------------------------------------------ |
+| 版式与像素断言（不截屏比对）     | [notes/pixel-and-layout.md](notes/pixel-and-layout.md) |
+| 专项夹具（页面形状与对应的测试） | [notes/fixtures.md](notes/fixtures.md)                 |
 
 - 从扩展页面里播种或读数据走 `helpers.ts` 的 `sendMessage`（同一条消息路径，错误响应直接让用例失败）；量文字对比度走 `textContrast`（取元素第一个有底色的祖先作背景），亮暗两套外观各量一次。应用页的壳、属性页与抽屉编辑的用例见 `library-shell.spec.ts`、`library-properties-page.spec.ts`、`library-drawer-edit.spec.ts`。
 - 大库用例用 `library-browse.spec.ts` 的 `seedRealisticLibrary`（1 万条、约 65 MB：70% 约 0.5 KB、20% 约 6 KB、10% 约 50 KB）；耗时断言留足余量，只防数量级退化（重启后每个视图的就绪预算见根目录「验证入口」与 `background-service/AGENTS.md`）。

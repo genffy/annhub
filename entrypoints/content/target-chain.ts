@@ -11,12 +11,13 @@
  * keeps every ancestor up to just below body, skipping only layers whose box
  * equals the one inside, and inserts a section as a layer on pages where
  * headings and paragraphs are siblings. The content view (the capsule and the
- * block mode) derives from it: blocks inside small units are dropped, an outer
+ * block mode) derives from it: blocks inside small units are dropped, the
+ * page's own interface (buttons, toolbars, share bars) is no layer, an outer
  * layer that adds fewer than 20 non-whitespace characters and no image or
  * video merges into the one below (a same-kind outer frame holding at least
- * 90% of the inner layer's text merges too), and the chain ends at the
- * article, at a column of posts, or at the outermost block without page
- * furniture.
+ * 90% of the inner layer's text merges too, a small unit merges with no other
+ * unit), and the chain ends at the article, at a column of posts, or at the
+ * outermost block without page furniture.
  */
 import {
   blockShapeOf,
@@ -170,7 +171,8 @@ function scopeText(layer: BlockCandidate): number {
  * non-whitespace characters and no image or video, or when a same-kind outer
  * frame holds at least 90% of the inner layer's text. The merged layer keeps
  * the outer scope; a block and a unit merge into that unit, two blocks keep
- * the outer block's name, two units keep the outer unit (capture.md §6.2).
+ * the outer block's name, a section and an article keep the outer one, and a
+ * small unit merges with no other unit (capture.md §6.2).
  */
 function mergeable(inner: BlockCandidate, outer: BlockCandidate): boolean {
   // a small unit inside another small unit is a layer of its own — the picture
@@ -354,12 +356,54 @@ export function layerStatus(layer: BlockCandidate): string {
 }
 
 /**
+ * The nearest ancestor of a text node, up to `root`, that starts a line of its
+ * own. Text in two of them is not one run of words, whether or not the markup
+ * has whitespace between them (minified markup has none).
+ */
+function lineBoxOf(node: Node, root: Element): Element {
+  const view = root.ownerDocument.defaultView
+  for (let el = node.parentElement; el && el !== root; el = el.parentElement) {
+    const display = view?.getComputedStyle(el).display ?? 'block'
+    if (!display.startsWith('inline') && display !== 'contents') return el
+  }
+  return root
+}
+
+/**
+ * The words a layer opens with, without the page's own interface: a code
+ * card's "Copy", a share bar's counts are not the block's words. Reads text
+ * nodes in document order and stops once the limit is passed, so a long
+ * article costs a few nodes. A line break between two blocks is a space.
+ */
+function openingWords(el: Element, limit: number): string {
+  const walker = el.ownerDocument.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  let words = ''
+  let previous: Element | null = null
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const parent = node.parentElement
+    if (!parent || isPageChrome(parent)) continue
+    const box = lineBoxOf(node, el)
+    if (previous && box !== previous) words += ' '
+    previous = box
+    words += (node.textContent ?? '').replace(/\s+/g, ' ')
+    if (words.trim().length > limit) break
+  }
+  return cut(words.replace(/\s+/g, ' ').trim(), limit)
+}
+
+/** The lines of the code a code layer holds: the `pre` inside a code card, not the card's toolbar; the newline that ends the last line does not open another. */
+function codeLineCount(layer: HTMLElement): number {
+  const pre = layer.matches('pre') ? layer : layer.querySelector('pre')
+  return ((pre ?? layer).textContent ?? '').replace(/\n$/, '').split('\n').length
+}
+
+/**
  * The outline's label (capture.md §6.2 标注). The pixel view writes the
  * element name and the size (a section its kind and size); the content view
- * writes kind and range: paragraphs open with their words, a post with its
- * handle, a code block with its line count, a table with its rows and
- * columns, a figure with its caption or size, a section with its heading, and
- * the article with the whole page.
+ * writes kind and range: paragraphs open with their words (the page's own
+ * interface left out), a post with its handle, a code block with its line
+ * count, a table with its rows and columns, a figure with its caption or
+ * size, a section with its heading, and the article with the whole page.
  */
 export function layerLabel(layer: BlockCandidate, view: ChainView): string {
   const rect = candidateRect(layer)
@@ -369,20 +413,18 @@ export function layerLabel(layer: BlockCandidate, view: ChainView): string {
     return layer.element.tagName.toLowerCase() + ' · ' + size
   }
   const name = layerKindName(layer)
-  const text = (layer.element.textContent ?? '').replace(/\s+/g, ' ').trim()
   switch (layer.kind) {
-    case 'block': {
-      const words = cut(text, 16)
+    case 'block':
+    case 'quote': {
+      const words = openingWords(layer.element, 16)
       return words ? name + ' · ' + words : name
     }
     case 'post': {
       const handle = postHandle(layer.element)
       return handle ? name + ' · ' + handle : name
     }
-    case 'code': {
-      const lines = (layer.element.textContent ?? '').split('\n').length
-      return name + ' · ' + uiText('block.label.lines', { n: lines })
-    }
+    case 'code':
+      return name + ' · ' + uiText('block.label.lines', { n: codeLineCount(layer.element) })
     case 'table': {
       const rows = layer.element.querySelectorAll('tr').length
       let cols = 0
@@ -393,10 +435,6 @@ export function layerLabel(layer: BlockCandidate, view: ChainView): string {
       const caption = layer.element.querySelector('figcaption')?.textContent?.replace(/\s+/g, ' ').trim() ?? ''
       const words = cut(caption, 16)
       return name + ' · ' + (words ? words : size)
-    }
-    case 'quote': {
-      const words = cut(text, 16)
-      return words ? name + ' · ' + words : name
     }
     case 'section': {
       const heading = (layer.range?.start.textContent ?? layer.element.querySelector('h1, h2, h3, h4')?.textContent ?? '').replace(/\s+/g, ' ').trim()
@@ -432,13 +470,48 @@ function hasDirectText(el: Element): boolean {
 }
 
 /**
+ * Two layers are one Tab stop when they outline the same thing: the same
+ * layer, or the same element called a block from one target and a unit from
+ * another (a code card reached by an icon in its toolbar is a block, reached
+ * by its code a code block).
+ */
+function sameStop(a: BlockCandidate, b: BlockCandidate): boolean {
+  return sameCandidate(a, b) || (rankOf(a) === 0 && rankOf(b) === 0 && a.element === b.element)
+}
+
+/** How many content blocks inside a merged layer chainHolding tries before it gives up. */
+const HOLDING_PROBES = 20
+
+/**
+ * The content chain that holds a layer, innermost first, or none. Detecting
+ * from the layer's own element finds it — except for a layer that merged a
+ * wrapper down onto what is inside (the code card around its pre): from the
+ * wrapper there is no merge, so the chain is detected from the first content
+ * block inside it.
+ */
+export function chainHolding(layer: BlockCandidate, doc: Document): BlockCandidate[] {
+  const own = chainForElement(candidateAnchor(layer), doc)
+  if (own.some(candidate => sameCandidate(candidate, layer))) return own
+  let probed = 0
+  for (const inner of layer.element.querySelectorAll(CONTENT_SELECTOR)) {
+    if (++probed > HOLDING_PROBES) break
+    const chain = chainForElement(inner, doc)
+    if (chain.some(candidate => sameCandidate(candidate, layer))) return chain
+  }
+  return []
+}
+
+/**
  * The targets of the same tier as current — blocks and small units one
  * tier, sections per heading level, articles the last (capture.md §6.2 同档)
- * — in document order: Tab / Shift+Tab move between them. A small unit inside
- * another small unit (a picture in a post) is a level below it, reached with
- * ↓; a heading stops at the heading itself, and only blocks that can be
- * starts stop at all. Runs only when the user presses Tab — never while the
- * pointer moves — and looks inside the shadow root current lives in.
+ * — in document order: Tab / Shift+Tab move between them. A stop is where a
+ * pointer would start: a layer that merged a wrapper down onto what it holds
+ * (the code card, a paragraph in a div) is one stop, named by the unit when
+ * two targets disagree. A small unit inside another small unit (a picture in
+ * a post) is a level below it, reached with ↓; a heading stops at the heading
+ * itself, and only blocks that can be starts stop at all. Runs only when the
+ * user presses Tab — never while the pointer moves — and looks inside the
+ * shadow root current lives in.
  */
 export function peersOf(current: BlockCandidate, doc: Document): BlockCandidate[] {
   return inOneScan(() => {
@@ -447,31 +520,61 @@ export function peersOf(current: BlockCandidate, doc: Document): BlockCandidate[
     const rank = rankOf(current)
     const selector = rank === 0 ? CONTENT_SELECTOR + ', div' : rank === 5 ? ARTICLE_PEER_SELECTOR : SECTION_PEER_SELECTOR
     const peers: BlockCandidate[] = []
+    // where each stop reads from: the innermost target that led to it — the unit, not the wrapper merged onto it
+    const readsFrom = new Map<BlockCandidate, Element>()
+    const add = (candidate: BlockCandidate, from: Element): void => {
+      const at = peers.findIndex(peer => sameStop(peer, candidate))
+      if (at < 0) {
+        peers.push(candidate)
+        readsFrom.set(candidate, from)
+        return
+      }
+      const kept = peers[at]!
+      const known = readsFrom.get(kept)!
+      const place = known !== from && known.contains(from) ? from : known
+      if (kept.kind === 'block' && candidate.kind !== 'block') peers[at] = candidate
+      readsFrom.set(peers[at]!, place)
+    }
     let scanned = 0
     for (const target of scope.querySelectorAll(selector)) {
       if (++scanned > PEER_SCAN_LIMIT) break
       if (rank === 0 && target.tagName.toLowerCase() === 'div' && !hasDirectText(target)) continue
+      // the page's own interface neither stops nor brings a pointer to a start
+      if (rank === 0 && isPageChrome(target)) continue
       const chain = chainForElement(target, doc)
       if (chain.length === 0) continue
       const start = startIndexOf(chain)
       if (isSuppressed(chain, start)) continue
       chain.forEach((candidate, index) => {
-        if (rankOf(candidate) !== rank || candidateAnchor(candidate) !== target) return
+        // the target's own layer, or the start the target leads to (the wrapper that merged onto it)
+        if (rankOf(candidate) !== rank || (candidateAnchor(candidate) !== target && index !== start)) return
         if (isSmallUnit(candidate) && chain.slice(index + 1).some(outer => isSmallUnit(outer))) return
         if (candidate.kind === 'block' && candidate.blockShape !== 'heading' && start !== index) return
-        if (!peers.some(peer => sameCandidate(peer, candidate))) peers.push(candidate)
+        add(candidate, target)
       })
     }
     // the current target itself stops the tier only when it belongs there: a picture
     // inside a post is a ↓ level, and a block that is not a start is not a stop
-    const ownChain = chainForElement(candidateAnchor(current), doc)
+    const ownChain = chainHolding(current, doc)
     const ownIndex = ownChain.findIndex(candidate => sameCandidate(candidate, current))
     let eligible = ownIndex >= 0
     if (eligible && isSmallUnit(current) && ownChain.slice(ownIndex + 1).some(outer => isSmallUnit(outer))) eligible = false
     if (eligible && current.kind === 'block' && current.blockShape !== 'heading' && startIndexOf(ownChain) !== ownIndex) eligible = false
-    if (eligible && !peers.some(peer => sameCandidate(peer, current))) peers.push(current)
+    if (eligible) {
+      // the stop current stands on is current itself, whatever name another target gave the same outline
+      const at = peers.findIndex(peer => sameStop(peer, current))
+      if (at < 0) {
+        peers.push(current)
+        readsFrom.set(current, candidateAnchor(current))
+      } else {
+        readsFrom.set(current, readsFrom.get(peers[at]!) ?? candidateAnchor(current))
+        peers[at] = current
+      }
+    }
+    // reading order is the order of the units: a wrapper that merged onto a table stands where the table does, after the heading inside the wrapper
+    const placeOf = (stop: BlockCandidate): Element => readsFrom.get(stop) ?? candidateAnchor(stop)
     return peers.sort((a, b) => {
-      const order = candidateAnchor(a).compareDocumentPosition(candidateAnchor(b))
+      const order = placeOf(a).compareDocumentPosition(placeOf(b))
       return order & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : order & Node.DOCUMENT_POSITION_PRECEDING ? 1 : 0
     })
   })
