@@ -259,6 +259,17 @@ describe('highlighted code blocks', () => {
 })
 
 describe('open shadow roots carry content (MDN)', () => {
+  it.each(['clip', 'download'] as const)('keeps the language without the nested shadow copy toolbar for %s', purpose => {
+    const host = doc.createElement('mdn-code-example')
+    const shadow = host.attachShadow({ mode: 'open' })
+    shadow.innerHTML =
+      '<div class="code-example"><div class="example-header"><span>js</span><mdn-copy-button></mdn-copy-button></div><pre class="brush: js notranslate"><code>fetch(url)\n</code></pre></div>'
+    shadow.querySelector('mdn-copy-button')!.attachShadow({ mode: 'open' }).innerHTML = '<button>Copy</button>'
+    const container = doc.createElement('article')
+    container.append(host)
+    expect(elementToMarkdown(container, undefined, purpose).markdown).toBe('```js\nfetch(url)\n```')
+  })
+
   it('converts the code inside an empty host element', () => {
     const host = doc.createElement('div')
     const shadowHost = doc.createElement('div')
