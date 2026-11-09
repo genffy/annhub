@@ -64,8 +64,6 @@ import {
 } from './editor'
 import {
   applyBeautifyChange,
-  BEAUTIFY_BACKGROUNDS,
-  composeGeometry,
   constrainToRatio,
   constrainToRatioValue,
   decodeWatermarkImage,
@@ -74,8 +72,6 @@ import {
   downloadFormatFor,
   downloadMime,
   matteOnWhite,
-  paintBeautified,
-  paintWatermark,
   placePanel,
   placeSizeLabel,
   previewBox,
@@ -84,6 +80,7 @@ import {
   type DownloadFormat,
   type WatermarkImage,
 } from './output'
+import { paintScreenshotDisplay } from './display'
 import { createBeautifyPanel, type BeautifyPanel } from './beautify-panel'
 import {
   HANDLES,
@@ -1604,19 +1601,14 @@ class ScreenshotSession {
     const content = this.croppedCanvas
     const display = this.displayCanvas
     if (!content || !display) return
-    const scale = this.capturedDpr
-    const geometry = this.beautify.enabled ? composeGeometry({ width: content.width, height: content.height }, this.beautify, scale) : null
-    // (re)sizing a canvas clears it, which is what a redraw wants
-    display.width = geometry ? geometry.canvas.width : content.width
-    display.height = geometry ? geometry.canvas.height : content.height
-    const ctx = display.getContext('2d')!
-    if (geometry) paintBeautified(ctx, content, geometry, this.beautify, scale)
-    else ctx.drawImage(content, 0, 0)
-    this.contentOrigin = geometry ? { x: geometry.content.x, y: geometry.content.y } : { x: 0, y: 0 }
-    const watermark = this.settings?.watermark
-    if (watermark?.enabled && this.watermarkOn) {
-      paintWatermark(ctx, display, watermark, geometry !== null && !BEAUTIFY_BACKGROUNDS[this.beautify.background].light, this.watermarkImage)
-    }
+    this.contentOrigin = paintScreenshotDisplay(display, content, {
+      source: this.sourceCanvas ?? content,
+      beautify: this.beautify,
+      scale: this.capturedDpr,
+      textSelection: this.via === 'menu',
+      watermark: this.watermarkOn ? this.settings?.watermark : undefined,
+      watermarkImage: this.watermarkImage,
+    })
     this.layout()
   }
 

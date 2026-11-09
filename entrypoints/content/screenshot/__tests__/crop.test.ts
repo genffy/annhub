@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { computeCropSource, CropError, intersectRects } from '../crop'
 
 describe('computeCropSource', () => {
+  it('keeps both fractional edges instead of clipping text pixels', () => {
+    expect(computeCropSource({ x: 10.4, y: 20.4, width: 100.2, height: 30.2 }, 2, 1000, 800)).toEqual({ sx: 20, sy: 40, sw: 202, sh: 62 })
+    expect(() => computeCropSource({ x: 10.4, y: 20.4, width: 0, height: 10 }, 2, 1000, 800)).toThrow(CropError)
+  })
+
   it('scales CSS selection by dpr into image coordinates', () => {
     const source = computeCropSource({ x: 100, y: 50, width: 200, height: 100 }, 2, 2000, 1500)
     expect(source).toEqual({ sx: 200, sy: 100, sw: 400, sh: 200 })
