@@ -16,11 +16,17 @@ export function codeHeader(pre: Element): Element | undefined {
   let node: Element | null = pre
   for (let level = 0; node && level < 4; level++, node = node.parentElement) {
     const header = node.previousElementSibling
-    if (!header || !header.querySelector('button,[role="button"]') || header.querySelector('p,pre,table,ul,ol')) continue
+    if (!header || !hasButton(header) || header.querySelector('p,pre,table,ul,ol')) continue
     const label = (header.textContent ?? '').trim()
     if (/^[a-z][\w+#.-]{0,23}$/i.test(label) && !/^(code|copy|example|snippet)$/i.test(label)) return header
   }
   return undefined
+}
+
+/** Code renderers can put their copy control inside an open shadow root. */
+function hasButton(root: Element | ShadowRoot): boolean {
+  if (root.querySelector('button,[role="button"]')) return true
+  return Array.from(root.querySelectorAll('*')).some(el => el.shadowRoot && hasButton(el.shadowRoot))
 }
 
 /** Highlighted rows may encode their newlines in layout rather than text. */

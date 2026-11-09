@@ -29,10 +29,12 @@ export class CropError extends Error {}
  */
 export function computeCropSource(selection: ViewportRect, devicePixelRatio: number, imageWidth: number, imageHeight: number): CropSource {
   const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1
-  const x0 = Math.max(0, Math.round(Math.min(selection.x, selection.x + selection.width) * dpr))
-  const y0 = Math.max(0, Math.round(Math.min(selection.y, selection.y + selection.height) * dpr))
-  const x1 = Math.min(imageWidth, Math.round(Math.max(selection.x, selection.x + selection.width) * dpr))
-  const y1 = Math.min(imageHeight, Math.round(Math.max(selection.y, selection.y + selection.height) * dpr))
+  if (selection.width === 0 || selection.height === 0) throw new CropError(uiText('shot.error.emptySelection'))
+  // Include both fractional edges: rounding inward can discard a glyph's antialiased pixels.
+  const x0 = Math.max(0, Math.floor(Math.min(selection.x, selection.x + selection.width) * dpr))
+  const y0 = Math.max(0, Math.floor(Math.min(selection.y, selection.y + selection.height) * dpr))
+  const x1 = Math.min(imageWidth, Math.ceil(Math.max(selection.x, selection.x + selection.width) * dpr))
+  const y1 = Math.min(imageHeight, Math.ceil(Math.max(selection.y, selection.y + selection.height) * dpr))
   const sw = x1 - x0
   const sh = y1 - y0
   if (sw <= 0 || sh <= 0) {

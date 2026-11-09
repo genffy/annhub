@@ -3,6 +3,7 @@
 > 适用范围：`entrypoints/content/screenshot/` 的输出与标注工具；上级约定见 [../../screenshot/AGENTS.md](../AGENTS.md) 与 [../../AGENTS.md](../../AGENTS.md)。
 
 - 美化（screenshot.md §4.4）的合成只有一份实现，在 `screenshot/output.ts`（背景、内边距、圆角、阴影、画布比例与水印；预览、复制、下载共用）。
+- `display.ts` 统一合成显示画布：选区菜单进入的截图美化前加安全留白，底色从未标注原图的四角主色取样并缓存，标注不会污染底色；返回的内容原点包含安全留白，保证预览指针仍落在原图坐标。
 - `beautify-panel.ts` 是工具栏“美化”打开的面板，纯 DOM、不留状态：显示会话给它的样式，只报告用户改了哪个字段，复原与“改动即开启”的结果由会话 `sync` 回去。
 - 会话里有三块画布：`sourceCanvas`（原始截取）、`croppedCanvas`（再加匿名、马赛克与标注，入库存的就是它）、`displayCanvas`（再加美化与水印，预览显示、复制与下载发出去的就是它）。
 - `displayCanvas` 永远是单独的一块：给 `canvas.width` 赋值会清空画布，与 `croppedCanvas` 合成一块时，一画标注整张图就空了。

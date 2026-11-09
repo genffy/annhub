@@ -18,7 +18,7 @@
  */
 import { collectFootnotes, formulaMarkdown, scriptText, type Footnotes } from './markdown-special'
 import { tableMarkdown } from './markdown-table'
-import { codeLanguage, preText } from './markdown-code'
+import { codeHeader, codeLanguage, preText } from './markdown-code'
 import { extractXContent, type PlatformContent } from './platform-x'
 import { CONTENT_MAX_CHARS } from '../../core/validate'
 import { resolveAudioSource, resolveImageSource, resolveVideoPoster, resolveVideoSource } from './media-source'
@@ -438,6 +438,11 @@ function emitElement(el: Element, ctx: Ctx, out: Emitter): void {
     return
   }
   if (!visibleFor(el, ctx) || (!callout && isPageChrome(el, ctx.download, ctx.expanded, ctx.tagsOnly))) return
+
+  // A code toolbar contributes its language to the fence, not a paragraph of UI text.
+  const next = el.nextElementSibling
+  const nextCode = next?.matches('pre') ? next : next?.querySelector('pre')
+  if (nextCode && codeHeader(nextCode) === el) return
 
   if (HEADINGS[tag]) {
     const level = Math.min(HEADINGS[tag]!, 6)
