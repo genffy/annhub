@@ -72,7 +72,10 @@ test.describe('block detection on real page shapes (capture.md §6.2)', () => {
     // the raster's pixel ratio comes from the width the rasterizer chose; the height must land on the outlined run's
     const scale = shot!.width / outlined.width
     expect(Math.abs(shot!.width / scale - outlined.width)).toBeLessThanOrEqual(1)
-    expect(Math.abs(shot!.height / scale - outlined.height)).toBeLessThanOrEqual(1)
+    // the crop rounds both edges outward (screenshot.md §2), and the scale above is itself derived
+    // from the rounded width, so the height inherits that sliver of error too
+    const slack = (2 * (1 + outlined.height / outlined.width)) / scale
+    expect(Math.abs(shot!.height / scale - outlined.height)).toBeLessThanOrEqual(slack)
   })
 
   test('a flat document: keyboard block mode saves the outlined section as that run, and Tab walks the sections', async ({ page }) => {
