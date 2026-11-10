@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Documentation checks; run with `npm run check:docs`. No dependencies.
+// Documentation checks; run with `pnpm run check:docs`. No dependencies.
 //
 //   link         every relative link in tracked Markdown resolves, and a `#anchor` matches a heading in the target
 //   section-ref  a `doc.md §N.M` reference — and a bare §N whose document the same line names — points at a section
@@ -27,7 +27,7 @@ const root = rootFlag === -1 ? resolve(dirname(fileURLToPath(import.meta.url)), 
 
 const NOT_SOURCE = new Set(['node_modules', '.git', '.next', '.output', '.wxt', '.build', 'build', 'coverage'])
 const VENDORED = /^\.(agents|claude)\/skills\/create-/
-const LOCKFILE = /package-lock\.json$/
+const LOCKFILE = /pnpm-lock\.yaml$/
 const MAX_BYTES = 2_000_000
 const TEXT = /\.(ts|tsx|js|mjs|cjs|css|json|html|yml|yaml)$/
 

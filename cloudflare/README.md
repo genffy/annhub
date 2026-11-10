@@ -13,7 +13,7 @@
 | HTML 别名、缓存头、发布版本    | [scripts/website-static.mjs](../scripts/website-static.mjs) |
 | 构建、产物传递与生产发布       | [.github/workflows/ci.yml](../.github/workflows/ci.yml)     |
 
-Wrangler 的精确版本只写在官网的 `package.json`，本地预览与部署任务读取同一个版本。`production.json` 只能放 `NEXT_PUBLIC_*` 字符串，不能放密钥。`npm run check:consistency` 防止这些位置漂移。
+Wrangler 的精确版本只写在官网的 `package.json`，本地预览与部署任务读取同一个版本。`production.json` 只能放 `NEXT_PUBLIC_*` 字符串，不能放密钥。`pnpm run check:consistency` 防止这些位置漂移。
 
 ## 首次上线
 
@@ -32,8 +32,8 @@ Wrangler 的精确版本只写在官网的 `package.json`，本地预览与部�
 
    ```sh
    cd website
-   npm run build
-   npx wrangler deploy --env preview
+   pnpm run build
+   pnpm exec wrangler deploy --env preview
    ```
 
    在 Wrangler 给出的 workers.dev 地址检查页面和静态路由。预览构建不读取生产统计令牌；zone 上的地区和语言规则也不作用于 workers.dev。生产规则可先在仓库根输出成 JSON 供审阅：
@@ -69,12 +69,12 @@ Cloudflare Web Analytics 保持手动嵌入，关闭自动注入。AI 爬虫策�
 
 ```sh
 # 仓库根：代码、文档与配置
-npm run verify
+pnpm run verify
 
 # 官网目录：构建与本地静态预览
 cd website
-npm run build
-npm run start
+pnpm run build
+pnpm run start
 
 # 另一个终端，仓库根：真实静态资源与路由
 WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node scripts/smoke-website.mjs --local

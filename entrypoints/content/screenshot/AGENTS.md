@@ -39,4 +39,4 @@
 - 改序号后跑 `e2e/screenshot-steps.spec.ts`（读预览、三种格式的下载、剪贴板与入库图片的像素，并造下载与保存的失败）。
 - 改荧光笔、直线或线宽后跑 `e2e/screenshot-strokes.spec.ts`（同样读这些像素，另量 1x 与 2x 的线宽）。
 - 改滚动长图后跑 `e2e/screenshot-stitch.spec.ts`（`longpage.html` 夹具，读成品画布的接缝与像素）。
-- 改选区确认、吸附、手柄、层级或取景框记忆后跑 `e2e/screenshot-frame.spec.ts`（改源码必须 `rm -rf .output/chrome-mv3 && npm run build` 再测，`.output` 不随源码变化重建）。
+- 改选区确认、吸附、手柄、层级或取景框记忆后跑 `e2e/screenshot-frame.spec.ts`（改源码必须 `rm -rf .output/chrome-mv3 && pnpm run build` 再测，`.output` 不随源码变化重建）。

@@ -46,5 +46,5 @@
 
 ## 验证
 
-- 类型、校验、存储、检索、导出、下载规则、指标的改动：`npx vitest run core`（含 fake-indexeddb 事务测试）。
+- 类型、校验、存储、检索、导出、下载规则、指标的改动：`pnpm test core`（含 fake-indexeddb 事务测试）。
 - 契约变化时同步 `docs/product/` 对应真源与测试断言；新增条目类型或内置属性按 [entry.md §8](../docs/product/entry.md) 清单补齐。

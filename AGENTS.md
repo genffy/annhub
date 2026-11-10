@@ -14,8 +14,8 @@
 
 - 只写现在是什么：不写日期、版本、状态标签、轮次、修复经过；什么时候改的看 git，交付状态只在 [roadmap.md](docs/product/roadmap.md)。
 - 约束连同原因写成一句现在时；细节放进被引用的文档，不在约定里复述实现。新规则写进最近作用域的 `AGENTS.md`，不往根里加；一条一件事，不用 `@` 导入（它不省上下文）。
-- 引用节号一律写成 `文档.md §N.M`；被引用过的节不移动、不复用。稳定编号（`D-`、`Q-`、`RK-`、`M-`、`US-` 等）不改号、不复用。机器检查是 `npm run check:docs`。
-- 单个文件有字节预算（`npm run check:size`，细则见 [scripts/README.md](scripts/README.md)）：接近预算按职责拆新文件，不按行数拆。台账里的文件不许再长，变小后跑 `npm run check:size -- --lower`；台账里的文件不要整份读，先 `grep -n` 找位置再按行段读。
+- 引用节号一律写成 `文档.md §N.M`；被引用过的节不移动、不复用。稳定编号（`D-`、`Q-`、`RK-`、`M-`、`US-` 等）不改号、不复用。机器检查是 `pnpm run check:docs`。
+- 单个文件有字节预算（`pnpm run check:size`，细则见 [scripts/README.md](scripts/README.md)）：接近预算按职责拆新文件，不按行数拆。台账里的文件不许再长，变小后跑 `pnpm run check:size --lower`；台账里的文件不要整份读，先 `grep -n` 找位置再按行段读。
 
 ## 按目录读取
 
@@ -65,16 +65,16 @@
 1. **先找全，再动手。** 改版本号、包名、目录名、命令或 CI / 部署配置之前，先 `git grep` 这个值找全出现处（至少含 `.github/`、`cloudflare/`、`website/wrangler.json`、各 `package.json`、`README.md`、`docs/`），改完再搜一遍。
 2. **一个值一个真源。** 其余位置引用它或与它一致；不新增第二份真源，文档和本文件不抄版本号。
 3. **按 `scripts/README.md` 的联动表联动。** 改左列，右列在同一个提交里一起改；表里没有的联动，按第 1 条自己找，并补进那张表和 `scripts/check-consistency.mjs`。
-4. **断言兜底，不许绕。** `npm run check:consistency` 失败说明漏改了某处：去改那一处，不删断言、不放宽匹配、不加豁免；新增联动点时同步加断言和测试。
+4. **断言兜底，不许绕。** `pnpm run check:consistency` 失败说明漏改了某处：去改那一处，不删断言、不放宽匹配、不加豁免；新增联动点时同步加断言和测试。
 5. **主版本升级是迁移，不是改 `package.json`。** Node、Next.js、React、Tailwind、ESLint、TypeScript 的主版本变化按联动表逐项核对，本地跑对应构建；Dependabot 的主版本 PR 只是起点，在它的分支上补齐联动改动。
 6. **PR 描述写明核对过的位置**：列出搜过的命令和命中的文件，不要只写“已核对”。
 
 ## 验证入口
 
-- 提交前跑 `npm run verify`；每个检查做什么、E2E 与官网冒烟怎么跑，见 [scripts/README.md](scripts/README.md)。
+- 提交前跑 `pnpm run verify`；每个检查做什么、E2E 与官网冒烟怎么跑，见 [scripts/README.md](scripts/README.md)。
 - CI 跑同样的命令并加 CodeQL 与依赖审查；失败先在本地复现，不跳过、不禁用、不隔离测试求绿。必需检查不用 `paths` 过滤；纯 docs 的 PR 运行时跳过读代码的检查（ci.yml 头注）。要少跑靠 Dependabot 分组与取消过期运行。
 
 ## 生成物与提交
 
-- 不手改 `package-lock.json`（用 npm 11 的 `npm install`；`.claude/hooks/protect-generated-files.mjs` 拦截手改）。锁文件的 `resolved` 只指向 `registry.npmjs.org`：本机镜像会把加速地址写进锁文件，提交前跑 `npm run check:lockfiles -- --fix`。
-- 提交信息用 Conventional Commits（`feat` / `fix` / `docs` / `test` / `chore` / `style` / `refactor`），正文写原因而不是复述 diff；一个提交对应一个完整的改动。新增依赖前跑 `npm audit --omit=dev`。
+- 包管理器是 pnpm，版本由 `package.json` 的 `packageManager` 固定，安装脚本放行与 overrides 在同目录的 `pnpm-workspace.yaml`。不手改 `pnpm-lock.yaml`（`.claude/hooks/protect-generated-files.mjs` 拦截）；锁文件不写下载地址，`pnpm run check:lockfiles` 兜底。
+- 提交信息用 Conventional Commits（`feat` / `fix` / `docs` / `test` / `chore` / `style` / `refactor`），正文写原因而不是复述 diff；一个提交对应一个完整的改动。新增依赖前跑 `pnpm audit --prod`。

@@ -42,6 +42,6 @@
 
 ## 验证
 
-- 消息协议或服务注册变化：`npm run compile`、对应 service 单测、相关 E2E。
-- 持久化变化：`npx vitest run core` 加对应 service 单测；截图链路跑 `e2e/screenshot-capture.spec.ts`。
+- 消息协议或服务注册变化：`pnpm run compile`、对应 service 单测、相关 E2E。
+- 持久化变化：`pnpm test core` 加对应 service 单测；截图链路跑 `e2e/screenshot-capture.spec.ts`。
 - 查询路径：`e2e/library-browse.spec.ts` 用 1 万条真实体量的数据验证两个预算——热查询 200 ms，worker 重启后每个视图 2.5 秒内就绪。

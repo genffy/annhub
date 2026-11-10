@@ -17,16 +17,22 @@ const GOOD_FILES: Record<string, string> = {
   '.node-version': '24\n',
   'README.md': 'Requires Node.js 24.x or later.\n',
   'package.json': json({
-    scripts: { 'check:consistency': 'node scripts/check-consistency.mjs', 'verify': 'npm run format:check && npm test && npm run check:consistency' },
+    packageManager: 'pnpm@12.16.1',
+    scripts: { 'check:consistency': 'node scripts/check-consistency.mjs', 'verify': 'pnpm run format:check && pnpm test && pnpm run check:consistency' },
     devDependencies: { '@types/node': '^24.0.3', 'tailwindcss': '^3.4.19' },
     engines: { node: '>=24.0.0' },
   }),
+  'pnpm-lock.yaml': "lockfileVersion: '9.0'\n",
+  'pnpm-workspace.yaml': 'allowBuilds: {}\n',
   'postcss.config.cjs': 'module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }\n',
   'website/package.json': json({
+    packageManager: 'pnpm@12.16.1',
     scripts: { typecheck: 'next typegen && tsc --noEmit' },
     dependencies: { 'next': '^16.3.8', 'react': '^19.3.0', 'next-intl': '^4.14.9' },
     devDependencies: { 'eslint-config-next': '^16.3.8', '@types/node': '^24.19.1', 'wrangler': '4.150.0', 'tailwindcss': '^3.4.19' },
   }),
+  'website/pnpm-lock.yaml': "lockfileVersion: '9.0'\n",
+  'website/pnpm-workspace.yaml': 'allowBuilds: {}\n',
   'website/postcss.config.js': 'module.exports = { plugins: { tailwindcss: {}, autoprefixer: {} } }\n',
   'website/.gitignore': '/next-env.d.ts\n',
   'website/README.md': 'Built with Next.js 16, React 19 and next-intl 4.\n',
@@ -59,17 +65,19 @@ jobs:
   extension:
     name: Extension
     steps:
-      - run: npm run format:check
-      - run: npm test
-      - run: npm run check:consistency
+      - uses: pnpm/action-setup@pinned
+      - run: pnpm run format:check
+      - run: pnpm test
+      - run: pnpm run check:consistency
   ci-pass:
     name: ci-pass
     steps:
       - run: echo done
   website:
     steps:
-      - run: npm run typecheck
-      - run: npm run build -- --production
+      - uses: pnpm/action-setup@pinned
+      - run: pnpm run typecheck
+      - run: pnpm run build --production
         env:
           BUILD_PRODUCTION: github.event_name == 'push' && github.ref == 'refs/heads/main'
       - uses: actions/upload-artifact@pinned
@@ -94,7 +102,7 @@ jobs:
       - run: node -p 'require("./website/package.json").devDependencies.wrangler'
 `,
   '.github/workflows/scheduled-audit.yml': `jobs:
-  npm-audit:
+  audit:
     strategy:
       matrix:
         directory: [., website]
@@ -171,8 +179,8 @@ describe('check-consistency', () => {
         {
           '.github/workflows/ci.yml': edit(
             '.github/workflows/ci.yml',
-            '    steps:\n      - run: npm run format:check',
-            '    steps:\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n      - run: npm run format:check',
+            '    steps:\n      - uses: pnpm/action-setup@pinned',
+            '    steps:\n      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\n      - uses: pnpm/action-setup@pinned',
           ),
         },
         'node-version-file: .node-version',
@@ -258,7 +266,7 @@ describe('check-consistency', () => {
         { 'website/package.json': manifestWith('website/package.json', m => (m.scripts.typecheck = 'tsc --noEmit')) },
         'generate Next.js declarations before running tsc',
       )
-      expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', 'run: npm run typecheck', 'run: npx tsc --noEmit') }, 'must use npm run typecheck')
+      expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', 'run: pnpm run typecheck', 'run: pnpm exec tsc --noEmit') }, 'must use pnpm run typecheck')
     })
     it('requires static export and the publish directory', () => {
       expectFailure({ 'website/next.config.js': 'module.exports = {}' }, 'must export static files')
@@ -302,7 +310,13 @@ describe('check-consistency', () => {
       expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', 'retention-days: 1', 'retention-days: 30') }, 'one-day retention')
       expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', 'website-static-${{ github.sha }}', 'website-static-latest') }, 'same commit')
       expectFailure(
-        { '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', '      - run: node scripts/smoke-website.mjs', '      - run: npm run build') },
+        {
+          '.github/workflows/ci.yml': edit(
+            '.github/workflows/ci.yml',
+            '      - run: node scripts/smoke-website.mjs',
+            '      - uses: pnpm/action-setup@pinned\n      - run: pnpm run build',
+          ),
+        },
         'must reuse the verified artifact',
         'must run node scripts/smoke-website.mjs',
       )
@@ -345,13 +359,63 @@ describe('check-consistency', () => {
     })
   })
 
+  describe('the package manager', () => {
+    it('catches a root package.json that does not pin pnpm exactly', () => {
+      for (const value of [undefined, 'pnpm@12', 'npm@11.20.0']) {
+        expectFailure({ 'package.json': manifestWith('package.json', m => (m.packageManager = value)) }, 'package.json: packageManager must pin pnpm to an exact version')
+      }
+    })
+
+    it('catches a package directory that pins another pnpm than the root', () => {
+      expectFailure(
+        { 'website/package.json': manifestWith('website/package.json', m => (m.packageManager = 'pnpm@12.17.0')) },
+        'website/package.json: packageManager is pnpm@12.17.0, but the root package.json pins pnpm@12.16.1',
+      )
+      expectFailure({ 'website/package.json': manifestWith('website/package.json', m => delete m.packageManager) }, 'website/package.json: packageManager is missing')
+    })
+
+    it('catches a package directory without its lockfile or its settings file', () => {
+      expectFailure({ 'website/pnpm-lock.yaml': null }, 'website/pnpm-lock.yaml: is missing')
+      expectFailure({ 'pnpm-workspace.yaml': null }, 'pnpm-workspace.yaml: is missing')
+    })
+
+    it("catches another package manager's lockfile", () => {
+      expectFailure({ 'website/package-lock.json': '{}\n' }, "website/package-lock.json: is another package manager's lockfile")
+    })
+
+    it('catches overrides left in package.json, where pnpm does not read them', () => {
+      expectFailure({ 'package.json': manifestWith('package.json', m => (m.overrides = { minimatch: '11.0.5' })) }, 'overrides and pnpm settings belong in pnpm-workspace.yaml')
+    })
+
+    it('catches a workflow job that runs npm', () => {
+      expectFailure(
+        { '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', '      - run: pnpm test\n', '      - run: pnpm test\n      - run: npm ci\n') },
+        'the job extension runs npm',
+      )
+      expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', '      - run: echo done', '      - run: npx playwright test') }, 'the job ci-pass runs npm')
+    })
+
+    it('catches a workflow job that runs pnpm before installing it', () => {
+      expectFailure(
+        {
+          '.github/workflows/ci.yml': edit(
+            '.github/workflows/ci.yml',
+            '      - uses: pnpm/action-setup@pinned\n      - run: pnpm run format:check',
+            '      - run: pnpm run format:check',
+          ),
+        },
+        'the job extension runs pnpm before a pnpm/action-setup step has installed it',
+      )
+    })
+  })
+
   describe('the merge gate', () => {
     it('catches a verify command that CI does not run', () => {
-      expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', '      - run: npm run check:consistency\n', '') }, 'does not run `npm run check:consistency`')
+      expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', '      - run: pnpm run check:consistency\n', '') }, 'does not run `pnpm run check:consistency`')
     })
 
     it('catches a check: script that verify does not run', () => {
-      expectFailure({ 'package.json': edit('package.json', ' && npm run check:consistency', '') }, 'the script check:consistency is not part of verify')
+      expectFailure({ 'package.json': edit('package.json', ' && pnpm run check:consistency', '') }, 'the script check:consistency is not part of verify')
     })
 
     it('catches a required status check that no workflow job reports', () => {

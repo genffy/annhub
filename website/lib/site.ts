@@ -6,7 +6,7 @@ export const SITE_ORIGIN = 'https://annhub.org'
 
 /**
  * The oldest Chrome the extension supports (docs/product/permissions.md §5), named in the SoftwareApplication markup. The
- * extension's manifest sets it as minimum_chrome_version in wxt.config.ts; npm run check:consistency keeps the two equal.
+ * extension's manifest sets it as minimum_chrome_version in wxt.config.ts; pnpm run check:consistency keeps the two equal.
  */
 export const MIN_CHROME_VERSION = 116
 

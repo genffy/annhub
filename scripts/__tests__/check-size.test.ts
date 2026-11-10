@@ -29,7 +29,7 @@ const GOOD_FILES: Record<string, string> = {
   [CODE_FILE]: codeFile(24 * 1024),
   'entrypoints/library/style.css': '.card { color: black }\n',
   'docs/design/js/board.js': '// hand-written prototype, no budget\n',
-  'package-lock.json': '{ "locked": true }\n',
+  'pnpm-lock.yaml': "lockfileVersion: '9.0'\n",
   'website/public/page.html': '<html></html>\n',
   'scripts/data/table.json': '{ "rows": [] }\n',
 }
@@ -122,7 +122,7 @@ describe('check-size', () => {
 
   it('never reports html, json, lockfiles or docs/design assets', () => {
     const { status } = check({
-      'package-lock.json': `{ "locked": "${'x'.repeat(60000)}" }\n`,
+      'pnpm-lock.yaml': `lockfileVersion: '9.0'\n# ${'x'.repeat(60000)}\n`,
       'website/public/page.html': `<p>${'x'.repeat(60000)}</p>\n`,
       'docs/design/js/board.js': `// ${'x'.repeat(60000)}\n`,
       'scripts/data/table.json': `{ "rows": "${'x'.repeat(60000)}" }\n`,

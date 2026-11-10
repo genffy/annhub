@@ -1,12 +1,12 @@
 # AnnHub 真实 Chrome 测试场景
 
-这份文档写自动化够不着的三类验收：真实站点上的行为（X、Medium、文档站）、只有操作系统才能产生的输入（全局快捷键、系统外观），以及要人判断的通读。`npm run verify` 与 `e2e/*.spec.ts` 已经覆盖的行为不在这里重复。每个场景写明需要的能力（第 2 节）、页面、前置、步骤与通过标准；执行者按手里的工具先做能做的。
+这份文档写自动化够不着的三类验收：真实站点上的行为（X、Medium、文档站）、只有操作系统才能产生的输入（全局快捷键、系统外观），以及要人判断的通读。`pnpm run verify` 与 `e2e/*.spec.ts` 已经覆盖的行为不在这里重复。每个场景写明需要的能力（第 2 节）、页面、前置、步骤与通过标准；执行者按手里的工具先做能做的。
 
 ## 1. 通用要求
 
 ### 1.1 构建与安装
 
-1. 在仓库根目录 `npm run build`，产物在 `.output/chrome-mv3`。源码变了必须重建。记下 `git rev-parse --short HEAD`，以及 `git status --short` 是否为空。
+1. 在仓库根目录 `pnpm run build`，产物在 `.output/chrome-mv3`。源码变了必须重建。记下 `git rev-parse --short HEAD`，以及 `git status --short` 是否为空。
 2. 品牌版 Chrome 137 起忽略命令行的 `--load-extension`：在 `chrome://extensions` 打开“开发者模式”，用“加载已解压的扩展程序”选 `.output/chrome-mv3`（或它的一份副本）。重建后在扩展卡片上点“重新加载”。记下扩展 ID，下文写作 `<ID>`。
 3. 用专门的 profile；“新安装”类场景用全新 profile。要在日常 profile 里测时，先在资料库点“导出内容”留一份备份，测完删掉测试产生的条目。
 4. 安装或重新加载扩展之后，已经打开的网页里没有新的内容脚本：先刷新被测页面。
@@ -278,7 +278,7 @@
 
 ## 5. 通读（RD，产品负责人）
 
-先在本分支跑起官网：`cd website && npm install && npm run dev`，地址是 `http://localhost:3001`。线上站点是主分支的部署，不代表本分支。
+先在本分支跑起官网：`cd website && pnpm install && pnpm run dev`，地址是 `http://localhost:3001`。线上站点是主分支的部署，不代表本分支。
 
 | 编号 | 对象                       | 地址或位置                                                               | 核对什么                                                                                                                             |
 | ---- | -------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
@@ -819,6 +819,6 @@ import { elementToMarkdown } from '$REPO/entrypoints/content/markdown'
 import { resolvePermalink } from '$REPO/entrypoints/content/page-meta'
 ;(window as unknown as Record<string, unknown>).__annhub = { candidatesFor, candidateSummary, elementToMarkdown, resolvePermalink }
 EOF
-npx esbuild "$PROBE_DIR/probe-entry.ts" --bundle --format=iife --minify --outfile="$PROBE_DIR/probe.js"
+pnpm dlx esbuild "$PROBE_DIR/probe-entry.ts" --bundle --format=iife --minify --outfile="$PROBE_DIR/probe.js"
 echo "$PROBE_DIR/probe.js"
 ```

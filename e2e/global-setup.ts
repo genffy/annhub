@@ -16,7 +16,7 @@ export default async function globalSetup() {
 
   if (shouldBuild) {
     console.log('[E2E Setup] Building extension...')
-    execSync('npm run build', {
+    execSync('pnpm run build', {
       cwd: path.join(__dirname, '..'),
       stdio: 'inherit',
     })
