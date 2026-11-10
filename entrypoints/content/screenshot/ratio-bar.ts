@@ -5,7 +5,7 @@
  */
 import { uiText } from '../../../utils/ui-text'
 import { isUserInput } from '../user-input'
-import { ratioOf } from './output'
+import { ratioOf } from '../../../utils/screenshot-output'
 
 export interface RatioBarOptions {
   /** the active ratio id: "free" or one of `presets` */

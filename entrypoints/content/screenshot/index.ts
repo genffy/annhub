@@ -67,7 +67,6 @@ import {
   constrainToRatio,
   constrainToRatioValue,
   decodeWatermarkImage,
-  DEFAULT_BEAUTIFY,
   downloadExtension,
   downloadFormatFor,
   downloadMime,
@@ -76,10 +75,10 @@ import {
   placeSizeLabel,
   previewBox,
   ratioOf,
-  type BeautifySettings,
   type DownloadFormat,
   type WatermarkImage,
-} from './output'
+} from '../../../utils/screenshot-output'
+import { DEFAULT_BEAUTIFY, type BeautifySettings } from '../../../core/screenshot-options'
 import { paintScreenshotDisplay } from './display'
 import { createBeautifyPanel, type BeautifyPanel } from './beautify-panel'
 import {
@@ -101,7 +100,7 @@ import { readFrame, rememberFrame, type FrameRecord } from './frame-memory'
 import { permalinkForRegion } from './permalink'
 import { Stitcher, type StitchFailure } from './stitcher'
 import { inkToEditorAnnotations, inkToViewport, type InkStroke } from '../annotation/ink'
-import type { ExtensionSettings } from '../../../background-service/settings-schema'
+import type { ExtensionSettings } from '../../../core/settings'
 
 let activeSession: ScreenshotSession | null = null
 

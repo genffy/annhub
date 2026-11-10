@@ -10,7 +10,7 @@
 import type { EntryQuery, HighlightQuery } from '../core/query'
 import type { MetricEventName, MetricEventProps } from '../core/metrics'
 import type { Highlight, PropertyDefinition, PropertyValue } from '../core/types'
-import type { SettingsPatch } from '../background-service/settings-schema'
+import type { SettingsPatch } from '../core/settings'
 
 export interface BaseMessage {
   type: string

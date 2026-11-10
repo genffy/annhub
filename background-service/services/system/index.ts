@@ -5,7 +5,7 @@
 import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from '../../sender'
-import { addDisabledSite, readSettings, writeSettings } from '../../settings-schema'
+import { addDisabledSite, readSettings, writeSettings } from '../../settings-storage'
 import { metricsPanel, recordEvent } from '../metrics/record'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'

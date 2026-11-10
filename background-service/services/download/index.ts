@@ -22,7 +22,7 @@ import type {
 import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
 import MessageUtils from '../../../utils/message'
 import { Logger } from '../../../utils/logger'
-import { readSettings } from '../../settings-schema'
+import { readSettings } from '../../settings-storage'
 import { bucketCount } from '../../../core/metrics'
 import { cleanSourceUrl } from '../../../core/url'
 import { DOWNLOAD_LIMITS, mediaSlotName } from '../../../core/download'

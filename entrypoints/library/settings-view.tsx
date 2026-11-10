@@ -10,26 +10,16 @@
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
-import type { ExtensionSettings, SettingsPatch } from '../../background-service/settings-schema'
+import type { ExtensionSettings, SettingsPatch } from '../../core/settings'
 import { EntryStore, type OrphanReport } from '../../core/store'
 import type { MetricsPanelData } from '../../core/metrics'
-import {
-  BEAUTIFY_BACKGROUND_IDS,
-  BEAUTIFY_RADII,
-  PADDING_PX,
-  RATIO_PRESETS,
-  backgroundCss,
-  decodeWatermarkImage,
-  paintWatermark,
-  type BeautifyBackground,
-  type BeautifyPadding,
-  type WatermarkImage,
-} from '../content/screenshot/output'
+import { backgroundCss, decodeWatermarkImage, paintWatermark, type WatermarkImage } from '../../utils/screenshot-output'
+import { BEAUTIFY_BACKGROUND_IDS, BEAUTIFY_RADII, PADDING_PX, RATIO_PRESETS, type BeautifyBackground, type BeautifyPadding } from '../../core/screenshot-options'
 import { formatBytes } from '../../utils/format-bytes'
 import { uiText, type UiTextKey } from '../../utils/ui-text'
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../../core/types'
 import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
-import { ANNOTATION_COLORS } from '../content/screenshot/editor'
+import { ANNOTATION_COLORS } from '../../core/screenshot-options'
 import { ExternalLink } from 'lucide-react'
 import { MetricsCard } from './settings-metrics-card'
 import { SettingsCard, SettingsRow } from './settings-card'

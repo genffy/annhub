@@ -18,7 +18,8 @@ import {
   X,
 } from 'lucide-react'
 import { uiText } from '../../../utils/ui-text'
-import { ANNOTATION_COLORS, isLineTool, LINE_WIDTHS, type LineWidth, type ScreenshotTool } from './editor'
+import { isLineTool, LINE_WIDTHS, type LineWidth, type ScreenshotTool } from './editor'
+import { ANNOTATION_COLORS } from '../../../core/screenshot-options'
 import type { UiTextKey } from '../../../utils/ui-text'
 
 const tools = [

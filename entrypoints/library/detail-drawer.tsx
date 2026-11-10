@@ -12,6 +12,7 @@ import { relativeTime } from '../../utils/relative-time'
 import { CONTENT_MAX_CHARS, CONTEXT_MAX_CHARS } from '../../core/validate'
 import { ArrowUpRight, BookOpen, Download, Image, Lock, MessageSquareText, Tags, TextQuote, Trash2, X } from 'lucide-react'
 import { entryErrorText, uiText } from '../../utils/ui-text'
+import { TypeChip } from '../../utils/entry-icons'
 import type { LibraryDownload } from './download-client'
 
 function boldenCount(text: string, count: number) {

@@ -12,6 +12,10 @@ if (!/^\d+(\.\d+){0,3}$/.test(extensionVersion)) {
 export default defineConfig({
   modules: ['@wxt-dev/i18n/module', '@wxt-dev/module-react'],
   srcDir: '.',
+  // WXT would turn every export of `utils/` into a global of every entry point, the service worker
+  // included, where the canvas and document helpers cannot run. The code imports what it uses, so
+  // no project file is scanned: only WXT's own helpers (`defineBackground`, `browser`, …) stay global.
+  imports: { dirsScanOptions: { fileFilter: () => false } },
   manifest: {
     name: '__MSG_extName__',
     description: '__MSG_extDescription__',

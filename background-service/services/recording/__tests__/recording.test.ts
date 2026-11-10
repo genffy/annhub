@@ -1,6 +1,6 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RecordingService, listenForRecording } from '../index'
-import { writeSettings } from '../../../settings-schema'
+import { writeSettings } from '../../../settings-storage'
 import type { ResponseMessage } from '../../../../types/messages'
 
 /**

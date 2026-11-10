@@ -28,15 +28,6 @@ export type Annotation =
   | StepAnnotation
   | PolylineAnnotation
 
-/** The five annotation colours (screenshot.md §1.1); every tool, the step badges included, draws in one of them. */
-export const ANNOTATION_COLORS: ReadonlyArray<{ value: string; name: string }> = [
-  { value: '#e5484d', name: 'red' },
-  { value: '#f6c453', name: 'yellow' },
-  { value: '#147d72', name: 'teal' },
-  { value: '#ffffff', name: 'white' },
-  { value: '#20252b', name: 'black' },
-]
-
 /** The shapes' lines, in CSS pixels; the pen's and the line's middle width is the same. */
 const SHAPE_WIDTH = 3
 /** Each width in CSS pixels. The highlighter's are wide enough to lay over a line of text. */

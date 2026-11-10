@@ -1,10 +1,12 @@
 /**
- * Preference layer C (storage.md §2): interface and capture preferences in
- * chrome.storage. Entries and images live in IndexedDB and never here.
+ * Preference layer C (storage.md §2): the interface and capture preferences, their defaults and the
+ * validation every stored value and every patch passes. Entries and images live in IndexedDB and never
+ * here. This file is the schema only; the service worker keeps the values in chrome.storage
+ * (background-service/settings-storage.ts), and the pages read the types.
  */
-import { ANNOTATION_COLORS } from '../entrypoints/content/screenshot/editor'
-import { HIGHLIGHT_COLORS, type HighlightColor } from '../core/types'
+import { HIGHLIGHT_COLORS, type HighlightColor } from './types'
 import {
+  ANNOTATION_COLORS,
   BEAUTIFY_BACKGROUND_IDS,
   BEAUTIFY_RADII,
   DEFAULT_BEAUTIFY,
@@ -13,7 +15,7 @@ import {
   RATIO_PRESETS,
   type BeautifyBackground,
   type BeautifyPadding,
-} from '../entrypoints/content/screenshot/output'
+} from './screenshot-options'
 
 export interface ExtensionSettings {
   /** Block-clip hover entry: default on, globally switchable (capture.md §6.2). */
@@ -100,7 +102,6 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
   },
 }
 
-const STORAGE_KEY = 'annhub.settings'
 export type SettingsPatch = Partial<Omit<ExtensionSettings, 'watermark' | 'beautify' | 'recording'>> & {
   watermark?: Partial<Omit<ExtensionSettings['watermark'], 'image'>> & { image?: string | null }
   beautify?: Partial<ExtensionSettings['beautify']>
@@ -118,7 +119,8 @@ const between =
   (min: number, max: number): Check =>
   value =>
     typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
-const host = (value: unknown): value is string =>
+/** A host name as the block entry's per-site switch stores it: lower case, no port, at most 253 characters. */
+export const isSettingsHost = (value: unknown): value is string =>
   typeof value === 'string' &&
   value.length > 0 &&
   value.length <= 253 &&
@@ -148,7 +150,7 @@ const cursorHighlightChecks: Record<string, Check> = {
 
 const rootChecks: Record<string, Check> = {
   blockEntryEnabled: boolean,
-  blockDisabledSites: value => Array.isArray(value) && value.every(host),
+  blockDisabledSites: value => Array.isArray(value) && value.every(isSettingsHost),
   anonymizeDefault: boolean,
   anonymizeAvatars: boolean,
   anonymizeNames: boolean,
@@ -200,7 +202,11 @@ function applyRecording(base: ExtensionSettings['recording'], patch: unknown, st
   return { ...next, cursorHighlight: cursorPatch === undefined ? { ...base.cursorHighlight } : applyFields(base.cursorHighlight, cursorPatch, cursorHighlightChecks, strict) }
 }
 
-function applySettings(base: ExtensionSettings, input: unknown, strict: boolean): ExtensionSettings {
+/**
+ * `base` with the valid fields of `input` laid over it; unknown keys are dropped. A stored value is read leniently
+ * (`strict` false: an invalid field keeps the base value), a patch strictly (an invalid field throws `SETTINGS_INVALID`).
+ */
+export function applySettings(base: ExtensionSettings, input: unknown, strict: boolean): ExtensionSettings {
   const root = applyFields(base, input, rootChecks, strict)
   const patch = input && typeof input === 'object' && !Array.isArray(input) ? (input as Record<string, unknown>) : {}
   return {
@@ -209,34 +215,4 @@ function applySettings(base: ExtensionSettings, input: unknown, strict: boolean)
     beautify: patch.beautify === undefined ? { ...base.beautify } : applyFields(base.beautify, patch.beautify, beautifyChecks, strict),
     recording: applyRecording(base.recording, patch.recording, strict),
   }
-}
-
-let pendingWrite: Promise<unknown> = Promise.resolve()
-function serialized<T>(write: () => Promise<T>): Promise<T> {
-  const next = pendingWrite.catch(() => undefined).then(write)
-  pendingWrite = next
-  return next
-}
-
-export async function readSettings(): Promise<ExtensionSettings> {
-  const stored = await chrome.storage.local.get(STORAGE_KEY)
-  return applySettings(DEFAULT_SETTINGS, stored[STORAGE_KEY] ?? {}, false)
-}
-
-export function writeSettings(patch: SettingsPatch): Promise<ExtensionSettings> {
-  return serialized(async () => {
-    const next = applySettings(await readSettings(), patch, true)
-    await chrome.storage.local.set({ [STORAGE_KEY]: next })
-    return next
-  })
-}
-
-export function addDisabledSite(site: string): Promise<ExtensionSettings> {
-  if (!host(site)) return Promise.reject(new Error('SETTINGS_INVALID'))
-  return serialized(async () => {
-    const current = await readSettings()
-    const next = { ...current, blockDisabledSites: [...new Set([...current.blockDisabledSites, site])] }
-    await chrome.storage.local.set({ [STORAGE_KEY]: next })
-    return next
-  })
 }

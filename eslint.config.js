@@ -40,6 +40,27 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true }],
     },
   },
+  // Dependency direction: `core/` depends on nothing of ours, `types/` and `utils/` only on what is below them,
+  // the service worker never on an entry point, and an entry point never on the worker's services or on another
+  // entry point. Tests are free to reach for fixtures. What an import may not say is a relative path that leaves
+  // the layer, so the patterns are anchored on the `../` steps a file at that depth needs to get out.
+  ...[
+    { files: ['core/*.ts'], leaves: '^\\.\\./', layer: 'core/ imports nothing outside core/' },
+    { files: ['core/*/**/*.ts'], leaves: '^\\.\\./\\.\\./', layer: 'core/ imports nothing outside core/' },
+    { files: ['types/*.ts'], leaves: '^\\.\\./(?!core/)', layer: 'types/ imports core/ only' },
+    { files: ['utils/*.{ts,tsx}'], leaves: '^\\.\\./(?!core/|types/)', layer: 'utils/ imports core/ and types/ only' },
+    { files: ['utils/*/**/*.{ts,tsx}'], leaves: '^\\.\\./\\.\\./(?!core/|types/)', layer: 'utils/ imports core/ and types/ only' },
+    { files: ['background-service/**/*.ts'], leaves: '^(\\.\\./)+entrypoints/', layer: 'the service worker imports no entry point' },
+    {
+      files: ['entrypoints/{content,library,offscreen,options,popup}/**/*.{ts,tsx}'],
+      leaves: '^(\\.\\./)+(background-service|entrypoints|background|content|library|offscreen|options|popup)/',
+      layer: 'an entry point imports neither the service worker nor another entry point; what two of them share lives in core/ or utils/',
+    },
+  ].map(({ files, leaves, layer }) => ({
+    files,
+    ignores: ['**/__tests__/**', '**/*.test.{ts,tsx}'],
+    rules: { 'no-restricted-imports': ['error', { patterns: [{ regex: leaves, message: `Dependency direction: ${layer}.` }] }] },
+  })),
   {
     // Hooks rules only make sense for React code (Playwright fixtures also name a callback `use`).
     files: ['entrypoints/**/*.{ts,tsx}'],

@@ -4,7 +4,7 @@
 
 ## 边界与实现点
 
-`core/` 是纯 TypeScript 领域核心，不依赖 `chrome.*`、DOM 或 React（单测跑 jsdom/fake-indexeddb）。扩展门面复用同一逻辑契约，不在调用方复制规则。
+`core/` 是纯 TypeScript 领域核心，不依赖 `chrome.*`、DOM 或 React，也不导入本目录以外的源码：`tsconfig.worker.json` 不带 DOM 库检查它，`eslint.config.js` 的依赖方向规则拦向外的导入。扩展门面复用同一逻辑契约，不在调用方复制规则。
 
 | 规则               | 文件                                                                                                                           | 契约真源                             |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------ |
@@ -19,6 +19,9 @@
 | ZIP 导出           | `export.ts` + `zip.ts`（store-only ZIP、frontmatter 键序、README）                                                             | storage.md §6                        |
 | 下载规则           | `download.ts`（共享限制、文件名、媒体链接与 Markdown 组稿；字节取回和任务编排由调用方负责）                                    | download.md §4、§5                   |
 | 本地指标           | `metrics.ts`（事件字典与运行时校验、分桶、串行写入、按天累计、面板汇总 `metricSummaries`、chrome.storage 注入）                | metrics.md §9、§5、§10               |
+| 偏好 schema        | `settings.ts`（类型、默认值、逐键校验；读写 chrome.storage 在 `background-service/settings-storage.ts`）                       | storage.md §2                        |
+| 截图选项表         | `screenshot-options.ts`（标注色、比例预设、美化样式的取值；会话、设置页与偏好校验共用）                                        | screenshot.md §1.1、§1.3、§4.4       |
+| 代取策略           | `fetch-policy.ts`（只取公网 http(s)、私网判定、图片嗅探、限量读取；截图代取与下载取回共用）                                    | screenshot.md §2                     |
 | ID 与摘要          | `assets.ts`（`ent_`/`asset_` ID、SHA-256、单图上限初始值）                                                                     | storage.md §4（Q-03 校准上限）       |
 
 ## 数据不变量

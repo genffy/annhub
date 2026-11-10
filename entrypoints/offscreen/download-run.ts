@@ -11,7 +11,7 @@ import type { DownloadCancelMessage, DownloadFinishMessage, DownloadItemOutcome,
 import { buildZip } from '../../core/zip'
 import { DOWNLOAD_LIMITS, mediaSlotName } from '../../core/download'
 import { EntryStore } from '../../core/store'
-import { fetchMedia, MediaRefused } from '../../background-service/services/download/fetch-media'
+import { fetchMedia, MediaRefused } from './fetch-media'
 
 type Reason = NonNullable<DownloadItemOutcome['reason']>
 

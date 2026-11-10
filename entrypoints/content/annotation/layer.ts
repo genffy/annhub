@@ -16,7 +16,8 @@
  * session, which hides this layer and restores it when it ends.
  */
 import { isUserInput } from '../user-input'
-import { ANNOTATION_COLORS, clampStep, drawAnnotation, isLineTool, nextStepNumber, stepAt, stepNumbers, type Annotation, type LineWidth, type Point } from '../screenshot/editor'
+import { clampStep, drawAnnotation, isLineTool, nextStepNumber, stepAt, stepNumbers, type Annotation, type LineWidth, type Point } from '../screenshot/editor'
+import { ANNOTATION_COLORS } from '../../../core/screenshot-options'
 import { pointerSamples } from '../pointer-samples'
 import { inkToEditorAnnotations, inkToViewport, snapshotInk, type InkStroke } from './ink'
 import { ROOT_ATTR, ROOT_VALUE } from './annotation-roots'

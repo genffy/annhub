@@ -7,7 +7,7 @@
 import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender, rememberCapture } from '../../sender'
-import { RESOURCE_TIMEOUT_MS, assertFetchableUrl, readImage } from './fetch-policy'
+import { RESOURCE_TIMEOUT_MS, assertFetchableUrl, readImage } from '../../../core/fetch-policy'
 import { initializedEntryStore } from '../../store-instance'
 import { presetProperties } from '../../../core/properties'
 import { cleanSourceUrl } from '../../../core/url'

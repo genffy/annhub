@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { addDisabledSite, readSettings, writeSettings } from './settings-schema'
+import { addDisabledSite, readSettings, writeSettings } from './settings-storage'
 
 let stored: Record<string, unknown>
 beforeEach(() => {

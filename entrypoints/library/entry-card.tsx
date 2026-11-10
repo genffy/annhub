@@ -9,9 +9,10 @@ import { EntryStore } from '../../core/store'
 import MessageUtils from '../../utils/message'
 import { markdownToPlainText } from '../../core/markdown'
 import { orderRegistry } from './property-order'
-import { PROPERTY_TYPE_ICONS } from '../../utils/entry-icons'
+import { PROPERTY_TYPE_ICONS, TypeChip } from '../../utils/entry-icons'
+import { relativeTime } from '../../utils/relative-time'
 import { Check, Download, Highlighter, Scan, Trash2 } from 'lucide-react'
-import { uiText } from '../../utils/ui-text'
+import { entryErrorText, uiText } from '../../utils/ui-text'
 
 let assetStorePromise: Promise<EntryStore> | null = null
 

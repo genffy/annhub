@@ -2,12 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   applyBeautifyChange,
   backgroundCss,
-  BEAUTIFY_BACKGROUND_IDS,
   BEAUTIFY_BACKGROUNDS,
   composeGeometry,
   constrainToRatio,
   decodeWatermarkImage,
-  DEFAULT_BEAUTIFY,
   downloadExtension,
   downloadFormatFor,
   downloadMime,
@@ -16,7 +14,6 @@ import {
   paintBackground,
   paintBeautified,
   paintWatermark,
-  PADDING_PX,
   placePanel,
   placeSizeLabel,
   previewBox,
@@ -25,11 +22,11 @@ import {
   ratioOf,
   watermarkBox,
   watermarkLayout,
-  type BeautifySettings,
   type Rect,
   type WatermarkImage,
   type WatermarkPosition,
-} from '../output'
+} from '../screenshot-output'
+import { BEAUTIFY_BACKGROUND_IDS, DEFAULT_BEAUTIFY, PADDING_PX, type BeautifySettings } from '../../core/screenshot-options'
 
 const VIEW = { width: 1280, height: 800 }
 

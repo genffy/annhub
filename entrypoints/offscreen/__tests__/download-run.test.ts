@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest'
 import { acceptDownloadRun, cleanupDownloadRun, deliverFinish } from '../download-run'
-import { fetchMedia } from '../../../background-service/services/download/fetch-media'
+import { fetchMedia } from '../fetch-media'
 import { buildZip } from '../../../core/zip'
 
 vi.mock('../../../core/zip', () => ({ buildZip: vi.fn() }))
@@ -9,7 +9,7 @@ vi.mock('../../../core/download', async importOriginal => {
   return { ...original, DOWNLOAD_LIMITS: { ...original.DOWNLOAD_LIMITS, totalMaxBytes: 10 } }
 })
 
-vi.mock('../../../background-service/services/download/fetch-media', () => ({
+vi.mock('../fetch-media', () => ({
   fetchMedia: vi.fn(),
   MediaRefused: class extends Error {},
 }))

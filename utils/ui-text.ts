@@ -111,8 +111,3 @@ export function uiText(key: UiTextKey, params: Record<string, string | number> =
   }
   return text
 }
-
-/** Marks the extension page's document language for the UI language in effect. */
-export function applyDocumentLanguage(): void {
-  document.documentElement.lang = currentUiLanguage() === 'zh' ? 'zh-CN' : 'en'
-}

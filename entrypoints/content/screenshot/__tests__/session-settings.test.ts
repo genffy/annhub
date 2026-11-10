@@ -5,7 +5,7 @@
  * `A` works until the shot is taken, and a late answer does not undo it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_SETTINGS, type ExtensionSettings } from '../../../../background-service/settings-schema'
+import { DEFAULT_SETTINGS, type ExtensionSettings } from '../../../../core/settings'
 
 vi.mock('../../../../utils/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 
