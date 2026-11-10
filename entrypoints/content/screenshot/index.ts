@@ -1,7 +1,7 @@
 /**
  * Screenshot capture UI chain — docs/product/screenshot.md.
- * Plain DOM (no React) for the session shell; the toolbar is a small React
- * island. One session element per trigger (idempotent enter()).
+ * Plain DOM (no React) for the session shell and its toolbar (RV-CAP-16).
+ * One session element per trigger (idempotent enter()).
  *
  * Region mode: drag on the page → hide session (capture must not include it)
  * → CAPTURE_VISIBLE_TAB → crop → in-place editor.
@@ -43,10 +43,7 @@ import { requestCapture } from './capture-rate'
 import { candidateRect, sectionIntervalRect } from '../blocks'
 import type { BlockCandidate } from '../blocks'
 import { chainForElement, layerLabel, startIndexOf } from '../target-chain'
-import { createElement } from 'react'
-import { flushSync } from 'react-dom'
-import { createRoot, type Root } from 'react-dom/client'
-import { ScreenshotToolbar } from './toolbar'
+import { createScreenshotToolbar, type ScreenshotToolbar } from './toolbar'
 import {
   clampStep,
   isLineTool,
@@ -169,7 +166,7 @@ class ScreenshotSession {
   private previewEl: HTMLElement | null = null
   private overlayEl: HTMLDivElement | null = null
   private toolbarEl: HTMLDivElement | null = null
-  private toolbarRoot: Root | null = null
+  private toolbar: ScreenshotToolbar | null = null
   private toolbarResizeObserver: ResizeObserver | null = null
   private sourceCanvas: HTMLCanvasElement | null = null
   private elementRect: ViewportRect | null = null
@@ -593,8 +590,7 @@ class ScreenshotSession {
     this.drawingCleanup?.()
     this.toolbarResizeObserver?.disconnect()
     this.toolbarResizeObserver = null
-    this.toolbarRoot?.unmount()
-    this.toolbarRoot = null
+    this.toolbar = null
     this.doc.removeEventListener('keydown', this.onKeydown, true)
     this.doc.removeEventListener('focus', this.onFocus, true)
     this.doc.removeEventListener('pointerdown', this.onPointerDown, true)
@@ -1435,8 +1431,8 @@ class ScreenshotSession {
     this.overlayEl?.style.setProperty('background', 'transparent')
     if (this.hintEl) this.hintEl.style.display = 'none'
     this.previewEl?.remove()
-    this.toolbarRoot?.unmount()
     this.toolbarEl?.remove()
+    this.toolbar = null
     this.beautifyPanel?.el.remove()
     this.beautifyPanel = null
 
@@ -1452,21 +1448,16 @@ class ScreenshotSession {
     this.host.appendChild(panel)
     this.previewEl = panel
 
-    const toolbar = this.doc.createElement('div')
-    toolbar.className = 'ann-shot-toolbar'
-    toolbar.setAttribute(ROOT_ATTR, 'screenshot-toolbar')
-    this.host.appendChild(toolbar)
-    this.toolbarEl = toolbar
-    this.toolbarRoot = createRoot(toolbar)
-    // React 19 commits a root's first render later; without flushSync the frame
-    // below can run before the buttons exist and focus stays on the page.
-    flushSync(() => this.updateToolbar())
+    this.toolbar = createScreenshotToolbar(this.doc, this.toolbarActions())
+    this.toolbarEl = this.toolbar.el
+    this.host.appendChild(this.toolbarEl)
+    this.toolbar.update(this.toolbarState())
     this.toolbarResizeObserver = new ResizeObserver(() => {
       this.positionToolbar()
       this.positionSizeLabel()
       this.positionBeautifyPanel()
     })
-    this.toolbarResizeObserver.observe(toolbar)
+    this.toolbarResizeObserver.observe(this.toolbarEl)
     this.refreshDisplay()
     requestAnimationFrame(() => {
       this.layout()
@@ -1518,51 +1509,58 @@ class ScreenshotSession {
     toolbar.style.top = `${top}px`
   }
 
+  /** The toolbar's whole input, recomputed on every update (RV-CAP-16): `null` is a state the settings take off the table. */
+  private toolbarState() {
+    return {
+      tool: this.tool,
+      color: this.color,
+      lineWidth: this.lineWidth,
+      maskCount: this.maskBoxes.length,
+      anonymize: this.anonymizeAvailable() ? this.anonymizeOn : null,
+      watermark: this.settings?.watermark.enabled ? this.watermarkOn : null,
+      canUndo: this.history.length > 0,
+      nextStep: nextStepNumber(this.annotations, this.stepSequence),
+      beautifyOpen: this.beautifyPanel !== null,
+      busy: this.busy,
+      notice: this.notice,
+    }
+  }
+
+  private toolbarActions() {
+    return {
+      onTool: (tool: ScreenshotTool) => {
+        this.tool = tool
+        // the selection belongs to the step tool: another tool, or none, lets it go
+        if (tool !== 'step') this.selectedStep = null
+        if (this.displayCanvas) this.displayCanvas.style.cursor = ''
+        this.positionStepRing()
+        this.updateToolbar()
+      },
+      onColor: (color: string) => {
+        this.color = color
+        this.updateToolbar()
+      },
+      onLineWidth: (width: LineWidth) => {
+        this.lineWidth = width
+        this.updateToolbar()
+      },
+      onRemoveMask: (index: number) => {
+        this.maskBoxes.splice(index, 1)
+        this.renderEditor()
+        this.updateToolbar()
+      },
+      onUndo: () => this.undo(),
+      onResetSteps: () => this.resetSteps(),
+      onBeautify: () => this.toggleBeautifyPanel(),
+      onCopy: () => void this.copyCurrent(),
+      onDownload: () => void this.downloadOnly(),
+      onCancel: () => exitScreenshotMode(),
+      onSave: () => void this.confirmSave(),
+    }
+  }
+
   private updateToolbar(): void {
-    this.toolbarRoot?.render(
-      createElement(ScreenshotToolbar, {
-        tool: this.tool,
-        color: this.color,
-        lineWidth: this.lineWidth,
-        maskCount: this.maskBoxes.length,
-        // the status strip under the tools pill: `null` is a state the settings take off the table
-        anonymize: this.anonymizeAvailable() ? this.anonymizeOn : null,
-        watermark: this.settings?.watermark.enabled ? this.watermarkOn : null,
-        canUndo: this.history.length > 0,
-        nextStep: nextStepNumber(this.annotations, this.stepSequence),
-        beautifyOpen: this.beautifyPanel !== null,
-        busy: this.busy,
-        notice: this.notice,
-        onTool: tool => {
-          this.tool = tool
-          // the selection belongs to the step tool: another tool, or none, lets it go
-          if (tool !== 'step') this.selectedStep = null
-          if (this.displayCanvas) this.displayCanvas.style.cursor = ''
-          this.positionStepRing()
-          this.updateToolbar()
-        },
-        onColor: color => {
-          this.color = color
-          this.updateToolbar()
-        },
-        onLineWidth: width => {
-          this.lineWidth = width
-          this.updateToolbar()
-        },
-        onRemoveMask: index => {
-          this.maskBoxes.splice(index, 1)
-          this.renderEditor()
-          this.updateToolbar()
-        },
-        onUndo: () => this.undo(),
-        onResetSteps: () => this.resetSteps(),
-        onBeautify: () => this.toggleBeautifyPanel(),
-        onCopy: () => void this.copyCurrent(),
-        onDownload: () => void this.downloadOnly(),
-        onCancel: () => exitScreenshotMode(),
-        onSave: () => void this.confirmSave(),
-      }),
-    )
+    this.toolbar?.update(this.toolbarState())
   }
 
   /** One editing step: what undo goes back to is kept, and the picture is drawn anew. */

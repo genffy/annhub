@@ -37,26 +37,6 @@
 
 量法：构建后看 `.output/chrome-mv3/` 的文件大小；各部分的占比用 esbuild 单独打包那一部分（minify）得到。
 
-#### RV-CAP-16 内容脚本为一个无状态工具栏打包了整个 React（高）
-
-**问题**
-
-- `content-scripts/content.js` 是 540 KB（gzip 164 KB），清单把它注入所有页面的所有 frame（`<all_urls>`、`all_frames`、`document_start`）。
-- 其中 React 与 react-dom 占 223 KB（41%），只为 `entrypoints/content/screenshot/toolbar.tsx`：243 行，没有任何 hook。`entrypoints/content/screenshot/index.ts` 用 `createRoot` 加 `flushSync` 渲染它；同一个会话里其余界面都是 `createElement` 手写的。
-
-**要求**
-
-1. 工具栏改成原生 DOM。DOM 结构、类名、`aria-*`、`data-*` 与键盘焦点行为不变：E2E 和 `e2e/real-chrome-scenarios.md` 附录 A 靠它们取元素。React 每次重渲染会保住焦点，原生写法要么只改属性，要么重建之后把焦点放回去。
-2. 图标沿用 `entrypoints/content/icons.ts` 的写法，补上工具栏用到的 17 个 lucide 图标。
-3. 内容脚本不再导入 `react`、`react-dom`、`lucide-react`，并在 `eslint.config.js` 里对 `entrypoints/content/**` 加一条 `no-restricted-imports` 兜底。
-4. 界面的样子以现有 CSS 为准，不改样式表里的规则。
-
-**验收**
-
-1. 构建后 `content.js` 不超过 320 KB。
-2. `git grep -nE "from 'react|lucide-react" -- entrypoints/content` 无结果。
-3. `entrypoints/content/screenshot/__tests__` 与全部 `e2e/screenshot-*.spec.ts` 通过。
-
 #### RV-CAP-17 内容脚本带着所有界面的文案（中）
 
 **问题**
