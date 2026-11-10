@@ -5,11 +5,13 @@ name: CI
 #
 # There is deliberately no trigger-level path filter: a workflow a filter skips never reports its
 # required check, and the check would stay pending and block the merge (check-consistency enforces
-# this). Instead every job classifies the pull request's changed files at runtime
-# (.github/actions/docs-only): when only markdown or docs changed, the jobs whose checks cannot be
-# affected exit immediately and only the doc checks run in `static`; pushes to main and the merge
-# queue always run everything. The skip list stays "code checks on docs-only" because the tests do
-# read across directories (utils/__tests__/legal-pages.test.ts reads website/public/*.html).
+# this). Instead the jobs classify the pull request's changed files at runtime
+# (.github/actions/docs-only): when only markdown or docs changed, the browser tests and the
+# website build exit immediately and `static` keeps the doc checks; pushes to main and the merge
+# queue always run everything. The unit tests are never skipped: they are what keeps the docs and
+# the code in step (utils/__tests__/token-parity.test.ts reads docs/design/css/tokens.css,
+# utils/__tests__/website.test.ts reads README.md and docs/product/permissions.md), so a docs-only
+# pull request can break them (check-consistency enforces this too).
 #
 # The jobs are independent so the wall time is the slowest part, not the sum: static checks, unit
 # tests, the website build and the E2E shards run in parallel. E2E shards work because every test
@@ -96,27 +98,16 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
-      pull-requests: read
     steps:
       - name: Check out
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Classify docs-only pull requests
-        id: docs
-        uses: ./.github/actions/docs-only
-
-      - name: Docs-only pull request
-        if: steps.docs.outputs.docs-only == 'true'
-        run: echo "Only markdown or docs changed; the unit tests read none of it."
-
       - name: Set up pnpm
-        if: steps.docs.outputs.docs-only != 'true'
         uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
 
       - name: Set up Node.js
-        if: steps.docs.outputs.docs-only != 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .node-version
@@ -124,11 +115,10 @@ jobs:
           cache-dependency-path: pnpm-lock.yaml
 
       - name: Install dependencies
-        if: steps.docs.outputs.docs-only != 'true'
         run: pnpm install --frozen-lockfile
 
+      # No docs-only shortcut here: see the note at the top of this file.
       - name: Unit tests
-        if: steps.docs.outputs.docs-only != 'true'
         run: pnpm test
 
   e2e:

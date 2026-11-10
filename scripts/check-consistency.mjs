@@ -428,6 +428,25 @@ function checkGate() {
     }
   }
 
+  // The unit tests read docs/ and README.md (the token parity table, the store address), so the docs-only shortcut
+  // of the other jobs must not reach them: a docs-only pull request can break them.
+  const ciText = read('.github/workflows/ci.yml')
+  if (ciText !== null) {
+    let jobs = {}
+    try {
+      jobs = parseYaml(ciText)?.jobs ?? {}
+    } catch {
+      fail('.github/workflows/ci.yml', 'cannot be parsed')
+    }
+    for (const [id, job] of Object.entries(jobs)) {
+      const steps = job?.steps ?? []
+      const unit = steps.find(step => /(^|\s)pnpm test(\s|$)/.test(step.run ?? ''))
+      if (!unit) continue
+      if (/docs-only/.test(unit.if ?? '') || steps.some(step => step.uses === './.github/actions/docs-only'))
+        fail('.github/workflows/ci.yml', `the job ${id} skips the unit tests on docs-only pull requests, but they read docs/ and README.md; run them on every pull request`)
+    }
+  }
+
   const ruleset = readJson('.github/rulesets/main.json')
   if (ruleset !== null) {
     const workflows = files.filter(file => /^\.github\/workflows\/[^/]+\.ya?ml$/.test(file)).map(file => ({ file, text: read(file) }))

@@ -414,6 +414,25 @@ describe('check-consistency', () => {
       expectFailure({ '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', '      - run: pnpm run check:consistency\n', '') }, 'does not run `pnpm run check:consistency`')
     })
 
+    it('catches unit tests that a docs-only pull request would skip', () => {
+      expectFailure(
+        {
+          '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', '      - run: pnpm test\n', "      - run: pnpm test\n        if: steps.docs.outputs.docs-only != 'true'\n"),
+        },
+        'the job extension skips the unit tests on docs-only pull requests',
+      )
+      expectFailure(
+        {
+          '.github/workflows/ci.yml': edit(
+            '.github/workflows/ci.yml',
+            '      - uses: pnpm/action-setup@pinned\n      - run: pnpm run format:check',
+            '      - uses: ./.github/actions/docs-only\n      - uses: pnpm/action-setup@pinned\n      - run: pnpm run format:check',
+          ),
+        },
+        'the job extension skips the unit tests on docs-only pull requests',
+      )
+    })
+
     it('catches a check: script that verify does not run', () => {
       expectFailure({ 'package.json': edit('package.json', ' && pnpm run check:consistency', '') }, 'the script check:consistency is not part of verify')
     })
