@@ -35,29 +35,6 @@
 
 ### 测试设施
 
-#### RV-TEST-08 单测全部在 jsdom 里跑，覆盖率跑不起来（中）
-
-**问题**
-
-- `vitest.config.ts` 给全部测试文件用 jsdom 环境；`pnpm test` 末尾 Vitest 自己的统计显示创建 jsdom 占掉约六成时间。`core/`、`background-service/`、`utils/`、`entrypoints/offscreen/`、`scripts/` 的测试不碰 DOM。
-- `core/AGENTS.md` 说 `core/` 不依赖 DOM，但它的测试跑在有 DOM 的环境里，用了也不会失败。
-- `vitest.config.ts` 配了 `coverage.reportsDirectory`，仓库却没有装覆盖率 provider，`vitest run --coverage` 跑不起来。
-
-**要求**
-
-1. 用 Vitest 的 `projects` 把不碰 DOM 的目录放进 node 环境，`entrypoints/content/`、`entrypoints/library/`、`entrypoints/popup/` 留在 jsdom。个别文件需要 DOM 时用 `// @vitest-environment jsdom` 逐文件声明，不把整个目录退回 jsdom。
-2. `vitest.setup.ts` 设置 `navigator.language` 的做法在 node 环境里也要成立。
-3. 装 `@vitest/coverage-v8`（先 `pnpm audit --prod`）。给 `core/**` 设行、分支、函数三个阈值，取当前实测值向下取整；阈值只升不降。
-4. `verify` 与 CI 的 unit job 跑同一条带覆盖率的命令。`scripts/check-consistency.mjs` 有两条断言认 `pnpm test` 这个写法（verify 的每条命令要原样出现在 `ci.yml`；单测步骤不得依赖 docs-only 分类），命令变了就同步改断言和它们的测试。
-5. `scripts/README.md` 的「验证入口」写上覆盖率门槛。
-
-**验收**
-
-1. `pnpm test` 的统计里，jsdom 的创建次数不超过留在 jsdom 的测试文件数；全部用例通过，用例数不少于改动之前。
-2. 在 `core/` 的测试里临时用到 `document`，该用例失败。
-3. 临时删掉 `core/` 里一个测试文件，覆盖率门槛让 `pnpm run verify` 失败。
-4. `pnpm run check:consistency` 通过。
-
 #### RV-TEST-09 E2E 会拿过期的构建来测（中）
 
 **问题**

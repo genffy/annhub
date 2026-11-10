@@ -14,6 +14,7 @@
 
 - 给脚本传参直接写在后面，不加 `--`：pnpm 会把 `--` 原样交给脚本（`pnpm run check:size --lower`、官网的 `pnpm run build --production`）。
 - 提交前跑 `pnpm run verify`（format:check → lint → compile → vitest → check:docs → check:size → check:lockfiles → check:consistency）。`check:docs` 核对相对链接、`文档.md §N.M` 节号引用、被引用的编号有定义，以及正文的写法；格式由 Prettier 负责，ESLint 只管正确性与依赖方向（`core/` 不向外导入，后台与各入口互不导入，规则在 `eslint.config.js`）。`compile` 跑两遍 tsc：全量一遍，再用不带 DOM 库的 `tsconfig.worker.json` 查一遍 service worker 一侧。
+- 单测在两个环境里跑（`vitest.config.ts` 的 projects）：三个扩展入口（content、library、popup）用 jsdom，其余目录用 node，个别文件要 DOM 时在文件头声明 `// @vitest-environment jsdom`。`pnpm test` 自带覆盖率：`core/**` 有行、分支、函数三个阈值（向下取整的实测值，只升不降），`core/` 里删测试让覆盖率跌破阈值时失败。
 - 扩展构建 `pnpm run build`（`.output` 不随源码自动重建）；浏览器 E2E 先构建再 `pnpm exec playwright test <spec>`，手工 Chrome 实测见 [e2e/README.md](../e2e/README.md)。
 - 官网静态部署：`cd website && pnpm run build && pnpm run start`；另一个终端在仓库根运行 `WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node scripts/smoke-website.mjs --local`。
 
