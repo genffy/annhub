@@ -54,15 +54,17 @@ test('the watermark preview paints the picture beside the text (screenshot.md §
   await page.goto(`chrome-extension://${extensionId}/library.html#/settings`)
   // a solid red square, drawn by the browser itself so the bytes are a readable PNG
   const redPng = Buffer.from(
-    (await page.evaluate(() => {
-      const canvas = document.createElement('canvas')
-      canvas.width = 16
-      canvas.height = 16
-      const ctx = canvas.getContext('2d')!
-      ctx.fillStyle = '#f00'
-      ctx.fillRect(0, 0, 16, 16)
-      return canvas.toDataURL('image/png')
-    }))!.split(',')[1]!,
+    (
+      await page.evaluate(() => {
+        const canvas = document.createElement('canvas')
+        canvas.width = 16
+        canvas.height = 16
+        const ctx = canvas.getContext('2d')!
+        ctx.fillStyle = '#f00'
+        ctx.fillRect(0, 0, 16, 16)
+        return canvas.toDataURL('image/png')
+      })
+    ).split(',')[1]!,
     'base64',
   )
   await page.locator('input[type="file"][accept="image/png"]').setInputFiles({ name: 'mark.png', mimeType: 'image/png', buffer: redPng })

@@ -17,6 +17,9 @@ export class CommandHandler {
   private commandListener?: (command: string) => void
 
   registerListeners(): void {
+    // Chrome ignores what a listener returns. This one is async so that a caller can wait for the handling (the
+    // tests do), and it cannot reject: everything it awaits is inside the try.
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- see the note above
     this.commandListener = async (command: string) => {
       try {
         if (command === ANN_SCREENSHOT_COMMAND) {

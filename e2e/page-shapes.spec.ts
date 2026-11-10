@@ -61,7 +61,7 @@ test.describe('block detection on real page shapes (capture.md §6.2)', () => {
       .poll(
         async () => {
           shot = await page.evaluate(() => {
-            const canvas = document.querySelector('[data-ann-ui="screenshot-preview"] canvas') as HTMLCanvasElement | null
+            const canvas = document.querySelector<HTMLCanvasElement>('[data-ann-ui="screenshot-preview"] canvas')
             return canvas && canvas.width > 0 && canvas.height > 0 ? { width: canvas.width, height: canvas.height } : null
           })
           return shot !== null

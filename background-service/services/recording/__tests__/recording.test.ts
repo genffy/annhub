@@ -205,7 +205,7 @@ describe('recording service (annotate.md §2)', () => {
     const metrics = (await storage.local.get('annhub.metrics')) as {
       'annhub.metrics': { 'recording.downloaded': Record<string, { total: number; byProps: Record<string, number> }> }
     }
-    const day = Object.values(metrics['annhub.metrics']!['recording.downloaded']!)[0]!
+    const day = Object.values(metrics['annhub.metrics']['recording.downloaded'])[0]!
     expect(day.total).toBe(1)
     expect(Object.keys(day.byProps)).toEqual(['duration=1-3min|mic=true|stopped_by=user'])
     // the video's bytes were released in the offscreen document
@@ -215,7 +215,7 @@ describe('recording service (annotate.md §2)', () => {
   it('a failed download keeps the video, badges "!", blocks new recordings, and 放弃 releases it', async () => {
     downloads.download.mockImplementation((_options: unknown, _callback: (id?: number) => void) => {
       runtime.lastError = { message: 'disk full' }
-      ;(_callback as (id?: number) => void)(undefined)
+      _callback(undefined)
       runtime.lastError = undefined
     })
     await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
@@ -318,7 +318,9 @@ describe('recording service (annotate.md §2)', () => {
       extensionSender,
     )
     expect(((await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { holdsVideo?: boolean }).holdsVideo).toBe(true)
-    await onDownloadChanged({ id: 51, state: { previous: 'in_progress', current: 'complete' } })
+    onDownloadChanged({ id: 51, state: { previous: 'in_progress', current: 'complete' } })
+    // the listener only starts the landing and returns nothing: yield once so it runs before the state is read
+    await Promise.resolve()
     expect(((await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { holdsVideo?: boolean }).holdsVideo).toBe(false)
   })
 
@@ -331,13 +333,13 @@ describe('recording service (annotate.md §2)', () => {
     await restarted.initialize()
 
     const handlers = restarted.getMessageHandlers() as unknown as Record<string, LooseHandler>
-    const state = (await handlers.GET_RECORDING_STATE({}, extensionSender)).data as { status: string; tabId?: number; startedAt?: number; tabTitle?: string }
+    const state = (await handlers.GET_RECORDING_STATE!({}, extensionSender)).data as { status: string; tabId?: number; startedAt?: number; tabTitle?: string }
     expect(state.status).toBe('recording')
     expect(state.tabId).toBe(7)
     expect(state.startedAt).toBe(live.startedAt)
     expect(state.tabTitle, 'the title comes from the tab again, not from the record').toBe('A post')
     runtime.sendMessage.mockClear()
-    const stopped = await handlers.STOP_RECORDING({}, extensionSender)
+    const stopped = await handlers.STOP_RECORDING!({}, extensionSender)
     expect(stopped.success).toBe(true)
     expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_STOP', stoppedBy: 'user' })
 
@@ -357,7 +359,7 @@ describe('recording service (annotate.md §2)', () => {
     const restarted = new RecordingService()
     await restarted.initialize()
     const handlers = restarted.getMessageHandlers() as unknown as Record<string, LooseHandler>
-    const answer = await handlers.GET_RECORDING_STATE({}, extensionSender)
+    const answer = await handlers.GET_RECORDING_STATE!({}, extensionSender)
     expect((answer.data as { status: string }).status).toBe('idle')
     expect(sessionStorageMap.has('annhub.recording')).toBe(false)
     expect(action.setBadgeText).toHaveBeenLastCalledWith({ text: '' })
@@ -376,7 +378,7 @@ describe('recording service (annotate.md §2)', () => {
     const cold = new RecordingService()
     await cold.initialize()
     const handlers = cold.getMessageHandlers() as unknown as Record<string, LooseHandler>
-    const state = (await handlers.GET_RECORDING_STATE({}, extensionSender)).data as { status: string }
+    const state = (await handlers.GET_RECORDING_STATE!({}, extensionSender)).data as { status: string }
     expect(state.status).toBe('recording')
     expect(sessionStorageMap.has('annhub.recording')).toBe(true)
     expect(action.setBadgeText).toHaveBeenCalledWith({ text: 'REC' })
@@ -395,7 +397,7 @@ describe('recording service (annotate.md §2)', () => {
     downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(43))
     runtime.sendMessage.mockClear()
     const handlers = restarted.getMessageHandlers() as unknown as Record<string, LooseHandler>
-    await handlers.RECORDING_EVENT(
+    await handlers.RECORDING_EVENT!(
       { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:video', filename: 'AnnHub/recording-r.webm', durationMs: 1_000, stoppedBy: 'tab_closed', withMic: false },
       extensionSender,
     )
@@ -482,7 +484,7 @@ describe('recording service (annotate.md §2)', () => {
     await cold.onDownloadDelta({ id: 66, state: { previous: 'in_progress', current: 'complete' } })
     expect(runtime.sendMessage).toHaveBeenCalledWith({ type: 'RECORDING_CLEANUP' })
     const handlers = cold.getMessageHandlers() as unknown as Record<string, LooseHandler>
-    const state = (await handlers.GET_RECORDING_STATE({}, extensionSender)).data as { status: string; holdsVideo?: boolean }
+    const state = (await handlers.GET_RECORDING_STATE!({}, extensionSender)).data as { status: string; holdsVideo?: boolean }
     expect(state.status).toBe('idle')
     expect(state.holdsVideo).toBe(false)
     await new Promise(resolve => setTimeout(resolve, 50))
@@ -511,7 +513,7 @@ describe('recording service (annotate.md §2)', () => {
     const metrics = (await storage.local.get('annhub.metrics')) as {
       'annhub.metrics': { 'recording.downloaded': Record<string, { total: number; byProps: Record<string, number> }> }
     }
-    const day = Object.values(metrics['annhub.metrics']!['recording.downloaded']!)[0]!
+    const day = Object.values(metrics['annhub.metrics']['recording.downloaded'])[0]!
     expect(Object.keys(day.byProps)).toEqual(['duration=3-5min|mic=true|stopped_by=tab_closed'])
     await windDown(69, 'AnnHub/recording-cold4b.webm')
   })
@@ -635,7 +637,7 @@ describe('recording service (annotate.md §2)', () => {
     await cold.initialize()
     downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(82))
     const handlers = cold.getMessageHandlers() as unknown as Record<string, LooseHandler>
-    await handlers.RECORDING_EVENT(
+    await handlers.RECORDING_EVENT!(
       { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:cold-gone', filename: 'AnnHub/recording-cold-gone.webm', durationMs: 1_000, stoppedBy: 'user', withMic: false },
       extensionSender,
     )
@@ -679,7 +681,7 @@ describe('recording service (annotate.md §2)', () => {
     tabs.get.mockRejectedValue(tabGone())
     downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(85))
     const handlers = fresh.getMessageHandlers() as unknown as Record<string, LooseHandler>
-    await handlers.RECORDING_EVENT(
+    await handlers.RECORDING_EVENT!(
       { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:unknown', filename: 'AnnHub/recording-unknown.webm', durationMs: 1_000, stoppedBy: 'user', withMic: false },
       extensionSender,
     )

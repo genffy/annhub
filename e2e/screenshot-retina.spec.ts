@@ -72,8 +72,8 @@ test.describe('a capture at twice the window’s size, as a Retina screen takes 
     expect(selection.width, 'the selection is 400 CSS pixels wide').toBeGreaterThan(300)
     // and it is the part of the window that was selected: the crop's corner is the capture's pixel under the selection's corner
     const [corner] = (await analyze(page, { source: 'canvas', points: [[2, 2]] })).at as [number[]]
-    expect(Math.abs(corner![0]! - ((selection.x + 1) * 2 * 255) / (view.width * 2 - 1))).toBeLessThanOrEqual(6)
-    expect(Math.abs(corner![1]! - ((selection.y + 1) * 2 * 255) / (view.height * 2 - 1))).toBeLessThanOrEqual(6)
+    expect(Math.abs(corner[0]! - ((selection.x + 1) * 2 * 255) / (view.width * 2 - 1))).toBeLessThanOrEqual(6)
+    expect(Math.abs(corner[1]! - ((selection.y + 1) * 2 * 255) / (view.height * 2 - 1))).toBeLessThanOrEqual(6)
 
     // beautify pads in CSS pixels: 64 of them are 128 pixels of picture and 64 on screen, on every side
     const { panel, choice } = await openPanel(page)

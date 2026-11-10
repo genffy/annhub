@@ -441,7 +441,7 @@ test.describe('icons and type (visual.md §3)', () => {
           return {
             type: chip.getAttribute('data-type'),
             icon: svg ? [...svg.classList].find(name => name.startsWith('lucide-')) : null,
-            text: chip.textContent!.trim(),
+            text: chip.textContent.trim(),
             iconBeforeText: iconBox ? iconBox.right <= textBox.left + 1 : false,
             iconInsideChip: iconBox ? iconBox.left >= chipBox.left - 1 && iconBox.right <= chipBox.right + 1 : false,
             iconSize: iconBox ? Math.round(iconBox.width) : 0,

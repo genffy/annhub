@@ -20,8 +20,8 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
-    // WXT 0.21 turns this on by default; the existing code indexes arrays and records freely.
-    "noUncheckedIndexedAccess": false
+    // An indexed read may be undefined: `list[0]`, `record[key]`, a regex group. WXT's base config sets it too.
+    "noUncheckedIndexedAccess": true
     /* shadcn/ui path mapping */
     // "baseUrl": ".",
   },

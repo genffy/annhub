@@ -141,7 +141,7 @@ describe('findMainArticle (download.md §2.4)', () => {
       <article>${'<p>wordy text here </p>'.repeat(20)}</article>
     `)
     const found = findMainArticle(document)!
-    expect(found.textContent!.length).toBeGreaterThan(50)
+    expect(found.textContent.length).toBeGreaterThan(50)
   })
 
   it('answers null when the page declares no article', () => {

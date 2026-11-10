@@ -95,7 +95,7 @@ describe('recent captures (RV-BG-02, quick edit after a worker restart)', () => 
     const crossOrigin = { ...frame(9, 2), url: 'https://outside.example/child' } as chrome.runtime.MessageSender
     await sender.rememberCapture(crossOrigin, 'ent_cross')
     expect(await sender.isRecentCapture(crossOrigin, 'ent_cross')).toBe(false)
-    expect(await sender.isRecentCapture({ id: 'annhub-test' } as chrome.runtime.MessageSender, 'ent_cross')).toBe(false)
+    expect(await sender.isRecentCapture({ id: 'annhub-test' }, 'ent_cross')).toBe(false)
     expect(session.data.size).toBe(0)
   })
 

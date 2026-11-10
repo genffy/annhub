@@ -144,7 +144,7 @@ async function recordedMetric(): Promise<Record<string, string> | undefined> {
 }
 
 function event(partial: Partial<DownloadRunEventMessage> & { requestId: string; event: DownloadRunEventMessage['event'] }): DownloadRunEventMessage {
-  return { type: 'DOWNLOAD_RUN_EVENT', ...partial } as DownloadRunEventMessage
+  return { type: 'DOWNLOAD_RUN_EVENT', ...partial }
 }
 
 const PAGE_START = {
@@ -734,7 +734,7 @@ describe('the download service (download.md §2, §3, §7)', () => {
 
   it('fails cleanly when the offscreen document refuses the run', async () => {
     const sendMessage = chrome.runtime.sendMessage as ReturnType<typeof vi.fn>
-    sendMessage.mockImplementationOnce(async () => ({ success: false }))
+    sendMessage.mockResolvedValueOnce({ success: false })
     const failed = await dispatch({ ...PAGE_START, meta: { ...PAGE_START.meta, title: 'Refused' } })
     expect(failed.success).toBe(false)
     expect(failed.error).toBe('DOWNLOAD_FAILED')

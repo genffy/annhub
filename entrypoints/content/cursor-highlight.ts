@@ -31,8 +31,8 @@ function removeListeners(): void {
 }
 
 function add(target: EventTarget, type: string, listener: (event: Event) => void): void {
-  target.addEventListener(type, listener as EventListener, true)
-  listeners.push([target, type, listener as EventListener])
+  target.addEventListener(type, listener, true)
+  listeners.push([target, type, listener])
 }
 
 function shapeStyle(settings: CursorHighlightSettings): string {
@@ -43,6 +43,7 @@ function shapeStyle(settings: CursorHighlightSettings): string {
       return `${common}border:2.5px solid ${settings.color};border-radius:7px;`
     case 'diamond':
       return `${common}width:${Math.round(size * 0.82)}px;height:${Math.round(size * 0.82)}px;border:2.5px solid ${settings.color};transform:rotate(45deg);`
+    case 'ring':
     default:
       return `${common}border:2.5px solid ${settings.color};border-radius:50%;`
   }

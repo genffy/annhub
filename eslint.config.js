@@ -35,9 +35,21 @@ export default tseslint.config(
       'eqeqeq': ['error', 'always', { null: 'ignore' }],
       'no-var': 'error',
       'prefer-const': 'error',
-      // Legacy annotation modules use `any` widely; keep it visible without blocking.
-      '@typescript-eslint/no-explicit-any': 'warn',
+      '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrors: 'none', ignoreRestSiblings: true }],
+    },
+  },
+  {
+    // Rules that read types. A promise nobody awaits is how an MV3 service worker loses work: the browser stops
+    // the worker once its listeners have returned, whatever is still pending. `void` marks the ones left on purpose.
+    files: ['**/*.{ts,tsx}'],
+    languageOptions: { parserOptions: { projectService: true } },
+    rules: {
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/no-misused-promises': 'error',
+      '@typescript-eslint/await-thenable': 'error',
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
+      '@typescript-eslint/no-unnecessary-type-assertion': 'error',
     },
   },
   // Dependency direction: `core/` depends on nothing of ours, `types/` and `utils/` only on what is below them,
@@ -67,7 +79,7 @@ export default tseslint.config(
     plugins: { 'react-hooks': reactHooks },
     rules: {
       'react-hooks/rules-of-hooks': 'error',
-      'react-hooks/exhaustive-deps': 'warn',
+      'react-hooks/exhaustive-deps': 'error',
     },
   },
   {

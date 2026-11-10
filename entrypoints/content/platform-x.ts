@@ -306,7 +306,7 @@ export function extractXContent(root: Element, pageUrl = root.ownerDocument.base
     const h1s = [...longRoot.querySelectorAll('h1')]
     const title =
       /["“]([^"”]+)["”]/.exec(doc.querySelector('meta[property="og:title"]')?.getAttribute('content') ?? doc.title)?.[1]?.trim() ??
-      (h1s.length === 1 ? h1s[0].textContent?.trim() : undefined) ??
+      (h1s.length === 1 ? h1s[0]?.textContent?.trim() : undefined) ??
       heading?.textContent?.trim()
     // The root itself is an article: copy its children, or it would be treated
     // as a quote of its own.

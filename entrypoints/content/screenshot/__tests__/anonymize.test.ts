@@ -15,7 +15,7 @@ function stubRect(width: number, height: number): void {
       x: meta.left,
       y: meta.top,
       toJSON: () => ({}),
-    } as DOMRect
+    }
   }
 }
 

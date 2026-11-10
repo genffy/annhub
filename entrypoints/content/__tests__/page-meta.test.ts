@@ -17,21 +17,21 @@ describe('resolvePermalink platform rules (capture.md §5)', () => {
         <p id="body">We shipped jittered backoff this morning.</p>
         <a href="/status/1748113923456"><time>9:30</time></a>
       </article>`)
-    const url = resolvePermalink(document.getElementById('body')!, PAGE_URL, 'post')
+    const url = resolvePermalink(document.getElementById('body'), PAGE_URL, 'post')
     expect(url).toBe('https://example.com/status/1748113923456')
   })
 
   it('a Medium article takes the canonical address, not the interface URL', () => {
     withPage('<main><article><h1>Title</h1><p id="p">Body text</p></article></main>')
     document.head.innerHTML = '<link rel="canonical" href="https://medium.com/p/abc123" />'
-    const url = resolvePermalink(document.getElementById('p')!, 'https://user.medium.com/some-alias-reader', 'article')
+    const url = resolvePermalink(document.getElementById('p'), 'https://user.medium.com/some-alias-reader', 'article')
     expect(url).toBe('https://medium.com/p/abc123')
   })
 
   it('a canonical link on a non-Medium page does not override the page URL', () => {
     withPage('<main><article><h1>Title</h1><p id="p">Body text</p></article></main>')
     document.head.innerHTML = '<link rel="canonical" href="https://elsewhere.example/x" />'
-    const url = resolvePermalink(document.getElementById('p')!, PAGE_URL, 'article')
+    const url = resolvePermalink(document.getElementById('p'), PAGE_URL, 'article')
     expect(url).toBe(PAGE_URL)
   })
 
@@ -41,15 +41,15 @@ describe('resolvePermalink platform rules (capture.md §5)', () => {
         <h2 id="the-heading">Exponential backoff</h2>
         <p id="p">The three-step approach with enough body text to be a real section.</p>
       </section>`)
-    const url = resolvePermalink(document.getElementById('p')!, `${PAGE_URL}?x=1`, 'section')
+    const url = resolvePermalink(document.getElementById('p'), `${PAGE_URL}?x=1`, 'section')
     expect(url).toBe(`${PAGE_URL}?x=1#the-heading`)
   })
 
   it('everything else keeps the page address, selections included', () => {
     withPage('<main><p id="p">A plain paragraph with an anchorless heading nearby.</p></main>')
-    expect(resolvePermalink(document.getElementById('p')!, PAGE_URL, 'article')).toBe(PAGE_URL)
-    expect(resolvePermalink(document.getElementById('p')!, PAGE_URL)).toBe(PAGE_URL)
-    expect(resolvePermalink(document.getElementById('p')!, PAGE_URL, 'code')).toBe(PAGE_URL)
+    expect(resolvePermalink(document.getElementById('p'), PAGE_URL, 'article')).toBe(PAGE_URL)
+    expect(resolvePermalink(document.getElementById('p'), PAGE_URL)).toBe(PAGE_URL)
+    expect(resolvePermalink(document.getElementById('p'), PAGE_URL, 'code')).toBe(PAGE_URL)
   })
 })
 

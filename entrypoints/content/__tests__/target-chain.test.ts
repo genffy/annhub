@@ -370,7 +370,7 @@ describe('keyboard tiers (capture.md §6.2 同档)', () => {
     const peers = peersOf(section, doc)
     expect(peers.map(peer => peer.range?.start.id)).toEqual(['h-intro', 'h-install', 'h-usage'])
     for (let i = 1; i < peers.length; i++) {
-      expect(candidateAnchor(peers[i - 1]!)!.compareDocumentPosition(candidateAnchor(peers[i]!)!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(candidateAnchor(peers[i - 1]!).compareDocumentPosition(candidateAnchor(peers[i]!)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
   })
 

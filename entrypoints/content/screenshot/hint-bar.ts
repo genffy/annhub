@@ -53,7 +53,7 @@ export function renderHintBar(doc: Document, hintEl: HTMLElement, options: HintB
     // with both identity kinds switched off in settings there is nothing for `A` to do
     ...(options.anonymize ? [sep(), options.kbdNode('A'), options.textNode(` ${uiText('shot.anonymize', { state: uiText(options.anonymize.on ? 'shot.on' : 'shot.off') })}`)] : []),
     ...(options.watermark !== null
-      ? [sep(), options.kbdNode('W'), options.textNode(` ${uiText('shot.watermark', { state: uiText(options.watermark!.on ? 'shot.on' : 'shot.off') })}`)]
+      ? [sep(), options.kbdNode('W'), options.textNode(` ${uiText('shot.watermark', { state: uiText(options.watermark.on ? 'shot.on' : 'shot.off') })}`)]
       : []),
   )
 }

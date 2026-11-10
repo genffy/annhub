@@ -106,14 +106,15 @@ export function drawAnnotation(ctx: CanvasRenderingContext2D, annotation: Annota
     return
   }
   if (annotation.tool === 'polyline') {
-    if (annotation.points.length < 2) return
+    const [start, ...rest] = annotation.points
+    if (!start || rest.length === 0) return
     ctx.strokeStyle = annotation.color
     ctx.lineWidth = annotation.pixelWidth
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     ctx.beginPath()
-    ctx.moveTo(annotation.points[0].x, annotation.points[0].y)
-    annotation.points.slice(1).forEach(point => ctx.lineTo(point.x, point.y))
+    ctx.moveTo(start.x, start.y)
+    rest.forEach(point => ctx.lineTo(point.x, point.y))
     ctx.stroke()
     return
   }

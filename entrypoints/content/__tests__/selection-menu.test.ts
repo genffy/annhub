@@ -28,8 +28,17 @@ describe('Enter follows the button that holds focus ', () => {
     const range = document.createRange()
     range.selectNodeContents(para)
     // jsdom ranges have no layout box
-    ;(range as unknown as { getBoundingClientRect: () => DOMRect }).getBoundingClientRect = () =>
-      ({ left: 10, top: 10, right: 300, bottom: 40, width: 290, height: 30, x: 10, y: 10, toJSON: () => ({}) }) as DOMRect
+    ;(range as unknown as { getBoundingClientRect: () => DOMRect }).getBoundingClientRect = () => ({
+      left: 10,
+      top: 10,
+      right: 300,
+      bottom: 40,
+      width: 290,
+      height: 30,
+      x: 10,
+      y: 10,
+      toJSON: () => ({}),
+    })
     const onClip = vi.fn()
     const onScreenshot = vi.fn()
     const menu = new SelectionMenu(document, { onClip, onScreenshot })
@@ -176,8 +185,17 @@ describe('the consequence hint is a floating tooltip, not a card row (真机反�
     const para = document.getElementById('para')!
     const range = document.createRange()
     range.selectNodeContents(para)
-    ;(range as unknown as { getBoundingClientRect: () => DOMRect }).getBoundingClientRect = () =>
-      ({ left: 10, top: 10, right: 300, bottom: 40, width: 290, height: 30, x: 10, y: 10, toJSON: () => ({}) }) as DOMRect
+    ;(range as unknown as { getBoundingClientRect: () => DOMRect }).getBoundingClientRect = () => ({
+      left: 10,
+      top: 10,
+      right: 300,
+      bottom: 40,
+      width: 290,
+      height: 30,
+      x: 10,
+      y: 10,
+      toJSON: () => ({}),
+    })
     const menu = new SelectionMenu(document, { onClip: () => undefined, onScreenshot: () => undefined })
     menu.show(range)
 
@@ -213,14 +231,23 @@ describe('the pill says which side of the line it is on (extension.md §2.1)', (
       const para = document.getElementById('para')!
       const range = document.createRange()
       range.selectNodeContents(para)
-      ;(range as unknown as { getBoundingClientRect: () => DOMRect }).getBoundingClientRect = () =>
-        ({ left: 40, top, right: 300, bottom: top + 24, width: 260, height: 24, x: 40, y: top, toJSON: () => ({}) }) as DOMRect
+      ;(range as unknown as { getBoundingClientRect: () => DOMRect }).getBoundingClientRect = () => ({
+        left: 40,
+        top,
+        right: 300,
+        bottom: top + 24,
+        width: 260,
+        height: 24,
+        x: 40,
+        y: top,
+        toJSON: () => ({}),
+      })
       const menu = new SelectionMenu(document, { onClip: () => undefined, onScreenshot: () => undefined })
       menu.show(range)
       const host = document.querySelector('[data-ann-ui="selection-menu"]') as HTMLElement
       // jsdom lays nothing out: give the placed card the box the browser would have
       const placed = Number.parseFloat(host.style.top)
-      host.getBoundingClientRect = () => ({ left: 50, top: placed, right: 290, bottom: placed + 40, width: 240, height: 40, x: 50, y: placed, toJSON: () => ({}) }) as DOMRect
+      host.getBoundingClientRect = () => ({ left: 50, top: placed, right: 290, bottom: placed + 40, width: 240, height: 40, x: 50, y: placed, toJSON: () => ({}) })
       const tip = host.querySelector('.ann-menu-tip') as HTMLElement
       const dwell = async (): Promise<void> => {
         ;(host.querySelector('.ann-menu-clip') as HTMLElement).dispatchEvent(new MouseEvent('pointerenter', { bubbles: true }))

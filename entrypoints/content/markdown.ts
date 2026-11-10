@@ -445,7 +445,7 @@ function emitElement(el: Element, ctx: Ctx, out: Emitter): void {
   if (nextCode && codeHeader(nextCode) === el) return
 
   if (HEADINGS[tag]) {
-    const level = Math.min(HEADINGS[tag]!, 6)
+    const level = Math.min(HEADINGS[tag], 6)
     out.addBlock(`${'#'.repeat(level)} ${inlineChildren(el, ctx).trim()}`)
     return
   }
@@ -647,9 +647,9 @@ export function elementToMarkdown(root: Element, slice?: MarkdownSlice, purpose:
     download: purpose === 'download',
     footnotes: purpose === 'download' ? collectFootnotes(root) : undefined,
     expanded: purpose === 'download' ? expandedPanels(root.ownerDocument) : undefined,
-    doc: root.ownerDocument!,
-    win: root.ownerDocument!.defaultView ?? window,
-    baseUrl: root.ownerDocument!.baseURI,
+    doc: root.ownerDocument,
+    win: root.ownerDocument.defaultView ?? window,
+    baseUrl: root.ownerDocument.baseURI,
     listDepth: 0,
     quoteDepth: 0,
   }

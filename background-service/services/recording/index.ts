@@ -179,7 +179,7 @@ export class RecordingService implements IService {
       START_RECORDING: async (message, sender): Promise<ResponseMessage> => {
         // only the extension's own pages — the popup — may start a recording (annotate.md §2.1)
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
-        return this.startRecording(message.tabId as number, message.streamId as string, message.withMic === true)
+        return this.startRecording(message.tabId, message.streamId, message.withMic === true)
       },
 
       GET_RECORDING_STATE: async (_message, sender): Promise<ResponseMessage> => {
@@ -230,7 +230,7 @@ export class RecordingService implements IService {
       RECORDING_EVENT: async (message, sender): Promise<ResponseMessage> => {
         // the offscreen document is an extension page; a tab sender is not the recorder
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
-        await this.handleEvent(message as RecordingEventMessage)
+        await this.handleEvent(message)
         return MessageUtils.createResponse(true)
       },
     }
@@ -304,7 +304,7 @@ export class RecordingService implements IService {
 
   private async micGranted(): Promise<boolean> {
     try {
-      const status = await navigator.permissions.query({ name: 'microphone' as PermissionName })
+      const status = await navigator.permissions.query({ name: 'microphone' })
       return status.state === 'granted'
     } catch {
       return false
@@ -429,6 +429,7 @@ export class RecordingService implements IService {
         await this.downloadPending()
         return
       }
+      case 'started':
       default:
         return
     }

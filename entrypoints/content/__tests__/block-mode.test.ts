@@ -74,7 +74,7 @@ const clipped = (hooks: Hooks): { candidate: BlockCandidate; levelChanged: boole
 }
 
 beforeEach(() => {
-  Element.prototype.scrollIntoView = vi.fn() as unknown as typeof Element.prototype.scrollIntoView
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
 afterEach(() => {
@@ -339,7 +339,7 @@ describe('scrolling and focus', () => {
   it('only keyboard moves scroll the page; pointer moves just re-aim the outline', () => {
     document.body.innerHTML = NESTED
     const scroll = vi.fn()
-    Element.prototype.scrollIntoView = scroll as unknown as typeof Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = scroll
     document.getElementById('code')!.focus()
     const target = document.querySelector('section p') as HTMLElement
     document.elementFromPoint = vi.fn(() => target)

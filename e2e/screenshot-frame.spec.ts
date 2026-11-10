@@ -74,7 +74,7 @@ async function ringsEqual(page: import('@playwright/test').Page, ids: string[], 
     ids.map(async id => {
       const sw = await ensureServiceWorker(page.context())
       return sw.evaluate(async assetId => {
-        const open = (await indexedDB.open('annhub')) as IDBOpenDBRequest
+        const open = indexedDB.open('annhub')
         return await new Promise<string>(resolve => {
           open.onsuccess = () => {
             const db = open.result

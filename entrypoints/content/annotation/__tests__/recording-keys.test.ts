@@ -23,7 +23,7 @@ describe('recording-time single keys (annotate.md §3.1)', () => {
     exitAnnotationLayer()
   })
 
-  const press = (key: string): boolean => getActiveAnnotationLayer()!.handleRecordingKey(new KeyboardEvent('keydown', { key, bubbles: true } as KeyboardEventInit))
+  const press = (key: string): boolean => getActiveAnnotationLayer()!.handleRecordingKey(new KeyboardEvent('keydown', { key, bubbles: true }))
 
   it('switches tools with their keys, and V is the pointer', () => {
     enterAnnotationLayer({ onScreenshot: () => undefined })

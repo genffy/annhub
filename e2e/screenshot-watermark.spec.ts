@@ -119,7 +119,7 @@ interface ReadOptions {
 
 /** Reads the pixels of an image inside the page, where a canvas lives. */
 async function read(page: Page, options: ReadOptions): Promise<Reading> {
-  return page.evaluate(async ({ source, within, backdrop = [255, 255, 255], points = [] }) => {
+  return page.evaluate(async ({ source, within, backdrop = [255, 255, 255] as Rgb, points = [] }) => {
     let image: HTMLCanvasElement | ImageBitmap | HTMLImageElement
     if (source === 'canvas') {
       image = document.querySelector('[data-ann-ui="screenshot-preview"] canvas') as HTMLCanvasElement

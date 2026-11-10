@@ -171,7 +171,7 @@ function asComparableDate(value: unknown): number | null {
   const date = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
   if (date) return Date.UTC(Number(date[1]), Number(date[2]) - 1, Number(date[3]))
   const datetime = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})$/.exec(value)
-  if (datetime) return Date.UTC(+datetime[1], +datetime[2] - 1, +datetime[3], +datetime[4], +datetime[5], +datetime[6])
+  if (datetime) return Date.UTC(Number(datetime[1]), Number(datetime[2]) - 1, Number(datetime[3]), Number(datetime[4]), Number(datetime[5]), Number(datetime[6]))
   return null
 }
 

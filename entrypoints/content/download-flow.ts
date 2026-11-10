@@ -89,7 +89,7 @@ export function downloadBlock(candidate: BlockCandidate, via: PageDownloadVia): 
     showNotice(notice('failed', 'EMPTY_CONTENT'))
     return
   }
-  start({
+  void start({
     meta: { ...pageMetaFor(platform?.sourceUrl ?? sourceOf(candidate)), ...platform?.meta },
     markdown,
     media: collectMedia(element, markdown, slice),

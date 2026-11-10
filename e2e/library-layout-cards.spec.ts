@@ -209,7 +209,8 @@ test.describe('the card bottoms, tall captures and the reading note (extension.m
       const chip = meta.querySelector('.type-chip')!
       const source = meta.querySelector('.entry-card-source')!
       const highlights = meta.querySelector('.entry-card-highlights')!
-      const [metaBox, chipBox, sourceBox, highlightsBox, cardBox] = [meta, chip, source, highlights, card].map(element => element.getBoundingClientRect())
+      const box = (element: Element): DOMRect => element.getBoundingClientRect()
+      const [metaBox, chipBox, sourceBox, highlightsBox, cardBox] = [box(meta), box(chip), box(source), box(highlights), box(card)] as const
       const mid = (box: DOMRect) => (box.top + box.bottom) / 2
       return {
         oneLine: Math.abs(mid(chipBox) - mid(sourceBox)) <= 1.5 && Math.abs(mid(sourceBox) - mid(highlightsBox)) <= 1.5,

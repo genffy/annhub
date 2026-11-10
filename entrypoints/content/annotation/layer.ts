@@ -173,8 +173,8 @@ export class AnnotationLayer {
   }
 
   private add(target: EventTarget, type: string, listener: (event: Event) => void, capture = false): void {
-    target.addEventListener(type, listener as EventListener, capture)
-    this.listeners.push([target, type, listener as EventListener])
+    target.addEventListener(type, listener, capture)
+    this.listeners.push([target, type, listener])
   }
 
   /** showPopover, guarded: an already-open popover throws instead of ignoring the call. */

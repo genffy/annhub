@@ -2,18 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createNoticeBubble, NOTICE_BUBBLE_FADE_MS, NOTICE_BUBBLE_MS } from '../notice-bubble'
 
 /** A toolbar box sitting 100px wide at the viewport's bottom right, like the editor's bar. */
-const TOOLBAR_BOX = (): DOMRect =>
-  ({
-    left: 900,
-    right: 1000,
-    top: 600,
-    bottom: 640,
-    width: 100,
-    height: 40,
-    x: 900,
-    y: 600,
-    toJSON: () => undefined,
-  }) as DOMRect
+const TOOLBAR_BOX = (): DOMRect => ({
+  left: 900,
+  right: 1000,
+  top: 600,
+  bottom: 640,
+  width: 100,
+  height: 40,
+  x: 900,
+  y: 600,
+  toJSON: () => undefined,
+})
 
 describe('createNoticeBubble (真机反馈)', () => {
   beforeEach(() => {

@@ -113,18 +113,18 @@ export class DownloadService implements IService {
       START_PAGE_DOWNLOAD: async (message, sender): Promise<ResponseMessage> => {
         // the page's own content script, from the top frame: the page chose what to download (download.md §2)
         if (!isTopFrameTabSender(sender) || sender.tab?.id === undefined) return forbiddenResponse()
-        return this.startPage(message as StartPageDownloadMessage, sender.tab.id)
+        return this.startPage(message, sender.tab.id)
       },
 
       START_LIBRARY_DOWNLOAD: async (message, sender): Promise<ResponseMessage> => {
         // only the library's own pages start a library download (download.md §3)
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
-        return this.startLibrary(message as StartLibraryDownloadMessage)
+        return this.startLibrary(message)
       },
 
       ESTIMATE_DOWNLOAD: async (message, sender): Promise<ResponseMessage> => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
-        const entryIds = Array.isArray(message.entryIds) ? (message.entryIds as string[]).filter(id => typeof id === 'string') : []
+        const entryIds = Array.isArray(message.entryIds) ? message.entryIds.filter(id => typeof id === 'string') : []
         if (entryIds.length === 0 || entryIds.length > DOWNLOAD_LIMITS.libraryMaxEntries) return MessageUtils.createResponse(false, undefined, 'DOWNLOAD_TOO_MANY')
         const store = await initializedEntryStore()
         const [entries, settings] = await Promise.all([Promise.all(entryIds.map(id => store.getEntry(id))), readSettings()])
@@ -167,7 +167,7 @@ export class DownloadService implements IService {
       DOWNLOAD_RUN_EVENT: async (message, sender): Promise<ResponseMessage> => {
         // the offscreen document is an extension page without a tab; a tab sender is not the runner
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
-        await this.onRunEvent(message as DownloadRunEventMessage)
+        await this.onRunEvent(message)
         return MessageUtils.createResponse(true)
       },
     }

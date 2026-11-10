@@ -14,7 +14,7 @@ import type { ExtensionSettings, SettingsPatch } from '../../core/settings'
 import { EntryStore, type OrphanReport } from '../../core/store'
 import type { MetricsPanelData } from '../../core/metrics'
 import { backgroundCss, decodeWatermarkImage, paintWatermark, type WatermarkImage } from '../../utils/screenshot-output'
-import { BEAUTIFY_BACKGROUND_IDS, BEAUTIFY_RADII, PADDING_PX, RATIO_PRESETS, type BeautifyBackground, type BeautifyPadding } from '../../core/screenshot-options'
+import { BEAUTIFY_BACKGROUND_IDS, BEAUTIFY_RADII, PADDING_PX, RATIO_PRESETS, type BeautifyPadding } from '../../core/screenshot-options'
 import { formatBytes } from '../../utils/format-bytes'
 import { uiText, type UiTextKey } from '../../utils/ui-text'
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../../core/types'
@@ -61,8 +61,8 @@ function RecordingCard({ settings, patch }: { settings: ExtensionSettings; patch
     const tabId = Number(params.get('recordTab'))
     if (Number.isInteger(tabId) && tabId > 0) setRecordTabId(tabId)
     void navigator.permissions
-      .query({ name: 'microphone' as PermissionName })
-      .then(status => setGrant(status.state as 'granted' | 'denied' | 'prompt'))
+      .query({ name: 'microphone' })
+      .then(status => setGrant(status.state))
       .catch(() => setGrant('unknown'))
   }, [])
 
@@ -392,7 +392,7 @@ function WatermarkCard({ settings, patch }: { settings: ExtensionSettings; patch
               label: uiText(
                 ['settings.position.topLeft', 'settings.position.topRight', 'settings.position.bottomLeft', 'settings.position.bottomRight'][index]! as 'settings.position.topLeft',
               ),
-              corner: (['tl', 'tr', 'bl', 'br'] as const)[index],
+              corner: (['tl', 'tr', 'bl', 'br'] as const)[index]!,
             }))}
             onChange={position => void patch({ watermark: { ...settings.watermark, position } })}
           />
@@ -468,7 +468,7 @@ function BeautifyCard({ settings, patch }: { settings: ExtensionSettings; patch(
             ariaLabel={uiText('settings.background')}
             value={beautify.background}
             swatches={BEAUTIFY_BACKGROUND_IDS.map(id => ({ value: id, label: uiText(`shot.beautify.background.${id}`), css: id === 'none' ? '' : backgroundCss(id) }))}
-            onChange={background => void patch({ beautify: { ...beautify, background: background as BeautifyBackground } })}
+            onChange={background => void patch({ beautify: { ...beautify, background: background } })}
           />
         </div>
         <div className="set-fr">

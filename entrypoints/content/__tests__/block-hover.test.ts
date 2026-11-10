@@ -54,7 +54,7 @@ const capsule = (): HTMLElement | null => document.querySelector('[data-ann-ui="
 const capsuleLabels = (): string[] => [...(capsule()?.querySelectorAll('button') ?? [])].map(button => button.getAttribute('aria-label') ?? button.textContent ?? '')
 
 beforeEach(() => {
-  Element.prototype.scrollIntoView = vi.fn() as unknown as typeof Element.prototype.scrollIntoView
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
 afterEach(() => {

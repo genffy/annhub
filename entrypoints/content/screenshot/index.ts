@@ -950,7 +950,7 @@ class ScreenshotSession {
     rect.style.top = `${selection.y}px`
     rect.style.width = `${selection.width}px`
     rect.style.height = `${selection.height}px`
-    const size = rect.querySelector('.ann-shot-size') as HTMLElement | null
+    const size = rect.querySelector<HTMLElement>('.ann-shot-size')
     if (size) size.textContent = `${Math.round(selection.width)} x ${Math.round(selection.height)}`
     this.positionConfirmBar()
   }

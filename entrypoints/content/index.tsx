@@ -85,7 +85,7 @@ function wireSelectionMenu(): void {
       if (isAnnotationLayerActive()) return
       const path = event.composedPath()
       const shadowRoot =
-        (path.find(node => node instanceof ShadowRoot) as ShadowRoot | undefined) ??
+        path.find((node): node is ShadowRoot => node instanceof ShadowRoot) ??
         (path.find(node => node instanceof Element && node.shadowRoot) as Element | undefined)?.shadowRoot ??
         undefined
       lastShadowRoot = shadowRoot

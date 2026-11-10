@@ -199,7 +199,7 @@ export function showClipToast(outcome: ClipOutcome, editAnchor: Range | HTMLElem
   host.addEventListener('focusin', pause)
   host.addEventListener('focusout', resume)
 
-  undo.addEventListener('click', async () => {
+  const undoCapture = async (): Promise<void> => {
     clear()
     undo.disabled = true
     const response = await MessageUtils.sendMessage({
@@ -214,7 +214,8 @@ export function showClipToast(outcome: ClipOutcome, editAnchor: Range | HTMLElem
       label.textContent = uiText('toast.undoFailed')
       undo.disabled = false
     }
-  })
+  }
+  undo.addEventListener('click', () => void undoCapture())
   edit.addEventListener('click', () => {
     clear()
     openEditBubble(outcome, editAnchor)

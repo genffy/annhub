@@ -102,7 +102,7 @@ function outcomesOf(current: Run): DownloadItemOutcome[] {
     const ref = `${item.dir}|${item.url ?? `asset:${item.assetId ?? ''}`}`
     const blob = item.url ? current.blobs.get(item.url) : current.assets.get(item.assetId ?? '')
     const failed = item.url ? current.failures.get(item.url) : current.failures.get(`asset:${item.assetId}`)
-    if (!blob || failed) return { ref, status: 'missing' as const, reason: failed ?? ('write-failed' as Reason) }
+    if (!blob || failed) return { ref, status: 'missing' as const, reason: failed ?? 'write-failed' }
     const url = URL.createObjectURL(blob)
     current.urls.push(url)
     return { ref, status: 'saved' as const, blobUrl: url, mime: blob.type }

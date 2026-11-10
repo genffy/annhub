@@ -154,7 +154,7 @@ describe('a section interval keeps only its own children in the clone (RV-CAP-13
       return document.createElement('canvas')
     })
 
-    await captureElement(content as HTMLElement, { section: { start: document.getElementById('h-install')!, end: document.getElementById('h-usage')! } })
+    await captureElement(content, { section: { start: document.getElementById('h-install')!, end: document.getElementById('h-usage')! } })
 
     expect(cloneAtRaster).toHaveLength(1)
     const clone = cloneAtRaster[0]! as HTMLElement

@@ -179,7 +179,7 @@ export function fixWebmDuration(input: Uint8Array, durationMs: number): Uint8Arr
   const duration = infoChildren.find(element => idsEqual(element.id, ID_DURATION))
   if (duration && (duration.dataLength === 4 || duration.dataLength === 8)) {
     // in place: same byte length, so every offset after — the SeekHead's — stays true
-    const valueBytes = floatBytes(durationTicks, duration.dataLength as 4 | 8)
+    const valueBytes = floatBytes(durationTicks, duration.dataLength)
     const out = input.slice()
     out.set(valueBytes, duration.dataOffset)
     return out

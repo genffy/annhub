@@ -462,6 +462,7 @@ export function MarkdownView({ markdown, highlights = [], onHighlightClick, surf
       case 'hr':
         nodes.push(<hr key={block.key} />)
         break
+      case 'p':
       default:
         nodes.push(<p key={block.key}>{runLines(block.lines, block.key)}</p>)
     }

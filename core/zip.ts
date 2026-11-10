@@ -30,7 +30,7 @@ const CRC_TABLE = (() => {
 function crc32(bytes: Uint8Array): number {
   let crc = 0xffffffff
   for (let i = 0; i < bytes.length; i++) {
-    crc = CRC_TABLE[(crc ^ bytes[i]) & 0xff] ^ (crc >>> 8)
+    crc = CRC_TABLE[(crc ^ bytes[i]!) & 0xff]! ^ (crc >>> 8)
   }
   return (crc ^ 0xffffffff) >>> 0
 }
@@ -39,7 +39,7 @@ async function crc32Blob(blob: Blob): Promise<number> {
   let crc = 0xffffffff
   for (let offset = 0; offset < blob.size; offset += 1024 * 1024) {
     const chunk = new Uint8Array(await blob.slice(offset, offset + 1024 * 1024).arrayBuffer())
-    for (const byte of chunk) crc = CRC_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8)
+    for (const byte of chunk) crc = CRC_TABLE[(crc ^ byte) & 0xff]! ^ (crc >>> 8)
   }
   return (crc ^ 0xffffffff) >>> 0
 }

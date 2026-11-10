@@ -162,7 +162,7 @@ describe('the offscreen sender gate (RV-BG-11, notes/sender-rules.md)', () => {
 
 describe('the start guard on stale state (RV-REC-05, annotate.md §2.5)', () => {
   it('a recorder still rolling refuses the next start without asking the worker', async () => {
-    await expect(await sendAsync({ type: 'RECORDING_START', streamId: 's1', withMic: false })).toMatchObject({ success: true })
+    expect(await sendAsync({ type: 'RECORDING_START', streamId: 's1', withMic: false })).toMatchObject({ success: true })
     expect(FakeRecorder.instances[FakeRecorder.instances.length - 1]?.state).toBe('recording')
     const answer = await sendAsync({ type: 'RECORDING_START', streamId: 's2', withMic: false })
     expect(answer).toMatchObject({ success: false })

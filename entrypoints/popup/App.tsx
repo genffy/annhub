@@ -133,7 +133,7 @@ export default function App() {
       // without a live grant the settings page asks, this does not record (annotate.md §2.1)
       let granted
       try {
-        granted = (await navigator.permissions.query({ name: 'microphone' as PermissionName })).state === 'granted'
+        granted = (await navigator.permissions.query({ name: 'microphone' })).state === 'granted'
       } catch {
         granted = false
       }

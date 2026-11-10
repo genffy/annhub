@@ -172,7 +172,7 @@ export class LocalMetrics {
     const shape = await this.storage.get()
     const day = dayKey(at)
     shape[event] ??= {}
-    const bucket = (shape[event]![day] ??= { total: 0, byProps: {} })
+    const bucket = (shape[event][day] ??= { total: 0, byProps: {} })
     bucket.total++
     const key = serializeProps(props)
     if (key) bucket.byProps[key] = (bucket.byProps[key] ?? 0) + 1

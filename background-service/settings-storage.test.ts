@@ -29,7 +29,7 @@ describe('settings schema (RV-BG-07)', () => {
 
   it('merges nested patches, discards unknown keys and repairs invalid stored values', async () => {
     await writeSettings({ watermark: { enabled: true, text: 'AnnHub', position: 'top-left', size: 'small', opacity: 0.7 } })
-    await writeSettings({ watermark: { opacity: 0.5 } } as never)
+    await writeSettings({ watermark: { opacity: 0.5 } })
     expect((await readSettings()).watermark).toMatchObject({ text: 'AnnHub', position: 'top-left', opacity: 0.5 })
     stored['annhub.settings'] = { downloadQuality: 100, unknown: 'secret', watermark: { text: 'x'.repeat(41) } }
     expect(await readSettings()).toMatchObject({ downloadQuality: 0.9, watermark: { text: '' } })

@@ -81,7 +81,7 @@ it.each([
 ])(
   'extracts the %s long article after test attributes are removed',
   async (name, title) => {
-    load(name!, 'https://x.com/sampleauthor/status/2013045749580259680')
+    load(name, 'https://x.com/sampleauthor/status/2013045749580259680')
     const platform = extractXContent(document.querySelector('article')!)
     expect(platform?.meta.title).toBe(title)
     const markdown = await download(platform!.element)
