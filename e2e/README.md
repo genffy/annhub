@@ -1,9 +1,8 @@
 # 浏览器验证说明
 
-自动化 E2E 使用 Playwright 自带的 Chromium 与预构建扩展：
+自动化 E2E 使用 Playwright 自带的 Chromium；扩展由 global-setup 按需构建：
 
 ```bash
-pnpm run build
 pnpm exec playwright test
 ```
 
@@ -11,7 +10,7 @@ pnpm exec playwright test
 
 `settings-metrics.spec.ts` 在浏览器的本地日历里固定播种上周日与本周一，分别验证两周的数据；不要假设前天与昨天属于同一周，也不要混用 Node 与浏览器各自的日期。
 
-`e2e/global-setup.ts` 在 `.output/chrome-mv3` 已存在时不会自动重建。源码有变化时，必须先手动构建。fixture 服务器由 Playwright 配置启动，不需要为自动化测试另开服务。
+`e2e/global-setup.ts` 在没有构建、`BUILD_FORCE=1` 或构建输入比 `.output/chrome-mv3/manifest.json` 新时自动重建（判断在 `scripts/build-freshness.ts`，触发文件打印在日志里）。fixture 服务器由 Playwright 配置启动，不需要为自动化测试另开服务。
 
 检查原生下载目录与“下载前询问”时，使用独立临时 Chrome profile，连接 CDP 必须传 `noDefaults: true`。默认连接会接管下载、改用临时目录和 UUID 文件名，不能证明浏览器自己的重名处理或保存窗口行为。磁盘预置同名图片后再下载，逐一解码 Markdown 的相对 URL 并检查文件存在；不要只比较未编码的文本。
 

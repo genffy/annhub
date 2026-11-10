@@ -27,32 +27,11 @@
 接手前先知道的几件事：
 
 - 包管理器是 pnpm。给脚本传参直接写在后面，不加 `--`（pnpm 会把 `--` 原样交给脚本，官网的生产构建是 `pnpm run build --production`）；跑依赖里的命令用 `pnpm exec`；本机 registry 是镜像时 `pnpm audit` 要带 `--registry https://registry.npmjs.org`。
-- 每个提交之前跑 `pnpm run verify`；动了扩展源码，`pnpm run build` 之后再跑相关 E2E（RV-TEST-09 做完之前，`.output` 不随源码重建）。
+- 每个提交之前跑 `pnpm run verify`；相关 E2E 直接跑，global-setup 会自动重建过期的构建（`scripts/build-freshness.ts`）。
 - 根 `AGENTS.md` 与 `background-service/AGENTS.md` 离 8 KB 上限只差几个字节：新约定写进同目录的 `notes/` 或 `scripts/README.md`，不往这两个文件里加。
 - 依赖方向由 `eslint.config.js` 的 `no-restricted-imports` 守，worker 一侧由 `tsconfig.worker.json` 不带 DOM 库再查一遍；`utils/` 的导出不是全局变量，用到就 import。
 - `command-handler.ts`、`installation-handler.ts` 的监听器保持 async：它们的测试 await 监听器的返回值。
 - 查不熟悉的工具行为时读已安装版本的文档或源码（pnpm 12、vitest 5、wxt 0.21 都比常见资料新），不凭记忆写配置。
-
-### 测试设施
-
-#### RV-TEST-09 E2E 会拿过期的构建来测（中）
-
-**问题**
-
-- `e2e/global-setup.ts` 只在 `.output/chrome-mv3` 不存在或 `BUILD_FORCE=1` 时构建。源码改了而没有重建，E2E 测的是上一次的产物，结果是绿的。
-- “改源码必须先重建”靠人记，写在 `e2e/AGENTS.md`、`e2e/README.md`、`entrypoints/content/AGENTS.md`、`entrypoints/content/screenshot/AGENTS.md`、`entrypoints/library/AGENTS.md`、`scripts/README.md` 六处。
-
-**要求**
-
-1. 构建输入里有文件比 `.output/chrome-mv3/manifest.json` 新，global-setup 就重建，并打印是哪个文件触发的。构建输入是 `entrypoints/`、`background-service/`、`core/`、`utils/`、`types/`、`styles/`、`locales/`、`public/`、`assets/`、`constants.ts`、`wxt.config.ts`、`package.json`、`pnpm-lock.yaml`、`tsconfig*.json`，不含 `__tests__/` 与 `*.test.*`。
-2. 判断写成 `scripts/` 下的纯函数并配单测（`e2e/` 不在 vitest 的范围里），`e2e/global-setup.ts` 调用它。`BUILD_FORCE=1` 保留。
-3. 上面六处文档改成现在的行为，删掉要求手动重建的句子；`e2e/real-chrome-scenarios.md` 的手工步骤不动。
-
-**验收**
-
-1. 改一个源码文件后直接跑 `pnpm exec playwright test e2e/cold-start.spec.ts`，日志显示先重建；只改 spec 文件时不重建。
-2. CI 的 e2e job 在自己的构建步骤之后不再构建第二次（看 global-setup 的日志）。
-3. 单测覆盖四种情形：输入更新、输入不更新、构建目录不存在、只有测试文件更新。
 
 ### 消息协议
 

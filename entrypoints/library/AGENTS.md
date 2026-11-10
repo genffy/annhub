@@ -30,7 +30,7 @@
 ## 验证
 
 - 渲染与偏移换算等纯函数：`pnpm test entrypoints/library`。
-- 页面行为：先 `rm -rf .output/chrome-mv3 && pnpm run build`，再跑：
+- 页面行为（global-setup 会自动重建过期的构建），跑：
   - `e2e/library-browse.spec.ts`
   - `e2e/library-drawer-edit.spec.ts`
   - `e2e/library-export.spec.ts`
