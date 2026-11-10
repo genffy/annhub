@@ -33,27 +33,6 @@
 - `command-handler.ts`、`installation-handler.ts` 的监听器保持 async：它们的测试 await 监听器的返回值。
 - 查不熟悉的工具行为时读已安装版本的文档或源码（pnpm 12、vitest 5、wxt 0.21 都比常见资料新），不凭记忆写配置。
 
-### 消息协议
-
-#### RV-BG-13 写操作的广播名单是手写的，漏了 `RESTORE_HIGHLIGHT`（中）
-
-**问题**
-
-- `entrypoints/background/index.ts` 的 `MUTATION_MESSAGE_TYPES` 是一个字符串集合，里面没有 `RESTORE_HIGHLIGHT`（撤销删除高亮）。按代码推断：两个资料库标签页同时开着，一个里撤销删除，另一个的高亮视图与计数不刷新。这一条没有在浏览器里复现过。
-- `background-service/service-manager.ts` 的 `IDEMPOTENT_TYPES` 也是字符串集合。新增一个写消息时，没有东西提醒补这两张名单。
-
-**要求**
-
-1. 先复现，写成 E2E 或单测，用例名带本编号。
-2. 两张名单从一张对 `ExtensionMessage['type']` 穷尽的分类表派生：新消息不分类就编译不过。
-3. 属性注册表的三个写操作（`UPSERT_PROPERTY`、`DELETE_PROPERTY`、`DELETE_UNUSED_PROPERTIES`）是否广播，按 `docs/product/extension.md` 的现有约定判断；文档没有写的行为不加。
-
-**验收**
-
-1. 复现用例改动前失败、改动后通过。
-2. 临时往联合里加一个消息类型而不分类，`pnpm run compile` 失败。
-3. `pnpm run verify` 与 `e2e/reading-highlight.spec.ts` 通过。
-
 ### 内容脚本体积
 
 量法：构建后看 `.output/chrome-mv3/` 的文件大小；各部分的占比用 esbuild 单独打包那一部分（minify）得到。

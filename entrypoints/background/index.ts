@@ -2,11 +2,9 @@ import { Logger } from '../../utils/logger'
 import backgroundServiceManager from '../../background-service'
 import MessageUtils from '../../utils/message'
 import type { BaseMessage } from '../../types/messages'
+import { ENTRY_CHANGE_BROADCAST_TYPES } from '../../types/messages'
 import { listenForFrames } from '../../background-service/services/screenshot/frame-memory'
 import { listenForRecording } from '../../background-service/services/recording'
-
-/** Mutations the open library pages listen for, to refresh their lists without a reload ). */
-const MUTATION_MESSAGE_TYPES = new Set(['SAVE_CLIP', 'SAVE_SCREENSHOT', 'UPDATE_ENTRY', 'DELETE_ENTRY', 'ADD_HIGHLIGHT', 'UPDATE_HIGHLIGHT', 'REMOVE_HIGHLIGHT'])
 
 export default defineBackground(() => {
   Logger.info('AnnHub background loaded', { id: browser.runtime.id })
@@ -30,10 +28,11 @@ export default defineBackground(() => {
     MessageUtils.wrapAsyncHandler(async (message: BaseMessage, sender: chrome.runtime.MessageSender) => {
       await backgroundServiceManager.whenReady()
       const response = await backgroundServiceManager.dispatchMessage(message, sender)
-      // A write that succeeded tells the open library pages their lists are stale.
-      // BroadcastChannel is private to this extension's origin, and works from a
-      // suspended-and-restarted worker's successor alike.
-      if (response.success && typeof message?.type === 'string' && MUTATION_MESSAGE_TYPES.has(message.type)) {
+      // A write that succeeded tells the open library pages their lists are stale; the list of
+      // writes is derived from the protocol's coordination table (RV-BG-13), so a new message
+      // cannot be forgotten here. BroadcastChannel is private to this extension's origin, and
+      // works from a suspended-and-restarted worker's successor alike.
+      if (response.success && typeof message?.type === 'string' && ENTRY_CHANGE_BROADCAST_TYPES.has(message.type)) {
         try {
           new BroadcastChannel('annhub.entries').postMessage({ type: 'entries-changed' })
         } catch {

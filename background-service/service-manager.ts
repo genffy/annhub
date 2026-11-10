@@ -1,6 +1,7 @@
 import { Logger } from '../utils/logger'
 import MessageUtils from '../utils/message'
 import type { BaseMessage, ExtensionMessage, ResponseDataOf, ResponseMessage } from '../types/messages'
+import { REQUEST_ID_CACHED_TYPES } from '../types/messages'
 import { EXTENSION_PAGES, openExtensionPage } from '../utils/extension-pages'
 import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from './sender'
 
@@ -27,8 +28,7 @@ export interface IService {
   cleanup?(): Promise<void>
 }
 
-/** Creation messages a lost response must never duplicate on retry. */
-const IDEMPOTENT_TYPES = new Set(['SAVE_CLIP', 'SAVE_SCREENSHOT'])
+/** Creation messages a lost response must never duplicate on retry — the set comes from the protocol's coordination table (RV-BG-13). */
 const RESPONSE_CACHE_LIMIT = 64
 
 export class ServiceManager {
@@ -92,7 +92,7 @@ export class ServiceManager {
 
     const requestId = typeof message.requestId === 'string' ? message.requestId : ''
     const senderKey = `${sender.id ?? ''}:${sender.tab?.id ?? ''}:${sender.frameId ?? ''}:${sender.url ?? ''}`
-    const cacheKey = requestId && IDEMPOTENT_TYPES.has(message.type) ? `${senderKey}:${message.type}:${requestId}` : ''
+    const cacheKey = requestId && REQUEST_ID_CACHED_TYPES.has(message.type) ? `${senderKey}:${message.type}:${requestId}` : ''
     if (cacheKey && this.responseCache.has(cacheKey)) {
       return this.responseCache.get(cacheKey)!
     }

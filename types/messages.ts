@@ -670,3 +670,89 @@ export type ResponseDataForEveryMessage = Pick<ResponseDataMap, ExtensionMessage
 
 /** The response `data` of a message type; callers never spell it out (RV-BG-12). */
 export type ResponseDataOf<K extends ExtensionMessage['type']> = K extends keyof ResponseDataMap ? ResponseDataMap[K] : never
+
+// ── Coordination: what a message does beyond its own response (RV-BG-13) ─
+
+/** How a message participates in cross-context coordination; false is the answer for every read. */
+export interface MessageCoordination {
+  /** A write whose success tells the open library pages their lists are stale (the `annhub.entries` broadcast). */
+  broadcastsEntryChange: boolean
+  /** A creation whose response the worker caches by requestId, so a retry after a lost response cannot create twice (RV-BG-01). */
+  cachesResponseByRequestId: boolean
+}
+
+const COORDINATION_NONE: MessageCoordination = { broadcastsEntryChange: false, cachesResponseByRequestId: false }
+const COORDINATION_BROADCAST: MessageCoordination = { broadcastsEntryChange: true, cachesResponseByRequestId: false }
+const COORDINATION_BOTH: MessageCoordination = { broadcastsEntryChange: true, cachesResponseByRequestId: true }
+
+/**
+ * One exhaustive row per message type — the single place the broadcast and the idempotency lists
+ * come from (RV-BG-13); a message missing here or given a wrong row is a compile error, not a
+ * silently stale list. The property registry writes do not broadcast: no product doc says they do.
+ */
+export const MESSAGE_COORDINATION = {
+  SAVE_CLIP: COORDINATION_BOTH,
+  SAVE_SCREENSHOT: COORDINATION_BOTH,
+  DELETE_ENTRY: COORDINATION_BROADCAST,
+  UPDATE_ENTRY: COORDINATION_BROADCAST,
+  ADD_HIGHLIGHT: COORDINATION_BROADCAST,
+  UPDATE_HIGHLIGHT: COORDINATION_BROADCAST,
+  REMOVE_HIGHLIGHT: COORDINATION_BROADCAST,
+  RESTORE_HIGHLIGHT: COORDINATION_BROADCAST,
+  QUERY_ENTRIES: COORDINATION_NONE,
+  QUERY_HIGHLIGHTS: COORDINATION_NONE,
+  QUERY_FACETS: COORDINATION_NONE,
+  GET_ENTRY: COORDINATION_NONE,
+  GET_ASSET_DATA_URL: COORDINATION_NONE,
+  LIST_PROPERTIES: COORDINATION_NONE,
+  UPSERT_PROPERTY: COORDINATION_NONE,
+  DELETE_PROPERTY: COORDINATION_NONE,
+  DELETE_UNUSED_PROPERTIES: COORDINATION_NONE,
+  CAPTURE_VISIBLE_TAB: COORDINATION_NONE,
+  FETCH_IMAGE: COORDINATION_NONE,
+  DOWNLOAD_IMAGE: COORDINATION_NONE,
+  REMEMBER_FRAME: COORDINATION_NONE,
+  READ_FRAME: COORDINATION_NONE,
+  START_RECORDING: COORDINATION_NONE,
+  GET_RECORDING_STATE: COORDINATION_NONE,
+  OFFSCREEN_PING: COORDINATION_NONE,
+  STOP_RECORDING: COORDINATION_NONE,
+  RETRY_RECORDING_DOWNLOAD: COORDINATION_NONE,
+  DISCARD_RECORDING: COORDINATION_NONE,
+  RECORDING_EVENT: COORDINATION_NONE,
+  RECORDING_STATUS: COORDINATION_NONE,
+  RECORDING_START: COORDINATION_NONE,
+  RECORDING_STOP: COORDINATION_NONE,
+  RECORDING_CLEANUP: COORDINATION_NONE,
+  START_PAGE_DOWNLOAD: COORDINATION_NONE,
+  EXTRACT_DOWNLOAD_PAGE: COORDINATION_NONE,
+  DOWNLOAD_EXTRACT: COORDINATION_NONE,
+  START_LIBRARY_DOWNLOAD: COORDINATION_NONE,
+  CANCEL_DOWNLOAD: COORDINATION_NONE,
+  ESTIMATE_DOWNLOAD: COORDINATION_NONE,
+  SHOW_DOWNLOAD_FILE: COORDINATION_NONE,
+  DOWNLOAD_RUN: COORDINATION_NONE,
+  DOWNLOAD_FINISH: COORDINATION_NONE,
+  DOWNLOAD_CANCEL: COORDINATION_NONE,
+  DOWNLOAD_RUN_EVENT: COORDINATION_NONE,
+  GET_SETTINGS: COORDINATION_NONE,
+  SET_SETTINGS: COORDINATION_NONE,
+  DISABLE_BLOCK_ENTRY: COORDINATION_NONE,
+  RECORD_EVENT: COORDINATION_NONE,
+  GET_METRICS: COORDINATION_NONE,
+  USAGE_ESTIMATE: COORDINATION_NONE,
+  ORPHAN_REPORT: COORDINATION_NONE,
+  OPEN_EXTENSION_PAGE: COORDINATION_NONE,
+} satisfies Record<ExtensionMessage['type'], MessageCoordination>
+
+export type MessageCoordinationTable = typeof MESSAGE_COORDINATION
+
+/** The writes that broadcast `entries-changed` to the open library pages (RV-BG-13). */
+export const ENTRY_CHANGE_BROADCAST_TYPES: ReadonlySet<string> = new Set(
+  (Object.keys(MESSAGE_COORDINATION) as ExtensionMessage['type'][]).filter(type => MESSAGE_COORDINATION[type].broadcastsEntryChange),
+)
+
+/** The creations whose response is cached by requestId (RV-BG-01, RV-BG-13). */
+export const REQUEST_ID_CACHED_TYPES: ReadonlySet<string> = new Set(
+  (Object.keys(MESSAGE_COORDINATION) as ExtensionMessage['type'][]).filter(type => MESSAGE_COORDINATION[type].cachesResponseByRequestId),
+)

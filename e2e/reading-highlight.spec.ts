@@ -110,6 +110,43 @@ test.describe('reading view and in-library highlights (extension.md §4.2)', () 
     await library.close()
   })
 
+  test('a restored highlight refreshes the other library page (RV-BG-13)', async ({ page, extensionId }) => {
+    await page.goto(getCapturePageUrl())
+    const menu = await selectUntilMenu(page, '#intro-p')
+    await menu.locator('.ann-menu-action').nth(0).click()
+    await waitForClipToast(page)
+
+    // the reading page creates one highlight; the highlights page of the same context watches on
+    const reading = await page.context().newPage()
+    await reading.goto(`chrome-extension://${extensionId}/library.html`)
+    await reading.locator('.entry-card').first().click()
+    await reading.getByTestId('drawer-read').click()
+    const surface = reading.getByTestId('reading-view').locator('.md-view')
+    await surface
+      .locator('span[data-s]', { hasText: 'Retries can amplify' })
+      .first()
+      .dblclick({ position: { x: 10, y: 8 } })
+    await reading.getByTestId('hl-toolbar').locator('.hl-dot-yellow').click()
+    await expect(reading.getByTestId('reading-view').locator('.md-hl')).toHaveCount(1)
+
+    const highlights = await page.context().newPage()
+    await highlights.goto(`chrome-extension://${extensionId}/library.html#/highlights`)
+    await expect(highlights.getByTestId('hl-groups').locator('.hl-group')).toHaveCount(1)
+
+    // create and delete both reach the other page through the entries-changed broadcast
+    await reading.getByTestId('reading-view').locator('.md-hl').first().click()
+    await reading.getByTestId('hl-delete').click()
+    await expect(highlights.locator('.empty')).toBeVisible()
+
+    // undoing the deletion is RESTORE_HIGHLIGHT: the other page must hear that write too
+    await reading.getByTestId('hl-notice').getByRole('button', { name: '撤销' }).click()
+    await expect(reading.getByTestId('reading-view').locator('.md-hl')).toHaveCount(1)
+    await expect(highlights.getByTestId('hl-groups').locator('.hl-group')).toHaveCount(1)
+
+    await highlights.close()
+    await reading.close()
+  })
+
   test('popover buttons survive a note edit: blur saves, clicks still land (RV-LIB-08)', async ({ page, extensionId }) => {
     await page.goto(getCapturePageUrl())
     const menu = await selectUntilMenu(page, '#intro-p')
