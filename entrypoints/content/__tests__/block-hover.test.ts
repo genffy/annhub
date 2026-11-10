@@ -8,7 +8,7 @@ import { BlockEntries, paintOutline, placeLabel, type BlockHoverHooks } from '..
 import type { PlacedBox } from '../capsule-place'
 import type { BlockCandidate } from '../blocks'
 import { layerKindName, layerLabel } from '../target-chain'
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 
 /**
  * The hover capsule over fixture DOM (capture.md §6.2): the pointer rests on

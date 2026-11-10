@@ -1,5 +1,19 @@
 import { describe, expect, it } from 'vitest'
-import { currentUiLanguage, entryErrorText, failureReason, screenshotFailureText, screenshotSaveErrorText, uiLanguageFor, uiText } from '../ui-text'
+import { createFailureHelpers, createUiText } from '../ui-text'
+import { currentUiLanguage, uiLanguageFor } from '../ui-language'
+import { captureStrings } from '../ui-text/strings-capture'
+import { popupStrings } from '../ui-text/strings-popup'
+import { libraryStrings } from '../ui-text/strings-library'
+import { settingsStrings } from '../ui-text/strings-settings'
+import { propertyStrings } from '../ui-text/strings-property'
+
+/**
+ * Every entry builds its texts on its own tables (RV-CAP-17); the tests compose all of them,
+ * so a key that belongs to no table at all fails to compile instead of failing a user.
+ */
+const table = { ...captureStrings, ...popupStrings, ...libraryStrings, ...settingsStrings, ...propertyStrings }
+const uiText = createUiText(table)
+const { entryErrorText, failureReason, screenshotFailureText, screenshotSaveErrorText } = createFailureHelpers(table)
 
 describe('ui text localization (extension.md §2.7)', () => {
   it('resolves Chinese-family UI languages and treats everything else as English', () => {

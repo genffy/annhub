@@ -9,7 +9,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
 import type { DownloadForm, DownloadMissingItem, DownloadNoticeMessage } from '../../types/messages'
-import { currentUiLanguage, uiText } from '../../utils/ui-text'
+import { currentUiLanguage } from '../../utils/ui-language'
+import { uiText } from './ui-text'
 
 export type DownloadPhase = 'idle' | 'active' | 'done' | 'partial' | 'failed' | 'cancelled' | 'busy'
 

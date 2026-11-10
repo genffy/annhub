@@ -3,7 +3,7 @@
  * then the scrolling-capture button. Rendered whenever the picking state can show it; the session
  * keeps the element and removes the old bar before the next render.
  */
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 import { isUserInput } from '../user-input'
 import { ratioOf } from '../../../utils/screenshot-output'
 

@@ -1,6 +1,6 @@
 /** X's semantic article structure (capture.md §3.2); no platform API or test attributes. */
 import { resolveImageSource, resolveVideoSource } from './media-source'
-import { uiText } from '../../utils/ui-text'
+import { uiText } from './ui-text'
 import { codeHeader, codeLanguage } from './markdown-code'
 
 export interface PlatformContent {

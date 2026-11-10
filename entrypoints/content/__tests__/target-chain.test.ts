@@ -17,7 +17,7 @@ import {
   startIndexOf,
 } from '../target-chain'
 import { candidateAnchor, type BlockCandidate } from '../blocks'
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 
 /**
  * The one target chain the capsule, the block mode, the viewfinder and the

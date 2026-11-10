@@ -43,7 +43,7 @@ import {
   type BlockKind,
 } from './blocks'
 import { isPageChrome } from './markdown'
-import { uiText } from '../../utils/ui-text'
+import { uiText } from './ui-text'
 
 export type ChainView = 'pixel' | 'content'
 

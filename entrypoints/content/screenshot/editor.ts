@@ -1,4 +1,4 @@
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 import type { ViewportRect } from './crop'
 import { mosaicBlockSize, pixelateRegion } from './mosaic'
 

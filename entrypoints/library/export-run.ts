@@ -5,7 +5,8 @@
  * and the nav note show. The shell owns the state; this owns the doing.
  */
 import MessageUtils from '../../utils/message'
-import { currentUiLanguage, uiText } from '../../utils/ui-text'
+import { currentUiLanguage } from '../../utils/ui-language'
+import { uiText } from './ui-text'
 import { buildExport, exportFileName } from '../../core/export'
 import { bucketCount } from '../../core/metrics'
 import { EntryStore } from '../../core/store'

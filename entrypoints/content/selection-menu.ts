@@ -10,7 +10,7 @@
  */
 import { isBlankText } from '../../core/normalize'
 import { isUserInput } from './user-input'
-import { uiText } from '../../utils/ui-text'
+import { uiText } from './ui-text'
 
 const ROOT_ATTR = 'data-ann-ui'
 const HINT_DELAY_MS = 300

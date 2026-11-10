@@ -17,7 +17,7 @@ import { SelectionMenu, plainTextForSelection, selectableRange } from './selecti
 import { enterScreenshotMode, isScreenshotSessionActive, notifyScreenshotSession } from './screenshot'
 import { downloadBlock, downloadMainArticle, onDownloadNotice } from './download-flow'
 import { isUserInput } from './user-input'
-import { uiText } from '../../utils/ui-text'
+import { uiText } from './ui-text'
 import { normalizeHost } from '../../core/normalize'
 import MessageUtils from '../../utils/message'
 import type { TabMessage } from '../../types/messages'

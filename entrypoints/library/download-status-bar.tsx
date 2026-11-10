@@ -7,7 +7,7 @@
  */
 import { CircleAlert, CircleCheck, Info, LoaderCircle, TriangleAlert, X } from 'lucide-react'
 import type { DownloadMissingReason } from '../../types/messages'
-import { uiText, type UiTextKey } from '../../utils/ui-text'
+import { uiText, type UiTextKey } from './ui-text'
 import type { DownloadClientState } from './download-client'
 
 const REASON_KEYS: Record<DownloadMissingReason, UiTextKey> = {

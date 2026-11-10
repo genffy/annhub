@@ -12,12 +12,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, ArrowUpRight, Download, MessageSquareText } from 'lucide-react'
 import MessageUtils from '../../utils/message'
 import type { EntryRecord, HighlightColor, PropertyDefinition } from '../../core/types'
-import { relativeTime } from '../../utils/relative-time'
-import { TypeChip } from '../../utils/entry-icons'
+import { relativeTime } from './ui-text'
+import { TypeChip } from './ui-text'
 import { HighlightSurface } from './highlight-surface'
 import type { LibraryDownload } from './download-client'
 import { PropertyPanel, type PropertyPanelHandle } from './property-panel'
-import { uiText } from '../../utils/ui-text'
+import { uiText } from './ui-text'
 
 interface Props {
   entryId: string

@@ -21,7 +21,7 @@
  */
 
 import MessageUtils from '../../../utils/message'
-import { screenshotFailureText, screenshotSaveErrorText, uiText, type UiTextKey } from '../../../utils/ui-text'
+import { screenshotFailureText, screenshotSaveErrorText, uiText, type UiTextKey } from '../ui-text'
 import { renderHintBar } from './hint-bar'
 import { newEntryId } from '../../../core/assets'
 import { normalizeHost } from '../../../core/normalize'

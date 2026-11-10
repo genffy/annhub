@@ -4,7 +4,7 @@
  * draws it on every state change; the segments are one localized string split on " · ", with a
  * leading key name turned into a keycap.
  */
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 
 export interface HintBarOptions {
   /** the selection is awaiting confirmation: the hint says how to adjust it */

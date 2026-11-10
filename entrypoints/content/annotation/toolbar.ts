@@ -6,7 +6,7 @@
 import { isLineTool, type LineWidth, type ScreenshotTool } from '../screenshot/editor'
 import { ANNOTATION_COLORS } from '../../../core/screenshot-options'
 import { isUserInput } from '../user-input'
-import { uiText, type UiTextKey } from '../../../utils/ui-text'
+import { uiText, type UiTextKey } from '../ui-text'
 import { exitAnnotationLayer } from './layer'
 import { ROOT_ATTR } from './annotation-roots'
 import type { AutoErase, InkTool } from './layer'

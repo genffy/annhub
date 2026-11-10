@@ -6,7 +6,7 @@
  * target inside, Enter clips, S screenshots, D downloads, Esc exits.
  */
 import { isUserInput } from './user-input'
-import { uiText } from '../../utils/ui-text'
+import { uiText } from './ui-text'
 import { candidateAnchor, sameCandidate, type BlockCandidate } from './blocks'
 import { chainAtPoint, chainForElement, chainHolding, childChainOf, firstVisibleChain, isSuppressed, layerStatus, peersOf, startIndexOf } from './target-chain'
 import { paintOutline, placeLabel } from './block-hover'

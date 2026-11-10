@@ -16,7 +16,7 @@ import type { EntryRecord, PropertyDefinition, PropertyType, PropertyValue } fro
 import { PROPERTY_TYPE_ICONS } from '../../utils/entry-icons'
 import { normalizeTags, PROPERTY_LIST_ITEM_MAX, PROPERTY_LIST_ITEMS_MAX, PROPERTY_TEXT_MAX, TAG_LENGTH_MAX, TAGS_MAX } from '../../core/properties'
 import { PropertyTypePicker } from './property-type-picker'
-import { entryErrorText, uiText } from '../../utils/ui-text'
+import { entryErrorText, uiText } from './ui-text'
 
 interface Props {
   entry: EntryRecord

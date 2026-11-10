@@ -13,7 +13,7 @@ import type { ExtensionMessage } from '../../types/messages'
 import { newHighlightId } from '../../core/assets'
 import { HIGHLIGHT_COLORS, type EntryRecord, type Highlight, type HighlightColor } from '../../core/types'
 import { MarkdownView, quoteForRange, sourceRangeFromSelection } from './markdown-view'
-import { entryErrorText, uiText } from '../../utils/ui-text'
+import { entryErrorText, uiText } from './ui-text'
 
 interface Props {
   entry: EntryRecord

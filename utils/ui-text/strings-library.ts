@@ -211,7 +211,6 @@ export const libraryStrings = {
   // Applied after substitution, only for the value 1.
   'library.type.clip': { zh: '剪藏', en: 'Clip' },
   'library.type.screenshot': { zh: '截图', en: 'Screenshot' },
-  'shot.saved': { zh: '截图已保存', en: 'Screenshot saved' },
   'library.loadMore': { zh: '显示更多（还有 {count} 条）', en: 'Show more ({count} more)' },
   'library.storageUsed': { zh: '已用 {size}', en: '{size} used' },
   'library.originalText': { zh: '原文', en: 'Original text' },

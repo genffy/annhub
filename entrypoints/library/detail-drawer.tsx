@@ -8,11 +8,11 @@ import type { EntryRecord, PropertyDefinition, HighlightColor } from '../../core
 import { PropertyPanel, type PropertyPanelHandle } from './property-panel'
 import { HighlightSurface } from './highlight-surface'
 import MessageUtils from '../../utils/message'
-import { relativeTime } from '../../utils/relative-time'
+import { relativeTime } from './ui-text'
 import { CONTENT_MAX_CHARS, CONTEXT_MAX_CHARS } from '../../core/validate'
 import { ArrowUpRight, BookOpen, Download, Image, Lock, MessageSquareText, Tags, TextQuote, Trash2, X } from 'lucide-react'
-import { entryErrorText, uiText } from '../../utils/ui-text'
-import { TypeChip } from '../../utils/entry-icons'
+import { entryErrorText, uiText } from './ui-text'
+import { TypeChip } from './ui-text'
 import type { LibraryDownload } from './download-client'
 
 function boldenCount(text: string, count: number) {

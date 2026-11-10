@@ -5,7 +5,7 @@
  */
 import type { ReactNode } from 'react'
 import type { CaptureTimingSummary, HabitSummary, MetricsPanelData } from '../../core/metrics'
-import { uiText } from '../../utils/ui-text'
+import { uiText } from './ui-text'
 import { SettingsCard } from './settings-card'
 
 export function MetricRow({ id, name, value, testId }: { id: string; name: string; value: ReactNode; testId?: string }) {

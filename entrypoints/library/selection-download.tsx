@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, CircleAlert, Download, Info, TriangleAlert } from 'lucide-react'
 import MessageUtils from '../../utils/message'
-import { uiText, type UiTextKey } from '../../utils/ui-text'
+import { uiText, type UiTextKey } from './ui-text'
 import { DOWNLOAD_LIMITS, type DownloadForm } from '../../core/download'
 import type { EstimateDownloadResult } from '../../types/messages'
 import type { LibraryDownload } from './download-client'

@@ -37,25 +37,6 @@
 
 量法：构建后看 `.output/chrome-mv3/` 的文件大小；各部分的占比用 esbuild 单独打包那一部分（minify）得到。
 
-#### RV-CAP-17 内容脚本带着所有界面的文案（中）
-
-**问题**
-
-- `utils/ui-text.ts` 把五张字符串表合成一个 `STRINGS`，`uiText` 按键名动态取，打包器摇不掉。内容脚本里因此有资料库、设置、弹窗的全部文案：全表 minify 后 63.5 KB，采集那张表只有 12 KB。
-- `ERROR_TEXT` 的键跨多张表；service worker 只用 `currentUiLanguage`，却和字符串表在同一个模块里。
-
-**要求**
-
-1. 每个入口只打包自己用到的表。键名仍在编译期检查：入口用了自己没带的表里的键要报错，不能等运行时把键名显示给用户。
-2. 先列出内容脚本实际用到的键（`git grep -ohE "uiText\('[a-zA-Z.]+'" entrypoints/content | sort -u`），再定它带哪几张表；快速编辑气泡会用到属性的错误文案。
-3. `currentUiLanguage` 挪到不带字符串表的模块。
-4. `utils/__tests__/ui-text.test.ts`、`ui-literals.test.ts`、`locale-keys.test.ts` 的断言不放宽。
-
-**验收**
-
-1. 构建后的 `content.js` 里搜不到 `library.searchPlaceholder` 与 `settings.title`；`background.js` 里搜不到任何文案键。
-2. `pnpm run verify` 通过；`e2e/selection-clip.spec.ts`、`e2e/popup-entry.spec.ts`、`e2e/library-shell.spec.ts` 通过。
-
 #### RV-TEST-10 构建产物没有体积预算（中）
 
 **问题**

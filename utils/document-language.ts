@@ -1,4 +1,4 @@
-import { currentUiLanguage } from './ui-text'
+import { currentUiLanguage } from './ui-language'
 
 /** Marks the extension page's document language for the UI language in effect. Pages only: the service worker has no document. */
 export function applyDocumentLanguage(): void {

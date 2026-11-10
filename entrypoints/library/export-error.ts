@@ -3,7 +3,7 @@
  * — a failed export makes no file at all, so every message says so). Decided from the stage that failed and
  * what the browser threw; the raw message itself is never shown.
  */
-import type { UiTextKey } from '../../utils/ui-text'
+import type { UiTextKey } from './ui-text'
 
 export type ExportStage = 'build' | 'download'
 

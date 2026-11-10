@@ -6,7 +6,7 @@ const LONG = 'This sentence is deliberately long so the block clears the 120 cha
 
 import { BlockEntries, type BlockHoverHooks } from '../block-hover'
 import type { BlockCandidate } from '../blocks'
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 
 /**
  * Keyboard block mode (capture.md §6.2 区块模式) over fixture DOM. The same

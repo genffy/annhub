@@ -4,7 +4,7 @@
  * the style and the preview; the panel shows the style it is given and reports what the user changes — it keeps no state
  * of its own, so a reset or a change that turned beautify on shows up in the controls through `sync`.
  */
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 import { backgroundCss, ratioOf } from '../../../utils/screenshot-output'
 import { BEAUTIFY_BACKGROUND_IDS, BEAUTIFY_RADII, PADDING_PX, type BeautifyPadding, type BeautifySettings } from '../../../core/screenshot-options'
 

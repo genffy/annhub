@@ -17,7 +17,8 @@ import { collectFullXArticle, extractXContent } from './platform-x'
 import type { BlockCandidate } from './blocks'
 import type { DownloadNoticeMessage, DownloadVia, ExtractDownloadPageMessage, PageDownloadMedia, StartPageDownloadMessage } from '../../types/messages'
 import MessageUtils from '../../utils/message'
-import { currentUiLanguage, uiText } from '../../utils/ui-text'
+import { currentUiLanguage } from '../../utils/ui-language'
+import { uiText } from './ui-text'
 
 const ROOT_ATTR = 'data-ann-ui'
 const NOTICE_MS = 6000

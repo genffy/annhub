@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { Highlight } from '../../../core/types'
 import { fold, PAGE_TEXT_CASES } from '../../../core/__tests__/fixtures/page-text'
 import { MarkdownView, parseBlocks, quoteForRange, renderedRuns, sourceRangeFromSelection, splitTableRow } from '../markdown-view'
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 
 /**
  * RK-13: rendered-selection ↔ source-offset conversion lives in one shared

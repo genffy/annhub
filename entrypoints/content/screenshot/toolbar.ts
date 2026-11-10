@@ -1,5 +1,5 @@
 import { overlayIcon, type OverlayIconName } from '../icons'
-import { uiText, type UiTextKey } from '../../../utils/ui-text'
+import { uiText, type UiTextKey } from '../ui-text'
 import { ANNOTATION_COLORS } from '../../../core/screenshot-options'
 import { isLineTool, LINE_WIDTHS, type LineWidth, type ScreenshotTool } from './editor'
 

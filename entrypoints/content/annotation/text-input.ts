@@ -3,7 +3,7 @@
  * Moved verbatim from layer.ts; the layer state arrives as the host.
  */
 import type { Point } from '../screenshot/editor'
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 import type { InkStroke } from './ink'
 
 /** What the text box reads and writes on the layer: the box itself, the anchor it types at, and the commit path. */
