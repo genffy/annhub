@@ -72,7 +72,7 @@ export const PropertyPanel = forwardRef<PropertyPanelHandle, Props>(function Pro
       setError(uiText('property.error.titleRequired'))
       return false
     }
-    const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({
+    const response = await MessageUtils.sendMessage({
       type: 'UPDATE_ENTRY',
       id: entry.id,
       patch: { properties: patch },

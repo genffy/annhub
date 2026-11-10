@@ -82,7 +82,7 @@ export function DetailDrawer({
   const loadedEntryId = entry?.id
 
   const load = useCallback(async () => {
-    const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({ type: 'GET_ENTRY', id: entryId })
+    const response = await MessageUtils.sendMessage({ type: 'GET_ENTRY', id: entryId })
     if (!response.success || !response.data?.entry) {
       setError(uiText('library.error.notFound'))
       return
@@ -93,7 +93,7 @@ export function DetailDrawer({
     setAssetMissing(false)
     setAssetUrl(null)
     if (loaded.type === 'screenshot' && loaded.assetId) {
-      const asset = await MessageUtils.sendMessage<{ dataUrl: string }>({ type: 'GET_ASSET_DATA_URL', assetId: loaded.assetId })
+      const asset = await MessageUtils.sendMessage({ type: 'GET_ASSET_DATA_URL', assetId: loaded.assetId })
       if (asset.success && asset.data?.dataUrl) setAssetUrl(asset.data.dataUrl)
       else setAssetMissing(true)
     }
@@ -112,7 +112,7 @@ export function DetailDrawer({
     // nothing loaded (still loading, or the entry is gone) means nothing to save, and the drawer must still close
     if (!entry) return true
     if (note === (entry.note ?? '')) return true
-    const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({
+    const response = await MessageUtils.sendMessage({
       type: 'UPDATE_ENTRY',
       id: entry.id,
       // null clears the note; an undefined key would not survive the JSON transport
@@ -138,7 +138,7 @@ export function DetailDrawer({
       return true
     }
     const task = (async (): Promise<boolean> => {
-      const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({
+      const response = await MessageUtils.sendMessage({
         type: 'UPDATE_ENTRY',
         id: entry.id,
         // an emptied context is removed; an emptied original is a mistake the worker refuses

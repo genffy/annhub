@@ -1,6 +1,6 @@
 import { Logger } from '../utils/logger'
 import MessageUtils from '../utils/message'
-import type { BaseMessage, ExtensionMessage, ResponseMessage } from '../types/messages'
+import type { BaseMessage, ExtensionMessage, ResponseDataOf, ResponseMessage } from '../types/messages'
 import { EXTENSION_PAGES, openExtensionPage } from '../utils/extension-pages'
 import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from './sender'
 
@@ -10,9 +10,9 @@ export type MessageHandler = (message: BaseMessage, sender: chrome.runtime.Messa
 
 type MessageOfType<K extends ExtensionMessage['type']> = Extract<ExtensionMessage, { type: K }>
 
-/** Each handler receives its own message shape; dispatch still looks handlers up by `type`. */
+/** Each handler receives its own message shape and answers the mapped response data — `undefined` for a refusal or failure (RV-BG-12); dispatch still looks handlers up by `type`. */
 export type MessageHandlers = {
-  [K in ExtensionMessage['type']]?: (message: MessageOfType<K>, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>
+  [K in ExtensionMessage['type']]?: (message: MessageOfType<K>, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage<ResponseDataOf<K> | undefined>>
 }
 
 export interface IService {
@@ -133,7 +133,7 @@ export class ServiceManager {
    */
   private getNavigationHandlers(): MessageHandlers {
     return {
-      OPEN_EXTENSION_PAGE: async (message, sender): Promise<ResponseMessage> => {
+      OPEN_EXTENSION_PAGE: async (message, sender) => {
         if (!isExtensionPageSender(sender) && !isSameOriginTabSender(sender)) return forbiddenResponse()
         if (!EXTENSION_PAGES.includes(message.page)) {
           return MessageUtils.createResponse(false, undefined, `Unknown extension page: ${String(message.page)}`)

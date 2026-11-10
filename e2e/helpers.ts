@@ -1,4 +1,5 @@
 import type { BrowserContext, Locator, Page, Worker } from '@playwright/test'
+import type { TabMessage } from '../types/messages'
 
 /** The local capture fixture served by the E2E test server. */
 export function getCapturePageUrl(): string {
@@ -326,7 +327,7 @@ export async function selectUntilMenu(page: Page, selector: string, timeout = 80
  * content script of the tab showing `page` — never a DOM event the page's own
  * scripts could dispatch.
  */
-async function sendTabMessage(page: Page, message: Record<string, unknown>): Promise<void> {
+async function sendTabMessage(page: Page, message: TabMessage): Promise<void> {
   const worker = await ensureServiceWorker(page.context())
   const url = page.url()
   const deadline = Date.now() + 10_000

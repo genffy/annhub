@@ -147,7 +147,7 @@ async function extractMainPage(
   extracting = true
   retryExtraction = () => extractMainPage(message, meta, originals, via, baseUrl)
   try {
-    const response = await MessageUtils.sendMessage<{ html: string }>(message)
+    const response = await MessageUtils.sendMessage(message)
     if (!response.success || !response.data) {
       showNotice(notice('failed', response.error ?? 'DOWNLOAD_FAILED'))
       return
@@ -205,7 +205,7 @@ async function start(handover: Handover): Promise<void> {
   retryExtraction = null
   const initialVersion = receivedNoticeVersion
   pending = handover
-  const response = await MessageUtils.sendMessage<{ accepted?: boolean }>({
+  const response = await MessageUtils.sendMessage({
     type: 'START_PAGE_DOWNLOAD',
     ...(handover.form ? { form: handover.form } : {}),
     meta: handover.meta,
@@ -291,7 +291,7 @@ function showNotice(message: DownloadNoticeMessage): void {
     cancel.addEventListener('click', () => {
       // the worker answers with the cancelled notice, which replaces this bar
       cancel.disabled = true
-      void MessageUtils.sendMessage<{ ok?: boolean }>({ type: 'CANCEL_DOWNLOAD' })
+      void MessageUtils.sendMessage({ type: 'CANCEL_DOWNLOAD' })
         .then(response => {
           if (!response.success) cancel.disabled = false
         })

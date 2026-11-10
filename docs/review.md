@@ -35,28 +35,6 @@
 
 ### 消息协议
 
-#### RV-BG-12 消息协议只约束请求，不约束响应（中）
-
-**问题**
-
-- `MessageUtils.sendMessage<T>` 的响应类型由调用方自己写：非测试源码里约 50 处。`GET_SETTINGS` 在 `entrypoints/popup/App.tsx`、`entrypoints/content/index.tsx`、`entrypoints/content/screenshot/index.ts` 里被写成三种形状。handler 的返回类型是 `Promise<ResponseMessage>`，`data` 是 `unknown`，改了 handler 返回的字段，调用方照样编译通过。
-- `TRIGGER_SCREENSHOT`、`TRIGGER_BLOCK_MODE`、`TRIGGER_ANNOTATE`、`TRIGGER_DOWNLOAD_MAIN` 不在 `types/messages.ts` 的联合里，`background-service/event-handlers/command-handler.ts`、`entrypoints/content/index.tsx`、`entrypoints/popup/App.tsx` 各写各的字符串，违反根 `AGENTS.md` 跨目录规则第 2 条。
-
-**要求**
-
-1. `types/messages.ts` 增加“消息类型 → 响应 `data` 的类型”的映射。逐个 handler 读出它实际返回的形状来写，不照调用方的类型实参抄。
-2. `MessageHandlers` 的返回类型按映射约束；`sendMessage` 的返回类型由消息类型推导，调用方的类型实参全部删掉。
-3. 发给标签页的消息（四个 `TRIGGER_*`、`RECORDING_LIFECYCLE`、`DOWNLOAD_NOTICE`）单列一个联合；`command-handler.ts` 的 `sendToActiveTab`、popup 里的 `chrome.tabs.sendMessage`、内容脚本的 `onMessage` 都用它。
-4. 不改任何消息的字段与语义，不加依赖。
-5. 新约定写进 `background-service/notes/`，并在 `background-service/AGENTS.md` 里用等长的一句换掉被它取代的句子。
-
-**验收**
-
-1. `git grep -n "sendMessage<" -- entrypoints utils background-service ':!*__tests__*' ':!*.test.ts'` 无结果。
-2. 临时给任意一个 handler 的返回字段改名，`pnpm run compile` 在调用方报错。
-3. `git grep -n "TRIGGER_"` 的每一处都带类型：没有不带类型标注的字符串对象。
-4. `pnpm run verify` 通过；`e2e/cold-start.spec.ts`、`e2e/popup-entry.spec.ts`、`e2e/selection-clip.spec.ts`、`e2e/library-browse.spec.ts` 通过。
-
 #### RV-BG-13 写操作的广播名单是手写的，漏了 `RESTORE_HIGHLIGHT`（中）
 
 **问题**

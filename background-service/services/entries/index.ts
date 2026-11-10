@@ -40,7 +40,7 @@ export class EntryService implements IService {
 
   getMessageHandlers(): MessageHandlers {
     return {
-      SAVE_CLIP: async (message, sender): Promise<ResponseMessage> => {
+      SAVE_CLIP: async (message, sender) => {
         if (!trustedSender(sender)) return forbiddenResponse()
         try {
           const store = await initializedEntryStore()
@@ -78,7 +78,7 @@ export class EntryService implements IService {
         }
       },
 
-      DELETE_ENTRY: async (message, sender): Promise<ResponseMessage> => {
+      DELETE_ENTRY: async (message, sender) => {
         if (!trustedSender(sender)) return forbiddenResponse()
         if (!isExtensionPageSender(sender) && !(await isRecentCapture(sender, message.id))) return forbiddenResponse()
         try {
@@ -91,7 +91,7 @@ export class EntryService implements IService {
         }
       },
 
-      UPDATE_ENTRY: async (message, sender): Promise<ResponseMessage> => {
+      UPDATE_ENTRY: async (message, sender) => {
         if (!trustedSender(sender)) return forbiddenResponse()
         if (!isExtensionPageSender(sender)) {
           if (!(await isRecentCapture(sender, message.id)) || !quickEditPatch(message.patch)) return forbiddenResponse()
@@ -106,7 +106,7 @@ export class EntryService implements IService {
         }
       },
 
-      ADD_HIGHLIGHT: async (message, sender): Promise<ResponseMessage> => {
+      ADD_HIGHLIGHT: async (message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         try {
           const store = await initializedEntryStore()
@@ -117,7 +117,7 @@ export class EntryService implements IService {
         }
       },
 
-      UPDATE_HIGHLIGHT: async (message, sender): Promise<ResponseMessage> => {
+      UPDATE_HIGHLIGHT: async (message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         try {
           const store = await initializedEntryStore()
@@ -128,7 +128,7 @@ export class EntryService implements IService {
         }
       },
 
-      REMOVE_HIGHLIGHT: async (message, sender): Promise<ResponseMessage> => {
+      REMOVE_HIGHLIGHT: async (message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         try {
           const store = await initializedEntryStore()
@@ -139,7 +139,7 @@ export class EntryService implements IService {
         }
       },
 
-      RESTORE_HIGHLIGHT: async (message, sender): Promise<ResponseMessage> => {
+      RESTORE_HIGHLIGHT: async (message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         try {
           const store = await initializedEntryStore()
@@ -150,7 +150,7 @@ export class EntryService implements IService {
         }
       },
 
-      QUERY_ENTRIES: async (message, sender): Promise<ResponseMessage> => {
+      QUERY_ENTRIES: async (message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
         const registry = await store.listPropertyDefinitions()
@@ -175,7 +175,7 @@ export class EntryService implements IService {
         })
       },
 
-      QUERY_HIGHLIGHTS: async (message, sender): Promise<ResponseMessage> => {
+      QUERY_HIGHLIGHTS: async (message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
         const result = await store.indexedHighlights(message.query ?? {})
@@ -184,20 +184,20 @@ export class EntryService implements IService {
         })
       },
 
-      QUERY_FACETS: async (_message, sender): Promise<ResponseMessage> => {
+      QUERY_FACETS: async (_message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
         return MessageUtils.createResponse(true, { facets: await store.libraryFacets() })
       },
 
-      GET_ENTRY: async (message, sender): Promise<ResponseMessage> => {
+      GET_ENTRY: async (message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
         const entry = await store.getEntry(message.id)
         return MessageUtils.createResponse(true, { entry })
       },
 
-      GET_ASSET_DATA_URL: async (message, sender): Promise<ResponseMessage> => {
+      GET_ASSET_DATA_URL: async (message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
         const asset = await store.getAsset(message.assetId)
@@ -205,7 +205,7 @@ export class EntryService implements IService {
         return MessageUtils.createResponse(true, { dataUrl: await blobToDataUrl(asset.bytes) })
       },
 
-      LIST_PROPERTIES: async (message, sender): Promise<ResponseMessage> => {
+      LIST_PROPERTIES: async (message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
         const definitions = await store.listPropertyDefinitions()
@@ -213,34 +213,34 @@ export class EntryService implements IService {
         return MessageUtils.createResponse(true, { definitions, usage })
       },
 
-      UPSERT_PROPERTY: async (message, sender): Promise<ResponseMessage> => {
+      UPSERT_PROPERTY: async (message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
         await store.upsertPropertyDefinition(message.def)
         return MessageUtils.createResponse(true, { definitions: await store.listPropertyDefinitions() })
       },
 
-      DELETE_PROPERTY: async (message, sender): Promise<ResponseMessage> => {
+      DELETE_PROPERTY: async (message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
         await store.deletePropertyDefinition(message.name)
         return MessageUtils.createResponse(true, { definitions: await store.listPropertyDefinitions() })
       },
 
-      DELETE_UNUSED_PROPERTIES: async (_message, sender): Promise<ResponseMessage> => {
+      DELETE_UNUSED_PROPERTIES: async (_message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
         const removed = await store.deleteUnusedPropertyDefinitions()
         return MessageUtils.createResponse(true, { removed, definitions: await store.listPropertyDefinitions() })
       },
 
-      USAGE_ESTIMATE: async (_message, sender): Promise<ResponseMessage> => {
+      USAGE_ESTIMATE: async (_message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
         return MessageUtils.createResponse(true, await store.usageEstimate())
       },
 
-      ORPHAN_REPORT: async (_message, sender): Promise<ResponseMessage> => {
+      ORPHAN_REPORT: async (_message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
         return MessageUtils.createResponse(true, await store.orphanReport())
@@ -295,7 +295,7 @@ async function recordCaptureUndone(attribution: { via: string; type?: string; bl
   })
 }
 
-function failure(error: unknown): ResponseMessage {
+function failure(error: unknown): ResponseMessage<undefined> {
   const code = storageErrorCode(error)
   Logger.error('[EntryService]', code)
   return MessageUtils.createResponse(false, undefined, code)

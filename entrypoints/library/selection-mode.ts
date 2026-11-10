@@ -72,7 +72,7 @@ export function useSelectionMode(listQueryKey: string, items: EntryRecord[], que
   const selectAll = useCallback(async () => {
     const requestedAt = ++revision.current
     const { default: MessageUtils } = await import('../../utils/message')
-    const response = await MessageUtils.sendMessage<{ result: { items: EntryRecord[] } }>({
+    const response = await MessageUtils.sendMessage({
       type: 'QUERY_ENTRIES',
       query: { ...queryFor(), limit: DOWNLOAD_LIMITS.libraryMaxEntries },
     })

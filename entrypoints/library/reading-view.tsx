@@ -53,7 +53,7 @@ export function ReadingView({ entryId, highlightId = null, defaultColor, registr
   }, [flush, registerFlush])
 
   const load = useCallback(async () => {
-    const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({ type: 'GET_ENTRY', id: entryId })
+    const response = await MessageUtils.sendMessage({ type: 'GET_ENTRY', id: entryId })
     if (!response.success || !response.data?.entry) {
       setError(uiText('library.error.notFound'))
       return

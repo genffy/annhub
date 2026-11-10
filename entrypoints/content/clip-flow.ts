@@ -97,7 +97,7 @@ async function saveClip(input: {
   origin: ClipOrigin & { truncated?: boolean; startedAt?: number }
 }): Promise<ClipResult> {
   const meta = { ...extractPageMeta(document, normalizeHost(location.href)), ...input.meta }
-  const response = await MessageUtils.sendMessage<{ entry: { id: string } }>({
+  const response = await MessageUtils.sendMessage({
     type: 'SAVE_CLIP',
     draft: {
       id: input.id,

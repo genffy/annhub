@@ -91,7 +91,7 @@ export class DownloadService implements IService {
 
   getMessageHandlers(): MessageHandlers {
     return {
-      EXTRACT_DOWNLOAD_PAGE: async (message, sender): Promise<ResponseMessage> => {
+      EXTRACT_DOWNLOAD_PAGE: async (message, sender) => {
         if (!isTopFrameTabSender(sender)) return forbiddenResponse()
         if (!this.canStart()) return busy()
         if (typeof message.html !== 'string' || typeof message.url !== 'string' || !/^https?:/i.test(message.url))
@@ -110,19 +110,19 @@ export class DownloadService implements IService {
         }
       },
 
-      START_PAGE_DOWNLOAD: async (message, sender): Promise<ResponseMessage> => {
+      START_PAGE_DOWNLOAD: async (message, sender) => {
         // the page's own content script, from the top frame: the page chose what to download (download.md §2)
         if (!isTopFrameTabSender(sender) || sender.tab?.id === undefined) return forbiddenResponse()
         return this.startPage(message, sender.tab.id)
       },
 
-      START_LIBRARY_DOWNLOAD: async (message, sender): Promise<ResponseMessage> => {
+      START_LIBRARY_DOWNLOAD: async (message, sender) => {
         // only the library's own pages start a library download (download.md §3)
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         return this.startLibrary(message)
       },
 
-      ESTIMATE_DOWNLOAD: async (message, sender): Promise<ResponseMessage> => {
+      ESTIMATE_DOWNLOAD: async (message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const entryIds = Array.isArray(message.entryIds) ? message.entryIds.filter(id => typeof id === 'string') : []
         if (entryIds.length === 0 || entryIds.length > DOWNLOAD_LIMITS.libraryMaxEntries) return MessageUtils.createResponse(false, undefined, 'DOWNLOAD_TOO_MANY')
@@ -149,13 +149,13 @@ export class DownloadService implements IService {
         })
       },
 
-      CANCEL_DOWNLOAD: async (_message, sender): Promise<ResponseMessage> => {
+      CANCEL_DOWNLOAD: async (_message, sender) => {
         if (!isExtensionPageSender(sender) && !isTopFrameTabSender(sender)) return forbiddenResponse()
         await this.cancel()
         return MessageUtils.createResponse(true)
       },
 
-      SHOW_DOWNLOAD_FILE: async (message, sender): Promise<ResponseMessage> => {
+      SHOW_DOWNLOAD_FILE: async (message, sender) => {
         if (!isExtensionPageSender(sender) && !isTopFrameTabSender(sender)) return forbiddenResponse()
         const shown = await Promise.resolve(chrome.downloads.show(Number(message.downloadId))).then(
           () => true,
@@ -164,7 +164,7 @@ export class DownloadService implements IService {
         return MessageUtils.createResponse(shown)
       },
 
-      DOWNLOAD_RUN_EVENT: async (message, sender): Promise<ResponseMessage> => {
+      DOWNLOAD_RUN_EVENT: async (message, sender) => {
         // the offscreen document is an extension page without a tab; a tab sender is not the runner
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
         await this.onRunEvent(message)
@@ -179,7 +179,7 @@ export class DownloadService implements IService {
 
   // ── Starts ─────────────────────────────────────────────────────────────
 
-  private async startPage(message: StartPageDownloadMessage, tabId: number): Promise<ResponseMessage> {
+  private async startPage(message: StartPageDownloadMessage, tabId: number): Promise<ResponseMessage<{ accepted: boolean; total: number } | undefined>> {
     if (!this.canStart()) return busy()
     const title = typeof message.meta?.title === 'string' && message.meta.title.trim() ? message.meta.title : ''
     const markdown = typeof message.markdown === 'string' ? message.markdown.trim() : ''
@@ -243,7 +243,7 @@ export class DownloadService implements IService {
     }
   }
 
-  private async startLibrary(message: StartLibraryDownloadMessage): Promise<ResponseMessage> {
+  private async startLibrary(message: StartLibraryDownloadMessage): Promise<ResponseMessage<{ accepted: boolean; total: number } | undefined>> {
     if (!this.canStart()) return busy()
     const entryIds = Array.isArray(message.entryIds) ? message.entryIds.filter((id): id is string => typeof id === 'string') : []
     if (entryIds.length === 0) return MessageUtils.createResponse(false, undefined, 'DOWNLOAD_EMPTY')
@@ -290,7 +290,13 @@ export class DownloadService implements IService {
     return this.run === null && !this.startInFlight && !this.extracting
   }
 
-  private async launch(input: { origin: RunOrigin; metric: ActiveRun['metric']; plan: DownloadRunPlan; identity: string; replacing: boolean }): Promise<ResponseMessage> {
+  private async launch(input: {
+    origin: RunOrigin
+    metric: ActiveRun['metric']
+    plan: DownloadRunPlan
+    identity: string
+    replacing: boolean
+  }): Promise<ResponseMessage<{ accepted: boolean; total: number } | undefined>> {
     const requestId = `dl_${Date.now().toString(36)}_${++this.requestId}`
     const run: ActiveRun = { requestId, ...input, outcomes: [], missing: [], downloadIds: [], cancelled: false, abort: new AbortController(), writes: new Set() }
     this.run = run
@@ -324,7 +330,7 @@ export class DownloadService implements IService {
     return MessageUtils.createResponse(true, { accepted: true, total: run.plan.totalMedia })
   }
 
-  private async failStart(run: ActiveRun, code: string): Promise<ResponseMessage> {
+  private async failStart(run: ActiveRun, code: string): Promise<ResponseMessage<undefined>> {
     await forgetDownload(run.requestId)
     this.clearRun(run)
     return MessageUtils.createResponse(false, undefined, code)
@@ -571,6 +577,6 @@ export class DownloadService implements IService {
   }
 }
 
-function busy(): ResponseMessage {
+function busy(): ResponseMessage<undefined> {
   return MessageUtils.createResponse(false, undefined, 'DOWNLOAD_ACTIVE')
 }

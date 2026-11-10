@@ -17,7 +17,7 @@
  * event that woke the worker does not wait for that.
  */
 import type { IService, MessageHandlers } from '../../service-manager'
-import type { ResponseMessage, RecordingEventMessage, RecordingState } from '../../../types/messages'
+import type { ResponseMessage, RecordingEventMessage, RecordingState, TabMessage } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
 import { ensureOffscreenDocument } from '../../offscreen-document'
 import { readSettings, writeSettings } from '../../settings-storage'
@@ -176,13 +176,13 @@ export class RecordingService implements IService {
 
   getMessageHandlers(): MessageHandlers {
     return {
-      START_RECORDING: async (message, sender): Promise<ResponseMessage> => {
+      START_RECORDING: async (message, sender) => {
         // only the extension's own pages — the popup — may start a recording (annotate.md §2.1)
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
         return this.startRecording(message.tabId, message.streamId, message.withMic === true)
       },
 
-      GET_RECORDING_STATE: async (_message, sender): Promise<ResponseMessage> => {
+      GET_RECORDING_STATE: async (_message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         await this.ensureRecovered()
         // holdsVideo: the offscreen document's stale-state recovery asks whether the worker
@@ -190,7 +190,7 @@ export class RecordingService implements IService {
         return MessageUtils.createResponse(true, { ...this.state, holdsVideo: this.pendingDownload !== null })
       },
 
-      STOP_RECORDING: async (_message, sender): Promise<ResponseMessage> => {
+      STOP_RECORDING: async (_message, sender) => {
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
         await this.ensureRecovered()
         if (this.state.status !== 'recording') return MessageUtils.createResponse(false, undefined, 'RECORDING_NOT_ACTIVE')
@@ -198,7 +198,7 @@ export class RecordingService implements IService {
         return MessageUtils.createResponse(true, this.state)
       },
 
-      RETRY_RECORDING_DOWNLOAD: async (_message, sender): Promise<ResponseMessage> => {
+      RETRY_RECORDING_DOWNLOAD: async (_message, sender) => {
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
         await this.ensureRecovered()
         if (this.state.status !== 'download-failed' || !this.pendingDownload) return MessageUtils.createResponse(false, undefined, 'RECORDING_NOT_ACTIVE')
@@ -206,7 +206,7 @@ export class RecordingService implements IService {
         return MessageUtils.createResponse(true, this.state)
       },
 
-      DISCARD_RECORDING: async (_message, sender): Promise<ResponseMessage> => {
+      DISCARD_RECORDING: async (_message, sender) => {
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
         await this.ensureRecovered()
         if (this.state.status !== 'download-failed') return MessageUtils.createResponse(false, undefined, 'RECORDING_NOT_ACTIVE')
@@ -220,14 +220,14 @@ export class RecordingService implements IService {
       },
 
       /** The recorded tab asks on load whether a recording is live (annotate.md §3.2): read-only, no user data. */
-      RECORDING_STATUS: async (_message, sender): Promise<ResponseMessage> => {
+      RECORDING_STATUS: async (_message, sender) => {
         if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
         await this.ensureRecovered()
         const settings = await readSettings()
         return MessageUtils.createResponse(true, { recording: this.state.status === 'recording', cursorHighlight: settings.recording.cursorHighlight })
       },
 
-      RECORDING_EVENT: async (message, sender): Promise<ResponseMessage> => {
+      RECORDING_EVENT: async (message, sender) => {
         // the offscreen document is an extension page; a tab sender is not the recorder
         if (!isExtensionPageSender(sender) || sender.tab) return forbiddenResponse()
         await this.handleEvent(message)
@@ -314,7 +314,7 @@ export class RecordingService implements IService {
   /** A start between its first await and the state it sets: a second start in that gap must not be taken for a first. */
   private startInFlight = false
 
-  private async startRecording(tabId: number, streamId: string, withMic: boolean): Promise<ResponseMessage> {
+  private async startRecording(tabId: number, streamId: string, withMic: boolean): Promise<ResponseMessage<RecordingState | undefined>> {
     if (this.state.status !== 'idle' || this.startInFlight) return MessageUtils.createResponse(false, undefined, 'RECORDING_ACTIVE')
     this.startInFlight = true
     try {
@@ -324,7 +324,7 @@ export class RecordingService implements IService {
     }
   }
 
-  private async beginRecording(tabId: number, streamId: string, withMic: boolean): Promise<ResponseMessage> {
+  private async beginRecording(tabId: number, streamId: string, withMic: boolean): Promise<ResponseMessage<RecordingState | undefined>> {
     const tab = await chrome.tabs.get(tabId).catch(() => undefined)
     if (!tab || !recordableUrl(tab.url)) return MessageUtils.createResponse(false, undefined, 'RECORDING_RESTRICTED_PAGE')
 
@@ -368,7 +368,8 @@ export class RecordingService implements IService {
     if (!tabId) return
     try {
       const settings = active ? await readSettings() : undefined
-      await chrome.tabs.sendMessage(tabId, { type: 'RECORDING_LIFECYCLE', active, ...(settings ? { cursorHighlight: settings.recording.cursorHighlight } : {}) })
+      const message: TabMessage = { type: 'RECORDING_LIFECYCLE', active, ...(settings ? { cursorHighlight: settings.recording.cursorHighlight } : {}) }
+      await chrome.tabs.sendMessage(tabId, message)
     } catch {
       // the tab may have closed or not have the content script yet; recording continues
     }

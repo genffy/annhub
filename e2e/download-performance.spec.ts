@@ -1,3 +1,4 @@
+import type { TabMessage } from '../types/messages'
 import { stat } from 'node:fs/promises'
 import { test, expect } from './fixtures'
 import { ensureServiceWorker, getCapturePageUrl } from './helpers'
@@ -24,7 +25,7 @@ test('ten near-2MB images reach disk below the local p95 budget (download.md §9
     const started = performance.now()
     await worker.evaluate(async url => {
       const tab = (await chrome.tabs.query({})).find(item => item.url === url)!
-      await chrome.tabs.sendMessage(tab.id!, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' }, { frameId: 0 })
+      await chrome.tabs.sendMessage(tab.id!, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' } satisfies TabMessage, { frameId: 0 })
     }, page.url())
     await expect
       .poll(() => worker.evaluate(async () => (await chrome.downloads.search({})).filter(item => item.byExtensionId === chrome.runtime.id && item.state === 'complete').length), {

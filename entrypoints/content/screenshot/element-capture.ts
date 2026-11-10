@@ -50,7 +50,7 @@ async function inlineImages(surface: HTMLElement): Promise<void> {
       const src = img.currentSrc || img.getAttribute('src')
       if (!src || src.startsWith('data:') || src.startsWith('blob:')) return
       try {
-        const response = await MessageUtils.sendMessage<{ dataUrl: string }>({
+        const response = await MessageUtils.sendMessage({
           type: 'FETCH_IMAGE',
           url: src,
         })
@@ -273,7 +273,7 @@ async function cropFrameFromViewport(video: HTMLVideoElement): Promise<string | 
   try {
     let dataUrl: string | undefined
     for (let retry = 0; retry < 3; retry++) {
-      const response = await MessageUtils.sendMessage<{ dataUrl: string }>({ type: 'CAPTURE_VISIBLE_TAB', requestId: `video-${retry}-${Date.now()}` })
+      const response = await MessageUtils.sendMessage({ type: 'CAPTURE_VISIBLE_TAB', requestId: `video-${retry}-${Date.now()}` })
       if (response.success && response.data?.dataUrl) {
         dataUrl = response.data.dataUrl
         break

@@ -18,7 +18,7 @@ import { SelectionDownload } from './selection-download'
 export function DownloadsLayer({ controller }: { controller: SelectionController }) {
   const [defaults, setDefaults] = useState<{ form: DownloadForm; withMedia: boolean }>({ form: 'folder', withMedia: true })
   useEffect(() => {
-    void MessageUtils.sendMessage<{ downloadForm?: DownloadForm; downloadMedia?: boolean }>({ type: 'GET_SETTINGS' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'GET_SETTINGS' }).then(response => {
       if (response.success && response.data) {
         setDefaults({ form: response.data.downloadForm === 'zip' ? 'zip' : 'folder', withMedia: response.data.downloadMedia !== false })
       }

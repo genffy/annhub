@@ -44,7 +44,7 @@ describe('a failed save says why (capture.md §7, extension.md §6)', () => {
   })
 
   it('a saved clip is an outcome, not a failure', async () => {
-    vi.spyOn(MessageUtils, 'sendMessage').mockResolvedValue({ type: 'RESPONSE', success: true, data: { entry: { id: 'ent_saved' } } })
+    vi.spyOn(MessageUtils, 'sendMessage').mockResolvedValue({ type: 'RESPONSE', success: true, data: { entry: { id: 'ent_saved' } } } as never)
     const result = await saveSelectionClip(selectParagraph(), { via: 'menu' })
     expect(isClipFailure(result)).toBe(false)
     expect(result).toMatchObject({ entryId: 'ent_saved' })

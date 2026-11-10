@@ -7,10 +7,11 @@
  * Transport note: image bytes never persist as dataUrls — a dataUrl is wire
  * format only, storage keeps Blobs (storage.md §3).
  */
-import type { EntryQuery, HighlightQuery } from '../core/query'
-import type { MetricEventName, MetricEventProps } from '../core/metrics'
-import type { Highlight, PropertyDefinition, PropertyValue } from '../core/types'
-import type { SettingsPatch } from '../core/settings'
+import type { EntryQuery, EntryQueryResult, HighlightQuery, HighlightQueryResult } from '../core/query'
+import type { MetricEventName, MetricEventProps, MetricsPanelData } from '../core/metrics'
+import type { EntryRecord, Highlight, PropertyDefinition, PropertyValue } from '../core/types'
+import type { ExtensionSettings, SettingsPatch } from '../core/settings'
+import type { LibraryFacets, OrphanReport } from '../core/store'
 
 export interface BaseMessage {
   type: string
@@ -293,7 +294,8 @@ export interface RecordingStatusMessage extends BaseMessage {
 export interface RecordingLifecycleMessage extends BaseMessage {
   type: 'RECORDING_LIFECYCLE'
   active: boolean
-  cursorHighlight?: SettingsPatch['recording'] extends { cursorHighlight?: infer C } ? C : never
+  /** The cursor highlight settings to apply while the recording is live (annotate.md §3.1). */
+  cursorHighlight?: ExtensionSettings['recording']['cursorHighlight']
 }
 
 // ── Downloads (download.md) ─────────────────────────────────────────────
@@ -554,7 +556,6 @@ export type ExtensionMessage =
   | RecordingEventMessage
   | RecordingCommandMessage
   | RecordingStatusMessage
-  | RecordingLifecycleMessage
   | StartPageDownloadMessage
   | ExtractDownloadPageMessage
   | DownloadExtractMessage
@@ -562,7 +563,6 @@ export type ExtensionMessage =
   | CancelDownloadMessage
   | EstimateDownloadMessage
   | ShowDownloadFileMessage
-  | DownloadNoticeMessage
   | DownloadRunMessage
   | DownloadFinishMessage
   | DownloadCancelMessage
@@ -575,3 +575,98 @@ export type ExtensionMessage =
   | UsageEstimateMessage
   | OrphanReportMessage
   | OpenExtensionPageMessage
+
+// ── Messages to a tab's content script (RV-BG-12) ───────────────────────
+
+export interface TriggerScreenshotMessage extends BaseMessage {
+  type: 'TRIGGER_SCREENSHOT'
+}
+
+export interface TriggerBlockModeMessage extends BaseMessage {
+  type: 'TRIGGER_BLOCK_MODE'
+}
+
+export interface TriggerAnnotateMessage extends BaseMessage {
+  type: 'TRIGGER_ANNOTATE'
+}
+
+export interface TriggerDownloadMainMessage extends BaseMessage {
+  type: 'TRIGGER_DOWNLOAD_MAIN'
+  /** Which entrance asked — the page's metric and wording (download.md §2.3). */
+  via: 'command' | 'popup'
+}
+
+/**
+ * The messages the worker or the popup sends to a tab's top-frame content script. They carry no
+ * response data; everything the page answers travels as its own ExtensionMessage.
+ */
+export type TabMessage =
+  TriggerScreenshotMessage | TriggerBlockModeMessage | TriggerAnnotateMessage | TriggerDownloadMainMessage | RecordingLifecycleMessage | DownloadNoticeMessage
+
+// ── Response data: what each message's handler answers (RV-BG-12) ───────
+
+/**
+ * The `data` of every response, read from the handlers themselves — not from what a caller hoped
+ * for. `undefined` means success carries no data. Worker→offscreen commands (RECORDING_*,
+ * DOWNLOAD_RUN/FINISH/CANCEL, OFFSCREEN_PING) are answered with success only.
+ */
+export interface ResponseDataMap {
+  SAVE_CLIP: { entry: EntryRecord }
+  SAVE_SCREENSHOT: { entry: EntryRecord }
+  DELETE_ENTRY: { id: string }
+  UPDATE_ENTRY: { entry: EntryRecord }
+  ADD_HIGHLIGHT: { entry: EntryRecord }
+  UPDATE_HIGHLIGHT: { entry: EntryRecord }
+  REMOVE_HIGHLIGHT: { entry: EntryRecord }
+  RESTORE_HIGHLIGHT: { entry: EntryRecord }
+  QUERY_ENTRIES: { result: EntryQueryResult & { total?: number } }
+  QUERY_HIGHLIGHTS: { result: HighlightQueryResult }
+  QUERY_FACETS: { facets: LibraryFacets }
+  GET_ENTRY: { entry: EntryRecord | undefined }
+  GET_ASSET_DATA_URL: { dataUrl: string }
+  LIST_PROPERTIES: { definitions: PropertyDefinition[]; usage?: Record<string, number> }
+  UPSERT_PROPERTY: { definitions: PropertyDefinition[] }
+  DELETE_PROPERTY: { definitions: PropertyDefinition[] }
+  DELETE_UNUSED_PROPERTIES: { removed: string[]; definitions: PropertyDefinition[] }
+  USAGE_ESTIMATE: { usage: number; quota: number }
+  ORPHAN_REPORT: OrphanReport
+  CAPTURE_VISIBLE_TAB: { dataUrl: string }
+  FETCH_IMAGE: { dataUrl: string }
+  DOWNLOAD_IMAGE: { downloadId: number }
+  REMEMBER_FRAME: undefined
+  READ_FRAME: { record: FrameRecord | null }
+  START_RECORDING: RecordingState
+  GET_RECORDING_STATE: RecordingState & { holdsVideo: boolean }
+  STOP_RECORDING: RecordingState
+  RETRY_RECORDING_DOWNLOAD: RecordingState
+  DISCARD_RECORDING: RecordingState
+  RECORDING_STATUS: { recording: boolean; cursorHighlight: ExtensionSettings['recording']['cursorHighlight'] }
+  RECORDING_EVENT: undefined
+  EXTRACT_DOWNLOAD_PAGE: { html: string }
+  START_PAGE_DOWNLOAD: { accepted: boolean; total: number }
+  START_LIBRARY_DOWNLOAD: { accepted: boolean; total: number }
+  ESTIMATE_DOWNLOAD: EstimateDownloadResult
+  CANCEL_DOWNLOAD: undefined
+  SHOW_DOWNLOAD_FILE: undefined
+  DOWNLOAD_RUN_EVENT: undefined
+  GET_SETTINGS: ExtensionSettings
+  SET_SETTINGS: ExtensionSettings
+  DISABLE_BLOCK_ENTRY: ExtensionSettings
+  RECORD_EVENT: Record<string, never>
+  GET_METRICS: MetricsPanelData
+  OPEN_EXTENSION_PAGE: { page: 'library' | 'settings' }
+  OFFSCREEN_PING: undefined
+  DOWNLOAD_EXTRACT: { html: string }
+  RECORDING_START: undefined
+  RECORDING_STOP: undefined
+  RECORDING_CLEANUP: undefined
+  DOWNLOAD_RUN: undefined
+  DOWNLOAD_FINISH: undefined
+  DOWNLOAD_CANCEL: undefined
+}
+
+/** A message type without an entry here fails the Pick below at compile time. */
+export type ResponseDataForEveryMessage = Pick<ResponseDataMap, ExtensionMessage['type']>
+
+/** The response `data` of a message type; callers never spell it out (RV-BG-12). */
+export type ResponseDataOf<K extends ExtensionMessage['type']> = K extends keyof ResponseDataMap ? ResponseDataMap[K] : never

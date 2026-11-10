@@ -10,8 +10,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowUpRight, CircleStop, Download, Info, Mic, PenLine, Video } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import MessageUtils from '../../utils/message'
-import type { RecordingState } from '../../types/messages'
-import type { EntryQueryResult, HighlightQueryResult } from '../../core/query'
+import type { RecordingState, TabMessage } from '../../types/messages'
+import type { HighlightQueryResult } from '../../core/query'
 import type { EntryRecord } from '../../core/types'
 import { relativeTime } from '../../utils/relative-time'
 import { uiText } from '../../utils/ui-text'
@@ -101,7 +101,7 @@ export default function App() {
         setCanAnnotate(false)
       }
     })
-    void MessageUtils.sendMessage<{ recording?: { withMic?: boolean } }>({ type: 'GET_SETTINGS' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'GET_SETTINGS' }).then(response => {
       if (response.success) setWithMic(response.data?.recording?.withMic === true)
     })
   }, [])
@@ -111,14 +111,14 @@ export default function App() {
   useEffect(() => {
     const poll = window.setInterval(() => {
       setNow(Date.now())
-      void MessageUtils.sendMessage<RecordingState>({ type: 'GET_RECORDING_STATE' }).then(response => {
+      void MessageUtils.sendMessage({ type: 'GET_RECORDING_STATE' }).then(response => {
         if (response.success) {
           setRecording(response.data ?? { status: 'idle', withMic: false })
           if (response.data?.micNotice) setMicNotice(uiText(`popup.recording.mic.${response.data.micNotice}` as 'popup.recording.mic.denied'))
         }
       })
     }, 1000)
-    void MessageUtils.sendMessage<RecordingState>({ type: 'GET_RECORDING_STATE' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'GET_RECORDING_STATE' }).then(response => {
       if (response.success) setRecording(response.data ?? { status: 'idle', withMic: false })
     })
     return () => window.clearInterval(poll)
@@ -172,7 +172,8 @@ export default function App() {
   const annotateThisPage = useCallback(async () => {
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!active?.id) return
-    await chrome.tabs.sendMessage(active.id, { type: 'TRIGGER_ANNOTATE' }, { frameId: 0 }).catch(() => undefined)
+    const message: TabMessage = { type: 'TRIGGER_ANNOTATE' }
+    await chrome.tabs.sendMessage(active.id, message, { frameId: 0 }).catch(() => undefined)
     window.close()
   }, [])
 
@@ -180,16 +181,17 @@ export default function App() {
   const downloadThisPage = useCallback(async () => {
     const [active] = await chrome.tabs.query({ active: true, currentWindow: true })
     if (!active?.id) return
-    await chrome.tabs.sendMessage(active.id, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' }, { frameId: 0 }).catch(() => undefined)
+    const message: TabMessage = { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' }
+    await chrome.tabs.sendMessage(active.id, message, { frameId: 0 }).catch(() => undefined)
     window.close()
   }, [])
 
   const load = useCallback(async () => {
     const [all, clips, highlights, screenshots] = await Promise.all([
-      MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: { limit: 5 } }),
-      MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: { types: ['clip'], limit: 5 } }),
-      MessageUtils.sendMessage<{ result: HighlightQueryResult }>({ type: 'QUERY_HIGHLIGHTS', query: {} }),
-      MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: { types: ['screenshot'], limit: 5 } }),
+      MessageUtils.sendMessage({ type: 'QUERY_ENTRIES', query: { limit: 5 } }),
+      MessageUtils.sendMessage({ type: 'QUERY_ENTRIES', query: { types: ['clip'], limit: 5 } }),
+      MessageUtils.sendMessage({ type: 'QUERY_HIGHLIGHTS', query: {} }),
+      MessageUtils.sendMessage({ type: 'QUERY_ENTRIES', query: { types: ['screenshot'], limit: 5 } }),
     ])
     setCounts({
       all: all.data?.result.total ?? 0,

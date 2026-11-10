@@ -14,6 +14,6 @@ export async function rememberFrame(record: FrameRecord): Promise<void> {
 
 /** This tab's frame for this page, or null. */
 export async function readFrame(): Promise<FrameRecord | null> {
-  const response = await MessageUtils.sendMessage<{ record: FrameRecord | null }>({ type: 'READ_FRAME' })
+  const response = await MessageUtils.sendMessage({ type: 'READ_FRAME' })
   return response.success ? (response.data?.record ?? null) : null
 }

@@ -20,6 +20,7 @@ import { isUserInput } from './user-input'
 import { uiText } from '../../utils/ui-text'
 import { normalizeHost } from '../../core/normalize'
 import MessageUtils from '../../utils/message'
+import type { TabMessage } from '../../types/messages'
 import { Logger } from '../../utils/logger'
 import { newEntryId } from '../../core/assets'
 import './content.css'
@@ -153,7 +154,7 @@ function wireSelectionMenu(): void {
 function wireBlockEntries(): void {
   let cachedSettings: Promise<{ blockEntryEnabled?: boolean; blockDisabledSites?: string[] }> | null = null
   const settings = () => {
-    cachedSettings ??= MessageUtils.sendMessage<{ blockEntryEnabled?: boolean; blockDisabledSites?: string[] }>({ type: 'GET_SETTINGS' }).then(response => {
+    cachedSettings ??= MessageUtils.sendMessage({ type: 'GET_SETTINGS' }).then(response => {
       if (!response.success) {
         cachedSettings = null
         return {}
@@ -233,13 +234,13 @@ function applyRecordingState(): void {
 
 /** The worker tells the recorded tab when a recording starts and stops (annotate.md §3). */
 function wireCursorHighlight(): void {
-  void MessageUtils.sendMessage<{ recording?: boolean; cursorHighlight?: CursorHighlightSettings }>({ type: 'RECORDING_STATUS' }).then(response => {
+  void MessageUtils.sendMessage({ type: 'RECORDING_STATUS' }).then(response => {
     if (!response.success || !response.data || lifecycleSeen) return
     recordingActive = response.data.recording === true
     cursorHighlightSettings = response.data.cursorHighlight ?? null
     applyRecordingState()
   })
-  chrome.runtime.onMessage.addListener(message => {
+  chrome.runtime.onMessage.addListener((message: TabMessage) => {
     if (!isTopFrame() || message?.type !== 'RECORDING_LIFECYCLE') return
     lifecycleSeen = true
     recordingActive = message.active === true
@@ -318,7 +319,7 @@ export default defineContentScript({
     wireBlockEntries()
     wireCursorHighlight()
 
-    chrome.runtime.onMessage.addListener(message => {
+    chrome.runtime.onMessage.addListener((message: TabMessage) => {
       // the shortcuts and notices belong to the top frame; a child frame that still hears them stays out of it
       if (!isTopFrame()) return
       if (message?.type === 'TRIGGER_SCREENSHOT') {

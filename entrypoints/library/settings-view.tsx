@@ -634,23 +634,23 @@ export function SettingsView() {
   const [shortcuts, setShortcuts] = useState<chrome.commands.Command[]>([])
 
   useEffect(() => {
-    void MessageUtils.sendMessage<ExtensionSettings>({ type: 'GET_SETTINGS' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'GET_SETTINGS' }).then(response => {
       if (response.success) setSettings(response.data!)
     })
-    void MessageUtils.sendMessage<{ usage: number; quota: number }>({ type: 'USAGE_ESTIMATE' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'USAGE_ESTIMATE' }).then(response => {
       if (response.success) setUsage(response.data!)
     })
     void chrome.commands.getAll().then(commands => setShortcuts(commands.filter(command => SHORTCUT_COMMANDS.includes(command.name ?? ''))))
   }, [])
 
   const patch = useCallback(async (next: SettingsPatch): Promise<boolean> => {
-    const response = await MessageUtils.sendMessage<ExtensionSettings>({ type: 'SET_SETTINGS', patch: next })
+    const response = await MessageUtils.sendMessage({ type: 'SET_SETTINGS', patch: next })
     if (response.success) setSettings(response.data!)
     return response.success
   }, [])
 
   const loadOrphans = useCallback(() => {
-    void MessageUtils.sendMessage<OrphanReport>({ type: 'ORPHAN_REPORT' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'ORPHAN_REPORT' }).then(response => {
       if (response.success) setOrphans(response.data!)
     })
   }, [])
@@ -669,7 +669,7 @@ export function SettingsView() {
   }, [orphans, loadOrphans])
 
   const loadMetrics = useCallback(() => {
-    void MessageUtils.sendMessage<MetricsPanelData>({ type: 'GET_METRICS' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'GET_METRICS' }).then(response => {
       if (response.success) setPanel(response.data!)
     })
   }, [])

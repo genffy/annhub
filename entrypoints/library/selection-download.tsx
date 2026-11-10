@@ -35,7 +35,7 @@ export function SelectionDownload({ entryIds, defaults, download, onClose }: Pro
 
   useEffect(() => {
     let active = true
-    void MessageUtils.sendMessage<EstimateDownloadResult>({ type: 'ESTIMATE_DOWNLOAD', entryIds }).then(response => {
+    void MessageUtils.sendMessage({ type: 'ESTIMATE_DOWNLOAD', entryIds }).then(response => {
       if (active && response.success && response.data) setEstimate(response.data)
     })
     return () => {

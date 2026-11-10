@@ -137,7 +137,7 @@ export function useLibraryDownload(): LibraryDownload {
       tracking.current = true
       current.current = { ...IDLE, phase: 'active', stage: 'fetch' }
       setState(current.current)
-      const response = await MessageUtils.sendMessage<{ total?: number }>({
+      const response = await MessageUtils.sendMessage({
         type: 'START_LIBRARY_DOWNLOAD',
         clientRunId: clientRunId.current,
         ...input,

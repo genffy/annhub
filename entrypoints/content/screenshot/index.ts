@@ -411,7 +411,7 @@ class ScreenshotSession {
   }
 
   private async loadAnonymizeDefault(): Promise<void> {
-    const response = await MessageUtils.sendMessage<ExtensionSettings>({ type: 'GET_SETTINGS' })
+    const response = await MessageUtils.sendMessage({ type: 'GET_SETTINGS' })
     if (this.exited || !response.success || !response.data) return
     this.settings = response.data
     // every capture waits for this, so no shot is taken before the defaults
@@ -1867,7 +1867,7 @@ class ScreenshotSession {
       // the page's meta fills whichever presets the user checked for
       // screenshots (entry.md §5.4) — same extractor and fallbacks as clips
       const meta = extractPageMeta(this.doc, normalizeHost(this.doc.defaultView!.location.href))
-      const response = await MessageUtils.sendMessage<{ entry: { id: string } }>({
+      const response = await MessageUtils.sendMessage({
         type: 'SAVE_SCREENSHOT',
         data: {
           id: this.entryId,
@@ -1939,7 +1939,7 @@ class ScreenshotSession {
       // a codec the browser cannot encode comes back as PNG bytes (screenshot.md §5):
       // download the PNG and say so, instead of failing on a name the bytes do not match
       const actual = downloadFormatFor(format, dataUrl)
-      const response = await MessageUtils.sendMessage<{ downloadId: number }>({
+      const response = await MessageUtils.sendMessage({
         type: 'DOWNLOAD_IMAGE',
         dataUrl,
         extension: downloadExtension(actual),

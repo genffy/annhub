@@ -8,9 +8,8 @@
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
-import type { EntryQuery, EntryQueryResult, PropertyCondition } from '../../core/query'
+import type { EntryQuery, PropertyCondition } from '../../core/query'
 import type { EntryRecord, PropertyDefinition } from '../../core/types'
-import type { LibraryFacets } from '../../core/store'
 
 import { ExportDialog } from './export-dialog'
 import { DownloadsLayer } from './downloads-layer'
@@ -236,7 +235,7 @@ export default function App() {
     if (entryQueryJson === null) return
     const query = JSON.parse(entryQueryJson) as EntryQuery
     void (async () => {
-      const response = await MessageUtils.sendMessage<{ result: EntryQueryResult }>({ type: 'QUERY_ENTRIES', query: { ...query, limit: loadedCountRef.current } })
+      const response = await MessageUtils.sendMessage({ type: 'QUERY_ENTRIES', query: { ...query, limit: loadedCountRef.current } })
       if (seq !== querySeq.current) return
       if (response.success) {
         setItems(response.data!.result.items)
@@ -260,7 +259,7 @@ export default function App() {
     if (highlightQueryJson === null) return
     const query = JSON.parse(highlightQueryJson) as HighlightQuery
     void (async () => {
-      const response = await MessageUtils.sendMessage<{ result: HighlightQueryResult }>({ type: 'QUERY_HIGHLIGHTS', query })
+      const response = await MessageUtils.sendMessage({ type: 'QUERY_HIGHLIGHTS', query })
       if (seq !== querySeq.current) return
       if (response.success) setHighlightResult(response.data!.result)
       setLoading(false)
@@ -277,7 +276,7 @@ export default function App() {
     setLoadingMore(true)
     try {
       const seq = querySeq.current
-      const response = await MessageUtils.sendMessage<{ result: EntryQueryResult }>({
+      const response = await MessageUtils.sendMessage({
         type: 'QUERY_ENTRIES',
         query: { ...queryFor(route), limit: PAGE_SIZE, cursor: nextCursor },
       })
@@ -307,7 +306,7 @@ export default function App() {
   }, [items])
 
   const refreshCounts = useCallback(async () => {
-    const response = await MessageUtils.sendMessage<{ facets: LibraryFacets }>({ type: 'QUERY_FACETS' })
+    const response = await MessageUtils.sendMessage({ type: 'QUERY_FACETS' })
     if (!response.success || !response.data?.facets) return
     const { counts: next, hosts: nextHosts, tags: nextTags } = response.data.facets
     setHosts(nextHosts)
@@ -339,15 +338,15 @@ export default function App() {
 
   useEffect(() => {
     void refreshCounts()
-    void MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'LIST_PROPERTIES' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'LIST_PROPERTIES' }).then(response => {
       if (response.success) setRegistry(response.data!.definitions)
       // a registry that cannot be read leaves its conditions out, as an unknown property does: the list still answers
       setRegistryLoaded(true)
     })
-    void MessageUtils.sendMessage<{ defaultHighlightColor?: HighlightColor }>({ type: 'GET_SETTINGS' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'GET_SETTINGS' }).then(response => {
       if (response.success && response.data?.defaultHighlightColor) setDefaultColor(response.data.defaultHighlightColor)
     })
-    void MessageUtils.sendMessage<{ usage: number; quota: number }>({ type: 'USAGE_ESTIMATE' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'USAGE_ESTIMATE' }).then(response => {
       if (response.success) setUsage(response.data!)
     })
     void chrome.commands.getAll().then(commands => {
@@ -603,7 +602,7 @@ export default function App() {
           ) : (
             <PropertiesView
               onRegistryChanged={() => {
-                void MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'LIST_PROPERTIES' }).then(response => {
+                void MessageUtils.sendMessage({ type: 'LIST_PROPERTIES' }).then(response => {
                   if (response.success) setRegistry(response.data!.definitions)
                 })
               }}

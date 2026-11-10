@@ -9,7 +9,7 @@
 - `event-handlers/command-handler.ts` 接五条命令（区域截图、区块模式、批注、录制开关、下载本页正文，后三条默认不绑定，annotate.md §1.1、§2.1，download.md §2.3），四条发给标签页的顶层框架（`frameId: 0`），录制开关在 worker 内直接走 `RecordingService`，没有注入式兜底（清单里没有 `scripting`）。
 - 持续超过 30 秒的流程把路由状态放进 `chrome.storage.session`，启动时恢复，offscreen 心跳保活（空闲 30 秒 Chrome 挂起 worker，进来的消息重置计时）；记录只放路由字段，不放标题、地址或字节（`services/recording`）。
 - IndexedDB 连接走 `store-instance.ts` 单例；服务不各自开库。
-- 新消息先在 `types/messages.ts` 登记，再同步 handler、调用方与测试。读用户数据、写类消息按 `sender.ts` 校验，不复制判断。
+- 新消息在 `types/messages.ts` 登记请求与响应（`ResponseDataMap`）再同步 handler 与测试，见 [response-types.md](notes/response-types.md)。
 
 发送者三档与各 handler 的校验清单见 [notes/sender-rules.md](notes/sender-rules.md)。
 
