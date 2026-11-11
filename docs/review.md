@@ -20,7 +20,178 @@
 
 ## 2. 待处理
 
-没有条目。新发现按 §1 第 6 条登记。
+审查分支是 `chore/hardening-followups`（§1 第 10 条）。组间的先后：测试门禁 → 产物体积 → 类型检查与 lint → 唤醒后台。产物体积组里 RV-LIB-22 先于 RV-TEST-14，预算按缩小之后的大小定；类型检查与 lint 组里 RV-TEST-13 先做，后两条的新检查才覆盖得到 skill 里的脚本；唤醒后台在类型检查与 lint 之后做，新代码直接按收紧的规则写。
+
+接手前先知道的几件事：
+
+- `entrypoints/content/screenshot/index.ts` 离 32 KB 的代码预算只剩约 150 字节，`entrypoints/content/target-chain.ts` 约 600 字节，`entrypoints/library/settings-view.tsx` 约 800 字节：哪一条改到它们，先把一块挪进同目录的新文件，不进台账。
+- `store-assets/` 被 git 忽略，只在产品负责人的检出里有，worktree 里没有：RV-TEST-13 的验收在 worktree 里自己建一个同名目录来验。
+- 查工具的选项时读已安装版本的类型与文档（Vitest 的 `coverage.thresholds`、Playwright 的 `failOnFlakyTests`、typescript-eslint 的规则），不凭记忆写配置。
+
+### 测试门禁
+
+#### RV-TEST-15 覆盖率把 `core/` 里的 Markdown 当源码解析，门槛只管 `core/`（低）
+
+**问题**
+
+- `vitest.config.ts` 的 `coverage.include` 是 `core/**`，`core/AGENTS.md` 因此算作一份没被测到的源码。v8 覆盖率把它当 JavaScript 解析失败，`pnpm test` 每跑一次（本机与 CI）都打印一段 `PARSE_ERROR` 堆栈；目录里有 `.DS_Store` 的检出再多一段。测试输出里常驻的错误堆栈让人习惯性地略过真正的错误。
+- 门槛只设在 `core/`。`background-service/` 是消息门面与发送者校验所在的安全边界，没有覆盖率下限；它的实测值（不含测试文件）是行 77%、分支 71%、函数 79%。
+
+**要求**
+
+1. `coverage.include` 只收源码（`core/**/*.ts`），测试文件照旧排除。
+2. 加上 `background-service/**/*.ts`，用按 glob 分开设门槛的写法：`core/**` 的三个门槛不变；`background-service/**` 取改完 include 之后的实测值向下取整，只升不降。
+3. `scripts/README.md`「验证入口」里讲覆盖率门槛的那一句同步。
+
+**验收**
+
+1. `pnpm test` 的输出里没有 `Failed to parse`。
+2. 临时删掉 `background-service/` 里覆盖面最大的一个测试文件，`pnpm run verify` 因为它的门槛失败；`core/**` 的三个门槛数字没变。
+
+#### RV-TEST-16 CI 里的 E2E 重试会吞掉偶发失败，`test.only` 也不被拒绝（中）
+
+**问题**
+
+- `playwright.config.ts` 在 CI 里 `retries: 1`，没有开 `failOnFlakyTests`：第一次失败、重试通过的用例只在报告里记一条 flaky，job 照样是绿的。main 上的 CI 与最近几个 PR 的运行里都有这样的用例：`e2e/library-drawer-edit.spec.ts` 的 “the header keeps one row of actions in one order”，以及 `e2e/library-export.spec.ts` 的 “an export that is running is not abandoned by Escape”。这和根 `AGENTS.md`「验证入口」的“不跳过、不禁用、不隔离测试求绿”相冲突。
+- 也没有 `forbidOnly`：误提交一个 `test.only`，CI 只跑那一条，结果仍是绿的。Vitest 在 CI 里默认拒绝 `.only`，Playwright 默认不拒绝。
+
+**要求**
+
+1. 先修上面两条用例：本机用 `pnpm exec playwright test <spec> --repeat-each 20` 复现，找到时序上的原因再改，不加固定等待，也不靠重试掩盖（与 `e2e/AGENTS.md` 冷启动那一条的要求相同）。
+2. `playwright.config.ts` 在 CI 下打开 `forbidOnly` 与 `failOnFlakyTests`；保留一次重试，只为第一次失败时留下 trace（`trace: 'on-first-retry'`）。
+3. `scripts/check-consistency.mjs` 断言这两项在 CI 下打开，连同它的测试；`e2e/AGENTS.md` 写一句：CI 里重试才通过的用例算失败。
+
+**验收**
+
+1. 两条用例各 `--repeat-each 20` 全部通过。
+2. `CI=1` 下临时加一条 `test.only`，运行在开跑前报错；临时加一条第一次失败、重试通过的用例（看 `testInfo.retry`），运行失败并点名它。
+3. `pnpm run check:consistency` 通过；删掉两项中的任一项，它的测试失败。
+
+### 产物体积
+
+量法：`pnpm run build` 之后看 `.output/chrome-mv3/`。一个扩展页面的首屏 JS 是它的 HTML 里 `<script src>` 与 `<link rel="modulepreload">` 指向的文件之和；chunk 的文件名带哈希，按 HTML 找，不按文件名找。一张字符串表的大小用 esbuild 单独打包那个模块（minify）得到。
+
+#### RV-LIB-22 弹窗为几个键带上资料库、设置、属性三张整表（低）
+
+**问题**
+
+- `entrypoints/popup/ui-text.ts` 把弹窗、资料库、属性、设置四张表合成一张。弹窗只用到自己的表、资料库表里的五个键（`library.all`、`library.clips`、`library.highlights`、`library.screenshots`、`library.settings`）和属性表里的四个 `time.*`（相对时间），设置表一个键也没用到。
+- 四张表 minify 后：弹窗 3.8 KB、资料库 20.1 KB、设置 16.2 KB、属性 7.6 KB。别人的三张表因此落进弹窗与资料库共用的 chunk，弹窗每打开一次都要加载；弹窗页的体积也没有预算（RV-TEST-14）。
+
+**要求**
+
+1. 每个入口只打包自己用到的表（RV-CAP-17 的约定），延伸到弹窗：弹窗与资料库共用的那几个键放进一张小表，两边都从它取；弹窗不再导入资料库、设置与属性的整表。
+2. 键名仍在编译期检查：弹窗用了自己没带的表里的键要报错。`utils/__tests__/ui-text.test.ts`、`ui-literals.test.ts`、`locale-keys.test.ts` 的断言不放宽。
+
+**验收**
+
+1. 弹窗页的首屏 JS 里搜不到 `settings.title` 与 `library.searchPlaceholder`；改动前后的首屏 JS 字节数写进交付说明。
+2. `pnpm run verify` 通过；`e2e/popup-entry.spec.ts`、`e2e/library-shell.spec.ts` 通过。
+
+#### RV-TEST-14 体积预算只覆盖两个文件（中）
+
+**问题**
+
+- `scripts/check-bundle.mjs` 只给 `content-scripts/content.js` 与 `background.js` 设了上限。没有上限的有两类：
+  - `content-scripts/content.css`（约 25 KB）。清单把它和 `content.js` 一起注入所有页面的所有框架；跨源框架里 `content.js` 一开始就退出，样式表照样注入。
+  - 扩展页面的首屏 JS。弹窗每打开一次要加载约 290 KB（自己的 chunk 加上与资料库共用的 chunk）。
+- 脚本注释说“没有上限的产物就是要补的漏”，却没有断言兜住：清单里多一个内容脚本或样式表、`.output` 里多一个页面，检查照样通过。
+
+**要求**
+
+1. 在 RV-LIB-22 之后做，上限取那时的实际值向上留一成。
+2. 预算加上 `content-scripts/content.css`，以及每个扩展页面（`popup.html`、`library.html`、`options.html`、`offscreen.html`）的首屏 JS（量法见本组开头）。
+3. 清单里的每个内容脚本 JS 与 CSS、后台脚本，以及 `.output/chrome-mv3` 下的每个 `.html` 页面都要有上限，缺了就失败并说出是哪个文件。按需 `import()` 的 chunk（offscreen 加载的正文识别）不在此列。
+4. 单测放 `scripts/__tests__/check-bundle.test.mjs`；`scripts/README.md` 联动表里 `check:bundle` 那一行同步。
+
+**验收**
+
+1. 临时把弹窗页的上限调到低于实际值，脚本失败，并列出这一页加载的文件。
+2. 测试的临时目录里给清单多加一个内容脚本、或多放一个页面而不设上限，脚本失败并说出名字。
+3. `pnpm run verify` 通过；CI 里两处调用的位置不变。
+
+### 类型检查与 lint
+
+#### RV-TEST-13 入库的商店截图脚本没有检查，被忽略的 `store-assets/` 反而被检查（中）
+
+**问题**
+
+- 商店截图脚本在 `.agents/skills/store-submission/shots/`，其中 `capture.spec.ts` 导入 `e2e/fixtures` 的 `test` 与 `e2e/helpers` 的七个函数。`eslint.config.js` 忽略整个 `.agents/**`；根 `tsconfig.json` 不写 `include`，默认的通配不进以点开头的目录。类型检查与 lint 都不读这三个文件：`e2e/helpers.ts` 里的函数改名或改签名，商店截图流程要到下次发布才发现跑不起来。
+- 反过来，根 `tsconfig.json` 只排除 `node_modules` 与 `website`，ESLint 也不忽略 `store-assets/`。产品负责人的检出里，被 git 忽略的 `store-assets/` 有两份存档里的 `playwright.config.ts`（`archive-v2.0.0/`、`archive-v2.1.0/`），本机的 `pnpm run compile` 与 `pnpm run lint` 会读它们，本机与 CI 检查的文件因此不同；以后存档里再放脚本也一样。
+
+**要求**
+
+1. `.agents/skills/store-submission/shots/*.ts` 进入 `pnpm run compile` 的类型检查与 `pnpm run lint`。其余 skill 照旧不查；`.claude/skills/` 是软链接，同一份文件不查两遍。
+2. `tsconfig.json` 与 `eslint.config.js` 明确排除 `store-assets/`，并注明原因：它只放每次发布的成品与存档，不入库。
+
+**验收**
+
+1. `pnpm exec tsc --noEmit --listFilesOnly -p tsconfig.json` 列出 skill 里的 `capture.spec.ts`，不列出 `store-assets/` 下的任何文件。在 worktree 里自己建一个 `store-assets/`，放一个有类型错误、也违反 lint 规则的 `.ts`，`pnpm run compile` 与 `pnpm run lint` 仍通过。
+2. 临时给 `capture.spec.ts` 用到的一个 helper 改名，`pnpm run compile` 在 `capture.spec.ts` 报错。
+3. `pnpm run verify` 通过。
+
+#### RV-TEST-17 `tsconfig.json` 还有三项检查没开（低）
+
+**问题**
+
+- 根 `tsconfig.json` 自己写了一套选项，没有继承 WXT 生成的 `.wxt/tsconfig.json`；后者开着的 `verbatimModuleSyntax` 与 `noImplicitOverride` 在根配置里没开。打开后都是 0 处错误。
+- `exactOptionalPropertyTypes` 没开，打开后 62 处错误：`entrypoints/` 23、`background-service/` 21、`core/` 15、`utils/` 2、`e2e/` 1。消息走 JSON，值为 `undefined` 的字段在传输中消失，所以协议用 `null` 表示清除（`background-service/AGENTS.md`）；这个选项在类型上分开“字段是 `undefined`”和“没有这个字段”，兜住的正是这类写法。
+
+**要求**
+
+1. 打开这三项；`tsconfig.worker.json` 继承根配置，一起生效。
+2. 62 处按含义改：表示“没有”的去掉字段或用条件展开，表示“清除”的按协议用 `null`；不用 `as` 绕过。
+
+**验收**
+
+1. `pnpm run compile` 通过；临时给一个可选字段赋 `undefined`，编译失败。
+2. 改动前后 `pnpm run build` 的 `content.js` 与 `background.js` 字节数写进交付说明，有差异就说明来源。
+3. `pnpm run verify` 通过；动到哪个入口，跑那个目录 `AGENTS.md`「验证」里列的 E2E。
+
+#### RV-TEST-18 带类型信息的 lint 还差一档（低）
+
+**问题**
+
+- `eslint.config.js` 读类型的规则只有五条。typescript-eslint 的 `recommendedTypeChecked` 其余的规则里，`unbound-method` 以外在发布代码（不含测试、`e2e/` 与 `scripts/`）里有违例的是八条，一共 33 处，其余规则没有违例：
+  - `no-unsafe-member-access` 8、`no-unsafe-assignment` 6、`no-unsafe-return` 1，在 `background-service/services/download/index.ts`、`background-service/services/recording/index.ts`、`entrypoints/offscreen/main.ts`、`utils/message/index.ts`：从 `chrome.*` 事件、端口与消息拿到的 `any` 没经收窄就往下用，这些地方正是不可信输入进来的边界。
+  - `only-throw-error` 6，都在 `entrypoints/content/screenshot/stitcher.ts`：抛出的不是 `Error`。
+  - `require-await` 7，在 `background-service/event-handlers/installation-handler.ts`、`background-service/services/system/index.ts`、`core/store.ts`、`entrypoints/content/screenshot/index.ts`、`entrypoints/library/App.tsx`、`entrypoints/offscreen/download-extract.ts`。
+  - `no-redundant-type-constituents` 3（`entrypoints/content/screenshot/drag-frame.ts`、`picking-chrome.ts`）、`restrict-template-expressions` 1（`core/export.ts`）、`no-base-to-string` 1（`entrypoints/library/settings-view.tsx`）。
+- 测试与 e2e 里同样的规则约 300 处，多是桩函数与 mock，收益小。
+
+**要求**
+
+1. 发布代码打开 `recommendedTypeChecked` 的全部规则（`unbound-method` 除外），都设为 `error`；测试、`e2e/`、`scripts/` 不开。33 处一次清掉。
+2. `any` 在边界处收窄：用已有的校验函数或类型守卫，不用 `as` 断言。`stitcher.ts` 改抛 `Error` 或它的子类，失败码不变。
+3. `require-await` 的命中处要么去掉 `async`，要么在旁边写明为什么保持 async；`command-handler.ts`、`installation-handler.ts` 的监听器照旧保持 async（理由已写在它们旁边）。
+4. `unbound-method`（发布代码 86 处，多是接口用方法写法引起的误报）与 `no-unnecessary-condition`（138 处）不开。
+
+**验收**
+
+1. `pnpm run lint` 通过；在一个非测试文件里临时写 `JSON.parse(text).a.b`，lint 失败。
+2. `pnpm run verify` 通过；动到哪个入口，跑那个目录 `AGENTS.md`「验证」里列的 E2E。
+
+### 唤醒后台
+
+#### RV-CAP-19 打开网页就唤醒 service worker，同源子框架的光标高亮只认加载时的录制状态（中）
+
+**问题**
+
+- `entrypoints/content/index.tsx` 的 `wireCursorHighlight` 在每个页面、以及其中每个同源子框架启动时都发 `RECORDING_STATUS`；`wireBlockEntries` 在每个页面第一次停在区块上时发 `GET_SETTINGS`。worker 空闲 30 秒被挂起，这两条消息每次都把它拉起来、重新初始化服务，日常浏览里它几乎不休眠。`background-service/AGENTS.md` 为了不让“改一次标题就唤醒 worker”，把标签页监听器做成只在需要时挂着；这两处与那个取舍相反。
+- 按代码推断，没有在浏览器里复现：同源子框架靠启动时那次询问打开光标高亮，却不理会停止。`services/recording` 把 `RECORDING_LIFECYCLE` 发给整个标签页，子框架的监听器一开头就返回。所以录制停止以后，指针移到这个 iframe 上光标高亮还在，违反 [annotate.md §3.3](product/annotate.md)；iframe 加载之后才开始的录制，iframe 里也没有光标高亮。[annotate.md §3.2](product/annotate.md) 只把另一个来源的 iframe 列为限制。
+
+**要求**
+
+1. 先复现子框架的情形，写成 E2E，用例名带本编号：用 `e2e/iframe-host.html` 一类的同源 iframe 夹具，打开光标高亮录制，停止之后指针移到 iframe 上。
+2. 子框架的光标高亮与顶层一样跟着录制的开始与停止；批注层仍只属于顶层框架。
+3. 按 D-100 的默认，普通的页面加载与第一次停在区块上都不唤醒 worker；结论写进归属文档、删掉 D-100，与实现在同一组里完成（[validation.md §2](product/validation.md)）。
+4. 不加权限；`chrome.storage.session` 的访问级别不放开（`background-service/AGENTS.md`）。
+
+**验收**
+
+1. 复现用例改动前失败、改动后通过。
+2. 新的 E2E：用 `e2e/helpers.ts` 的 `stopServiceWorker` 停掉 worker，打开带同源 iframe 的页面，停在一个区块上直到胶囊出现，worker 没有被重新启动（用 CDP 的 ServiceWorker 域看运行状态，`stopServiceWorker` 用的也是它）；区块入口的开关与已停用网站的设置照常生效（`e2e/block-clip.spec.ts`）。
+3. `pnpm run verify` 通过；`e2e/recording-annotation.spec.ts`、`e2e/block-clip.spec.ts`、`e2e/cold-start.spec.ts` 通过。
 
 ## 3. 已知问题
 
