@@ -220,6 +220,8 @@ export default function App() {
     },
   })
   const { items, total, nextCursor, loadingMore, loadMore, takeFocusAfterLoad } = list
+  // the view's own loading: the list query's pages or the highlights query — one flag per view
+  const viewLoading = route.view === 'highlights' ? loading : list.loading
 
   // The highlights view runs its own query with the same filters (RV-LIB-04).
   useEffect(() => {
@@ -363,7 +365,7 @@ export default function App() {
                 total={total}
                 counts={counts}
                 highlightResult={highlightResult}
-                loading={loading}
+                loading={viewLoading}
                 searchDraft={searchDraft}
                 setSearchDraft={setSearchDraft}
                 searchInputRef={searchInputRef}
@@ -388,7 +390,7 @@ export default function App() {
               >
                 {route.view === 'highlights' ? (
                   highlightResult.total === 0 ? (
-                    loading ? (
+                    viewLoading ? (
                       <div className="list-loading" role="status">
                         {uiText('common.loading')}
                       </div>
@@ -458,7 +460,7 @@ export default function App() {
                       </ul>
                     </div>
                   )
-                ) : items.length === 0 && loading ? (
+                ) : items.length === 0 && viewLoading ? (
                   // the first answer is still on its way: saying "nothing here" now would be wrong
                   <div className="list-loading" role="status">
                     {uiText('common.loading')}
