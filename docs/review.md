@@ -41,24 +41,6 @@
 
 ### 数据访问路径
 
-#### RV-CORE-11 列表查询的内存摘要随 service worker 回收（低，先测量）
-
-**问题**
-
-- `core/store.ts` 的 `summaries` 与 `textFields` 缓存在 worker 的 `EntryStore` 实例里。worker 空闲 30 秒被回收，下一次查询要把摘要整表重新读进内存；`background-service/AGENTS.md` 为此给了“重启后每个视图 2.5 秒内就绪”的预算（1 万条）。资料库页面活得比 worker 久，而且同源，可以直接读 IndexedDB。
-- 现在没有数字说明冷查询在真实体量下用户是否感觉得到。
-
-**要求**
-
-1. 本条只测量，不改查询路径。用 `e2e/library-browse.spec.ts` 的 `seedRealisticLibrary` 量 worker 冷启动后的首次查询与热查询。
-2. 冷查询超过 500 ms 时，把“页面直读，用现有的 `annhub.entries` 广播让缓存失效”的方案与取舍登记进 `docs/product/validation.md`（新的 `D-` 编号），由产品负责人决定。
-3. 冷查询不到 500 ms 时，本条按 §1 第 2 条移到 §3，写明数字。
-
-**验收**
-
-1. 测量的命令与结果写在交付说明里，可重跑。
-2. 条目按要求 2 或 3 有了去向。
-
 ### 归位与流程
 
 #### RV-TEST-11 官网的测试放在扩展的 `utils/__tests__/` 里（低）
@@ -121,4 +103,12 @@
 
 ## 3. 已知问题
 
-没有条目。接受一条已知问题时按 §1 第 2 条写：现象与位置、为什么现在不修、影响与绕行、锁定当前行为的用例、什么情况下重新处理。
+#### RV-CORE-11 列表查询的内存摘要随 service worker 回收（低）
+
+- 现象与位置：`core/store.ts` 的 `summaries` 与 `textFields` 缓存在 worker 的 `EntryStore` 实例里，worker 空闲 30 秒被回收后，下一次查询把摘要整表重新读进内存。
+- 为什么现在不修：实测（`e2e/query-latency.spec.ts`，真机 Chrome，评审口径的 10,000 条正文体量，多次运行）冷查询（worker 停止后的首次 `QUERY_ENTRIES`，含 worker 启动与摘要整表重读）224–367 ms，热查询 200–211 ms，均在 `background-service/AGENTS.md`「重启后每个视图 2.5 秒内就绪」预算的一半以下，用户感知不到。改为页面直读要引入第二条查询路径与 `annhub.entries` 广播的缓存失效，代价大于收益。
+- 影响与绕行：资料库页面活得比 worker 久，每次 worker 回收后的第一个列表查询多付约 0.1–0.2 秒；无绕行，也无需绕行。
+- 锁定当前行为的用例：`e2e/query-latency.spec.ts`（用例名带本编号）持续测量并打印两个数字，断言两条路径都成功。
+- 什么情况下重新处理：实测冷查询超过 500 ms，或条目体量口径（评审的 10,000 条 / 65 MB）被上调后重新测量越线；届时把「页面直读，用现有的 `annhub.entries` 广播让缓存失效」的方案与取舍登记进 `docs/product/validation.md`，由产品负责人决定。
+
+其他条目按 §1 第 2 条写：现象与位置、为什么现在不修、影响与绕行、锁定当前行为的用例、什么情况下重新处理。
