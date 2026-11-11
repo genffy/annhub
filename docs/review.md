@@ -71,23 +71,6 @@
 
 量法：`pnpm run build` 之后看 `.output/chrome-mv3/`。一个扩展页面的首屏 JS 是它的 HTML 里 `<script src>` 与 `<link rel="modulepreload">` 指向的文件之和；chunk 的文件名带哈希，按 HTML 找，不按文件名找。一张字符串表的大小用 esbuild 单独打包那个模块（minify）得到。
 
-#### RV-LIB-22 弹窗为几个键带上资料库、设置、属性三张整表（低）
-
-**问题**
-
-- `entrypoints/popup/ui-text.ts` 把弹窗、资料库、属性、设置四张表合成一张。弹窗只用到自己的表、资料库表里的五个键（`library.all`、`library.clips`、`library.highlights`、`library.screenshots`、`library.settings`）和属性表里的四个 `time.*`（相对时间），设置表一个键也没用到。
-- 四张表 minify 后：弹窗 3.8 KB、资料库 20.1 KB、设置 16.2 KB、属性 7.6 KB。别人的三张表因此落进弹窗与资料库共用的 chunk，弹窗每打开一次都要加载；弹窗页的体积也没有预算（RV-TEST-14）。
-
-**要求**
-
-1. 每个入口只打包自己用到的表（RV-CAP-17 的约定），延伸到弹窗：弹窗与资料库共用的那几个键放进一张小表，两边都从它取；弹窗不再导入资料库、设置与属性的整表。
-2. 键名仍在编译期检查：弹窗用了自己没带的表里的键要报错。`utils/__tests__/ui-text.test.ts`、`ui-literals.test.ts`、`locale-keys.test.ts` 的断言不放宽。
-
-**验收**
-
-1. 弹窗页的首屏 JS 里搜不到 `settings.title` 与 `library.searchPlaceholder`；改动前后的首屏 JS 字节数写进交付说明。
-2. `pnpm run verify` 通过；`e2e/popup-entry.spec.ts`、`e2e/library-shell.spec.ts` 通过。
-
 #### RV-TEST-14 体积预算只覆盖两个文件（中）
 
 **问题**

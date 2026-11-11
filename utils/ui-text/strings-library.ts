@@ -3,10 +3,6 @@
 export const libraryStrings = {
   // library page (extension.md §2.2-2.3)
   'library.searchPlaceholder': { zh: '搜索条目…', en: 'Search entries…' },
-  'library.all': { zh: '全部', en: 'All' },
-  'library.clips': { zh: '剪藏', en: 'Clips' },
-  'library.screenshots': { zh: '截图', en: 'Screenshots' },
-  'library.settings': { zh: '设置', en: 'Settings' },
   'library.navCollapse': { zh: '折叠导航', en: 'Collapse navigation' },
   'library.navExpand': { zh: '展开导航', en: 'Expand navigation' },
   'library.export': { zh: '导出内容', en: 'Export content' },
@@ -125,7 +121,6 @@ export const libraryStrings = {
   'library.imagePreview': { zh: '图片预览', en: 'Image preview' },
   'library.downloadImage': { zh: '下载图片', en: 'Download image' },
   'library.error.notFound': { zh: '未找到该条目。', en: 'Entry not found.' },
-  'library.empty': { zh: '还没有条目：选中网页文字即可保存', en: 'Nothing yet — select text on a page to save it' },
   'library.noResults': { zh: '没有匹配的结果', en: 'No matching results' },
   'library.clearFilters': { zh: '清除筛选', en: 'Clear filters' },
   'library.filters': { zh: '筛选', en: 'Filters' },
@@ -181,7 +176,6 @@ export const libraryStrings = {
   'library.deleteWithHighlightsButton': { zh: '删除剪藏与高亮', en: 'Delete clip and highlights' },
   'library.imageMissing': { zh: '图片缺失', en: 'Image missing' },
   'library.highlightsCount': { zh: '{count} 高亮', en: '{count} highlights' },
-  'library.highlights': { zh: '高亮', en: 'Highlights' },
   'reading.locked': {
     zh: '有高亮时原文只读：高亮的范围依赖原文。删除全部高亮后恢复可编辑。',
     en: 'The original text is read-only while highlights exist — their ranges depend on it. Delete all highlights to edit again.',
@@ -231,12 +225,7 @@ export const libraryStrings = {
   },
   'library.note': { zh: '备注', en: 'Note' },
   'library.properties': { zh: '属性', en: 'Properties' },
-  'library.openLibrary': { zh: '在资料库中打开', en: 'Open in library' },
   'library.name': { zh: '资料库', en: 'Library' },
-  'library.shortcutHint': {
-    zh: '选中网页文字即可保存 · {keys} 截图',
-    en: 'Select text on a page to save it · {keys} to screenshot',
-  },
   // the same sentence with the keys drawn as keycaps (extension.md §2.2)
   'library.shortcutHint.lead': { zh: '选中网页文字即可保存 ·', en: 'Select text on a page to save it ·' },
   'library.shortcutHint.tail': { zh: '截图', en: 'to screenshot' },
