@@ -185,6 +185,7 @@ export class EditorStage {
   refreshDisplay(): void {
     const content = this.croppedCanvas
     const display = this.displayCanvas
+
     if (!content || !display) return
     const paint = this.port.paintOptions()
     this.contentOrigin = paintScreenshotDisplay(display, content, {

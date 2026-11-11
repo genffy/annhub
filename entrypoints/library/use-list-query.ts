@@ -39,6 +39,9 @@ export function useListQuery(input: UseListQueryInput) {
   const focusAfterLoadRef = useRef<string | null>(null)
 
   const { active, queryJson, queryKey, reloadKey, query, onQueried } = input
+  // The caller's callback changes identity every render; the query must not re-send for it.
+  const onQueriedRef = useRef(onQueried)
+  onQueriedRef.current = onQueried
   useEffect(() => {
     if (!active) return
     if (lastQueryKeyRef.current !== queryKey) {
@@ -57,11 +60,11 @@ export function useListQuery(input: UseListQueryInput) {
         setTotal(response.data!.result.total)
         setNextCursor(response.data!.result.nextCursor ?? null)
         loadedCountRef.current = Math.max(PAGE_SIZE, response.data!.result.items.length)
-        onQueried?.(response.data!.result.total)
+        onQueriedRef.current?.(response.data!.result.total)
       }
       setLoading(false)
     })()
-  }, [active, queryJson, queryKey, reloadKey, onQueried])
+  }, [active, queryJson, queryKey, reloadKey])
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || loadingMoreRef.current) return

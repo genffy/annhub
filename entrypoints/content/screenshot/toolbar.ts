@@ -154,17 +154,17 @@ export function createScreenshotToolbar(doc: Document, actions: ToolbarActions):
   const steps = doc.createElement('div')
   const notice = doc.createElement('div')
   el.append(status, widths, steps, notice)
-  let statusKey = ''
-  let widthsKey = ''
-  let stepsKey = ''
-  let noticeKey = ''
+  let statusKey = undefined as string | undefined
+  let widthsKey = undefined as string | undefined
+  let stepsKey = undefined as string | undefined
+  let noticeKey = undefined as string | undefined
 
   /**
    * Replaces a row's children and returns the focus to where it was, if that button still
    * exists. An empty key means the row is gone, the way a React conditional unmounted it: the
    * container stays but its class and attributes go with it, so nothing selects an empty box.
    */
-  const rebuild = (row: HTMLDivElement, key: string, previous: string, fill: () => void): string => {
+  const rebuild = (row: HTMLDivElement, key: string, previous: string | undefined, fill: () => void): string | undefined => {
     if (key === previous) return previous
     const focused = row.contains(doc.activeElement) ? (doc.activeElement as HTMLElement).getAttribute('data-ann-ui') : null
     row.replaceChildren()
@@ -173,7 +173,11 @@ export function createScreenshotToolbar(doc: Document, actions: ToolbarActions):
       row.removeAttribute('role')
       row.removeAttribute('aria-label')
       row.removeAttribute('data-ann-ui')
+      // the toolbar is a flex column with a gap: a classless empty row would still
+      // take a slot, the way an unmounted React row never did
+      row.style.display = 'none'
     } else {
+      row.style.display = ''
       fill()
       if (focused !== null) {
         const restored = row.querySelector<HTMLElement>(`[data-ann-ui="${focused}"]`)
