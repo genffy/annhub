@@ -381,8 +381,8 @@ class ScreenshotSession {
       settingsLoaded: () => this.settingsLoadedPromise,
       selection: () => this.selection,
       setSelection: rect => (this.selection = rect),
-      permalinkForRegion: rect => (this.capturedSourceUrl = this.links.regionPermalink(rect)),
-      permalinkForElement: node => (this.capturedSourceUrl = this.links.elementPermalink(node)),
+      regionPermalink: rect => this.links.regionPermalink(rect),
+      elementPermalink: node => this.links.elementPermalink(node),
       anonymize: () => ({ on: this.prefs.anonymizeOn, parts: this.prefs.anonymizeParts }),
       fail: message => this.showError(message),
       takeInk: () => {

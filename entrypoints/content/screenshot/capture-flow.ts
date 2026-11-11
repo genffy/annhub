@@ -24,8 +24,9 @@ export interface CaptureFlowPort {
   selection(): ViewportRect | null
   /** The element path sets the element's box as the frame the region path crops. */
   setSelection(rect: ViewportRect): void
-  permalinkForRegion(rect: ViewportRect): void
-  permalinkForElement(node: Node): void
+  /** The source URL the capture records: the region's or the element's permalink. */
+  regionPermalink(rect: ViewportRect): string
+  elementPermalink(node: Node): string
   /** DOM anonymization on, and the parts of the identity it covers. */
   anonymize(): { on: boolean; parts: IdentityParts }
   /** Shows the capture's failure panel. */
@@ -55,7 +56,7 @@ export class CaptureFlow {
   async region(): Promise<void> {
     const selection = this.port.selection()
     if (!selection) return
-    this.port.permalinkForRegion(selection)
+    const sourceUrl = this.port.regionPermalink(selection)
     this.port.beginCapture()
     await this.port.settingsLoaded()
     if (this.port.exited()) return
@@ -97,7 +98,7 @@ export class CaptureFlow {
           width: r.width * scaleX,
           height: r.height * scaleY,
         }))
-    this.port.handOver(capture, this.dpr, this.consumeInk(selection), masks, null, null)
+    this.port.handOver(capture, this.dpr, this.consumeInk(selection), masks, null, sourceUrl)
   }
 
   /**
@@ -154,8 +155,8 @@ export class CaptureFlow {
 
   /** The element path's clone rasterization. */
   private async clone(target: HTMLElement, section: BlockCandidate['range'] | undefined, sectionBox: DOMRect): Promise<void> {
+    const sourceUrl = this.port.elementPermalink(target)
     this.port.beginCapture()
-    this.port.permalinkForElement(target)
     await this.port.settingsLoaded()
     if (this.port.exited()) return
     let capture: HTMLCanvasElement
@@ -179,7 +180,7 @@ export class CaptureFlow {
       this.consumeInk({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }),
       [],
       { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
-      null,
+      sourceUrl,
     )
   }
 
