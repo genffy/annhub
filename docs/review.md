@@ -43,22 +43,6 @@
 
 ### 归位与流程
 
-#### RV-TEST-11 官网的测试放在扩展的 `utils/__tests__/` 里（低）
-
-**问题**
-
-- `utils/__tests__/` 下的 `website.test.ts`、`website-consent.test.ts`、`website-search.test.ts`、`website-not-found-copy.test.ts`、`legal-pages.test.ts`、`token-parity.test.ts` 测的是 `website/` 的源码或跨目录的一致性，与 `utils/` 无关。根 `vitest.config.ts` 与根 `tsconfig.json` 都排除 `website/`，所以它们只能待在外面。
-
-**要求**
-
-1. 挪到说得出职责的位置：仓库根下一个专门的目录，或 `website/__tests__/`（那样要调 vitest 的 include 与两个 tsconfig）。二选一，不给 `website/` 增加测试依赖。
-2. 一起改指向旧路径的地方：`website/README.md`、`scripts/README.md`、`.github/workflows/ci.yml` 头注里点名的两个文件、`scripts/check-consistency.mjs` 里的说明。
-
-**验收**
-
-1. `utils/__tests__/` 里没有这六个文件；`pnpm test` 的用例数不变。
-2. `git grep -nE "utils/__tests__/(website|legal-pages|token-parity)"` 无结果。
-
 #### RV-DOC-04 商店提交流程只存在于一台机器上（中）
 
 **问题**

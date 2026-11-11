@@ -77,7 +77,7 @@ WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node ../scripts/smoke-website.mjs --l
 app/[locale]/globals.css          设计令牌（亮色；.theme-dark 为暗色）与基础样式，令牌取自设计稿 css/tokens.css
 lib/copy/                         中英文文案。types.ts 是唯一的结构，zh-CN.ts 与 en.ts 逐项对应，缺一项就编译失败
 lib/site.ts                       生产域名（只给爬虫读的地址用）、统计令牌与扩展支持的最低 Chrome 版本
-lib/consent.ts                    什么时候加载统计、哪些国家先问：纯函数，utils/__tests__/website-consent.test.ts 覆盖
+lib/consent.ts                    什么时候加载统计、哪些国家先问：纯函数，tests/website/website-consent.test.ts 覆盖
 app/sitemap.ts                    站点地图：两个语言页与两个法律页
 app/llms.txt/route.ts             构建时写出 /llms.txt，内容由 lib/llms-txt.ts 从英文文案生成
 lib/structured-data.ts            语言页的结构化数据：FAQPage 与 SoftwareApplication
@@ -90,13 +90,13 @@ components/product/sample.ts      示例数据，取自 docs/product/examples.md
 
 - **界面复刻不是截图**。设计稿里的界面用 React 和 CSS 重画，页面上标注“界面示意”。真实构建的截图（[蓝图 §17](../docs/product/website.md)）就绪后再替换；替换前不要把它们描述成公开构建的截图。
 - **站点地图的日期跟着内容走**：语言页的 `lastmod` 取 `lib/copy/*` 里的 `meta.updated`，文案或结构化数据有实质改动时改成当天；法律页取页面上写明的更新日期（[seo-geo.md §3.5](../docs/product/seo-geo.md)）。
-- **结构化数据与 `llms.txt` 不另写文字**：两者都从 `lib/copy/*` 取页面的描述与正文，链接取 `components/landing/links.ts` 与 `lib/site.ts`（[seo-geo.md §1、§5](../docs/product/seo-geo.md)）。`lib/site.ts` 的 `MIN_CHROME_VERSION` 与扩展 `wxt.config.ts` 的 `minimum_chrome_version` 一致，`pnpm run check:consistency` 核对；内容由 `utils/__tests__/website-search.test.ts` 核对，构建产物和线上版本由导出检查与冒烟检查核对。
+- **结构化数据与 `llms.txt` 不另写文字**：两者都从 `lib/copy/*` 取页面的描述与正文，链接取 `components/landing/links.ts` 与 `lib/site.ts`（[seo-geo.md §1、§5](../docs/product/seo-geo.md)）。`lib/site.ts` 的 `MIN_CHROME_VERSION` 与扩展 `wxt.config.ts` 的 `minimum_chrome_version` 一致，`pnpm run check:consistency` 核对；内容由 `tests/website/website-search.test.ts` 核对，构建产物和线上版本由导出检查与冒烟检查核对。
 - **界面里的字符串跟扩展一致**：`lib/copy/*` 里的 `ui` 取自扩展的 `utils/ui-text.ts`，设计稿或扩展改了文案，这里同步。
 - **设计稿变了，先改移植的那份 CSS 和组件**，再看页面。选区菜单、剪藏胶囊这类浮层锚定在被选中的文字或区块上，不写死像素，字体回退或换行变了也不会错位；必须按像素摆放的场景（整个截图会话、整张浏览器窗口）用 `Fit` 缩放。
-- **悬停和聚焦只改外观，不改尺寸**。设计稿用固定的 `.hov` 类画“悬停中”的静态状态，移植成真正的 `:hover` 时，如果靠 `display` 让操作按钮出现，就多出一列、文字重新换行，那一行和它下面所有行的高度都会在指针下变化。条目行的操作区始终占位，隐藏时只改 `visibility`；`:hover`、`:focus` 规则只能改背景、颜色、阴影这类绘制属性，`utils/__tests__/website.test.ts` 核对这一点。
+- **悬停和聚焦只改外观，不改尺寸**。设计稿用固定的 `.hov` 类画“悬停中”的静态状态，移植成真正的 `:hover` 时，如果靠 `display` 让操作按钮出现，就多出一列、文字重新换行，那一行和它下面所有行的高度都会在指针下变化。条目行的操作区始终占位，隐藏时只改 `visibility`；`:hover`、`:focus` 规则只能改背景、颜色、阴影这类绘制属性，`tests/website/website.test.ts` 核对这一点。
 - **页内锚点平滑滚动，换页不滚动画**。`globals.css` 给 `html` 设了 `scroll-behavior: smooth`，所以 `layout.tsx` 的 `<html>` 要带 `data-scroll-behavior="smooth"`。有它，Next 在换页（语言切换）时临时关掉平滑滚动，新页面直接停在顶部；没有它，新页面会用约 1 秒的动画从原来的位置滑回顶部，开发时控制台还会警告。同一个测试核对两处一致。
 - 产品窗口圆角不超过 8px；不用渐变球、发光背景和玻璃拟态；紫色只作品牌与操作强调（[蓝图 §5](../docs/product/website.md)）。
-- 页面主 CTA 统一为“体验资料库”，各入口都指向站内示例。安装入口都链接 `components/landing/links.ts` 的 `STORE_URL`：商店条目页，不带跟踪参数，在当前标签页打开；`utils/__tests__/website.test.ts` 核对它与产品文档里的商店条目一致、站内只写这一处。
+- 页面主 CTA 统一为“体验资料库”，各入口都指向站内示例。安装入口都链接 `components/landing/links.ts` 的 `STORE_URL`：商店条目页，不带跟踪参数，在当前标签页打开；`tests/website/website.test.ts` 核对它与产品文档里的商店条目一致、站内只写这一处。
 - 手机顶栏保留主 CTA，不放安装入口（手机装不了扩展）；640 像素起顶栏在主 CTA 之前加上安装入口。走查在窄屏用 `StoryFocus` 展示原尺寸的关键局部，在宽屏展示完整窗口；两者复用同一份示例数据与产品零件。静态场景的内部内容设置 `inert`，替代文字留在外层，键盘只进入真正可操作的控件。
 - 问题区与取舍区采用紧凑条目，功能区每项只展示一个主要动作。资料库文案按“搜索、阅读、找回”等用户任务组织。
 - 不展示未经验证的评价和使用人数，不写“完全准确”“永不丢失”这类无法证明的承诺。
@@ -104,6 +104,6 @@ components/product/sample.ts      示例数据，取自 docs/product/examples.md
 
 **渲染方式**：两个语言的页面在构建时预渲染成静态 HTML。`app/[locale]/layout.tsx` 和 `page.tsx` 里的 `setRequestLocale(locale)` 就是为此而写：去掉它，next-intl 会去读请求头，页面退回按请求渲染。客户端边界包括 `Fit`（缩放像素定位的场景）、`StoryStepper`（步骤切换，只挂载当前画面）、`TourWindow`（接近视口时加载 `LibraryTour`，加载前后复用 `TourControls` 保持说明可读）、`LibraryTour`（操作只影响内存中的示例）、`AnalyticsConsent`（需读取 Cookie 和本地存储）和 `AnalyticsSettings`（页脚的统计设置）。
 
-**验证**：`pnpm run lint`、`pnpm run typecheck`、`pnpm run build`；官网的单测在仓库根目录的 `utils/__tests__/website*.test.ts`，随根目录的 `pnpm test` 运行。涉及版式的改动，用真实浏览器在 390、820、1024、1280、1440 和 1920 宽度各看一遍，中英文都看；只看一个宽度会漏掉场景缩放和英文长文案带来的问题。
+**验证**：`pnpm run lint`、`pnpm run typecheck`、`pnpm run build`；官网的单测在仓库根目录的 `tests/website/`，随根目录的 `pnpm test` 运行。涉及版式的改动，用真实浏览器在 390、820、1024、1280、1440 和 1920 宽度各看一遍，中英文都看；只看一个宽度会漏掉场景缩放和英文长文案带来的问题。
 
 交互回归：构建并启动静态预览后，在仓库根运行 `WEBSITE_SMOKE_ORIGIN=http://localhost:3001 node scripts/check-website-ui.mjs`。它用 Playwright 检查中英文六种宽度的任务结果是否在视口内、手机工作流是否保留原尺寸文字、安装入口的位置与顶栏是否放得下，以及搜索、高亮、导出预览和键盘焦点；截图目视检查仍需另做。
