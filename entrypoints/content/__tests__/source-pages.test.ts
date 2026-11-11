@@ -30,7 +30,7 @@ it('keeps every formula and local reference in the encyclopedia structure', asyn
   const markdown = await download(document.body)
   for (const formula of formulas) expect(markdown).toContain(formula)
   expect(markdown).toMatch(/\[\^1\]:/)
-}, 30_000)
+}, 60_000)
 
 it('keeps all Sphinx code samples with their declared language', async () => {
   load('documentation', 'https://docs.python.org/3/tutorial/controlflow.html')

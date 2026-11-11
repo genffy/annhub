@@ -437,6 +437,58 @@ describe('check-consistency', () => {
       expectFailure({ 'package.json': edit('package.json', ' && pnpm run check:consistency', '') }, 'the script check:consistency is not part of verify')
     })
 
+    it('catches a build-dependent check that verify runs without a build (RV-TEST-10)', () => {
+      expectFailure(
+        {
+          'package.json': edit(
+            'package.json',
+            '"verify": "pnpm run format:check && pnpm test && pnpm run check:consistency"',
+            '"check:bundle": "node scripts/check-bundle.mjs",\n    "verify": "pnpm run format:check && pnpm test && pnpm run check:consistency && pnpm run check:bundle"',
+          ),
+          '.github/workflows/ci.yml': edit(
+            '.github/workflows/ci.yml',
+            '      - run: pnpm run check:consistency\n',
+            '      - run: pnpm run build\n      - run: pnpm run check:bundle\n      - run: pnpm run check:consistency\n',
+          ),
+          '.github/workflows/build-extension.yml':
+            'jobs:\n  build:\n    steps:\n      - uses: pnpm/action-setup@pinned\n      - run: pnpm run zip\n      - run: pnpm run check:bundle\n',
+        },
+        'the script check:bundle reads the build output, so it cannot run in verify',
+      )
+    })
+
+    it('catches a build-dependent check no workflow runs after its build (RV-TEST-10)', () => {
+      expectFailure(
+        {
+          'package.json': edit(
+            'package.json',
+            '"check:consistency": "node scripts/check-consistency.mjs"',
+            '"check:bundle": "node scripts/check-bundle.mjs", "check:consistency": "node scripts/check-consistency.mjs"',
+          ),
+        },
+        'does not run `check:bundle`, which needs the build this workflow makes',
+      )
+    })
+
+    it('catches a build-dependent check that runs before anything was built (RV-TEST-10)', () => {
+      expectFailure(
+        {
+          'package.json': edit(
+            'package.json',
+            '"check:consistency": "node scripts/check-consistency.mjs"',
+            '"check:bundle": "node scripts/check-bundle.mjs", "check:consistency": "node scripts/check-consistency.mjs"',
+          ),
+          '.github/workflows/ci.yml': edit(
+            '.github/workflows/ci.yml',
+            '      - run: pnpm run check:consistency\n',
+            '      - run: pnpm run check:bundle\n      - run: pnpm run check:consistency\n      - run: pnpm run build\n',
+          ),
+          '.github/workflows/build-extension.yml': 'jobs:\n  build:\n    steps:\n      - run: pnpm run zip\n      - run: pnpm run check:bundle\n',
+        },
+        'runs `check:bundle` before building anything',
+      )
+    })
+
     it('catches a required status check that no workflow job reports', () => {
       expectFailure(
         { '.github/workflows/ci.yml': edit('.github/workflows/ci.yml', 'name: ci-pass', 'name: all-green') },

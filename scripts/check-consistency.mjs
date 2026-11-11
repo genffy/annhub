@@ -414,17 +414,37 @@ function filtersPullRequests(text) {
   return trigger !== null && /^ {4}(paths|paths-ignore|branches|branches-ignore):/m.test(trigger[1])
 }
 
+/** Checks that read `.output`: verify has no build to give them, so CI runs them right after its build steps (RV-TEST-10). */
+const BUILD_DEPENDENT_CHECKS = ['check:bundle']
+
 function checkGate() {
   const scripts = readJson('package.json')?.scripts ?? {}
   if (scripts.verify !== undefined) {
     const commands = scripts.verify.split('&&').map(command => command.trim())
     for (const name of Object.keys(scripts).filter(name => name.startsWith('check:'))) {
+      if (BUILD_DEPENDENT_CHECKS.includes(name)) {
+        if (commands.includes(`pnpm run ${name}`))
+          fail('package.json', `the script ${name} reads the build output, so it cannot run in verify (there is no build); CI runs it after building`)
+        continue
+      }
       if (!commands.includes(`pnpm run ${name}`)) fail('package.json', `the script ${name} is not part of verify`)
     }
     const ci = read('.github/workflows/ci.yml')
     if (ci !== null) {
       for (const command of commands)
         if (!ci.includes(command)) fail('.github/workflows/ci.yml', `does not run \`${command}\`, which \`pnpm run verify\` runs; CI runs the same commands`)
+    }
+  }
+
+  // A build-dependent check without a workflow to run it after the build never runs at all.
+  for (const name of BUILD_DEPENDENT_CHECKS) {
+    if (!(name in scripts)) continue
+    for (const file of ['.github/workflows/ci.yml', '.github/workflows/build-extension.yml']) {
+      const text = read(file)
+      if (text === null) continue
+      const at = text.indexOf(`pnpm run ${name}`)
+      if (at === -1) fail(file, `does not run \`${name}\`, which needs the build this workflow makes`)
+      else if (at < text.search(/pnpm run (build|zip)/)) fail(file, `runs \`${name}\` before building anything`)
     }
   }
 

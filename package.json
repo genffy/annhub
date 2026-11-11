@@ -26,7 +26,8 @@
     "website:dev": "pnpm --dir website dev",
     "website:build": "pnpm --dir website install --frozen-lockfile && pnpm --dir website build",
     "website:start": "pnpm --dir website start",
-    "check:size": "node scripts/check-size.mjs"
+    "check:size": "node scripts/check-size.mjs",
+    "check:bundle": "node scripts/check-bundle.mjs"
   },
   "dependencies": {
     "@wxt-dev/i18n": "^0.2.4",

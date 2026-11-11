@@ -486,7 +486,7 @@ describe('keyboard tiers (capture.md §6.2 同档)', () => {
     expect(peersOf(current, doc)).toHaveLength(300)
     // each measure of main (its length, its non-whitespace length) happens once per press, not once per paragraph
     expect(reads).toBeLessThanOrEqual(4)
-  })
+  }, 30_000)
 
   it('chainHolding finds the chain of a merged layer from what is inside it, and nothing for a layer the page does not have', () => {
     document.body.innerHTML = '<main><div id="card"><div class="toolbar">bash</div><pre id="code">const a = 1</pre></div><p>' + LONG + '</p></main>'

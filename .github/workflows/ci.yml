@@ -176,6 +176,11 @@ jobs:
           test -f .output/chrome-mv3/manifest.json
           node -e "const m=require('./.output/chrome-mv3/manifest.json'); if(m.manifest_version!==3) throw new Error('not MV3'); console.log(m.name, m.version)"
 
+      # The bundle budgets need this job's build; verify has none (RV-TEST-10).
+      - name: Bundle size budgets
+        if: steps.docs.outputs.docs-only != 'true'
+        run: pnpm run check:bundle
+
       - name: Cache the E2E browser
         if: steps.docs.outputs.docs-only != 'true'
         id: browser

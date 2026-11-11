@@ -37,24 +37,6 @@
 
 量法：构建后看 `.output/chrome-mv3/` 的文件大小；各部分的占比用 esbuild 单独打包那一部分（minify）得到。
 
-#### RV-TEST-10 构建产物没有体积预算（中）
-
-**问题**
-
-- `check:size` 只管源码文件。`content.js` 长到 540 KB 的过程里没有任何检查提醒。
-
-**要求**
-
-1. 新脚本（`pnpm run check:bundle`）读 `.output/chrome-mv3`，给 `content-scripts/content.js` 与 `background.js` 设字节上限，取前两条做完之后的实际值向上留一成；超了就失败并打印各文件大小，没有构建目录时说明要先构建。
-2. 它依赖构建，不进 `verify`。CI 在 e2e job 的构建之后和 `build-extension.yml` 的打包之后各跑一次。`scripts/check-consistency.mjs` 现在要求每个 `check:` 脚本都在 `verify` 里：把这条断言改成“依赖构建的检查不进 verify，但必须出现在 CI 的构建之后”，连同它的测试。
-3. 单测放 `scripts/__tests__/`；`scripts/README.md` 的联动表加一行。
-
-**验收**
-
-1. 临时把上限调小到低于实际值，脚本失败并说出是哪个文件。
-2. `ci.yml` 与 `build-extension.yml` 里各有一处调用，位置在构建之后。
-3. `pnpm run verify` 通过。
-
 ### 热点文件
 
 #### RV-CAP-18 `ScreenshotSession` 一个类承担整个截图会话（中）

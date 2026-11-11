@@ -69,6 +69,10 @@ jobs:
       - name: Zip extension for Chrome
         run: pnpm run zip
 
+      # The bundle budgets read the build the zip step just made (RV-TEST-10).
+      - name: Bundle size budgets
+        run: pnpm run check:bundle
+
       - name: Verify Chrome Web Store package
         env:
           ZIP_NAME: ${{ steps.package_meta.outputs.zip-name }}
