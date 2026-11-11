@@ -6,12 +6,13 @@ import { popupStrings } from '../ui-text/strings-popup'
 import { libraryStrings } from '../ui-text/strings-library'
 import { settingsStrings } from '../ui-text/strings-settings'
 import { propertyStrings } from '../ui-text/strings-property'
+import { sharedStrings } from '../ui-text/strings-shared'
 
 /**
  * Every entry builds its texts on its own tables (RV-CAP-17); the tests compose all of them,
  * so a key that belongs to no table at all fails to compile instead of failing a user.
  */
-const table = { ...captureStrings, ...popupStrings, ...libraryStrings, ...settingsStrings, ...propertyStrings }
+const table = { ...captureStrings, ...popupStrings, ...libraryStrings, ...settingsStrings, ...propertyStrings, ...sharedStrings }
 const uiText = createUiText(table)
 const { entryErrorText, failureReason, screenshotFailureText, screenshotSaveErrorText } = createFailureHelpers(table)
 

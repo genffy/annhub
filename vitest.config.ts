@@ -34,10 +34,16 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text'],
       reportsDirectory: './coverage',
-      include: ['core/**'],
-      exclude: ['core/__tests__/**'],
+      // Source only: a bare `core/**` pulled `core/AGENTS.md` in as an untested source and
+      // made v8 print a PARSE_ERROR on every run (RV-TEST-15).
+      include: ['core/**/*.ts', 'background-service/**/*.ts'],
+      exclude: ['core/__tests__/**', 'background-service/__tests__/**'],
       // Floors of the measured line, branch and function coverage; only ever raised (RV-TEST-08).
-      thresholds: { lines: 95, branches: 87, functions: 95 },
+      // background-service is the message facade and sender-verification boundary (RV-TEST-15).
+      thresholds: {
+        'core/**': { lines: 95, branches: 87, functions: 95 },
+        'background-service/**': { lines: 77, branches: 71, functions: 79 },
+      },
     },
   },
   resolve: {

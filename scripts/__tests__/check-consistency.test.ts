@@ -40,6 +40,15 @@ const GOOD_FILES: Record<string, string> = {
   'website/lib/site.ts':
     "export const SITE_ORIGIN = 'https://annhub.org'\nexport const MIN_CHROME_VERSION = 114\nexport const ANALYTICS_TOKEN = process.env.NEXT_PUBLIC_CF_BEACON_TOKEN ?? ''\n",
   'wxt.config.ts': "export default defineConfig({ manifest: { minimum_chrome_version: '114' } })\n",
+  'playwright.config.ts': `import { defineConfig } from '@playwright/test'
+
+export default defineConfig({
+  testDir: './e2e',
+  retries: process.env.CI ? 1 : 0,
+  forbidOnly: Boolean(process.env.CI),
+  failOnFlakyTests: Boolean(process.env.CI),
+})
+`,
   'website/next.config.js': "module.exports = { output: 'export' }\n",
   'website/wrangler.json': json({
     name: 'annhub-website',
@@ -525,6 +534,22 @@ describe('check-consistency', () => {
         }),
       })
       expect(status, output).toBe(0)
+    })
+  })
+
+  describe('Playwright E2E gate (RV-TEST-16)', () => {
+    const drop = (option: string) => [new RegExp(`^  ${option}: Boolean\\(process\\.env\\.CI\\),\\n`, 'm'), ''] as const
+    const untied = (option: string, value: string) => [new RegExp(`  ${option}: Boolean\\(process\\.env\\.CI\\),`), `  ${option}: ${value},`] as const
+
+    it('catches forbidOnly and failOnFlakyTests left unset', () => {
+      expectFailure({ 'playwright.config.ts': edit('playwright.config.ts', ...drop('failOnFlakyTests')) }, 'does not set failOnFlakyTests')
+      expectFailure({ 'playwright.config.ts': edit('playwright.config.ts', ...drop('forbidOnly')) }, 'does not set forbidOnly')
+      expectFailure({ 'playwright.config.ts': null }, 'playwright.config.ts: is missing')
+    })
+
+    it('catches the two options set without tying them to CI', () => {
+      expectFailure({ 'playwright.config.ts': edit('playwright.config.ts', ...untied('failOnFlakyTests', 'true')) }, 'sets failOnFlakyTests to `true`; it has to be tied to CI')
+      expectFailure({ 'playwright.config.ts': edit('playwright.config.ts', ...untied('forbidOnly', 'false')) }, 'sets forbidOnly to `false`; it has to be tied to CI')
     })
   })
 
