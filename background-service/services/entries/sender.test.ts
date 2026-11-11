@@ -30,6 +30,7 @@ describe('entry service sender permissions (RV-BG-02)', () => {
       'DELETE_UNUSED_PROPERTIES',
       'USAGE_ESTIMATE',
       'ORPHAN_REPORT',
+      'CLEANUP_ORPHANS',
       'ADD_HIGHLIGHT',
       'UPDATE_HIGHLIGHT',
       'REMOVE_HIGHLIGHT',
@@ -39,6 +40,12 @@ describe('entry service sender permissions (RV-BG-02)', () => {
       expect(response.success, type).toBe(false)
       expect(response.error, type).toContain('Forbidden')
     }
+  })
+
+  it('the orphan cleanup is a write behind the message facade (RV-LIB-21)', () => {
+    // the settings page once opened the store itself; the write goes through the worker now
+    const handlers = EntryService.getInstance().getMessageHandlers() as unknown as Record<string, unknown>
+    expect(typeof handlers.CLEANUP_ORPHANS).toBe('function')
   })
 
   it('rejects outside senders and limits content edits to the capture they just saved', async () => {

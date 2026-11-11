@@ -41,24 +41,6 @@
 
 ### 数据访问路径
 
-#### RV-LIB-21 设置页绕过 service worker 直接写库（低）
-
-**问题**
-
-- `entrypoints/library/settings-view.tsx` 的 `cleanupOrphans` 自己打开 `EntryStore` 调 `deleteOrphanAssets`。孤儿报告走 `ORPHAN_REPORT` 消息，清理却不走，写操作因此有两条路。
-- 库名字面量 `'annhub'` 在 worker 之外出现四处（`entrypoints/library/entry-card.tsx`、`settings-view.tsx`、`export-run.ts`、`entrypoints/offscreen/download-run.ts`），而 `EntryStore` 构造函数的默认值就是它。
-
-**要求**
-
-1. 清理改走消息：按 `background-service/AGENTS.md` 的流程新增（类型、handler、只接受扩展页面的发送者校验、测试）。
-2. 页面读图片、整库导出、offscreen 打包仍然直连，只读；库名只在 `core/store.ts` 写一次。
-3. `docs/product/storage.md` 有对应约定时同步。
-
-**验收**
-
-1. `git grep -n "EntryStore('annhub')"` 无结果。
-2. `e2e/settings-drafts.spec.ts` 的孤儿清理用例与 `e2e/library-export.spec.ts` 通过。
-
 #### RV-CORE-11 列表查询的内存摘要随 service worker 回收（低，先测量）
 
 **问题**

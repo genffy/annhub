@@ -518,6 +518,12 @@ export interface OrphanReportMessage extends BaseMessage {
   type: 'ORPHAN_REPORT'
 }
 
+/** The settings page's 清理: deletes the unreferenced assets its report named (storage.md §7). */
+export interface CleanupOrphansMessage extends BaseMessage {
+  type: 'CLEANUP_ORPHANS'
+  assetIds: string[]
+}
+
 export interface OpenExtensionPageMessage extends BaseMessage {
   type: 'OPEN_EXTENSION_PAGE'
   page: 'library' | 'settings'
@@ -574,6 +580,7 @@ export type ExtensionMessage =
   | GetMetricsMessage
   | UsageEstimateMessage
   | OrphanReportMessage
+  | CleanupOrphansMessage
   | OpenExtensionPageMessage
 
 // ── Messages to a tab's content script (RV-BG-12) ───────────────────────
@@ -630,6 +637,7 @@ export interface ResponseDataMap {
   DELETE_UNUSED_PROPERTIES: { removed: string[]; definitions: PropertyDefinition[] }
   USAGE_ESTIMATE: { usage: number; quota: number }
   ORPHAN_REPORT: OrphanReport
+  CLEANUP_ORPHANS: { removed: string[] }
   CAPTURE_VISIBLE_TAB: { dataUrl: string }
   FETCH_IMAGE: { dataUrl: string }
   DOWNLOAD_IMAGE: { downloadId: number }
@@ -742,6 +750,7 @@ export const MESSAGE_COORDINATION = {
   GET_METRICS: COORDINATION_NONE,
   USAGE_ESTIMATE: COORDINATION_NONE,
   ORPHAN_REPORT: COORDINATION_NONE,
+  CLEANUP_ORPHANS: COORDINATION_NONE,
   OPEN_EXTENSION_PAGE: COORDINATION_NONE,
 } satisfies Record<ExtensionMessage['type'], MessageCoordination>
 

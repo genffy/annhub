@@ -11,7 +11,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
 import type { ExtensionSettings, SettingsPatch } from '../../core/settings'
-import { EntryStore, type OrphanReport } from '../../core/store'
+import type { OrphanReport } from '../../core/store'
 import type { MetricsPanelData } from '../../core/metrics'
 import { backgroundCss, decodeWatermarkImage, paintWatermark, type WatermarkImage } from '../../utils/screenshot-output'
 import { BEAUTIFY_BACKGROUND_IDS, BEAUTIFY_RADII, PADDING_PX, RATIO_PRESETS, type BeautifyPadding } from '../../core/screenshot-options'
@@ -658,14 +658,9 @@ export function SettingsView() {
   const cleanupOrphans = useCallback(async () => {
     const ids = orphans?.unreferencedAssets ?? []
     if (ids.length === 0 || !window.confirm(uiText('settings.orphanConfirm', { count: ids.length }))) return
-    const store = new EntryStore('annhub')
-    try {
-      await store.initialize()
-      await store.deleteOrphanAssets(ids)
-      loadOrphans()
-    } finally {
-      await store.close()
-    }
+    // the write goes through the worker like every write (RV-LIB-21); the report above only reads
+    const response = await MessageUtils.sendMessage({ type: 'CLEANUP_ORPHANS', assetIds: ids })
+    if (response.success) loadOrphans()
   }, [orphans, loadOrphans])
 
   const loadMetrics = useCallback(() => {

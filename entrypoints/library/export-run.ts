@@ -23,7 +23,7 @@ export interface ExportOutcome {
 }
 
 export async function runExport(): Promise<ExportOutcome> {
-  const store = new EntryStore('annhub')
+  const store = new EntryStore()
   let stage: ExportStage = 'build'
   try {
     await store.initialize()

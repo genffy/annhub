@@ -245,6 +245,12 @@ export class EntryService implements IService {
         const store = await initializedEntryStore()
         return MessageUtils.createResponse(true, await store.orphanReport())
       },
+
+      CLEANUP_ORPHANS: async (message, sender) => {
+        if (!isExtensionPageSender(sender)) return forbiddenResponse()
+        const store = await initializedEntryStore()
+        return MessageUtils.createResponse(true, { removed: await store.deleteOrphanAssets(message.assetIds) })
+      },
     }
   }
 

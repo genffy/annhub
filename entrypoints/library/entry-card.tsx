@@ -19,7 +19,7 @@ let assetStorePromise: Promise<EntryStore> | null = null
 
 function assetStore(): Promise<EntryStore> {
   assetStorePromise ??= (async () => {
-    const store = new EntryStore('annhub')
+    const store = new EntryStore()
     await store.initialize()
     return store
   })().catch(error => {

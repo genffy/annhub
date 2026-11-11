@@ -3,7 +3,7 @@
 > 适用范围：`background-service/` 的消息 sender 校验；上级约定见 [../AGENTS.md](../AGENTS.md)。
 
 - 发送者分三档，每个 handler 自己校验（测试：`services/entries/sender.test.ts`，遍历所有 handler）：
-  - 只有扩展页面：全部查询（`QUERY_ENTRIES`、`QUERY_HIGHLIGHTS`、`QUERY_FACETS`、`GET_ENTRY`、`GET_ASSET_DATA_URL`）、属性注册表（`LIST_PROPERTIES`、`UPSERT_PROPERTY`、`DELETE_PROPERTY`、`DELETE_UNUSED_PROPERTIES`）、四个高亮操作、`USAGE_ESTIMATE`、`ORPHAN_REPORT`、`GET_METRICS`、`GET_RECORDING_STATE`；
+  - 只有扩展页面：全部查询（`QUERY_ENTRIES`、`QUERY_HIGHLIGHTS`、`QUERY_FACETS`、`GET_ENTRY`、`GET_ASSET_DATA_URL`）、属性注册表（`LIST_PROPERTIES`、`UPSERT_PROPERTY`、`DELETE_PROPERTY`、`DELETE_UNUSED_PROPERTIES`）、四个高亮操作、`USAGE_ESTIMATE`、`ORPHAN_REPORT`、`CLEANUP_ORPHANS`、`GET_METRICS`、`GET_RECORDING_STATE`；
     下载的 `ESTIMATE_DOWNLOAD`（对话框准备态的预计文件数）与 `START_LIBRARY_DOWNLOAD` 也只在扩展页面（download.md §3）。
   - 录制的启停与善后 `START_RECORDING`、`STOP_RECORDING`、`RETRY_RECORDING_DOWNLOAD`、`DISCARD_RECORDING` 还要求发送者没有标签页上下文（录制只从扩展自己的页面发起，annotate.md §2.1），`RECORDING_EVENT` 只来自 offscreen 录制文档，`DOWNLOAD_RUN_EVENT` 只来自 offscreen 的下载运行（两者都要求发送者没有标签页上下文）。
   - 扩展页面与同源内容脚本：`SAVE_CLIP`、`GET_SETTINGS`、`RECORD_EVENT`（按字典校验）、`OPEN_EXTENSION_PAGE`、`RECORDING_STATUS`（annotate.md §3）；
@@ -13,6 +13,7 @@
     `SET_SETTINGS` 对内容脚本只开放 `appendDisabledSite`，关闭区块入口是单独的 `DISABLE_BLOCK_ENTRY`。
     `CANCEL_DOWNLOAD` 与 `SHOW_DOWNLOAD_FILE` 扩展页面与顶层框架都可用（取消、显示刚落地的文件，download.md §2.5）。
 
+- 设置页的清理 `CLEANUP_ORPHANS` 也只接受扩展页面（RV-LIB-21）：报告走 `ORPHAN_REPORT`，写也一样走消息，不直连开库。
 - 下载运行的心跳只来自 offscreen；`../services/download/recovery.ts` 的 session 记录只含任务 ID、通知目标与统计字段，worker 重启时清理旧运行并报告失败，不持久化正文、标题或媒体。
 - `EXTRACT_DOWNLOAD_PAGE` 只收顶层标签页的正文快照，转交 `DOWNLOAD_EXTRACT` 给 offscreen；提取结果不持久化、不联网。
 - offscreen 文档（录制与下载共用一个）只接受扩展后台的消息：监听开头统一核对发送者没有标签页上下文且 id 是本扩展，其余一律忽略不回应（RV-BG-11）；页面里的内容脚本与别的扩展都够不到它。
