@@ -39,27 +39,6 @@
 
 ### 热点文件
 
-#### RV-CAP-18 `ScreenshotSession` 一个类承担整个截图会话（中）
-
-**问题**
-
-- `entrypoints/content/screenshot/index.ts` 约 93 KB，是代码预算（32 KB）的三倍，登记在 `scripts/size-ledger.json`。一个类有约 77 个字段、82 个方法、25 处 `addEventListener`；最近 200 次提交里它被改了 36 次，是仓库里改动最多的文件。
-- 类里已有显式的状态联合（`selecting`、`confirming`、`capturing`、`preview`、`error`、`done`），但各阶段的界面与状态都挂在同一个对象上。
-
-**要求**
-
-1. 先做 RV-CAP-16：工具栏换掉之后这部分代码会变。
-2. 按职责拆进同目录的新文件，先拆自带状态、对外接口窄的部分：序号标注、美化面板、文字输入、取景与悬停、待确认态、三个去处（保存、复制、下载）、上次取景框。拆出去的部分拥有自己的字段，通过窄接口向会话要东西；不要把方法改成接收整个会话对象的自由函数。
-3. 行为不变：不改 `docs/product/screenshot.md` 的任何约定，不改 DOM、类名和文案。
-4. 每拆一块，跑 `entrypoints/content/screenshot/__tests__` 和对应的 E2E（对应关系在 `entrypoints/content/screenshot/AGENTS.md` 的「验证」）。
-5. 台账里的文件按行段读，不整份读；变小之后跑 `pnpm run check:size --lower`。
-
-**验收**
-
-1. `index.ts` 回到预算内并从台账里消失；做不到时，本条写明还剩哪几块、为什么，按 §1 第 2 条处理。
-2. 每个新文件都在预算内。
-3. 全部 `e2e/screenshot-*.spec.ts`、`e2e/page-entry.spec.ts`、`e2e/page-annotation.spec.ts`、`e2e/block-clip.spec.ts` 通过。
-
 #### RV-LIB-20 资料库根组件把数据获取、导出与界面状态揉在一起（低）
 
 **问题**
