@@ -61,6 +61,6 @@ export async function runExport(): Promise<ExportOutcome> {
   } catch (error) {
     return { state: 'failed', summary: '', missing: [], error: uiText(exportFailureKey(error, stage)) }
   } finally {
-    await store.close()
+    store.close()
   }
 }

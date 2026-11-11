@@ -537,7 +537,7 @@ export class RecordingService implements IService {
         void chrome.runtime.sendMessage({ type: 'OFFSCREEN_PING' }).then(
           answer => {
             clearTimeout(timer)
-            resolve(answer?.success === true)
+            resolve(MessageUtils.isResponseMessage(answer) && answer.success === true)
           },
           () => {
             clearTimeout(timer)
@@ -552,8 +552,9 @@ export class RecordingService implements IService {
 
   private async tellOffscreen(message: { type: string } & Record<string, unknown>): Promise<{ ok: boolean }> {
     try {
-      const answer = await chrome.runtime.sendMessage(message)
-      return { ok: answer?.success !== false }
+      const answer: unknown = await chrome.runtime.sendMessage(message)
+      // an answer that is not a response is no answer: the tell has failed
+      return { ok: MessageUtils.isResponseMessage(answer) && answer.success !== false }
     } catch {
       return { ok: false }
     }

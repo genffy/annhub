@@ -1,6 +1,6 @@
 import { uiText, type UiTextKey } from '../ui-text'
 import { ROOT_ATTR } from './session-roots'
-import { Stitcher, type StitchFailure } from './stitcher'
+import { StitchError, Stitcher, type StitchFailure } from './stitcher'
 import { requestCapture } from './capture-rate'
 import { doubleRaf } from './photographer'
 
@@ -76,8 +76,8 @@ export class StitchRun {
     try {
       result = await stitcher.run()
     } catch (error) {
-      // the stitcher throws its own reason as a string; any other error is a shot that did not come back
-      failure = typeof error === 'string' ? (error as StitchFailure) : 'capture'
+      // the stitcher throws its reason in a StitchError; any other error is a shot that did not come back
+      failure = error instanceof StitchError ? error.code : 'capture'
     }
     this.stitcher = null
     sweeper.remove()

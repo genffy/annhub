@@ -16,10 +16,10 @@ export interface PickingChromePort {
   pending(): boolean
   anonymize(): { on: boolean } | null
   watermark(): { on: boolean } | null
-  /** The ratio the chips lock in; the preset ids come from the settings. */
-  ratio(): string | 'free'
+  /** The ratio the chips lock in (the literal 'free' among them); the preset ids come from the settings. */
+  ratio(): string
   presets(): string[]
-  onRatio(id: string | 'free'): void
+  onRatio(id: string): void
   onStitch(): void
 }
 

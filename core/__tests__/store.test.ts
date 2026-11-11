@@ -137,7 +137,7 @@ describe('derived search index lifecycle (RV-BG-04)', () => {
     const upgraded = new EntryStore(name)
     await upgraded.initialize()
     expect((await upgraded.indexedQuery({ search: 'legacy' })).items.map(entry => entry.id)).toEqual(['ent_old'])
-    await upgraded.close()
+    upgraded.close()
   })
 })
 
@@ -538,7 +538,7 @@ describe('derived index (RV-BG-04, search.md §6)', () => {
 
   /** A new store over the same database: what a recycled service worker has. */
   async function restarted(): Promise<EntryStore> {
-    await store.close()
+    store.close()
     const next = new EntryStore(dbName)
     await next.initialize()
     return next
@@ -666,6 +666,6 @@ describe('derived index (RV-BG-04, search.md §6)', () => {
     expect(raw.objectStoreNames.contains('searchText')).toBe(true)
     expect((await raw.get('search', 'ent_v2')).version).toBe(SEARCH_INDEX_VERSION)
     raw.close()
-    await upgraded.close()
+    upgraded.close()
   })
 })

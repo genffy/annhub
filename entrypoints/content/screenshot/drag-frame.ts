@@ -23,8 +23,8 @@ export interface FrameDragPort {
   pageDim(on: boolean): void
   /** Element boxes under a point, for snapping. */
   edgeRectsUnder(x: number, y: number): Array<{ left: number; top: number; right: number; bottom: number }>
-  /** The preset the ratio bar locked in, or 'free'. */
-  ratio(): string | 'free'
+  /** The preset the ratio bar locked in, or the literal 'free'. */
+  ratio(): string
   /** Guides for what the drag snapped to. */
   paintSnapGuides(snapped: { snappedX: number | null; snappedY: number | null }): void
   clearSnapGuides(): void

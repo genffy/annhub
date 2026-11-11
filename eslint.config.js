@@ -66,6 +66,22 @@ export default tseslint.config(
       '@typescript-eslint/no-unnecessary-type-assertion': 'error',
     },
   },
+  // The rest of recommendedTypeChecked over the released code (RV-TEST-18): what arrives from
+  // chrome.* events, ports and messages is `any` until it is narrowed, and those edges are where
+  // untrusted input enters. Tests, e2e and scripts keep their mocks and stubs. `unbound-method`
+  // stays off (interfaces write methods as properties, 86 false positives), and so does
+  // `no-unnecessary-condition` (138 `x === undefined` guards).
+  ...tseslint.configs.recommendedTypeChecked.map(config => ({
+    ...config,
+    files: ['**/*.{ts,tsx}'],
+    ignores: ['**/__tests__/**', '**/*.test.{ts,tsx}', 'e2e/**', 'scripts/**', '.agents/skills/store-submission/shots/**'],
+    languageOptions: { parserOptions: { projectService: true } },
+    rules: {
+      ...config.rules,
+      '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/no-unnecessary-condition': 'off',
+    },
+  })),
   // Dependency direction: `core/` depends on nothing of ours, `types/` and `utils/` only on what is below them,
   // the service worker never on an entry point, and an entry point never on the worker's services or on another
   // entry point. Tests are free to reach for fixtures. What an import may not say is a relative path that leaves

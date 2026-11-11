@@ -301,7 +301,7 @@ export default function App() {
   const { selecting, selectedIds, download: libraryDownload } = selection
 
   const openEntry = useCallback(
-    async (entry: EntryRecord) => {
+    (entry: EntryRecord) => {
       drawerTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
       void MessageUtils.sendMessage({ type: 'RECORD_EVENT', name: 'entry.reopened', props: { type: entry.type } })
       // the drawer is part of the route: refresh restores it (extension.md §2.2)

@@ -20,7 +20,7 @@ const tabs = { get: vi.fn(), query: vi.fn(), sendMessage: vi.fn(async () => unde
 const tabCapture = { getMediaStreamId: vi.fn(async () => 'stream-cmd') }
 const action = { setBadgeText: vi.fn(async () => undefined), setBadgeBackgroundColor: vi.fn(async () => undefined) }
 const runtime = {
-  sendMessage: vi.fn(async (_message: { type: string }) => ({ success: true })),
+  sendMessage: vi.fn(async (_message: { type: string }) => ({ type: 'RESPONSE', success: true })),
   getContexts: vi.fn(async () => [] as unknown[]),
   lastError: undefined as { message: string } | undefined,
 }
@@ -263,7 +263,7 @@ describe('recording service (annotate.md §2)', () => {
   })
 
   it('a start the offscreen document refuses leaves no recording behind', async () => {
-    runtime.sendMessage.mockImplementationOnce(async () => ({ success: false }))
+    runtime.sendMessage.mockImplementationOnce(async () => ({ type: 'RESPONSE', success: false }))
     const answer = await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 'refused', withMic: false }, extensionSender)
     expect(answer.error).toBe('RECORDING_FAILED')
     const state = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string }
@@ -354,7 +354,7 @@ describe('recording service (annotate.md §2)', () => {
     runtime.getContexts.mockResolvedValue([])
     runtime.sendMessage.mockImplementation(async (message: { type: string }) => {
       if (message.type === 'OFFSCREEN_PING') throw new Error('no document')
-      return { success: true }
+      return { type: 'RESPONSE', success: true }
     })
     const restarted = new RecordingService()
     await restarted.initialize()
@@ -372,8 +372,8 @@ describe('recording service (annotate.md §2)', () => {
     // the document answers the ping, so the route survives and the state says recording
     runtime.getContexts.mockResolvedValue([])
     runtime.sendMessage.mockImplementation(async (message: { type: string }) => {
-      if (message.type === 'OFFSCREEN_PING') return { success: true }
-      return { success: true }
+      if (message.type === 'OFFSCREEN_PING') return { type: 'RESPONSE', success: true }
+      return { type: 'RESPONSE', success: true }
     })
     const cold = new RecordingService()
     await cold.initialize()
@@ -526,7 +526,7 @@ describe('recording service (annotate.md §2)', () => {
       extensionSender,
     )
     // the offscreen document still holds the unsaved video: it refuses the new start
-    runtime.sendMessage.mockImplementationOnce(async () => ({ success: false }))
+    runtime.sendMessage.mockImplementationOnce(async () => ({ type: 'RESPONSE', success: false }))
     const answer = await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's2', withMic: false }, extensionSender)
     expect(answer.error).toBe('RECORDING_FAILED')
     const state = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string; holdsVideo?: boolean }

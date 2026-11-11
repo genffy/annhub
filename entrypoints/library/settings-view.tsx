@@ -373,7 +373,11 @@ function WatermarkCard({ settings, patch }: { settings: ExtensionSettings; patch
               }
               setError('')
               const reader = new FileReader()
-              reader.onload = () => void patch({ watermark: { ...settings.watermark, image: String(reader.result) } })
+              reader.onload = () => {
+                // readAsDataURL answers a string; anything else is the empty read, and there is nothing to keep
+                if (typeof reader.result !== 'string' || reader.result.length === 0) return
+                void patch({ watermark: { ...settings.watermark, image: reader.result } })
+              }
               reader.readAsDataURL(file)
             }}
           />

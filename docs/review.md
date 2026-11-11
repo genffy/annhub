@@ -20,7 +20,7 @@
 
 ## 2. 待处理
 
-审查分支是 `chore/hardening-followups`（§1 第 10 条）。组间的先后：测试门禁 → 产物体积 → 类型检查与 lint → 唤醒后台。产物体积组里 RV-LIB-22 先于 RV-TEST-14，预算按缩小之后的大小定；类型检查与 lint 组里 RV-TEST-13 先做，后两条的新检查才覆盖得到 skill 里的脚本；唤醒后台在类型检查与 lint 之后做，新代码直接按收紧的规则写。
+审查分支是 `chore/hardening-followups`（§1 第 10 条）。组间的先后：测试门禁 → 产物体积 → 类型检查与 lint → 唤醒后台。产物体积组里 RV-LIB-22 先于 RV-TEST-14，预算按缩小之后的大小定；唤醒后台在类型检查与 lint 之后做，新代码直接按收紧的规则写。
 
 接手前先知道的几件事：
 
@@ -111,29 +111,6 @@
 3. `pnpm run verify` 通过；CI 里两处调用的位置不变。
 
 ### 类型检查与 lint
-
-#### RV-TEST-18 带类型信息的 lint 还差一档（低）
-
-**问题**
-
-- `eslint.config.js` 读类型的规则只有五条。typescript-eslint 的 `recommendedTypeChecked` 其余的规则里，`unbound-method` 以外在发布代码（不含测试、`e2e/` 与 `scripts/`）里有违例的是八条，一共 33 处，其余规则没有违例：
-  - `no-unsafe-member-access` 8、`no-unsafe-assignment` 6、`no-unsafe-return` 1，在 `background-service/services/download/index.ts`、`background-service/services/recording/index.ts`、`entrypoints/offscreen/main.ts`、`utils/message/index.ts`：从 `chrome.*` 事件、端口与消息拿到的 `any` 没经收窄就往下用，这些地方正是不可信输入进来的边界。
-  - `only-throw-error` 6，都在 `entrypoints/content/screenshot/stitcher.ts`：抛出的不是 `Error`。
-  - `require-await` 7，在 `background-service/event-handlers/installation-handler.ts`、`background-service/services/system/index.ts`、`core/store.ts`、`entrypoints/content/screenshot/index.ts`、`entrypoints/library/App.tsx`、`entrypoints/offscreen/download-extract.ts`。
-  - `no-redundant-type-constituents` 3（`entrypoints/content/screenshot/drag-frame.ts`、`picking-chrome.ts`）、`restrict-template-expressions` 1（`core/export.ts`）、`no-base-to-string` 1（`entrypoints/library/settings-view.tsx`）。
-- 测试与 e2e 里同样的规则约 300 处，多是桩函数与 mock，收益小。
-
-**要求**
-
-1. 发布代码打开 `recommendedTypeChecked` 的全部规则（`unbound-method` 除外），都设为 `error`；测试、`e2e/`、`scripts/` 不开。33 处一次清掉。
-2. `any` 在边界处收窄：用已有的校验函数或类型守卫，不用 `as` 断言。`stitcher.ts` 改抛 `Error` 或它的子类，失败码不变。
-3. `require-await` 的命中处要么去掉 `async`，要么在旁边写明为什么保持 async；`command-handler.ts`、`installation-handler.ts` 的监听器照旧保持 async（理由已写在它们旁边）。
-4. `unbound-method`（发布代码 86 处，多是接口用方法写法引起的误报）与 `no-unnecessary-condition`（138 处）不开。
-
-**验收**
-
-1. `pnpm run lint` 通过；在一个非测试文件里临时写 `JSON.parse(text).a.b`，lint 失败。
-2. `pnpm run verify` 通过；动到哪个入口，跑那个目录 `AGENTS.md`「验证」里列的 E2E。
 
 ### 唤醒后台
 

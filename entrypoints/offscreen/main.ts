@@ -27,6 +27,7 @@ import type {
   RecordingCommandMessage,
   RecordingEventMessage,
 } from '../../types/messages'
+import MessageUtils from '../../utils/message'
 import { fixWebmDuration } from '../../utils/webm-duration'
 import { fromOwnBackground } from './background-sender'
 import { acceptDownloadRun, cleanupDownloadRun, deliverFinish } from './download-run'
@@ -115,8 +116,9 @@ async function beginRecording(message: RecordingCommandMessage & { type: 'RECORD
  */
 async function workerStillHoldsVideo(): Promise<boolean> {
   try {
-    const answer = await chrome.runtime.sendMessage({ type: 'GET_RECORDING_STATE' })
-    return !(answer?.success === true && answer?.data?.holdsVideo === false)
+    const answer: unknown = await chrome.runtime.sendMessage({ type: 'GET_RECORDING_STATE' })
+    // the worker's answer crosses the port unverified: the envelope is checked before its payload is read
+    return !(MessageUtils.isResponseMessage<{ holdsVideo?: boolean }>(answer) && answer.success === true && answer.data?.holdsVideo === false)
   } catch {
     return true // the worker is gone: keep the state, the recovery on its side owns it
   }
@@ -227,19 +229,19 @@ chrome.runtime.onMessage.addListener(
     // the worker's recovery probe (RV-REC-02): a cold-started worker's contexts read can miss this
     // document; an answer here tells it the recorder is alive before it drops the route record
     if (message.type === 'OFFSCREEN_PING') {
-      sendResponse({ success: true })
+      sendResponse({ type: 'RESPONSE', success: true })
       return
     }
     if (message.type === 'DOWNLOAD_EXTRACT') {
       void extractDownloadPage(message).then(
-        html => sendResponse({ success: true, data: { html } }),
-        () => sendResponse({ success: false, error: 'DOWNLOAD_FAILED' }),
+        html => sendResponse({ type: 'RESPONSE', success: true, data: { html } }),
+        () => sendResponse({ type: 'RESPONSE', success: false, error: 'DOWNLOAD_FAILED' }),
       )
       return true
     }
     if (message.type === 'RECORDING_START') {
       // the answer is the only word the worker gets on whether a recording exists, so it waits for it
-      void beginRecording({ ...message, type: 'RECORDING_START' }).then(started => sendResponse({ success: started }))
+      void beginRecording({ ...message, type: 'RECORDING_START' }).then(started => sendResponse({ type: 'RESPONSE', success: started }))
       return true
     }
     if (message.type === 'RECORDING_STOP') stopRecording(message.stoppedBy)
@@ -248,16 +250,16 @@ chrome.runtime.onMessage.addListener(
 
     // Markdown downloads (download.md): this document fetches the media and writes the files
     if (message.type === 'DOWNLOAD_RUN') {
-      sendResponse({ success: acceptDownloadRun(message) })
+      sendResponse({ type: 'RESPONSE', success: acceptDownloadRun(message) })
       return
     }
     if (message.type === 'DOWNLOAD_FINISH') {
-      sendResponse({ success: deliverFinish(message) })
+      sendResponse({ type: 'RESPONSE', success: deliverFinish(message) })
       return
     }
     if (message.type === 'DOWNLOAD_CANCEL') {
       // the answer comes when the files the run wrote are gone (download.md §2.5)
-      void cleanupDownloadRun(message).then(() => sendResponse({ success: true }))
+      void cleanupDownloadRun(message).then(() => sendResponse({ type: 'RESPONSE', success: true }))
       return true
     }
   },

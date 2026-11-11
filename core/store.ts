@@ -160,7 +160,8 @@ export class EntryStore {
     await this.ensureBuiltins()
   }
 
-  async close(): Promise<void> {
+  // closing is synchronous: the awaited calls keep working on a plain value
+  close(): void {
     this.db?.close()
     this.db = null
     this.indexReady = null

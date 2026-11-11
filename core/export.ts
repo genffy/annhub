@@ -130,8 +130,8 @@ export function frontmatterFor(entry: EntryRecord, registry: PropertyDefinition[
   }
   const emit = (key: string, value: PropertyValue | undefined, typeHint?: 'text' | 'date' | 'datetime') => {
     if (value === undefined || value === '' || (Array.isArray(value) && value.length === 0)) return
-    if (typeHint === 'date' || typeHint === 'datetime') {
-      // dates keep their entry.md §5.2 format, unquoted (storage.md §6)
+    // dates keep their entry.md §5.2 format, unquoted (storage.md §6); a date property is never a list
+    if ((typeHint === 'date' || typeHint === 'datetime') && !Array.isArray(value)) {
       lines.push(`${yamlKey(key)}: ${value}`)
       return
     }

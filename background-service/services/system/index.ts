@@ -24,10 +24,12 @@ export class SystemService implements IService {
     return SystemService.instance
   }
 
-  async initialize(): Promise<void> {
-    if (this.initialized) return
+  // nothing to await today: the resolved promise keeps the IService shape and a future await fits
+  initialize(): Promise<void> {
+    if (this.initialized) return Promise.resolve()
     this.initialized = true
     Logger.info('[SystemService] Initialized')
+    return Promise.resolve()
   }
 
   getMessageHandlers(): MessageHandlers {

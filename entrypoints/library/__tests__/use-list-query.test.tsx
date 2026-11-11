@@ -34,7 +34,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const page = (id: string) => ({ success: true, data: { result: { items: [{ id }], total: 1, nextCursor: null } } })
+const page = (id: string) => ({ type: 'RESPONSE', success: true, data: { result: { items: [{ id }], total: 1, nextCursor: null } } })
 
 describe('useListQuery (RV-LIB-20)', () => {
   it('sends the route query with the page size and keeps its answer', async () => {

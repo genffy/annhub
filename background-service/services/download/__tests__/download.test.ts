@@ -56,7 +56,7 @@ vi.stubGlobal('chrome', {
   runtime: {
     sendMessage: vi.fn(async (message: Record<string, unknown>) => {
       runtimeMessages.push(message)
-      return { success: true }
+      return { type: 'RESPONSE', success: true }
     }),
     getURL: (path = '') => `chrome-extension://abc/${String(path).replace(/^\//, '')}`,
     id: 'abc',
@@ -197,8 +197,8 @@ describe('the download service (download.md §2, §3, §7)', () => {
     await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
     expect((await dispatch(message)).error).toBe('DOWNLOAD_ACTIVE')
     expect((await dispatch(PAGE_START)).error).toBe('DOWNLOAD_ACTIVE')
-    finish({ success: true, data: { html: '<p>Private body</p>' } })
-    expect(await pending).toMatchObject({ success: true, data: { html: '<p>Private body</p>' } })
+    finish({ type: 'RESPONSE', success: true, data: { html: '<p>Private body</p>' } })
+    expect(await pending).toMatchObject({ type: 'RESPONSE', success: true, data: { html: '<p>Private body</p>' } })
     expect(JSON.stringify([...sessionStorageMap])).not.toContain('Private body')
     expect(notices()).toHaveLength(0)
     expect((await dispatch({ ...message, html: null })).error).toBe('DOWNLOAD_EMPTY')
@@ -734,7 +734,7 @@ describe('the download service (download.md §2, §3, §7)', () => {
 
   it('fails cleanly when the offscreen document refuses the run', async () => {
     const sendMessage = chrome.runtime.sendMessage as ReturnType<typeof vi.fn>
-    sendMessage.mockResolvedValueOnce({ success: false })
+    sendMessage.mockResolvedValueOnce({ type: 'RESPONSE', success: false })
     const failed = await dispatch({ ...PAGE_START, meta: { ...PAGE_START.meta, title: 'Refused' } })
     expect(failed.success).toBe(false)
     expect(failed.error).toBe('DOWNLOAD_FAILED')

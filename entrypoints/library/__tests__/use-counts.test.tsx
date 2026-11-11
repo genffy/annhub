@@ -42,7 +42,7 @@ const facets = (all: number) => ({
 
 describe('useCounts (RV-LIB-20)', () => {
   it('fills counts, highlight total and candidates from one facets read, then reloads on the broadcast', async () => {
-    const send = vi.fn(async () => ({ success: true, data: { facets: facets(5) } }))
+    const send = vi.fn(async () => ({ type: 'RESPONSE', success: true, data: { facets: facets(5) } }))
     vi.stubGlobal('chrome', { runtime: { sendMessage: send } })
     vi.stubGlobal(
       'BroadcastChannel',
@@ -65,7 +65,7 @@ describe('useCounts (RV-LIB-20)', () => {
     expect(counts!.countsReady).toBe(true)
     expect(counts!.reloadKey).toBe(0)
 
-    send.mockResolvedValue({ success: true, data: { facets: facets(6) } })
+    send.mockResolvedValue({ type: 'RESPONSE', success: true, data: { facets: facets(6) } })
     await act(async () => {
       counts!.reload()
       await Promise.resolve()
