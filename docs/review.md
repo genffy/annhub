@@ -20,52 +20,13 @@
 
 ## 2. 待处理
 
-审查分支是 `chore/hardening-followups`（§1 第 10 条）。组间的先后：测试门禁 → 产物体积 → 类型检查与 lint → 唤醒后台。产物体积组里 RV-LIB-22 先于 RV-TEST-14，预算按缩小之后的大小定；类型检查与 lint 组里 RV-TEST-13 先做，后两条的新检查才覆盖得到 skill 里的脚本；唤醒后台在类型检查与 lint 之后做，新代码直接按收紧的规则写。
+审查分支是 `chore/hardening-followups`（§1 第 10 条）。组间的先后：产物体积 → 类型检查与 lint → 唤醒后台。产物体积组里 RV-LIB-22 先于 RV-TEST-14，预算按缩小之后的大小定；类型检查与 lint 组里 RV-TEST-13 先做，后两条的新检查才覆盖得到 skill 里的脚本；唤醒后台在类型检查与 lint 之后做，新代码直接按收紧的规则写。
 
 接手前先知道的几件事：
 
 - `entrypoints/content/screenshot/index.ts` 离 32 KB 的代码预算只剩约 150 字节，`entrypoints/content/target-chain.ts` 约 600 字节，`entrypoints/library/settings-view.tsx` 约 800 字节：哪一条改到它们，先把一块挪进同目录的新文件，不进台账。
 - `store-assets/` 被 git 忽略，只在产品负责人的检出里有，worktree 里没有：RV-TEST-13 的验收在 worktree 里自己建一个同名目录来验。
 - 查工具的选项时读已安装版本的类型与文档（Vitest 的 `coverage.thresholds`、Playwright 的 `failOnFlakyTests`、typescript-eslint 的规则），不凭记忆写配置。
-
-### 测试门禁
-
-#### RV-TEST-15 覆盖率把 `core/` 里的 Markdown 当源码解析，门槛只管 `core/`（低）
-
-**问题**
-
-- `vitest.config.ts` 的 `coverage.include` 是 `core/**`，`core/AGENTS.md` 因此算作一份没被测到的源码。v8 覆盖率把它当 JavaScript 解析失败，`pnpm test` 每跑一次（本机与 CI）都打印一段 `PARSE_ERROR` 堆栈；目录里有 `.DS_Store` 的检出再多一段。测试输出里常驻的错误堆栈让人习惯性地略过真正的错误。
-- 门槛只设在 `core/`。`background-service/` 是消息门面与发送者校验所在的安全边界，没有覆盖率下限；它的实测值（不含测试文件）是行 77%、分支 71%、函数 79%。
-
-**要求**
-
-1. `coverage.include` 只收源码（`core/**/*.ts`），测试文件照旧排除。
-2. 加上 `background-service/**/*.ts`，用按 glob 分开设门槛的写法：`core/**` 的三个门槛不变；`background-service/**` 取改完 include 之后的实测值向下取整，只升不降。
-3. `scripts/README.md`「验证入口」里讲覆盖率门槛的那一句同步。
-
-**验收**
-
-1. `pnpm test` 的输出里没有 `Failed to parse`。
-2. 临时删掉 `background-service/` 里覆盖面最大的一个测试文件，`pnpm run verify` 因为它的门槛失败；`core/**` 的三个门槛数字没变。
-
-#### RV-TEST-16 CI 里的 E2E 重试会吞掉偶发失败，`test.only` 也不被拒绝（中）
-
-**问题**
-
-- `playwright.config.ts` 在 CI 里 `retries: 1`，没有开 `failOnFlakyTests`：第一次失败、重试通过的用例只在报告里记一条 flaky，job 照样是绿的。main 上的 CI 与最近几个 PR 的运行里都有这样的用例：`e2e/library-drawer-edit.spec.ts` 的 “the header keeps one row of actions in one order”，以及 `e2e/library-export.spec.ts` 的 “an export that is running is not abandoned by Escape”。这和根 `AGENTS.md`「验证入口」的“不跳过、不禁用、不隔离测试求绿”相冲突。
-- 也没有 `forbidOnly`：误提交一个 `test.only`，CI 只跑那一条，结果仍是绿的。Vitest 在 CI 里默认拒绝 `.only`，Playwright 默认不拒绝。
-
-**要求**
-
-1. 先修上面两条用例：本机用 `pnpm exec playwright test <spec> --repeat-each 20` 复现，找到时序上的原因再改，不加固定等待，也不靠重试掩盖（与 `e2e/AGENTS.md` 冷启动那一条的要求相同）。
-2. `playwright.config.ts` 在 CI 下打开 `forbidOnly` 与 `failOnFlakyTests`；保留一次重试，只为第一次失败时留下 trace（`trace: 'on-first-retry'`）。
-3. `scripts/check-consistency.mjs` 断言这两项在 CI 下打开，连同它的测试；`e2e/AGENTS.md` 写一句：CI 里重试才通过的用例算失败。
-
-**验收**
-
-1. 两条用例各 `--repeat-each 20` 全部通过。
-2. `CI=1` 下临时加一条 `test.only`，运行在开跑前报错；临时加一条第一次失败、重试通过的用例（看 `testInfo.retry`），运行失败并点名它。
-3. `pnpm run check:consistency` 通过；删掉两项中的任一项，它的测试失败。
 
 ### 产物体积
 
