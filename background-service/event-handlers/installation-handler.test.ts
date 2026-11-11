@@ -19,7 +19,13 @@ function setup() {
   vi.stubGlobal('browser', {
     runtime: { onInstalled: { addListener: (fn: InstalledListener) => (listener = fn), removeListener: vi.fn() } },
   })
-  vi.stubGlobal('chrome', { storage: { local: { remove } } })
+  // the startup listener clears the recording flag; a test never fires it
+  const startupListener = vi.fn()
+  vi.stubGlobal('chrome', {
+    storage: { local: { remove } },
+    runtime: { onStartup: { addListener: startupListener, removeListener: vi.fn() } },
+  })
+  void startupListener
   new InstallationHandler().registerListeners()
   return { fire: (details: { reason: string; previousVersion?: string }) => listener!(details), remove }
 }

@@ -18,13 +18,14 @@
  */
 import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage, RecordingEventMessage, RecordingState, TabMessage } from '../../../types/messages'
-import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
+import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender, isTopFrameTabSender } from '../../sender'
 import { ensureOffscreenDocument } from '../../offscreen-document'
 import { readSettings, writeSettings } from '../../settings-storage'
 import { openExtensionPage } from '../../../utils/extension-pages'
 import MessageUtils from '../../../utils/message'
 import { Logger } from '../../../utils/logger'
 import { bucketRecordingDuration, type RecordingDurationBucket } from '../../../core/metrics'
+import { RECORDING_FLAG_KEY } from '../../../core/storage-keys'
 import { recordEvent } from '../metrics/record'
 
 const SESSION_KEY = 'annhub.recording'
@@ -138,8 +139,13 @@ export class RecordingService implements IService {
     if (route.status === 'pending-download') await this.resumePendingDownload()
   }
 
-  /** Writes the route the next worker will read; a live flow with nothing to carry deletes the record. */
+  /**
+   * Writes the route the next worker will read; a live flow with nothing to carry deletes the record.
+   * The one-boolean flag in chrome.storage.local rides along: pages read it instead of waking the
+   * worker for a status answer (annotate.md §3.2, RV-CAP-19).
+   */
   private async persistRoute(): Promise<void> {
+    await chrome.storage.local.set({ [RECORDING_FLAG_KEY]: this.state.status === 'recording' })
     const route: PersistedRecordingRoute | null =
       this.state.status === 'recording'
         ? {
@@ -219,9 +225,9 @@ export class RecordingService implements IService {
         return MessageUtils.createResponse(true, this.state)
       },
 
-      /** The recorded tab asks on load whether a recording is live (annotate.md §3.2): read-only, no user data. */
+      /** The recorded tab asks on load whether a recording is live (annotate.md §3.2): read-only, no user data. A same-origin subframe asks for its own cursor highlight. */
       RECORDING_STATUS: async (_message, sender) => {
-        if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
+        if (!isTopFrameTabSender(sender) && !isSameOriginTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
         await this.ensureRecovered()
         const settings = await readSettings()
         return MessageUtils.createResponse(true, { recording: this.state.status === 'recording', cursorHighlight: settings.recording.cursorHighlight })
@@ -359,6 +365,8 @@ export class RecordingService implements IService {
 
   private resetToIdle(): void {
     this.state = { status: 'idle', withMic: false }
+    // the flag rides the route write: a route dropped here also clears it (annotate.md §3.2)
+    void this.persistRoute()
     this.syncBadge()
   }
 

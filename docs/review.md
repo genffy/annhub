@@ -173,26 +173,6 @@
 
 ### 唤醒后台
 
-#### RV-CAP-19 打开网页就唤醒 service worker，同源子框架的光标高亮只认加载时的录制状态（中）
-
-**问题**
-
-- `entrypoints/content/index.tsx` 的 `wireCursorHighlight` 在每个页面、以及其中每个同源子框架启动时都发 `RECORDING_STATUS`；`wireBlockEntries` 在每个页面第一次停在区块上时发 `GET_SETTINGS`。worker 空闲 30 秒被挂起，这两条消息每次都把它拉起来、重新初始化服务，日常浏览里它几乎不休眠。`background-service/AGENTS.md` 为了不让“改一次标题就唤醒 worker”，把标签页监听器做成只在需要时挂着；这两处与那个取舍相反。
-- 按代码推断，没有在浏览器里复现：同源子框架靠启动时那次询问打开光标高亮，却不理会停止。`services/recording` 把 `RECORDING_LIFECYCLE` 发给整个标签页，子框架的监听器一开头就返回。所以录制停止以后，指针移到这个 iframe 上光标高亮还在，违反 [annotate.md §3.3](product/annotate.md)；iframe 加载之后才开始的录制，iframe 里也没有光标高亮。[annotate.md §3.2](product/annotate.md) 只把另一个来源的 iframe 列为限制。
-
-**要求**
-
-1. 先复现子框架的情形，写成 E2E，用例名带本编号：用 `e2e/iframe-host.html` 一类的同源 iframe 夹具，打开光标高亮录制，停止之后指针移到 iframe 上。
-2. 子框架的光标高亮与顶层一样跟着录制的开始与停止；批注层仍只属于顶层框架。
-3. 按 D-100 的默认，普通的页面加载与第一次停在区块上都不唤醒 worker；结论写进归属文档、删掉 D-100，与实现在同一组里完成（[validation.md §2](product/validation.md)）。
-4. 不加权限；`chrome.storage.session` 的访问级别不放开（`background-service/AGENTS.md`）。
-
-**验收**
-
-1. 复现用例改动前失败、改动后通过。
-2. 新的 E2E：用 `e2e/helpers.ts` 的 `stopServiceWorker` 停掉 worker，打开带同源 iframe 的页面，停在一个区块上直到胶囊出现，worker 没有被重新启动（用 CDP 的 ServiceWorker 域看运行状态，`stopServiceWorker` 用的也是它）；区块入口的开关与已停用网站的设置照常生效（`e2e/block-clip.spec.ts`）。
-3. `pnpm run verify` 通过；`e2e/recording-annotation.spec.ts`、`e2e/block-clip.spec.ts`、`e2e/cold-start.spec.ts` 通过。
-
 ## 3. 已知问题
 
 #### RV-CORE-11 列表查询的内存摘要随 service worker 回收（低）

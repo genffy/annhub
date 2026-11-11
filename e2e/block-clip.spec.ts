@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { clearLibrary, ensureServiceWorker, getCapturePageUrl, getEntries, getSettings, hoverForCapsule, triggerBlockMode, waitForClipToast } from './helpers'
+import { clearLibrary, ensureServiceWorker, getCapturePageUrl, getEntries, getSettings, hoverForCapsule, stopServiceWorker, triggerBlockMode, waitForClipToast } from './helpers'
 
 test.describe('block clip (capture.md §6.2)', () => {
   test.beforeEach(async ({ context }) => {
@@ -261,5 +261,31 @@ test.describe('block clip (capture.md §6.2)', () => {
     const rail = (await page.locator('#sidebar').boundingBox())!
     await page.mouse.move(rail.x + 24, rail.y + 40)
     await expect(page.locator('[data-ann-ui="block-outline"]')).toHaveCount(0)
+  })
+
+  test('a block under the pointer in a subframe wakes no stopped worker (RV-CAP-19)', async ({ page, extensionId }) => {
+    await page.goto('http://localhost:8173/iframe-host.html')
+    await stopServiceWorker(page.context(), page)
+
+    // the ServiceWorker domain reports each version's states; a wake after the
+    // stop would show up as the extension's worker running again
+    const session = await page.context().newCDPSession(page)
+    await session.send('ServiceWorker.enable' as never)
+    let extensionWorkerRunning = false
+    session.on('ServiceWorker.workerVersionUpdated', payload => {
+      for (const version of payload.versions) {
+        if (!version.scriptURL.startsWith(`chrome-extension://${extensionId}`)) continue
+        if (version.runningStatus === 'running') extensionWorkerRunning = true
+      }
+    })
+
+    // the first hover reads the preferences straight from chrome.storage.local; the capsule
+    // appearing is the whole interaction — no GET_SETTINGS round trip to a restarting worker
+    const frame = page.frameLocator('iframe[name="same"]')
+    await frame.locator('#frame-text').hover()
+    await expect(frame.locator('[data-ann-ui="block-capsule"]')).toBeVisible()
+    // a window for the negative assertion: any wake the hover caused would be reported here
+    await page.waitForTimeout(1500)
+    expect(extensionWorkerRunning, 'hovering a block must not restart the service worker').toBe(false)
   })
 })

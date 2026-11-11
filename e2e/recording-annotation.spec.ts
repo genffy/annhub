@@ -62,6 +62,24 @@ async function stopRecording(page: Page): Promise<void> {
   )
 }
 
+/** The worker's own broadcast: no frameId, so every frame of the tab hears it (annotate.md §3.3). */
+async function broadcastLifecycle(page: Page, active: boolean): Promise<void> {
+  const worker = await (await import('./helpers')).ensureServiceWorker(page.context())
+  const url = page.url()
+  await worker.evaluate(
+    async payload => {
+      const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === payload.url)
+      await chrome.tabs.sendMessage(tab!.id!, payload.message)
+    },
+    {
+      url,
+      message: active
+        ? { type: 'RECORDING_LIFECYCLE', active: true, cursorHighlight: { enabled: true, shape: 'ring', color: '#e5484d' } }
+        : { type: 'RECORDING_LIFECYCLE', active: false },
+    },
+  )
+}
+
 test.describe('recording-time annotation and cursor highlight (annotate.md §3)', () => {
   test('the layer opens toolbar-less while recording, and the single keys run the tools', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
@@ -174,5 +192,15 @@ test.describe('recording-time annotation and cursor highlight (annotate.md §3)'
     const value = await page.locator('[data-testid="page-input"]').inputValue()
     expect(value).toBe('p')
     await page.keyboard.press('Escape')
+  })
+
+  test('a same-origin subframe follows the stop of the recording like the top frame (annotate.md §3.3, RV-CAP-19)', async ({ page }) => {
+    await page.goto('http://localhost:8173/iframe-host.html')
+    const frame = page.frameLocator('iframe[name="same"]')
+    await broadcastLifecycle(page, true)
+    await frame.locator('#frame-text').hover()
+    await expect(frame.locator(HIGHLIGHT_SHAPE), 'the subframe shows the highlight while the recording runs').toBeVisible()
+    await broadcastLifecycle(page, false)
+    await expect(frame.locator(HIGHLIGHT), 'the stop reaches the subframe: the highlight goes away there too').toHaveCount(0)
   })
 })
