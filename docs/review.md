@@ -43,26 +43,6 @@
 
 ### 归位与流程
 
-#### RV-DOC-04 商店提交流程只存在于一台机器上（中）
-
-**问题**
-
-- `store-assets/` 整个被 `.gitignore` 忽略。里面有两种语言的商店文案（`listing-en.md`、`listing-zh.md`）、提交说明（`SUBMIT.md`），以及生成商店截图的 Playwright 脚本与演示页（`capture.spec.ts`、`content.ts`、`playwright.config.ts`、`demo-article*.html`、`promo.html`）。流程和脚本不在版本控制里，换一台机器就没有了，也没有检查能发现它和产品文档漂移。
-
-**要求**
-
-1. 做成只允许手动调用的 skill：正本在 `.agents/skills/<name>/`，`.claude/skills/<name>` 是软链接，两边的手动开关都写上（根 `AGENTS.md` 的「Agent skills」），`check:consistency` 核对目录。
-2. skill 固化不随版本变的部分：发布链路（改 `package.json` 的版本，PR，打 `v<version>` 标签，`release.yml` 产出带构建证明的 zip，`gh release download` 与 `gh attestation verify`，上传商店）；截图生成脚本与演示页；文案的结构和每个字段的出处（权限说明以 `docs/product/permissions.md` 为准，隐私披露以 `website/public/privacy-policy.html` 为准）；提交前的核对清单。
-3. 每次发布才变的东西（zip、截图成品、校验和、各版本的存档）继续留在被忽略的 `store-assets/`；`.gitignore` 里那一行挪出 ZCode 段并注明原因。
-4. 文案正文是否入库由产品负责人决定；入库就放进 skill 的 `references/`，接受 `check:docs` 的写法检查。
-5. skill 里不写日期、版本号和逐版本的记录。
-
-**验收**
-
-1. 在干净检出里照 skill 能生成两种语言各五张 1280×800 的截图。
-2. `SUBMIT.md` 里每个版本都重复的内容，都能在 skill 里找到。
-3. `pnpm run check:consistency` 与 `pnpm run check:docs` 通过。
-
 ### 收尾验证
 
 #### RV-TEST-12 分支上有只能在 CI 与全量 E2E 里验证的改动（高）
