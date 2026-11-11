@@ -15,7 +15,9 @@ import { ExportDialog } from './export-dialog'
 import { DownloadsLayer } from './downloads-layer'
 import { SelectionToolbar } from './selection-toolbar'
 import { useSelectionController } from './selection-controller'
-import { runExport } from './export-run'
+import { useListQuery } from './use-list-query'
+import { useCounts } from './use-counts'
+import { useExportState } from './use-export-state'
 import { DetailDrawer } from './detail-drawer'
 import { EntryCard, propertyPills } from './entry-card'
 import { NAV_FOLDED_KEY, readNavFold, SideNav, useNarrowWindow } from './side-nav'
@@ -29,7 +31,7 @@ import type { HighlightColor } from '../../core/types'
 import { relativeTime } from './ui-text'
 import { uiText } from './ui-text'
 
-import { buildCondition, localDayRange, PAGE_SIZE, recordQueried, SEARCH_DEBOUNCE_MS } from './library-queries'
+import { buildCondition, localDayRange, recordQueried, SEARCH_DEBOUNCE_MS } from './library-queries'
 import { isListView, listHash, readHash, readHashFor, type FilterState, type RouteState, type View } from './route'
 import { ArrowUpRight, MessageSquareText } from 'lucide-react'
 import { ANN_SCREENSHOT_COMMAND } from '../../constants'
@@ -58,14 +60,6 @@ export default function App() {
   const registerFlush = useCallback((flush: (() => Promise<boolean>) | null) => {
     activeFlush.current = flush
   }, [])
-  const [items, setItems] = useState<EntryRecord[]>([])
-  const [total, setTotal] = useState(0)
-  const [nextCursor, setNextCursor] = useState<string | null>(null)
-  const [counts, setCounts] = useState({ all: 0, clips: 0, screenshots: 0 })
-  const [countsReady, setCountsReady] = useState(false)
-  const [highlightTotal, setHighlightTotal] = useState(0)
-  const [hosts, setHosts] = useState<string[]>([])
-  const [tags, setTags] = useState<string[]>([])
   const [registry, setRegistry] = useState<PropertyDefinition[]>([])
   /** Set once the registry has answered, or failed to: until then a property condition in the URL has no type to query by. */
   const [registryLoaded, setRegistryLoaded] = useState(false)
@@ -75,10 +69,6 @@ export default function App() {
   // starts from the default binding and follows the browser's own assignment (extension.md §7.1)
   const [shortcutKeys, setShortcutKeys] = useState('Cmd/Ctrl+Shift+S')
   const [shortcutHint, setShortcutHint] = useState(() => uiText('library.shortcutHint', { keys: 'Cmd/Ctrl+Shift+S' }))
-  const [exportState, setExportState] = useState<'idle' | 'busy' | 'done' | 'partial' | 'failed'>('idle')
-  const [exportSummary, setExportSummary] = useState('')
-  const [exportMissing, setExportMissing] = useState<string[]>([])
-  const [exportError, setExportError] = useState('')
   /** The export command's dialog (extension.md §2.2): the nav button opens it, it runs the one export and answers with its state. */
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const exportButton = useRef<HTMLButtonElement>(null)
@@ -86,7 +76,6 @@ export default function App() {
   const [highlightResult, setHighlightResult] = useState<HighlightQueryResult>({ groups: [], total: 0 })
   const [defaultColor, setDefaultColor] = useState<HighlightColor>('yellow')
   const [searchDraft, setSearchDraft] = useState(route.search)
-  const [reloadKey, setReloadKey] = useState(0)
   const narrowWindow = useNarrowWindow()
   /** The user's own fold: `true` folded (remembered), `false` unfolded this visit, `null` follows the window width. */
   const [navFold, setNavFold] = useState<boolean | null>(readNavFold)
@@ -105,17 +94,9 @@ export default function App() {
   const returnHashRef = useRef<string | null>(null)
   /** Set while the user (not the page load) caused the current query (RV-LIB-13). */
   const userQueryRef = useRef(false)
-  const querySeq = useRef(0)
-  /** A page of the list is on its way: a second click on 显示更多 would ask for the same page again and add it twice. */
-  const loadingMoreRef = useRef(false)
-  const [loadingMore, setLoadingMore] = useState(false)
-  /** The card the keyboard goes on from once 显示更多 has added its page (extension.md §2.3): set by `loadMore` only, so a reload or a filter never moves the focus. */
-  const focusAfterLoadRef = useRef<string | null>(null)
   const loadMoreButtonRef = useRef<HTMLButtonElement>(null)
   const entryGridRef = useRef<HTMLUListElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
-  const loadedCountRef = useRef(PAGE_SIZE)
-  const lastListQueryKeyRef = useRef<string | null>(null)
   const listQueryKey = route.readId ? listHash({ ...readHash(returnHashRef.current ?? '#/clips'), entryId: null }) : listHash({ ...route, entryId: null })
   const listRoute = useMemo(() => readHash(listQueryKey), [listQueryKey])
 
@@ -201,6 +182,9 @@ export default function App() {
     [registry],
   )
 
+  const { counts, countsReady, highlightTotal, hosts, tags, reload, reloadKey } = useCounts()
+  const highlightSeq = useRef(0)
+
   /**
    * Whether a route's query has to wait for the registry: only it gives a property condition its type. Queried
    * before that, the condition would be dropped — the unfiltered list on screen — and the query sent again.
@@ -222,45 +206,31 @@ export default function App() {
         ...localDayRange(route.from, route.to),
       } satisfies HighlightQuery)
 
-  // The list query (first page) — re-runs when the route, its query or an
-  // explicit reload changes (RV-LIB-03: writes refresh the list).
-  useEffect(() => {
-    if (listRoute.view === 'settings' || listRoute.view === 'properties' || listRoute.view === 'highlights') return
-    if (lastListQueryKeyRef.current !== listQueryKey) {
-      loadedCountRef.current = PAGE_SIZE
-      lastListQueryKeyRef.current = listQueryKey
-    }
-    const seq = ++querySeq.current
-    setLoading(true)
-    if (entryQueryJson === null) return
-    const query = JSON.parse(entryQueryJson) as EntryQuery
-    void (async () => {
-      const response = await MessageUtils.sendMessage({ type: 'QUERY_ENTRIES', query: { ...query, limit: loadedCountRef.current } })
-      if (seq !== querySeq.current) return
-      if (response.success) {
-        setItems(response.data!.result.items)
-        setTotal(response.data!.result.total)
-        setNextCursor(response.data!.result.nextCursor ?? null)
-        loadedCountRef.current = Math.max(PAGE_SIZE, response.data!.result.items.length)
-      }
-      setLoading(false)
-      if (response.success && userQueryRef.current) {
+  const list = useListQuery({
+    active: listRoute.view !== 'settings' && listRoute.view !== 'properties' && listRoute.view !== 'highlights',
+    queryJson: entryQueryJson,
+    queryKey: listQueryKey,
+    reloadKey,
+    query: () => queryFor(route),
+    onQueried: total => {
+      if (userQueryRef.current) {
         userQueryRef.current = false
-        recordQueried(listRoute, response.data!.result.total)
+        recordQueried(listRoute, total)
       }
-    })()
-  }, [listQueryKey, listRoute, entryQueryJson, reloadKey])
+    },
+  })
+  const { items, total, nextCursor, loadingMore, loadMore, takeFocusAfterLoad } = list
 
   // The highlights view runs its own query with the same filters (RV-LIB-04).
   useEffect(() => {
     if (route.view !== 'highlights') return
-    const seq = ++querySeq.current
+    const seq = ++highlightSeq.current
     setLoading(true)
     if (highlightQueryJson === null) return
     const query = JSON.parse(highlightQueryJson) as HighlightQuery
     void (async () => {
       const response = await MessageUtils.sendMessage({ type: 'QUERY_HIGHLIGHTS', query })
-      if (seq !== querySeq.current) return
+      if (seq !== highlightSeq.current) return
       if (response.success) setHighlightResult(response.data!.result)
       setLoading(false)
       if (response.success && userQueryRef.current) {
@@ -270,74 +240,17 @@ export default function App() {
     })()
   }, [route, reloadKey, highlightQueryJson])
 
-  const loadMore = useCallback(async () => {
-    if (!nextCursor || loadingMoreRef.current) return
-    loadingMoreRef.current = true
-    setLoadingMore(true)
-    try {
-      const seq = querySeq.current
-      const response = await MessageUtils.sendMessage({
-        type: 'QUERY_ENTRIES',
-        query: { ...queryFor(route), limit: PAGE_SIZE, cursor: nextCursor },
-      })
-      if (seq !== querySeq.current || !response.success) return
-      const page = response.data!.result.items
-      // an empty page (its entries deleted meanwhile) still takes the button away: the keyboard stays on the last card
-      focusAfterLoadRef.current = (page[0] ?? items[items.length - 1])?.id ?? null
-      setItems(prev => [...prev, ...page])
-      loadedCountRef.current += page.length
-      setTotal(response.data!.result.total)
-      setNextCursor(response.data!.result.nextCursor ?? null)
-    } finally {
-      loadingMoreRef.current = false
-      setLoadingMore(false)
-    }
-  }, [items, nextCursor, queryFor, route])
-
   // Before paint, so a last page that took the focused button away never leaves the keyboard on the page itself. A
   // user who moved the focus while the page was on its way (into a drawer, back to a card) keeps it where they put it.
   useLayoutEffect(() => {
-    const id = focusAfterLoadRef.current
-    focusAfterLoadRef.current = null
+    const id = takeFocusAfterLoad()
     if (!id) return
     const active = document.activeElement
     if (active && active !== document.body && active !== loadMoreButtonRef.current) return
     entryGridRef.current?.querySelector<HTMLElement>(`[data-entry-id="${CSS.escape(id)}"] > .entry-card-open`)?.focus()
-  }, [items])
-
-  const refreshCounts = useCallback(async () => {
-    const response = await MessageUtils.sendMessage({ type: 'QUERY_FACETS' })
-    if (!response.success || !response.data?.facets) return
-    const { counts: next, hosts: nextHosts, tags: nextTags } = response.data.facets
-    setHosts(nextHosts)
-    setTags(nextTags)
-    setCounts({ all: next.all, clips: next.clips, screenshots: next.screenshots })
-    setHighlightTotal(next.highlights)
-    setCountsReady(true)
-  }, [])
-
-  /** Any successful write refreshes list, counts and candidates together (RV-LIB-03). */
-  const reload = useCallback(() => {
-    setReloadKey(key => key + 1)
-    void refreshCounts()
-  }, [refreshCounts])
-
-  // A clip or screenshot saved from a page tab while this library tab is open:
-  // the background broadcasts the mutation, the list refreshes itself instead
-  // of waiting for a reload.
-  useEffect(() => {
-    let channel: BroadcastChannel | null = null
-    try {
-      channel = new BroadcastChannel('annhub.entries')
-      channel.onmessage = () => reload()
-    } catch {
-      /* without the channel the page keeps its manual reload behaviour */
-    }
-    return () => channel?.close()
-  }, [reload])
+  }, [items, takeFocusAfterLoad])
 
   useEffect(() => {
-    void refreshCounts()
     void MessageUtils.sendMessage({ type: 'LIST_PROPERTIES' }).then(response => {
       if (response.success) setRegistry(response.data!.definitions)
       // a registry that cannot be read leaves its conditions out, as an unknown property does: the list still answers
@@ -356,7 +269,7 @@ export default function App() {
         setShortcutHint(uiText('library.shortcutHint', { keys: binding }))
       }
     })
-  }, [refreshCounts])
+  }, [])
 
   const closeDrawer = useCallback(() => {
     if (!route.entryId) return
@@ -394,16 +307,8 @@ export default function App() {
     [route],
   )
 
-  const onExport = useCallback(async () => {
-    setExportState('busy')
-    setExportError('')
-    setExportMissing([])
-    const outcome = await runExport()
-    setExportState(outcome.state)
-    setExportSummary(outcome.summary)
-    setExportMissing(outcome.missing)
-    setExportError(outcome.error)
-  }, [])
+  const { export: exportUi, startExport: onExport } = useExportState()
+  const { phase: exportState, summary: exportSummary, missing: exportMissing, error: exportError } = exportUi
 
   /**
    * The nav item that is the current section. The reading view is a clip read inside whatever list it was opened

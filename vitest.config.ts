@@ -17,7 +17,7 @@ export default defineConfig({
         test: {
           name: 'node',
           environment: 'node',
-          include: ['**/*.test.{ts,mjs}'],
+          include: ['**/*.test.{ts,tsx,mjs}'],
           exclude: [...EXCLUDED, ...DOM_ENTRYPOINTS],
         },
       },
@@ -25,7 +25,7 @@ export default defineConfig({
         test: {
           name: 'jsdom',
           environment: 'jsdom',
-          include: DOM_ENTRYPOINTS.map(directory => `${directory}/**/*.test.{ts,mjs}`),
+          include: DOM_ENTRYPOINTS.map(directory => `${directory}/**/*.test.{ts,tsx,mjs}`),
           exclude: EXCLUDED,
         },
       },

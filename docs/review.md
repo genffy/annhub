@@ -39,22 +39,6 @@
 
 ### 热点文件
 
-#### RV-LIB-20 资料库根组件把数据获取、导出与界面状态揉在一起（低）
-
-**问题**
-
-- `entrypoints/library/App.tsx` 有 678 行、28 个 `useState`、16 个 `useRef`、10 个 `useEffect`。列表查询的竞态处理、分页、导出的状态（四个 `useState`）都写在组件体里，只有 E2E 覆盖。
-
-**要求**
-
-1. 抽成 `entrypoints/library/` 下的 hook：列表与分页、计数与 facets、导出。导出的状态用 reducer，reducer 是纯函数并有单测。
-2. 行为不变；不引入状态库、请求库或测试库。需要渲染 hook 的单测用 `react` 的 `act` 加 `createRoot`。
-
-**验收**
-
-1. `App.tsx` 里的 `useState` 少于 15 个；新抽出的纯函数都有单测。
-2. 全部 `e2e/library-*.spec.ts` 与 `e2e/reading-highlight.spec.ts` 通过。
-
 ### 数据访问路径
 
 #### RV-LIB-21 设置页绕过 service worker 直接写库（低）
