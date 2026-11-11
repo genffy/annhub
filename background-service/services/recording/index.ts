@@ -66,7 +66,8 @@ export class RecordingService implements IService {
   /** A finished video on its way to the disk: the blob URL the offscreen document keeps alive until the file has landed. */
   private pendingDownload: { blobUrl: string; filename: string; downloadId?: number; meta: FinishedRecording } | null = null
   /** The tab whose recording produced the pending download; the route record keeps it after the state moved to idle. */
-  private recordedTabId?: number
+  // `| undefined`, not `?`: the slot is cleared by assignment, which exactOptionalPropertyTypes keeps distinct from absence
+  private recordedTabId: number | undefined
   /** The recovery read, started by whoever reads state first — an event that beats initialize() must not find the idle default (RV-REC-02). */
   private recovery: Promise<void> | null = null
 
@@ -330,7 +331,7 @@ export class RecordingService implements IService {
 
     await this.ensureOffscreenDocument()
     // the state is set before the offscreen document answers, so a microphone notice it reports on the way is kept
-    this.state = { status: 'recording', withMic, tabId, tabTitle: tab.title, startedAt: Date.now() }
+    this.state = { status: 'recording', withMic, tabId, ...(tab.title ? { tabTitle: tab.title } : {}), startedAt: Date.now() }
     const answer = await this.tellOffscreen({ type: 'RECORDING_START', streamId, withMic })
     if (!answer.ok) {
       this.state = { status: 'idle', withMic: false, ...(this.state.micNotice ? { micNotice: this.state.micNotice } : {}) }
@@ -416,7 +417,7 @@ export class RecordingService implements IService {
             durationMs: message.durationMs ?? 0,
             withMic: message.withMic === true,
             stoppedBy,
-            limit: message.limit,
+            ...(message.limit !== undefined ? { limit: message.limit } : {}),
           },
         }
         this.state = {

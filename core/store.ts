@@ -453,14 +453,15 @@ export class EntryStore {
       if (!isHttpUrl(input.sourceUrl)) {
         throw new EntryValidationError('ENTRY_SOURCE_INVALID', `sourceUrl is not an absolute http(s) link: ${input.sourceUrl}`)
       }
+      // a field the input does not carry stays absent — `undefined` and absence must not blur (RV-TEST-17)
       const entry: EntryRecord = {
         id: input.id ?? newEntryId(),
         type: input.type,
         content: input.content,
-        context: input.context,
-        note: input.note,
-        highlights: input.highlights,
-        assetId: asset?.id,
+        ...(input.context !== undefined ? { context: input.context } : {}),
+        ...(input.note !== undefined ? { note: input.note } : {}),
+        ...(input.highlights !== undefined ? { highlights: input.highlights } : {}),
+        ...(asset?.id !== undefined ? { assetId: asset.id } : {}),
         sourceUrl: input.sourceUrl,
         sourceHost: normalizeHost(input.sourceUrl),
         properties: canonicalizeProperties(input.properties, merged),
@@ -506,10 +507,17 @@ export class EntryStore {
       const next: EntryRecord = {
         ...existing,
         ...(patch.content !== undefined ? { content: patch.content } : {}),
-        ...('context' in patch ? { context: patch.context ?? undefined } : {}),
-        ...('note' in patch ? { note: patch.note ?? undefined } : {}),
         properties: canonicalizeProperties(properties, merged),
         updatedAt: Date.now(),
+      }
+      // null clears the field: the key goes away, no record ever carries an undefined value (storage.md §4)
+      if ('context' in patch) {
+        if (patch.context === null) delete next.context
+        else next.context = patch.context
+      }
+      if ('note' in patch) {
+        if (patch.note === null) delete next.note
+        else next.note = patch.note
       }
       validateEntry(next, merged)
       const summary = indexedSummary(next)
@@ -540,11 +548,15 @@ export class EntryStore {
       const next = highlights.map(highlight => {
         if (highlight.id !== highlightId) return highlight
         found = true
-        return {
+        const updated = {
           ...highlight,
           ...(patch.color ? { color: patch.color } : {}),
-          ...('note' in patch ? { note: patch.note ?? undefined } : {}),
         }
+        if ('note' in patch) {
+          if (patch.note === null) delete updated.note
+          else updated.note = patch.note
+        }
+        return updated
       })
       if (!found) throw new EntryValidationError('HIGHLIGHT_INVALID', `no highlight ${highlightId} on entry ${id}`)
       return next
@@ -727,7 +739,7 @@ function mergeHighlightInto(existing: Highlight[], addition: Highlight, content:
       start,
       end,
       quote,
-      note: joined || undefined,
+      ...(joined ? { note: joined } : {}),
       createdAt: Math.min(item.createdAt, merged.createdAt),
     }
   }

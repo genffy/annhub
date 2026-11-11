@@ -645,8 +645,8 @@ export function elementToMarkdown(root: Element, slice?: MarkdownSlice, purpose:
   if (platform) root = platform.element
   const ctx: Ctx = {
     download: purpose === 'download',
-    footnotes: purpose === 'download' ? collectFootnotes(root) : undefined,
-    expanded: purpose === 'download' ? expandedPanels(root.ownerDocument) : undefined,
+    ...(purpose === 'download' ? { footnotes: collectFootnotes(root) } : {}),
+    ...(purpose === 'download' ? { expanded: expandedPanels(root.ownerDocument) } : {}),
     doc: root.ownerDocument,
     win: root.ownerDocument.defaultView ?? window,
     baseUrl: root.ownerDocument.baseURI,
@@ -668,7 +668,10 @@ export function elementToMarkdown(root: Element, slice?: MarkdownSlice, purpose:
     ctx.footnotes.definitions.forEach((definition, index) => {
       if (!result.markdown.includes(`[^${index + 1}]`)) return
       const body = new Emitter(Infinity)
-      emitChildren(definition, { ...ctx, footnotes: undefined }, body)
+      // the footnote body itself emits without the footnote context: the field stays absent, not undefined
+      const { footnotes, ...bodyCtx } = ctx
+      void footnotes
+      emitChildren(definition, bodyCtx, body)
       const text = body.finish().markdown
       result.markdown += `\n\n[^${index + 1}]: ${text.replace(/\n/g, '\n    ')}`
     })

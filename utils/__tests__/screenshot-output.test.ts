@@ -551,7 +551,7 @@ describe('the panel changes the style (screenshot.md §4.4)', () => {
 
   it('goes back to a free ratio when the ratio is cleared', () => {
     const wide = applyBeautifyChange(DEFAULT_BEAUTIFY, { ratio: '16:9' })
-    expect(applyBeautifyChange(wide, { ratio: undefined }).ratio).toBeUndefined()
+    expect(applyBeautifyChange(wide, { ratio: null }).ratio).toBeUndefined()
   })
 
   it('does not change the style it was given', () => {

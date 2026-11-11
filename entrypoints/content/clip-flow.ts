@@ -57,7 +57,7 @@ export async function saveSelectionClip(range: Range, origin: ClipOrigin, id = n
   return saveClip({
     id,
     content: markdown,
-    context,
+    ...(context !== undefined ? { context } : {}),
     permalink: resolvePermalink(range.commonAncestorContainer, location.href),
     origin: { ...origin, truncated, startedAt },
   })
@@ -83,7 +83,7 @@ export async function saveBlockClip(candidate: BlockCandidate, origin: ClipOrigi
     id,
     content: markdown,
     permalink: platform?.sourceUrl ?? resolvePermalink(range?.start ?? element, location.href, kind),
-    meta: platform?.meta,
+    ...(platform?.meta ? { meta: platform.meta } : {}),
     origin: { ...origin, blockKind: kind, truncated, startedAt },
   })
 }
@@ -102,7 +102,7 @@ async function saveClip(input: {
     draft: {
       id: input.id,
       content: input.content,
-      context: input.context,
+      ...(input.context !== undefined ? { context: input.context } : {}),
       sourceUrl: input.permalink,
       properties: {
         title: meta.title,
@@ -113,7 +113,8 @@ async function saveClip(input: {
       ...input.origin,
     },
   })
-  if (!response.success || !response.data?.entry) return { failed: true, code: response.error }
+  // no code when the worker answered none: the field stays absent, the toast falls back to its generic line
+  if (!response.success || !response.data?.entry) return { failed: true, ...(response.error !== undefined ? { code: response.error } : {}) }
   return { entryId: response.data.entry.id, title: meta.title, truncated: Boolean(input.origin.truncated), origin: input.origin }
 }
 

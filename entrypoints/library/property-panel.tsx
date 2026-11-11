@@ -524,7 +524,7 @@ const PendingEditor = forwardRef<EditorHandle, { inputId: string; type: Property
             inputId={inputId}
             type={type}
             value={draft}
-            autoFocus={autoFocus}
+            {...(autoFocus !== undefined ? { autoFocus } : {})}
             onListEnter={() => void commit()}
             onChange={next => {
               draftRef.current = next
@@ -604,7 +604,7 @@ const DraftEditor = forwardRef<
         inputId={inputId}
         type={type}
         value={draft}
-        listLimit={listLimit}
+        {...(listLimit !== undefined ? { listLimit } : {})}
         onListEnter={() => void commit()}
         onChange={next => {
           dirty.current = true

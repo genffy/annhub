@@ -117,7 +117,7 @@ function RecordingCard({ settings, patch }: { settings: ExtensionSettings; patch
             checked={cursor.enabled}
             onChange={enabled => void patch({ recording: { cursorHighlight: { enabled } } })}
             nameId={ids.nameId}
-            describedBy={ids.descId}
+            {...(ids.descId !== undefined ? { describedBy: ids.descId } : {})}
             testId="cursor-highlight-toggle"
           />
         )}
@@ -164,7 +164,7 @@ function ScreenshotCard({ settings, patch }: { settings: ExtensionSettings; patc
             checked={settings.anonymizeDefault}
             onChange={checked => void patch({ anonymizeDefault: checked })}
             nameId={ids.nameId}
-            describedBy={ids.descId}
+            {...(ids.descId !== undefined ? { describedBy: ids.descId } : {})}
             testId="anonymize-toggle"
           />
         )}
@@ -710,7 +710,7 @@ export function SettingsView() {
                     checked={settings.blockEntryEnabled}
                     onChange={checked => void patch({ blockEntryEnabled: checked })}
                     nameId={ids.nameId}
-                    describedBy={ids.descId}
+                    {...(ids.descId !== undefined ? { describedBy: ids.descId } : {})}
                     testId="block-entry-toggle"
                   />
                 )}

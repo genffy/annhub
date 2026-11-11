@@ -1,7 +1,8 @@
 import { Logger } from '../../utils/logger'
 
 export class InstallationHandler {
-  private installedListener?: (details: chrome.runtime.InstalledDetails) => void
+  // `| undefined`, not `?`: the slot is cleared by assignment, which exactOptionalPropertyTypes keeps distinct from absence
+  private installedListener: ((details: chrome.runtime.InstalledDetails) => void) | undefined
 
   registerListeners(): void {
     Logger.info('[InstallationHandler] Registering installation listeners...')

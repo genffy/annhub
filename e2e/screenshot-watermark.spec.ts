@@ -231,7 +231,8 @@ async function shownPicture(page: Page, within: Box, backdrop?: Rgb): Promise<Re
   await expect
     .poll(
       async () => {
-        reading = await read(page, { source: 'canvas', within, backdrop })
+        const readOptions = backdrop !== undefined ? { source: 'canvas' as const, within, backdrop } : { source: 'canvas' as const, within }
+        reading = await read(page, readOptions)
         return reading.green !== null && reading.magenta !== null
       },
       { message: 'the picture is drawn on the preview' },

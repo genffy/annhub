@@ -51,6 +51,9 @@ export interface BeautifySettings {
   ratio?: string
 }
 
+/** A change from the beautify panel: fields set themselves; `ratio: null` clears back to free. */
+export type BeautifyChange = Partial<Omit<BeautifySettings, 'ratio'>> & { ratio?: string | null }
+
 export const PADDING_PX: Record<BeautifyPadding, number> = { small: 24, medium: 40, large: 64 }
 
 /** The corner radii the panel and the settings offer, in CSS px. */

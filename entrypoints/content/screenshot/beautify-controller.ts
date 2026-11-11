@@ -1,7 +1,7 @@
 import { createBeautifyPanel, type BeautifyPanel } from './beautify-panel'
 import { placePanel } from '../../../utils/screenshot-output'
 import type { ViewportRect } from './crop'
-import type { BeautifySettings } from '../../../core/screenshot-options'
+import type { BeautifyChange, BeautifySettings } from '../../../core/screenshot-options'
 
 /**
  * The beautify panel's lifecycle (RV-CAP-18, split out of the session): opening and closing it,
@@ -18,7 +18,7 @@ export interface BeautifyControllerPort {
   beautify(): BeautifySettings
   ratioPresets(): string[]
   /** Applies a change and redraws; the controller syncs the panel afterwards. */
-  change(patch: Partial<BeautifySettings>): void
+  change(patch: BeautifyChange): void
   /** 复原: back to the style the settings give. */
   reset(): void
   /** The toolbar's pressed state depends on whether the panel is open. */

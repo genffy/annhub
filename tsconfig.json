@@ -21,7 +21,13 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     // An indexed read may be undefined: `list[0]`, `record[key]`, a regex group. WXT's base config sets it too.
-    "noUncheckedIndexedAccess": true
+    "noUncheckedIndexedAccess": true,
+    // Aligned with the generated config, spelled out here so the root reads whole (RV-TEST-17):
+    "verbatimModuleSyntax": true,
+    "noImplicitOverride": true,
+    // Messages cross JSON, where a `undefined` field vanishes: "clear" is `null`, and this option
+    // keeps "no value" and "no field" distinct in the types as well (RV-TEST-17).
+    "exactOptionalPropertyTypes": true
     /* shadcn/ui path mapping */
     // "baseUrl": ".",
   },

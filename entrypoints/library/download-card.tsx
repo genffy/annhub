@@ -33,7 +33,7 @@ export function DownloadCard({ settings, patch }: { settings: ExtensionSettings;
             checked={settings.downloadMedia}
             onChange={checked => void patch({ downloadMedia: checked })}
             nameId={ids.nameId}
-            describedBy={ids.descId}
+            {...(ids.descId !== undefined ? { describedBy: ids.descId } : {})}
             testId="download-media-toggle"
           />
         )}

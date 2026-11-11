@@ -70,8 +70,8 @@ export default class MessageUtils {
     return {
       type: 'RESPONSE',
       success,
-      data,
-      error,
+      ...(data !== undefined ? { data } : {}),
+      ...(error !== undefined ? { error } : {}),
       timestamp: Date.now(),
     }
   }

@@ -112,24 +112,6 @@
 
 ### 类型检查与 lint
 
-#### RV-TEST-17 `tsconfig.json` 还有三项检查没开（低）
-
-**问题**
-
-- 根 `tsconfig.json` 自己写了一套选项，没有继承 WXT 生成的 `.wxt/tsconfig.json`；后者开着的 `verbatimModuleSyntax` 与 `noImplicitOverride` 在根配置里没开。打开后都是 0 处错误。
-- `exactOptionalPropertyTypes` 没开，打开后 62 处错误：`entrypoints/` 23、`background-service/` 21、`core/` 15、`utils/` 2、`e2e/` 1。消息走 JSON，值为 `undefined` 的字段在传输中消失，所以协议用 `null` 表示清除（`background-service/AGENTS.md`）；这个选项在类型上分开“字段是 `undefined`”和“没有这个字段”，兜住的正是这类写法。
-
-**要求**
-
-1. 打开这三项；`tsconfig.worker.json` 继承根配置，一起生效。
-2. 62 处按含义改：表示“没有”的去掉字段或用条件展开，表示“清除”的按协议用 `null`；不用 `as` 绕过。
-
-**验收**
-
-1. `pnpm run compile` 通过；临时给一个可选字段赋 `undefined`，编译失败。
-2. 改动前后 `pnpm run build` 的 `content.js` 与 `background.js` 字节数写进交付说明，有差异就说明来源。
-3. `pnpm run verify` 通过；动到哪个入口，跑那个目录 `AGENTS.md`「验证」里列的 E2E。
-
 #### RV-TEST-18 带类型信息的 lint 还差一档（低）
 
 **问题**

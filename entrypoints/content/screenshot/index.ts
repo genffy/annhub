@@ -34,7 +34,7 @@ import { PendingFrame } from './pending-frame'
 import { ErrorPanel, announceSaved } from './error-panel'
 import { mountSessionShell, SWALLOWED_EVENT_TYPES } from './session-boot'
 import { applyBeautifyChange } from '../../../utils/screenshot-output'
-import { DEFAULT_BEAUTIFY, type BeautifySettings } from '../../../core/screenshot-options'
+import { DEFAULT_BEAUTIFY, type BeautifyChange } from '../../../core/screenshot-options'
 import { buildSelector } from './selection'
 import type { InkStroke } from '../annotation/ink'
 
@@ -304,7 +304,7 @@ class ScreenshotSession {
       ratioPresets: () => this.prefs.settings?.ratioPresets ?? [],
       paintOptions: () => ({
         watermarkOn: this.prefs.watermarkOn,
-        watermark: this.prefs.settings?.watermark,
+        ...(this.prefs.settings?.watermark ? { watermark: this.prefs.settings.watermark } : {}),
         watermarkImage: this.prefs.watermarkImage,
         via: this.via,
         dpr: this.flow.dpr,
@@ -733,7 +733,7 @@ class ScreenshotSession {
     })
   }
 
-  private changeBeautify(patch: Partial<BeautifySettings>): void {
+  private changeBeautify(patch: BeautifyChange): void {
     this.prefs.beautify = applyBeautifyChange(this.prefs.beautify, patch)
     this.stage.beautify.sync(this.prefs.beautify)
     this.stage.refreshDisplay()

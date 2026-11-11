@@ -6,7 +6,7 @@
  */
 import { uiText } from '../ui-text'
 import { backgroundCss, ratioOf } from '../../../utils/screenshot-output'
-import { BEAUTIFY_BACKGROUND_IDS, BEAUTIFY_RADII, PADDING_PX, type BeautifyPadding, type BeautifySettings } from '../../../core/screenshot-options'
+import { BEAUTIFY_BACKGROUND_IDS, BEAUTIFY_RADII, PADDING_PX, type BeautifyChange, type BeautifyPadding, type BeautifySettings } from '../../../core/screenshot-options'
 
 export const BEAUTIFY_PANEL_UI = 'screenshot-beautify-panel'
 
@@ -16,7 +16,7 @@ export interface BeautifyPanelOptions {
   /** the ratios the settings turned on, in their order; "free" is always offered besides them */
   ratios: readonly string[]
   /** the user changed these fields of the style */
-  onChange(patch: Partial<BeautifySettings>): void
+  onChange(patch: BeautifyChange): void
   /** the user asked for the initial style back */
   onReset(): void
 }
@@ -96,7 +96,7 @@ export function createBeautifyPanel(doc: Document, options: BeautifyPanelOptions
   }
 
   /** One button of a group of exclusive choices, pressed while `isCurrent` says it is the style's. */
-  const choice = (node: HTMLButtonElement, isCurrent: (settings: BeautifySettings) => boolean, patch: Partial<BeautifySettings>): HTMLButtonElement => {
+  const choice = (node: HTMLButtonElement, isCurrent: (settings: BeautifySettings) => boolean, patch: BeautifyChange): HTMLButtonElement => {
     node.addEventListener('click', () => options.onChange(patch))
     shows.push(settings => node.setAttribute('aria-pressed', String(isCurrent(settings))))
     return node
@@ -172,7 +172,7 @@ export function createBeautifyPanel(doc: Document, options: BeautifyPanelOptions
   // the output canvas ratio: free, and the ratios the settings turned on, each with a small outline of its shape
   const free = button('ann-shot-bz-chip')
   free.append(icon(MOVE), make('span', undefined, uiText('shot.beautify.ratio.fit')))
-  const chips: HTMLButtonElement[] = [choice(free, settings => settings.ratio === undefined, { ratio: undefined })]
+  const chips: HTMLButtonElement[] = [choice(free, settings => settings.ratio === undefined, { ratio: null })]
   for (const id of options.ratios) {
     const preset = ratioOf(id)
     if (!preset) continue

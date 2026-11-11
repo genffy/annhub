@@ -124,7 +124,7 @@ describe('pagination (search.md §4)', () => {
     const seen: string[] = []
     let cursor: string | undefined
     do {
-      const page = queryEntries(many, TEST_REGISTRY, { limit: 50, cursor })
+      const page = queryEntries(many, TEST_REGISTRY, ...(cursor !== undefined ? [{ limit: 50, cursor }] : [{ limit: 50 }]))
       seen.push(...page.items.map(entry => entry.id))
       cursor = page.nextCursor
     } while (cursor)
@@ -171,7 +171,6 @@ describe('highlight query time and order (search.md §5, RV-CORE-05)', () => {
       id: `ent_${createdAt}`,
       type: 'clip' as const,
       content,
-      context: undefined,
       sourceUrl: 'https://h.example/a',
       sourceHost: 'h.example',
       properties: { title: `T${createdAt}` },
