@@ -20,50 +20,7 @@
 
 ## 2. 待处理
 
-这些条目都在 `chore/engineering-hardening` 分支上消除：一条一个提交，不拆 PR，§2 清空后整条分支合并。分支上已有的提交见 `git log origin/main..HEAD`，它们的结论不在这里重复。
-
-组间的先后：测试设施 → 消息协议 → 内容脚本体积 → 热点文件 → 数据访问路径；「归位与流程」与其他组无关，随时可做；「收尾验证」最后做。
-
-接手前先知道的几件事：
-
-- 包管理器是 pnpm。给脚本传参直接写在后面，不加 `--`（pnpm 会把 `--` 原样交给脚本，官网的生产构建是 `pnpm run build --production`）；跑依赖里的命令用 `pnpm exec`；本机 registry 是镜像时 `pnpm audit` 要带 `--registry https://registry.npmjs.org`。
-- 每个提交之前跑 `pnpm run verify`；相关 E2E 直接跑，global-setup 会自动重建过期的构建（`scripts/build-freshness.ts`）。
-- 根 `AGENTS.md` 与 `background-service/AGENTS.md` 离 8 KB 上限只差几个字节：新约定写进同目录的 `notes/` 或 `scripts/README.md`，不往这两个文件里加。
-- 依赖方向由 `eslint.config.js` 的 `no-restricted-imports` 守，worker 一侧由 `tsconfig.worker.json` 不带 DOM 库再查一遍；`utils/` 的导出不是全局变量，用到就 import。
-- `command-handler.ts`、`installation-handler.ts` 的监听器保持 async：它们的测试 await 监听器的返回值。
-- 查不熟悉的工具行为时读已安装版本的文档或源码（pnpm 12、vitest 5、wxt 0.21 都比常见资料新），不凭记忆写配置。
-
-### 内容脚本体积
-
-量法：构建后看 `.output/chrome-mv3/` 的文件大小；各部分的占比用 esbuild 单独打包那一部分（minify）得到。
-
-### 热点文件
-
-### 数据访问路径
-
-### 归位与流程
-
-### 收尾验证
-
-#### RV-TEST-12 分支上有只能在 CI 与全量 E2E 里验证的改动（高）
-
-**问题**
-
-- 分支把包管理器换成了 pnpm，改了全部 workflow。本机没有 actionlint 与 zizmor，下面这些没有运行过：`pnpm/action-setup` 与 `actions/setup-node` 的 `cache: pnpm` 配合；`scheduled-audit.yml` 的 `pnpm audit --prod --audit-level high`；`deploy-website` 的 `pnpm dlx "wrangler@$WRANGLER_VERSION" deploy`（本机只跑过 `--version`）；Dependabot 读两份 `pnpm-lock.yaml`；依赖审查。
-- E2E 没有全量跑过。这些文件只改了类型写法，通过了类型检查，没有执行：`e2e/page-annotation.spec.ts`、`e2e/recording-annotation.spec.ts`、`e2e/screenshot-stitch.spec.ts`、`e2e/screenshot-frame.spec.ts`、`e2e/screenshot-watermark.spec.ts`、`e2e/library-layout.spec.ts`、`e2e/library-layout-cards.spec.ts`、`e2e/page-shapes.spec.ts`。
-
-**要求**
-
-1. 本机全量跑一遍：`pnpm run build`，再 `pnpm exec playwright test`。
-2. 推分支、开 PR，六个必需检查全绿；红了先在本地复现（`.claude/skills/babysit/SKILL.md`），不跳过、不放宽。
-3. PR 描述按根 `AGENTS.md`「联动一致性」第 6 条列出搜过的命令和命中的文件；包管理器迁移那一步搜的是 `git grep -nIE "npm (ci|run|install|test|exec|audit)|npx |package-lock"`。
-4. 合并后的第一次 main 运行：确认 `deploy-website` 成功，或在部署开关关着时确认它被跳过；确认 Dependabot 下一次运行能解析两个目录。
-
-**验收**
-
-1. 全量 E2E 通过，失败的用例都有结论。
-2. PR 上六个必需检查通过。
-3. 要求 4 的两项有结果；出了问题登记成新的条目。
+没有条目。新发现按 §1 第 6 条登记。
 
 ## 3. 已知问题
 
