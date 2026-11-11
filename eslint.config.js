@@ -16,7 +16,20 @@ export default tseslint.config(
       'test-results/**',
       'website/**',
       'docs/**',
-      '.agents/**',
+      // skills stay unchecked except the store shots: they import e2e/fixtures and e2e/helpers, so a
+      // helper that changes shape must fail lint here, not at the next store release (RV-TEST-13).
+      // The walk prunes a directory the moment a pattern ignores it and a negation cannot resurrect
+      // a pruned child, so each level is ignored and re-included in turn;
+      // `.claude/skills/` holds the same files through symlinks, which eslint does not follow
+      '.agents/*',
+      '!.agents/skills',
+      '.agents/skills/*',
+      '!.agents/skills/store-submission',
+      '.agents/skills/store-submission/*',
+      '!.agents/skills/store-submission/shots',
+      // only holds each release's finished assets and their archives (git-ignored, never committed);
+      // a checkout that has them must not lint archive copies of old configs (RV-TEST-13)
+      'store-assets/**',
       'scripts/data/**',
     ],
   },

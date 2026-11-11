@@ -112,24 +112,6 @@
 
 ### 类型检查与 lint
 
-#### RV-TEST-13 入库的商店截图脚本没有检查，被忽略的 `store-assets/` 反而被检查（中）
-
-**问题**
-
-- 商店截图脚本在 `.agents/skills/store-submission/shots/`，其中 `capture.spec.ts` 导入 `e2e/fixtures` 的 `test` 与 `e2e/helpers` 的七个函数。`eslint.config.js` 忽略整个 `.agents/**`；根 `tsconfig.json` 不写 `include`，默认的通配不进以点开头的目录。类型检查与 lint 都不读这三个文件：`e2e/helpers.ts` 里的函数改名或改签名，商店截图流程要到下次发布才发现跑不起来。
-- 反过来，根 `tsconfig.json` 只排除 `node_modules` 与 `website`，ESLint 也不忽略 `store-assets/`。产品负责人的检出里，被 git 忽略的 `store-assets/` 有两份存档里的 `playwright.config.ts`（`archive-v2.0.0/`、`archive-v2.1.0/`），本机的 `pnpm run compile` 与 `pnpm run lint` 会读它们，本机与 CI 检查的文件因此不同；以后存档里再放脚本也一样。
-
-**要求**
-
-1. `.agents/skills/store-submission/shots/*.ts` 进入 `pnpm run compile` 的类型检查与 `pnpm run lint`。其余 skill 照旧不查；`.claude/skills/` 是软链接，同一份文件不查两遍。
-2. `tsconfig.json` 与 `eslint.config.js` 明确排除 `store-assets/`，并注明原因：它只放每次发布的成品与存档，不入库。
-
-**验收**
-
-1. `pnpm exec tsc --noEmit --listFilesOnly -p tsconfig.json` 列出 skill 里的 `capture.spec.ts`，不列出 `store-assets/` 下的任何文件。在 worktree 里自己建一个 `store-assets/`，放一个有类型错误、也违反 lint 规则的 `.ts`，`pnpm run compile` 与 `pnpm run lint` 仍通过。
-2. 临时给 `capture.spec.ts` 用到的一个 helper 改名，`pnpm run compile` 在 `capture.spec.ts` 报错。
-3. `pnpm run verify` 通过。
-
 #### RV-TEST-17 `tsconfig.json` 还有三项检查没开（低）
 
 **问题**

@@ -25,5 +25,19 @@
     /* shadcn/ui path mapping */
     // "baseUrl": ".",
   },
-  "exclude": ["node_modules", "website"]
+  "include": [
+    "**/*",
+    // naming include replaces the generated config's one, so its declarations come along explicitly
+    ".wxt/wxt.d.ts",
+    // the default wildcard does not enter dot directories; the store-shot scripts import e2e/fixtures
+    // and e2e/helpers, so a helper that changes shape must fail here, not at the next store release (RV-TEST-13)
+    ".agents/skills/store-submission/shots/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "website",
+    // only holds each release's finished assets and their archives (git-ignored, never committed);
+    // without this a checkout that has it type-checks archive copies of old configs (RV-TEST-13)
+    "store-assets"
+  ]
 }
