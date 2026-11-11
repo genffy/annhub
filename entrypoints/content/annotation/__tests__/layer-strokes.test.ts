@@ -256,7 +256,7 @@ describe('the strokes of the drawing tools (annotate.md §1.2)', () => {
   })
 
   it("opts the drawing canvas out of the browser's touch panning (annotate.md §1.2)", () => {
-    const style = document.querySelector(`${LAYER} style`)!.textContent!
+    const style = document.querySelector(`${LAYER} style`)!.textContent
     expect(style).toMatch(/ann-annot-drawing [^{]*\{[^}]*touch-action: none/)
   })
 })

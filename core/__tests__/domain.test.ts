@@ -171,7 +171,7 @@ describe('validateEntry (entry.md §6)', () => {
     expect(() => validateEntry(makeClip({ properties: { tags: new Array(21).fill(0).map((_, i) => `t${i}`) } }), TEST_REGISTRY)).toThrowError(
       expect.objectContaining({ code: 'PROPERTY_VALUE_INVALID' }),
     )
-    expect(() => validateEntry(makeClip({ properties: { source: 'x' } as never }), TEST_REGISTRY)).toThrowError(expect.objectContaining({ code: 'PROPERTY_NAME_INVALID' }))
+    expect(() => validateEntry(makeClip({ properties: { source: 'x' } }), TEST_REGISTRY)).toThrowError(expect.objectContaining({ code: 'PROPERTY_NAME_INVALID' }))
   })
 })
 

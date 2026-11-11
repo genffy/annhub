@@ -111,6 +111,7 @@ export async function isRecentCapture(sender: chrome.runtime.MessageSender, id: 
   return stillRecent(await readRecent(captureKey(sender)), Date.now()).some(item => item.id === id)
 }
 
-export function forbiddenResponse(): ResponseMessage {
+/** No data on refusal, so a handler's answer stays assignable to its mapped response type (RV-BG-12). */
+export function forbiddenResponse(): ResponseMessage<undefined> {
   return MessageUtils.createResponse(false, undefined, 'Forbidden: extension page context required')
 }

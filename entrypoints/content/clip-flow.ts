@@ -9,7 +9,7 @@ import { normalizeTags, TAG_LENGTH_MAX, TAGS_MAX } from '../../core/properties'
 import { CONTEXT_MAX_CHARS } from '../../core/validate'
 import { newEntryId } from '../../core/assets'
 import MessageUtils from '../../utils/message'
-import { entryErrorText, failureReason, uiText } from '../../utils/ui-text'
+import { entryErrorText, failureReason, uiText } from './ui-text'
 import { elementToMarkdown, escapeText, selectionToMarkdown } from './markdown'
 import { extractContext, extractPageMeta, resolvePermalink } from './page-meta'
 import { overlayIcon } from './icons'
@@ -97,7 +97,7 @@ async function saveClip(input: {
   origin: ClipOrigin & { truncated?: boolean; startedAt?: number }
 }): Promise<ClipResult> {
   const meta = { ...extractPageMeta(document, normalizeHost(location.href)), ...input.meta }
-  const response = await MessageUtils.sendMessage<{ entry: { id: string } }>({
+  const response = await MessageUtils.sendMessage({
     type: 'SAVE_CLIP',
     draft: {
       id: input.id,
@@ -199,7 +199,7 @@ export function showClipToast(outcome: ClipOutcome, editAnchor: Range | HTMLElem
   host.addEventListener('focusin', pause)
   host.addEventListener('focusout', resume)
 
-  undo.addEventListener('click', async () => {
+  const undoCapture = async (): Promise<void> => {
     clear()
     undo.disabled = true
     const response = await MessageUtils.sendMessage({
@@ -214,7 +214,8 @@ export function showClipToast(outcome: ClipOutcome, editAnchor: Range | HTMLElem
       label.textContent = uiText('toast.undoFailed')
       undo.disabled = false
     }
-  })
+  }
+  undo.addEventListener('click', () => void undoCapture())
   edit.addEventListener('click', () => {
     clear()
     openEditBubble(outcome, editAnchor)

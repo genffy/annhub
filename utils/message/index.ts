@@ -1,4 +1,4 @@
-import type { ExtensionMessage, ResponseMessage, BaseMessage } from '../../types/messages'
+import type { ExtensionMessage, ResponseDataOf, ResponseMessage, BaseMessage } from '../../types/messages'
 import { Logger } from '../logger'
 
 /** Connection-level failures a retry can fix; anything else already ran. */
@@ -12,7 +12,16 @@ function isConnectionError(message: string): boolean {
 }
 
 export default class MessageUtils {
-  static async sendMessage<T = unknown>(message: ExtensionMessage, retryCount: number = 3): Promise<ResponseMessage<T>> {
+  /**
+   * The response's `data` is derived from the message type (types/messages.ts's ResponseDataMap);
+   * callers do not spell out a type argument (RV-BG-12). Retries only what never reached a
+   * handler; `data` is absent on failure.
+   */
+  // A generic function property: the declaration itself reads as a call site otherwise.
+  static sendMessage = async <K extends ExtensionMessage['type']>(
+    message: Extract<ExtensionMessage, { type: K }>,
+    retryCount: number = 3,
+  ): Promise<ResponseMessage<ResponseDataOf<K> | undefined>> => {
     const messageWithMeta = {
       ...message,
       requestId: this.generateRequestId(),
@@ -34,14 +43,14 @@ export default class MessageUtils {
         // The extension was updated or reloaded while this page stayed open:
         // fail once with a stable code the caller puts into words, never retry.
         if (CONTEXT_INVALIDATED_PATTERN.test(errorMessage)) {
-          return this.createResponse<T>(false, undefined, 'EXTENSION_CONTEXT_INVALIDATED')
+          return this.createResponse(false, undefined, 'EXTENSION_CONTEXT_INVALIDATED')
         }
 
         // Only retry when the message never reached a handler. A handler that
         // ran and failed must not run again; SAVE_* is idempotent by requestId.
         if (attempt === retryCount || !isConnectionError(errorMessage)) {
           Logger.warn(`[MessageUtils] ${message.type} failed on attempt ${attempt}:`, errorMessage)
-          return this.createResponse<T>(false, undefined, errorMessage)
+          return this.createResponse(false, undefined, errorMessage)
         }
 
         const delay = attempt === 1 ? 50 : 200
@@ -49,14 +58,15 @@ export default class MessageUtils {
       }
     }
 
-    return this.createResponse<T>(false, undefined, 'Unexpected error in retry loop')
+    return this.createResponse(false, undefined, 'Unexpected error in retry loop')
   }
 
   static delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms))
   }
 
-  static createResponse<T = unknown>(success: boolean, data?: T, error?: string): ResponseMessage<T> {
+  /** Handlers build their answer here; an omitted `data` types as `undefined`, matching the ResponseDataMap (RV-BG-12). */
+  static createResponse<T = undefined>(success: boolean, data?: T, error?: string): ResponseMessage<T> {
     return {
       type: 'RESPONSE',
       success,

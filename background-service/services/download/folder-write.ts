@@ -82,7 +82,7 @@ export function createFolderRun(deps: FolderRunDeps) {
           outcome.ref,
           landed
             ? ({ ref: outcome.ref, status: 'saved', fileName: landed.name } as DownloadItemOutcome & { fileName?: string })
-            : ({ ref: outcome.ref, status: 'missing', reason: 'write-failed' } as DownloadItemOutcome),
+            : { ref: outcome.ref, status: 'missing', reason: 'write-failed' },
         )
       } else {
         byRef.set(outcome.ref, outcome)

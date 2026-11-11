@@ -17,35 +17,36 @@ const PREVIEW = '[data-ann-ui="screenshot-preview"]'
 const STITCH_BUTTON = '[data-ann-ui="shot-stitch-button"]'
 
 const NAV: readonly [number, number, number] = [47, 111, 222]
-const BLUE: readonly [number, number, number] = [59, 130, 246]
+type Rgb = readonly [number, number, number]
+
+const BLUE: Rgb = [59, 130, 246]
 
 /** Reads one pixel of the preview canvas, in canvas coordinates. */
-async function pixelAt(page: Page, x: number, y: number): Promise<number[]> {
+async function pixelAt(page: Page, x: number, y: number): Promise<Rgb> {
   return page.evaluate(
-    ({ x, y }: { x: number; y: number }) => {
+    ({ x, y }: { x: number; y: number }): [number, number, number] => {
       const canvas = document.querySelector('[data-ann-ui="screenshot-preview"] canvas') as HTMLCanvasElement
       const dpr = canvas.width / (canvas.getBoundingClientRect().width || 1)
       const data = canvas.getContext('2d')!.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data
-      return [data[0], data[1], data[2]]
+      return [data[0]!, data[1]!, data[2]!]
     },
     { x, y },
   )
 }
 
 /** Reads one pixel of the preview canvas in its own device coordinates (the stitched image is scaled in the preview). */
-async function devicePixelAt(page: Page, x: number, y: number): Promise<number[]> {
+async function devicePixelAt(page: Page, x: number, y: number): Promise<Rgb> {
   return page.evaluate(
-    ({ x, y }: { x: number; y: number }) => {
+    ({ x, y }: { x: number; y: number }): [number, number, number] => {
       const canvas = document.querySelector('[data-ann-ui="screenshot-preview"] canvas') as HTMLCanvasElement
       const data = canvas.getContext('2d')!.getImageData(Math.round(x), Math.round(y), 1, 1).data
-      return [data[0], data[1], data[2]]
+      return [data[0]!, data[1]!, data[2]!]
     },
     { x, y },
   )
 }
 
-const near = (rgb: readonly number[], expected: readonly number[], tol = 30): boolean =>
-  Math.abs(rgb[0] - expected[0]) <= tol && Math.abs(rgb[1] - expected[1]) <= tol && Math.abs(rgb[2] - expected[2]) <= tol
+const near = (rgb: Rgb, expected: Rgb, tol = 30): boolean => Math.abs(rgb[0] - expected[0]) <= tol && Math.abs(rgb[1] - expected[1]) <= tol && Math.abs(rgb[2] - expected[2]) <= tol
 
 test.describe('scrolling long screenshot (screenshot.md §1.5)', () => {
   test('stitches a five-screen page: the nav appears once, the lazy images land, and the seams hold', async ({ page }) => {

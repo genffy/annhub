@@ -14,7 +14,7 @@ import type { ReactNode } from 'react'
 import type { Highlight } from '../../core/types'
 import { HIGHLIGHT_QUOTE_MAX_CHARS } from '../../core/validate'
 import { closesFence, codeSpanAt, openingFence, quoteFromMarkdownRange } from '../../core/markdown'
-import { uiText } from '../../utils/ui-text'
+import { uiText } from './ui-text'
 import { Image } from 'lucide-react'
 
 export interface SourceRange {
@@ -462,6 +462,7 @@ export function MarkdownView({ markdown, highlights = [], onHighlightClick, surf
       case 'hr':
         nodes.push(<hr key={block.key} />)
         break
+      case 'p':
       default:
         nodes.push(<p key={block.key}>{runLines(block.lines, block.key)}</p>)
     }

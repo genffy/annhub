@@ -11,7 +11,7 @@ import type { DownloadCancelMessage, DownloadFinishMessage, DownloadItemOutcome,
 import { buildZip } from '../../core/zip'
 import { DOWNLOAD_LIMITS, mediaSlotName } from '../../core/download'
 import { EntryStore } from '../../core/store'
-import { fetchMedia, MediaRefused } from '../../background-service/services/download/fetch-media'
+import { fetchMedia, MediaRefused } from './fetch-media'
 
 type Reason = NonNullable<DownloadItemOutcome['reason']>
 
@@ -102,7 +102,7 @@ function outcomesOf(current: Run): DownloadItemOutcome[] {
     const ref = `${item.dir}|${item.url ?? `asset:${item.assetId ?? ''}`}`
     const blob = item.url ? current.blobs.get(item.url) : current.assets.get(item.assetId ?? '')
     const failed = item.url ? current.failures.get(item.url) : current.failures.get(`asset:${item.assetId}`)
-    if (!blob || failed) return { ref, status: 'missing' as const, reason: failed ?? ('write-failed' as Reason) }
+    if (!blob || failed) return { ref, status: 'missing' as const, reason: failed ?? 'write-failed' }
     const url = URL.createObjectURL(blob)
     current.urls.push(url)
     return { ref, status: 'saved' as const, blobUrl: url, mime: blob.type }
@@ -194,7 +194,7 @@ let storePromise: Promise<EntryStore> | null = null
 
 function assetStore(): Promise<EntryStore> {
   storePromise ??= (async () => {
-    const store = new EntryStore('annhub')
+    const store = new EntryStore()
     await store.initialize()
     return store
   })().catch(error => {

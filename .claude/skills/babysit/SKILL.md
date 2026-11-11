@@ -12,10 +12,10 @@ actionlint and zizmor checks; the required checks are listed in `.github/ruleset
 
 | Failing job                                             | Reproduce with                                                                                                                                                                                                          |
 | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `extension` — format / lint / types / unit / docs links | `npm run verify` (`npm run format` fixes formatting)                                                                                                                                                                    |
-| `extension` — related settings disagree                 | `npm run check:consistency`. Each line names the place that was missed (Node.js, Next.js, Cloudflare, package directories, verify vs CI): update that place. Never weaken the check to get green (AGENTS.md「联动一致性」) |
-| `extension` — E2E                                       | `npm run build`, then `npx playwright test <spec>`; set `CHROMIUM_EXECUTABLE_PATH` if the pinned Chromium is missing. The report is the `playwright-report` artifact                                                    |
-| `website`                                               | `cd website && npm ci && npx tsc --noEmit && npm run lint && npm run build`                                                                                                                                             |
+| `extension` — format / lint / types / unit / docs links | `pnpm run verify` (`pnpm run format` fixes formatting)                                                                                                                                                                    |
+| `extension` — related settings disagree                 | `pnpm run check:consistency`. Each line names the place that was missed (Node.js, Next.js, Cloudflare, package directories, verify vs CI): update that place. Never weaken the check to get green (AGENTS.md「联动一致性」) |
+| `extension` — E2E                                       | `pnpm run build`, then `pnpm exec playwright test <spec>`; set `CHROMIUM_EXECUTABLE_PATH` if the pinned Chromium is missing. The report is the `playwright-report` artifact                                                    |
+| `website`                                               | `cd website && pnpm install --frozen-lockfile && pnpm exec tsc --noEmit && pnpm run lint && pnpm run build`                                                                                                                                             |
 | workflow-lint                                           | `actionlint` and `zizmor .github` on the changed workflow                                                                                                                                                               |
 
 ## Rules
@@ -23,8 +23,8 @@ actionlint and zizmor checks; the required checks are listed in `.github/ruleset
 - Never skip, disable, loosen or quarantine a test to get green, and never push an empty commit to re-run CI. A test that
   fails once and passes alone is a race: find it (the E2E service-worker race was found by repeating the specs with
   `--repeat-each`).
-- Do not hand-edit `package-lock.json`; a hook blocks it and says which command regenerates it.
-- Add or change a dependency only with a reason, and keep `npm audit --omit=dev` clean.
+- Do not hand-edit `pnpm-lock.yaml`; a hook blocks it and says which command regenerates it.
+- Add or change a dependency only with a reason, and keep `pnpm audit --prod` clean.
 - A Dependabot pull request for a major version is where a migration starts, not something to merge because it is green, and never
   while it is red. Go through AGENTS.md「联动一致性」 for that package and push the related changes onto its branch.
 - Workflow changes: pin every action to a full commit SHA with the version in a comment, keep `permissions` minimal per job, and pass

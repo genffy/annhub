@@ -42,8 +42,8 @@
 
 ## 验证
 
-- 改转换、识别、菜单或胶囊：跑 `npx vitest run`（相关单测）并构建后跑对应 E2E（`e2e/selection-clip.spec.ts`、`e2e/block-clip.spec.ts`、`e2e/screenshot-capture.spec.ts`、`e2e/page-entry.spec.ts`、`e2e/page-shapes.spec.ts`）。
+- 改转换、识别、菜单或胶囊：跑 `pnpm test`（相关单测）再跑对应 E2E（`e2e/selection-clip.spec.ts`、`e2e/block-clip.spec.ts`、`e2e/screenshot-capture.spec.ts`、`e2e/page-entry.spec.ts`、`e2e/page-shapes.spec.ts`）。
 - `page-shapes` 用平铺文档、div 汤、Docusaurus、长文（标题直接在 `main` 里、引言占满窗口、图里有代码）、带 meta 的文章、各类内容形状和页面界面类名的夹具，在真实浏览器里验识别与转换。
 - 转换器的转义约定还要跑 `core/__tests__/fixtures/page-text.ts` 的共享夹具（`__tests__/markdown.test.ts` 里）。
 
-改批注、截图各自要跑的测试见对应子文件；改源码必须 `rm -rf .output/chrome-mv3 && npm run build` 再测 E2E，`.output` 不随源码变化重建。
+改批注、截图各自要跑的测试见对应子文件；E2E 的 global-setup 会检出过期的构建并自动重建（`scripts/build-freshness.ts`）。

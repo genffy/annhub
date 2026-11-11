@@ -129,8 +129,8 @@ export async function planLibraryDownload(input: { entryIds: string[]; form: Dow
   }
   const media = planned.flatMap(entry => entry.items)
 
-  const basePath = multi ? `AnnHub/${batchFolderName(at)}` : planned[0] ? `AnnHub/${planned[0]!.plan.folder}` : 'AnnHub/download'
-  const productName = multi ? batchFolderName(at) : planned[0] ? planned[0]!.plan.folder : 'download'
+  const basePath = multi ? `AnnHub/${batchFolderName(at)}` : planned[0] ? `AnnHub/${planned[0].plan.folder}` : 'AnnHub/download'
+  const productName = multi ? batchFolderName(at) : planned[0] ? planned[0].plan.folder : 'download'
 
   const plan: DownloadRunPlan = {
     form,

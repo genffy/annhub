@@ -6,7 +6,7 @@
 import { useEffect, useState, type KeyboardEvent, type RefObject } from 'react'
 import { Download, Keyboard, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { formatBytes } from '../../utils/format-bytes'
-import { uiText } from '../../utils/ui-text'
+import { uiText } from './ui-text'
 import { viewTab } from './library-view-helpers'
 import type { View } from './route'
 

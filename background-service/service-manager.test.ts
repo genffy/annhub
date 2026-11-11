@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
-import { ServiceManager, type IService } from './service-manager'
+import { ServiceManager, type MessageHandlers, type IService } from './service-manager'
+import type { EntryRecord } from '../core/types'
 
 describe('save request idempotency (RV-BG-10)', () => {
   it('shares one in-flight save for concurrent retries from the same sender', async () => {
-    const save = vi.fn(async () => {
+    const save = vi.fn<NonNullable<MessageHandlers['SAVE_CLIP']>>(async () => {
       await new Promise(resolve => setTimeout(resolve, 10))
-      return { type: 'RESPONSE', success: true, data: { id: 'ent_once' } }
+      return { type: 'RESPONSE', success: true, data: { entry: { id: 'ent_once' } as EntryRecord } }
     })
     const service: IService = {
       name: 'entries',

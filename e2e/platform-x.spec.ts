@@ -1,3 +1,4 @@
+import type { TabMessage } from '../types/messages'
 import { fileURLToPath } from 'node:url'
 import { readFile } from 'node:fs/promises'
 import type { Page } from '@playwright/test'
@@ -39,7 +40,7 @@ test('X semantic posts share content and metadata between block clipping and dow
   const worker = await ensureServiceWorker(page.context())
   await worker.evaluate(async () => {
     const tab = (await chrome.tabs.query({})).find(item => item.url === 'http://mobile.x.com/home')!
-    await chrome.tabs.sendMessage(tab.id!, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' }, { frameId: 0 })
+    await chrome.tabs.sendMessage(tab.id!, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' } satisfies TabMessage, { frameId: 0 })
   })
   await expect(page.locator('[data-ann-ui="download-notice"]')).toContainText('已下载', { timeout: 20_000 })
   const files = await worker.evaluate(async () => (await chrome.downloads.search({})).filter(item => item.state === 'complete'))
@@ -64,7 +65,7 @@ test('downloads the X long article as one title, section headings and a quote bl
   const worker = await ensureServiceWorker(page.context())
   await worker.evaluate(async () => {
     const tab = (await chrome.tabs.query({})).find(item => item.url === 'http://mobile.x.com/writer/status/2013045749580259680')!
-    await chrome.tabs.sendMessage(tab.id!, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' }, { frameId: 0 })
+    await chrome.tabs.sendMessage(tab.id!, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' } satisfies TabMessage, { frameId: 0 })
   })
   await expect(page.locator('[data-ann-ui="download-notice"]')).toContainText('已下载', { timeout: 20_000 })
   const files = await worker.evaluate(async () => (await chrome.downloads.search({})).filter(item => item.state === 'complete'))

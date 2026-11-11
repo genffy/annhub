@@ -7,7 +7,7 @@
 import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage } from '../../../types/messages'
 import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender, rememberCapture } from '../../sender'
-import { RESOURCE_TIMEOUT_MS, assertFetchableUrl, readImage } from './fetch-policy'
+import { RESOURCE_TIMEOUT_MS, assertFetchableUrl, readImage } from '../../../core/fetch-policy'
 import { initializedEntryStore } from '../../store-instance'
 import { presetProperties } from '../../../core/properties'
 import { cleanSourceUrl } from '../../../core/url'
@@ -38,7 +38,7 @@ export class ScreenshotService implements IService {
 
   getMessageHandlers(): MessageHandlers {
     return {
-      CAPTURE_VISIBLE_TAB: async (_message, sender): Promise<ResponseMessage> => {
+      CAPTURE_VISIBLE_TAB: async (_message, sender) => {
         try {
           const dataUrl = await this.captureSenderTab(sender)
           return MessageUtils.createResponse(true, { dataUrl })
@@ -47,7 +47,7 @@ export class ScreenshotService implements IService {
         }
       },
 
-      FETCH_IMAGE: async (message, sender): Promise<ResponseMessage> => {
+      FETCH_IMAGE: async (message, sender) => {
         // Only a page's own content script asks for this, and only to inline
         // an image into an element capture (screenshot.md §2).
         if (!isTopFrameTabSender(sender)) return forbiddenResponse()
@@ -59,7 +59,7 @@ export class ScreenshotService implements IService {
         }
       },
 
-      DOWNLOAD_IMAGE: async (message, sender): Promise<ResponseMessage> => {
+      DOWNLOAD_IMAGE: async (message, sender) => {
         if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
         try {
           // local time, like the export filename (storage.md §6): a UTC stamp crosses a day near midnight
@@ -82,7 +82,7 @@ export class ScreenshotService implements IService {
       },
 
       // The last frame (screenshot.md §1.4) belongs to the asking tab and the page its top frame shows.
-      REMEMBER_FRAME: async (message, sender): Promise<ResponseMessage> => {
+      REMEMBER_FRAME: async (message, sender) => {
         if (!isTopFrameTabSender(sender)) return forbiddenResponse()
         const record = frameRecordFrom(message.record)
         if (!record) return MessageUtils.createResponse(false, undefined, 'FRAME_INVALID')
@@ -90,12 +90,12 @@ export class ScreenshotService implements IService {
         return MessageUtils.createResponse(true)
       },
 
-      READ_FRAME: async (_message, sender): Promise<ResponseMessage> => {
+      READ_FRAME: async (_message, sender) => {
         if (!isTopFrameTabSender(sender)) return forbiddenResponse()
         return MessageUtils.createResponse(true, { record: await readFrame(sender.tab!.id!, sender.url) })
       },
 
-      SAVE_SCREENSHOT: async (message, sender): Promise<ResponseMessage> => {
+      SAVE_SCREENSHOT: async (message, sender) => {
         if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
         try {
           const { id, dataUrl, sourceUrl, title, author, published, description, via, frame, durationMs, startedAt } = message.data
@@ -140,7 +140,7 @@ export class ScreenshotService implements IService {
   }
 
   /** Always answers with a stable code (never a raw browser message); the detail goes to the log only. */
-  private failure(where: string, error: unknown): ResponseMessage {
+  private failure(where: string, error: unknown): ResponseMessage<undefined> {
     const code = error instanceof CaptureError ? error.code : where === 'fetchImage' ? 'IMAGE_FETCH_FAILED' : storageErrorCode(error)
     Logger.error(`[ScreenshotService] ${where} failed:`, code, error instanceof Error ? error.message : '')
     return MessageUtils.createResponse(false, undefined, code)

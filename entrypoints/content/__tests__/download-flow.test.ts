@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import type { DownloadNoticeMessage } from '../../../types/messages'
 
 const send = vi.hoisted(() => vi.fn())
 vi.mock('../../../utils/message', () => ({ default: { sendMessage: send } }))
@@ -27,7 +26,7 @@ it.each(['done', 'partial', 'failed', 'cancelled'] as const)('keeps an early %s 
       }),
   )
   flow.downloadBlock({ kind: 'article', element: document.querySelector('article')! }, 'capsule')
-  flow.onDownloadNotice({ type: 'DOWNLOAD_NOTICE', phase, processed: 1, total: 1, missingCount: 1 } as DownloadNoticeMessage)
+  flow.onDownloadNotice({ type: 'DOWNLOAD_NOTICE', phase, processed: 1, total: 1, missingCount: 1 })
   const before = document.querySelector('[data-ann-ui="download-notice"]')!.textContent
   answer({ success: true })
   await Promise.resolve()
@@ -76,7 +75,7 @@ it('retries a failed extraction with its original snapshot and refuses a second 
         finish = resolve
       }),
   )
-  flow.downloadMainArticle('popup')
+  void flow.downloadMainArticle('popup')
   await Promise.resolve()
   expect(send).toHaveBeenCalledTimes(1)
   const snapshot = send.mock.calls[0]![0]

@@ -321,7 +321,7 @@ function classifyDenseContainer(el: Element): boolean {
  */
 export function classifyElementAt(el: Element): BlockCandidate[] {
   try {
-    const win = el.ownerDocument!.defaultView!
+    const win = el.ownerDocument.defaultView!
     if (!visible(el, win)) return []
     const element = el as HTMLElement
     if (classifyPost(el)) return [{ kind: 'post', element }]
@@ -376,7 +376,7 @@ export function sectionIntervalRect(element: Element, range: NonNullable<BlockCa
   const boxes: DOMRect[] = []
   for (let i = from; i >= 0 && i < to; i++) {
     const child = children[i]!
-    const style = parent.ownerDocument!.defaultView!.getComputedStyle(child)
+    const style = parent.ownerDocument.defaultView!.getComputedStyle(child)
     if (style.display === 'none' || style.visibility === 'hidden') continue
     boxes.push(child.getBoundingClientRect())
   }

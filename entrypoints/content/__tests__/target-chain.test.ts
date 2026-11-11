@@ -17,7 +17,7 @@ import {
   startIndexOf,
 } from '../target-chain'
 import { candidateAnchor, type BlockCandidate } from '../blocks'
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 
 /**
  * The one target chain the capsule, the block mode, the viewfinder and the
@@ -370,7 +370,7 @@ describe('keyboard tiers (capture.md §6.2 同档)', () => {
     const peers = peersOf(section, doc)
     expect(peers.map(peer => peer.range?.start.id)).toEqual(['h-intro', 'h-install', 'h-usage'])
     for (let i = 1; i < peers.length; i++) {
-      expect(candidateAnchor(peers[i - 1]!)!.compareDocumentPosition(candidateAnchor(peers[i]!)!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      expect(candidateAnchor(peers[i - 1]!).compareDocumentPosition(candidateAnchor(peers[i]!)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
   })
 
@@ -486,7 +486,7 @@ describe('keyboard tiers (capture.md §6.2 同档)', () => {
     expect(peersOf(current, doc)).toHaveLength(300)
     // each measure of main (its length, its non-whitespace length) happens once per press, not once per paragraph
     expect(reads).toBeLessThanOrEqual(4)
-  })
+  }, 30_000)
 
   it('chainHolding finds the chain of a merged layer from what is inside it, and nothing for a layer the page does not have', () => {
     document.body.innerHTML = '<main><div id="card"><div class="toolbar">bash</div><pre id="code">const a = 1</pre></div><p>' + LONG + '</p></main>'

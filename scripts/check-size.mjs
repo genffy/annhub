@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Byte budgets per file class, run with `npm run check:size`. No dependencies.
+// Byte budgets per file class, run with `pnpm run check:size`. No dependencies.
 //
 // Instruction files (AGENTS.md, CLAUDE.md, notes/*.md) must fit their budget; every other
 // budgeted file that is already over budget is on the ledger (scripts/size-ledger.json), which
@@ -133,13 +133,13 @@ for (const file of files) {
     ledgerCount += 1
     const recorded = ledger[file]
     if (size <= budget) {
-      problems.push(`${file}: [settled] back within budget: run \`npm run check:size -- --lower\` to drop it from the ledger`)
+      problems.push(`${file}: [settled] back within budget: run \`pnpm run check:size --lower\` to drop it from the ledger`)
     } else if (size > recorded) {
       ledgerTotal += size - budget
       problems.push(`${file}: [grew] a file on the ledger may not grow: put the new code in a new file`)
     } else {
       ledgerTotal += size - budget
-      if (ceilKB(size) < recorded) problems.push(`${file}: [shrunk] smaller now: run \`npm run check:size -- --lower\` to record ${ceilKB(size)}`)
+      if (ceilKB(size) < recorded) problems.push(`${file}: [shrunk] smaller now: run \`pnpm run check:size --lower\` to record ${ceilKB(size)}`)
     }
     if (name === 'agents' || name === 'note') problems.push(`${file}: [no-ledger] instruction files never go on the ledger`)
   } else if (size > budget) {
@@ -150,7 +150,7 @@ for (const file of files) {
 
 if (ledger) {
   for (const file of Object.keys(ledger)) {
-    if (!files.includes(file)) problems.push(`${file}: [stale] remove the entry (\`npm run check:size -- --lower\`)`)
+    if (!files.includes(file)) problems.push(`${file}: [stale] remove the entry (\`pnpm run check:size --lower\`)`)
   }
 }
 

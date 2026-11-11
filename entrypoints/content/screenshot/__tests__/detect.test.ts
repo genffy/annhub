@@ -59,7 +59,7 @@ describe('detectIdentityRects', () => {
         x: meta.left,
         y: meta.top,
         toJSON: () => ({}),
-      } as DOMRect
+      }
     }
   })
 

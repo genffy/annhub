@@ -20,16 +20,18 @@ const HIGHLIGHT = '[data-ann-ui="cursor-highlight"]'
 const HIGHLIGHT_SHAPE = '[data-ann-ui="cursor-highlight-shape"]'
 
 /** Yellow-dominant over the white page, antialiased edges included; the ink yellow is rgb(246, 196, 83). */
-const isYellow = (rgb: readonly number[]): boolean => rgb[0] >= 200 && rgb[1] >= 150 && rgb[2] <= 140 && rgb[0] - rgb[2] >= 60
+type Rgb = readonly [number, number, number]
 
-async function pixelAt(page: Page, selector: string, x: number, y: number): Promise<number[]> {
+const isYellow = (rgb: Rgb): boolean => rgb[0] >= 200 && rgb[1] >= 150 && rgb[2] <= 140 && rgb[0] - rgb[2] >= 60
+
+async function pixelAt(page: Page, selector: string, x: number, y: number): Promise<Rgb> {
   return page.evaluate(
-    ({ selector, x, y }: { selector: string; x: number; y: number }) => {
-      const canvas = document.querySelector(selector) as HTMLCanvasElement | null
+    ({ selector, x, y }: { selector: string; x: number; y: number }): [number, number, number] => {
+      const canvas = document.querySelector<HTMLCanvasElement>(selector)
       if (!canvas) throw new Error(`no canvas: ${selector}`)
       const dpr = canvas.width / (canvas.getBoundingClientRect().width || 1)
       const data = canvas.getContext('2d')!.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data
-      return [data[0], data[1], data[2]]
+      return [data[0]!, data[1]!, data[2]!]
     },
     { selector, x, y },
   )

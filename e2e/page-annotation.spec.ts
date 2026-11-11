@@ -25,17 +25,19 @@ const CONFIRM_BAR = '[data-ann-ui="shot-confirm-bar"]'
 const BLOCK_OVERLAY = '[data-ann-ui="block-mode-overlay"]'
 
 /** Red-dominant over the white page, antialiased edges included; the ink red is rgb(229, 72, 77). */
-const isRed = (rgb: readonly number[]): boolean => rgb[0] >= 200 && rgb[0] - rgb[1] >= 60 && rgb[0] - rgb[2] >= 60
+type Rgb = readonly [number, number, number]
+
+const isRed = (rgb: Rgb): boolean => rgb[0] >= 200 && rgb[0] - rgb[1] >= 60 && rgb[0] - rgb[2] >= 60
 
 /** Reads one canvas pixel (canvas coordinates = client coordinates × dpr). */
-async function pixelAt(page: Page, selector: string, x: number, y: number): Promise<number[]> {
+async function pixelAt(page: Page, selector: string, x: number, y: number): Promise<Rgb> {
   return page.evaluate(
-    ({ selector, x, y }: { selector: string; x: number; y: number }) => {
-      const canvas = document.querySelector(selector) as HTMLCanvasElement | null
+    ({ selector, x, y }: { selector: string; x: number; y: number }): [number, number, number] => {
+      const canvas = document.querySelector<HTMLCanvasElement>(selector)
       if (!canvas) throw new Error(`no canvas: ${selector}`)
       const dpr = canvas.width / (canvas.getBoundingClientRect().width || 1)
       const data = canvas.getContext('2d')!.getImageData(Math.round(x * dpr), Math.round(y * dpr), 1, 1).data
-      return [data[0], data[1], data[2]]
+      return [data[0]!, data[1]!, data[2]!]
     },
     { selector, x, y },
   )
@@ -225,8 +227,8 @@ test.describe('page annotation layer', () => {
       await page.locator(LAYER).waitFor()
       await page.locator(TOOLBAR).waitFor()
       seen[scheme] = await reading()
-      expect(seen[scheme]!.iconContrast, `the icons read on the pill (${scheme})`).toBeGreaterThanOrEqual(3)
-      expect(seen[scheme]!.chipContrast, `the auto-erase chip's words read on the pill (${scheme})`).toBeGreaterThanOrEqual(4.5)
+      expect(seen[scheme].iconContrast, `the icons read on the pill (${scheme})`).toBeGreaterThanOrEqual(3)
+      expect(seen[scheme].chipContrast, `the auto-erase chip's words read on the pill (${scheme})`).toBeGreaterThanOrEqual(4.5)
       await triggerAnnotation(page)
       await expect(page.locator(LAYER)).toHaveCount(0)
     }

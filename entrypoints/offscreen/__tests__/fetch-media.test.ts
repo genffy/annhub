@@ -1,6 +1,8 @@
+// @vitest-environment jsdom
+// The offscreen document this code runs in has a window; the node project does not (RV-TEST-08).
 import { describe, expect, it, vi } from 'vitest'
 import { fetchMedia, MediaRefused } from '../fetch-media'
-import { DOWNLOAD_LIMITS } from '../../../../core/download'
+import { DOWNLOAD_LIMITS } from '../../../core/download'
 
 /**
  * download.md §5.2/§5.3 at the reader: a public http(s) address only, no

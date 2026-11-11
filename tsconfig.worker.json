@@ -1,0 +1,12 @@
+{
+  // The service worker's side of the code, checked without the DOM library. The worker has no
+  // document and no window, yet a reference to one compiles under the main tsconfig.json (pages,
+  // content script and tests share it) and only fails when the worker runs it. `core/` and `types/`
+  // are listed because the worker loads them; whatever these files import is checked the same way.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2020", "ES2022.Error", "WebWorker", "WebWorker.Iterable"]
+  },
+  "include": ["core", "types", "constants.ts", "background-service", "entrypoints/background", ".wxt/wxt.d.ts"],
+  "exclude": ["node_modules", "**/__tests__/**", "**/*.test.ts"]
+}

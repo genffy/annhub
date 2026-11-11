@@ -27,7 +27,7 @@ describe('the one offscreen document (RV-BG-11)', () => {
     const first = new Promise<void>(resolve => {
       release = resolve
     })
-    createDocument.mockImplementationOnce(() => first as unknown as Promise<undefined>)
+    createDocument.mockImplementationOnce(() => first)
     const a = ensureOffscreenDocument()
     const b = ensureOffscreenDocument()
     release()

@@ -4,7 +4,8 @@
  * area — the rest of the time the key belongs to the page. Moved verbatim from layer.ts; the layer
  * state arrives as the host.
  */
-import { ANNOTATION_COLORS, type LineWidth } from '../screenshot/editor'
+import { type LineWidth } from '../screenshot/editor'
+import { ANNOTATION_COLORS } from '../../../core/screenshot-options'
 import type { InkTool } from './layer'
 import { exitAnnotationLayer } from './layer'
 

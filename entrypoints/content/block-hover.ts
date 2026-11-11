@@ -10,7 +10,7 @@
  */
 import { isUserInput } from './user-input'
 import { overlayIcon } from './icons'
-import { uiText } from '../../utils/ui-text'
+import { uiText } from './ui-text'
 import { positionCapsule, type PlacedBox } from './capsule-place'
 import { candidateRect, type BlockCandidate } from './blocks'
 import { chainAtPoint, isSuppressed, layerKindName, layerLabel, sameLayer, startIndexOf } from './target-chain'

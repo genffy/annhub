@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { exportFailureKey } from '../export-error'
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 
 describe('why an export made no file (extension.md §6)', () => {
   it('a ZIP32 limit no longer exists: whatever the writer reports lands on the general reason (RV-CORE-10)', () => {

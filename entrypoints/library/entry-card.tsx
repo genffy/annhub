@@ -9,15 +9,17 @@ import { EntryStore } from '../../core/store'
 import MessageUtils from '../../utils/message'
 import { markdownToPlainText } from '../../core/markdown'
 import { orderRegistry } from './property-order'
+import { TypeChip } from './ui-text'
 import { PROPERTY_TYPE_ICONS } from '../../utils/entry-icons'
+import { relativeTime } from './ui-text'
 import { Check, Download, Highlighter, Scan, Trash2 } from 'lucide-react'
-import { uiText } from '../../utils/ui-text'
+import { entryErrorText, uiText } from './ui-text'
 
 let assetStorePromise: Promise<EntryStore> | null = null
 
 function assetStore(): Promise<EntryStore> {
   assetStorePromise ??= (async () => {
-    const store = new EntryStore('annhub')
+    const store = new EntryStore()
     await store.initialize()
     return store
   })().catch(error => {

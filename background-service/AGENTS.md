@@ -8,8 +8,8 @@
 - `service-manager.ts` 管生命周期与消息分发。
 - `event-handlers/command-handler.ts` 接五条命令（区域截图、区块模式、批注、录制开关、下载本页正文，后三条默认不绑定，annotate.md §1.1、§2.1，download.md §2.3），四条发给标签页的顶层框架（`frameId: 0`），录制开关在 worker 内直接走 `RecordingService`，没有注入式兜底（清单里没有 `scripting`）。
 - 持续超过 30 秒的流程把路由状态放进 `chrome.storage.session`，启动时恢复，offscreen 心跳保活（空闲 30 秒 Chrome 挂起 worker，进来的消息重置计时）；记录只放路由字段，不放标题、地址或字节（`services/recording`）。
-- 共享 IndexedDB 连接走 `store-instance.ts` 的单例；服务不各自开库。
-- 新消息先在 `types/messages.ts` 登记，再同步 handler、调用方与测试。读用户数据、写类消息按 `sender.ts` 校验，不复制判断。
+- IndexedDB 连接走 `store-instance.ts` 单例；服务不各自开库。
+- 新消息在 `types/messages.ts` 登记请求与响应（`ResponseDataMap`）再同步 handler 与测试，见 [response-types.md](notes/response-types.md)。
 
 发送者三档与各 handler 的校验清单见 [notes/sender-rules.md](notes/sender-rules.md)。
 
@@ -26,14 +26,14 @@
 - 查询路径：`QUERY_ENTRIES` 无筛选、无搜索词的首页走 `by-created` 索引游标只取一页；其余经 `store.indexedQuery` 读内存摘要，带搜索词才读检索文本。`QUERY_FACETS` 读摘要，一次返回计数、来源与标签候选、高亮总数，不让页面为此取回整库。`LIST_PROPERTIES` 默认只读注册表，`includeUsage` 才统计使用数。列表响应里的条目正文截到 500 字符，阅读与抽屉用 `GET_ENTRY` 取全文。摘要与检索文本的维护规则见 `core/AGENTS.md`。
 - ZIP 导出不在后台：资料库页面用同源 IndexedDB 与 `buildExport` 逐个 Blob 构造 ZIP，Blob URL 交给 `chrome.downloads.download`。后台没有导出消息（根 `AGENTS.md` 第 2 条）。
 - `services/screenshot`：`CAPTURE_VISIBLE_TAB` 只拍发送者所在窗口且前后各查一次活动状态，不要用 `WINDOW_ID_CURRENT`；浏览器每秒只给两次截取，第三次被拒（错误带 `MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`）时回 `CAPTURE_RATE_LIMITED`，截图会话等过这一秒再要；等待放在页面里——worker 里不等待，定时器可能晚几秒才触发。
-- `FETCH_IMAGE` 持有 `<all_urls>` 的网络位置，只经 `fetch-policy.ts`（公网 http(s)、不带凭据、只返回不超过 `MAX_IMAGE_BYTES` 的图片、重定向后再查一次）。
+- `FETCH_IMAGE` 持有 `<all_urls>` 的网络位置，只经 `core/fetch-policy.ts`（公网 http(s)、不带凭据、只返回不超过 `MAX_IMAGE_BYTES` 的图片、重定向后再查一次）。
 - `DOWNLOAD_IMAGE` 只收 `png`/`jpg`/`webp` 和与扩展名相符的字节。
 - `SAVE_SCREENSHOT` 校验 PNG 签名，宽高以解码结果为准，空字节拒绝。
 - 上次取景框（screenshot.md §1.4）在 `services/screenshot/frame-memory.ts`：`chrome.storage.session` 每个标签页一份，页面取 `sender.url` 的来源 + 路径，不信消息里的地址；内容脚本交来的记录逐字段重建，形状不对回 `FRAME_INVALID`。
 - 标签页导航（`tabs.onUpdated` 带来新地址或地址读不到）、关闭（`onRemoved`）、换成预渲染页（`onReplaced`）就清除。
 - 这三个监听器只在有记忆时挂着：`entrypoints/background/index.ts` 在脚本顶层同步调用 `listenForFrames()`，唤醒 worker 的标签事件有人接，查到没有记忆再摘掉——一直挂着的话，改一次标题都会唤醒 worker。
 - 不要调用 `storage.session.setAccessLevel` 放开给内容脚本：`sender.ts` 信任的最近保存记录在里面，内容脚本能写就能伪造（测试：`e2e/screenshot-frame.spec.ts` 在内容脚本的环境里读它）。
-- `services/system`：偏好即 `settings-schema.ts` 的 layer C（chrome.storage，条目绝不放这里）：逐键按 schema 校验、未知键丢弃、写入串行；“追加停用站点”是原子操作。指标经 `services/metrics/record.ts` 的字典与分桶，属性只能是枚举/布尔/分桶数字，违例丢弃。
+- `services/system`：偏好是 layer C（chrome.storage，条目绝不放这里），`settings-storage.ts` 读写、`core/settings.ts` 校验：未知键丢弃、写入串行；“追加停用站点”是原子操作。指标经 `services/metrics/record.ts` 的字典与分桶，属性只能是枚举/布尔/分桶数字，违例丢弃。
 - 指标事件在写入成功/失败路径上就地记录（`capture.saved`（`via` 含 `ink`：从批注层把墨迹截进编辑器后的保存，annotate.md §1.3）、`capture.undone`、`capture.save_failed`、`entry.property_edited`、`screenshot.copied/downloaded`、`export.completed`）。
 - 录制在视频落地后由 `services/recording` 记 `recording.downloaded`（时长按成品长度入粗档分桶，`stopped_by` 与麦克风见 metrics.md §9）。
 - 读侧事件（`entry.reopened`、`library.queried`）由页面触发。
@@ -42,6 +42,6 @@
 
 ## 验证
 
-- 消息协议或服务注册变化：`npm run compile`、对应 service 单测、相关 E2E。
-- 持久化变化：`npx vitest run core` 加对应 service 单测；截图链路跑 `e2e/screenshot-capture.spec.ts`。
+- 消息协议或服务注册变化：`pnpm run compile`、对应 service 单测、相关 E2E。
+- 持久化变化：`pnpm test core` 加对应 service 单测；截图链路跑 `e2e/screenshot-capture.spec.ts`。
 - 查询路径：`e2e/library-browse.spec.ts` 用 1 万条真实体量的数据验证两个预算——热查询 200 ms，worker 重启后每个视图 2.5 秒内就绪。

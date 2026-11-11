@@ -15,7 +15,7 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   webServer: {
-    command: 'npx tsx e2e/test-server.ts',
+    command: 'pnpm exec tsx e2e/test-server.ts',
     port: 8173,
     reuseExistingServer: !process.env.CI,
   },

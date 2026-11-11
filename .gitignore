@@ -52,4 +52,11 @@ __pycache__/
 
 # ZCode local workspace state
 .zcode/
+
+# Store submission materials: the flow lives in the store-submission skill; the
+# per-release artifacts (zips, screenshots, promos, listings, archives) stay local
 store-assets/
+.agents/skills/store-submission/shots/en/
+.agents/skills/store-submission/shots/zh/
+.agents/skills/store-submission/shots/*.jpg
+.agents/skills/store-submission/shots/*.png

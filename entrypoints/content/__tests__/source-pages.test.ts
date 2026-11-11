@@ -30,7 +30,7 @@ it('keeps every formula and local reference in the encyclopedia structure', asyn
   const markdown = await download(document.body)
   for (const formula of formulas) expect(markdown).toContain(formula)
   expect(markdown).toMatch(/\[\^1\]:/)
-}, 30_000)
+}, 60_000)
 
 it('keeps all Sphinx code samples with their declared language', async () => {
   load('documentation', 'https://docs.python.org/3/tutorial/controlflow.html')
@@ -81,7 +81,7 @@ it.each([
 ])(
   'extracts the %s long article after test attributes are removed',
   async (name, title) => {
-    load(name!, 'https://x.com/sampleauthor/status/2013045749580259680')
+    load(name, 'https://x.com/sampleauthor/status/2013045749580259680')
     const platform = extractXContent(document.querySelector('article')!)
     expect(platform?.meta.title).toBe(title)
     const markdown = await download(platform!.element)

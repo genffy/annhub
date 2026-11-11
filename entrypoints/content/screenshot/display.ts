@@ -1,5 +1,6 @@
 /** The preview, clipboard and downloads share one composition; saved assets keep the capture. */
-import { BEAUTIFY_BACKGROUNDS, composeGeometry, paintBeautified, paintWatermark, type BeautifySettings, type WatermarkImage, type WatermarkSettings } from './output'
+import { BEAUTIFY_BACKGROUNDS, composeGeometry, paintBeautified, paintWatermark, type WatermarkImage, type WatermarkSettings } from '../../../utils/screenshot-output'
+import { type BeautifySettings } from '../../../core/screenshot-options'
 
 const backgrounds = new WeakMap<HTMLCanvasElement, string>()
 const frames = new WeakMap<HTMLCanvasElement, HTMLCanvasElement>()

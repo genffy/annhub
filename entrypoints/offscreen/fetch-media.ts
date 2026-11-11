@@ -6,8 +6,8 @@
  * What fails keeps its address in the Markdown and a line in the README; one
  * request with no progress for the stall window (download.md §5.3) gives up on that item.
  */
-import { assertFetchableUrl, sniffImageType, ResourceRefused } from '../screenshot/fetch-policy'
-import { DOWNLOAD_LIMITS, mediaKindOfMime, type DownloadMediaKind } from '../../../core/download'
+import { assertFetchableUrl, sniffImageType, ResourceRefused } from '../../core/fetch-policy'
+import { DOWNLOAD_LIMITS, mediaKindOfMime, type DownloadMediaKind } from '../../core/download'
 
 /** A medium this run declines; the code is the README's stable reason, never shown raw. */
 export class MediaRefused extends Error {

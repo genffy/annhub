@@ -10,26 +10,16 @@
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
-import type { ExtensionSettings, SettingsPatch } from '../../background-service/settings-schema'
-import { EntryStore, type OrphanReport } from '../../core/store'
+import type { ExtensionSettings, SettingsPatch } from '../../core/settings'
+import type { OrphanReport } from '../../core/store'
 import type { MetricsPanelData } from '../../core/metrics'
-import {
-  BEAUTIFY_BACKGROUND_IDS,
-  BEAUTIFY_RADII,
-  PADDING_PX,
-  RATIO_PRESETS,
-  backgroundCss,
-  decodeWatermarkImage,
-  paintWatermark,
-  type BeautifyBackground,
-  type BeautifyPadding,
-  type WatermarkImage,
-} from '../content/screenshot/output'
+import { backgroundCss, decodeWatermarkImage, paintWatermark, type WatermarkImage } from '../../utils/screenshot-output'
+import { BEAUTIFY_BACKGROUND_IDS, BEAUTIFY_RADII, PADDING_PX, RATIO_PRESETS, type BeautifyPadding } from '../../core/screenshot-options'
 import { formatBytes } from '../../utils/format-bytes'
-import { uiText, type UiTextKey } from '../../utils/ui-text'
+import { uiText, type UiTextKey } from './ui-text'
 import { HIGHLIGHT_COLORS, type HighlightColor } from '../../core/types'
 import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
-import { ANNOTATION_COLORS } from '../content/screenshot/editor'
+import { ANNOTATION_COLORS } from '../../core/screenshot-options'
 import { ExternalLink } from 'lucide-react'
 import { MetricsCard } from './settings-metrics-card'
 import { SettingsCard, SettingsRow } from './settings-card'
@@ -71,8 +61,8 @@ function RecordingCard({ settings, patch }: { settings: ExtensionSettings; patch
     const tabId = Number(params.get('recordTab'))
     if (Number.isInteger(tabId) && tabId > 0) setRecordTabId(tabId)
     void navigator.permissions
-      .query({ name: 'microphone' as PermissionName })
-      .then(status => setGrant(status.state as 'granted' | 'denied' | 'prompt'))
+      .query({ name: 'microphone' })
+      .then(status => setGrant(status.state))
       .catch(() => setGrant('unknown'))
   }, [])
 
@@ -402,7 +392,7 @@ function WatermarkCard({ settings, patch }: { settings: ExtensionSettings; patch
               label: uiText(
                 ['settings.position.topLeft', 'settings.position.topRight', 'settings.position.bottomLeft', 'settings.position.bottomRight'][index]! as 'settings.position.topLeft',
               ),
-              corner: (['tl', 'tr', 'bl', 'br'] as const)[index],
+              corner: (['tl', 'tr', 'bl', 'br'] as const)[index]!,
             }))}
             onChange={position => void patch({ watermark: { ...settings.watermark, position } })}
           />
@@ -478,7 +468,7 @@ function BeautifyCard({ settings, patch }: { settings: ExtensionSettings; patch(
             ariaLabel={uiText('settings.background')}
             value={beautify.background}
             swatches={BEAUTIFY_BACKGROUND_IDS.map(id => ({ value: id, label: uiText(`shot.beautify.background.${id}`), css: id === 'none' ? '' : backgroundCss(id) }))}
-            onChange={background => void patch({ beautify: { ...beautify, background: background as BeautifyBackground } })}
+            onChange={background => void patch({ beautify: { ...beautify, background: background } })}
           />
         </div>
         <div className="set-fr">
@@ -644,23 +634,23 @@ export function SettingsView() {
   const [shortcuts, setShortcuts] = useState<chrome.commands.Command[]>([])
 
   useEffect(() => {
-    void MessageUtils.sendMessage<ExtensionSettings>({ type: 'GET_SETTINGS' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'GET_SETTINGS' }).then(response => {
       if (response.success) setSettings(response.data!)
     })
-    void MessageUtils.sendMessage<{ usage: number; quota: number }>({ type: 'USAGE_ESTIMATE' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'USAGE_ESTIMATE' }).then(response => {
       if (response.success) setUsage(response.data!)
     })
     void chrome.commands.getAll().then(commands => setShortcuts(commands.filter(command => SHORTCUT_COMMANDS.includes(command.name ?? ''))))
   }, [])
 
   const patch = useCallback(async (next: SettingsPatch): Promise<boolean> => {
-    const response = await MessageUtils.sendMessage<ExtensionSettings>({ type: 'SET_SETTINGS', patch: next })
+    const response = await MessageUtils.sendMessage({ type: 'SET_SETTINGS', patch: next })
     if (response.success) setSettings(response.data!)
     return response.success
   }, [])
 
   const loadOrphans = useCallback(() => {
-    void MessageUtils.sendMessage<OrphanReport>({ type: 'ORPHAN_REPORT' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'ORPHAN_REPORT' }).then(response => {
       if (response.success) setOrphans(response.data!)
     })
   }, [])
@@ -668,18 +658,13 @@ export function SettingsView() {
   const cleanupOrphans = useCallback(async () => {
     const ids = orphans?.unreferencedAssets ?? []
     if (ids.length === 0 || !window.confirm(uiText('settings.orphanConfirm', { count: ids.length }))) return
-    const store = new EntryStore('annhub')
-    try {
-      await store.initialize()
-      await store.deleteOrphanAssets(ids)
-      loadOrphans()
-    } finally {
-      await store.close()
-    }
+    // the write goes through the worker like every write (RV-LIB-21); the report above only reads
+    const response = await MessageUtils.sendMessage({ type: 'CLEANUP_ORPHANS', assetIds: ids })
+    if (response.success) loadOrphans()
   }, [orphans, loadOrphans])
 
   const loadMetrics = useCallback(() => {
-    void MessageUtils.sendMessage<MetricsPanelData>({ type: 'GET_METRICS' }).then(response => {
+    void MessageUtils.sendMessage({ type: 'GET_METRICS' }).then(response => {
       if (response.success) setPanel(response.data!)
     })
   }, [])

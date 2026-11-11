@@ -13,7 +13,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { Bookmark, Calendar, Check, ChevronDown, Droplet, Globe, LayoutGrid, Scan, SlidersHorizontal, Tag, X, type LucideIcon } from 'lucide-react'
 import type { HighlightColor, PropertyDefinition, PropertyType } from '../../core/types'
 import { PROPERTY_TYPE_ICONS } from '../../utils/entry-icons'
-import { uiText, type UiTextKey } from '../../utils/ui-text'
+import { uiText, type UiTextKey } from './ui-text'
 import { EMPTY_FILTERS, hasActiveFilter, type FilterState, type PropertyFilter, type View } from './route'
 
 /** The five highlight colors a highlights view can filter by (search.md §5). */

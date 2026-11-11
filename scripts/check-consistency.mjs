@@ -4,11 +4,11 @@
 // Environment, dependency, build and deploy settings live in several files at once: the Node.js
 // version in `.node-version`, the CI setup and the README; the Next.js major in
 // `website/package.json` and the docs; the package directories in Dependabot and the audit
-// workflow. Changing one place and missing the others is a recurring failure that neither the type
+// workflow; the pnpm version in every `package.json` and the commands the workflows run. Changing one place and missing the others is a recurring failure that neither the type
 // checker nor the unit tests see, so every coupling that can be read mechanically is an assertion
 // here. The rule is AGENTS.md「联动一致性」; this script is how it is enforced.
 //
-//   npm run check:consistency
+//   pnpm run check:consistency
 //   node scripts/check-consistency.mjs --root <dir>   check another tree (the tests do)
 //
 // A failure means a related place was missed: update it. Do not delete the assertion, loosen its
@@ -254,14 +254,14 @@ function checkCloudflare() {
     return fail(ciFile, 'cannot parse the website deployment workflow')
   }
   const website = ci?.jobs?.website
-  if (!website?.steps?.some(step => step.run === 'npm run typecheck')) fail(ciFile, 'website must use npm run typecheck for clean-checkout declarations')
+  if (!website?.steps?.some(step => step.run === 'pnpm run typecheck')) fail(ciFile, 'website must use pnpm run typecheck for clean-checkout declarations')
   const deploy = ci?.jobs?.['deploy-website']
   const upload = website?.steps?.find(step => step.uses?.startsWith('actions/upload-artifact@'))
   const download = deploy?.steps?.find(step => step.uses?.startsWith('actions/download-artifact@'))
   if (!upload || upload.with?.path !== `${prefix}out/` || upload.with?.['retention-days'] !== 1) fail(ciFile, 'upload the website/out/ artifact with one-day retention')
   if (!upload?.with?.name?.includes('github.sha') || download?.with?.name !== upload?.with?.name || download?.with?.path !== `${prefix}out/`)
     fail(ciFile, 'download the artifact for the same commit into website/out/')
-  const productionBuild = website?.steps?.find(step => step.run?.includes('npm run build -- --production'))
+  const productionBuild = website?.steps?.find(step => step.run?.includes('pnpm run build --production'))
   if (!productionBuild?.env?.BUILD_PRODUCTION?.includes("github.ref == 'refs/heads/main'") || !productionBuild.env.BUILD_PRODUCTION.includes("github.event_name == 'push'"))
     fail(ciFile, 'production build settings must be limited to pushes on main')
   const condition = deploy?.if ?? ''
@@ -272,7 +272,7 @@ function checkCloudflare() {
   if (deploy?.['runs-on'] !== 'ubuntu-24.04' || deploy?.concurrency?.['cancel-in-progress'] !== false)
     fail(ciFile, 'deploy on the standard Linux runner and serialize production deployments')
   const commands = (deploy?.steps ?? []).map(step => step.run ?? '').join('\n')
-  if (/\bnpm run (build|website:build|verify)\b/.test(commands)) fail(ciFile, 'deployment must reuse the verified artifact, not rebuild it')
+  if (/\bpnpm run (build|website:build|verify)\b/.test(commands)) fail(ciFile, 'deployment must reuse the verified artifact, not rebuild it')
   for (const command of ['node scripts/check-website-export.mjs', 'node scripts/cloudflare-rules.mjs --apply', 'node scripts/smoke-website.mjs']) {
     if (!commands.includes(command)) fail(ciFile, `deployment must run ${command}`)
   }
@@ -297,7 +297,7 @@ function checkMinimumChrome() {
 
 // --- Package directories: every one needs updates and an audit. ----------------------------------
 
-/** The directories of the `npm` entries in a Dependabot config. */
+/** The directories of the `npm` entries in a Dependabot config; that ecosystem is also the one that reads pnpm lockfiles. */
 function dependabotNpmDirectories(text) {
   const directories = []
   for (const entry of text.split(/^ {2}- package-ecosystem:/m).slice(1)) {
@@ -323,12 +323,58 @@ function checkPackageDirectories() {
   const audit = read('.github/workflows/scheduled-audit.yml')
   if (audit !== null) {
     const matrix = /directory:\s*\[([^\]]*)\]/.exec(audit)
-    if (!matrix) fail('.github/workflows/scheduled-audit.yml', 'has no `directory: [...]` matrix; npm audit has to run in every package directory')
+    if (!matrix) fail('.github/workflows/scheduled-audit.yml', 'has no `directory: [...]` matrix; the audit has to run in every package directory')
     else
       compare(
         '.github/workflows/scheduled-audit.yml',
         matrix[1].split(',').map(item => normalizeDirectory(item.trim().replace(/^['"]|['"]$/g, ''))),
       )
+  }
+}
+
+// --- The package manager: pnpm, one pinned version, a lockfile and its settings per directory. ----
+
+/** A shell command that calls npm or npx itself (`pnpm run` does not count). */
+const RUNS_NPM = /(^|[\s;&|(])(npm (ci|install|i|run|test|exec|audit)|npx)\b/m
+const RUNS_PNPM = /(^|[\s;&|(])pnpm\b/m
+
+function checkPackageManager() {
+  const pinned = manifests.find(({ directory }) => directory === '')?.json.packageManager
+  if (!/^pnpm@\d+\.\d+\.\d+$/.test(pinned ?? ''))
+    fail('package.json', 'packageManager must pin pnpm to an exact version ("pnpm@x.y.z"): the workflows install that version, and every package directory follows it')
+
+  for (const { file, directory, json } of manifests) {
+    const prefix = directory ? `${directory}/` : ''
+    if (pinned !== undefined && json.packageManager !== pinned)
+      fail(file, `packageManager is ${json.packageManager ?? 'missing'}, but the root package.json pins ${pinned}; every package directory installs with the same pnpm`)
+    if (!exists(`${prefix}pnpm-lock.yaml`)) fail(`${prefix}pnpm-lock.yaml`, 'is missing: every package directory commits its pnpm lockfile')
+    if (!exists(`${prefix}pnpm-workspace.yaml`))
+      fail(`${prefix}pnpm-workspace.yaml`, 'is missing: pnpm reads the allowed install scripts and the overrides from it, and it keeps this directory a project of its own')
+    if (json.overrides !== undefined || json.pnpm !== undefined) fail(file, 'overrides and pnpm settings belong in pnpm-workspace.yaml; pnpm does not read them from package.json')
+  }
+
+  for (const file of files) {
+    if (/(^|\/)(package-lock\.json|npm-shrinkwrap\.json|yarn\.lock)$/.test(file)) fail(file, "is another package manager's lockfile; this repository installs with pnpm")
+  }
+
+  for (const file of files.filter(isWorkflow)) {
+    let workflow
+    try {
+      workflow = parseYaml(read(file))
+    } catch {
+      continue
+    }
+    // A composite action has one list of steps under `runs`; it joins the job that calls it.
+    const jobs = workflow?.jobs ?? (workflow?.runs ? { action: workflow.runs } : {})
+    for (const [id, job] of Object.entries(jobs)) {
+      let installed = false
+      for (const step of job?.steps ?? []) {
+        if (step.uses?.startsWith('pnpm/action-setup@')) installed = true
+        const run = step.run ?? ''
+        if (RUNS_NPM.test(run)) fail(file, `the job ${id} runs npm; the package manager is pnpm (packageManager in package.json)`)
+        if (RUNS_PNPM.test(run) && !installed) fail(file, `the job ${id} runs pnpm before a pnpm/action-setup step has installed it`)
+      }
+    }
   }
 }
 
@@ -368,17 +414,56 @@ function filtersPullRequests(text) {
   return trigger !== null && /^ {4}(paths|paths-ignore|branches|branches-ignore):/m.test(trigger[1])
 }
 
+/** Checks that read `.output`: verify has no build to give them, so CI runs them right after its build steps (RV-TEST-10). */
+const BUILD_DEPENDENT_CHECKS = ['check:bundle']
+
 function checkGate() {
   const scripts = readJson('package.json')?.scripts ?? {}
   if (scripts.verify !== undefined) {
     const commands = scripts.verify.split('&&').map(command => command.trim())
     for (const name of Object.keys(scripts).filter(name => name.startsWith('check:'))) {
-      if (!commands.includes(`npm run ${name}`)) fail('package.json', `the script ${name} is not part of verify`)
+      if (BUILD_DEPENDENT_CHECKS.includes(name)) {
+        if (commands.includes(`pnpm run ${name}`))
+          fail('package.json', `the script ${name} reads the build output, so it cannot run in verify (there is no build); CI runs it after building`)
+        continue
+      }
+      if (!commands.includes(`pnpm run ${name}`)) fail('package.json', `the script ${name} is not part of verify`)
     }
     const ci = read('.github/workflows/ci.yml')
     if (ci !== null) {
       for (const command of commands)
-        if (!ci.includes(command)) fail('.github/workflows/ci.yml', `does not run \`${command}\`, which \`npm run verify\` runs; CI runs the same commands`)
+        if (!ci.includes(command)) fail('.github/workflows/ci.yml', `does not run \`${command}\`, which \`pnpm run verify\` runs; CI runs the same commands`)
+    }
+  }
+
+  // A build-dependent check without a workflow to run it after the build never runs at all.
+  for (const name of BUILD_DEPENDENT_CHECKS) {
+    if (!(name in scripts)) continue
+    for (const file of ['.github/workflows/ci.yml', '.github/workflows/build-extension.yml']) {
+      const text = read(file)
+      if (text === null) continue
+      const at = text.indexOf(`pnpm run ${name}`)
+      if (at === -1) fail(file, `does not run \`${name}\`, which needs the build this workflow makes`)
+      else if (at < text.search(/pnpm run (build|zip)/)) fail(file, `runs \`${name}\` before building anything`)
+    }
+  }
+
+  // The unit tests read docs/ and README.md (the token parity table, the store address), so the docs-only shortcut
+  // of the other jobs must not reach them: a docs-only pull request can break them.
+  const ciText = read('.github/workflows/ci.yml')
+  if (ciText !== null) {
+    let jobs = {}
+    try {
+      jobs = parseYaml(ciText)?.jobs ?? {}
+    } catch {
+      fail('.github/workflows/ci.yml', 'cannot be parsed')
+    }
+    for (const [id, job] of Object.entries(jobs)) {
+      const steps = job?.steps ?? []
+      const unit = steps.find(step => /(^|\s)pnpm test(\s|$)/.test(step.run ?? ''))
+      if (!unit) continue
+      if (/docs-only/.test(unit.if ?? '') || steps.some(step => step.uses === './.github/actions/docs-only'))
+        fail('.github/workflows/ci.yml', `the job ${id} skips the unit tests on docs-only pull requests, but they read docs/ and README.md; run them on every pull request`)
     }
   }
 
@@ -504,6 +589,7 @@ checkTailwind()
 checkCloudflare()
 checkMinimumChrome()
 checkPackageDirectories()
+checkPackageManager()
 checkGate()
 checkWebsiteClasses()
 checkSkills()

@@ -161,7 +161,7 @@ export class EntryStore {
   }
 
   async close(): Promise<void> {
-    await this.db?.close()
+    this.db?.close()
     this.db = null
     this.indexReady = null
     this.summaries = null

@@ -8,7 +8,7 @@ import { checkWebsiteExport } from '../../scripts/check-website-export.mjs'
 const site = fileURLToPath(new URL('../', import.meta.url))
 const require = createRequire(import.meta.url)
 const args = process.argv.slice(2)
-if (args.some(arg => arg !== '--production')) throw new Error('Usage: npm run build [-- --production]')
+if (args.some(arg => arg !== '--production')) throw new Error('Usage: pnpm run build [--production]')
 const production = args.includes('--production')
 const env = { ...process.env }
 if (production) {

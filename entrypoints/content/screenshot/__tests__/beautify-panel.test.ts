@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { uiText } from '../../../../utils/ui-text'
+import { uiText } from '../../ui-text'
 import { createBeautifyPanel, type BeautifyPanel } from '../beautify-panel'
-import { applyBeautifyChange, BEAUTIFY_BACKGROUND_IDS, DEFAULT_BEAUTIFY, backgroundCss, type BeautifySettings } from '../output'
+import { applyBeautifyChange, backgroundCss } from '../../../../utils/screenshot-output'
+import { BEAUTIFY_BACKGROUND_IDS, DEFAULT_BEAUTIFY, type BeautifySettings } from '../../../../core/screenshot-options'
 
 /** The panel with a stand-in for the session: it applies what the panel reports and shows the result back. */
 function open(settings: BeautifySettings = DEFAULT_BEAUTIFY, ratios: readonly string[] = ['1:1', '4:5', '3:4', '16:9']) {

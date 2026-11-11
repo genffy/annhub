@@ -10,7 +10,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, CircleAlert, Download, Info, TriangleAlert } from 'lucide-react'
 import MessageUtils from '../../utils/message'
-import { uiText, type UiTextKey } from '../../utils/ui-text'
+import { uiText, type UiTextKey } from './ui-text'
 import { DOWNLOAD_LIMITS, type DownloadForm } from '../../core/download'
 import type { EstimateDownloadResult } from '../../types/messages'
 import type { LibraryDownload } from './download-client'
@@ -35,7 +35,7 @@ export function SelectionDownload({ entryIds, defaults, download, onClose }: Pro
 
   useEffect(() => {
     let active = true
-    void MessageUtils.sendMessage<EstimateDownloadResult>({ type: 'ESTIMATE_DOWNLOAD', entryIds }).then(response => {
+    void MessageUtils.sendMessage({ type: 'ESTIMATE_DOWNLOAD', entryIds }).then(response => {
       if (active && response.success && response.data) setEstimate(response.data)
     })
     return () => {

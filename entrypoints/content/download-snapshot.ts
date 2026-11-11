@@ -70,7 +70,7 @@ export function downloadSnapshot(root: Element, hasArticle: boolean, tagsOnly = 
       const primary = resolveImageCandidates(el, source.baseURI)[0]
       for (const attr of [...copy.attributes]) if (attr.name === 'srcset' || attr.name.startsWith('data-')) copy.removeAttribute(attr.name)
       if (primary) copy.setAttribute('src', primary)
-      const img = el as HTMLImageElement
+      const img = el
       if (img.naturalWidth) copy.setAttribute('width', String(img.naturalWidth))
       if (img.naturalHeight) copy.setAttribute('height', String(img.naturalHeight))
     }

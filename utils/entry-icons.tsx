@@ -5,7 +5,7 @@
  */
 import { Bookmark, Calendar, CalendarClock, Hash, Highlighter, Library, List, Scan, Settings, SquareCheck, Tags, Text, type LucideIcon } from 'lucide-react'
 import type { EntryType, PropertyType } from '../core/types'
-import { uiText } from './ui-text'
+import type { StringTable, UiText } from './ui-text'
 
 /** The library's views, in the nav's own words: the shape of `View` in the library's route. */
 export type ViewKey = 'all' | 'clips' | 'highlights' | 'screenshots' | 'properties' | 'settings'
@@ -31,15 +31,21 @@ export const PROPERTY_TYPE_ICONS: Record<PropertyType, LucideIcon> = {
   datetime: CalendarClock,
 }
 
-/** The type as its icon and its name together: the icon never stands alone and the colour never carries the meaning (visual.md §3). */
-export function TypeChip({ type, className, small = false }: { type: EntryType; className?: string; small?: boolean }) {
-  const Icon = ENTRY_TYPE_ICONS[type]
-  return (
-    <span className={`type-chip type-${type}${small ? ' type-chip-sm' : ''}${className ? ` ${className}` : ''}`} data-type={type}>
-      <Icon size={small ? 12 : 13} aria-hidden />
-      {uiText(type === 'clip' ? 'library.type.clip' : 'library.type.screenshot')}
-    </span>
-  )
+/**
+ * The type as its icon and its name together: the icon never stands alone and the colour never
+ * carries the meaning (visual.md §3). Built on an entry's own words (RV-CAP-17), so the chip
+ * does not pull a string table into a page that shows none.
+ */
+export function createTypeChip<T extends StringTable>(uiText: UiText<T>) {
+  return function TypeChip({ type, className, small = false }: { type: EntryType; className?: string; small?: boolean }) {
+    const Icon = ENTRY_TYPE_ICONS[type]
+    return (
+      <span className={`type-chip type-${type}${small ? ' type-chip-sm' : ''}${className ? ` ${className}` : ''}`} data-type={type}>
+        <Icon size={small ? 12 : 13} aria-hidden />
+        {uiText(type === 'clip' ? 'library.type.clip' : 'library.type.screenshot')}
+      </span>
+    )
+  }
 }
 
 /**

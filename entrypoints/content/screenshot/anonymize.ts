@@ -11,7 +11,7 @@
  *    contents inside our own clone, no restore needed.
  */
 
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 import { ALL_IDENTITY_PARTS, identityElements, identityPartOf, type IdentityParts } from './detect'
 
 const OVERLAY_ATTR = 'data-ann-ui'

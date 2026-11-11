@@ -9,7 +9,7 @@
 import { useEffect, useRef, type Ref } from 'react'
 import { Download, X } from 'lucide-react'
 import { DOWNLOAD_LIMITS } from '../../core/download'
-import { uiText } from '../../utils/ui-text'
+import { uiText } from './ui-text'
 
 interface Props {
   selectedCount: number

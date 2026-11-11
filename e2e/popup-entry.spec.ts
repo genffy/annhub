@@ -141,7 +141,7 @@ test('the popup draws the library icons: lucide in the rail, a type tile in ever
     items.map(item => {
       const tile = item.querySelector('.type-tile')!
       const svg = tile.querySelector('svg')
-      return { type: tile.getAttribute('data-type'), icon: svg ? [...svg.classList].find(name => name.startsWith('lucide-')) : null, words: tile.textContent!.trim() }
+      return { type: tile.getAttribute('data-type'), icon: svg ? [...svg.classList].find(name => name.startsWith('lucide-')) : null, words: tile.textContent.trim() }
     }),
   )
   expect(rows).toEqual([

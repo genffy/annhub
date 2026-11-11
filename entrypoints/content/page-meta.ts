@@ -166,7 +166,7 @@ function splitAuthors(raw: string | undefined): string[] {
 
 function isValidDate(date: string): boolean {
   const [y, m, d] = date.split('-').map(Number)
-  const probe = new Date(Date.UTC(y!, m! - 1, d!))
+  const probe = new Date(Date.UTC(y!, m! - 1, d))
   return probe.getUTCFullYear() === y && probe.getUTCMonth() === m! - 1 && probe.getUTCDate() === d
 }
 
@@ -243,7 +243,7 @@ function headingOf(node: Node | null): HTMLElement | null {
   let el: HTMLElement | null = node instanceof HTMLElement ? node : (node?.parentElement ?? null)
   while (el) {
     if (/^h[1-4]$/.test(el.tagName.toLowerCase())) return el
-    const heading = el.querySelector(':scope > h1, :scope > h2, :scope > h3, :scope > h4') as HTMLElement | null
+    const heading = el.querySelector<HTMLElement>(':scope > h1, :scope > h2, :scope > h3, :scope > h4')
     if (heading) return heading
     if (el.tagName.toLowerCase() === 'article') return null
     el = el.parentElement

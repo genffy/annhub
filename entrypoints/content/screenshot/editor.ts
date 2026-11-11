@@ -1,4 +1,4 @@
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 import type { ViewportRect } from './crop'
 import { mosaicBlockSize, pixelateRegion } from './mosaic'
 
@@ -27,15 +27,6 @@ export type Annotation =
   | { tool: 'text'; start: Point; text: string; color: string }
   | StepAnnotation
   | PolylineAnnotation
-
-/** The five annotation colours (screenshot.md §1.1); every tool, the step badges included, draws in one of them. */
-export const ANNOTATION_COLORS: ReadonlyArray<{ value: string; name: string }> = [
-  { value: '#e5484d', name: 'red' },
-  { value: '#f6c453', name: 'yellow' },
-  { value: '#147d72', name: 'teal' },
-  { value: '#ffffff', name: 'white' },
-  { value: '#20252b', name: 'black' },
-]
 
 /** The shapes' lines, in CSS pixels; the pen's and the line's middle width is the same. */
 const SHAPE_WIDTH = 3
@@ -115,14 +106,15 @@ export function drawAnnotation(ctx: CanvasRenderingContext2D, annotation: Annota
     return
   }
   if (annotation.tool === 'polyline') {
-    if (annotation.points.length < 2) return
+    const [start, ...rest] = annotation.points
+    if (!start || rest.length === 0) return
     ctx.strokeStyle = annotation.color
     ctx.lineWidth = annotation.pixelWidth
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
     ctx.beginPath()
-    ctx.moveTo(annotation.points[0].x, annotation.points[0].y)
-    annotation.points.slice(1).forEach(point => ctx.lineTo(point.x, point.y))
+    ctx.moveTo(start.x, start.y)
+    rest.forEach(point => ctx.lineTo(point.x, point.y))
     ctx.stroke()
     return
   }

@@ -1,0 +1,15 @@
+# pnpm reads a project's settings from this file; `.npmrc` only carries registry and auth settings,
+# and those belong to the machine, not to the repository. There is no `packages` list: the extension
+# is one project, and `website/` is another with its own copy of this file and its own lockfile.
+
+# A dependency's install script runs only when it is named here. `false` records a decision too:
+# an unlisted script stops the install until someone reviews it.
+allowBuilds:
+  # esbuild's script checks that the binary for this platform is the one that got installed.
+  esbuild: true
+
+# The minimatch versions these parents ask for carry a published advisory; 11.0.5 is the fixed line.
+overrides:
+  '@eslint/config-array>minimatch': 11.0.5
+  '@typescript-eslint/typescript-estree>minimatch': 11.0.5
+  'eslint>minimatch': 11.0.5

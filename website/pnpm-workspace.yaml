@@ -1,0 +1,19 @@
+# pnpm settings for the website. It is a project of its own: pnpm takes the nearest
+# `pnpm-workspace.yaml`, so this file keeps the website's install apart from the extension's
+# (its dependencies, its lockfile and the decisions below).
+
+# A dependency's install script runs only when it is named here. `false` records a decision too:
+# an unlisted script stops the install until someone reviews it.
+allowBuilds:
+  # esbuild and workerd check that the binary for this platform is the one that got installed;
+  # `pnpm start` (wrangler dev) runs both.
+  esbuild: true
+  workerd: true
+  # These three only re-check a prebuilt native binding that arrives as an optional dependency.
+  '@parcel/watcher': false
+  '@swc/core': false
+  unrs-resolver: false
+
+# The minimatch version this parent asks for carries a published advisory; 11.0.5 is the fixed line.
+overrides:
+  '@typescript-eslint/typescript-estree>minimatch': 11.0.5

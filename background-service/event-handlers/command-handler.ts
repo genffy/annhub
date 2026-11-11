@@ -1,6 +1,7 @@
 import { Logger } from '../../utils/logger'
 import { RecordingService } from '../services/recording'
 import { ANN_ANNOTATE_COMMAND, ANN_BLOCK_MODE_COMMAND, ANN_DOWNLOAD_COMMAND, ANN_RECORD_COMMAND, ANN_SCREENSHOT_COMMAND } from '../../constants'
+import type { TabMessage } from '../../types/messages'
 
 /**
  * The browser commands (extension.md §7.1): region screenshot, block mode and
@@ -17,6 +18,9 @@ export class CommandHandler {
   private commandListener?: (command: string) => void
 
   registerListeners(): void {
+    // Chrome ignores what a listener returns. This one is async so that a caller can wait for the handling (the
+    // tests do), and it cannot reject: everything it awaits is inside the try.
+    // eslint-disable-next-line @typescript-eslint/no-misused-promises -- see the note above
     this.commandListener = async (command: string) => {
       try {
         if (command === ANN_SCREENSHOT_COMMAND) {
@@ -42,7 +46,7 @@ export class CommandHandler {
     browser.commands.onCommand.addListener(this.commandListener)
   }
 
-  private async sendToActiveTab(message: { type: string } & Record<string, unknown>): Promise<void> {
+  private async sendToActiveTab(message: TabMessage): Promise<void> {
     const [tab] = await browser.tabs.query({ active: true, currentWindow: true })
     if (!tab?.id) return
     try {

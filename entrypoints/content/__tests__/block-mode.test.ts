@@ -6,7 +6,7 @@ const LONG = 'This sentence is deliberately long so the block clears the 120 cha
 
 import { BlockEntries, type BlockHoverHooks } from '../block-hover'
 import type { BlockCandidate } from '../blocks'
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 
 /**
  * Keyboard block mode (capture.md §6.2 区块模式) over fixture DOM. The same
@@ -74,7 +74,7 @@ const clipped = (hooks: Hooks): { candidate: BlockCandidate; levelChanged: boole
 }
 
 beforeEach(() => {
-  Element.prototype.scrollIntoView = vi.fn() as unknown as typeof Element.prototype.scrollIntoView
+  Element.prototype.scrollIntoView = vi.fn()
 })
 
 afterEach(() => {
@@ -339,7 +339,7 @@ describe('scrolling and focus', () => {
   it('only keyboard moves scroll the page; pointer moves just re-aim the outline', () => {
     document.body.innerHTML = NESTED
     const scroll = vi.fn()
-    Element.prototype.scrollIntoView = scroll as unknown as typeof Element.prototype.scrollIntoView
+    Element.prototype.scrollIntoView = scroll
     document.getElementById('code')!.focus()
     const target = document.querySelector('section p') as HTMLElement
     document.elementFromPoint = vi.fn(() => target)

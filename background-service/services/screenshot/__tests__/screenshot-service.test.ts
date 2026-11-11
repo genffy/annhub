@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// The worker's image inlining reads through FileReader, which node does not provide (RV-TEST-08).
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../../../utils/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))

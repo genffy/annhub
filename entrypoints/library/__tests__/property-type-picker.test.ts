@@ -5,7 +5,7 @@ import { nextPropertyType } from '../property-type-picker'
 // the grid the picker draws: three columns in the registry's order
 //   text  list  number
 //   checkbox  date  datetime
-const [TEXT, LIST, NUMBER, CHECKBOX, DATE, DATETIME] = PROPERTY_TYPES
+const [TEXT, LIST, NUMBER, CHECKBOX, DATE, DATETIME] = ['text', 'list', 'number', 'checkbox', 'date', 'datetime'] as const
 
 describe('the property-type picker’s keyboard grid', () => {
   it('orders the six types in the registry’s order, three to a row', () => {

@@ -277,7 +277,7 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
     expect(bare.transparent).toBe(0)
 
     // corners: rounded off the content's four corners with 24, square with 0
-    const corner = (analysis: Analysis) => analysis.at as number[][]
+    const corner = (analysis: Analysis) => analysis.at
     const probes: Array<[number, number]> = [
       [65, 65],
       [64 + plain.width - 2, 65],
@@ -294,14 +294,14 @@ test.describe('the beautify panel (screenshot.md §4.4)', () => {
     await choice('圆角', '12').click()
     const below: Array<[number, number]> = [[64 + Math.round(plain.width / 2), 64 + plain.height + 6]]
     const [without] = (await analyze(page, { source: 'canvas', points: below })).at as [number[]]
-    expect(near(without!, IVORY, 2), 'no shadow: bare background').toBe(true)
+    expect(near(without, IVORY, 2), 'no shadow: bare background').toBe(true)
     await shadow.click()
     await expect(shadow).toBeChecked()
     const [withShadow] = (await analyze(page, { source: 'canvas', points: below })).at as [number[]]
-    expect(withShadow![0]! + withShadow![1]! + withShadow![2]!, 'the shadow darkens what is under the content’s bottom edge').toBeLessThan(
-      without![0]! + without![1]! + without![2]! - 30,
+    expect(withShadow[0]! + withShadow[1]! + withShadow[2]!, 'the shadow darkens what is under the content’s bottom edge').toBeLessThan(
+      without[0]! + without[1]! + without[2]! - 30,
     )
-    expect(withShadow![3], 'and the picture stays opaque').toBe(255)
+    expect(withShadow[3], 'and the picture stays opaque').toBe(255)
     // a shadow does not paint over the content: its middle is what it was
     const centre: Array<[number, number]> = [[64 + Math.round(plain.width / 2), 64 + Math.round(plain.height / 2)]]
     const [withShadowCentre] = (await analyze(page, { source: 'canvas', points: centre })).at as [number[]]

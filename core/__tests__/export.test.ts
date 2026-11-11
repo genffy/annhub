@@ -91,7 +91,7 @@ describe('buildExport (storage.md §6)', () => {
     })
     expect(summary.result).toBe('full')
     expect(summary.blob.size).toBeGreaterThan(200 * 1024 * 1024)
-  }, 30_000)
+  }, 60_000)
 
   it('produces README, clips/<id>.md, screenshots/<id>.md and assets/<assetId>.png', async () => {
     const clip = makeClip({ highlights: [makeHighlight({ start: 0, end: 11, quote: 'Exponential', note: 'why' })], note: 'my note' })

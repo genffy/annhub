@@ -100,21 +100,21 @@ annhub/
 ### 环境
 
 - Node.js 24.x 或更高版本
-- npm
+- pnpm，版本以 `package.json` 的 `packageManager` 为准
 - Chrome 或 Chromium
 
 ### 安装
 
 ```bash
-npm install
+pnpm install
 ```
 
 ### 扩展开发
 
 ```bash
-npm run dev
-npm run build
-npm run compile
+pnpm run dev
+pnpm run build
+pnpm run compile
 ```
 
 开发构建位于 `.output/chrome-mv3/`。在 `chrome://extensions/` 开启开发者模式后加载该目录。
@@ -122,11 +122,11 @@ npm run compile
 ### 测试与提交前检查
 
 ```bash
-npm run verify                    # 格式、ESLint、类型、vitest、文档检查、文件体量预算、锁文件注册表、联动一致性
-npm run build && npx playwright test
+pnpm run verify                    # 格式、ESLint、类型、vitest、文档检查、文件体量预算、锁文件注册表、联动一致性
+pnpm run build && pnpm exec playwright test
 ```
 
-`npm run format` 一次修复格式。CI（`.github/workflows/`）跑同样的命令，外加 CodeQL、依赖审查和工作流检查；合并门禁是 `ci-pass` 加上 `.github/rulesets/main.json` 里列出的检查。
+`pnpm run format` 一次修复格式。CI（`.github/workflows/`）跑同样的命令，外加 CodeQL、依赖审查和工作流检查；合并门禁是 `ci-pass` 加上 `.github/rulesets/main.json` 里列出的检查。
 
 ### 发布与仓库设置
 

@@ -7,7 +7,7 @@ import { EntryStore } from '../core/store'
 let instance: EntryStore | null = null
 
 export function sharedEntryStore(): EntryStore {
-  instance ??= new EntryStore('annhub')
+  instance ??= new EntryStore()
   return instance
 }
 

@@ -1,46 +1,19 @@
 /**
- * Interface strings, Chinese and English (extension.md §2.7). The language
- * follows the browser UI language: Chinese-family languages get Chinese,
- * everything else English; there is no manual switch. Saved user content is
- * never translated.
+ * Interface strings, Chinese and English (extension.md §2.7). This module owns the machinery
+ * only — every table lives in `utils/ui-text/`, and each entry point bundles exactly the tables
+ * its own words come from (RV-CAP-17): `createTextKit` types a kit's keys as the union of the
+ * tables it was given, so a key from a table the entry does not carry is a compile error, not a
+ * string shown to the user. Saved user content is never translated.
  */
+import { currentUiLanguage, type UiLanguage } from './ui-language'
 
-export type UiLanguage = 'zh' | 'en'
+/** One string table: every key has a Chinese and an English line. */
+export type StringTable = Readonly<Record<string, { zh: string; en: string }>>
 
-/** Chinese-family browser languages read Chinese; everyone else reads English. */
-export function uiLanguageFor(browserLanguage: string | undefined): UiLanguage {
-  return (browserLanguage ?? '').toLowerCase().startsWith('zh') ? 'zh' : 'en'
-}
-
-export function currentUiLanguage(): UiLanguage {
-  if (typeof chrome !== 'undefined' && chrome.i18n?.getUILanguage) {
-    try {
-      return uiLanguageFor(chrome.i18n.getUILanguage())
-    } catch {
-      /* fall through to navigator */
-    }
-  }
-  return uiLanguageFor(typeof navigator !== 'undefined' ? navigator.language : undefined)
-}
-
-import { captureStrings } from './ui-text/strings-capture'
-import { popupStrings } from './ui-text/strings-popup'
-import { libraryStrings } from './ui-text/strings-library'
-import { settingsStrings } from './ui-text/strings-settings'
-import { propertyStrings } from './ui-text/strings-property'
-
-const STRINGS = {
-  ...captureStrings,
-  ...popupStrings,
-  ...libraryStrings,
-  ...settingsStrings,
-  ...propertyStrings,
-} as const
-
-export type UiTextKey = keyof typeof STRINGS
+export type UiText<T extends StringTable> = (key: keyof T & string, params?: Record<string, string | number>, lang?: UiLanguage) => string
 
 /** The reasons the user can be told, by the stable code the worker answered with (entry.md §6, screenshot.md §5). */
-const ERROR_TEXT: Record<string, UiTextKey> = {
+export const FAILURE_TEXT_KEYS = {
   PROPERTY_NAME_INVALID: 'property.error.name',
   PROPERTY_TYPE_MISMATCH: 'property.error.type',
   PROPERTY_VALUE_INVALID: 'property.error.value',
@@ -56,28 +29,10 @@ const ERROR_TEXT: Record<string, UiTextKey> = {
   CAPTURE_FAILED: 'shot.error.capture',
   DOWNLOAD_FAILED: 'shot.error.downloadFailed',
   EXTENSION_CONTEXT_INVALIDATED: 'toast.extensionReloaded',
-}
+} as const
 
-/** Why something failed, in words — or '' for a code that has no reason worth telling (never a raw message). */
-export function failureReason(code?: string, lang?: UiLanguage): string {
-  const key = ERROR_TEXT[code ?? '']
-  return key ? uiText(key, {}, lang) : ''
-}
-
-/** A failure to show wherever an edit or save did not go through: the reason if there is one, else "Save failed". */
-export function entryErrorText(code?: string, lang?: UiLanguage): string {
-  return failureReason(code, lang) || uiText('toast.saveFailed', {}, lang)
-}
-
-/** The screenshot flow's own phrasing for a failed save (it keeps the preview and says "try again"). */
-export function screenshotSaveErrorText(code: string | undefined): string {
-  return failureReason(code) || uiText('shot.error.saveFailed')
-}
-
-/** A failed capture, copy or download in the screenshot session. */
-export function screenshotFailureText(code: string | undefined, fallback: UiTextKey): string {
-  return failureReason(code) || uiText(fallback)
-}
+/** The tables a kit must cover: every mapped reason plus the two fallback lines. */
+export type FailureTextKey = (typeof FAILURE_TEXT_KEYS)[keyof typeof FAILURE_TEXT_KEYS] | 'toast.saveFailed' | 'shot.error.saveFailed'
 
 /** English plural forms that follow a count in the string table; the singular is used after “1”. */
 const EN_SINGULARS: Record<string, string> = {
@@ -94,10 +49,9 @@ const EN_SINGULARS: Record<string, string> = {
   properties: 'property',
 }
 
-export function uiText(key: UiTextKey, params: Record<string, string | number> = {}, lang?: UiLanguage): string {
-  const entry = STRINGS[key]
+function render<T extends StringTable>(table: T, key: keyof T & string, params: Record<string, string | number>, language: UiLanguage): string {
+  const entry = table[key]
   if (!entry) return key
-  const language = lang ?? currentUiLanguage()
   let text: string = entry[language]
   for (const [name, value] of Object.entries(params)) {
     text = text.split(`{${name}}`).join(String(value))
@@ -112,7 +66,39 @@ export function uiText(key: UiTextKey, params: Record<string, string | number> =
   return text
 }
 
-/** Marks the extension page's document language for the UI language in effect. */
-export function applyDocumentLanguage(): void {
-  document.documentElement.lang = currentUiLanguage() === 'zh' ? 'zh-CN' : 'en'
+/** An entry's `uiText`: its own tables' keys, nothing else's. */
+export function createUiText<T extends StringTable>(table: T): UiText<T> {
+  return (key, params = {}, lang?) => render(table, key, params, lang ?? currentUiLanguage())
+}
+
+/** The failure helpers an entry that shows save errors works with. */
+export interface FailureHelpers<T extends StringTable> {
+  /** Why something failed, in words — or '' for a code that has no reason worth telling (never a raw message). */
+  failureReason: (code?: string, lang?: UiLanguage) => string
+  /** A failure to show wherever an edit or save did not go through: the reason if there is one, else "Save failed". */
+  entryErrorText: (code?: string, lang?: UiLanguage) => string
+  /** The screenshot flow's own phrasing for a failed save (it keeps the preview and says "try again"). */
+  screenshotSaveErrorText: (code: string | undefined) => string
+  /** A failed capture, copy or download in the screenshot session. */
+  screenshotFailureText: (code: string | undefined, fallback: keyof T & string) => string
+}
+
+/**
+ * Builds the failure helpers on a table that carries every mapped reason and fallback. The
+ * constraint is the compile-time half of RV-CAP-17: whoever calls this with tables that miss a
+ * failure reason or a fallback line does not build. Entries that never word a failure (the
+ * popup) simply stay with their plain `createUiText`.
+ */
+export function createFailureHelpers<T extends StringTable & Record<FailureTextKey, { zh: string; en: string }>>(table: T): FailureHelpers<T> {
+  const uiText = createUiText(table)
+  const failureReason = (code?: string, lang?: UiLanguage): string => {
+    const key = (FAILURE_TEXT_KEYS as Record<string, (keyof T & string) | undefined>)[code ?? '']
+    return key !== undefined && key in table ? render(table, key, {}, lang ?? currentUiLanguage()) : ''
+  }
+  return {
+    failureReason,
+    entryErrorText: (code, lang) => failureReason(code, lang) || uiText('toast.saveFailed', {}, lang),
+    screenshotSaveErrorText: code => failureReason(code) || uiText('shot.error.saveFailed'),
+    screenshotFailureText: (code, fallback) => failureReason(code) || uiText(fallback),
+  }
 }

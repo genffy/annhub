@@ -10,8 +10,8 @@ test-results
 playwright-report
 node_modules
 
-# Lockfiles are owned by npm
-package-lock.json
+# Lockfiles are owned by pnpm
+pnpm-lock.yaml
 
 # Generated or vendored data
 scripts/data

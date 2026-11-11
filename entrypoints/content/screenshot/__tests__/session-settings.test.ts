@@ -5,7 +5,7 @@
  * `A` works until the shot is taken, and a late answer does not undo it.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_SETTINGS, type ExtensionSettings } from '../../../../background-service/settings-schema'
+import { DEFAULT_SETTINGS, type ExtensionSettings } from '../../../../core/settings'
 
 vi.mock('../../../../utils/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 
@@ -171,7 +171,7 @@ describe('the remembered frame opens the session where it is, and never moves th
   /** jsdom lays nothing out: put the post where the test wants it in the window. */
   function placePost(box: { left: number; top: number; width: number; height: number }): void {
     const post = document.getElementById('post')!
-    post.getBoundingClientRect = () => ({ ...box, x: box.left, y: box.top, right: box.left + box.width, bottom: box.top + box.height, toJSON: () => ({}) }) as DOMRect
+    post.getBoundingClientRect = () => ({ ...box, x: box.left, y: box.top, right: box.left + box.width, bottom: box.top + box.height, toJSON: () => ({}) })
   }
 
   const label = (): string => session().querySelector('[data-ann-ui="shot-frame-label"]')?.textContent ?? ''

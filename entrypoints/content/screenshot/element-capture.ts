@@ -50,7 +50,7 @@ async function inlineImages(surface: HTMLElement): Promise<void> {
       const src = img.currentSrc || img.getAttribute('src')
       if (!src || src.startsWith('data:') || src.startsWith('blob:')) return
       try {
-        const response = await MessageUtils.sendMessage<{ dataUrl: string }>({
+        const response = await MessageUtils.sendMessage({
           type: 'FETCH_IMAGE',
           url: src,
         })
@@ -84,7 +84,7 @@ export async function captureElement(element: HTMLElement, options: ElementCaptu
   const background = opaqueBackground(element)
   surface.style.background = background
 
-  const clone = doc.importNode(element, true) as HTMLElement
+  const clone = doc.importNode(element, true)
   clone.removeAttribute('id')
   if (options.section) keepSectionChildren(element, clone, options.section)
   surface.appendChild(clone)
@@ -217,8 +217,8 @@ async function snapshotVideos(element: HTMLElement, clone: HTMLElement): Promise
       const copy = copies[index]!
       const frame = await currentVideoFrame(video)
       if (!frame) return
-      const view = copy.ownerDocument!.defaultView!
-      const img = copy.ownerDocument!.createElement('img')
+      const view = copy.ownerDocument.defaultView!
+      const img = copy.ownerDocument.createElement('img')
       img.src = frame
       img.alt = copy.getAttribute('alt') ?? ''
       // freeze the video's laid-out box onto the replacement so the
@@ -239,7 +239,7 @@ async function currentVideoFrame(video: HTMLVideoElement): Promise<string | null
   try {
     // A CORS-clean video (same-origin, data URL, or served with CORS headers)
     // can be drawn and read back directly.
-    const canvas = video.ownerDocument!.createElement('canvas')
+    const canvas = video.ownerDocument.createElement('canvas')
     canvas.width = video.videoWidth
     canvas.height = video.videoHeight
     canvas.getContext('2d')!.drawImage(video, 0, 0)
@@ -257,7 +257,7 @@ async function currentVideoFrame(video: HTMLVideoElement): Promise<string | null
  * the extension's own UI is hidden for the two frames it takes.
  */
 async function cropFrameFromViewport(video: HTMLVideoElement): Promise<string | null> {
-  const doc = video.ownerDocument!
+  const doc = video.ownerDocument
   const view = doc.defaultView!
   const box = video.getBoundingClientRect()
   const left = Math.max(0, box.left)
@@ -273,7 +273,7 @@ async function cropFrameFromViewport(video: HTMLVideoElement): Promise<string | 
   try {
     let dataUrl: string | undefined
     for (let retry = 0; retry < 3; retry++) {
-      const response = await MessageUtils.sendMessage<{ dataUrl: string }>({ type: 'CAPTURE_VISIBLE_TAB', requestId: `video-${retry}-${Date.now()}` })
+      const response = await MessageUtils.sendMessage({ type: 'CAPTURE_VISIBLE_TAB', requestId: `video-${retry}-${Date.now()}` })
       if (response.success && response.data?.dataUrl) {
         dataUrl = response.data.dataUrl
         break

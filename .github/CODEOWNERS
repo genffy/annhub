@@ -3,5 +3,8 @@
 /.github/               @genffy
 /.claude/               @genffy
 /package.json           @genffy
-/package-lock.json      @genffy
+/pnpm-lock.yaml         @genffy
+/pnpm-workspace.yaml    @genffy
 /website/package.json   @genffy
+/website/pnpm-lock.yaml @genffy
+/website/pnpm-workspace.yaml @genffy

@@ -215,7 +215,7 @@ test.describe('editing the original and the context in the drawer (extension.md 
       const drawer = library.locator('.drawer')
       const actions = await drawer.locator('.drawer-header button, .drawer-header a').evaluateAll(controls =>
         controls.map(control => ({
-          name: control.getAttribute('aria-label') ?? control.textContent!.trim(),
+          name: control.getAttribute('aria-label') ?? control.textContent.trim(),
           tag: control.tagName.toLowerCase(),
           top: Math.round(control.getBoundingClientRect().top),
           face: `${getComputedStyle(control).minHeight}/${getComputedStyle(control).backgroundColor}`,

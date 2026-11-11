@@ -1,3 +1,4 @@
+import type { TabMessage } from '../types/messages'
 import { readFile } from 'node:fs/promises'
 import { test, expect } from './fixtures'
 import { ensureServiceWorker, getCapturePageUrl, setSettings } from './helpers'
@@ -25,7 +26,7 @@ for (const name of ['encyclopedia', 'documentation', 'issue', 'x-rich-article', 
     const worker = await ensureServiceWorker(page.context())
     await worker.evaluate(async url => {
       const tab = (await chrome.tabs.query({})).find(item => item.url === url)!
-      await chrome.tabs.sendMessage(tab.id!, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' }, { frameId: 0 })
+      await chrome.tabs.sendMessage(tab.id!, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' } satisfies TabMessage, { frameId: 0 })
     }, page.url())
     await expect(page.locator('[data-ann-ui="download-notice"]')).toContainText('已下载', { timeout: 30_000 })
     const files = await worker.evaluate(async () => (await chrome.downloads.search({})).filter(item => item.state === 'complete'))

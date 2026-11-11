@@ -121,6 +121,7 @@ describe('inkToEditorAnnotations', () => {
       frame,
       dpr,
     )
+    if (!annotation) throw new Error('the ink produced no annotation')
     expect(annotation).toMatchObject({
       tool: 'pen',
       start: { x: 20, y: 20 },
@@ -158,6 +159,7 @@ describe('inkToEditorAnnotations', () => {
       frame,
       dpr,
     )
+    if (!first) throw new Error('the ink produced no annotation')
     expect(rest).toEqual([])
     expect(first.tool).toBe('pen')
     if (first.tool !== 'pen') return
@@ -262,6 +264,7 @@ describe('inkToEditorAnnotations', () => {
       frame,
       dpr,
     )
+    if (!annotation) throw new Error('the ink produced no annotation')
     expect(annotation).toMatchObject({ tool: 'line', start: { x: 20, y: 20 }, end: { x: 140, y: 20 }, width: 'thin' })
   })
 
@@ -345,6 +348,7 @@ describe('inkToEditorAnnotations', () => {
       frame,
       1,
     )
+    if (!annotation) throw new Error('the ink produced no annotation')
     expect(annotation.tool === 'pen' && annotation.points).toEqual([
       { x: 10, y: 10 },
       { x: 30, y: 30 },

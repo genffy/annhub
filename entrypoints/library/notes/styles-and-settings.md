@@ -21,7 +21,7 @@
 - 版式由 `e2e/popup-entry.spec.ts`（弹窗的宽度、暗色对比度）、`e2e/library-browse.spec.ts`（筛选条在 1180、1024、390 像素宽度下）和 `e2e/library-layout.spec.ts`（列表的卡片网格、设置页的行与控件、Markdown 表格、窄窗口图标栏）用 `getBoundingClientRect` 与 `getComputedStyle` 断言。
 - 设置页在 `.page-body` 里滚动（导航不跟着走，visual.md §4），内容是两列卡片网格（容器查询：内容宽窄于约 860 变一列）。
 - 每张卡片是容器（`container-type: inline-size`）：行在卡片窄于约 420 时改成上下排，按卡片宽度判断，不按视口写断点（视口 721 像素时卡片只有约 420 像素宽）。
-- 控件都是原生表单控件加样式，共用件在 `settings-card.tsx`（卡片与行）、`settings-switch.tsx`（`role="switch"`，读屏名称是行的功能名，`aria-labelledby`）、`settings-seg.tsx`（分段单选组）、`settings-slider.tsx`、`settings-posbox.tsx`、`settings-check-chip.tsx`、`settings-swatches.tsx`（色块取 `output.ts` 的 `backgroundCss`，不另抄色值）。
+- 控件都是原生表单控件加样式，共用件在 `settings-card.tsx`（卡片与行）、`settings-switch.tsx`（`role="switch"`，读屏名称是行的功能名，`aria-labelledby`）、`settings-seg.tsx`（分段单选组）、`settings-slider.tsx`、`settings-posbox.tsx`、`settings-check-chip.tsx`、`settings-swatches.tsx`（色块取 `utils/screenshot-output.ts` 的 `backgroundCss`，不另抄色值）。
 - 滑块拖动中只改本地值，`pointerup` / `keyup` / `blur` 才 `patch`，失败不丢值并提示（测试：`e2e/settings-drafts.spec.ts`）。
 - 层叠规则：容器上的通配规则会盖住类名上的外观（如 `.settings-view button` 会压掉 `.hl-dot-*` 的背景）。
 - 给一类控件设的上限会被同类名的复合控件继承（`.filter` 的 `max-width` 也套在带着这个类的日期范围上）。

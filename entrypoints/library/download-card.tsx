@@ -5,8 +5,8 @@
  * both per run; these are the defaults. The per-file prompt note is the
  * folder form's honest cost, with the ZIP advice (download.md §4.1).
  */
-import type { ExtensionSettings, SettingsPatch } from '../../background-service/settings-schema'
-import { uiText } from '../../utils/ui-text'
+import type { ExtensionSettings, SettingsPatch } from '../../core/settings'
+import { uiText } from './ui-text'
 import { SettingsCard, SettingsRow } from './settings-card'
 import { SettingsSegmentedControl } from './settings-seg'
 import { SettingsSwitch } from './settings-switch'

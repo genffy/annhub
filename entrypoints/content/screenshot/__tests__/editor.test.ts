@@ -20,7 +20,7 @@ import {
   type Point,
   type StepAnnotation,
 } from '../editor'
-import { ANNOTATION_COLORS } from '../editor'
+import { ANNOTATION_COLORS } from '../../../../core/screenshot-options'
 
 /**
  * The step badges of the screenshot editor (screenshot.md §1.1): how they are numbered, which one a press lands on,
@@ -47,9 +47,9 @@ describe('a badge’s number is its place in its sequence (screenshot.md §1.1)'
 
   it('closes the gap when one is deleted: the badges after it move up one', () => {
     const [first, second, third] = [step(10, 10), step(50, 10), step(90, 10)]
-    const deleted = [first!, second!, third!].filter(badge => badge !== second)
+    const deleted = [first, second, third].filter(badge => badge !== second)
     expect(numbersOf(deleted)).toEqual([1, 2])
-    expect(stepNumbers(deleted).get(third!), 'the third is the second now').toBe(2)
+    expect(stepNumbers(deleted).get(third), 'the third is the second now').toBe(2)
     expect(nextStepNumber(deleted, 0)).toBe(3)
   })
 
@@ -71,7 +71,7 @@ describe('a badge’s number is its place in its sequence (screenshot.md §1.1)'
 
   it('closes a gap inside its own sequence only', () => {
     const [a1, a2, a3, b1, b2] = [step(10, 10, 0), step(50, 10, 0), step(90, 10, 0), step(10, 60, 1), step(50, 60, 1)]
-    const deleted = [a1!, a2!, a3!, b1!, b2!].filter(badge => badge !== a1)
+    const deleted = [a1, a2, a3, b1, b2].filter(badge => badge !== a1)
     expect(numbersOf(deleted)).toEqual([1, 2, 1, 2])
     expect(nextStepNumber(deleted, 1), 'the current sequence goes on from where it was').toBe(3)
   })

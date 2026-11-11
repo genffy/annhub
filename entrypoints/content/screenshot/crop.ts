@@ -3,7 +3,7 @@
  * Selection rects come from a fixed-position overlay, so they are already in
  * viewport CSS coordinates; the captured PNG's pixels are device pixels.
  */
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 
 export interface ViewportRect {
   x: number

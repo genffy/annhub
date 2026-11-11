@@ -35,9 +35,9 @@ export function pixelateRegion(buffer: PixelBuffer, region: { x: number; y: numb
       for (let y = by; y < ey; y++) {
         for (let x = bx; x < ex; x++) {
           const i = (y * buffer.width + x) * 4
-          r += buffer.data[i]
-          g += buffer.data[i + 1]
-          b += buffer.data[i + 2]
+          r += buffer.data[i]!
+          g += buffer.data[i + 1]!
+          b += buffer.data[i + 2]!
           count++
         }
       }

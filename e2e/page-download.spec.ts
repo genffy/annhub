@@ -1,3 +1,4 @@
+import type { TabMessage } from '../types/messages'
 import { test, expect } from './fixtures'
 import { readFile } from 'node:fs/promises'
 import { ensureServiceWorker, getCapturePageUrl, setSettings, stopServiceWorker, triggerBlockMode } from './helpers'
@@ -60,12 +61,12 @@ function markdownOf(items: { mime: string; url: string }[]): string {
 }
 
 /** The popup's road: the page's main article (download.md §2.3). */
-async function downloadMainArticle(page: import('@playwright/test').Page, via = 'popup'): Promise<void> {
+async function downloadMainArticle(page: import('@playwright/test').Page, via: 'popup' | 'command' = 'popup'): Promise<void> {
   const worker = await ensureServiceWorker(page.context())
   await worker.evaluate(
     async payload => {
       const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === payload.url)
-      if (tab?.id !== undefined) await chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_DOWNLOAD_MAIN', via: payload.via }, { frameId: 0 })
+      if (tab?.id !== undefined) await chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_DOWNLOAD_MAIN', via: payload.via } satisfies TabMessage, { frameId: 0 })
     },
     { url: page.url(), via },
   )
@@ -275,7 +276,7 @@ test.describe('page downloads (download.md §2, §4, §5)', () => {
     const worker = await ensureServiceWorker(page.context())
     await worker.evaluate(async url => {
       const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === url)
-      if (tab?.id !== undefined) await chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' }, { frameId: 0 })
+      if (tab?.id !== undefined) await chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' } satisfies TabMessage, { frameId: 0 })
     }, page.url())
   }
 
@@ -352,7 +353,7 @@ test.describe('page downloads (download.md §2, §4, §5)', () => {
     // the button's own road: the message the popup sends to the page's top frame
     await popup.evaluate(async articleUrl => {
       const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === articleUrl)
-      if (tab?.id !== undefined) await chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' }, { frameId: 0 })
+      if (tab?.id !== undefined) await chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'popup' } satisfies TabMessage, { frameId: 0 })
     }, page.url())
     await popup.close()
     await waitForDoneNotice(page, '已下载')
@@ -408,7 +409,7 @@ test.describe('page downloads (download.md §2, §4, §5)', () => {
     const worker = await ensureServiceWorker(page.context())
     await worker.evaluate(async url => {
       const tab = (await chrome.tabs.query({})).find(candidate => candidate.url === url)
-      if (tab?.id !== undefined) await chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'command' }, { frameId: 0 })
+      if (tab?.id !== undefined) await chrome.tabs.sendMessage(tab.id, { type: 'TRIGGER_DOWNLOAD_MAIN', via: 'command' } satisfies TabMessage, { frameId: 0 })
     }, page.url())
     await expect(notice(page)).toContainText('没找到正文')
   })

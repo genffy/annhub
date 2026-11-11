@@ -4,7 +4,7 @@
  * cannot be captured (screenshot.md §2).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { DEFAULT_SETTINGS } from '../../../../background-service/settings-schema'
+import { DEFAULT_SETTINGS } from '../../../../core/settings'
 
 vi.mock('../../../../utils/logger', () => ({ Logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 

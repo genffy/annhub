@@ -1,6 +1,7 @@
 import { Logger } from '../utils/logger'
 import MessageUtils from '../utils/message'
-import type { BaseMessage, ExtensionMessage, ResponseMessage } from '../types/messages'
+import type { BaseMessage, ExtensionMessage, ResponseDataOf, ResponseMessage } from '../types/messages'
+import { REQUEST_ID_CACHED_TYPES } from '../types/messages'
 import { EXTENSION_PAGES, openExtensionPage } from '../utils/extension-pages'
 import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from './sender'
 
@@ -10,9 +11,9 @@ export type MessageHandler = (message: BaseMessage, sender: chrome.runtime.Messa
 
 type MessageOfType<K extends ExtensionMessage['type']> = Extract<ExtensionMessage, { type: K }>
 
-/** Each handler receives its own message shape; dispatch still looks handlers up by `type`. */
+/** Each handler receives its own message shape and answers the mapped response data — `undefined` for a refusal or failure (RV-BG-12); dispatch still looks handlers up by `type`. */
 export type MessageHandlers = {
-  [K in ExtensionMessage['type']]?: (message: MessageOfType<K>, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage>
+  [K in ExtensionMessage['type']]?: (message: MessageOfType<K>, sender: chrome.runtime.MessageSender) => Promise<ResponseMessage<ResponseDataOf<K> | undefined>>
 }
 
 export interface IService {
@@ -27,8 +28,7 @@ export interface IService {
   cleanup?(): Promise<void>
 }
 
-/** Creation messages a lost response must never duplicate on retry. */
-const IDEMPOTENT_TYPES = new Set(['SAVE_CLIP', 'SAVE_SCREENSHOT'])
+/** Creation messages a lost response must never duplicate on retry — the set comes from the protocol's coordination table (RV-BG-13). */
 const RESPONSE_CACHE_LIMIT = 64
 
 export class ServiceManager {
@@ -92,7 +92,7 @@ export class ServiceManager {
 
     const requestId = typeof message.requestId === 'string' ? message.requestId : ''
     const senderKey = `${sender.id ?? ''}:${sender.tab?.id ?? ''}:${sender.frameId ?? ''}:${sender.url ?? ''}`
-    const cacheKey = requestId && IDEMPOTENT_TYPES.has(message.type) ? `${senderKey}:${message.type}:${requestId}` : ''
+    const cacheKey = requestId && REQUEST_ID_CACHED_TYPES.has(message.type) ? `${senderKey}:${message.type}:${requestId}` : ''
     if (cacheKey && this.responseCache.has(cacheKey)) {
       return this.responseCache.get(cacheKey)!
     }
@@ -133,7 +133,7 @@ export class ServiceManager {
    */
   private getNavigationHandlers(): MessageHandlers {
     return {
-      OPEN_EXTENSION_PAGE: async (message, sender): Promise<ResponseMessage> => {
+      OPEN_EXTENSION_PAGE: async (message, sender) => {
         if (!isExtensionPageSender(sender) && !isSameOriginTabSender(sender)) return forbiddenResponse()
         if (!EXTENSION_PAGES.includes(message.page)) {
           return MessageUtils.createResponse(false, undefined, `Unknown extension page: ${String(message.page)}`)

@@ -18,7 +18,7 @@ function buffer(width: number, height: number, fill: (x: number, y: number) => [
 
 function pixel(buf: PixelBuffer, x: number, y: number): [number, number, number, number] {
   const i = (y * buf.width + x) * 4
-  return [buf.data[i], buf.data[i + 1], buf.data[i + 2], buf.data[i + 3]]
+  return [buf.data[i]!, buf.data[i + 1]!, buf.data[i + 2]!, buf.data[i + 3]!]
 }
 
 describe('pixelateRegion', () => {

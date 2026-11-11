@@ -15,7 +15,7 @@
  * that took the scrolling over) and a stall partway (a dialog locking the
  * scroller), which keeps what was stitched.
  */
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 import {
   STITCH_CAPS,
   STITCH_OVERLAP_CSS,

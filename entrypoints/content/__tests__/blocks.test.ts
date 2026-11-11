@@ -261,7 +261,7 @@ describe('composedParent crosses the light/shadow boundary', () => {
 describe('candidateRect and sectionIntervalRect (RV-CAP-13)', () => {
   it('candidateRect unions the sibling run of a range section', () => {
     document.body.innerHTML = '<div class="content"><h2 id="h">Heading</h2><p id="p">' + LONG.repeat(12) + '</p></div>'
-    const run = runSectionsFor(doc.querySelector('.content')!, doc.getElementById('p')!)![0]!
+    const run = runSectionsFor(doc.querySelector('.content')!, doc.getElementById('p')!)[0]!
     const original = Element.prototype.getBoundingClientRect
     Element.prototype.getBoundingClientRect = function (this: Element) {
       const index = ['h', 'p'].indexOf((this as HTMLElement).id)

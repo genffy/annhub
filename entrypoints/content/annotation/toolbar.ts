@@ -3,9 +3,10 @@
  * and the auto-erase chip, plus the undo/clear/screenshot/exit actions. Moved verbatim from
  * layer.ts; the layer state the controls read and write arrives as the host.
  */
-import { ANNOTATION_COLORS, isLineTool, type LineWidth, type ScreenshotTool } from '../screenshot/editor'
+import { isLineTool, type LineWidth, type ScreenshotTool } from '../screenshot/editor'
+import { ANNOTATION_COLORS } from '../../../core/screenshot-options'
 import { isUserInput } from '../user-input'
-import { uiText, type UiTextKey } from '../../../utils/ui-text'
+import { uiText, type UiTextKey } from '../ui-text'
 import { exitAnnotationLayer } from './layer'
 import { ROOT_ATTR } from './annotation-roots'
 import type { AutoErase, InkTool } from './layer'

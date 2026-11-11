@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import type { Highlight } from '../../../core/types'
 import { fold, PAGE_TEXT_CASES } from '../../../core/__tests__/fixtures/page-text'
 import { MarkdownView, parseBlocks, quoteForRange, renderedRuns, sourceRangeFromSelection, splitTableRow } from '../markdown-view'
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 
 /**
  * RK-13: rendered-selection ↔ source-offset conversion lives in one shared
@@ -73,7 +73,7 @@ describe('sourceRangeFromSelection', () => {
     const selection = window.getSelection()!
     selection.removeAllRanges()
     const range = document.createRange()
-    const spans = Array.from(root.querySelectorAll('span[data-s]')) as HTMLElement[]
+    const spans = Array.from(root.querySelectorAll<HTMLElement>('span[data-s]'))
     const locate = (absolute: number) => {
       const span = spans.find(el => Number(el.dataset.s) <= absolute && absolute <= Number(el.dataset.s) + (el.textContent?.length ?? 0))!
       return { node: span.firstChild!, offset: absolute - Number(span.dataset.s) }
@@ -190,7 +190,7 @@ describe('escaped source offsets and Markdown display (RV-LIB-09, RV-LIB-14)', (
     for (const word of ['beta', 'gamma', 'epsilon', 'theta']) {
       const span = Array.from(root.querySelectorAll<HTMLElement>('[data-s]')).find(node => node.textContent?.includes(word) && node.firstChild?.nodeType === Node.TEXT_NODE)!
       const text = span.firstChild as Text
-      const start = text.textContent!.indexOf(word)
+      const start = text.textContent.indexOf(word)
       const selection = window.getSelection()!
       selection.removeAllRanges()
       const range = document.createRange()

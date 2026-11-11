@@ -1,107 +1,42 @@
 /**
- * Screenshot capture UI chain — docs/product/screenshot.md.
- * Plain DOM (no React) for the session shell; the toolbar is a small React
- * island. One session element per trigger (idempotent enter()).
- *
- * Region mode: drag on the page → hide session (capture must not include it)
- * → CAPTURE_VISIBLE_TAB → crop → in-place editor.
- * Element mode: a click without drag rasterizes the clicked element via an
- * offscreen clone (can exceed the viewport); the block capsule's "截图"
- * jumps straight here with the block as target.
- * Anonymize ('A', default from settings): identity elements are covered
- * with gray placeholders before the shot (region: live overlays, element:
- * clone swap). Confirm saves a screenshot entry; copy and download are
- * independent of it and keep the session open.
- *
- * The session lives in the page's DOM, so the page's scripts can dispatch
- * events at it. Only the user's own pointer and keyboard input
- * (`isUserInput`) moves it along; a script cannot drag a region or click an
- * element for the user, which is what stands between a page and the
- * privileged capture and fetch calls behind them.
+ * Screenshot capture session — docs/product/screenshot.md. The session is the composition root:
+ * it owns the state machine and wires the parts (RV-CAP-18) — the drag (drag-frame), the hover
+ * picker, the confirming bar, the capture flows, the editor stage with its toolbar, badges, text
+ * box and beautify panel, the stitch run, the destinations and the frame memory. Plain DOM, no
+ * React (RV-CAP-16). Only the user's own input (`isUserInput`) moves it along: a page's script
+ * cannot drag a region or click an element for the user.
  */
 
-import MessageUtils from '../../../utils/message'
-import { screenshotFailureText, screenshotSaveErrorText, uiText, type UiTextKey } from '../../../utils/ui-text'
-import { renderHintBar } from './hint-bar'
+import { uiText } from '../ui-text'
 import { newEntryId } from '../../../core/assets'
-import { normalizeHost } from '../../../core/normalize'
-import { extractPageMeta, resolvePermalink } from '../page-meta'
 import { isUserInput } from '../user-input'
-import { sessionStyles } from './session-styles'
 import { ROOT_ATTR, ROOT_VALUE } from './session-roots'
-import { renderRatioBar } from './ratio-bar'
-import { pageElementsFromPoint } from './page-elements'
 import { createNoticeBubble, type NoticeBubble } from './notice-bubble'
-import { pointerSamples } from '../pointer-samples'
 import type { CaptureVia } from '../../../types/messages'
 import type { ViewportRect } from './crop'
-import { computeCropSource, CropError, intersectRects } from './crop'
-import { ALL_IDENTITY_PARTS, detectIdentityRects, type IdentityParts } from './detect'
-import { applyViewportAnonymization } from './anonymize'
-import { captureElement } from './element-capture'
-import { requestCapture } from './capture-rate'
-import { candidateRect, sectionIntervalRect } from '../blocks'
+import { intersectRects } from './crop'
+import { sectionIntervalRect } from '../blocks'
 import type { BlockCandidate } from '../blocks'
-import { chainForElement, layerLabel, startIndexOf } from '../target-chain'
-import { createElement } from 'react'
-import { flushSync } from 'react-dom'
-import { createRoot, type Root } from 'react-dom/client'
-import { ScreenshotToolbar } from './toolbar'
-import {
-  clampStep,
-  isLineTool,
-  nextStepNumber,
-  renderScreenshot,
-  snapLine,
-  stepAt,
-  stepNumbers,
-  stepRadius,
-  type Annotation,
-  type LineWidth,
-  type Point,
-  type ScreenshotTool,
-  type StepAnnotation,
-} from './editor'
-import {
-  applyBeautifyChange,
-  constrainToRatio,
-  constrainToRatioValue,
-  decodeWatermarkImage,
-  DEFAULT_BEAUTIFY,
-  downloadExtension,
-  downloadFormatFor,
-  downloadMime,
-  matteOnWhite,
-  placePanel,
-  placeSizeLabel,
-  previewBox,
-  ratioOf,
-  type BeautifySettings,
-  type DownloadFormat,
-  type WatermarkImage,
-} from './output'
-import { paintScreenshotDisplay } from './display'
-import { createBeautifyPanel, type BeautifyPanel } from './beautify-panel'
-import {
-  HANDLES,
-  boxWithinTolerance,
-  buildSelector,
-  collectEdges,
-  expandByMargin,
-  fitsInViewport,
-  handleAnchor,
-  nudgeBox,
-  pageStable,
-  resizeFromHandle,
-  sameFrame,
-  snapPoint,
-  type HandleId,
-} from './selection'
-import { readFrame, rememberFrame, type FrameRecord } from './frame-memory'
-import { permalinkForRegion } from './permalink'
-import { Stitcher, type StitchFailure } from './stitcher'
-import { inkToEditorAnnotations, inkToViewport, type InkStroke } from '../annotation/ink'
-import type { ExtensionSettings } from '../../../background-service/settings-schema'
+import { Destinations } from './destinations'
+import { LastFrame } from './last-frame'
+import { ConfirmBox } from './confirm-box'
+import { HoverPicker } from './hover-picker'
+import { Photographer } from './photographer'
+import { EditorStage } from './editor-stage'
+import { FrameDrag } from './drag-frame'
+import { CaptureFlow } from './capture-flow'
+import { StitchRun, stitchNotice } from './stitch-run'
+import { SessionKeys } from './session-keys'
+import { PageLinks } from './page-links'
+import { PickingChrome } from './picking-chrome'
+import { SessionPreferences } from './session-preferences'
+import { PendingFrame } from './pending-frame'
+import { ErrorPanel, announceSaved } from './error-panel'
+import { mountSessionShell, SWALLOWED_EVENT_TYPES } from './session-boot'
+import { applyBeautifyChange } from '../../../utils/screenshot-output'
+import { DEFAULT_BEAUTIFY, type BeautifySettings } from '../../../core/screenshot-options'
+import { buildSelector } from './selection'
+import type { InkStroke } from '../annotation/ink'
 
 let activeSession: ScreenshotSession | null = null
 
@@ -131,7 +66,7 @@ export function enterScreenshotMode(options: EnterScreenshotOptions = {}): void 
   activeSession.pendingInk = ink
   activeSession.onSessionExit = onExit
   activeSession.begin()
-  if (options.element) void activeSession.captureElementTarget(options.element, options.section)
+  if (options.element) void activeSession.captureElement(options.element, options.section)
   else if (options.initialRect) activeSession.beginWithInitialRect(options.initialRect)
 }
 
@@ -157,8 +92,6 @@ export function notifyScreenshotSession(message: string): boolean {
 }
 
 /** Page actions killed during the capture phase (RV-CAP-05). */
-const SWALLOWED_EVENT_TYPES = ['click', 'dblclick', 'auxclick', 'contextmenu', 'submit'] as const
-
 class ScreenshotSession {
   private readonly entryId = newEntryId()
   private readonly doc: Document
@@ -167,238 +100,377 @@ class ScreenshotSession {
   private state: 'selecting' | 'confirming' | 'capturing' | 'preview' | 'error' | 'done' = 'selecting'
   private selection: ViewportRect | null = null
   private selectionEl: HTMLDivElement | null = null
-  private previewEl: HTMLElement | null = null
   private overlayEl: HTMLDivElement | null = null
-  private toolbarEl: HTMLDivElement | null = null
-  private toolbarRoot: Root | null = null
-  private toolbarResizeObserver: ResizeObserver | null = null
   private sourceCanvas: HTMLCanvasElement | null = null
   private elementRect: ViewportRect | null = null
   /** Permalink of what the frame covered, resolved when the shot was taken. A live timeline can recycle the post while the user annotates. */
   private capturedSourceUrl: string | null = null
-  private maskBoxes: ViewportRect[] = []
-  private annotations: Annotation[] = []
   /** What undo goes back to, one entry per editing step: the annotations, and the sequence badges counted in, before it (screenshot.md §1.1). */
-  private history: Array<{ annotations: Annotation[]; stepSequence: number }> = []
   /** The sequence the next badge counts in; 重置计数 starts the next one. */
-  private stepSequence = 0
   /** The badge the step tool last pressed: the ring and its × mark it, and Delete or Backspace removes it. */
-  private selectedStep: StepAnnotation | null = null
   /** A badge is under the pointer, being put down or dragged; the ring waits until it is let go. */
-  private stepHeld = false
-  private stepRingEl: HTMLDivElement | null = null
-  private tool: ScreenshotTool = null
-  private color = '#e5484d'
   /** What the pen, the line and the highlighter draw at; like the colour, every screenshot starts from the default. */
-  private lineWidth: LineWidth = 'medium'
   private busy = false
   private exited = false
+  private readonly errorPanel: ErrorPanel
   private notice: { message: string; error: boolean } | undefined
   /** The success bubble above the toolbar; errors are the toolbar's own notice row. */
   private readonly bubble: NoticeBubble
-  private textInput: HTMLTextAreaElement | null = null
   /** Where on the capture the open text box was clicked. */
-  private textAt: Point = { x: 0, y: 0 }
   private selectionCleanup: (() => void) | null = null
   private drawingCleanup: (() => void) | null = null
-  private croppedCanvas: HTMLCanvasElement | null = null
-  private capturedDpr = 1
-  private anonymizeOn = true
+  private readonly flow: CaptureFlow
   /** Which identity kinds anonymization covers, from settings (screenshot.md §3). */
-  private anonymizeParts: IdentityParts = ALL_IDENTITY_PARTS
   /** The user pressed `A` before the settings arrived: their choice stands. */
-  private anonymizeToggled = false
   /** Settings arrive after the session starts; every capture waits for them. */
-  private settingsLoaded: Promise<void> = Promise.resolve()
   private via: CaptureVia
-  private settings: ExtensionSettings | null = null
   private ratio = 'free'
-  private ratioBarEl: HTMLDivElement | null = null
-  private watermarkOn = true
+  private readonly picking: PickingChrome
+  private settingsLoadedPromise: Promise<void> = Promise.resolve()
+  private readonly prefs: SessionPreferences
   /** The watermark picture, decoded once when the settings arrive so that drawing it is synchronous; `null` without one, or when the browser could not read it. */
-  private watermarkImage: WatermarkImage | null = null
-  private beautify: BeautifySettings = { ...DEFAULT_BEAUTIFY }
-  private beautifyPanel: BeautifyPanel | null = null
-  /** where the beautify panel is while it is open; it stays there as long as that place is free */
-  private panelSpot: { left: number; top: number } | null = null
+  private readonly destinations: Destinations
   /** What the preview shows, and what copy and download send: the capture composed with beautify and watermark. Always a canvas of its own. */
-  private displayCanvas: HTMLCanvasElement | null = null
   /** where the capture sits inside the display canvas (the padding of a beautified picture) */
-  private contentOrigin: Point = { x: 0, y: 0 }
   /** the preview on screen as last laid out */
-  private previewNow: ViewportRect | null = null
   // precise selection and repeatable frames (screenshot.md §1.2, §1.4)
-  private hoverEl: HTMLElement | null = null
-  private hoverChain: BlockCandidate[] = []
-  private hoverIndex = 0
-  private hoverOutlineEl: HTMLDivElement | null = null
-  private margin = 0
-  private marginBarEl: HTMLDivElement | null = null
-  private confirmBarEl: HTMLDivElement | null = null
-  private handleEls: HTMLDivElement[] = []
-  private frameLabelEl: HTMLDivElement | null = null
-  private frameLabel = ''
-  private snapXEl: HTMLDivElement | null = null
-  private snapYEl: HTMLDivElement | null = null
-  private shiftRatio: number | null = null
-  private pendingFrameRecord: FrameRecord | null = null
+  private readonly hover: HoverPicker
+  private readonly stage: EditorStage
+  private readonly photographer: Photographer
+  private readonly confirmBox: ConfirmBox
+  private readonly links!: PageLinks
+  private readonly pending: PendingFrame
+  private readonly drag: FrameDrag
+  private readonly lastFrame = new LastFrame()
   /** The frame as the memory offered it: confirmed untouched, it is still the element's frame and not a place (screenshot.md §1.4). */
-  private offeredFrame: ViewportRect | null = null
-  private reusedFrame = false
   /** The capture came out of the scroll stitcher (screenshot.md §1.5): the frame is stitched, not dragged or picked. */
   private stitched = false
-  private stitcher: Stitcher | null = null
+  private readonly stitchRun = new StitchRun()
   /** Page-annotation ink handed over with the trigger (annotate.md §1.3); consumed when the capture is in. */
   pendingInk: InkStroke[] | null = null
   /** The annotation layer's callback, run once when this session ends for any reason. */
   onSessionExit: (() => void) | null = null
-  private readonly onKeydown = (e: KeyboardEvent) => {
-    if (!isUserInput(e)) return
-    if (e.key === 'Escape') {
-      e.preventDefault()
-      e.stopPropagation()
-      if (this.textInput) {
-        this.commitText()
-        return
-      }
-      if (this.beautifyPanel) {
-        this.closeBeautifyPanel()
-        return
-      }
-      if (this.stitching) {
-        this.stitcher?.cancel()
-        return
-      }
-      exitScreenshotMode()
-      return
-    }
-    if (this.state === 'preview' && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
-      e.preventDefault()
-      this.undo()
-      return
-    }
-    if (this.state === 'preview' && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c' && !this.textInput) {
-      e.preventDefault()
-      void this.copyCurrent()
-      return
-    }
-    if (this.state === 'preview' && (e.key === 'Delete' || e.key === 'Backspace') && !this.textInput && this.shownStep()) {
-      e.preventDefault()
-      this.deleteSelectedStep()
-      return
-    }
-    // `A` works until the shot is taken: a pending frame (a released drag, the
-    // selection menu, the last frame) has not been captured yet
-    if ((this.state === 'selecting' || this.state === 'confirming') && (e.key === 'a' || e.key === 'A') && this.anonymizeAvailable()) {
-      e.preventDefault()
-      this.anonymizeOn = !this.anonymizeOn
-      this.anonymizeToggled = true
-      this.syncHint()
-    }
-    // the pending frame owns the arrows and Enter: there is no picker beside it to climb or to ask
-    if (this.state === 'confirming' && this.selection) {
-      const view = this.doc.defaultView!
-      if (e.key.startsWith('Arrow')) {
-        e.preventDefault()
-        this.selection = nudgeBox(this.selection, e.key as 'ArrowLeft', e.shiftKey, { width: view.innerWidth, height: view.innerHeight })
-        this.paintSelection()
-        return
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault()
-        void this.confirmSelection()
-        return
-      }
-    }
-    if (e.key === 'Shift' && this.state === 'selecting' && this.selection) {
-      this.shiftRatio = this.selection.height > 0 ? this.selection.width / this.selection.height : null
-    }
-    if (this.state === 'selecting' && this.hoverOutlineEl && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-      e.preventDefault()
-      this.hoverIndex = Math.max(0, Math.min(this.hoverChain.length - 1, this.hoverIndex + (e.key === 'ArrowUp' ? 1 : -1)))
-      this.paintHover()
-    }
-    if (this.state === 'preview' && (e.key === 'w' || e.key === 'W') && this.settings?.watermark.enabled) {
-      e.preventDefault()
-      this.watermarkOn = !this.watermarkOn
-      this.syncStatus()
-      this.refreshDisplay()
-    }
-    // The editor is modal for the keyboard: Tab stays inside the session's own
-    // controls instead of walking the masked page, where Enter on a link would
-    // navigate away and drop the shot. The text input keeps the
-    // browser's own Tab so typing still behaves as usual.
-    if (this.state === 'preview' && e.key === 'Tab' && !this.textInput) {
-      e.preventDefault()
-      this.cycleFocus(!e.shiftKey)
-    }
+  private keys!: SessionKeys
+
+  private makeKeys(doc: Document): SessionKeys {
+    return new SessionKeys({
+      doc,
+      host: () => this.host,
+      state: () => this.state,
+      selection: () => this.selection,
+      viewport: () => {
+        const view = this.doc.defaultView!
+        return { width: view.innerWidth, height: view.innerHeight }
+      },
+      textInputOpen: () => this.stage.text.isOpen,
+      closeTextInput: () => {
+        if (!this.stage.text.isOpen) return false
+        this.stage.text.commit()
+        return true
+      },
+      closeBeautify: () => {
+        if (!this.stage.beautify.isOpen) return false
+        this.stage.beautify.close()
+        return true
+      },
+      cancelStitch: () => {
+        if (!this.stitching) return false
+        this.stitchRun.cancel()
+        return true
+      },
+      exit: () => exitScreenshotMode(),
+      undo: () => this.stage.undo(),
+      copy: () => {
+        if (this.stage.text.isOpen) return false
+        this.runDestination(busy => this.destinations.copy(busy))
+        return true
+      },
+      deleteStep: () => {
+        if (this.stage.text.isOpen || !this.stage.steps.shown()) return false
+        this.stage.steps.deleteSelected()
+        return true
+      },
+      toggleAnonymize: () => {
+        if (!this.prefs.anonymizeAvailable()) return false
+        this.prefs.anonymizeOn = !this.prefs.anonymizeOn
+        this.prefs.anonymizeToggled = true
+        this.picking.sync()
+        return true
+      },
+      nudgeSelection: box => {
+        this.selection = box
+        this.confirmBox.paint()
+      },
+      confirmSelection: () => void this.confirmSelection(),
+      noteShift: () => this.drag.noteShift(),
+      climbHover: direction => {
+        if (!this.hover.isPainted) return false
+        this.hover.climb(direction)
+        return true
+      },
+      toggleWatermark: () => {
+        if (!this.prefs.settings?.watermark.enabled) return false
+        this.prefs.watermarkOn = !this.prefs.watermarkOn
+        this.syncStatus()
+        this.stage.refreshDisplay()
+        return true
+      },
+    })
   }
 
-  /** Focusables of the session's own UI, in document order. */
-  private sessionFocusables(): HTMLElement[] {
-    if (!this.host.isConnected) return []
-    return Array.from(this.host.querySelectorAll<HTMLElement>('button, input, select, [tabindex]:not([tabindex="-1"])')).filter(
-      el => !el.hasAttribute('disabled') && el.offsetParent !== null,
-    )
-  }
-
-  private cycleFocus(forward: boolean): void {
-    const items = this.sessionFocusables()
-    if (items.length === 0) return
-    const current = items.indexOf(this.doc.activeElement as HTMLElement)
-    const next = current < 0 ? 0 : (current + (forward ? 1 : -1) + items.length) % items.length
-    items[next]!.focus()
-  }
+  private readonly onKeydown = (e: KeyboardEvent) => this.keys.onKeyDown(e)
 
   constructor(doc: Document, via: CaptureVia) {
     this.doc = doc
     this.via = via
     this.host = doc.createElement('div')
     this.host.setAttribute(ROOT_ATTR, ROOT_VALUE)
+    this.prefs = new SessionPreferences({
+      doc,
+      exited: () => this.exited,
+      watermarkImageLoaded: image => {
+        if (image && this.state === 'preview') this.stage.refreshDisplay()
+      },
+      loaded: () => {
+        this.picking.sync()
+        // a frame handed over by the selection menu is pending, not captured, and needs no picking chips
+        if (this.state === 'selecting') void this.offerPicking()
+      },
+    })
+    this.settingsLoadedPromise = this.prefs.load()
+    this.errorPanel = new ErrorPanel(doc, this.host, () => exitScreenshotMode())
+    this.pending = new PendingFrame({
+      doc,
+      host: () => this.host,
+      state: () => this.state,
+      setState: state => (this.state = state),
+      selection: () => this.selection,
+      setSelection: rect => (this.selection = rect),
+      selectionElement: () => this.selectionEl,
+      setSelectionElement: el => (this.selectionEl = el),
+      pageDim: dimmed => {
+        if (this.overlayEl) this.overlayEl.style.background = dimmed ? '' : 'transparent'
+      },
+      clearHover: () => this.hover.clear(),
+      clearRatioBar: () => this.picking.clearRatioBar(),
+      syncHint: () => this.picking.sync(),
+      setConfirmShield: on => this.setConfirmShield(on),
+      confirmBox: () => this.confirmBox,
+      forgetFrame: () => this.lastFrame.reset(),
+      adoptFrame: selection => {
+        const view = this.doc.defaultView!
+        this.lastFrame.adopted(selection, { x: view.scrollX, y: view.scrollY })
+      },
+      captureRegion: () => void this.flow.region(),
+    })
+    this.links = new PageLinks(doc, this.host)
+    this.picking = new PickingChrome({
+      doc,
+      host: () => this.host,
+      hintElement: () => this.hintEl,
+      pending: () => this.state === 'confirming',
+      anonymize: () => (this.prefs.anonymizeAvailable() ? { on: this.prefs.anonymizeOn } : null),
+      watermark: () => (this.prefs.settings?.watermark.enabled ? { on: this.prefs.watermarkOn } : null),
+      ratio: () => this.ratio,
+      presets: () => this.prefs.settings?.ratioPresets ?? [],
+      onRatio: id => {
+        this.ratio = id
+        this.picking.showRatioBar()
+      },
+      onStitch: () => void this.beginStitching(),
+    })
+    this.keys = this.makeKeys(doc)
+    this.stage = new EditorStage({
+      doc,
+      host: () => this.host,
+      inPreview: () => this.state === 'preview',
+      busy: () => this.busy,
+      notice: () => this.notice,
+      anonymize: () => (this.prefs.anonymizeAvailable() ? this.prefs.anonymizeOn : null),
+      watermark: () => (this.prefs.settings?.watermark.enabled ? this.prefs.watermarkOn : null),
+      selection: () => this.selection,
+      source: () => this.sourceCanvas,
+      elementRect: () => this.elementRect,
+      clearPickingUi: () => {
+        this.selectionEl?.remove()
+        this.selectionEl = null
+        this.picking.hide()
+        this.overlayEl?.style.setProperty('background', 'transparent')
+      },
+      dimPageAgain: () => this.setConfirmShield(false),
+      beautify: () => this.prefs.beautify,
+      changeBeautify: patch => this.changeBeautify(patch),
+      resetBeautify: () => this.resetBeautify(),
+      ratioPresets: () => this.prefs.settings?.ratioPresets ?? [],
+      paintOptions: () => ({
+        watermarkOn: this.prefs.watermarkOn,
+        watermark: this.prefs.settings?.watermark,
+        watermarkImage: this.prefs.watermarkImage,
+        via: this.via,
+        dpr: this.flow.dpr,
+      }),
+      exit: () => exitScreenshotMode(),
+      copy: () => this.runDestination(busy => this.destinations.copy(busy)),
+      download: () => this.runDestination(busy => this.destinations.download(busy)),
+      save: () => this.runDestination(busy => this.destinations.save(busy)),
+      registerDrawingCleanup: cleanup => (this.drawingCleanup = cleanup),
+    })
+    this.destinations = new Destinations({
+      doc,
+      entryId: () => this.entryId,
+      via: () => this.via,
+      settings: () => this.prefs.settings,
+      croppedCanvas: () => this.stage.editingCanvas,
+      displayCanvas: () => this.stage.display,
+      beautifyEnabled: () => this.prefs.beautify.enabled,
+      watermarkOn: () => this.prefs.watermarkOn,
+      frameKind: () => (this.stitched ? 'stitched' : this.lastFrame.reused ? 'reused' : this.elementRect ? 'element' : 'drag'),
+      sourceUrl: () => this.capturedSourceUrl ?? this.links.url(),
+      rememberFrame: () => this.lastFrame.remember(this.doc, this.selection),
+      say: (message, isError) => this.showNotice(message, isError === true),
+      saved: () => {
+        announceSaved(this.doc)
+        exitScreenshotMode()
+      },
+    })
+    this.hover = new HoverPicker({
+      doc,
+      host: () => this.host,
+      picking: () => this.state === 'selecting' && !this.selectionEl,
+      pageElements: (x, y) => this.links.elementsAt(x, y),
+    })
+    this.drag = new FrameDrag({
+      doc,
+      host: () => this.host,
+      selection: () => this.selection,
+      setSelection: rect => (this.selection = rect),
+      selectionElement: () => this.selectionEl,
+      setSelectionElement: el => (this.selectionEl = el),
+      pageDim: dimmed => {
+        if (this.overlayEl) this.overlayEl.style.background = dimmed ? '' : 'transparent'
+      },
+      edgeRectsUnder: (x, y) => this.links.edgeRectsUnder(x, y),
+      ratio: () => this.ratio,
+      paintSnapGuides: snapped => this.confirmBox.paintSnapGuides(snapped),
+      clearSnapGuides: () => this.confirmBox.clearSnapGuides(),
+      frameReplaced: () => (this.lastFrame.reused = false),
+      click: (x, y, wasConfirming) => {
+        if (wasConfirming) this.hover.track(x, y)
+        else this.clickHoveredLayer()
+      },
+      released: () => this.enterConfirming(),
+      registerCleanup: cleanup => (this.selectionCleanup = cleanup),
+    })
+    this.confirmBox = new ConfirmBox({
+      doc,
+      host: () => this.host,
+      selection: () => this.selection,
+      setSelection: rect => (this.selection = rect),
+      selectionElement: () => this.selectionEl,
+      viewport: () => {
+        const view = this.doc.defaultView!
+        return { width: view.innerWidth, height: view.innerHeight }
+      },
+      confirm: () => void this.confirmSelection(),
+      cancel: () => exitScreenshotMode(),
+    })
+    this.flow = new CaptureFlow({
+      doc,
+      exited: () => this.exited,
+      shoot: () => this.photographer.shoot(),
+      settingsLoaded: () => this.settingsLoadedPromise,
+      selection: () => this.selection,
+      setSelection: rect => (this.selection = rect),
+      regionPermalink: rect => this.links.regionPermalink(rect),
+      elementPermalink: node => this.links.elementPermalink(node),
+      anonymize: () => ({ on: this.prefs.anonymizeOn, parts: this.prefs.anonymizeParts }),
+      fail: message => this.showError(message),
+      takeInk: () => {
+        const ink = this.pendingInk
+        this.pendingInk = null
+        return ink ?? []
+      },
+      say: message => this.showNotice(message),
+      handOver: (capture, dpr, ink, masks, elementRect, sourceUrl) => {
+        this.sourceCanvas = capture
+        this.elementRect = elementRect
+        this.capturedSourceUrl = sourceUrl
+        this.stage.attach(capture, dpr, ink, masks)
+        this.state = 'preview'
+        this.stage.open()
+      },
+      adoptLayerFrame: (layer, box, margin) => {
+        const view = this.doc.defaultView!
+        this.lastFrame.adoptElement(
+          layer.range
+            ? { kind: 'box', pageX: box.left + view.scrollX, pageY: box.top + view.scrollY, width: box.width, height: box.height }
+            : {
+                kind: 'element',
+                selector: buildSelector(layer.element),
+                margin,
+                width: box.width,
+                height: box.height,
+                pageX: box.left + view.scrollX,
+                pageY: box.top + view.scrollY,
+              },
+        )
+        this.lastFrame.reused = false
+      },
+      frameTooBig: () => {
+        this.lastFrame.reset()
+        this.state = 'selecting'
+        this.showNotice(uiText('shot.frameTooBig'))
+      },
+      adoptElementFrame: (target, section) => {
+        const view = this.doc.defaultView!
+        const box = section ? sectionIntervalRect(target, section) : target.getBoundingClientRect()
+        this.lastFrame.adoptElement(
+          section
+            ? { kind: 'box', pageX: box.left + view.scrollX, pageY: box.top + view.scrollY, width: box.width, height: box.height }
+            : {
+                kind: 'element',
+                selector: buildSelector(target),
+                margin: 0,
+                width: box.width,
+                height: box.height,
+                pageX: box.left + view.scrollX,
+                pageY: box.top + view.scrollY,
+              },
+        )
+        this.lastFrame.reused = false
+      },
+      beginCapture: () => {
+        this.state = 'capturing'
+        this.setConfirmShield(false)
+      },
+    })
+    this.photographer = new Photographer({
+      doc,
+      hide: () => (this.host.style.display = 'none'),
+      restore: () => (this.host.style.display = ''),
+      cancelled: () => this.exited,
+    })
     this.bubble = createNoticeBubble(doc, this.host, {
-      toolbarBox: () => (this.toolbarEl?.isConnected ? this.toolbarEl.getBoundingClientRect() : null),
+      toolbarBox: () => {
+        const el = this.stage.toolbarElement
+        return el?.isConnected ? el.getBoundingClientRect() : null
+      },
       textNode: text => this.textNode(text),
     })
   }
 
   begin(): void {
-    const style = this.doc.createElement('style')
-    // The picking hints, the size label, the editor toolbar with its rows and the
-    // success bubble are one always-dark pill set over the dimmed page (visual.md
-    // §2): the --annov-pill-* tokens never follow the system appearance. The
-    // text box and the error card are form-style surfaces and keep the theme
-    // tokens. The selection blue marks the page's content, not a surface, and
-    // stays what the AGENTS notes say: #4c91ff for both appearances — the draft's
-    // #3b82f6 reads worse against the dimmed page (1.29:1 vs 1.53:1 on white).
-    style.textContent = sessionStyles
-    this.host.appendChild(style)
-
-    const overlay = this.doc.createElement('div')
-    overlay.className = 'ann-shot-overlay'
-    overlay.setAttribute(ROOT_ATTR, 'screenshot-overlay')
-    this.overlayEl = overlay
-    const hint = this.doc.createElement('div')
-    hint.className = 'ann-shot-hint'
-    this.hintEl = hint
-    overlay.appendChild(hint)
-    this.host.appendChild(overlay)
-
-    this.doc.documentElement.appendChild(this.host)
-    this.doc.addEventListener('keydown', this.onKeydown, true)
-    this.doc.addEventListener('focus', this.onFocus, true)
-    // Selecting leaves the host pointer-events:none so a click still hits the
-    // page element the element path wants. Confirming adds ann-shot-modal,
-    // which takes the pointer so the page underneath cannot (issue #108).
-    this.doc.addEventListener('pointerdown', this.onPointerDown, true)
-    this.doc.addEventListener('pointermove', this.onHoverMove, true)
-    // Cancelling pointerdown does not stop the click that follows it: without
-    // this swallow, picking a link or button as the element target fires the
-    // page's own action (screenshot.md §2, RV-CAP-05).
-    for (const type of SWALLOWED_EVENT_TYPES) {
-      this.doc.addEventListener(type, this.onSwallowPageAction, true)
-    }
-    this.syncHint()
-    this.settingsLoaded = this.loadAnonymizeDefault()
+    const shell = mountSessionShell(this.doc, this.host, {
+      onKeydown: this.onKeydown,
+      onFocus: this.onFocus,
+      onPointerDown: this.onPointerDown,
+      onHoverMove: this.onHoverMove,
+      onSwallowPageAction: this.onSwallowPageAction,
+    })
+    this.overlayEl = shell.overlay
+    this.hintEl = shell.hint
+    this.picking.sync()
+    this.settingsLoadedPromise = this.prefs.load()
   }
 
   /** Kills a page action during the capture phase; the session's own UI keeps working. */
@@ -411,82 +483,29 @@ class ScreenshotSession {
     event.stopPropagation()
   }
 
-  private async loadAnonymizeDefault(): Promise<void> {
-    const response = await MessageUtils.sendMessage<ExtensionSettings>({ type: 'GET_SETTINGS' })
-    if (this.exited || !response.success || !response.data) return
-    this.settings = response.data
-    // every capture waits for this, so no shot is taken before the defaults
-    // are in: the block capsule's shot starts together with the session
-    this.anonymizeParts = { avatar: response.data.anonymizeAvatars, name: response.data.anonymizeNames }
-    if (!this.anonymizeToggled) this.anonymizeOn = response.data.anonymizeDefault
-    this.watermarkOn = response.data.watermark.enabled
-    this.beautify = { ...response.data.beautify }
-    if (response.data.watermark.enabled && response.data.watermark.image) void this.loadWatermarkImage(response.data.watermark.image)
-    this.syncHint()
-    // a frame handed over by the selection menu is pending, not captured, and needs no picking chips
-    if (this.state === 'selecting') void this.offerPicking()
-  }
-
   /**
    * The memory has its say first, then the picking chips: a frame offered a round trip after the session opened
    * must not find the chips already on the screen beside it. Not part of `settingsLoaded` — no shot waits for it.
    */
   private async offerPicking(): Promise<void> {
-    await this.restoreRememberedFrame()
+    await this.pending.restore(
+      () => this.lastFrame.offer(this.doc),
+      // the frame arrives a worker round trip after the session opened: a pointer that is already picking its
+      // own target, or a drag under way, keeps it, and the frame waits for the next trigger
+      () => !this.exited && this.state === 'selecting' && !this.hover.hasTarget && !this.selectionEl,
+    )
     if (this.exited || this.state !== 'selecting' || this.stitching) return
-    this.showRatioBar()
-  }
-
-  /**
-   * Decodes the watermark picture, once per session. A preview that is already up gets it as soon as it is ready; a picture
-   * the browser cannot read stays `null` and the text is written without it (screenshot.md §5).
-   */
-  private async loadWatermarkImage(dataUrl: string): Promise<void> {
-    const image = await decodeWatermarkImage(dataUrl, this.doc)
-    if (this.exited) return
-    this.watermarkImage = image
-    if (image && this.state === 'preview') this.refreshDisplay()
+    this.picking.showRatioBar()
   }
 
   private readonly onFocus = (): void => {
-    this.syncHint()
-  }
-
-  private syncHint(): void {
-    if (!this.hintEl) return
-    renderHintBar(this.doc, this.hintEl, {
-      pending: this.state === 'confirming',
-      anonymize: this.anonymizeAvailable() ? { on: this.anonymizeOn } : null,
-      watermark: this.settings?.watermark.enabled ? { on: this.watermarkOn } : null,
-      textNode: text => this.textNode(text),
-      kbdNode: key => this.kbdNode(key),
-    })
+    this.picking.sync()
   }
 
   /** The anonymity/watermark state moved: the picking hint reads it, and so does the editor's status strip. */
   private syncStatus(): void {
-    this.syncHint()
-    this.updateToolbar()
-  }
-
-  private anonymizeAvailable(): boolean {
-    return this.anonymizeParts.avatar || this.anonymizeParts.name
-  }
-
-  /** The selection bar's ratio chips: 自由 plus the presets enabled in settings (screenshot.md §1.3). */
-  private showRatioBar(): void {
-    if (!this.settings || this.settings.ratioPresets.length === 0) return
-    this.ratioBarEl?.remove()
-    this.ratioBarEl = renderRatioBar(this.doc, this.host, {
-      ratio: this.ratio,
-      presets: this.settings.ratioPresets,
-      textNode: text => this.textNode(text),
-      onRatio: id => {
-        this.ratio = id
-        this.showRatioBar()
-      },
-      onStitch: () => void this.beginStitching(),
-    })
+    this.picking.sync()
+    this.stage.updateToolbar()
   }
 
   // ── scrolling long screenshot (screenshot.md §1.5) ────────────────
@@ -494,108 +513,57 @@ class ScreenshotSession {
   private stitching = false
 
   private async beginStitching(): Promise<void> {
-    // the button lives on the picking chips: a pending frame has none, and is let go with a click outside first
-    if (this.stitching || this.state !== 'selecting') return
-    // a transparent catcher holds the pointer off the page's hover styles for the whole run
-    const sweeper = this.doc.createElement('div')
-    sweeper.setAttribute(ROOT_ATTR, 'screenshot-hover-sweeper')
-    Object.assign(sweeper.style, { position: 'fixed', inset: '0', pointerEvents: 'auto', background: 'transparent', zIndex: '2147483646' })
-    this.doc.documentElement.appendChild(sweeper)
-    const stitcher = new Stitcher({
+    await this.stitchRun.begin({
       doc: this.doc,
-      capture: async () => {
-        // the shot photographs the screen: the session's overlay and UI hide
-        // for the moment, and the cursor highlight of a recording with them
-        this.host.style.display = 'none'
-        this.doc.dispatchEvent(new CustomEvent('annhub:capture-hide'))
-        try {
-          await doubleRaf()
-          // the same rate-limit-aware path the region capture takes
-          const response = await requestCapture(() => this.exited)
-          if (!response.success || !response.data?.dataUrl) throw new Error(response.error ?? 'capture failed')
-          return response.data.dataUrl
-        } finally {
-          this.host.style.display = ''
-          this.doc.dispatchEvent(new CustomEvent('annhub:capture-restore'))
-        }
+      hideUi: () => (this.host.style.display = 'none'),
+      restoreUi: () => (this.host.style.display = ''),
+      exited: () => this.exited,
+      alreadyRunning: () => this.stitching,
+      clearPicking: () => {
+        this.stitching = true
+        this.hover.clear()
+        this.selectionEl?.remove()
+        this.selectionEl = null
+        this.hintEl?.style.setProperty('display', 'none')
+      },
+      gaveUp: code => {
+        this.stitching = false
+        this.state = 'selecting'
+        this.picking.unhideHint()
+        this.pending.letGo()
+        this.picking.showRatioBar()
+        if (code !== 'cancel') this.showExternalNotice(stitchNotice(code))
+      },
+      capped: () => this.showNotice(uiText('shot.stitch.capped'), false),
+      beginCaptureState: () => {
+        this.stitching = false
+        this.state = 'capturing'
+      },
+      settingsLoaded: () => this.settingsLoadedPromise,
+      finished: async (result, startLeft, startTop) => {
+        // the ink on the page is screen-fixed at this point: it lands on the first
+        // segment, where it was drawn (annotate.md §1.3, screenshot.md §1.5)
+        this.selection = { x: 0, y: 0, width: result.widthCss, height: result.heightCss }
+        this.flow.dpr = result.dpr
+        this.stitched = true
+        this.lastFrame.reset()
+        this.capturedSourceUrl = this.links.url()
+        this.sourceCanvas = result.canvas
+        this.stage.attach(result.canvas, result.dpr, this.flow.consumeInkStitched(startLeft, startTop, result.widthCss, result.heightCss), [])
+        this.state = 'preview'
+        this.stage.open()
       },
     })
-    this.stitcher = stitcher
-    this.stitching = true
-    // every ending — stitched, stalled, cancelled or discarded — scrolls the page back to here
-    const startTop = this.doc.scrollingElement?.scrollTop ?? 0
-    const startLeft = this.doc.scrollingElement?.scrollLeft ?? 0
-    this.clearHoverUi()
-    this.selectionEl?.remove()
-    this.selectionEl = null
-    this.ratioBarEl?.remove()
-    this.ratioBarEl = null
-    this.hintEl?.style.setProperty('display', 'none')
-    let failure: StitchFailure | 'capture' | null = null
-    let result: Awaited<ReturnType<Stitcher['run']>> | undefined
-    try {
-      result = await stitcher.run()
-    } catch (error) {
-      // the stitcher throws its own reason as a string; any other error is a shot that did not come back
-      failure = typeof error === 'string' ? (error as StitchFailure) : 'capture'
-    }
-    this.stitching = false
-    this.stitcher = null
-    sweeper.remove()
-    // every ending — stitched, stalled, cancelled, discarded or the session
-    // replaced mid-run — scrolls the page back to where it started
-    const scroller = this.doc.scrollingElement
-    if (scroller) {
-      scroller.scrollTop = startTop
-      scroller.scrollLeft = startLeft
-    }
-    if (this.exited) return
-    if (!result) {
-      // nothing was stitched, or the run was discarded: back to selecting, with the reason when there is one
-      this.state = 'selecting'
-      this.hintEl?.style.removeProperty('display')
-      this.backToPicking()
-      const code = failure ?? 'scripted'
-      if (code === 'zoomed') this.showExternalNotice(uiText('shot.stitch.zoom'))
-      else if (code === 'capture') this.showExternalNotice(uiText('shot.error.capture'))
-      else if (code !== 'cancel') this.showExternalNotice(uiText(`shot.stitch.${code}` as UiTextKey))
-      return
-    }
-    if (result.stop !== 'bottom') this.showNotice(uiText('shot.stitch.capped'), false)
-    this.state = 'capturing'
-    await this.settingsLoaded
-    if (this.exited) return
-    // the ink on the page is screen-fixed at this point: it lands on the first
-    // segment, where it was drawn (annotate.md §1.3, screenshot.md §1.5)
-    this.selection = { x: 0, y: 0, width: result.widthCss, height: result.heightCss }
-    this.croppedCanvas = result.canvas
-    this.capturedDpr = result.dpr
-    this.stitched = true
-    this.pendingFrameRecord = null
-    this.capturedSourceUrl = this.pageUrl()
-    this.maskBoxes = []
-    this.prepareEditor(this.consumeInkStitched(startLeft, startTop, result.widthCss, result.heightCss))
-    this.state = 'preview'
-    this.showPreview()
   }
+
   private textNode(t: string): Text {
     return this.doc.createTextNode(t)
   }
-  /** A key name as a keycap on the dark pill (the draft's translucent `<kbd>`). */
-  private kbdNode(t: string): HTMLElement {
-    const kbd = this.doc.createElement('kbd')
-    kbd.textContent = t
-    return kbd
-  }
-
   exit(): void {
     this.exited = true
     this.selectionCleanup?.()
     this.drawingCleanup?.()
-    this.toolbarResizeObserver?.disconnect()
-    this.toolbarResizeObserver = null
-    this.toolbarRoot?.unmount()
-    this.toolbarRoot = null
+    this.stage.close()
     this.doc.removeEventListener('keydown', this.onKeydown, true)
     this.doc.removeEventListener('focus', this.onFocus, true)
     this.doc.removeEventListener('pointerdown', this.onPointerDown, true)
@@ -603,23 +571,17 @@ class ScreenshotSession {
     for (const type of SWALLOWED_EVENT_TYPES) {
       this.doc.removeEventListener(type, this.onSwallowPageAction, true)
     }
-    this.clearConfirmUi()
-    this.clearHoverUi()
+    this.confirmBox.clear()
+    this.hover.clear()
     this.bubble.dispose()
     // a session replaced while its scrolling capture runs stops the stitcher:
     // otherwise it keeps scrolling and photographing an orphaned page
-    this.stitcher?.cancel()
-    this.stitcher = null
+    this.stitchRun.cancel()
     this.stitching = false
     this.host.remove()
     this.selectionEl = null
-    this.previewEl = null
-    this.toolbarEl = null
-    this.ratioBarEl = null
-    this.beautifyPanel = null
-    this.watermarkImage = null
-    this.displayCanvas = null
-    this.croppedCanvas = null
+    this.picking.clearRatioBar()
+    this.prefs.watermarkImage = null
     this.sourceCanvas = null
     this.state = 'done'
     const notifyExit = this.onSessionExit
@@ -631,17 +593,17 @@ class ScreenshotSession {
 
   // ── region selection / element pick (document-level) ─────────────
 
-  private onHoverMove = (e: PointerEvent): void => {
-    if (!isUserInput(e)) return
-    this.trackHover(e.clientX, e.clientY)
-  }
-
   /**
    * Confirming is modal (issue #108). Selecting stays click-through so the
    * element path can see the page; the class is what the stylesheet and the
    * block capsule both read. Inline pointer-events wins over that rule while
    * a hit-test momentarily looks through the shield.
    */
+  private readonly onHoverMove = (e: PointerEvent): void => {
+    if (!isUserInput(e)) return
+    this.hover.track(e.clientX, e.clientY)
+  }
+
   private setConfirmShield(on: boolean): void {
     this.host.classList.toggle('ann-shot-modal', on)
     this.host.style.pointerEvents = on ? 'auto' : ''
@@ -651,52 +613,16 @@ class ScreenshotSession {
   }
 
   /** Confirm, cancel, handles, and the ratio / margin bars own their pointer events. */
-  private isShotChrome(target: EventTarget | null): boolean {
-    if (!(target instanceof Element) || !this.host.contains(target)) return false
-    return Boolean(target.closest('.ann-shot-confirm-bar, .ann-shot-handle, [data-ann-ui="screenshot-ratio-bar"], .ann-shot-margin-bar, .ann-shot-toolbar, .ann-shot-preview'))
-  }
-
   private pointerInSelection(x: number, y: number): boolean {
     const box = this.selection
     if (!box) return false
     return x >= box.x && x <= box.x + box.width && y >= box.y && y <= box.y + box.height
   }
 
-  private pageUrl(): string {
-    return this.doc.defaultView?.location.href ?? ''
-  }
-
-  /**
-   * Permalink for a dragged (or element-via-region) frame. Resolved before the
-   * shot, while the post is still the one on screen (capture.md §5).
-   */
-  private rememberRegionPermalink(rect: ViewportRect): void {
-    this.capturedSourceUrl = permalinkForRegion(rect, this.pageUrl(), (x, y) => this.elementsAt(x, y))
-  }
-
-  /** Permalink for an element shot: the block itself, same rule as a block clip. */
-  private rememberElementPermalink(node: Node): void {
-    this.capturedSourceUrl = resolvePermalink(node, this.pageUrl())
-  }
-
-  /** Page elements under a viewport point, clamped, through the confirm shield. */
-  private elementsAt(x: number, y: number): Element[] {
-    const view = this.doc.defaultView
-    if (!view) return []
-    const maxX = Math.max(0, view.innerWidth - 1)
-    const maxY = Math.max(0, view.innerHeight - 1)
-    return this.pageElementsFromPoint(Math.min(Math.max(0, x), maxX), Math.min(Math.max(0, y), maxY))
-  }
-
-  /** elementsFromPoint through the confirm shield, without leaving it down. */
-  private pageElementsFromPoint(x: number, y: number): Element[] {
-    return pageElementsFromPoint(this.doc, this.host, x, y)
-  }
-
   private onPointerDown = (e: PointerEvent) => {
     if (this.state !== 'selecting' && this.state !== 'confirming') return
     if (!isUserInput(e)) return
-    if (this.isShotChrome(e.target)) return
+    if (this.links.isShotChrome(e.target)) return
     // Inside the pending frame: not a new selection, and not a click for the page.
     if (this.state === 'confirming' && this.pointerInSelection(e.clientX, e.clientY)) {
       e.preventDefault()
@@ -718,92 +644,17 @@ class ScreenshotSession {
     const letGo = this.state === 'confirming'
     // a new drag replaces the pending selection and the frame the memory offered; a press-and-release in the
     // picking state is the click-element path and keeps its target
-    this.hideHoverUi()
+    this.hover.hide()
     this.setConfirmShield(false)
-    this.clearConfirmUi()
+    this.confirmBox.clear()
     this.selectionEl?.remove()
     this.selectionEl = null
     this.state = 'selecting'
-    if (letGo) this.backToPicking()
-    const origin = { x: e.clientX, y: e.clientY }
-    const rect = this.doc.createElement('div')
-    rect.className = 'ann-shot-rect'
-    const size = this.doc.createElement('span')
-    size.className = 'ann-shot-size'
-    rect.appendChild(size)
-
-    const move = (ev: PointerEvent) => {
-      if (!isUserInput(ev)) return
-      const view = this.doc.defaultView!
-      // snapping: the moving point sticks to element edges near it (screenshot.md §1.2)
-      const edges = collectEdges(this.edgeRectsUnder(ev.clientX, ev.clientY), { width: view.innerWidth, height: view.innerHeight })
-      const snapped = snapPoint({ x: ev.clientX, y: ev.clientY }, edges)
-      this.paintSnapGuides(snapped)
-      let raw: ViewportRect
-      if (this.ratio !== 'free') {
-        raw = constrainToRatio(origin, snapped, this.ratio, { width: view.innerWidth, height: view.innerHeight })
-      } else if (this.shiftRatio !== null) {
-        raw = constrainToRatioValue(origin, snapped, this.shiftRatio, { width: view.innerWidth, height: view.innerHeight })
-      } else {
-        raw = constrainToRatio(origin, snapped, 'free', { width: view.innerWidth, height: view.innerHeight })
-      }
-      const x0 = Math.max(0, raw.x)
-      const y0 = Math.max(0, raw.y)
-      const x1 = Math.min(view.innerWidth, raw.x + raw.width)
-      const y1 = Math.min(view.innerHeight, raw.y + raw.height)
-      this.selection = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }
-      this.reusedFrame = false
-      if (this.selection.width > 0 && this.selection.height > 0 && !this.selectionEl) {
-        this.host.appendChild(rect)
-        this.selectionEl = rect
-        if (this.overlayEl) this.overlayEl.style.background = 'transparent'
-      }
-      rect.style.left = `${x0}px`
-      rect.style.top = `${y0}px`
-      rect.style.width = `${this.selection.width}px`
-      rect.style.height = `${this.selection.height}px`
-      const preset = ratioOf(this.ratio)
-      size.textContent = `${Math.round(this.selection.width)} x ${Math.round(this.selection.height)}${preset ? ` · ${preset.id} 🔒` : this.shiftRatio !== null ? ' 🔒' : ''}`
-      size.style.bottom = y0 < 28 ? 'auto' : ''
-      size.style.top = y0 < 28 ? 'calc(100% + 6px)' : ''
+    if (letGo) {
+      this.pending.letGo()
+      this.picking.showRatioBar()
     }
-    const up = (ev: PointerEvent) => {
-      if (!isUserInput(ev)) return
-      detach()
-      this.clearSnapGuides()
-      this.shiftRatio = null
-      const width = Math.abs(ev.clientX - origin.x)
-      const height = Math.abs(ev.clientY - origin.y)
-      if (width < 4 && height < 4) {
-        // A click, not a drag → element path with the hovered element and margin.
-        rect.remove()
-        if (this.selectionEl && this.selectionEl !== rect) this.selectionEl.remove()
-        this.selectionEl = null
-        this.selection = null
-        if (this.overlayEl) this.overlayEl.style.background = ''
-        if (letGo) this.trackHover(ev.clientX, ev.clientY)
-        else this.captureHoveredElement()
-        return
-      }
-      if (!this.selection || this.selection.width < 4 || this.selection.height < 4) {
-        rect.remove()
-        if (this.selectionEl && this.selectionEl !== rect) this.selectionEl.remove()
-        this.selectionEl = null
-        this.selection = null
-        if (this.overlayEl) this.overlayEl.style.background = ''
-        return
-      }
-      // the released selection stays adjustable before capture (screenshot.md §1.2)
-      this.enterConfirming()
-    }
-    const detach = () => {
-      this.doc.removeEventListener('pointermove', move)
-      this.doc.removeEventListener('pointerup', up)
-      this.selectionCleanup = null
-    }
-    this.selectionCleanup = detach
-    this.doc.addEventListener('pointermove', move)
-    this.doc.addEventListener('pointerup', up)
+    this.drag.begin(e, letGo)
   }
 
   /**
@@ -811,196 +662,15 @@ class ScreenshotSession {
    * chips are back — a new drag is under way, or the user clicked outside to choose again. The overlay dims the page
    * again until a new rect takes over that.
    */
-  private backToPicking(): void {
-    this.frameLabel = ''
-    this.pendingFrameRecord = null
-    this.offeredFrame = null
-    this.reusedFrame = false
-    if (this.overlayEl) this.overlayEl.style.background = ''
-    this.syncHint()
-    this.showRatioBar()
-  }
-
   /** Element boxes under a point, for drag snapping. */
-  private edgeRectsUnder(x: number, y: number): Array<{ left: number; top: number; right: number; bottom: number }> {
-    const stack = this.pageElementsFromPoint(x, y)
-    const rects: Array<{ left: number; top: number; right: number; bottom: number }> = []
-    for (const el of stack.slice(0, 6)) {
-      if (el.closest?.('[data-ann-ui]')) continue
-      const box = el.getBoundingClientRect()
-      if (box.width > 0 && box.height > 0) rects.push({ left: box.left, top: box.top, right: box.right, bottom: box.bottom })
-    }
-    return rects
-  }
-
-  private paintSnapGuides(snapped: { snappedX: number | null; snappedY: number | null }): void {
-    const view = this.doc.defaultView!
-    if (snapped.snappedX !== null && !this.snapXEl) {
-      const line = this.doc.createElement('div')
-      line.className = 'ann-shot-snap-line ann-shot-snap-x'
-      this.host.appendChild(line)
-      this.snapXEl = line
-    }
-    if (this.snapXEl) {
-      this.snapXEl.style.display = snapped.snappedX === null ? 'none' : ''
-      if (snapped.snappedX !== null) this.snapXEl.style.left = `${snapped.snappedX}px`
-    }
-    if (snapped.snappedY !== null && !this.snapYEl) {
-      const line = this.doc.createElement('div')
-      line.className = 'ann-shot-snap-line ann-shot-snap-y'
-      this.host.appendChild(line)
-      this.snapYEl = line
-    }
-    if (this.snapYEl) {
-      this.snapYEl.style.display = snapped.snappedY === null ? 'none' : ''
-      if (snapped.snappedY !== null) this.snapYEl.style.top = `${snapped.snappedY}px`
-    }
-    void view
-  }
-
-  private clearSnapGuides(): void {
-    this.snapXEl?.remove()
-    this.snapYEl?.remove()
-    this.snapXEl = null
-    this.snapYEl = null
-  }
-
-  // ── pending confirmation (screenshot.md §1.2) ─────────────────────
-
   /** The released selection stays adjustable: handles, nudge, confirm bar. */
-  private enterConfirming(label = this.frameLabel): void {
-    this.state = 'confirming'
-    this.frameLabel = label
-    this.clearConfirmUi()
-    // the pending frame owns the screen: no second candidate, no chips for the next drag, and a hint that is about it
-    this.clearHoverUi()
-    this.ratioBarEl?.remove()
-    this.ratioBarEl = null
-    this.syncHint()
-    if (!this.selectionEl || !this.selection) return
-
-    for (const handle of HANDLES) {
-      const anchor = handleAnchor(handle)
-      const el = this.doc.createElement('div')
-      el.className = `ann-shot-handle ann-shot-handle-${handle}`
-      el.setAttribute('data-ann-ui', `shot-handle-${handle}`)
-      el.style.cursor = anchor.cursor
-      el.addEventListener('pointerdown', event => {
-        if (!isUserInput(event) || !this.selection) return
-        event.preventDefault()
-        event.stopPropagation()
-        this.dragHandle(handle, event)
-      })
-      this.selectionEl.appendChild(el)
-      this.handleEls.push(el)
-      void anchor
-    }
-
-    const bar = this.doc.createElement('div')
-    bar.className = 'ann-shot-confirm-bar'
-    bar.setAttribute('data-ann-ui', 'shot-confirm-bar')
-    const confirm = this.doc.createElement('button')
-    confirm.type = 'button'
-    confirm.textContent = uiText('shot.confirmSelection')
-    confirm.setAttribute('data-ann-ui', 'shot-confirm-btn')
-    confirm.addEventListener('click', event => {
-      if (isUserInput(event)) void this.confirmSelection()
-    })
-    const cancel = this.doc.createElement('button')
-    cancel.type = 'button'
-    cancel.textContent = uiText('common.cancel')
-    cancel.setAttribute('data-ann-ui', 'shot-confirm-cancel')
-    cancel.addEventListener('click', event => {
-      if (isUserInput(event)) exitScreenshotMode()
-    })
-    bar.append(confirm, cancel)
-    if (this.frameLabel) {
-      const label = this.doc.createElement('span')
-      label.className = 'ann-shot-frame-label'
-      label.setAttribute('data-ann-ui', 'shot-frame-label')
-      label.textContent = this.frameLabel
-      bar.appendChild(label)
-    }
-    this.host.appendChild(bar)
-    this.confirmBarEl = bar
-    this.positionConfirmBar()
-    this.paintSelection()
-    this.setConfirmShield(true)
-  }
-
-  private positionConfirmBar(): void {
-    const bar = this.confirmBarEl
-    const selection = this.selection
-    if (!bar || !selection) return
-    const view = this.doc.defaultView!
-    const width = bar.offsetWidth || 220
-    let x = selection.x + selection.width - width
-    x = Math.max(8, Math.min(view.innerWidth - width - 8, x))
-    const below = selection.y + selection.height + 8
-    const y = below + 40 <= view.innerHeight ? below : Math.max(8, selection.y - 48)
-    bar.style.left = `${x}px`
-    bar.style.top = `${y}px`
-  }
-
-  /** Re-renders the pending rect, handles, size label and bar position. */
-  private paintSelection(): void {
-    const rect = this.selectionEl
-    const selection = this.selection
-    if (!rect || !selection) return
-    rect.style.left = `${selection.x}px`
-    rect.style.top = `${selection.y}px`
-    rect.style.width = `${selection.width}px`
-    rect.style.height = `${selection.height}px`
-    const size = rect.querySelector('.ann-shot-size') as HTMLElement | null
-    if (size) size.textContent = `${Math.round(selection.width)} x ${Math.round(selection.height)}`
-    this.positionConfirmBar()
-  }
-
-  private dragHandle(handle: HandleId, start: PointerEvent): void {
-    const origin = { x: start.clientX, y: start.clientY }
-    const base = { ...this.selection! }
-    const view = this.doc.defaultView!
-    const move = (ev: PointerEvent): void => {
-      if (!isUserInput(ev)) return
-      this.selection = resizeFromHandle(base, handle, ev.clientX - origin.x, ev.clientY - origin.y, { width: view.innerWidth, height: view.innerHeight })
-      this.paintSelection()
-    }
-    const up = (ev: PointerEvent): void => {
-      if (isUserInput(ev)) void 0
-      this.doc.removeEventListener('pointermove', move)
-      this.doc.removeEventListener('pointerup', up)
-    }
-    this.doc.addEventListener('pointermove', move)
-    this.doc.addEventListener('pointerup', up)
+  private enterConfirming(label?: string): void {
+    this.pending.enter(label)
   }
 
   /** Enter confirms the pending selection (or the remembered frame). */
-  private async confirmSelection(): Promise<void> {
-    if (!this.selection || this.state !== 'confirming') return
-    const view = this.doc.defaultView!
-    // a free-dragged frame is remembered by its page position; the element's frame the memory offered, confirmed as it
-    // came, is still the element's (screenshot.md §1.4)
-    const asOffered = this.pendingFrameRecord?.kind === 'element' && this.offeredFrame && sameFrame(this.offeredFrame, this.selection)
-    if (!asOffered) {
-      this.pendingFrameRecord = {
-        kind: 'box',
-        pageX: this.selection.x + view.scrollX,
-        pageY: this.selection.y + view.scrollY,
-        width: this.selection.width,
-        height: this.selection.height,
-      }
-    }
-    this.clearConfirmUi()
-    await this.captureRegionMode()
-  }
-
-  private clearConfirmUi(): void {
-    this.confirmBarEl?.remove()
-    this.confirmBarEl = null
-    this.frameLabelEl?.remove()
-    this.frameLabelEl = null
-    for (const el of this.handleEls) el.remove()
-    this.handleEls = []
+  private confirmSelection(): void {
+    this.pending.confirm()
   }
 
   // ── element path: hover, hierarchy, margin (screenshot.md §1.2, §1.4) ──
@@ -1012,280 +682,25 @@ class ScreenshotSession {
    * another target is a click outside the frame, which is choosing again
    * (screenshot.md §1.2, §1.4).
    */
-  private trackHover(x: number, y: number): void {
-    if (this.state !== 'selecting' || this.selectionEl) return
-    if (typeof this.doc.elementsFromPoint !== 'function') return
-    const stack = this.pageElementsFromPoint(x, y)
-    // the pointer on our own chrome (margin chips, bars) keeps the hover alive
-    const top = stack[0]
-    if (top?.closest?.('[data-ann-ui]')) return
-    const target = stack.find(el => !el.closest?.('[data-ann-ui]')) as HTMLElement | undefined
-    if (!target || target === this.doc.body || target === this.doc.documentElement) {
-      this.clearHoverUi()
-      return
-    }
-    if (target !== this.hoverEl) {
-      this.hoverEl = target
-      // the pixel view of the target chain (capture.md §6.2): the start block,
-      // its ancestors, and the section layers a flat page inserts
-      this.hoverChain = chainForElement(target, this.doc, 'pixel')
-      this.hoverIndex = startIndexOf(this.hoverChain)
-      this.paintHover()
-      return
-    }
-    // same element: keep the painted UI instead of rebuilding it under a click
-    if (!this.hoverOutlineEl || !this.marginBarEl) this.paintHover()
-  }
-
-  private paintHover(): void {
-    const layer = this.hoverChain[this.hoverIndex]
-    if (!layer) {
-      this.clearHoverUi()
-      return
-    }
-    this.hoverOutlineEl?.remove()
-    const outline = this.doc.createElement('div')
-    outline.className = 'ann-shot-hover-outline'
-    outline.setAttribute('data-ann-ui', 'shot-hover-outline')
-    const box = candidateRect(layer)
-    Object.assign(outline.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` })
-    // what a click would take: the element's own name and size — a section its kind and size — on the outline's top edge
-    const tag = this.doc.createElement('span')
-    tag.className = 'ann-shot-hover-tag'
-    tag.textContent = layerLabel(layer, 'pixel')
-    outline.appendChild(tag)
-    this.host.appendChild(outline)
-    this.hoverOutlineEl = outline
-    this.showMarginBar(box)
-  }
-
-  /** The margin bar rides the hovered element's frame (screenshot.md §1.4). */
-  private showMarginBar(box: DOMRect): void {
-    this.marginBarEl?.remove()
-    const bar = this.doc.createElement('div')
-    bar.className = 'ann-shot-margin-bar'
-    bar.setAttribute('data-ann-ui', 'shot-margin-bar')
-    const label = this.doc.createElement('span')
-    label.className = 'ann-shot-margin-label'
-    label.textContent = uiText('shot.margin')
-    bar.appendChild(label)
-    for (const margin of [0, 8, 16, 24, 32]) {
-      const chip = this.doc.createElement('button')
-      chip.type = 'button'
-      chip.textContent = String(margin)
-      chip.className = this.margin === margin ? 'ann-shot-ratio-active' : ''
-      chip.setAttribute('data-ann-ui', `shot-margin-${margin}`)
-      chip.addEventListener('click', event => {
-        if (!isUserInput(event)) return
-        this.margin = margin
-        this.paintHover()
-      })
-      bar.appendChild(chip)
-    }
-    const custom = this.doc.createElement('input')
-    custom.type = 'number'
-    custom.min = '0'
-    custom.max = '200'
-    custom.value = this.margin && ![0, 8, 16, 24, 32].includes(this.margin) ? String(this.margin) : ''
-    custom.placeholder = '···'
-    custom.setAttribute('aria-label', uiText('shot.margin'))
-    custom.addEventListener('change', event => {
-      const value = Number((event.target as HTMLInputElement).value)
-      if (Number.isFinite(value) && value >= 0) {
-        this.margin = Math.round(value)
-        this.paintHover()
-      }
-    })
-    bar.appendChild(custom)
-    this.host.appendChild(bar)
-    this.marginBarEl = bar
-    const view = this.doc.defaultView!
-    const width = bar.offsetWidth || 300
-    let x = box.left + box.width / 2 - width / 2
-    x = Math.max(8, Math.min(view.innerWidth - width - 8, x))
-    const below = box.bottom + 8
-    const y = below + 40 <= view.innerHeight ? below : Math.max(8, box.top - 48)
-    bar.style.left = `${x}px`
-    bar.style.top = `${y}px`
-  }
-
-  private clearHoverUi(): void {
-    this.hoverEl = null
-    this.hoverChain = []
-    this.hoverIndex = 0
-    this.hideHoverUi()
-  }
-
-  /**
-   * Hides the picker's visuals but remembers its target: a press-and-release
-   * is the click-element path, and it captures what the pointer rested on
-   * even though the press hid the dashed UI.
-   */
-  private hideHoverUi(): void {
-    this.hoverOutlineEl?.remove()
-    this.hoverOutlineEl = null
-    this.marginBarEl?.remove()
-    this.marginBarEl = null
-  }
-
   /**
    * A click on a hovered layer: element (or a section's interval) + margin
    * goes the region path when the frame fits the window (the ring shows the
    * real page); a bigger element itself goes the clone path without margin
    * (screenshot.md §1.4).
    */
-  private captureHoveredElement(): void {
-    const layer = this.hoverChain[this.hoverIndex]
-    this.clearHoverUi()
-    if (!layer) return
-    const view = this.doc.defaultView!
-    const box = candidateRect(layer)
-    const frame = expandByMargin({ x: box.left, y: box.top, width: box.width, height: box.height }, this.margin)
-    // a section is not an element: its frame is remembered as a page place (screenshot.md §1.4)
-    this.pendingFrameRecord = layer.range
-      ? { kind: 'box', pageX: box.left + view.scrollX, pageY: box.top + view.scrollY, width: box.width, height: box.height }
-      : {
-          kind: 'element',
-          selector: buildSelector(layer.element),
-          margin: this.margin,
-          width: box.width,
-          height: box.height,
-          pageX: box.left + view.scrollX,
-          pageY: box.top + view.scrollY,
-        }
-    this.reusedFrame = false
-    if (fitsInViewport(frame, { width: view.innerWidth, height: view.innerHeight })) {
-      this.selection = frame
-      void this.captureRegionMode()
-      return
-    }
-    const bareFits = fitsInViewport({ x: box.left, y: box.top, width: box.width, height: box.height }, { width: view.innerWidth, height: view.innerHeight })
-    if (this.margin === 0 || !bareFits) {
-      void this.captureElementMode(layer.element, layer.range, box)
-      return
-    }
-    // the margin overflows the window: say so and keep the session (screenshot.md §1.4 放不下)
-    this.pendingFrameRecord = null
-    this.state = 'selecting'
-    this.showNotice(uiText('shot.frameTooBig'))
+  // ── the capture paths (screenshot.md §1) ──────────────────────────
+
+  /** The capsule's direct path; a click on the hovered layer — the capture flow owns which road it takes. */
+  captureElement(target: HTMLElement, section?: BlockCandidate['range']): Promise<void> {
+    return this.flow.element(target, section)
   }
 
-  // ── region mode (captureVisibleTab) ───────────────────────────────
-
-  private async captureRegionMode(): Promise<void> {
-    const selection = this.selection
-    if (!selection) return
-    this.rememberRegionPermalink(selection)
-    this.state = 'capturing'
-    this.setConfirmShield(false)
-    await this.settingsLoaded
-    if (this.exited) return
-
-    // Auto-detected identity rects are computed BEFORE any DOM mutation
-    // (element rects share the viewport coordinate space with the selection).
-    const identity = detectIdentityRects(this.doc, this.doc.defaultView!.location.hostname, selection, this.anonymizeParts)
-    // With DOM anonymization on, identity elements are covered by gray
-    // placeholders during the shot — no pixelate pre-fill needed.
-    const restoreAnonymize = this.anonymizeOn ? applyViewportAnonymization(this.doc, this.doc.defaultView!.location.hostname, this.anonymizeParts) : null
-
-    // captureVisibleTab photographs the screen — our session UI must be gone.
-    // The frame waits for a settled layout (max 500ms), and a transparent
-    // hover-catcher takes the cursor so page hover styles clear before the
-    // shot (screenshot.md §1.4).
-    this.host.style.display = 'none'
-    // the cursor highlight of a live recording hides with the rest of the UI (annotate.md §3.2)
-    this.doc.dispatchEvent(new CustomEvent('annhub:capture-hide'))
-    const sweeper = this.doc.createElement('div')
-    sweeper.setAttribute(ROOT_ATTR, 'screenshot-hover-sweeper')
-    Object.assign(sweeper.style, { position: 'fixed', inset: '0', pointerEvents: 'auto', background: 'transparent', zIndex: '2147483646' })
-    this.doc.documentElement.appendChild(sweeper)
-    await pageStable(this.doc.defaultView!, 500)
-    await doubleRaf()
-    const dropSweeper = (): void => {
-      sweeper.remove()
-      this.host.style.display = ''
-      this.doc.dispatchEvent(new CustomEvent('annhub:capture-restore'))
-    }
-    if (this.exited) {
-      dropSweeper()
-      restoreAnonymize?.()
-      return
-    }
-
-    let dataUrl: string
-    try {
-      const response = await requestCapture(() => this.exited)
-      if (!response.success || !response.data?.dataUrl) {
-        throw new Error(screenshotFailureText(response.error, 'shot.error.capture'))
-      }
-      dataUrl = response.data.dataUrl
-    } catch (error) {
-      if (!this.exited) this.showError(error instanceof Error ? error.message : uiText('shot.error.capture'))
-      dropSweeper()
-      return
-    } finally {
-      dropSweeper()
-      restoreAnonymize?.()
-    }
-    if (this.exited) return
-
-    try {
-      this.croppedCanvas = await this.cropToCanvas(dataUrl, selection)
-    } catch (error) {
-      if (!this.exited) this.showError(error instanceof CropError ? error.message : uiText('shot.error.crop'))
-      return
-    }
-    if (this.exited) return
-
-    const canvas = this.croppedCanvas
-    const scaleX = canvas.width / selection.width
-    const scaleY = canvas.height / selection.height
-    this.maskBoxes = restoreAnonymize
-      ? []
-      : identity.map(r => ({
-          x: (r.x - selection.x) * scaleX,
-          y: (r.y - selection.y) * scaleY,
-          width: r.width * scaleX,
-          height: r.height * scaleY,
-        }))
-    this.prepareEditor(this.consumeInk(selection))
-    this.state = 'preview'
-    this.showPreview()
+  private clickHoveredLayer(): void {
+    const layer = this.hover.layer()
+    const margin = this.hover.margin
+    this.hover.clear()
+    if (layer) this.flow.hovered(layer, margin)
   }
-
-  /**
-   * The handed-over ink as editor annotations over the frame that was just
-   * captured, in one group for undo (annotate.md §1.3): the ink is
-   * stored on the page, so it lands where it shows at the capture moment
-   * (annotate.md §1.2, §1.3); pinned ink already sits in viewport
-   * coordinates. Strokes fully outside the frame are out, strokes crossing
-   * its boundary are cut at it.
-   */
-  private consumeInk(frame: ViewportRect): Annotation[] {
-    const ink = this.pendingInk
-    this.pendingInk = null
-    if (!ink || ink.length === 0) return []
-    const view = this.doc.defaultView!
-    return inkToEditorAnnotations(inkToViewport(ink, view.scrollX, view.scrollY), frame, this.capturedDpr || 1)
-  }
-
-  /**
-   * 拼长图的墨迹 (annotate.md §1.3): the page's ink enters at its page
-   * position, wherever the window was when it was drawn; ink pinned to the
-   * screen has no place in the long image — no single segment would line it
-   * up — so it stays out and the editor says one sentence about it.
-   */
-  private consumeInkStitched(startLeft: number, startTop: number, widthCss: number, heightCss: number): Annotation[] {
-    const ink = this.pendingInk
-    this.pendingInk = null
-    if (!ink || ink.length === 0) return []
-    const onPage = ink.filter(stroke => !stroke.pinned)
-    if (onPage.length !== ink.length) this.showNotice(uiText('shot.stitch.pinnedInk'), false)
-    if (onPage.length === 0) return []
-    return inkToEditorAnnotations(onPage, { x: startLeft, y: startTop, width: widthCss, height: heightCss }, this.capturedDpr || 1)
-  }
-
-  // ── element mode (DOM clone rasterization) ────────────────────────
 
   /** A pending frame handed over by the caller (selection menu): confirm with Enter, adjust, or cancel. */
   beginWithInitialRect(rect: ViewportRect): void {
@@ -1294,8 +709,8 @@ class ScreenshotSession {
     const clamped = intersectRects(rect, { x: 0, y: 0, width: view.innerWidth, height: view.innerHeight })
     if (!clamped || clamped.width < 4 || clamped.height < 4) return
     this.selection = clamped
-    this.paintFrameSelection()
-    this.enterConfirming()
+    this.pending.paint()
+    this.pending.enter()
   }
 
   /**
@@ -1305,822 +720,31 @@ class ScreenshotSession {
    * interval: the frame and the raster are the outlined run, not the
    * container it shares with its neighbours (RV-CAP-13).
    */
-  async captureElementTarget(target: HTMLElement, section?: BlockCandidate['range']): Promise<void> {
-    if (this.exited) return
-    const view = this.doc.defaultView!
-    const box = section ? sectionIntervalRect(target, section) : target.getBoundingClientRect()
-    // the capsule's frame is remembered too; a section is a page place (screenshot.md §1.4)
-    this.pendingFrameRecord = section
-      ? { kind: 'box', pageX: box.left + view.scrollX, pageY: box.top + view.scrollY, width: box.width, height: box.height }
-      : {
-          kind: 'element',
-          selector: buildSelector(target),
-          margin: 0,
-          width: box.width,
-          height: box.height,
-          pageX: box.left + view.scrollX,
-          pageY: box.top + view.scrollY,
-        }
-    this.reusedFrame = false
-    // fits in the window: crop the real pixels, the click path without margin;
-    // taller: rasterize the offscreen clone (screenshot.md §1). A zero-area box
-    // has no layout to crop (jsdom): the clone path keeps the session honest
-    if (
-      box.width > 0 &&
-      box.height > 0 &&
-      fitsInViewport({ x: box.left, y: box.top, width: box.width, height: box.height }, { width: view.innerWidth, height: view.innerHeight })
-    ) {
-      this.selection = { x: box.left, y: box.top, width: box.width, height: box.height }
-      void this.captureRegionMode()
-      return
-    }
-    await this.captureElementMode(target, section, box)
-  }
-
-  private async captureElementMode(target: HTMLElement, section?: BlockCandidate['range'], sectionBox?: DOMRect): Promise<void> {
-    this.state = 'capturing'
-    this.setConfirmShield(false)
-    const element = target
-    this.rememberElementPermalink(element)
-    await this.settingsLoaded
-    if (this.exited) return
-    try {
-      this.croppedCanvas = await captureElement(element, {
-        ...(this.anonymizeOn ? { anonymize: this.anonymizeParts } : {}),
-        ...(section ? { section } : {}),
-      })
-    } catch {
-      // the rasterizer's own message is English and means nothing to the user
-      if (!this.exited) this.showError(uiText('shot.error.element'))
-      return
-    }
-    if (this.exited) return
-    this.maskBoxes = []
-    // a section's frame is its interval's union rect (RV-CAP-13), the same box the outline painted
-    const bounds = section && sectionBox ? sectionBox : element.getBoundingClientRect()
-    this.elementRect = { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }
-    this.capturedDpr = this.croppedCanvas.width / Math.max(1, bounds.width)
-    this.prepareEditor(this.consumeInk({ x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height }))
-    this.state = 'preview'
-    this.showPreview()
-  }
-
-  private cropToCanvas(dataUrl: string, selection: ViewportRect): Promise<HTMLCanvasElement> {
-    return new Promise((resolve, reject) => {
-      const img = new Image()
-      img.onload = () => {
-        try {
-          const dpr = img.width / this.doc.defaultView!.innerWidth
-          this.capturedDpr = dpr
-          const source = computeCropSource(selection, dpr, img.width, img.height)
-          const canvas = this.doc.createElement('canvas')
-          canvas.width = source.sw
-          canvas.height = source.sh
-          canvas.getContext('2d')!.drawImage(img, source.sx, source.sy, source.sw, source.sh, 0, 0, source.sw, source.sh)
-          resolve(canvas)
-        } catch (error) {
-          reject(error instanceof Error ? error : new Error('crop failed'))
-        }
-      }
-      img.onerror = () => reject(new Error(uiText('shot.error.decode')))
-      img.src = dataUrl
-    })
-  }
-
-  // ── in-place preview and non-destructive annotations ──────────────
-
-  private prepareEditor(inkAnnotations: Annotation[] = []): void {
-    this.sourceCanvas = this.croppedCanvas
-    const canvas = this.doc.createElement('canvas')
-    canvas.width = this.sourceCanvas!.width
-    canvas.height = this.sourceCanvas!.height
-    this.croppedCanvas = canvas
-    // what the preview shows and copy sends is a canvas of its own, composed from the capture: it is never the capture
-    // itself, which saving takes and every redraw starts over from
-    this.displayCanvas = this.doc.createElement('canvas')
-    this.annotations = []
-    this.history = []
-    this.stepSequence = 0
-    this.selectedStep = null
-    // the page's ink arrives as one step of its own: one undo takes it all off again (annotate.md §1.3)
-    if (inkAnnotations.length > 0) this.commit(inkAnnotations)
-    this.renderEditor()
-  }
-
-  /**
-   * Where the capture itself sits on screen: the selection it was cut from, or — an element was not on the screen as it
-   * was captured — the room the window leaves, around where the element is.
-   */
-  private contentBox(): ViewportRect {
-    if (this.selection) return this.selection
-    const view = this.doc.defaultView!
-    const source = this.sourceCanvas!
-    const around = this.elementRect ?? { x: view.innerWidth / 2, y: view.innerHeight / 2, width: 0, height: 0 }
-    return previewBox(around, { width: source.width / this.capturedDpr, height: source.height / this.capturedDpr }, { width: view.innerWidth, height: view.innerHeight })
-  }
-
-  /** The preview on screen: the capture where it was selected, or the beautified picture grown around it. */
-  private previewRect(): ViewportRect {
-    const content = this.contentBox()
-    const display = this.displayCanvas
-    if (!this.beautify.enabled || !display) return content
-    const view = this.doc.defaultView!
-    return previewBox(content, { width: display.width / this.capturedDpr, height: display.height / this.capturedDpr }, { width: view.innerWidth, height: view.innerHeight })
-  }
-
-  private showPreview(): void {
-    this.selectionEl?.remove()
-    this.selectionEl = null
-    this.ratioBarEl?.remove()
-    this.ratioBarEl = null
-    this.overlayEl?.style.setProperty('background', 'transparent')
-    if (this.hintEl) this.hintEl.style.display = 'none'
-    this.previewEl?.remove()
-    this.toolbarRoot?.unmount()
-    this.toolbarEl?.remove()
-    this.beautifyPanel?.el.remove()
-    this.beautifyPanel = null
-
-    const display = this.displayCanvas!
-    const panel = this.doc.createElement('div')
-    panel.className = 'ann-shot-preview'
-    panel.setAttribute(ROOT_ATTR, 'screenshot-preview')
-    const size = this.doc.createElement('span')
-    size.className = 'ann-shot-size'
-    panel.append(size, display, this.createStepRing())
-    display.addEventListener('pointerdown', this.onCanvasPointerDown)
-    display.addEventListener('pointermove', this.onCanvasHover)
-    this.host.appendChild(panel)
-    this.previewEl = panel
-
-    const toolbar = this.doc.createElement('div')
-    toolbar.className = 'ann-shot-toolbar'
-    toolbar.setAttribute(ROOT_ATTR, 'screenshot-toolbar')
-    this.host.appendChild(toolbar)
-    this.toolbarEl = toolbar
-    this.toolbarRoot = createRoot(toolbar)
-    // React 19 commits a root's first render later; without flushSync the frame
-    // below can run before the buttons exist and focus stays on the page.
-    flushSync(() => this.updateToolbar())
-    this.toolbarResizeObserver = new ResizeObserver(() => {
-      this.positionToolbar()
-      this.positionSizeLabel()
-      this.positionBeautifyPanel()
-    })
-    this.toolbarResizeObserver.observe(toolbar)
-    this.refreshDisplay()
-    requestAnimationFrame(() => {
-      this.layout()
-      // The editor takes the keyboard: focus starts on the toolbar, not on the
-      // masked page behind it.
-      this.toolbarEl?.querySelector<HTMLElement>('button:not([disabled])')?.focus()
-    })
-  }
-
-  /** Puts the preview, the toolbar and the beautify panel where the picture now is. */
-  private layout(): void {
-    const preview = this.previewEl
-    const display = this.displayCanvas
-    if (this.state !== 'preview' || !preview || !display) return
-    const rect = this.previewRect()
-    this.previewNow = rect
-    Object.assign(preview.style, { left: `${rect.x}px`, top: `${rect.y}px`, width: `${rect.width}px`, height: `${rect.height}px` })
-    const size = preview.querySelector<HTMLElement>('.ann-shot-size')
-    if (size) size.textContent = `${display.width} x ${display.height}`
-    this.positionToolbar()
-    this.positionSizeLabel()
-    this.positionBeautifyPanel()
-    this.positionStepRing()
-  }
-
-  /** The size label goes where the toolbar is not: above the picture, else below it, else inside its corner. */
-  private positionSizeLabel(): void {
-    const size = this.previewEl?.querySelector<HTMLElement>('.ann-shot-size')
-    const rect = this.previewNow
-    if (!size || !rect) return
-    const view = this.doc.defaultView!
-    const toolbar = this.toolbarEl?.isConnected ? this.toolbarEl.getBoundingClientRect() : null
-    const spot = placeSizeLabel(rect, { width: size.offsetWidth, height: size.offsetHeight }, toolbar, { width: view.innerWidth, height: view.innerHeight })
-    size.style.top = spot === 'above' ? '' : spot === 'below' ? 'calc(100% + 6px)' : '6px'
-    size.style.bottom = spot === 'above' ? '' : 'auto'
-    size.style.left = spot === 'inside' ? '6px' : ''
-  }
-
-  private positionToolbar(): void {
-    const toolbar = this.toolbarEl
-    const rect = this.previewNow
-    if (!toolbar || !toolbar.isConnected || !rect) return
-    const view = this.doc.defaultView!
-    const width = toolbar.getBoundingClientRect().width
-    const height = toolbar.getBoundingClientRect().height
-    const below = rect.y + rect.height + 8
-    const top = below + height <= view.innerHeight - 8 ? below : Math.max(8, rect.y - height - 8)
-    toolbar.style.left = `${Math.max(8, Math.min(view.innerWidth - width - 8, rect.x + rect.width - width))}px`
-    toolbar.style.top = `${top}px`
-  }
-
-  private updateToolbar(): void {
-    this.toolbarRoot?.render(
-      createElement(ScreenshotToolbar, {
-        tool: this.tool,
-        color: this.color,
-        lineWidth: this.lineWidth,
-        maskCount: this.maskBoxes.length,
-        // the status strip under the tools pill: `null` is a state the settings take off the table
-        anonymize: this.anonymizeAvailable() ? this.anonymizeOn : null,
-        watermark: this.settings?.watermark.enabled ? this.watermarkOn : null,
-        canUndo: this.history.length > 0,
-        nextStep: nextStepNumber(this.annotations, this.stepSequence),
-        beautifyOpen: this.beautifyPanel !== null,
-        busy: this.busy,
-        notice: this.notice,
-        onTool: tool => {
-          this.tool = tool
-          // the selection belongs to the step tool: another tool, or none, lets it go
-          if (tool !== 'step') this.selectedStep = null
-          if (this.displayCanvas) this.displayCanvas.style.cursor = ''
-          this.positionStepRing()
-          this.updateToolbar()
-        },
-        onColor: color => {
-          this.color = color
-          this.updateToolbar()
-        },
-        onLineWidth: width => {
-          this.lineWidth = width
-          this.updateToolbar()
-        },
-        onRemoveMask: index => {
-          this.maskBoxes.splice(index, 1)
-          this.renderEditor()
-          this.updateToolbar()
-        },
-        onUndo: () => this.undo(),
-        onResetSteps: () => this.resetSteps(),
-        onBeautify: () => this.toggleBeautifyPanel(),
-        onCopy: () => void this.copyCurrent(),
-        onDownload: () => void this.downloadOnly(),
-        onCancel: () => exitScreenshotMode(),
-        onSave: () => void this.confirmSave(),
-      }),
-    )
-  }
-
-  /** One editing step: what undo goes back to is kept, and the picture is drawn anew. */
-  private commit(annotations: Annotation[], stepSequence = this.stepSequence): void {
-    this.history.push({ annotations: this.annotations, stepSequence: this.stepSequence })
-    this.annotations = annotations
-    this.stepSequence = stepSequence
-    this.renderEditor()
-    this.updateToolbar()
-  }
-
-  /** Steps back one editing step: an annotation drawn or written, a badge put down, dragged or deleted, the count reset. */
-  private undo(): void {
-    const previous = this.history.pop()
-    if (!previous) return
-    this.annotations = previous.annotations
-    this.stepSequence = previous.stepSequence
-    this.renderEditor()
-    this.updateToolbar()
-  }
-
-  /** Draws the capture with its annotations — or with a draft of them while the pointer is still drawing. */
-  private renderEditor(annotations: Annotation[] = this.annotations): void {
-    if (!this.croppedCanvas || !this.sourceCanvas) return
-    renderScreenshot(this.croppedCanvas, this.sourceCanvas, this.maskBoxes, annotations, this.capturedDpr)
-    this.refreshDisplay()
-  }
-
-  /**
-   * Composes the picture the preview shows — the capture with the beautify frame (background, padding, corners, shadow, ratio)
-   * and the watermark — which is exactly what copy and download send. The library entry keeps the capture without either
-   * (screenshot.md §4.2–4.4). Starts over from the capture every time: the frame is never drawn on a frame.
-   */
-  private refreshDisplay(): void {
-    const content = this.croppedCanvas
-    const display = this.displayCanvas
-    if (!content || !display) return
-    this.contentOrigin = paintScreenshotDisplay(display, content, {
-      source: this.sourceCanvas ?? content,
-      beautify: this.beautify,
-      scale: this.capturedDpr,
-      textSelection: this.via === 'menu',
-      watermark: this.watermarkOn ? this.settings?.watermark : undefined,
-      watermarkImage: this.watermarkImage,
-    })
-    this.layout()
-  }
-
-  /** A pointer position as a point of the capture: the preview may show it with padding around it, and scaled down. */
-  private canvasPoint(e: PointerEvent): Point {
-    const display = this.displayCanvas!
-    const content = this.croppedCanvas!
-    const rect = display.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) * display.width) / (rect.width || 1) - this.contentOrigin.x
-    const y = ((e.clientY - rect.top) * display.height) / (rect.height || 1) - this.contentOrigin.y
-    return { x: Math.max(0, Math.min(content.width, x)), y: Math.max(0, Math.min(content.height, y)) }
-  }
-
-  private onCanvasPointerDown = (e: PointerEvent): void => {
-    if (this.state !== 'preview' || this.busy || !this.tool || !this.croppedCanvas) return
-    e.preventDefault()
-    e.stopPropagation()
-    if (this.tool === 'text') {
-      this.openTextInput(this.canvasPoint(e), localPoint(this.displayCanvas!, e))
-      return
-    }
-    if (this.tool === 'step') {
-      this.pressStep(e)
-      return
-    }
-    const start = this.canvasPoint(e)
-    const tool = this.tool
-    const draft: Annotation = isLineTool(tool)
-      ? { tool, start, end: start, points: [start], color: this.color, width: this.lineWidth }
-      : { tool, start, end: start, points: [start], color: this.color }
-    // the pen and the highlighter go where the pointer goes, taking every sample the frame folded
-    // into the move; the line goes straight to it, or with Shift held to the nearest horizontal,
-    // vertical or 45° diagonal (screenshot.md §1.1)
-    const follow = (ev: PointerEvent) => {
-      if (draft.tool === 'pen' || draft.tool === 'highlighter') {
-        for (const sample of pointerSamples(ev)) {
-          const point = this.canvasPoint(sample)
-          const last = draft.points[draft.points.length - 1]!
-          if (point.x === last.x && point.y === last.y) continue
-          draft.points.push(point)
-          draft.end = point
-        }
-      } else {
-        const point = this.canvasPoint(ev)
-        draft.end = draft.tool === 'line' && ev.shiftKey ? snapLine(start, point) : point
-      }
-    }
-    const move = (ev: PointerEvent) => {
-      follow(ev)
-      this.renderEditor([...this.annotations, draft])
-    }
-    const up = (ev: PointerEvent) => {
-      cleanup()
-      follow(ev)
-      if (Math.hypot(draft.end.x - start.x, draft.end.y - start.y) < 3 && draft.points.length < 3) {
-        this.renderEditor()
-        return
-      }
-      this.commit([...this.annotations, draft])
-    }
-    const cleanup = () => {
-      this.doc.removeEventListener('pointermove', move)
-      this.doc.removeEventListener('pointerup', up)
-      this.doc.removeEventListener('pointercancel', cleanup)
-      this.drawingCleanup = null
-    }
-    this.drawingCleanup = cleanup
-    this.doc.addEventListener('pointermove', move)
-    this.doc.addEventListener('pointerup', up)
-    this.doc.addEventListener('pointercancel', cleanup)
-  }
-
-  private openTextInput(point: Point, displayPoint: Point): void {
-    this.commitText()
-    const input = this.doc.createElement('textarea')
-    input.setAttribute('aria-label', uiText('shot.textInput.placeholder'))
-    input.setAttribute(ROOT_ATTR, 'screenshot-text-input')
-    input.placeholder = uiText('shot.textInput.placeholder')
-    const panel = this.previewEl!.getBoundingClientRect()
-    const view = this.doc.defaultView!
-    input.style.width = `${Math.min(210, view.innerWidth - 24)}px`
-    input.style.left = `${Math.max(8 - panel.left, Math.min(displayPoint.x, view.innerWidth - panel.left - Math.min(210, view.innerWidth - 24) - 8))}px`
-    input.style.top = `${Math.max(8 - panel.top, Math.min(displayPoint.y, view.innerHeight - panel.top - 54))}px`
-    input.style.color = this.color
-    input.addEventListener('keydown', event => {
-      event.stopPropagation()
-      if (event.key === 'Enter' && !event.shiftKey) {
-        event.preventDefault()
-        this.commitText()
-      }
-    })
-    // clicking away closes the box like Enter and Esc do; a box that was already replaced has nothing left to say
-    input.addEventListener('blur', () => {
-      if (this.textInput === input) this.commitText()
-    })
-    this.previewEl!.appendChild(input)
-    this.textInput = input
-    this.textAt = point
-    input.focus()
-  }
-
-  /**
-   * Closes the text box, if one is open, and turns what was typed into an annotation. Enter, Esc, clicking away and
-   * opening another box all end here, so the text is never lost to the way the box was closed.
-   */
-  private commitText(): void {
-    const input = this.textInput
-    if (!input) return
-    // out of the field before out of the page: removing a focused element blurs it, and that blur comes back here
-    this.textInput = null
-    const value = input.value.trim()
-    input.remove()
-    if (!value) return
-    this.commit([...this.annotations, { tool: 'text', start: this.textAt, text: value, color: this.color }])
-  }
-
-  // ── step badges (screenshot.md §1.1) ──────────────────────────────
-
-  /**
-   * The step tool on the picture: a press on a badge selects it and drags it, anywhere else the next badge follows the
-   * pointer and is put down where it is let go. Each is one step for undo; a click that only selects is none.
-   */
-  private pressStep(e: PointerEvent): void {
-    const scale = this.capturedDpr
-    const size = { width: this.croppedCanvas!.width, height: this.croppedCanvas!.height }
-    const start = this.canvasPoint(e)
-    const pressed = stepAt(this.annotations, start, scale)
-    const badge: StepAnnotation = pressed ?? { tool: 'step', at: clampStep(start, size, scale), color: this.color, sequence: this.stepSequence }
-    // a pressed badge moves as far as the pointer does; a new one stays under the pointer
-    const grab = pressed ? { x: start.x - pressed.at.x, y: start.y - pressed.at.y } : { x: 0, y: 0 }
-    let placed = badge
-    const draft = (): Annotation[] => (pressed ? this.annotations.map(annotation => (annotation === pressed ? placed : annotation)) : [...this.annotations, placed])
-    const follow = (ev: PointerEvent) => {
-      const point = this.canvasPoint(ev)
-      placed = { ...badge, at: clampStep({ x: point.x - grab.x, y: point.y - grab.y }, size, scale) }
-    }
-    this.selectedStep = pressed
-    this.stepHeld = true
-    this.renderEditor(draft())
-    const move = (ev: PointerEvent) => {
-      follow(ev)
-      this.renderEditor(draft())
-    }
-    const up = (ev: PointerEvent) => {
-      cleanup()
-      follow(ev)
-      // a click on a badge only selects it, and a badge undo took away while it was held stays away
-      if (pressed && (Math.hypot(placed.at.x - pressed.at.x, placed.at.y - pressed.at.y) < 3 || !this.annotations.includes(pressed))) {
-        this.renderEditor()
-        return
-      }
-      if (pressed) this.selectedStep = placed
-      this.commit(draft())
-    }
-    const cancel = () => {
-      cleanup()
-      this.renderEditor()
-    }
-    const cleanup = () => {
-      this.stepHeld = false
-      this.doc.removeEventListener('pointermove', move)
-      this.doc.removeEventListener('pointerup', up)
-      this.doc.removeEventListener('pointercancel', cancel)
-      this.drawingCleanup = null
-    }
-    this.drawingCleanup = cleanup
-    this.doc.addEventListener('pointermove', move)
-    this.doc.addEventListener('pointerup', up)
-    this.doc.addEventListener('pointercancel', cancel)
-  }
-
-  /** Over a badge the step tool can drag, the pointer says so. */
-  private onCanvasHover = (e: PointerEvent): void => {
-    const display = this.displayCanvas
-    if (!display || !this.croppedCanvas || this.stepHeld || this.state !== 'preview') return
-    display.style.cursor = this.tool === 'step' && stepAt(this.annotations, this.canvasPoint(e), this.capturedDpr) ? 'move' : ''
-  }
-
-  /** The selected badge, while the step tool can act on it: on the picture, and not under the pointer. */
-  private shownStep(): StepAnnotation | null {
-    const step = this.selectedStep
-    return this.tool === 'step' && step && !this.stepHeld && this.annotations.includes(step) ? step : null
-  }
-
-  /** The ring that marks the selected badge, with the × that deletes it. It sits over the picture, never on it. */
-  private createStepRing(): HTMLDivElement {
-    const ring = this.doc.createElement('div')
-    ring.className = 'ann-shot-step-ring'
-    ring.setAttribute(ROOT_ATTR, 'screenshot-step-selection')
-    ring.style.display = 'none'
-    const remove = this.doc.createElement('button')
-    remove.type = 'button'
-    remove.textContent = '×'
-    remove.setAttribute(ROOT_ATTR, 'screenshot-step-delete')
-    remove.addEventListener('click', event => {
-      if (!isUserInput(event)) return
-      this.deleteSelectedStep()
-      // the button goes with its badge; the keyboard stays with the tool
-      this.toolbarEl?.querySelector<HTMLElement>('[data-ann-ui="screenshot-tool-step"]')?.focus()
-    })
-    ring.append(remove)
-    this.stepRingEl = ring
-    return ring
-  }
-
-  /** Puts the ring where the selected badge is on screen: the preview may pad the capture and scale it down. */
-  private positionStepRing(): void {
-    const ring = this.stepRingEl
-    const display = this.displayCanvas
-    const step = this.shownStep()
-    if (!ring) return
-    if (!step || !display || this.state !== 'preview') {
-      ring.style.display = 'none'
-      return
-    }
-    const box = display.getBoundingClientRect()
-    const kx = box.width / (display.width || 1)
-    const ky = box.height / (display.height || 1)
-    const radius = stepRadius(this.capturedDpr) * Math.max(kx, ky) + 4
-    const x = (step.at.x + this.contentOrigin.x) * kx
-    const y = (step.at.y + this.contentOrigin.y) * ky
-    Object.assign(ring.style, { display: 'block', left: `${x - radius}px`, top: `${y - radius}px`, width: `${radius * 2}px`, height: `${radius * 2}px` })
-    const label = uiText('shot.step.delete', { number: stepNumbers(this.annotations).get(step) ?? 1 })
-    const remove = ring.querySelector('button')!
-    remove.title = label
-    remove.setAttribute('aria-label', label)
-  }
-
-  /** Delete, Backspace or the ring's ×: the selected badge goes, and the badges after it in its sequence move up one. */
-  private deleteSelectedStep(): void {
-    const step = this.shownStep()
-    if (!step || this.busy) return
-    this.selectedStep = null
-    this.commit(this.annotations.filter(annotation => annotation !== step))
-  }
-
-  /** 重置计数: the next badge is 1, in a sequence of its own; the badges already down keep their numbers. */
-  private resetSteps(): void {
-    if (this.busy || nextStepNumber(this.annotations, this.stepSequence) === 1) return
-    this.commit(this.annotations, this.stepSequence + 1)
-  }
-
   // ── the three destinations (screenshot.md §4) ─────────────────────
 
-  /** Confirm: save the processed image as a screenshot entry, in one transaction with its asset. */
-  private async confirmSave(): Promise<void> {
-    const canvas = this.croppedCanvas
-    if (!canvas || this.busy) return
-    // `capture.saved` times the click to the committed write (metrics.md §9), not the editing that came before it
-    const clickedAt = Date.now()
+  /** One destination run: the busy flag paints the toolbar, the destination does the rest. */
+  private runDestination(run: (busy: (on: boolean) => void) => Promise<void>): void {
+    if (!this.stage.editingCanvas || this.busy) return
     this.busy = true
-    this.updateToolbar()
-    try {
-      // runtime messaging cannot carry Blobs, so the processed PNG travels as
-      // a dataUrl; the store persists bytes (dataUrl is transport only).
-      const dataUrl = canvas.toDataURL('image/png')
-      // the page's meta fills whichever presets the user checked for
-      // screenshots (entry.md §5.4) — same extractor and fallbacks as clips
-      const meta = extractPageMeta(this.doc, normalizeHost(this.doc.defaultView!.location.href))
-      const response = await MessageUtils.sendMessage<{ entry: { id: string } }>({
-        type: 'SAVE_SCREENSHOT',
-        data: {
-          id: this.entryId,
-          dataUrl,
-          width: canvas.width,
-          height: canvas.height,
-          sourceUrl: this.capturedSourceUrl ?? this.pageUrl(),
-          title: meta.title,
-          ...(meta.author ? { author: meta.author } : {}),
-          ...(meta.published ? { published: meta.published } : {}),
-          ...(meta.description ? { description: meta.description } : {}),
-          via: this.via,
-          frame: this.stitched ? 'stitched' : this.reusedFrame ? 'reused' : this.elementRect ? 'element' : 'drag',
-          startedAt: clickedAt,
-        },
-      })
-      if (!response.success) throw new Error(screenshotSaveErrorText(response.error))
-      this.rememberLastFrame()
-      announceSaved(this.doc)
-      exitScreenshotMode()
-    } catch (error) {
-      this.showNotice(error instanceof Error ? error.message : uiText('shot.error.saveFailed'), true)
-    } finally {
-      this.busy = false
-      this.updateToolbar()
-    }
-  }
-
-  /** Copy keeps the editing session (screenshot.md §4.2); `http:` pages get the download hint. */
-  private async copyCurrent(): Promise<void> {
-    const canvas = this.displayCanvas ?? this.croppedCanvas
-    if (!canvas || this.busy) return
-    this.busy = true
-    this.updateToolbar()
-    try {
-      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/png'))
-      if (!blob || !this.doc.defaultView!.navigator.clipboard?.write || typeof ClipboardItem === 'undefined') {
-        throw new Error(uiText('shot.copyInstead'))
-      }
-      await this.doc.defaultView!.navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
-      this.rememberLastFrame()
-      this.showNotice(uiText('shot.copied'))
-      void MessageUtils.sendMessage({
-        type: 'RECORD_EVENT',
-        name: 'screenshot.copied',
-        props: { watermark: Boolean(this.settings?.watermark.enabled && this.watermarkOn), beautify: this.beautify.enabled },
-      })
-    } catch {
-      // The clipboard API is closed on http: pages and can be rejected without
-      // focus — the image and every annotation stay for download or retry.
-      this.showNotice(this.doc.defaultView!.location.protocol === 'http:' ? uiText('shot.copyInstead') : uiText('shot.error.copyFailed'), true)
-    } finally {
-      this.busy = false
-      this.updateToolbar()
-    }
-  }
-
-  /** Download keeps the editing session, in the format chosen in settings (screenshot.md §4.2). */
-  private async downloadOnly(): Promise<void> {
-    const canvas = this.displayCanvas ?? this.croppedCanvas
-    if (!canvas || this.busy) return
-    this.busy = true
-    this.updateToolbar()
-    try {
-      const format: DownloadFormat = (this.settings?.downloadFormat as DownloadFormat) ?? 'png'
-      // JPEG has no alpha: whatever is transparent is painted on white first (screenshot.md §4.2)
-      const output = format === 'jpeg' ? matteOnWhite(canvas, this.doc) : canvas
-      const dataUrl = output.toDataURL(downloadMime(format), this.settings?.downloadQuality ?? 0.9)
-      // a codec the browser cannot encode comes back as PNG bytes (screenshot.md §5):
-      // download the PNG and say so, instead of failing on a name the bytes do not match
-      const actual = downloadFormatFor(format, dataUrl)
-      const response = await MessageUtils.sendMessage<{ downloadId: number }>({
-        type: 'DOWNLOAD_IMAGE',
-        dataUrl,
-        extension: downloadExtension(actual),
-        watermark: Boolean(this.settings?.watermark.enabled && this.watermarkOn),
-        beautify: this.beautify.enabled,
-      })
-      if (!response.success) throw new Error(screenshotFailureText(response.error, 'shot.error.downloadFailed'))
-      this.rememberLastFrame()
-      this.showNotice(actual === format ? uiText('shot.downloaded') : uiText('shot.downloadedAsPng'))
-    } catch (error) {
-      this.showNotice(error instanceof Error ? error.message : uiText('shot.error.downloadFailed'), true)
-    } finally {
-      this.busy = false
-      this.updateToolbar()
-    }
-  }
-
-  /**
-   * The beautify panel (screenshot.md §4.4): its changes show at once, 复原 goes back to the style the settings give, none of it
-   * is in the undo stack, and it shapes only what is copied and downloaded.
-   */
-  private toggleBeautifyPanel(): void {
-    if (this.beautifyPanel) this.closeBeautifyPanel()
-    else this.openBeautifyPanel()
-  }
-
-  private openBeautifyPanel(): void {
-    if (this.state !== 'preview') return
-    const panel = createBeautifyPanel(this.doc, {
-      settings: this.beautify,
-      ratios: this.settings?.ratioPresets ?? [],
-      onChange: patch => this.changeBeautify(patch),
-      onReset: () => this.resetBeautify(),
+    this.stage.updateToolbar()
+    void run(on => {
+      this.busy = on
+      this.stage.updateToolbar()
     })
-    this.host.appendChild(panel.el)
-    this.beautifyPanel = panel
-    this.panelSpot = null
-    this.updateToolbar()
-    this.positionBeautifyPanel()
-    panel.focus()
-  }
-
-  /** Closes the panel and gives the keyboard back to the button that opened it. */
-  private closeBeautifyPanel(): void {
-    const panel = this.beautifyPanel
-    if (!panel) return
-    panel.el.remove()
-    this.beautifyPanel = null
-    this.panelSpot = null
-    this.updateToolbar()
-    this.toolbarEl?.querySelector<HTMLElement>('[data-ann-ui="screenshot-beautify"]')?.focus()
   }
 
   private changeBeautify(patch: Partial<BeautifySettings>): void {
-    this.beautify = applyBeautifyChange(this.beautify, patch)
-    this.beautifyPanel?.sync(this.beautify)
-    this.refreshDisplay()
+    this.prefs.beautify = applyBeautifyChange(this.prefs.beautify, patch)
+    this.stage.beautify.sync(this.prefs.beautify)
+    this.stage.refreshDisplay()
   }
 
   private resetBeautify(): void {
-    this.beautify = { ...(this.settings?.beautify ?? DEFAULT_BEAUTIFY) }
-    this.beautifyPanel?.sync(this.beautify)
-    this.refreshDisplay()
+    this.prefs.beautify = { ...(this.prefs.settings?.beautify ?? DEFAULT_BEAUTIFY) }
+    this.stage.beautify.sync(this.prefs.beautify)
+    this.stage.refreshDisplay()
   }
 
-  /** Beside the picture where there is room, else under the toolbar: clear of both, inside the window. */
-  private positionBeautifyPanel(): void {
-    const panel = this.beautifyPanel?.el
-    const toolbar = this.toolbarEl
-    const preview = this.previewNow
-    if (!panel || !toolbar || !preview) return
-    const view = this.doc.defaultView!
-    const size = panel.getBoundingClientRect()
-    const bar = toolbar.getBoundingClientRect()
-    const spot = placePanel(
-      { width: size.width, height: size.height },
-      { toolbar: { x: bar.x, y: bar.y, width: bar.width, height: bar.height }, preview },
-      { width: view.innerWidth, height: view.innerHeight },
-      this.panelSpot ?? undefined,
-    )
-    this.panelSpot = spot
-    panel.style.left = `${spot.left}px`
-    panel.style.top = `${spot.top}px`
-  }
-
-  /**
-   * 入库 / 复制 / 下载 succeeded: the frame that produced this capture is
-   * remembered for the next session on this page in this tab (screenshot.md
-   * §1.4). Element frames refresh their anchor and size; cancel never writes.
-   */
-  private rememberLastFrame(): void {
-    const record = this.pendingFrameRecord
-    if (!record) return
-    if (record.kind === 'element') {
-      const el = this.doc.querySelector(record.selector)
-      const view = this.doc.defaultView!
-      if (el) {
-        const box = el.getBoundingClientRect()
-        record.width = box.width
-        record.height = box.height
-        record.pageX = box.left + view.scrollX
-        record.pageY = box.top + view.scrollY
-      }
-    } else {
-      const view = this.doc.defaultView!
-      if (this.selection) {
-        record.pageX = this.selection.x + view.scrollX
-        record.pageY = this.selection.y + view.scrollY
-      }
-    }
-    void rememberFrame(record)
-  }
-
-  /**
-   * The remembered frame opens the session as a pending selection
-   * (screenshot.md §1.4), where it is in the window now: anchored to its
-   * element when that is found within 10% drift, otherwise at the recorded
-   * page position with a notice. The page is never scrolled for it — a feed
-   * that recycles its cells can answer the element or the position with
-   * another post entirely — so a frame that is not wholly in the window is
-   * not offered, and the memory waits for the next trigger.
-   */
-  private async restoreRememberedFrame(): Promise<void> {
-    const record = await readFrame()
-    // the frame arrives a worker round trip after the session opened: a pointer that is already picking its
-    // own target, or a drag under way, keeps it, and the frame waits for the next trigger
-    if (!record || this.exited || this.state !== 'selecting' || this.hoverEl || this.selectionEl) return
-    const view = this.doc.defaultView!
-    const margin = record.kind === 'element' ? record.margin : 0
-    const found = record.kind === 'element' ? this.doc.querySelector(record.selector)?.getBoundingClientRect() : undefined
-    // the element's place now when it is still about the size it was; else where the frame was drawn on the page
-    const anchor = found && boxWithinTolerance({ width: found.width, height: found.height }, record) ? found : null
-    const frame = expandByMargin(
-      anchor
-        ? { x: anchor.left, y: anchor.top, width: anchor.width, height: anchor.height }
-        : { x: record.pageX - view.scrollX, y: record.pageY - view.scrollY, width: record.width, height: record.height },
-      margin,
-    )
-    if (!fitsInViewport(frame, { width: view.innerWidth, height: view.innerHeight })) return
-    let label = `${uiText('shot.lastFrame')} · ${Math.round(frame.width)} × ${Math.round(frame.height)}`
-    if (anchor) {
-      this.pendingFrameRecord = { ...record, width: anchor.width, height: anchor.height }
-    } else {
-      this.pendingFrameRecord = null
-      if (record.kind === 'element') label += ` · ${uiText('shot.frameNotFound')}`
-    }
-    this.selection = frame
-    this.offeredFrame = { ...frame }
-    this.frameLabel = label
-    this.reusedFrame = true
-    this.paintFrameSelection()
-    this.enterConfirming(label)
-  }
-
-  /** Paints a programmatic selection (restored frame) with its size label. */
-  private paintFrameSelection(): void {
-    const selection = this.selection
-    if (!selection) return
-    const rect = this.doc.createElement('div')
-    rect.className = 'ann-shot-rect'
-    const size = this.doc.createElement('span')
-    size.className = 'ann-shot-size'
-    size.textContent = `${Math.round(selection.width)} x ${Math.round(selection.height)}`
-    if (selection.y < 28) {
-      size.style.bottom = 'auto'
-      size.style.top = 'calc(100% + 6px)'
-    }
-    rect.appendChild(size)
-    Object.assign(rect.style, { left: `${selection.x}px`, top: `${selection.y}px`, width: `${selection.width}px`, height: `${selection.height}px` })
-    this.host.appendChild(rect)
-    this.selectionEl = rect
-    if (this.overlayEl) this.overlayEl.style.background = 'transparent'
-  }
-
-  /**
-   * A notice from outside the session — the annotation trigger pointing at
-   * the session instead of opening (annotate.md §1.1). The toolbar's notice
-   * only exists in the preview, so this is its own hint-style bar, in every
-   * state, that leaves on its own.
-   */
   showExternalNotice(message: string): void {
     this.host.querySelector(`[${ROOT_ATTR}="screenshot-external-notice"]`)?.remove()
     const el = this.doc.createElement('div')
@@ -2140,61 +764,19 @@ class ScreenshotSession {
   showNotice(message: string, error = false): void {
     if (error) {
       this.notice = { message, error }
-      this.updateToolbar()
+      this.stage.updateToolbar()
       return
     }
     this.notice = undefined
-    this.updateToolbar()
+    this.stage.updateToolbar()
     this.bubble.show(message)
   }
 
   private showError(message: string): void {
-    this.previewEl?.remove()
+    this.errorPanel.remove()
     this.selectionEl?.remove()
     if (this.overlayEl) this.overlayEl.style.background = 'rgb(10 14 25 / 0.58)'
-    const panel = this.doc.createElement('div')
-    panel.className = 'ann-shot-error-panel'
-    panel.setAttribute(ROOT_ATTR, 'screenshot-error')
-    panel.style.pointerEvents = 'auto'
-    // the theme card of the draft's “页面不允许截图” board: stop icon, title, reason, way out
-    panel.innerHTML =
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg>'
-    const title = this.doc.createElement('div')
-    title.className = 'ann-shot-error-title'
-    title.textContent = uiText('shot.failed')
-    const text = this.doc.createElement('div')
-    text.className = 'ann-shot-error'
-    text.textContent = message
-    const close = this.doc.createElement('button')
-    close.textContent = uiText('common.close')
-    close.onclick = () => exitScreenshotMode()
-    panel.append(title, text, close)
-    this.host.appendChild(panel)
-    this.previewEl = panel
+    this.errorPanel.show(message)
     this.state = 'error'
   }
-}
-
-function doubleRaf(): Promise<void> {
-  return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
-}
-
-/**
- * “Screenshot saved”, spoken once: the session's own DOM goes away with the
- * save, so the live region lives on the document and removes itself (保存成功
- * 读屏没有任何播报).
- */
-function announceSaved(doc: Document): void {
-  const el = doc.createElement('div')
-  el.setAttribute(ROOT_ATTR, 'screenshot-saved-notice')
-  el.setAttribute('role', 'status')
-  el.textContent = uiText('shot.saved')
-  Object.assign(el.style, { position: 'fixed', left: '-9999px', top: '0' })
-  doc.documentElement.appendChild(el)
-  window.setTimeout(() => el.remove(), 4000)
-}
-
-function localPoint(el: HTMLElement, e: PointerEvent): { x: number; y: number } {
-  const rect = el.getBoundingClientRect()
-  return { x: e.clientX - rect.left, y: e.clientY - rect.top }
 }

@@ -8,7 +8,7 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, CircleAlert, Download, TriangleAlert } from 'lucide-react'
-import { uiText, type UiTextKey } from '../../utils/ui-text'
+import { uiText, type UiTextKey } from './ui-text'
 
 /** The export machinery's states (the nav note uses the same ones); `ready` is the dialog's own unstarted state. */
 type Phase = 'idle' | 'busy' | 'done' | 'partial' | 'failed'

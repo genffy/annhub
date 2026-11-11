@@ -11,9 +11,9 @@ const CAPTURE_RATE_RETRY_MS = 400
 const CAPTURE_RATE_RETRIES = 3
 
 /** One capture ask; `cancelled` ends the waiting early — nothing more is to be photographed. */
-export async function requestCapture(cancelled: () => boolean): Promise<ResponseMessage<{ dataUrl: string }>> {
+export async function requestCapture(cancelled: () => boolean): Promise<ResponseMessage<{ dataUrl: string } | undefined>> {
   for (let retry = 0; ; retry++) {
-    const response = await MessageUtils.sendMessage<{ dataUrl: string }>({ type: 'CAPTURE_VISIBLE_TAB', requestId: `shot-${Date.now()}` })
+    const response = await MessageUtils.sendMessage({ type: 'CAPTURE_VISIBLE_TAB', requestId: `shot-${Date.now()}` })
     if (response.success || response.error !== 'CAPTURE_RATE_LIMITED' || retry === CAPTURE_RATE_RETRIES) return response
     await new Promise(resolve => setTimeout(resolve, CAPTURE_RATE_RETRY_MS))
     if (cancelled()) return response

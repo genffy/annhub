@@ -109,9 +109,9 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
       await expect(page.locator('.ann-shot-hint kbd').first()).toBeVisible()
       await expect(page.locator('[data-ann-ui="screenshot-ratio-bar"]')).toBeVisible()
       seen[scheme] = await read()
-      expect(seen[scheme]!.hintContrast, `the hint's words read on its pill (${scheme})`).toBeGreaterThanOrEqual(4.5)
-      expect(seen[scheme]!.kbdContrast, `the keycap's letters read on the keycap (${scheme})`).toBeGreaterThanOrEqual(4.5)
-      expect(seen[scheme]!.chipContrast, `the ratio chip's words read on the pill (${scheme})`).toBeGreaterThanOrEqual(4.5)
+      expect(seen[scheme].hintContrast, `the hint's words read on its pill (${scheme})`).toBeGreaterThanOrEqual(4.5)
+      expect(seen[scheme].kbdContrast, `the keycap's letters read on the keycap (${scheme})`).toBeGreaterThanOrEqual(4.5)
+      expect(seen[scheme].chipContrast, `the ratio chip's words read on the pill (${scheme})`).toBeGreaterThanOrEqual(4.5)
 
       // a dragged region adds the size label: the same dark pill
       const post = page.getByTestId('screenshot-post')
@@ -122,7 +122,7 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
       await page.mouse.up()
       await expect(page.locator('.ann-shot-size')).toBeVisible()
       const size = await page.evaluate(() => getComputedStyle(document.querySelector('.ann-shot-size')!).backgroundColor)
-      expect(size, `the size label is the same pill (${scheme})`).toBe(seen[scheme]!.hint)
+      expect(size, `the size label is the same pill (${scheme})`).toBe(seen[scheme].hint)
       await page.keyboard.press('Escape')
       await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
     }
@@ -210,10 +210,10 @@ test.describe('screenshot capture (screenshot.md §1, §2)', () => {
       // the status strip under the tools pill carries the shot's anonymity (screenshot.md §3)
       await expect(page.locator('.ann-shot-status')).toContainText('匿名：开')
       seen[scheme] = await contrastOf()
-      expect(seen[scheme]!.tools, `the tools pill does not follow the system (${scheme})`).toBe(seen.light?.tools ?? seen[scheme]!.tools)
-      expect(seen[scheme]!.status, `the status strip is the same pill (${scheme})`).toBe(seen[scheme]!.tools)
-      expect(seen[scheme]!.iconContrast, `the icons read on the pill (${scheme})`).toBeGreaterThanOrEqual(3)
-      expect(seen[scheme]!.focusContrast, `the focus ring reads on the pill (${scheme})`).toBeGreaterThanOrEqual(3)
+      expect(seen[scheme].tools, `the tools pill does not follow the system (${scheme})`).toBe(seen.light?.tools ?? seen[scheme].tools)
+      expect(seen[scheme].status, `the status strip is the same pill (${scheme})`).toBe(seen[scheme].tools)
+      expect(seen[scheme].iconContrast, `the icons read on the pill (${scheme})`).toBeGreaterThanOrEqual(3)
+      expect(seen[scheme].focusContrast, `the focus ring reads on the pill (${scheme})`).toBeGreaterThanOrEqual(3)
       await page.keyboard.press('Escape')
       await expect(page.locator('[data-ann-ui="screenshot-session"]')).toHaveCount(0)
     }

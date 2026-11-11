@@ -4,7 +4,7 @@
  */
 import { stepRadius } from '../screenshot/editor'
 import { isUserInput } from '../user-input'
-import { uiText } from '../../../utils/ui-text'
+import { uiText } from '../ui-text'
 import { ROOT_ATTR } from './annotation-roots'
 import type { InkStroke } from './ink'
 

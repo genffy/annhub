@@ -5,7 +5,7 @@
 import type { KeyboardEvent, ReactNode } from 'react'
 import { Search } from 'lucide-react'
 import { VIEW_ICONS } from '../../utils/entry-icons'
-import { uiText, type UiTextKey } from '../../utils/ui-text'
+import { uiText, type UiTextKey } from './ui-text'
 import { EMPTY_FILTERS, hasActiveFilter, type FilterState, type RouteState, type View } from './route'
 import type { HighlightQueryResult } from '../../core/query'
 

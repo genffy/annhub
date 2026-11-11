@@ -11,7 +11,7 @@ import { CircleAlert, Info, Lock, Plus, Trash2 } from 'lucide-react'
 import type { EntryValidationError, EntryType, PropertyDefinition, PropertyType, PropertyValue } from '../../core/types'
 import { propertyStorageKey, validatePropertyName } from '../../core/properties'
 import { PROPERTY_TYPE_ICONS } from '../../utils/entry-icons'
-import { entryErrorText, uiText } from '../../utils/ui-text'
+import { entryErrorText, uiText } from './ui-text'
 import { isFixedProperty, orderRegistry } from './property-order'
 import { PropertyTypePicker } from './property-type-picker'
 import { SettingsCheckChip } from './settings-check-chip'
@@ -60,7 +60,7 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
 
   const load = useCallback(async () => {
     // usage comes from the whole library via the backend (RV-LIB-07)
-    const defs = await MessageUtils.sendMessage<{ definitions: PropertyDefinition[]; usage: Record<string, number> }>({ type: 'LIST_PROPERTIES', includeUsage: true })
+    const defs = await MessageUtils.sendMessage({ type: 'LIST_PROPERTIES', includeUsage: true })
     if (!defs.success) return
     setRegistry(defs.data!.definitions)
     setUsage(defs.data!.usage ?? {})
@@ -71,7 +71,7 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
   }, [load])
 
   async function upsert(def: PropertyDefinition, onFailure?: (code?: string) => void): Promise<boolean> {
-    const response = await MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'UPSERT_PROPERTY', def })
+    const response = await MessageUtils.sendMessage({ type: 'UPSERT_PROPERTY', def })
     if (!response.success) {
       // the open form answers under its own name input; a preset toggle has no form and answers on the page
       if (onFailure) onFailure(response.error)
@@ -85,7 +85,7 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
   }
 
   async function remove(name: string) {
-    const response = await MessageUtils.sendMessage<{ definitions: PropertyDefinition[] }>({ type: 'DELETE_PROPERTY', name })
+    const response = await MessageUtils.sendMessage({ type: 'DELETE_PROPERTY', name })
     if (!response.success) {
       setError(entryErrorText(response.error))
       return
@@ -99,7 +99,7 @@ export function PropertiesView({ onRegistryChanged }: { onRegistryChanged(): voi
     const doomed = registry.filter(def => !def.builtin && (usage[def.name] ?? 0) === 0)
     if (doomed.length === 0) return
     if (!window.confirm(uiText('property.willDelete', { names: doomed.map(def => def.name).join(', ') }))) return
-    const response = await MessageUtils.sendMessage<{ removed: string[]; definitions: PropertyDefinition[] }>({ type: 'DELETE_UNUSED_PROPERTIES' })
+    const response = await MessageUtils.sendMessage({ type: 'DELETE_UNUSED_PROPERTIES' })
     if (!response.success) {
       setError(entryErrorText(response.error))
       return

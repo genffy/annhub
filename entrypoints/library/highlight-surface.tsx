@@ -9,10 +9,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MessageSquareText, Trash2 } from 'lucide-react'
 import MessageUtils from '../../utils/message'
+import type { ExtensionMessage } from '../../types/messages'
 import { newHighlightId } from '../../core/assets'
 import { HIGHLIGHT_COLORS, type EntryRecord, type Highlight, type HighlightColor } from '../../core/types'
 import { MarkdownView, quoteForRange, sourceRangeFromSelection } from './markdown-view'
-import { entryErrorText, uiText } from '../../utils/ui-text'
+import { entryErrorText, uiText } from './ui-text'
 
 interface Props {
   entry: EntryRecord
@@ -136,7 +137,7 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
     const quote = quoteForRange(entry.content, { start, end })
     if (!quote) return null
     const highlight: Highlight = { id: newHighlightId(), start, end, quote, color, createdAt: Date.now() }
-    const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>({ type: 'ADD_HIGHLIGHT', id: entry.id, highlight })
+    const response = await MessageUtils.sendMessage({ type: 'ADD_HIGHLIGHT', id: entry.id, highlight })
     if (!response.success || !response.data?.entry) {
       setError(entryErrorText(response.error))
       return null
@@ -149,9 +150,9 @@ export function HighlightSurface({ entry, defaultColor, onEntryChanged }: Props)
     return (response.data.entry.highlights ?? []).find(item => item.id === highlight.id) ?? highlight
   }
 
-  /** Runs one highlight operation server-side (storage.md §5: one transaction per op). */
-  async function runHighlightOp(message: Parameters<typeof MessageUtils.sendMessage>[0]): Promise<boolean> {
-    const response = await MessageUtils.sendMessage<{ entry: EntryRecord }>(message)
+  /** Runs one highlight operation server-side (storage.md §5: one transaction per op); every one answers the saved entry. */
+  async function runHighlightOp(message: Extract<ExtensionMessage, { type: 'ADD_HIGHLIGHT' | 'UPDATE_HIGHLIGHT' | 'REMOVE_HIGHLIGHT' | 'RESTORE_HIGHLIGHT' }>): Promise<boolean> {
+    const response = await MessageUtils.sendMessage(message)
     if (!response.success || !response.data?.entry) {
       setError(response.error === 'HIGHLIGHT_INVALID' ? uiText('reading.error.noteTooLong') : uiText('toast.saveFailed'))
       return false

@@ -7,7 +7,7 @@
 import { useRef } from 'react'
 import { PROPERTY_TYPES, type PropertyType } from '../../core/types'
 import { PROPERTY_TYPE_ICONS } from '../../utils/entry-icons'
-import { uiText } from '../../utils/ui-text'
+import { uiText } from './ui-text'
 
 /** Where a key press inside the grid lands, or null when the key is not the group's: left and
  * right step by one, up and down by a row (three columns), both wrapping; Home and End reach

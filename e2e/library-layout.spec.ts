@@ -112,7 +112,7 @@ for (const [uiLocale, shortcutLabels] of [
             const lefts = [...new Set(cols.map(col => Math.round(box(col).left)))]
             if (lefts.length !== expectedColumns) found.push(`${lefts.length} columns of cards at this width, expected ${expectedColumns}`)
             if (lefts.length === 2) {
-              const [a, b] = cols.map(col => box(col))
+              const [a, b] = cols.map(col => box(col)) as [DOMRect, DOMRect]
               if (Math.abs(a.width - b.width) > 1) found.push(`the card columns differ in width: ${Math.round(a.width)} vs ${Math.round(b.width)}`)
               if (Math.abs(b.left - a.right - 16) > 1) found.push(`the gap between the card columns is ${Math.round(b.left - a.right)}`)
             }

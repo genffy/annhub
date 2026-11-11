@@ -16,7 +16,8 @@
  * session, which hides this layer and restores it when it ends.
  */
 import { isUserInput } from '../user-input'
-import { ANNOTATION_COLORS, clampStep, drawAnnotation, isLineTool, nextStepNumber, stepAt, stepNumbers, type Annotation, type LineWidth, type Point } from '../screenshot/editor'
+import { clampStep, drawAnnotation, isLineTool, nextStepNumber, stepAt, stepNumbers, type Annotation, type LineWidth, type Point } from '../screenshot/editor'
+import { ANNOTATION_COLORS } from '../../../core/screenshot-options'
 import { pointerSamples } from '../pointer-samples'
 import { inkToEditorAnnotations, inkToViewport, snapshotInk, type InkStroke } from './ink'
 import { ROOT_ATTR, ROOT_VALUE } from './annotation-roots'
@@ -172,8 +173,8 @@ export class AnnotationLayer {
   }
 
   private add(target: EventTarget, type: string, listener: (event: Event) => void, capture = false): void {
-    target.addEventListener(type, listener as EventListener, capture)
-    this.listeners.push([target, type, listener as EventListener])
+    target.addEventListener(type, listener, capture)
+    this.listeners.push([target, type, listener])
   }
 
   /** showPopover, guarded: an already-open popover throws instead of ignoring the call. */

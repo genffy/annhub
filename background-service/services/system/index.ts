@@ -3,9 +3,9 @@
  * storage housekeeping behind the message facade.
  */
 import type { IService, MessageHandlers } from '../../service-manager'
-import type { ResponseMessage } from '../../../types/messages'
+
 import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from '../../sender'
-import { addDisabledSite, readSettings, writeSettings } from '../../settings-schema'
+import { addDisabledSite, readSettings, writeSettings } from '../../settings-storage'
 import { metricsPanel, recordEvent } from '../metrics/record'
 import { Logger } from '../../../utils/logger'
 import MessageUtils from '../../../utils/message'
@@ -32,12 +32,12 @@ export class SystemService implements IService {
 
   getMessageHandlers(): MessageHandlers {
     return {
-      GET_SETTINGS: async (_message, sender): Promise<ResponseMessage> => {
+      GET_SETTINGS: async (_message, sender) => {
         if (!trustedSender(sender)) return forbiddenResponse()
         return MessageUtils.createResponse(true, await readSettings())
       },
 
-      SET_SETTINGS: async (message, sender): Promise<ResponseMessage> => {
+      SET_SETTINGS: async (message, sender) => {
         if (!trustedSender(sender)) return forbiddenResponse()
         try {
           if (!isExtensionPageSender(sender)) {
@@ -51,7 +51,7 @@ export class SystemService implements IService {
         }
       },
 
-      DISABLE_BLOCK_ENTRY: async (_message, sender): Promise<ResponseMessage> => {
+      DISABLE_BLOCK_ENTRY: async (_message, sender) => {
         if (!trustedSender(sender)) return forbiddenResponse()
         try {
           return MessageUtils.createResponse(true, await writeSettings({ blockEntryEnabled: false }))
@@ -60,13 +60,13 @@ export class SystemService implements IService {
         }
       },
 
-      RECORD_EVENT: async (message, sender): Promise<ResponseMessage> => {
+      RECORD_EVENT: async (message, sender) => {
         if (!trustedSender(sender)) return forbiddenResponse()
         await recordEvent(message.name, message.props)
         return MessageUtils.createResponse(true, {})
       },
 
-      GET_METRICS: async (_message, sender): Promise<ResponseMessage> => {
+      GET_METRICS: async (_message, sender) => {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         return MessageUtils.createResponse(true, await metricsPanel())
       },

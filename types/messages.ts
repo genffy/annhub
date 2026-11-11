@@ -7,10 +7,11 @@
  * Transport note: image bytes never persist as dataUrls — a dataUrl is wire
  * format only, storage keeps Blobs (storage.md §3).
  */
-import type { EntryQuery, HighlightQuery } from '../core/query'
-import type { MetricEventName, MetricEventProps } from '../core/metrics'
-import type { Highlight, PropertyDefinition, PropertyValue } from '../core/types'
-import type { SettingsPatch } from '../background-service/settings-schema'
+import type { EntryQuery, EntryQueryResult, HighlightQuery, HighlightQueryResult } from '../core/query'
+import type { MetricEventName, MetricEventProps, MetricsPanelData } from '../core/metrics'
+import type { EntryRecord, Highlight, PropertyDefinition, PropertyValue } from '../core/types'
+import type { ExtensionSettings, SettingsPatch } from '../core/settings'
+import type { LibraryFacets, OrphanReport } from '../core/store'
 
 export interface BaseMessage {
   type: string
@@ -293,7 +294,8 @@ export interface RecordingStatusMessage extends BaseMessage {
 export interface RecordingLifecycleMessage extends BaseMessage {
   type: 'RECORDING_LIFECYCLE'
   active: boolean
-  cursorHighlight?: SettingsPatch['recording'] extends { cursorHighlight?: infer C } ? C : never
+  /** The cursor highlight settings to apply while the recording is live (annotate.md §3.1). */
+  cursorHighlight?: ExtensionSettings['recording']['cursorHighlight']
 }
 
 // ── Downloads (download.md) ─────────────────────────────────────────────
@@ -516,6 +518,12 @@ export interface OrphanReportMessage extends BaseMessage {
   type: 'ORPHAN_REPORT'
 }
 
+/** The settings page's 清理: deletes the unreferenced assets its report named (storage.md §7). */
+export interface CleanupOrphansMessage extends BaseMessage {
+  type: 'CLEANUP_ORPHANS'
+  assetIds: string[]
+}
+
 export interface OpenExtensionPageMessage extends BaseMessage {
   type: 'OPEN_EXTENSION_PAGE'
   page: 'library' | 'settings'
@@ -554,7 +562,6 @@ export type ExtensionMessage =
   | RecordingEventMessage
   | RecordingCommandMessage
   | RecordingStatusMessage
-  | RecordingLifecycleMessage
   | StartPageDownloadMessage
   | ExtractDownloadPageMessage
   | DownloadExtractMessage
@@ -562,7 +569,6 @@ export type ExtensionMessage =
   | CancelDownloadMessage
   | EstimateDownloadMessage
   | ShowDownloadFileMessage
-  | DownloadNoticeMessage
   | DownloadRunMessage
   | DownloadFinishMessage
   | DownloadCancelMessage
@@ -574,4 +580,188 @@ export type ExtensionMessage =
   | GetMetricsMessage
   | UsageEstimateMessage
   | OrphanReportMessage
+  | CleanupOrphansMessage
   | OpenExtensionPageMessage
+
+// ── Messages to a tab's content script (RV-BG-12) ───────────────────────
+
+export interface TriggerScreenshotMessage extends BaseMessage {
+  type: 'TRIGGER_SCREENSHOT'
+}
+
+export interface TriggerBlockModeMessage extends BaseMessage {
+  type: 'TRIGGER_BLOCK_MODE'
+}
+
+export interface TriggerAnnotateMessage extends BaseMessage {
+  type: 'TRIGGER_ANNOTATE'
+}
+
+export interface TriggerDownloadMainMessage extends BaseMessage {
+  type: 'TRIGGER_DOWNLOAD_MAIN'
+  /** Which entrance asked — the page's metric and wording (download.md §2.3). */
+  via: 'command' | 'popup'
+}
+
+/**
+ * The messages the worker or the popup sends to a tab's top-frame content script. They carry no
+ * response data; everything the page answers travels as its own ExtensionMessage.
+ */
+export type TabMessage =
+  TriggerScreenshotMessage | TriggerBlockModeMessage | TriggerAnnotateMessage | TriggerDownloadMainMessage | RecordingLifecycleMessage | DownloadNoticeMessage
+
+// ── Response data: what each message's handler answers (RV-BG-12) ───────
+
+/**
+ * The `data` of every response, read from the handlers themselves — not from what a caller hoped
+ * for. `undefined` means success carries no data. Worker→offscreen commands (RECORDING_*,
+ * DOWNLOAD_RUN/FINISH/CANCEL, OFFSCREEN_PING) are answered with success only.
+ */
+export interface ResponseDataMap {
+  SAVE_CLIP: { entry: EntryRecord }
+  SAVE_SCREENSHOT: { entry: EntryRecord }
+  DELETE_ENTRY: { id: string }
+  UPDATE_ENTRY: { entry: EntryRecord }
+  ADD_HIGHLIGHT: { entry: EntryRecord }
+  UPDATE_HIGHLIGHT: { entry: EntryRecord }
+  REMOVE_HIGHLIGHT: { entry: EntryRecord }
+  RESTORE_HIGHLIGHT: { entry: EntryRecord }
+  QUERY_ENTRIES: { result: EntryQueryResult & { total?: number } }
+  QUERY_HIGHLIGHTS: { result: HighlightQueryResult }
+  QUERY_FACETS: { facets: LibraryFacets }
+  GET_ENTRY: { entry: EntryRecord | undefined }
+  GET_ASSET_DATA_URL: { dataUrl: string }
+  LIST_PROPERTIES: { definitions: PropertyDefinition[]; usage?: Record<string, number> }
+  UPSERT_PROPERTY: { definitions: PropertyDefinition[] }
+  DELETE_PROPERTY: { definitions: PropertyDefinition[] }
+  DELETE_UNUSED_PROPERTIES: { removed: string[]; definitions: PropertyDefinition[] }
+  USAGE_ESTIMATE: { usage: number; quota: number }
+  ORPHAN_REPORT: OrphanReport
+  CLEANUP_ORPHANS: { removed: string[] }
+  CAPTURE_VISIBLE_TAB: { dataUrl: string }
+  FETCH_IMAGE: { dataUrl: string }
+  DOWNLOAD_IMAGE: { downloadId: number }
+  REMEMBER_FRAME: undefined
+  READ_FRAME: { record: FrameRecord | null }
+  START_RECORDING: RecordingState
+  GET_RECORDING_STATE: RecordingState & { holdsVideo: boolean }
+  STOP_RECORDING: RecordingState
+  RETRY_RECORDING_DOWNLOAD: RecordingState
+  DISCARD_RECORDING: RecordingState
+  RECORDING_STATUS: { recording: boolean; cursorHighlight: ExtensionSettings['recording']['cursorHighlight'] }
+  RECORDING_EVENT: undefined
+  EXTRACT_DOWNLOAD_PAGE: { html: string }
+  START_PAGE_DOWNLOAD: { accepted: boolean; total: number }
+  START_LIBRARY_DOWNLOAD: { accepted: boolean; total: number }
+  ESTIMATE_DOWNLOAD: EstimateDownloadResult
+  CANCEL_DOWNLOAD: undefined
+  SHOW_DOWNLOAD_FILE: undefined
+  DOWNLOAD_RUN_EVENT: undefined
+  GET_SETTINGS: ExtensionSettings
+  SET_SETTINGS: ExtensionSettings
+  DISABLE_BLOCK_ENTRY: ExtensionSettings
+  RECORD_EVENT: Record<string, never>
+  GET_METRICS: MetricsPanelData
+  OPEN_EXTENSION_PAGE: { page: 'library' | 'settings' }
+  OFFSCREEN_PING: undefined
+  DOWNLOAD_EXTRACT: { html: string }
+  RECORDING_START: undefined
+  RECORDING_STOP: undefined
+  RECORDING_CLEANUP: undefined
+  DOWNLOAD_RUN: undefined
+  DOWNLOAD_FINISH: undefined
+  DOWNLOAD_CANCEL: undefined
+}
+
+/** A message type without an entry here fails the Pick below at compile time. */
+export type ResponseDataForEveryMessage = Pick<ResponseDataMap, ExtensionMessage['type']>
+
+/** The response `data` of a message type; callers never spell it out (RV-BG-12). */
+export type ResponseDataOf<K extends ExtensionMessage['type']> = K extends keyof ResponseDataMap ? ResponseDataMap[K] : never
+
+// ── Coordination: what a message does beyond its own response (RV-BG-13) ─
+
+/** How a message participates in cross-context coordination; false is the answer for every read. */
+export interface MessageCoordination {
+  /** A write whose success tells the open library pages their lists are stale (the `annhub.entries` broadcast). */
+  broadcastsEntryChange: boolean
+  /** A creation whose response the worker caches by requestId, so a retry after a lost response cannot create twice (RV-BG-01). */
+  cachesResponseByRequestId: boolean
+}
+
+const COORDINATION_NONE: MessageCoordination = { broadcastsEntryChange: false, cachesResponseByRequestId: false }
+const COORDINATION_BROADCAST: MessageCoordination = { broadcastsEntryChange: true, cachesResponseByRequestId: false }
+const COORDINATION_BOTH: MessageCoordination = { broadcastsEntryChange: true, cachesResponseByRequestId: true }
+
+/**
+ * One exhaustive row per message type — the single place the broadcast and the idempotency lists
+ * come from (RV-BG-13); a message missing here or given a wrong row is a compile error, not a
+ * silently stale list. The property registry writes do not broadcast: no product doc says they do.
+ */
+export const MESSAGE_COORDINATION = {
+  SAVE_CLIP: COORDINATION_BOTH,
+  SAVE_SCREENSHOT: COORDINATION_BOTH,
+  DELETE_ENTRY: COORDINATION_BROADCAST,
+  UPDATE_ENTRY: COORDINATION_BROADCAST,
+  ADD_HIGHLIGHT: COORDINATION_BROADCAST,
+  UPDATE_HIGHLIGHT: COORDINATION_BROADCAST,
+  REMOVE_HIGHLIGHT: COORDINATION_BROADCAST,
+  RESTORE_HIGHLIGHT: COORDINATION_BROADCAST,
+  QUERY_ENTRIES: COORDINATION_NONE,
+  QUERY_HIGHLIGHTS: COORDINATION_NONE,
+  QUERY_FACETS: COORDINATION_NONE,
+  GET_ENTRY: COORDINATION_NONE,
+  GET_ASSET_DATA_URL: COORDINATION_NONE,
+  LIST_PROPERTIES: COORDINATION_NONE,
+  UPSERT_PROPERTY: COORDINATION_NONE,
+  DELETE_PROPERTY: COORDINATION_NONE,
+  DELETE_UNUSED_PROPERTIES: COORDINATION_NONE,
+  CAPTURE_VISIBLE_TAB: COORDINATION_NONE,
+  FETCH_IMAGE: COORDINATION_NONE,
+  DOWNLOAD_IMAGE: COORDINATION_NONE,
+  REMEMBER_FRAME: COORDINATION_NONE,
+  READ_FRAME: COORDINATION_NONE,
+  START_RECORDING: COORDINATION_NONE,
+  GET_RECORDING_STATE: COORDINATION_NONE,
+  OFFSCREEN_PING: COORDINATION_NONE,
+  STOP_RECORDING: COORDINATION_NONE,
+  RETRY_RECORDING_DOWNLOAD: COORDINATION_NONE,
+  DISCARD_RECORDING: COORDINATION_NONE,
+  RECORDING_EVENT: COORDINATION_NONE,
+  RECORDING_STATUS: COORDINATION_NONE,
+  RECORDING_START: COORDINATION_NONE,
+  RECORDING_STOP: COORDINATION_NONE,
+  RECORDING_CLEANUP: COORDINATION_NONE,
+  START_PAGE_DOWNLOAD: COORDINATION_NONE,
+  EXTRACT_DOWNLOAD_PAGE: COORDINATION_NONE,
+  DOWNLOAD_EXTRACT: COORDINATION_NONE,
+  START_LIBRARY_DOWNLOAD: COORDINATION_NONE,
+  CANCEL_DOWNLOAD: COORDINATION_NONE,
+  ESTIMATE_DOWNLOAD: COORDINATION_NONE,
+  SHOW_DOWNLOAD_FILE: COORDINATION_NONE,
+  DOWNLOAD_RUN: COORDINATION_NONE,
+  DOWNLOAD_FINISH: COORDINATION_NONE,
+  DOWNLOAD_CANCEL: COORDINATION_NONE,
+  DOWNLOAD_RUN_EVENT: COORDINATION_NONE,
+  GET_SETTINGS: COORDINATION_NONE,
+  SET_SETTINGS: COORDINATION_NONE,
+  DISABLE_BLOCK_ENTRY: COORDINATION_NONE,
+  RECORD_EVENT: COORDINATION_NONE,
+  GET_METRICS: COORDINATION_NONE,
+  USAGE_ESTIMATE: COORDINATION_NONE,
+  ORPHAN_REPORT: COORDINATION_NONE,
+  CLEANUP_ORPHANS: COORDINATION_NONE,
+  OPEN_EXTENSION_PAGE: COORDINATION_NONE,
+} satisfies Record<ExtensionMessage['type'], MessageCoordination>
+
+export type MessageCoordinationTable = typeof MESSAGE_COORDINATION
+
+/** The writes that broadcast `entries-changed` to the open library pages (RV-BG-13). */
+export const ENTRY_CHANGE_BROADCAST_TYPES: ReadonlySet<string> = new Set(
+  (Object.keys(MESSAGE_COORDINATION) as ExtensionMessage['type'][]).filter(type => MESSAGE_COORDINATION[type].broadcastsEntryChange),
+)
+
+/** The creations whose response is cached by requestId (RV-BG-01, RV-BG-13). */
+export const REQUEST_ID_CACHED_TYPES: ReadonlySet<string> = new Set(
+  (Object.keys(MESSAGE_COORDINATION) as ExtensionMessage['type'][]).filter(type => MESSAGE_COORDINATION[type].cachesResponseByRequestId),
+)

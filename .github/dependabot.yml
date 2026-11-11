@@ -29,11 +29,11 @@ updates:
     commit-message:
       prefix: 'chore(deps)'
     ignore:
-      # The type definitions follow the runtime in `.node-version` (`npm run check:consistency` enforces
+      # The type definitions follow the runtime in `.node-version` (`pnpm run check:consistency` enforces
       # it), so a new major is raised together with the Node.js version, by hand.
       - dependency-name: '@types/node'
         update-types: ['version-update:semver-major']
-      # typescript-eslint supports TypeScript only below 6.1, and with TypeScript 7 `npm run lint` fails.
+      # typescript-eslint supports TypeScript only below 6.1, and with TypeScript 7 `pnpm run lint` fails.
       - dependency-name: typescript
         update-types: ['version-update:semver-major']
     groups:
@@ -57,7 +57,7 @@ updates:
       - dependency-name: typescript
         update-types: ['version-update:semver-major']
       # eslint-config-next 16 bundles plugins (import, jsx-a11y, react) whose peer ranges stop at ESLint 9: with ESLint 10
-      # `npm run lint` crashes, because eslint-plugin-react calls context.getFilename(), which ESLint 10 removed.
+      # `pnpm run lint` crashes, because eslint-plugin-react calls context.getFilename(), which ESLint 10 removed.
       - dependency-name: eslint
         update-types: ['version-update:semver-major']
     groups:
