@@ -20,7 +20,7 @@
 
 ## 2. 待处理
 
-审查分支是 `chore/hardening-followups`（§1 第 10 条）。组间的先后：测试门禁 → 产物体积 → 类型检查与 lint → 唤醒后台。产物体积组里 RV-LIB-22 先于 RV-TEST-14，预算按缩小之后的大小定；类型检查与 lint 组里 RV-TEST-13 先做，后两条的新检查才覆盖得到 skill 里的脚本；唤醒后台在类型检查与 lint 之后做，新代码直接按收紧的规则写。
+审查分支是 `chore/hardening-followups`（§1 第 10 条）。组间的先后：测试门禁 → 产物体积 → 类型检查与 lint → 唤醒后台。类型检查与 lint 组里 RV-TEST-13 先做，后两条的新检查才覆盖得到 skill 里的脚本；唤醒后台在类型检查与 lint 之后做，新代码直接按收紧的规则写。
 
 接手前先知道的几件事：
 
@@ -70,28 +70,6 @@
 ### 产物体积
 
 量法：`pnpm run build` 之后看 `.output/chrome-mv3/`。一个扩展页面的首屏 JS 是它的 HTML 里 `<script src>` 与 `<link rel="modulepreload">` 指向的文件之和；chunk 的文件名带哈希，按 HTML 找，不按文件名找。一张字符串表的大小用 esbuild 单独打包那个模块（minify）得到。
-
-#### RV-TEST-14 体积预算只覆盖两个文件（中）
-
-**问题**
-
-- `scripts/check-bundle.mjs` 只给 `content-scripts/content.js` 与 `background.js` 设了上限。没有上限的有两类：
-  - `content-scripts/content.css`（约 25 KB）。清单把它和 `content.js` 一起注入所有页面的所有框架；跨源框架里 `content.js` 一开始就退出，样式表照样注入。
-  - 扩展页面的首屏 JS。弹窗每打开一次要加载约 290 KB（自己的 chunk 加上与资料库共用的 chunk）。
-- 脚本注释说“没有上限的产物就是要补的漏”，却没有断言兜住：清单里多一个内容脚本或样式表、`.output` 里多一个页面，检查照样通过。
-
-**要求**
-
-1. 在 RV-LIB-22 之后做，上限取那时的实际值向上留一成。
-2. 预算加上 `content-scripts/content.css`，以及每个扩展页面（`popup.html`、`library.html`、`options.html`、`offscreen.html`）的首屏 JS（量法见本组开头）。
-3. 清单里的每个内容脚本 JS 与 CSS、后台脚本，以及 `.output/chrome-mv3` 下的每个 `.html` 页面都要有上限，缺了就失败并说出是哪个文件。按需 `import()` 的 chunk（offscreen 加载的正文识别）不在此列。
-4. 单测放 `scripts/__tests__/check-bundle.test.mjs`；`scripts/README.md` 联动表里 `check:bundle` 那一行同步。
-
-**验收**
-
-1. 临时把弹窗页的上限调到低于实际值，脚本失败，并列出这一页加载的文件。
-2. 测试的临时目录里给清单多加一个内容脚本、或多放一个页面而不设上限，脚本失败并说出名字。
-3. `pnpm run verify` 通过；CI 里两处调用的位置不变。
 
 ### 类型检查与 lint
 

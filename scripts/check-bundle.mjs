@@ -69,10 +69,7 @@ function builtPages(outputDirectory) {
 
 /** The scripts and stylesheets the manifest ships: every content script and the service worker. */
 function shippedFromManifest(manifest) {
-  return [
-    ...(manifest.content_scripts ?? []).flatMap(script => [...(script.js ?? []), ...(script.css ?? [])]),
-    manifest.background?.service_worker,
-  ].filter(Boolean)
+  return [...(manifest.content_scripts ?? []).flatMap(script => [...(script.js ?? []), ...(script.css ?? [])]), manifest.background?.service_worker].filter(Boolean)
 }
 
 export function bundleBudgetProblems(outputDirectory, budgets = BUNDLE_BUDGETS, sizeOf = path => statSync(path).size) {

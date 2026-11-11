@@ -57,10 +57,7 @@ describe('bundle budgets (RV-TEST-10, RV-TEST-14)', () => {
 
   it('says which bundle is missing from an existing build', () => {
     const directory = withBundles({ 'manifest.json': JSON.stringify(MANIFEST), 'content-scripts/content.js': 'x' })
-    expect(bundleBudgetProblems(directory, FILE_BUDGETS, () => 0)).toEqual([
-      'content-scripts/content.css: missing from the build',
-      'background.js: missing from the build',
-    ])
+    expect(bundleBudgetProblems(directory, FILE_BUDGETS, () => 0)).toEqual(['content-scripts/content.css: missing from the build', 'background.js: missing from the build'])
   })
 
   it('asks for a build when the output directory does not exist', () => {
@@ -88,18 +85,14 @@ describe('bundle budgets (RV-TEST-10, RV-TEST-14)', () => {
 
   it('names a first-screen file the build does not ship', () => {
     const directory = withBundles({ 'manifest.json': JSON.stringify({}), 'popup.html': '<script type="module" src="/chunks/popup.js"></script>' })
-    expect(bundleBudgetProblems(directory, { 'popup.html': 1000 }, () => 1)).toEqual([
-      "chunks/popup.js: named by popup.html's first screen but missing from the build",
-    ])
+    expect(bundleBudgetProblems(directory, { 'popup.html': 1000 }, () => 1)).toEqual(["chunks/popup.js: named by popup.html's first screen but missing from the build"])
   })
 
   it('budgets a static page at zero and fails when it grows a script', () => {
     const staticPage = { 'manifest.json': JSON.stringify({}), 'static.html': '<p>no scripts here</p>' }
     expect(bundleBudgetProblems(withBundles(staticPage), { 'static.html': 0 })).toEqual([])
     const grown = { ...staticPage, 'static.html': '<script src="/static.js"></script>', 'static.js': 'x'.repeat(10) }
-    expect(bundleBudgetProblems(withBundles(grown), { 'static.html': 0 })).toEqual([
-      'static.html: first screen loads 10 bytes over the 0-byte ceiling (static.js)',
-    ])
+    expect(bundleBudgetProblems(withBundles(grown), { 'static.html': 0 })).toEqual(['static.html: first screen loads 10 bytes over the 0-byte ceiling (static.js)'])
   })
 
   it('fails when a manifest script or stylesheet has no ceiling (RV-TEST-14)', () => {
@@ -125,9 +118,7 @@ describe('bundle budgets (RV-TEST-10, RV-TEST-14)', () => {
       'chunks/shared.js': 'x'.repeat(10),
       'library.html': '<script type="module" src="/chunks/library.js"></script>',
     })
-    expect(
-      bundleBudgetProblems(directory, { ...FILE_BUDGETS, 'popup.html': 1000 }, () => 10),
-    ).toEqual(['library.html: a built page without a ceiling — add it to BUNDLE_BUDGETS'])
+    expect(bundleBudgetProblems(directory, { ...FILE_BUDGETS, 'popup.html': 1000 }, () => 10)).toEqual(['library.html: a built page without a ceiling — add it to BUNDLE_BUDGETS'])
   })
 
   it('says the manifest cannot be read when it is broken', () => {
