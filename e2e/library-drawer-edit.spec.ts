@@ -213,6 +213,11 @@ test.describe('editing the original and the context in the drawer (extension.md 
       await library.goto(`chrome-extension://${extensionId}/library.html#/all?e=${id}`)
       await library.reload()
       const drawer = library.locator('.drawer')
+      // evaluateAll resolves the current matches without waiting (RV-TEST-16): measure only once the
+      // drawer has rendered its whole header, or an empty mid-load sweep reads as a reordered header
+      await expect(library.locator(`.drawer[data-entry-id="${id}"]`)).toBeVisible()
+      const expected = [...(hasRead ? ['阅读'] : []), '下载', '回到来源', '删除', '关闭']
+      await expect(drawer.locator('.drawer-header button, .drawer-header a'), `${id} at ${width}px: the header rendered`).toHaveCount(expected.length)
       const actions = await drawer.locator('.drawer-header button, .drawer-header a').evaluateAll(controls =>
         controls.map(control => ({
           name: control.getAttribute('aria-label') ?? control.textContent.trim(),
@@ -224,7 +229,7 @@ test.describe('editing the original and the context in the drawer (extension.md 
       expect(
         actions.map(action => action.name),
         `${id} at ${width}px: the order the spec names`,
-      ).toEqual([...(hasRead ? ['阅读'] : []), '下载', '回到来源', '删除', '关闭'])
+      ).toEqual(expected)
       // 阅读 and 回到来源 wear the same small outlined face; 回到来源 is a link by meaning
       const named = actions.filter(action => action.name === '阅读' || action.name === '下载' || action.name === '回到来源')
       expect(new Set(named.map(action => action.face)).size, `${id} at ${width}px: one face for the named actions`).toBe(1)
