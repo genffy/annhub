@@ -22,14 +22,11 @@ import { pointerSamples } from '../pointer-samples'
 import { inkToEditorAnnotations, inkToViewport, snapshotInk, type InkStroke } from './ink'
 import { ROOT_ATTR, ROOT_VALUE } from './annotation-roots'
 import { layerStyles } from './layer-styles'
-import { AUTO_ERASE_MS, buildToolbar, syncToolbarInto } from './toolbar'
+import { buildToolbar, syncToolbarInto } from './toolbar'
 import { commitText as commitTextInput, openTextInput } from './text-input'
 import { handleRecordingKey } from './recording-keys'
 import { ensureStepRing, positionStepRing } from './step-ring'
 import { isPinnedPoint } from './pinned-point'
-
-/** The erase delays of 自动擦除 (annotate.md §1.2): off by default, two fixed choices. */
-export type AutoErase = 'off' | '3s' | '8s'
 
 export type InkTool = 'pointer' | 'pen' | 'highlighter' | 'line' | 'arrow' | 'rectangle' | 'ellipse' | 'text' | 'step'
 
@@ -81,7 +78,6 @@ export class AnnotationLayer {
   tool: InkTool = 'pointer'
   color = ANNOTATION_COLORS[0]!.value
   lineWidth: LineWidth = 'medium'
-  autoErase: AutoErase = 'off'
   strokes: InkStroke[] = []
   /** What undo goes back to, one entry per step: the strokes and the step-badge group before it (annotate.md §1.2). */
   history: Array<{ strokes: InkStroke[]; stepSequence: number }> = []
@@ -94,8 +90,6 @@ export class AnnotationLayer {
   stepRingEl: HTMLDivElement | null = null
   textInput: HTMLTextAreaElement | null = null
   textAt: Point = { x: 0, y: 0 }
-  /** The stroke ids and their erase timers; erased ink leaves the page and the undo history without a step. */
-  eraseTimers = new Map<string, number>()
   hiddenForScreenshot = false
   /** 录制中：the toolbar would be filmed, so it is gone and the single keys run the tools (annotate.md §3.1). */
   recordingMode = false
@@ -513,32 +507,21 @@ export class AnnotationLayer {
     this.history.push({ strokes: this.strokes, stepSequence: this.stepSequence })
     this.strokes = strokes
     this.stepSequence = stepSequence
-    this.scheduleAutoErase(strokes)
     this.paint()
   }
 
   undo(): void {
     const previous = this.history.pop()
     if (!previous) return
-    // the ink that undo brings back keeps its erase running; the ink it takes away stops, and so do its timers
-    const restored = new Set(previous.strokes.map(stroke => stroke.id))
-    for (const [id, timer] of this.eraseTimers) {
-      if (restored.has(id)) continue
-      window.clearTimeout(timer)
-      this.eraseTimers.delete(id)
-    }
     this.strokes = previous.strokes
     this.stepSequence = previous.stepSequence
     this.selectedStep = null
-    this.scheduleAutoErase(this.strokes)
     this.paint()
   }
 
   /** 清空: the ink goes and the next badge is 1 again; undo brings both back (annotate.md §1.2). */
   clear(): void {
     if (this.strokes.length === 0 && nextStepNumber(this.asAnnotations(this.strokes), this.stepSequence) === 1) return
-    for (const timer of this.eraseTimers.values()) window.clearTimeout(timer)
-    this.eraseTimers.clear()
     this.commit([], this.stepSequence + 1)
   }
 
@@ -547,25 +530,6 @@ export class AnnotationLayer {
     if (!selected || !this.strokes.includes(selected)) return
     this.selectedStep = null
     this.commit(this.strokes.filter(stroke => stroke !== selected))
-  }
-
-  /** Erase each finished stroke when its delay runs out; the erased ink never enters undo, so history loses it too. */
-  private scheduleAutoErase(strokes: readonly InkStroke[]): void {
-    if (this.autoErase === 'off') return
-    for (const stroke of strokes) {
-      if (this.eraseTimers.has(stroke.id)) continue
-      this.eraseTimers.set(
-        stroke.id,
-        window.setTimeout(() => {
-          this.eraseTimers.delete(stroke.id)
-          if (!this.strokes.some(candidate => candidate.id === stroke.id)) return
-          this.strokes = this.strokes.filter(candidate => candidate.id !== stroke.id)
-          this.history = this.history.map(entry => ({ ...entry, strokes: entry.strokes.filter(candidate => candidate.id !== stroke.id) }))
-          if (this.selectedStep === stroke) this.selectedStep = null
-          this.paint()
-        }, AUTO_ERASE_MS[this.autoErase]),
-      )
-    }
   }
 
   // ── screenshot handover ───────────────────────────────────────────
@@ -622,8 +586,6 @@ export class AnnotationLayer {
     this.observer = null
     for (const [target, type, listener] of this.listeners) target.removeEventListener(type, listener, true)
     this.listeners = []
-    for (const [, timer] of this.eraseTimers) window.clearTimeout(timer)
-    this.eraseTimers.clear()
     if (this.noticeTimer !== null) window.clearTimeout(this.noticeTimer)
     try {
       if (this.host.matches(':popover-open')) this.host.hidePopover()

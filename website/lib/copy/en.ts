@@ -350,7 +350,6 @@ export const en: LandingCopy = {
     annotate: {
       toolbar: 'Annotation toolbar',
       pointer: 'Pointer: the page stays clickable',
-      autoerase: 'Auto-erase: off',
       clear: 'Clear',
       screenshot: 'Screenshot with the ink',
       exit: 'Exit annotation',

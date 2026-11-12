@@ -149,10 +149,6 @@ export const captureStrings = {
   // page-annotation layer (annotate.md §1)
   'annotate.toolbar': { zh: '批注工具栏', en: 'Annotation toolbar' },
   'annotate.tool.pointer': { zh: '指针：页面照常可点', en: 'Pointer: the page stays clickable' },
-  'annotate.autoerase': { zh: '自动擦除', en: 'Auto-erase' },
-  'annotate.autoerase.off': { zh: '自动擦除：关', en: 'Auto-erase: off' },
-  'annotate.autoerase.3s': { zh: '自动擦除：3 秒', en: 'Auto-erase: 3 s' },
-  'annotate.autoerase.8s': { zh: '自动擦除：8 秒', en: 'Auto-erase: 8 s' },
   'annotate.undo': { zh: '撤销', en: 'Undo' },
   'annotate.clear': { zh: '清空', en: 'Clear' },
   'annotate.screenshot': { zh: '带着墨迹截图', en: 'Screenshot with the ink' },

@@ -297,7 +297,6 @@ export const zhCN: LandingCopy = {
     annotate: {
       toolbar: '批注工具栏',
       pointer: '指针：页面照常可点',
-      autoerase: '自动擦除：关',
       clear: '清空',
       screenshot: '带着墨迹截图',
       exit: '退出批注',
