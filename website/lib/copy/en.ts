@@ -94,7 +94,7 @@ export const en: LandingCopy = {
       { title: 'Viewers see every mark', body: 'The annotations and the cursor highlight are in the picture; the annotation controls are not.' },
     ],
     boundary:
-      'Leaving the annotation layer clears everything — nothing stays on the page, and the ink is never saved. Videos are local WebM files: never in the library, never uploaded.',
+      'Leaving the annotation layer clears everything — nothing stays on the page, and the ink is never saved. Videos are local MP4 files (WebM where the browser cannot record MP4): never in the library, never uploaded.',
     sketch: 'Interface illustration · Sample data',
     captions: {
       annotate: 'The annotation toolbar at the window edge, with an arrow, a circle and a step number drawn over the article',
@@ -269,7 +269,7 @@ export const en: LandingCopy = {
       },
       {
         q: 'Is the screen recording uploaded? Where does the video go?',
-        a: 'Nothing is uploaded, and there is no account. When you stop, the video downloads itself as a local WebM file; it is not an entry, it never enters the library, and it is not in the export ZIP.',
+        a: 'Nothing is uploaded, and there is no account. When you stop, the video downloads itself as a local MP4 file (a WebM file where your browser cannot record MP4); it is not an entry, it never enters the library, and it is not in the export ZIP.',
       },
       {
         q: 'Why does it need the tabCapture and offscreen permissions?',

@@ -33,6 +33,7 @@ import { fromOwnBackground } from './background-sender'
 import { acceptDownloadRun, cleanupDownloadRun, deliverFinish } from './download-run'
 import { extractDownloadPage } from './download-extract'
 import { syncHeartbeat } from './heartbeat'
+import { blobTypeOf, containerOf, pickRecordingType, recordingFilename } from './recording-format'
 
 /** 15 minutes or about 500 MB, first reached wins (annotate.md §2.1). */
 const TIME_LIMIT_MS = 15 * 60_000
@@ -60,9 +61,9 @@ function report(event: RecordingEventMessage['event'], extra: Partial<RecordingE
   })
 }
 
+/** MP4 where this browser's recorder writes it, WebM where it does not (annotate.md §2.2). */
 function pickMimeType(): string {
-  const candidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
-  return candidates.find(candidate => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(candidate)) ?? ''
+  return pickRecordingType(type => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(type))
 }
 
 function stopRecording(stoppedBy?: 'user' | 'tab_closed'): void {
@@ -194,16 +195,20 @@ async function startCapture(message: RecordingCommandMessage & { type: 'RECORDIN
     const withMic = current.withMic
     const stoppedBy = current.stoppedBy
     const limit = current.limit
-    // the muxer never writes the segment duration: patch it in, so players can
-    // show a length and drag the progress bar (annotate.md §2.2)
-    const raw = new Blob(current.chunks, { type: 'video/webm' })
-    const bytes = fixWebmDuration(new Uint8Array(await raw.arrayBuffer()), durationMs)
-    const blob = new Blob([bytes.buffer as ArrayBuffer], { type: 'video/webm' })
+    // what the recorder really wrote, not what was asked for: with no type to ask for the browser writes its own default
+    const container = containerOf(recorder.mimeType || mimeType)
+    const type = blobTypeOf(container)
+    let blob = new Blob(current.chunks, { type })
+    if (container === 'webm') {
+      // the muxer never writes the segment duration: patch it in, so players can
+      // show a length and drag the progress bar (annotate.md §2.2). The recorder's
+      // MP4 needs no patch: it is written in fragments, and players read the
+      // length and the seek points from them — so it goes to the disk as it is.
+      const bytes = fixWebmDuration(new Uint8Array(await blob.arrayBuffer()), durationMs)
+      blob = new Blob([bytes.buffer as ArrayBuffer], { type })
+    }
     const blobUrl = URL.createObjectURL(blob)
-    const now = new Date()
-    const pad = (value: number): string => String(value).padStart(2, '0')
-    // local time, the same 口径 as the screenshot filename (storage.md §6)
-    const filename = `AnnHub/recording-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}.webm`
+    const filename = recordingFilename(new Date(), container)
     unsavedVideo = { blobUrl, filename, durationMs, withMic }
     syncHeartbeat(() => report('heartbeat'), true)
     report('stopped', { blobUrl, filename, durationMs, stoppedBy, withMic, ...(limit ? { limit } : {}) })

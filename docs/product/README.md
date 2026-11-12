@@ -89,7 +89,7 @@ AnnHub 是一个本地优先的浏览器扩展：把网页中值得留下的内�
 | 阅读视图           | 资料库里显示一条剪藏正文的页面，可在其中选中文字创建高亮                                               | [extension.md §4.2](extension.md) |
 | 截图（Screenshot） | 区域或元素截图，处理后的图片保存为条目                                                                 | [screenshot.md](screenshot.md)    |
 | 页面批注           | 讲解时直接画在当前标签页上的墨迹；退出即清除，可以截进截图编辑器，本身不保存                           | [annotate.md §1](annotate.md)     |
-| 录屏               | 把当前标签页录成本地的 WebM 视频，可带麦克风旁白；只下载到本机，不是条目                               | [annotate.md §2](annotate.md)     |
+| 录屏               | 把当前标签页录成本地的 MP4 视频（浏览器录不了时是 WebM），可带麦克风旁白；只下载到本机，不是条目       | [annotate.md §2](annotate.md)     |
 | 下载（Download）   | 把区块、整页正文或库里的条目取成本地的 Markdown 文件夹或 ZIP，含图片与直链媒体；不是条目，不进资料库   | [download.md](download.md)        |
 | 属性（Property）   | 条目上带类型的短小键值；名称与类型全局绑定                                                             | [entry.md §5](entry.md)           |
 | 类型预设           | 每种条目类型采集时自动附加的一组属性                                                                   | [entry.md §5.4](entry.md)         |

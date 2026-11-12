@@ -104,7 +104,7 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 <div class="highlight">
 <strong>All of this stays on your device:</strong> in your browser (IndexedDB and the extension's own <code>chrome.storage</code> areas, including a screenshot frame note kept in the session area that page scripts cannot read). The Markdown ZIP you export is an ordinary file that you own and manage.
 </div>
-<p><strong>Tab recordings</strong> — when you start one from the toolbar popup or your own shortcut, the extension records the current tab's picture and sound, plus your microphone when you ticked “with microphone”. The recording exists only in memory until it stops, then it is downloaded straight to your disk as a WebM file. It never becomes a library entry, is never uploaded, and the microphone has no permission of its own: the browser asks you for it the first time it is used, and you can change that in the browser's site settings.</p>
+<p><strong>Tab recordings</strong> — when you start one from the toolbar popup or your own shortcut, the extension records the current tab's picture and sound, plus your microphone when you ticked “with microphone”. The recording exists only in memory until it stops, then it is downloaded straight to your disk as an MP4 file (a WebM file where your browser cannot record MP4). It never becomes a library entry, is never uploaded, and the microphone has no permission of its own: the browser asks you for it the first time it is used, and you can change that in the browser's site settings.</p>
 
 <h2>2. The only outbound requests</h2>
 <p>The extension makes two kinds of outbound requests, only after your click and only to addresses referenced by the page or saved clip: fetching cross-origin images for an element screenshot, and fetching images and direct-link video or audio for a Markdown download. These requests carry no credentials, accept only public <code>http(s)</code> addresses, refuse private-network addresses, and have count and size limits. Saving a clip keeps only the original image addresses; the library reading view does not load them from the network.</p>
@@ -176,7 +176,7 @@ code { background: var(--code); padding: 0.05rem 0.35rem; border-radius: 5px; fo
 <div class="highlight">
 <strong>以上全部只留在你的设备上：</strong>在浏览器的 IndexedDB 与扩展自己的 <code>chrome.storage</code> 区域里（包括记着上次截图取景框的会话区域，页面脚本读不到它）。你导出的 Markdown ZIP 是普通文件，由你自己保管。
 </div>
-<p><strong>标签页录制</strong>——只有当你从工具栏弹窗或自己绑定的快捷键开始录制时，扩展才会录制当前标签页的画面与声音；勾选了“带麦克风”时加上麦克风。录制在停止之前只存在于内存里，停止后直接下载到你磁盘上的 WebM 文件。它不会成为资料库条目，也永不上传；麦克风没有对应的清单权限，浏览器在第一次使用时询问，之后可以在浏览器的网站设置里更改。</p>
+<p><strong>标签页录制</strong>——只有当你从工具栏弹窗或自己绑定的快捷键开始录制时，扩展才会录制当前标签页的画面与声音；勾选了“带麦克风”时加上麦克风。录制在停止之前只存在于内存里，停止后直接下载到你磁盘上的 MP4 文件（浏览器录不了 MP4 时是 WebM 文件）。它不会成为资料库条目，也永不上传；麦克风没有对应的清单权限，浏览器在第一次使用时询问，之后可以在浏览器的网站设置里更改。</p>
 
 <h2>2. 唯一会产生的出站请求</h2>
 <p>扩展后台会发出两类出站请求，都只在你的点击之后、只指向页面自己引用的地址：元素截图里含跨域图片时，从图片所在的站点代取那一张图——与浏览器显示它时发出的请求相同——以便元素截图能包含它；把页面或资料库条目下载为 Markdown 文件夹时，取回页面或剪藏里声明的媒体（图片与直链的视频、音频）。取回不带凭据，只接受公网 <code>http(s)</code> 地址，拒绝私有网络地址，并有数量与大小上限。剪藏入库时图片只保留原地址，资料库阅读视图不联网加载。</p>
