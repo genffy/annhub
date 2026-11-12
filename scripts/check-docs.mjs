@@ -13,6 +13,12 @@
 //   date-in-prose  a document body names a calendar date; market.md is exempt, its facts carry their own check dates
 //   history-wording  narrative wording (修复轮, 曾, 旧实现, …) — the word list lives in HISTORY_WORD below
 //   round-label  a 真机走查/修复轮/P1-2 label in any tracked text file, Markdown or source
+//   readme-pair  README.md (English, the default) and README.zh-CN.md are translations of each other: the same blocks in the
+//                same order (headings, paragraphs, lists, tables, code, tags), the same links, the same commands and paths;
+//                only the sentences and the comments after `#` in code blocks are free
+//   readme-fact  what a README states about the repository holds: the `pnpm run` scripts exist, the project structure names
+//                real paths and every top-level directory, the shortcuts are the manifest's, and the minimum Chrome version
+//                is the one in wxt.config.ts
 //
 // Failures are printed as `path:line: [rule] what` and the process exits 1.
 // `--root <dir>` runs the checks on another directory, so the tests can build a small tree.
@@ -410,6 +416,192 @@ function checkListTail() {
   return { problems, detail: `${targets.length} convention files, list tails checked` }
 }
 
+// --- readme-pair: README.md and README.zh-CN.md say the same thing -------------------------------------------------
+
+const README_FILES = ['README.md', 'README.zh-CN.md']
+
+/** One block per heading, paragraph, quote, HTML tag line, table, list or fenced block, in order: a translation is free
+ * in its sentences but not in what it contains. HTML comments are not blocks. A fenced block keeps its lines, numbered. */
+function readmeBlocks(text) {
+  const lines = text.split('\n')
+  const blocks = []
+  let current = null
+  let inComment = false
+  const start = block => {
+    current = block
+    blocks.push(block)
+  }
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index]
+    const n = index + 1
+    if (inComment || /^\s*<!--/.test(line)) {
+      inComment = !line.includes('-->')
+      continue
+    }
+    const fence = /^\s*(```|~~~)\s*(\S*)/.exec(line)
+    if (fence) {
+      let end = index + 1
+      while (end < lines.length && !lines[end].trimStart().startsWith(fence[1])) end += 1
+      blocks.push({ kind: `code:${fence[2]}`, n, code: lines.slice(index + 1, end).map((text, k) => ({ text, n: n + 1 + k })) })
+      current = null
+      index = end
+      continue
+    }
+    if (line.trim() === '') {
+      // a list goes on across blank lines while the next line is another item or an indented continuation
+      const next = lines.slice(index + 1).find(candidate => candidate.trim() !== '')
+      if (!(current?.kind === 'list' && next !== undefined && /^(\s+\S|\s*([-*+]|\d+[.)])\s)/.test(next))) current = null
+      continue
+    }
+    const heading = /^(#{1,6})\s/.exec(line)
+    const tag = /^\s*<\/?([a-zA-Z][\w-]*)/.exec(line)
+    if (heading || tag) {
+      blocks.push({ kind: heading ? `h${heading[1].length}` : `html:${tag[1].toLowerCase()}`, n })
+      current = null
+    } else if (/^\s*\|/.test(line)) {
+      if (current?.kind === 'table') current.count += 1
+      else start({ kind: 'table', n, count: 1 })
+    } else if (/^\s*([-*+]|\d+[.)])\s+\S/.test(line)) {
+      if (current?.kind === 'list') current.count += 1
+      else start({ kind: 'list', n, count: 1 })
+    } else if (/^\s*>/.test(line)) {
+      if (current?.kind !== 'quote') start({ kind: 'quote', n })
+    } else if (!current || current.kind === 'table') {
+      start({ kind: 'p', n })
+    }
+  }
+  return blocks
+}
+
+const blockKey = block => (block?.count ? `${block.kind}:${block.count}` : (block?.kind ?? 'nothing'))
+
+/** A code block's lines without blank lines and without comments (`# …`): the comments are what a translation changes. */
+const codeLines = block => block.code.map(({ text, n }) => ({ text: text.replace(/(^|\s+)#(\s.*)?$/, '').trimEnd(), n })).filter(({ text }) => text.trim() !== '')
+
+/** Where a README points: link and image targets outside code, without in-page anchors (headings differ by language)
+ * and without the two links that join the READMEs. A language directory in a target is one thing: `/en` and `/zh-CN`. */
+function readmeLinks(text) {
+  const links = []
+  for (const { line, n } of proseLines(text)) {
+    for (const match of line.replace(/`[^`]*`/g, '').matchAll(/\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g)) {
+      if (!match[1].startsWith('#') && !README_FILES.includes(match[1])) links.push({ target: match[1].replace(/\b(zh-CN|en)\b/g, '{locale}'), n })
+    }
+  }
+  return links
+}
+
+function checkReadmePair() {
+  const [english, chinese] = README_FILES
+  const present = README_FILES.filter(file => files.includes(file))
+  if (present.length === 0) return { problems: [], detail: 'no README' }
+  const problems = README_FILES.filter(file => !present.includes(file)).map(file => `${file}: [readme-pair] is missing; ${english} and ${chinese} are translations of each other`)
+  if (present.length < 2) return { problems, detail: `${present[0]} has no translation` }
+
+  const texts = [read(english), read(chinese)]
+  texts.forEach((text, index) => {
+    const other = README_FILES[1 - index]
+    if (!text.split('\n', 12).some(line => line.includes(`](${other})`))) problems.push(`${README_FILES[index]}:1: [readme-pair] the first lines do not link to ${other}`)
+  })
+
+  const [left, right] = texts.map(readmeBlocks)
+  // the shorter side reads as "nothing" past its end, so a missing or extra block is a mismatch like any other
+  const k = Array.from({ length: Math.max(left.length, right.length) }, (_, i) => i).findIndex(i => blockKey(left[i]) !== blockKey(right[i]))
+  if (k !== -1) {
+    const n = right[k]?.n ?? texts[1].split('\n').length
+    problems.push(
+      `${chinese}:${n}: [readme-pair] block ${k + 1} is ${blockKey(right[k])}, but ${english}${left[k] ? `:${left[k].n}` : ''} has ${blockKey(left[k])} at the same place`,
+    )
+  } else {
+    left.forEach((block, k) => {
+      if (!block.code) return
+      const [a, b] = [codeLines(block), codeLines(right[k])]
+      const d = a.findIndex((line, i) => line.text !== b[i]?.text)
+      if (d !== -1 || a.length !== b.length) {
+        problems.push(
+          `${chinese}:${(b[d] ?? b[b.length - 1] ?? right[k]).n}: [readme-pair] the code block differs from the one at ${english}:${block.n} (only comments after "#" may differ)`,
+        )
+      }
+    })
+  }
+
+  const counts = list => list.reduce((map, { target }) => map.set(target, (map.get(target) ?? 0) + 1), new Map())
+  const links = texts.map(readmeLinks)
+  const [seen, other] = links.map(counts)
+  for (const target of new Set([...seen.keys(), ...other.keys()])) {
+    if (seen.get(target) === other.get(target)) continue
+    const more = (seen.get(target) ?? 0) > (other.get(target) ?? 0) ? 0 : 1
+    problems.push(
+      `${README_FILES[more]}:${links[more].find(link => link.target === target).n}: [readme-pair] links to ${target} ${[seen, other][more].get(target)} time(s), but ${README_FILES[1 - more]} ${[seen, other][1 - more].get(target) ?? 0}`,
+    )
+  }
+  return { problems, detail: `${left.length} blocks and ${links[0].length} links compared` }
+}
+
+// --- readme-fact: what a README states about the repository holds ---------------------------------------------------
+
+function checkReadmeFacts() {
+  const present = README_FILES.filter(file => files.includes(file))
+  const problems = []
+  let scripts = null
+  try {
+    scripts = JSON.parse(read('package.json')).scripts ?? {}
+  } catch {
+    // no package.json to hold the commands against
+  }
+  const manifest = files.includes('wxt.config.ts') ? read('wxt.config.ts') : null
+  const shortcuts = manifest && [...manifest.matchAll(/suggested_key:\s*\{([^}]*)\}/g)].flatMap(match => [...match[1].matchAll(/['"]([^'"]+)['"]/g)].map(key => key[1]))
+  const minimumChrome = manifest && /minimum_chrome_version:\s*['"](\d+)['"]/.exec(manifest)?.[1]
+  const directories = new Set(
+    files.flatMap(file =>
+      file
+        .split('/')
+        .slice(0, -1)
+        .map((_, i, parts) => parts.slice(0, i + 1).join('/')),
+    ),
+  )
+  // the project structure names the top level and the two levels that grow with the product: entry points and services
+  const listed = [...directories].filter(directory => !directory.includes('/') || /^(entrypoints|background-service\/services)\/[^/]+$/.test(directory))
+
+  for (const file of present) {
+    const text = read(file)
+    text.split('\n').forEach((line, index) => {
+      for (const match of line.matchAll(/\bpnpm run ([\w:.-]+)/g)) {
+        if (scripts && !(match[1] in scripts)) problems.push(`${file}:${index + 1}: [readme-fact] \`pnpm run ${match[1]}\` is not a script in package.json`)
+      }
+      for (const [, span] of line.matchAll(/`([^`]+)`/g)) {
+        if (shortcuts && /^(Ctrl|Command|Cmd|Alt|Option|Meta|Shift)\+[\w+]+$/.test(span) && !shortcuts.includes(span))
+          problems.push(`${file}:${index + 1}: [readme-fact] the shortcut ${span} is not a suggested_key in wxt.config.ts`)
+      }
+    })
+    for (const key of shortcuts ?? []) {
+      if (!text.includes(`\`${key}\``)) problems.push(`${file}: [readme-fact] does not state the shortcut \`${key}\` that wxt.config.ts suggests`)
+    }
+    if (minimumChrome) {
+      const stated = /Chrome (\d+)/.exec(text)?.[1]
+      const at = Math.max(text.split('\n').findIndex(line => /Chrome \d+/.test(line)) + 1, 1)
+      if (stated !== minimumChrome)
+        problems.push(`${file}:${at}: [readme-fact] says Chrome ${stated ?? '(no version)'}, but wxt.config.ts sets minimum_chrome_version to ${minimumChrome}`)
+    }
+    for (const block of readmeBlocks(text).filter(candidate => candidate.code?.some(({ text: line }) => /[├└]── /.test(line)))) {
+      const path = []
+      const named = new Set()
+      for (const { text: line, n } of block.code) {
+        const match = /^((?:│ {3}| {4})*)(?:├── |└── )(\S+)/.exec(line)
+        if (!match) continue
+        const depth = match[1].length / 4
+        path.length = depth
+        path[depth] = match[2].replace(/\/$/, '')
+        named.add(path.join('/'))
+        if (!existsSync(join(root, path.join('/')))) problems.push(`${file}:${n}: [readme-fact] the project structure names ${path.join('/')}, which does not exist`)
+      }
+      for (const directory of listed) {
+        if (!named.has(directory)) problems.push(`${file}:${block.n}: [readme-fact] the project structure does not list ${directory}/, a directory of the repository`)
+      }
+    }
+  }
+  return { problems, detail: `${present.length} README file(s) held against package.json, wxt.config.ts and the tree` }
+}
+
 // --- run ----------------------------------------------------------------------------------------------------------
 
 const rules = [
@@ -423,6 +615,8 @@ const rules = [
   ['round-label', checkRoundLabels],
   ['agents-tree', checkAgentsTree],
   ['list-tail', checkListTail],
+  ['readme-pair', checkReadmePair],
+  ['readme-fact', checkReadmeFacts],
 ]
 
 const problems = []

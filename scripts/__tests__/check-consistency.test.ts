@@ -179,6 +179,10 @@ describe('check-consistency', () => {
       expectFailure({ '.node-version': '26\n' }, '@types/node ^24.0.3 is not Node.js 26', 'README.md: says Node.js 24.x, but .node-version is 26')
     })
 
+    it('reads the Chinese README as well as the English one', () => {
+      expectFailure({ 'README.zh-CN.md': '需要 Node.js 22.x 或更高版本。\n' }, 'README.zh-CN.md: says Node.js 22.x, but .node-version is 24')
+    })
+
     it('catches engines.node that excludes the version in .node-version', () => {
       expectFailure({ 'package.json': edit('package.json', '>=24.0.0', '>=26.0.0') }, 'engines.node ">=26.0.0" does not allow Node.js 24')
     })

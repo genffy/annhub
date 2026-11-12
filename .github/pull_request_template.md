@@ -9,6 +9,7 @@
 - [ ] `pnpm run verify`
 - [ ] `pnpm run build` and the relevant `pnpm exec playwright test <spec>` (browser-visible changes)
 - [ ] Shared contracts changed: TypeScript and `docs/product/` are updated together
+- [ ] Behaviour, commands, shortcuts, requirements or the repository layout changed: `README.md` and `README.zh-CN.md` are updated together (`pnpm run check:docs` checks that they still match each other and the repository)
 - [ ] New or changed behaviour: the owning docs in `docs/product/` (contract, user story and acceptance, metrics) change in this PR; a feature that crosses the not-doing list in `product.md` §2.3 changes that row here
 - [ ] Environment, dependency, build, deploy or CI settings changed: every related place was searched for and updated in this PR (AGENTS.md「联动一致性」); list the `git grep` commands and the files they hit
 

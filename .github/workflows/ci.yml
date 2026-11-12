@@ -10,7 +10,7 @@ name: CI
 # website build exit immediately and `static` keeps the doc checks; pushes to main and the merge
 # queue always run everything. The unit tests are never skipped: they are what keeps the docs and
 # the code in step (tests/website/token-parity.test.ts reads docs/design/css/tokens.css,
-# tests/website/website.test.ts reads README.md and docs/product/permissions.md), so a docs-only
+# tests/website/website.test.ts reads both READMEs and docs/product/permissions.md), so a docs-only
 # pull request can break them (check-consistency enforces this too).
 #
 # The jobs are independent so the wall time is the slowest part, not the sum: static checks, unit

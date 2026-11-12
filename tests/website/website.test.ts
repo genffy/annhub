@@ -59,7 +59,7 @@ describe('links inside the site', () => {
 })
 
 describe('the install entry', () => {
-  // The site, the README and the product docs send people to one store listing. A second address, or one with tracking
+  // The site, both READMEs and the product docs send people to one store listing. A second address, or one with tracking
   // parameters, is a link the docs did not ask for (docs/product/website.md §4).
   const storeAddresses = (file: string) => readFileSync(file, 'utf8').match(/https:\/\/chromewebstore\.google\.com[^\s)"'`]*/g) ?? []
 
@@ -70,8 +70,8 @@ describe('the install entry', () => {
     expect(url.search + url.hash).toBe('')
   })
 
-  it('is the only store address in the site, the README and the product docs', () => {
-    const files = [...sources, join(root, 'README.md'), join(root, 'docs/product/permissions.md')]
+  it('is the only store address in the site, the READMEs and the product docs', () => {
+    const files = [...sources, join(root, 'README.md'), join(root, 'README.zh-CN.md'), join(root, 'docs/product/permissions.md')]
     expect([...new Set(files.flatMap(storeAddresses))]).toEqual([STORE_URL])
   })
 
