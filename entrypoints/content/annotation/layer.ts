@@ -36,6 +36,11 @@ const SWALLOWED_EVENT_TYPES = ['click', 'dblclick', 'auxclick', 'contextmenu', '
 export interface AnnotationLayerOptions {
   /** The screenshot button (or the screenshot shortcut while the layer is open): hand over the ink and hide. */
   onScreenshot: (ink: InkStroke[]) => void
+  /**
+   * A tab is being recorded: the layer opens without its toolbar and with the pen already picked, so a drag
+   * draws at once and the single keys switch tools from there (annotate.md §3.1).
+   */
+  recording?: boolean
 }
 
 let activeLayer: AnnotationLayer | null = null
@@ -163,6 +168,11 @@ export class AnnotationLayer {
       if (!this.exited) this.syncDialogPlacement()
     })
     this.observer.observe(this.doc.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] })
+    // Opened while a tab is being recorded: no toolbar to pick a tool from, so the pen is already in hand
+    if (this.options.recording) {
+      this.setRecordingMode(true)
+      this.setTool('pen')
+    }
     this.paint()
   }
 

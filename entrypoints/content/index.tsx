@@ -278,8 +278,8 @@ function startAnnotationLayer(): void {
   blockEntries?.hide()
   enterAnnotationLayer({
     onScreenshot: ink => enterScreenshotWithInk(ink),
+    recording: recordingActive,
   })
-  getActiveAnnotationLayer()?.setRecordingMode(recordingActive)
 }
 
 function toggleAnnotationLayer(): void {

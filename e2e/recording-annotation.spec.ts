@@ -115,6 +115,45 @@ test.describe('recording-time annotation and cursor highlight (annotate.md §3)'
     await expect(page.locator(LAYER)).toHaveCount(0)
   })
 
+  // What someone who has not read the key list does: open the layer while recording and drag. The pointer tool would leave
+  // them with a layer that draws nothing and no toolbar to pick a tool from, so the layer opens on the pen (annotate.md §3.1).
+  test('the layer opens ready to draw while recording: a plain drag draws, no key pressed', async ({ page }) => {
+    await page.goto(getScreenshotPageUrl())
+    await startRecording(page)
+    await triggerAnnotation(page)
+    await page.locator(LAYER).waitFor()
+    await expect(page.locator(TOOLBAR)).toBeHidden()
+    // the pointer says a pen is in hand: the coloured cross, not the plain arrow
+    expect(await page.locator(CANVAS).evaluate(canvas => (canvas as HTMLElement).style.cursor)).toContain('data:image/svg+xml')
+
+    await page.mouse.move(200, 150)
+    await page.mouse.down()
+    await page.mouse.move(320, 150, { steps: 8 })
+    await page.mouse.up()
+    const red = await pixelAt(page, CANVAS, 235, 150)
+    expect(red[0]).toBeGreaterThan(180)
+    expect(red[0] - red[1]).toBeGreaterThan(60)
+    await page.keyboard.press('Escape')
+    await expect(page.locator(LAYER)).toHaveCount(0)
+  })
+
+  test('a layer that is already open when the recording starts keeps its tool, and only the toolbar steps aside', async ({ page }) => {
+    await page.goto(getScreenshotPageUrl())
+    await triggerAnnotation(page)
+    await page.locator(LAYER).waitFor()
+    await expect(page.locator(TOOLBAR)).toBeVisible()
+    await expect(page.locator(LAYER)).not.toHaveClass(/ann-annot-drawing/)
+
+    await startRecording(page)
+    await expect(page.locator(TOOLBAR)).toBeHidden()
+    await expect(page.locator(LAYER), 'the pointer tool the user was on is still the tool').not.toHaveClass(/ann-annot-drawing/)
+
+    await stopRecording(page)
+    await expect(page.locator(TOOLBAR)).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(page.locator(LAYER)).toHaveCount(0)
+  })
+
   test('the cursor highlight follows the pointer, never blocks a click, and ends with the recording', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
     await startRecording(page)
@@ -180,6 +219,8 @@ test.describe('recording-time annotation and cursor highlight (annotate.md §3)'
       input.setAttribute('data-testid', 'page-input')
       document.body.appendChild(input)
     })
+    // the layer opens on the pen, which covers the page: V is the way back to the page, as in the key list
+    await page.keyboard.press('v')
     await page.locator('[data-testid="page-input"]').click()
     await page.keyboard.press('p')
     // the input holds the character; no tool switched (the stroke below is the pointer, nothing drawn)
