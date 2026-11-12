@@ -46,7 +46,7 @@ async function service() {
 }
 
 describe('SAVE_CLIP carries exactly the fields the draft names (RV-TEST-17)', () => {
-  it('stores a minimal draft without absent keys, and attribution stays out', async () => {
+  it('stores a minimal draft without context, note or highlights keys', async () => {
     const handlers = await service()
     const response = await handlers.SAVE_CLIP!(
       { type: 'SAVE_CLIP', draft: { content: 'Minimal body.', sourceUrl: 'https://page.example/a', properties: { title: 'Minimal' }, via: 'menu' } },

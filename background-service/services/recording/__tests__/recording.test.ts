@@ -281,14 +281,12 @@ describe('recording service (annotate.md §2)', () => {
     expect(whileRunning.micNotice).toBe('denied')
 
     // the recorder reports the stop afterwards: the video lands, the mic notice outlives the recording
-    console.log('STEP stopped event')
     // the browser takes the video: land the download like windDown does
     downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(3))
     await dispatch(
       { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:video', filename: 'AnnHub/recording-silent.webm', durationMs: 5_000, stoppedBy: 'user', withMic: true },
       extensionSender,
     )
-    console.log('STEP download change')
     onDownloadChanged({ id: 3, state: { previous: 'in_progress', current: 'complete' } })
     const after = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string; micNotice?: string }
     expect(after.status).toBe('idle')

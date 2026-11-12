@@ -18,7 +18,7 @@
  */
 import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage, RecordingEventMessage, RecordingState, TabMessage } from '../../../types/messages'
-import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender, isTopFrameTabSender } from '../../sender'
+import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from '../../sender'
 import { ensureOffscreenDocument } from '../../offscreen-document'
 import { readSettings, writeSettings } from '../../settings-storage'
 import { openExtensionPage } from '../../../utils/extension-pages'
@@ -97,8 +97,9 @@ export class RecordingService implements IService {
     if (!route) {
       // no route means no recording: the session store is empty after an extension reload or a
       // disable/enable, and the flag from the recording before it must not send every page load
-      // asking a worker that has nothing to answer (annotate.md §3.2). The worker is awake here.
-      await chrome.storage.local.set({ [RECORDING_FLAG_KEY]: false })
+      // asking a worker that has nothing to answer (annotate.md §3.2). The worker is awake here;
+      // the flag is the optimization, so its write stays best-effort like the route's own.
+      await chrome.storage.local.set({ [RECORDING_FLAG_KEY]: false }).catch(() => undefined)
       return
     }
     const contexts = await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT] }).catch(() => [])
@@ -152,7 +153,6 @@ export class RecordingService implements IService {
    * worker for a status answer (annotate.md §3.2, RV-CAP-19).
    */
   private async persistRoute(): Promise<void> {
-    await chrome.storage.local.set({ [RECORDING_FLAG_KEY]: this.state.status === 'recording' })
     const route: PersistedRecordingRoute | null =
       this.state.status === 'recording'
         ? {
@@ -182,6 +182,10 @@ export class RecordingService implements IService {
     try {
       if (route) await chrome.storage.session.set({ [SESSION_KEY]: route })
       else await chrome.storage.session.remove(SESSION_KEY)
+      // the flag rides along as the optimization it is: pages read it instead of waking the
+      // worker (annotate.md §3.2), the route stays the source of truth, so the write goes last
+      // and best-effort — a storage failure must not break the live flow
+      await chrome.storage.local.set({ [RECORDING_FLAG_KEY]: this.state.status === 'recording' }).catch(() => undefined)
     } catch {
       // the record is a restart's road map; a storage failure must not break the live flow
     }
@@ -234,10 +238,14 @@ export class RecordingService implements IService {
 
       /** The recorded tab asks on load whether a recording is live (annotate.md §3.2): read-only, no user data. A same-origin subframe asks for its own cursor highlight. */
       RECORDING_STATUS: async (_message, sender) => {
-        if (!isTopFrameTabSender(sender) && !isSameOriginTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
+        if (!isSameOriginTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
         await this.ensureRecovered()
         const settings = await readSettings()
-        return MessageUtils.createResponse(true, { recording: this.state.status === 'recording', cursorHighlight: settings.recording.cursorHighlight })
+        // the truth is per tab (annotate.md §3.2, RV-REC-06): only the recorded tab's own pages —
+        // its top frame and same-origin subframes — hear "recording"; an extension page (the
+        // popup) gets the global answer. Same tab id, new page: still the recorded tab.
+        const recording = this.state.status === 'recording' && (isExtensionPageSender(sender) || sender.tab?.id === this.state.tabId)
+        return MessageUtils.createResponse(true, { recording, cursorHighlight: settings.recording.cursorHighlight })
       },
 
       RECORDING_EVENT: async (message, sender) => {

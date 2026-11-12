@@ -20,32 +20,7 @@
 
 ## 2. 待处理
 
-审查分支是 `chore/hardening-followups`（§1 第 10 条）。只有「唤醒后台」一组，在同一个 worktree 里做，组内一条一个提交。
-
-接手前先知道的几件事：
-
-- `background-service/services/recording/__tests__/recording.test.ts` 离 48 KB 的测试预算只剩两三 KB：这一组新增的用例放进同目录的新文件，不进台账。
-
-### 唤醒后台
-
-#### RV-REC-06 `RECORDING_STATUS` 不分标签页，别的标签页里的页面也开光标高亮、收起批注工具栏（中）
-
-**问题**
-
-- `services/recording` 的 `RECORDING_STATUS` 只看录制在不在进行，不看谁在问：录制 tab 7 时，tab 99 的顶层页面发来询问，同样得到 `recording: true`。单测可复现：`START_RECORDING` 录 tab 7，再以 tab 99 顶层页面的发送者询问。
-- 页面据此开光标高亮（设置里打开了的话），在那里打开批注层也是录制中的形态，工具栏收起（`entrypoints/content/index.tsx` 的 `applyRecordingState` 与 `startAnnotationLayer`）。[annotate.md §3.2](product/annotate.md) 写的是光标高亮“只在被录的标签页上出现”；[§3.1](product/annotate.md) 收起工具栏的理由是工具栏会被录进视频，只对被录的标签页成立。
-- 录制开始时已经开着的别的标签页没有这个现象，因为生命周期消息只发给被录的标签页；录制开始之后才加载的页面有。同一个录制里，两种标签页的表现不一致。
-
-**要求**
-
-1. 来自标签页的询问：发送者所在的标签页就是被录的标签页（同源子框架同属那个标签页）时，`recording` 才为 `true`；别的标签页得到 `false`。被录的标签页换到另一个网址，新页面照旧得到 `true`。扩展页面的发送者不变。
-2. 归属文档写明这一点：启动时的询问只有被录的标签页得到“录制中”——[annotate.md §3.2](product/annotate.md) 里讲录制状态怎样到达页面的那一条，以及 `entrypoints/content/annotation/AGENTS.md` 里“录制状态的到达路径”那一条。
-3. 不改发送者的档位，不加权限，不新增消息。
-
-**验收**
-
-1. 单测，用例名带本编号与 [annotate.md §3.2](product/annotate.md)：录制 tab 7 时，tab 7 的顶层页面与它的同源子框架得到 `true`，tab 99 的页面得到 `false`；没有录制时谁问都是 `false`；被录的标签页换了网址仍是 `true`（同一个标签页编号）。改动前 tab 99 那条失败、改动后通过。
-2. `pnpm run verify` 通过；`e2e/recording-annotation.spec.ts`、`e2e/popup-entry.spec.ts` 通过。
+没有条目。新发现按 §1 第 6 条登记。
 
 ## 3. 已知问题
 

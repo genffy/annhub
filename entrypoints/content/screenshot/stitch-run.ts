@@ -3,6 +3,7 @@ import { ROOT_ATTR } from './session-roots'
 import { StitchError, Stitcher, type StitchFailure } from './stitcher'
 import { requestCapture } from './capture-rate'
 import { doubleRaf } from './photographer'
+import { dispatchCaptureVisibility } from './capture-visibility'
 
 /**
  * The scroll stitch (RV-CAP-18, split out of the session): the picking chips' 长图 button runs
@@ -53,7 +54,7 @@ export class StitchRun {
         // the shot photographs the screen: the session's overlay and UI hide
         // for the moment, and the cursor highlight of a recording with them
         port.hideUi()
-        doc.dispatchEvent(new CustomEvent('annhub:capture-hide'))
+        dispatchCaptureVisibility(doc, 'annhub:capture-hide')
         try {
           await doubleRaf()
           // the same rate-limit-aware path the region capture takes
@@ -62,7 +63,7 @@ export class StitchRun {
           return response.data.dataUrl
         } finally {
           port.restoreUi()
-          doc.dispatchEvent(new CustomEvent('annhub:capture-restore'))
+          dispatchCaptureVisibility(doc, 'annhub:capture-restore')
         }
       },
     })

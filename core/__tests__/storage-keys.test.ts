@@ -1,20 +1,14 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { RECORDING_FLAG_KEY, readRecordingFlag } from '../storage-keys'
+import { describe, expect, it } from 'vitest'
+import { RECORDING_FLAG_KEY, SETTINGS_STORAGE_KEY } from '../storage-keys'
 
 /**
- * The recording flag is the one boolean pages read instead of waking the worker (annotate.md §3.2,
- * RV-CAP-19): reading it is a plain chrome.storage.local read, true only when the key says so.
+ * The two names every context reads storage.local under (storage.md §2). They are constants so
+ * the reader (utils/local-storage.ts), the writer (the recording service) and the change filter
+ * cannot drift apart; the reads themselves live in utils, since core/ calls no chrome.*.
  */
-
-afterEach(() => vi.unstubAllGlobals())
-
-describe('the recording flag (RV-CAP-19)', () => {
-  it('is true only when the worker wrote true, and false when the key is gone', async () => {
-    vi.stubGlobal('chrome', { storage: { local: { get: async () => ({ [RECORDING_FLAG_KEY]: true }) } } })
-    expect(await readRecordingFlag()).toBe(true)
-    vi.stubGlobal('chrome', { storage: { local: { get: async () => ({}) } } })
-    expect(await readRecordingFlag()).toBe(false)
-    vi.stubGlobal('chrome', { storage: { local: { get: async () => ({ [RECORDING_FLAG_KEY]: 'yes' }) } } })
-    expect(await readRecordingFlag()).toBe(false)
+describe('the shared storage keys', () => {
+  it('keeps the names the recording flag and the preferences travel under', () => {
+    expect(SETTINGS_STORAGE_KEY).toBe('annhub.settings')
+    expect(RECORDING_FLAG_KEY).toBe('annhub.recordingActive')
   })
 })

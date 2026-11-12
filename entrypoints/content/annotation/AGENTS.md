@@ -20,7 +20,7 @@
 - 一次只画一笔（已有笔画在进行中，或不是主指针的 `pointerdown` 不开始新的一笔，`move`/`up`/`cancel` 按 `pointerId` 过滤）。
 - `Ctrl`/`Cmd`+`Z` 在 `onKeydown` 里：选了工具且焦点不在可编辑区域时才拦下撤销，“指针”时属于页面（annotate.md §1.2）。
 - 录制时（annotate.md §3）被录标签页有光标高亮与点击涟漪（`cursor-highlight.ts`：`pointer-events: none`，指针离开页面时隐藏，截图截取期间也隐藏，免得高亮进了图）。
-- 录制状态的到达路径：脚本启动时先读 `chrome.storage.local` 的录制标记（[storage.md §2](../../../docs/product/storage.md)），读到真才经 `RECORDING_STATUS` 问一次后台——普通页面加载与同源子框架加载不唤醒 worker。
+- 录制状态的到达路径：脚本启动时先读 `chrome.storage.local` 的录制标记（[storage.md §2](../../../docs/product/storage.md)），读到真才经 `RECORDING_STATUS` 问一次后台——普通页面加载与同源子框架加载不唤醒 worker。这次询问的「录制中」只答给被录的标签页（同源子框架同属它，被录标签页换网址不变），别的标签页得到「没有在录制」（RV-REC-06）。
 - 此后以 `RECORDING_LIFECYCLE` 消息为准，每个框架都跟着开关光标高亮；生命周期消息到过之后，迟到的启动读数不得回滚它（`lifecycleSeen`）。录制中批注层以无工具栏形态打开（`setRecordingMode`），批注的控件不进画面（annotate.md §3.1）。
 
 - 改批注层、墨迹或它的换算：先跑 `entrypoints/content/annotation/__tests__`，再跑 `e2e/page-annotation.spec.ts`；改录制状态接线或光标高亮后跑 `e2e/recording-annotation.spec.ts`。

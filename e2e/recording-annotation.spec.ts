@@ -203,4 +203,42 @@ test.describe('recording-time annotation and cursor highlight (annotate.md §3)'
     await broadcastLifecycle(page, false)
     await expect(frame.locator(HIGHLIGHT), 'the stop reaches the subframe: the highlight goes away there too').toHaveCount(0)
   })
+
+  test('one ring at a time: the top ring hides while the pointer is inside a same-origin subframe (annotate.md §3.2)', async ({ page }) => {
+    await page.goto('http://localhost:8173/iframe-host.html')
+    await broadcastLifecycle(page, true)
+    const shape = '[data-ann-ui="cursor-highlight-shape"]'
+    const visible = async (): Promise<{ top: number; child: number; total: number }> => {
+      const top = await page.evaluate(sel => {
+        const el = document.querySelector<HTMLElement>(sel)
+        return el && el.style.display === 'block' ? 1 : 0
+      }, shape)
+      const child = await page
+        .frameLocator('iframe[name="same"]')
+        .locator('html')
+        .evaluate((_html, sel) => {
+          const el = document.querySelector<HTMLElement>(sel)
+          return el && el.style.display === 'block' ? 1 : 0
+        }, shape)
+      return { top, child, total: top + child }
+    }
+
+    // outside the iframe: the top frame's ring follows the pointer
+    await page.mouse.move(420, 300)
+    await page.waitForTimeout(120)
+    expect(await visible(), "outside: one ring, the top frame's").toMatchObject({ total: 1, top: 1 })
+
+    // inside: the subframe's ring takes over and the top ring is gone — one ring on screen
+    const box = (await page.locator('iframe[name="same"]').boundingBox())!
+    await page.mouse.move(box.x + 6, box.y + 40, { steps: 6 })
+    await page.mouse.move(box.x + 250, box.y + 90, { steps: 12 })
+    await page.waitForTimeout(120)
+    expect(await visible(), "inside: one ring, the subframe's").toMatchObject({ total: 1, child: 1 })
+
+    // back out: the top frame's ring returns
+    await page.mouse.move(box.x - 30, box.y + 40, { steps: 6 })
+    await page.mouse.move(420, 320, { steps: 4 })
+    await page.waitForTimeout(120)
+    expect(await visible(), "back out: one ring, the top frame's again").toMatchObject({ total: 1, top: 1 })
+  })
 })
