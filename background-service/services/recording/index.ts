@@ -93,7 +93,13 @@ export class RecordingService implements IService {
   private async recover(): Promise<void> {
     const stored = (await chrome.storage.session.get(SESSION_KEY).catch(() => ({}))) as Record<string, unknown>
     const route = stored[SESSION_KEY] as PersistedRecordingRoute | undefined
-    if (!route) return
+    if (!route) {
+      // no route means no recording: the session store is empty after an extension reload or a
+      // disable/enable, and the flag from the recording before it must not send every page load
+      // asking a worker that has nothing to answer (annotate.md §3.2). The worker is awake here.
+      await chrome.storage.local.set({ [RECORDING_FLAG_KEY]: false })
+      return
+    }
     const contexts = await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT] }).catch(() => [])
     if (contexts.length === 0 && !(await this.offscreenAnswers())) {
       // the recorder died with its document: nothing to stop, nothing to download. The contexts read alone

@@ -366,6 +366,16 @@ describe('recording service (annotate.md §2)', () => {
     await windDown(42, 'AnnHub/recording-gone.webm')
   })
 
+  it('a recovery that finds no route clears a stale recording flag (RV-CAP-19)', async () => {
+    // a reload or a disable/enable mid-recording empties the session store but leaves the flag:
+    // the first worker to wake must reset it, or every page load goes on asking the worker
+    localStorageMap.set('annhub.recordingActive', true)
+    sessionStorageMap.delete('annhub.recording')
+    const cold = new RecordingService()
+    await cold.initialize()
+    expect(localStorageMap.get('annhub.recordingActive')).toBe(false)
+  })
+
   it('a cold-started worker that sees no contexts but reaches the document keeps the recording (RV-REC-02)', async () => {
     await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
     // the contexts read comes back empty on a worker a command just woke (seen on a real machine);
