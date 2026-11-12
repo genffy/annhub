@@ -37,16 +37,16 @@ export const BUNDLE_BUDGETS = {
   'sample.en.html': 0,
 }
 
-/** The files a page loads on first screen: its <script src> and <link rel="modulepreload"> targets. */
+/** The files a page loads on first screen: its <script src> and <link rel="modulepreload"> targets. HTML tag and attribute names are case-insensitive, so every pattern here is too. */
 export function pageFirstScreenFiles(html) {
   const files = []
-  for (const tag of html.matchAll(/<(?:script|link)\b[^>]*>/g)) {
+  for (const tag of html.matchAll(/<(?:script|link)\b[^>]*>/gi)) {
     const text = tag[0]
-    if (text.startsWith('<script')) {
-      const src = /\bsrc="([^"]+)"/.exec(text)
+    if (/^<script/i.test(text)) {
+      const src = /\bsrc="([^"]+)"/i.exec(text)
       if (src) files.push(src[1])
-    } else if (/\brel="modulepreload"/.test(text)) {
-      const href = /\bhref="([^"]+)"/.exec(text)
+    } else if (/\brel="modulepreload"/i.test(text)) {
+      const href = /\bhref="([^"]+)"/i.exec(text)
       if (href) files.push(href[1])
     }
   }

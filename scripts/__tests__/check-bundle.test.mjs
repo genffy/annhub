@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { bundleBudgetProblems } from '../check-bundle.mjs'
+import { bundleBudgetProblems, pageFirstScreenFiles } from '../check-bundle.mjs'
 
 /**
  * scripts/check-bundle.mjs keeps the built scripts within byte ceilings (RV-TEST-10, RV-TEST-14).
@@ -81,6 +81,13 @@ describe('bundle budgets (RV-TEST-10, RV-TEST-14)', () => {
     expect(bundleBudgetProblems(directory, { 'popup.html': 899 })).toEqual([
       'popup.html: first screen loads 900 bytes over the 899-byte ceiling (chunks/popup.js, chunks/shared.js)',
     ])
+  })
+
+  it('reads the first-screen files from tags and attributes in any letter case (RV-TEST-14)', () => {
+    const html =
+      '<SCRIPT TYPE="module" SRC="/chunks/upper.js"></SCRIPT><Link Rel="ModulePreload" HREF="/chunks/mixed.js">' +
+      '<link rel="stylesheet" href="/chunks/skipped.css"><scripted src="/chunks/not-a-script.js">'
+    expect(pageFirstScreenFiles(html)).toEqual(['/chunks/upper.js', '/chunks/mixed.js'])
   })
 
   it('names a first-screen file the build does not ship', () => {
