@@ -1,4 +1,4 @@
-/** Property editing and the properties table, the shared words and the relative times (entry.md §5).
+/** Property editing and the properties table, the shared words (entry.md §5); the relative-time rows live in strings-shared (RV-LIB-22).
  *  Moved verbatim from ui-text.ts when the string table went over its byte budget. */
 export const propertyStrings = {
   // property editing (entry.md §5)
@@ -87,8 +87,4 @@ export const propertyStrings = {
   'common.cancel': { zh: '取消', en: 'Cancel' },
   'common.save': { zh: '保存', en: 'Save' },
   'common.loading': { zh: '加载中…', en: 'Loading…' },
-  'time.justNow': { zh: '刚刚', en: 'just now' },
-  'time.minutesAgo': { zh: '{count} 分钟前', en: '{count} min ago' },
-  'time.hoursAgo': { zh: '{count} 小时前', en: '{count} h ago' },
-  'time.daysAgo': { zh: '{count} 天前', en: '{count} d ago' },
 } as const

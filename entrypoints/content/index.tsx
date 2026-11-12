@@ -12,6 +12,8 @@ import type { BlockCandidate } from './blocks'
 import { enterAnnotationLayer, exitAnnotationLayer, getActiveAnnotationLayer, isAnnotationLayerActive, notifyAnnotationLayer } from './annotation/layer'
 import type { InkStroke } from './annotation/ink'
 import { setCursorHighlight, type CursorHighlightSettings } from './cursor-highlight'
+import { SETTINGS_STORAGE_KEY } from '../../core/storage-keys'
+import { readLocalSettings, readRecordingFlag } from '../../utils/local-storage'
 import { blockClipAnchor, isClipFailure, saveBlockClip, savePlainTextSelection, saveSelectionClip, showClipToast, showFailureToast, type ClipOrigin } from './clip-flow'
 import { SelectionMenu, plainTextForSelection, selectableRange } from './selection-menu'
 import { enterScreenshotMode, isScreenshotSessionActive, notifyScreenshotSession } from './screenshot'
@@ -152,19 +154,21 @@ function wireSelectionMenu(): void {
 }
 
 function wireBlockEntries(): void {
+  // the preferences are read straight from chrome.storage.local (layer C, no secrets): the first
+  // block under the pointer must not wake the service worker (RV-CAP-19)
   let cachedSettings: Promise<{ blockEntryEnabled?: boolean; blockDisabledSites?: string[] }> | null = null
   const settings = () => {
-    cachedSettings ??= MessageUtils.sendMessage({ type: 'GET_SETTINGS' }).then(response => {
-      if (!response.success) {
+    cachedSettings ??= readLocalSettings()
+      .then(preferences => ({ blockEntryEnabled: preferences.blockEntryEnabled, blockDisabledSites: preferences.blockDisabledSites }))
+      .catch(() => {
+        // an updated extension strands old tabs' scripts with a dead port: fail soft, ask again next time
         cachedSettings = null
         return {}
-      }
-      return response.data ?? {}
-    })
+      })
     return cachedSettings
   }
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes['annhub.settings']) cachedSettings = null
+    if (area === 'local' && changes[SETTINGS_STORAGE_KEY]) cachedSettings = null
   })
   const gate = {
     enabled: async () => {
@@ -234,14 +238,21 @@ function applyRecordingState(): void {
 
 /** The worker tells the recorded tab when a recording starts and stops (annotate.md §3). */
 function wireCursorHighlight(): void {
-  void MessageUtils.sendMessage({ type: 'RECORDING_STATUS' }).then(response => {
-    if (!response.success || !response.data || lifecycleSeen) return
-    recordingActive = response.data.recording === true
-    cursorHighlightSettings = response.data.cursorHighlight ?? null
-    applyRecordingState()
-  })
+  // the flag is one boolean in chrome.storage.local (storage.md §2): reading it never wakes the
+  // worker, and only a page that finds a recording running asks the worker for the real state
+  void readRecordingFlag()
+    .catch(() => false)
+    .then(flag => {
+      if (!flag || lifecycleSeen) return
+      void MessageUtils.sendMessage({ type: 'RECORDING_STATUS' }).then(response => {
+        if (!response.success || !response.data || lifecycleSeen) return
+        recordingActive = response.data.recording === true
+        cursorHighlightSettings = response.data.cursorHighlight ?? null
+        applyRecordingState()
+      })
+    })
   chrome.runtime.onMessage.addListener((message: TabMessage) => {
-    if (!isTopFrame() || message?.type !== 'RECORDING_LIFECYCLE') return
+    if (message?.type !== 'RECORDING_LIFECYCLE') return
     lifecycleSeen = true
     recordingActive = message.active === true
     if (message.active) cursorHighlightSettings = message.cursorHighlight ?? null

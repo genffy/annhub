@@ -1,8 +1,9 @@
 import { uiText, type UiTextKey } from '../ui-text'
 import { ROOT_ATTR } from './session-roots'
-import { Stitcher, type StitchFailure } from './stitcher'
+import { StitchError, Stitcher, type StitchFailure } from './stitcher'
 import { requestCapture } from './capture-rate'
 import { doubleRaf } from './photographer'
+import { dispatchCaptureVisibility } from './capture-visibility'
 
 /**
  * The scroll stitch (RV-CAP-18, split out of the session): the picking chips' 长图 button runs
@@ -53,7 +54,7 @@ export class StitchRun {
         // the shot photographs the screen: the session's overlay and UI hide
         // for the moment, and the cursor highlight of a recording with them
         port.hideUi()
-        doc.dispatchEvent(new CustomEvent('annhub:capture-hide'))
+        dispatchCaptureVisibility(doc, 'annhub:capture-hide')
         try {
           await doubleRaf()
           // the same rate-limit-aware path the region capture takes
@@ -62,7 +63,7 @@ export class StitchRun {
           return response.data.dataUrl
         } finally {
           port.restoreUi()
-          doc.dispatchEvent(new CustomEvent('annhub:capture-restore'))
+          dispatchCaptureVisibility(doc, 'annhub:capture-restore')
         }
       },
     })
@@ -76,8 +77,8 @@ export class StitchRun {
     try {
       result = await stitcher.run()
     } catch (error) {
-      // the stitcher throws its own reason as a string; any other error is a shot that did not come back
-      failure = typeof error === 'string' ? (error as StitchFailure) : 'capture'
+      // the stitcher throws its reason in a StitchError; any other error is a shot that did not come back
+      failure = error instanceof StitchError ? error.code : 'capture'
     }
     this.stitcher = null
     sweeper.remove()

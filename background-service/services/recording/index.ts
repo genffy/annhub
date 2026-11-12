@@ -18,13 +18,14 @@
  */
 import type { IService, MessageHandlers } from '../../service-manager'
 import type { ResponseMessage, RecordingEventMessage, RecordingState, TabMessage } from '../../../types/messages'
-import { forbiddenResponse, isExtensionPageSender, isTopFrameTabSender } from '../../sender'
+import { forbiddenResponse, isExtensionPageSender, isSameOriginTabSender } from '../../sender'
 import { ensureOffscreenDocument } from '../../offscreen-document'
 import { readSettings, writeSettings } from '../../settings-storage'
 import { openExtensionPage } from '../../../utils/extension-pages'
 import MessageUtils from '../../../utils/message'
 import { Logger } from '../../../utils/logger'
 import { bucketRecordingDuration, type RecordingDurationBucket } from '../../../core/metrics'
+import { RECORDING_FLAG_KEY } from '../../../core/storage-keys'
 import { recordEvent } from '../metrics/record'
 
 const SESSION_KEY = 'annhub.recording'
@@ -66,7 +67,8 @@ export class RecordingService implements IService {
   /** A finished video on its way to the disk: the blob URL the offscreen document keeps alive until the file has landed. */
   private pendingDownload: { blobUrl: string; filename: string; downloadId?: number; meta: FinishedRecording } | null = null
   /** The tab whose recording produced the pending download; the route record keeps it after the state moved to idle. */
-  private recordedTabId?: number
+  // `| undefined`, not `?`: the slot is cleared by assignment, which exactOptionalPropertyTypes keeps distinct from absence
+  private recordedTabId: number | undefined
   /** The recovery read, started by whoever reads state first — an event that beats initialize() must not find the idle default (RV-REC-02). */
   private recovery: Promise<void> | null = null
 
@@ -92,7 +94,14 @@ export class RecordingService implements IService {
   private async recover(): Promise<void> {
     const stored = (await chrome.storage.session.get(SESSION_KEY).catch(() => ({}))) as Record<string, unknown>
     const route = stored[SESSION_KEY] as PersistedRecordingRoute | undefined
-    if (!route) return
+    if (!route) {
+      // no route means no recording: the session store is empty after an extension reload or a
+      // disable/enable, and the flag from the recording before it must not send every page load
+      // asking a worker that has nothing to answer (annotate.md §3.2). The worker is awake here;
+      // the flag is the optimization, so its write stays best-effort like the route's own.
+      await chrome.storage.local.set({ [RECORDING_FLAG_KEY]: false }).catch(() => undefined)
+      return
+    }
     const contexts = await chrome.runtime.getContexts({ contextTypes: [chrome.runtime.ContextType.OFFSCREEN_DOCUMENT] }).catch(() => [])
     if (contexts.length === 0 && !(await this.offscreenAnswers())) {
       // the recorder died with its document: nothing to stop, nothing to download. The contexts read alone
@@ -138,7 +147,11 @@ export class RecordingService implements IService {
     if (route.status === 'pending-download') await this.resumePendingDownload()
   }
 
-  /** Writes the route the next worker will read; a live flow with nothing to carry deletes the record. */
+  /**
+   * Writes the route the next worker will read; a live flow with nothing to carry deletes the record.
+   * The one-boolean flag in chrome.storage.local rides along: pages read it instead of waking the
+   * worker for a status answer (annotate.md §3.2, RV-CAP-19).
+   */
   private async persistRoute(): Promise<void> {
     const route: PersistedRecordingRoute | null =
       this.state.status === 'recording'
@@ -169,6 +182,10 @@ export class RecordingService implements IService {
     try {
       if (route) await chrome.storage.session.set({ [SESSION_KEY]: route })
       else await chrome.storage.session.remove(SESSION_KEY)
+      // the flag rides along as the optimization it is: pages read it instead of waking the
+      // worker (annotate.md §3.2), the route stays the source of truth, so the write goes last
+      // and best-effort — a storage failure must not break the live flow
+      await chrome.storage.local.set({ [RECORDING_FLAG_KEY]: this.state.status === 'recording' }).catch(() => undefined)
     } catch {
       // the record is a restart's road map; a storage failure must not break the live flow
     }
@@ -219,12 +236,16 @@ export class RecordingService implements IService {
         return MessageUtils.createResponse(true, this.state)
       },
 
-      /** The recorded tab asks on load whether a recording is live (annotate.md §3.2): read-only, no user data. */
+      /** The recorded tab asks on load whether a recording is live (annotate.md §3.2): read-only, no user data. A same-origin subframe asks for its own cursor highlight. */
       RECORDING_STATUS: async (_message, sender) => {
-        if (!isTopFrameTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
+        if (!isSameOriginTabSender(sender) && !isExtensionPageSender(sender)) return forbiddenResponse()
         await this.ensureRecovered()
         const settings = await readSettings()
-        return MessageUtils.createResponse(true, { recording: this.state.status === 'recording', cursorHighlight: settings.recording.cursorHighlight })
+        // the truth is per tab (annotate.md §3.2, RV-REC-06): only the recorded tab's own pages —
+        // its top frame and same-origin subframes — hear "recording"; an extension page (the
+        // popup) gets the global answer. Same tab id, new page: still the recorded tab.
+        const recording = this.state.status === 'recording' && (isExtensionPageSender(sender) || sender.tab?.id === this.state.tabId)
+        return MessageUtils.createResponse(true, { recording, cursorHighlight: settings.recording.cursorHighlight })
       },
 
       RECORDING_EVENT: async (message, sender) => {
@@ -330,7 +351,7 @@ export class RecordingService implements IService {
 
     await this.ensureOffscreenDocument()
     // the state is set before the offscreen document answers, so a microphone notice it reports on the way is kept
-    this.state = { status: 'recording', withMic, tabId, tabTitle: tab.title, startedAt: Date.now() }
+    this.state = { status: 'recording', withMic, tabId, ...(tab.title ? { tabTitle: tab.title } : {}), startedAt: Date.now() }
     const answer = await this.tellOffscreen({ type: 'RECORDING_START', streamId, withMic })
     if (!answer.ok) {
       this.state = { status: 'idle', withMic: false, ...(this.state.micNotice ? { micNotice: this.state.micNotice } : {}) }
@@ -359,6 +380,8 @@ export class RecordingService implements IService {
 
   private resetToIdle(): void {
     this.state = { status: 'idle', withMic: false }
+    // the flag rides the route write: a route dropped here also clears it (annotate.md §3.2)
+    void this.persistRoute()
     this.syncBadge()
   }
 
@@ -416,7 +439,7 @@ export class RecordingService implements IService {
             durationMs: message.durationMs ?? 0,
             withMic: message.withMic === true,
             stoppedBy,
-            limit: message.limit,
+            ...(message.limit !== undefined ? { limit: message.limit } : {}),
           },
         }
         this.state = {
@@ -536,7 +559,7 @@ export class RecordingService implements IService {
         void chrome.runtime.sendMessage({ type: 'OFFSCREEN_PING' }).then(
           answer => {
             clearTimeout(timer)
-            resolve(answer?.success === true)
+            resolve(MessageUtils.isResponseMessage(answer) && answer.success === true)
           },
           () => {
             clearTimeout(timer)
@@ -551,8 +574,12 @@ export class RecordingService implements IService {
 
   private async tellOffscreen(message: { type: string } & Record<string, unknown>): Promise<{ ok: boolean }> {
     try {
-      const answer = await chrome.runtime.sendMessage(message)
-      return { ok: answer?.success !== false }
+      const answer: unknown = await chrome.runtime.sendMessage(message)
+      // no reply is still a delivery: STOP and CLEANUP are fire-and-forget and Chrome resolves
+      // undefined for a received-but-unanswered message, while a gone document rejects;
+      // only an answer on the record can refuse the command
+      if (answer === undefined) return { ok: true }
+      return { ok: MessageUtils.isResponseMessage(answer) && answer.success !== false }
     } catch {
       return { ok: false }
     }

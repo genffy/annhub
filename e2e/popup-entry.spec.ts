@@ -235,7 +235,7 @@ test('the record button asks for the stream by targetTabId and hands it to START
       const type = (rest[0] as { type?: string } | undefined)?.type
       if (type === 'START_RECORDING') {
         captured.starts.push(rest[0] as Record<string, unknown>)
-        return Promise.resolve({ success: true })
+        return Promise.resolve({ type: 'RESPONSE', success: true })
       }
       return (send as (...args: unknown[]) => unknown)(...rest)
     }) as typeof chrome.runtime.sendMessage
@@ -276,7 +276,7 @@ async function popupIn(page: Page, extensionId: string, recording?: Record<strin
       const send = chrome.runtime.sendMessage.bind(chrome.runtime)
       chrome.runtime.sendMessage = ((...rest: unknown[]) => {
         const type = (rest[0] as { type?: string } | undefined)?.type
-        if (type === 'GET_RECORDING_STATE' && recording) return Promise.resolve({ success: true, data: recording })
+        if (type === 'GET_RECORDING_STATE' && recording) return Promise.resolve({ type: 'RESPONSE', success: true, data: recording })
         return (send as (...args: unknown[]) => unknown)(...rest)
       }) as typeof chrome.runtime.sendMessage
     },

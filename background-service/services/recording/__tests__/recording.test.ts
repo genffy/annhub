@@ -20,7 +20,12 @@ const tabs = { get: vi.fn(), query: vi.fn(), sendMessage: vi.fn(async () => unde
 const tabCapture = { getMediaStreamId: vi.fn(async () => 'stream-cmd') }
 const action = { setBadgeText: vi.fn(async () => undefined), setBadgeBackgroundColor: vi.fn(async () => undefined) }
 const runtime = {
-  sendMessage: vi.fn(async (_message: { type: string }) => ({ success: true })),
+  // the document answers only what it can judge: STOP and CLEANUP are fire-and-forget and come
+  // back as undefined (Chrome resolves a received-but-unanswered message), like the real one
+  sendMessage: vi.fn(async (message: { type: string }) => {
+    if (message.type === 'RECORDING_STOP' || message.type === 'RECORDING_CLEANUP') return undefined
+    return { type: 'RESPONSE', success: true }
+  }),
   getContexts: vi.fn(async () => [] as unknown[]),
   lastError: undefined as { message: string } | undefined,
 }
@@ -262,8 +267,34 @@ describe('recording service (annotate.md §2)', () => {
     expect(answer.success).toBe(false)
   })
 
+  it('a stop the document does not answer is still delivered: the recording and its mic notice stay (RV-TEST-18)', async () => {
+    const start = await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 'silent-stop', withMic: true }, extensionSender)
+    expect(start.success).toBe(true)
+    await dispatch({ type: 'RECORDING_EVENT', event: 'mic-unavailable', micNotice: 'denied' }, extensionSender)
+
+    // the document answers STOP with nothing (fire-and-forget): the stop must not read as
+    // a dead document, or the state drops to idle and the mic notice is lost too early
+    const stop = await dispatch({ type: 'STOP_RECORDING' }, extensionSender)
+    expect(stop.success).toBe(true)
+    const whileRunning = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string; micNotice?: string }
+    expect(whileRunning.status).toBe('recording')
+    expect(whileRunning.micNotice).toBe('denied')
+
+    // the recorder reports the stop afterwards: the video lands, the mic notice outlives the recording
+    // the browser takes the video: land the download like windDown does
+    downloads.download.mockImplementation((_options: unknown, callback: (id: number) => void) => callback(3))
+    await dispatch(
+      { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:video', filename: 'AnnHub/recording-silent.webm', durationMs: 5_000, stoppedBy: 'user', withMic: true },
+      extensionSender,
+    )
+    onDownloadChanged({ id: 3, state: { previous: 'in_progress', current: 'complete' } })
+    const after = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string; micNotice?: string }
+    expect(after.status).toBe('idle')
+    expect(after.micNotice).toBe('denied')
+  })
+
   it('a start the offscreen document refuses leaves no recording behind', async () => {
-    runtime.sendMessage.mockImplementationOnce(async () => ({ success: false }))
+    runtime.sendMessage.mockImplementationOnce(async () => ({ type: 'RESPONSE', success: false }))
     const answer = await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 'refused', withMic: false }, extensionSender)
     expect(answer.error).toBe('RECORDING_FAILED')
     const state = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string }
@@ -354,7 +385,7 @@ describe('recording service (annotate.md §2)', () => {
     runtime.getContexts.mockResolvedValue([])
     runtime.sendMessage.mockImplementation(async (message: { type: string }) => {
       if (message.type === 'OFFSCREEN_PING') throw new Error('no document')
-      return { success: true }
+      return { type: 'RESPONSE', success: true }
     })
     const restarted = new RecordingService()
     await restarted.initialize()
@@ -366,14 +397,24 @@ describe('recording service (annotate.md §2)', () => {
     await windDown(42, 'AnnHub/recording-gone.webm')
   })
 
+  it('a recovery that finds no route clears a stale recording flag (RV-CAP-19)', async () => {
+    // a reload or a disable/enable mid-recording empties the session store but leaves the flag:
+    // the first worker to wake must reset it, or every page load goes on asking the worker
+    localStorageMap.set('annhub.recordingActive', true)
+    sessionStorageMap.delete('annhub.recording')
+    const cold = new RecordingService()
+    await cold.initialize()
+    expect(localStorageMap.get('annhub.recordingActive')).toBe(false)
+  })
+
   it('a cold-started worker that sees no contexts but reaches the document keeps the recording (RV-REC-02)', async () => {
     await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's1', withMic: false }, extensionSender)
     // the contexts read comes back empty on a worker a command just woke (seen on a real machine);
     // the document answers the ping, so the route survives and the state says recording
     runtime.getContexts.mockResolvedValue([])
     runtime.sendMessage.mockImplementation(async (message: { type: string }) => {
-      if (message.type === 'OFFSCREEN_PING') return { success: true }
-      return { success: true }
+      if (message.type === 'OFFSCREEN_PING') return { type: 'RESPONSE', success: true }
+      return { type: 'RESPONSE', success: true }
     })
     const cold = new RecordingService()
     await cold.initialize()
@@ -526,7 +567,7 @@ describe('recording service (annotate.md §2)', () => {
       extensionSender,
     )
     // the offscreen document still holds the unsaved video: it refuses the new start
-    runtime.sendMessage.mockImplementationOnce(async () => ({ success: false }))
+    runtime.sendMessage.mockImplementationOnce(async () => ({ type: 'RESPONSE', success: false }))
     const answer = await dispatch({ type: 'START_RECORDING', tabId: 7, streamId: 's2', withMic: false }, extensionSender)
     expect(answer.error).toBe('RECORDING_FAILED')
     const state = (await dispatch({ type: 'GET_RECORDING_STATE' }, extensionSender)).data as { status: string; holdsVideo?: boolean }

@@ -3,9 +3,9 @@
  * defaults and the validation are core/settings.ts; this file reads leniently, writes strictly and
  * serializes the writes.
  */
-import { DEFAULT_SETTINGS, applySettings, isSettingsHost, type ExtensionSettings, type SettingsPatch } from '../core/settings'
-
-const STORAGE_KEY = 'annhub.settings'
+import { applySettings, isSettingsHost, type ExtensionSettings, type SettingsPatch } from '../core/settings'
+import { SETTINGS_STORAGE_KEY } from '../core/storage-keys'
+import { readLocalSettings } from '../utils/local-storage'
 
 let pendingWrite: Promise<unknown> = Promise.resolve()
 function serialized<T>(write: () => Promise<T>): Promise<T> {
@@ -15,14 +15,14 @@ function serialized<T>(write: () => Promise<T>): Promise<T> {
 }
 
 export async function readSettings(): Promise<ExtensionSettings> {
-  const stored = await chrome.storage.local.get(STORAGE_KEY)
-  return applySettings(DEFAULT_SETTINGS, stored[STORAGE_KEY] ?? {}, false)
+  // the one read, shared with the pages: the same validated view of layer C (RV-CAP-19 rework)
+  return readLocalSettings()
 }
 
 export function writeSettings(patch: SettingsPatch): Promise<ExtensionSettings> {
   return serialized(async () => {
     const next = applySettings(await readSettings(), patch, true)
-    await chrome.storage.local.set({ [STORAGE_KEY]: next })
+    await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next })
     return next
   })
 }
@@ -32,7 +32,7 @@ export function addDisabledSite(site: string): Promise<ExtensionSettings> {
   return serialized(async () => {
     const current = await readSettings()
     const next = { ...current, blockDisabledSites: [...new Set([...current.blockDisabledSites, site])] }
-    await chrome.storage.local.set({ [STORAGE_KEY]: next })
+    await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next })
     return next
   })
 }

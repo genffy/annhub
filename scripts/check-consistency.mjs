@@ -492,6 +492,24 @@ function checkGate() {
   }
 }
 
+// --- Playwright: the E2E gate stays closed in CI — no test.only, no pass-on-retry (RV-TEST-16). --
+
+function checkPlaywright() {
+  const text = read('playwright.config.ts')
+  if (text === null) return fail('playwright.config.ts', 'is missing: the browser tests run without their gate')
+  for (const option of ['forbidOnly', 'failOnFlakyTests']) {
+    const match = new RegExp(`\\b${option}\\s*:\\s*([^,\\n]+)`).exec(text)
+    if (!match)
+      fail(
+        'playwright.config.ts',
+        option === 'failOnFlakyTests'
+          ? `does not set ${option}: a test that only passes on a retry stays green in CI instead of failing`
+          : `does not set ${option}: a committed test.only shrinks the CI run to a subset and stays green`,
+      )
+    else if (!match[1].includes('process.env.CI')) fail('playwright.config.ts', `sets ${option} to \`${match[1].trim()}\`; it has to be tied to CI (process.env.CI)`)
+  }
+}
+
 /**
  * Skills live once, in `.agents/skills/` (Codex reads it), and Claude Code reads only `.claude/skills/`, so every skill
  * appears under both names as one directory: one entry is a symlink to the other (AGENTS.md「Agent skills」). A skill
@@ -591,6 +609,7 @@ checkMinimumChrome()
 checkPackageDirectories()
 checkPackageManager()
 checkGate()
+checkPlaywright()
 checkWebsiteClasses()
 checkSkills()
 

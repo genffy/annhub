@@ -30,6 +30,14 @@ import {
 
 export type StitchFailure = 'inner-scroll' | 'pinched' | 'zoomed' | 'scripted' | 'cancel'
 
+/** The stitcher stops by throwing its reason; the code is what the caller maps to a user line (screenshot.md §5). */
+export class StitchError extends Error {
+  constructor(readonly code: StitchFailure) {
+    super(code)
+    this.name = 'StitchError'
+  }
+}
+
 export interface StitchResult {
   canvas: HTMLCanvasElement
   /** The device pixel ratio the shots came at, from the first shot's own width. */
@@ -154,18 +162,18 @@ export class Stitcher {
   }
 
   /**
-   * Scrolls, photographs and assembles. Throws a `StitchFailure` before
-   * anything was captured (nothing to discard) or when the run must be
-   * discarded (cancel, zoom change).
+   * Scrolls, photographs and assembles. Throws a `StitchError` carrying the
+   * failure code before anything was captured (nothing to discard) or when
+   * the run must be discarded (cancel, zoom change).
    */
   async run(): Promise<StitchResult> {
     const view = this.doc.defaultView!
     const parts = this.scroller()
-    if (!parts) throw 'inner-scroll' as StitchFailure
+    if (!parts) throw new StitchError('inner-scroll')
     const { scroller, scrollable } = parts
-    if (!scrollable) throw 'inner-scroll' as StitchFailure
+    if (!scrollable) throw new StitchError('inner-scroll')
     const visual = view.visualViewport
-    if (visual && (visual.scale < 0.99 || visual.scale > 1.01)) throw 'pinched' as StitchFailure
+    if (visual && (visual.scale < 0.99 || visual.scale > 1.01)) throw new StitchError('pinched')
 
     const scrollTop = scroller.scrollTop
     const scrollLeft = scroller.scrollLeft
@@ -234,20 +242,20 @@ export class Stitcher {
         if (Math.abs(actual - expected) > 2) {
           // the first scroll going nowhere is a page that took the scrolling over;
           // later on it is a scroller a dialog locked — keep what there is
-          if (index === 0) throw 'scripted' as StitchFailure
+          if (index === 0) throw new StitchError('scripted')
           stop = 'stalled'
           break
         }
         // a zoom change or a pinch in the middle discards the whole run
         if ((view.devicePixelRatio || 1) !== startDpr || (visual && Math.abs(visual.scale - startScale) > 0.01)) {
-          throw 'zoomed' as StitchFailure
+          throw new StitchError('zoomed')
         }
       }
     } finally {
       this.progressEl?.remove()
       this.progressEl = null
     }
-    if (this.cancelled) throw 'cancel' as StitchFailure
+    if (this.cancelled) throw new StitchError('cancel')
 
     const first = segments[0]!
     const dpr = first.width / widthCss

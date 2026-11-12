@@ -136,9 +136,9 @@ export function extractPageMeta(doc: Document, sourceHost: string): PageMeta {
   const description = clipText(structured.description || metaContent(doc, ['meta[name="description"]', 'meta[property="og:description"]']), TEXT_MAX_CHARS)
   return {
     title,
-    author: authorList.length > 0 ? authorList : undefined,
-    published: published && isValidDate(published) ? published : undefined,
-    description,
+    ...(authorList.length > 0 ? { author: authorList } : {}),
+    ...(published !== undefined && isValidDate(published) ? { published } : {}),
+    ...(description !== undefined ? { description } : {}),
   }
 }
 

@@ -11,9 +11,8 @@ export async function extractDownloadPage(input: DownloadExtractMessage): Promis
   const options = {
     url: input.url,
     useAsync: false,
-    fetch: async () => {
-      throw new Error('Remote extraction is disabled')
-    },
+    // remote fetches are off: the pipeline throws instead of reading the network
+    fetch: () => Promise.reject(new Error('Remote extraction is disabled')),
     markdown: false,
     separateMarkdown: false,
     includeReplies: true as const,

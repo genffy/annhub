@@ -2,6 +2,7 @@ import { ROOT_ATTR } from './session-roots'
 import { pageStable } from './selection'
 import { requestCapture } from './capture-rate'
 import { screenshotFailureText } from '../ui-text'
+import { dispatchCaptureVisibility } from './capture-visibility'
 
 /**
  * Takes the photo for a capture (RV-CAP-18, split out of the session): captureVisibleTab
@@ -32,7 +33,7 @@ export class Photographer {
   async shoot(): Promise<string | null> {
     const { doc } = this.port
     this.port.hide()
-    doc.dispatchEvent(new CustomEvent('annhub:capture-hide'))
+    dispatchCaptureVisibility(doc, 'annhub:capture-hide')
     const sweeper = doc.createElement('div')
     sweeper.setAttribute(ROOT_ATTR, 'screenshot-hover-sweeper')
     Object.assign(sweeper.style, { position: 'fixed', inset: '0', pointerEvents: 'auto', background: 'transparent', zIndex: '2147483646' })
@@ -42,7 +43,7 @@ export class Photographer {
     const dropSweeper = (): void => {
       sweeper.remove()
       this.port.restore()
-      doc.dispatchEvent(new CustomEvent('annhub:capture-restore'))
+      dispatchCaptureVisibility(doc, 'annhub:capture-restore')
     }
     if (this.port.cancelled()) {
       dropSweeper()

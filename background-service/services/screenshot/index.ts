@@ -105,7 +105,7 @@ export class ScreenshotService implements IService {
           const registry = await store.listPropertyDefinitions()
           const started = performance.now()
           const entry = await store.saveEntry({
-            id,
+            ...(id !== undefined ? { id } : {}),
             type: 'screenshot',
             content: '',
             sourceUrl: cleanSourceUrl(sourceUrl),
@@ -122,7 +122,7 @@ export class ScreenshotService implements IService {
           await recordCaptureSaved({
             type: 'screenshot',
             via,
-            frame,
+            ...(frame !== undefined ? { frame } : {}),
             durationMs: typeof startedAt === 'number' && startedAt > 0 ? Math.max(0, Date.now() - startedAt) : (durationMs ?? performance.now() - started),
           })
           await rememberCapture(sender, entry.id)

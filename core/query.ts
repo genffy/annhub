@@ -89,11 +89,13 @@ export interface IndexedText {
 export type IndexedSearchDocument = IndexedSummary & IndexedText
 
 export function indexedSummary(entry: EntryRecord): IndexedSummary {
+  // the summary carries neither context nor note: the fields stay absent, not set to undefined
+  const { context, note, ...record } = entry
   return {
     id: entry.id,
     updatedAt: entry.updatedAt,
     version: SEARCH_INDEX_VERSION,
-    summary: { ...entry, content: '', context: undefined, note: undefined },
+    summary: { ...record, content: '' },
   }
 }
 
@@ -289,7 +291,7 @@ export function queryEntries(
   const last = page[page.length - 1]
   return {
     items: page.map(item => item.entry),
-    nextCursor: last && startIndex + limit < scored.length ? encodeCursor(keyOf(last.entry, last.score)) : undefined,
+    ...(last && startIndex + limit < scored.length ? { nextCursor: encodeCursor(keyOf(last.entry, last.score)) } : {}),
     total: scored.length,
   }
 }
@@ -322,10 +324,9 @@ export function queryHighlights(entries: EntryRecord[], registry: { name: string
     // host / tag / property filters follow the owning clip; TIME follows each
     // highlight's own createdAt (search.md §5, RV-CORE-05)
     const clipFilters: EntryQueryFilters = {
-      types: undefined,
-      hosts: query.hosts,
-      tags: query.tags,
-      conditions: query.conditions,
+      ...(query.hosts !== undefined ? { hosts: query.hosts } : {}),
+      ...(query.tags !== undefined ? { tags: query.tags } : {}),
+      ...(query.conditions !== undefined ? { conditions: query.conditions } : {}),
     }
     if (!matchesFilters(clip, clipFilters, registryByKey)) continue
 

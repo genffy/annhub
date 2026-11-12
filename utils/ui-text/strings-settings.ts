@@ -153,7 +153,6 @@ export const settingsStrings = {
   'library.empty.highlights.title': { zh: '还没有高亮', en: 'No highlights yet' },
   'library.empty.highlights.desc': { zh: '打开一条剪藏的阅读视图，选中文字即可。', en: 'Open a clip in the reading view and select text.' },
   // the popup's own empty line for its highlights rail
-  'library.empty.highlights': { zh: '还没有高亮：打开一条剪藏的阅读视图，选中文字即可。', en: 'No highlights yet — open a clip and select text in the reading view.' },
   'library.noResults.desc': {
     zh: '当前搜索词与筛选条件下没有结果。筛选条件都还保留着，可以逐个移除。',
     en: 'Nothing matches the current search and filters. The filters are all still on and can be removed one by one.',

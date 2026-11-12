@@ -24,6 +24,8 @@ let host: HTMLDivElement | null = null
 let shapeEl: HTMLDivElement | null = null
 let currentSettings: CursorHighlightSettings | null = null
 let listeners: Array<[EventTarget, string, EventListener]> = []
+/** Whether this frame has told its ancestors the pointer is inside it; reset when it leaves or the highlight re-arms. */
+let ancestorsTold = false
 
 function removeListeners(): void {
   for (const [target, type, listener] of listeners) target.removeEventListener(type, listener, true)
@@ -104,18 +106,58 @@ export function setCursorHighlight(active: boolean, settings?: CursorHighlightSe
   ensureHost(doc, settings)
 
   removeListeners()
+  ancestorsTold = false
   add(window, 'pointermove', event => {
     if (!isUserInput(event)) return
     moveShape((event as PointerEvent).clientX, (event as PointerEvent).clientY)
+    // the pointer can already be inside this frame when the recording starts:
+    // the first move here stands in for the enter the ancestors never see
+    if (!ancestorsTold) {
+      tellAncestors('annhub:cursor-in-subframe')
+      ancestorsTold = true
+    }
   })
   // the pointer left the page — over the browser's own UI or another window:
   // the highlight hides, and comes back when it returns (annotate.md §3.2)
   add(doc.documentElement, 'pointerleave', () => {
     if (shapeEl) shapeEl.style.display = 'none'
+    // the pointer went back to an ancestor page, or left the page entirely:
+    // the ancestors' rings show again either way
+    tellAncestors('annhub:cursor-back-to-top')
+    ancestorsTold = false
   })
   add(doc.documentElement, 'pointerenter', () => {
     if (shapeEl && shapeEl.style.left !== '0px') shapeEl.style.display = 'block'
+    tellAncestors('annhub:cursor-in-subframe')
+    ancestorsTold = true
   })
+  // one ring on screen (annotate.md §3.2): while the pointer is inside a same-origin
+  // subframe, that subframe's ring follows the pointer and every ancestor ring hides;
+  // a cross-origin frame runs nothing of ours, so the ring stays at its edge there.
+  // The parent document sees no pointer events across an iframe boundary, so the
+  // subframe — the side that knows — tells them over DOM events (same-origin access).
+  add(doc, 'annhub:cursor-in-subframe', () => {
+    if (shapeEl) shapeEl.style.display = 'none'
+  })
+  add(doc, 'annhub:cursor-back-to-top', () => {
+    if (shapeEl && shapeEl.style.left !== '0px') shapeEl.style.display = 'block'
+  })
+  const ancestorDocuments = (): Document[] => {
+    const documents: Document[] = []
+    try {
+      // walk to the top: the topmost window is its own parent, which ends the walk
+      for (let win = window.parent; win && win !== window; win = win.parent) {
+        documents.push(win.document)
+        if (win.parent === win) break
+      }
+    } catch {
+      // a cross-origin ancestor: nothing of ours runs there, nothing to tell
+    }
+    return documents
+  }
+  const tellAncestors = (type: 'annhub:cursor-in-subframe' | 'annhub:cursor-back-to-top'): void => {
+    for (const ancestor of ancestorDocuments()) ancestor.dispatchEvent(new CustomEvent(type))
+  }
   add(doc, 'mousedown', event => {
     if (!isUserInput(event)) return
     const press = event as MouseEvent

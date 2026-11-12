@@ -16,7 +16,20 @@ export default tseslint.config(
       'test-results/**',
       'website/**',
       'docs/**',
-      '.agents/**',
+      // skills stay unchecked except the store shots: they import e2e/fixtures and e2e/helpers, so a
+      // helper that changes shape must fail lint here, not at the next store release (RV-TEST-13).
+      // The walk prunes a directory the moment a pattern ignores it and a negation cannot resurrect
+      // a pruned child, so each level is ignored and re-included in turn;
+      // `.claude/skills/` holds the same files through symlinks, which eslint does not follow
+      '.agents/*',
+      '!.agents/skills',
+      '.agents/skills/*',
+      '!.agents/skills/store-submission',
+      '.agents/skills/store-submission/*',
+      '!.agents/skills/store-submission/shots',
+      // only holds each release's finished assets and their archives (git-ignored, never committed);
+      // a checkout that has them must not lint archive copies of old configs (RV-TEST-13)
+      'store-assets/**',
       'scripts/data/**',
     ],
   },
@@ -53,6 +66,22 @@ export default tseslint.config(
       '@typescript-eslint/no-unnecessary-type-assertion': 'error',
     },
   },
+  // The rest of recommendedTypeChecked over the released code (RV-TEST-18): what arrives from
+  // chrome.* events, ports and messages is `any` until it is narrowed, and those edges are where
+  // untrusted input enters. Tests, e2e and scripts keep their mocks and stubs. `unbound-method`
+  // stays off (interfaces write methods as properties, 86 false positives), and so does
+  // `no-unnecessary-condition` (138 `x === undefined` guards).
+  ...tseslint.configs.recommendedTypeChecked.map(config => ({
+    ...config,
+    files: ['**/*.{ts,tsx}'],
+    ignores: ['**/__tests__/**', '**/*.test.{ts,tsx}', 'e2e/**', 'scripts/**', '.agents/skills/store-submission/shots/**'],
+    languageOptions: { parserOptions: { projectService: true } },
+    rules: {
+      ...config.rules,
+      '@typescript-eslint/unbound-method': 'off',
+      '@typescript-eslint/no-unnecessary-condition': 'off',
+    },
+  })),
   // Dependency direction: `core/` depends on nothing of ours, `types/` and `utils/` only on what is below them,
   // the service worker never on an entry point, and an entry point never on the worker's services or on another
   // entry point. Tests are free to reach for fixtures. What an import may not say is a relative path that leaves

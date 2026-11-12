@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures'
-import { clearLibrary, ensureServiceWorker, getCapturePageUrl, getEntries, getSettings, hoverForCapsule, triggerBlockMode, waitForClipToast } from './helpers'
+import { clearLibrary, ensureServiceWorker, getCapturePageUrl, getEntries, getSettings, hoverForCapsule, stopServiceWorker, triggerBlockMode, waitForClipToast } from './helpers'
 
 test.describe('block clip (capture.md §6.2)', () => {
   test.beforeEach(async ({ context }) => {
@@ -261,5 +261,38 @@ test.describe('block clip (capture.md §6.2)', () => {
     const rail = (await page.locator('#sidebar').boundingBox())!
     await page.mouse.move(rail.x + 24, rail.y + 40)
     await expect(page.locator('[data-ann-ui="block-outline"]')).toHaveCount(0)
+  })
+
+  test('a page and its subframe wake no stopped worker, hover first included (RV-CAP-19)', async ({ page, extensionId }) => {
+    // the stop needs a real page to sit on: about:blank carries no workers down
+    await page.goto(getCapturePageUrl())
+    const session = await page.context().newCDPSession(page)
+    // the listener is attached before the domain is enabled, so no state change is missed
+    let stopped = false
+    let wokeAfterStop = false
+    session.on('ServiceWorker.workerVersionUpdated', payload => {
+      for (const version of payload.versions) {
+        if (!version.scriptURL.startsWith(`chrome-extension://${extensionId}`)) continue
+        if (version.runningStatus === 'stopped') {
+          stopped = true
+        } else if (stopped) {
+          wokeAfterStop = true
+        }
+      }
+    })
+    await session.send('ServiceWorker.enable' as never)
+    await stopServiceWorker(page.context(), page)
+    await expect.poll(() => stopped, 'the worker stops before the navigation').toBe(true)
+
+    // opening the page reads the recording flag and the preferences straight from
+    // chrome.storage.local, and the subframe's first hover reads them the same way:
+    // nothing between the stop and the capsule may bring the worker back
+    await page.goto('http://localhost:8173/iframe-host.html')
+    const frame = page.frameLocator('iframe[name="same"]')
+    await frame.locator('#frame-text').hover()
+    await expect(frame.locator('[data-ann-ui="block-capsule"]')).toBeVisible()
+    // a window for the negative assertion: a wake the navigation or hover caused would be reported here
+    await page.waitForTimeout(1500)
+    expect(wokeAfterStop, 'opening the page and hovering a block must not restart the stopped worker').toBe(false)
   })
 })

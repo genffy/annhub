@@ -8,7 +8,7 @@
 - fixture 默认以中文界面启动（`uiLocale: 'zh-CN'`，靠 Playwright 的 `locale` 选项而非 `--lang`）；验证英文措辞时在 spec 里 `test.use({ uiLocale: 'en-US' })`（extension.md §2.7 的英文逐屏无汉字走查是 roadmap §5 的真机项）。本机没有 Playwright 固定版本的 Chromium 时，设 `CHROMIUM_EXECUTABLE_PATH` 指向已安装的 Chromium。
 - 从测试里读写扩展存储时只用 `helpers.ts` 的 `ensureServiceWorker`：Playwright 在 service worker 的 `chrome.*` 注入完成之前就会报告该 worker，直接 `evaluate` 会随机失败。
 - 触发页面侧动作走 `helpers.ts` 的 `triggerScreenshot`/`triggerBlockMode`/`triggerAnnotation`：经 service worker 给标签页的顶层框架（`frameId: 0`）发消息，与快捷键同一条路。不要在页面里派发 `CustomEvent` 来触发；页面脚本能做的事不能被扩展当成用户的操作（测试：`screenshot-capture.spec.ts` 的 “a synthetic keypress…” 用例）。
-- 冷启动用 `helpers.ts` 的 `stopServiceWorker(context, page)`（CDP `ServiceWorker.stopAllWorkers`）真的停掉 worker，再断言空闲后的第一条消息立即成功（`cold-start.spec.ts`）；不要靠等待或重试掩盖冷启动。
+- 冷启动用 `helpers.ts` 的 `stopServiceWorker(context, page)`（CDP `ServiceWorker.stopAllWorkers`）真的停掉 worker，再断言空闲后的第一条消息立即成功（`cold-start.spec.ts`）；不要靠等待或重试掩盖冷启动。CI 里重试才通过的用例算失败（`failOnFlakyTests`），本机复现时序问题用 `pnpm exec playwright test <spec> --repeat-each 20`。
 - 页面入口的边界（测试：`page-entry.spec.ts`）：可编辑区里不出菜单、`Enter` 只在 `Tab` 聚焦菜单项后触发、截图会话里单击链接不跳转。
 - 要在一条笔画里复现浏览器折叠的样点移动，用 CDP 的 `Input.dispatchMouseEvent` 不等回复地连发：每次 `await page.mouse.move` 都是各自一个事件，折叠不起来。批注层与录制的用例见 `page-annotation.spec.ts`、`recording-annotation.spec.ts`。
 - 下载用例（`page-download.spec.ts`、`library-download.spec.ts`）用 `download-article.html` 夹具，媒体走 `media.annhub.test`：`fixtures.ts` 的 host-resolver 规则把它映射到本机夹具服务器（取回策略拒绝私网地址，`127.0.0.1` 过不了）；

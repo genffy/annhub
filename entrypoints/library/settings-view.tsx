@@ -117,7 +117,7 @@ function RecordingCard({ settings, patch }: { settings: ExtensionSettings; patch
             checked={cursor.enabled}
             onChange={enabled => void patch({ recording: { cursorHighlight: { enabled } } })}
             nameId={ids.nameId}
-            describedBy={ids.descId}
+            {...(ids.descId !== undefined ? { describedBy: ids.descId } : {})}
             testId="cursor-highlight-toggle"
           />
         )}
@@ -164,7 +164,7 @@ function ScreenshotCard({ settings, patch }: { settings: ExtensionSettings; patc
             checked={settings.anonymizeDefault}
             onChange={checked => void patch({ anonymizeDefault: checked })}
             nameId={ids.nameId}
-            describedBy={ids.descId}
+            {...(ids.descId !== undefined ? { describedBy: ids.descId } : {})}
             testId="anonymize-toggle"
           />
         )}
@@ -373,7 +373,11 @@ function WatermarkCard({ settings, patch }: { settings: ExtensionSettings; patch
               }
               setError('')
               const reader = new FileReader()
-              reader.onload = () => void patch({ watermark: { ...settings.watermark, image: String(reader.result) } })
+              reader.onload = () => {
+                // readAsDataURL answers a string; anything else is the empty read, and there is nothing to keep
+                if (typeof reader.result !== 'string' || reader.result.length === 0) return
+                void patch({ watermark: { ...settings.watermark, image: reader.result } })
+              }
               reader.readAsDataURL(file)
             }}
           />
@@ -710,7 +714,7 @@ export function SettingsView() {
                     checked={settings.blockEntryEnabled}
                     onChange={checked => void patch({ blockEntryEnabled: checked })}
                     nameId={ids.nameId}
-                    describedBy={ids.descId}
+                    {...(ids.descId !== undefined ? { describedBy: ids.descId } : {})}
                     testId="block-entry-toggle"
                   />
                 )}

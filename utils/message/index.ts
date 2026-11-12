@@ -30,9 +30,11 @@ export default class MessageUtils {
 
     for (let attempt = 1; attempt <= retryCount; attempt++) {
       try {
-        const response = await chrome.runtime.sendMessage(messageWithMeta)
+        const response: unknown = await chrome.runtime.sendMessage(messageWithMeta)
 
-        if (!response) {
+        // what crossed the port is unverified: the envelope is checked here, the payload is the
+        // caller's contract — a shapeless answer fails the send at once, without a retry
+        if (!MessageUtils.isResponseMessage<ResponseDataOf<K> | undefined>(response)) {
           throw new Error('No response received from background script')
         }
 
@@ -70,8 +72,8 @@ export default class MessageUtils {
     return {
       type: 'RESPONSE',
       success,
-      data,
-      error,
+      ...(data !== undefined ? { data } : {}),
+      ...(error !== undefined ? { error } : {}),
       timestamp: Date.now(),
     }
   }
@@ -84,7 +86,7 @@ export default class MessageUtils {
     return typeof message === 'object' && message !== null && 'type' in message && typeof message.type === 'string'
   }
 
-  static isResponseMessage(message: unknown): message is ResponseMessage {
+  static isResponseMessage<T = unknown>(message: unknown): message is ResponseMessage<T> {
     return this.isValidMessage(message) && 'success' in message && typeof message.success === 'boolean'
   }
 
