@@ -126,8 +126,10 @@ function checkNode() {
       })
   }
 
-  const stated = /Node\.js (\d+)\.x/.exec(read('README.md') ?? '')
-  if (stated && Number(stated[1]) !== nodeMajor) fail('README.md', `says Node.js ${stated[1]}.x, but .node-version is ${nodeMajor}`)
+  for (const readme of ['README.md', 'README.zh-CN.md']) {
+    const stated = /Node\.js (\d+)\.x/.exec(read(readme) ?? '')
+    if (stated && Number(stated[1]) !== nodeMajor) fail(readme, `says Node.js ${stated[1]}.x, but .node-version is ${nodeMajor}`)
+  }
 }
 
 // --- Next.js: the framework, its ESLint config and the docs move together. -----------------------
