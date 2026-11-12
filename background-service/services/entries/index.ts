@@ -52,22 +52,23 @@ export class EntryService implements IService {
           // layered on top; title/tags are fixed presets and always pass.
           const properties = presetProperties('clip', registry, fields.properties)
           const started = performance.now()
+          // a field the draft does not carry stays absent — `undefined` and absence must not blur (RV-TEST-17)
           const entry = await store.saveEntry({
-            id: fields.id,
+            ...(fields.id !== undefined ? { id: fields.id } : {}),
             type: 'clip',
             content: fields.content,
-            context: fields.context,
-            note: fields.note,
+            ...(fields.context !== undefined ? { context: fields.context } : {}),
+            ...(fields.note !== undefined ? { note: fields.note } : {}),
             sourceUrl: cleanSourceUrl(fields.sourceUrl),
             properties,
-            newDefinitions: fields.newDefinitions,
+            ...(fields.newDefinitions !== undefined ? { newDefinitions: fields.newDefinitions } : {}),
           })
           await recordCaptureSaved({
             type: 'clip',
             via,
-            blockKind,
-            levelChanged,
-            truncated,
+            ...(blockKind !== undefined ? { blockKind } : {}),
+            ...(levelChanged !== undefined ? { levelChanged } : {}),
+            ...(truncated !== undefined ? { truncated } : {}),
             durationMs: typeof startedAt === 'number' && startedAt > 0 ? Math.max(0, Date.now() - startedAt) : (durationMs ?? performance.now() - started),
           })
           await rememberCapture(sender, entry.id)
@@ -166,7 +167,7 @@ export class EntryService implements IService {
         const result = indexed
           ? await (async () => {
               const candidates = await store.recentCandidates(Math.max(1, query.limit ?? 50), query.cursor)
-              const page = queryEntries(candidates.items, registry, { limit: query.limit })
+              const page = queryEntries(candidates.items, registry, ...(query.limit !== undefined ? [{ limit: query.limit }] : []))
               return { ...page, total: candidates.total }
             })()
           : await store.indexedQuery(query)
@@ -209,8 +210,10 @@ export class EntryService implements IService {
         if (!isExtensionPageSender(sender)) return forbiddenResponse()
         const store = await initializedEntryStore()
         const definitions = await store.listPropertyDefinitions()
-        const usage = message.includeUsage ? await store.propertyUsageCounts(definitions.map(def => def.name)) : undefined
-        return MessageUtils.createResponse(true, { definitions, usage })
+        return MessageUtils.createResponse(true, {
+          definitions,
+          ...(message.includeUsage ? { usage: await store.propertyUsageCounts(definitions.map(def => def.name)) } : {}),
+        })
       },
 
       UPSERT_PROPERTY: async (message, sender) => {

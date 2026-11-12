@@ -6,6 +6,11 @@ export default defineConfig({
   outputDir: './test-results',
   timeout: 30_000,
   retries: process.env.CI ? 1 : 0,
+  // The one retry exists to leave a trace of the first attempt (`trace: 'on-first-retry'`), not to
+  // mask flakes: a test that only passes on retry fails the job (RV-TEST-16), and a committed
+  // `test.only` must not shrink CI to a subset and stay green.
+  forbidOnly: Boolean(process.env.CI),
+  failOnFlakyTests: Boolean(process.env.CI),
   workers: 1, // extensions need serial execution (shared browser context)
   // CI shards run the github reporter (job annotations) and keep a blob report so the
   // merge-reports job in ci.yml can combine the shards into one HTML report on failure.

@@ -515,7 +515,7 @@ test.describe('library downloads (download.md §3)', () => {
         if (message.type === 'START_LIBRARY_DOWNLOAD') {
           chrome.runtime.sendMessage = original
           document.documentElement.dataset.downloadTestRunId = message.clientRunId
-          return Promise.resolve({ success: true })
+          return Promise.resolve({ type: 'RESPONSE', success: true })
         }
         return original(message)
       }) as typeof chrome.runtime.sendMessage

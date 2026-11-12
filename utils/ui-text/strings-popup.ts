@@ -1,6 +1,10 @@
 /** The recording section of the settings page, recording-time annotation, the toolbar popup and the in-page overlays (extension.md §2.5-2.6, annotate.md §3).
  *  Moved verbatim from ui-text.ts when the string table went over its byte budget. */
 export const popupStrings = {
+  // the popup's own empty states and the link into the library (RV-LIB-22)
+  'library.openLibrary': { zh: '在资料库中打开', en: 'Open in library' },
+  'library.empty': { zh: '还没有条目：选中网页文字即可保存', en: 'Nothing yet — select text on a page to save it' },
+  'library.empty.highlights': { zh: '还没有高亮：打开一条剪藏的阅读视图，选中文字即可。', en: 'No highlights yet — open a clip and select text in the reading view.' },
   // settings: recording section (extension.md §2.5, annotate.md §2.1)
   // recording-time annotation and cursor highlight (annotate.md §3)
   'popup.recording.keys': {

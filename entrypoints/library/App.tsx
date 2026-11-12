@@ -170,11 +170,12 @@ export default function App() {
           return def && condition.op ? buildCondition(def, condition.op, condition.val, condition.val2) : undefined
         })
         .filter((condition): condition is PropertyCondition => Boolean(condition))
+      const types: ('clip' | 'screenshot')[] | undefined = filters.view === 'all' ? (filters.type ? [filters.type] : undefined) : [filters.view === 'clips' ? 'clip' : 'screenshot']
       return {
-        search: filters.search || undefined,
-        types: filters.view === 'all' ? (filters.type ? [filters.type] : undefined) : [filters.view === 'clips' ? 'clip' : 'screenshot'],
-        hosts: filters.hosts.length > 0 ? filters.hosts : undefined,
-        tags: filters.tags.length > 0 ? filters.tags : undefined,
+        ...(filters.search ? { search: filters.search } : {}),
+        ...(types !== undefined ? { types } : {}),
+        ...(filters.hosts.length > 0 ? { hosts: filters.hosts } : {}),
+        ...(filters.tags.length > 0 ? { tags: filters.tags } : {}),
         ...(conditions.length > 0 ? { conditions } : {}),
         ...localDayRange(filters.from, filters.to),
       }
@@ -198,11 +199,11 @@ export default function App() {
   const highlightQueryJson = awaitsRegistry(route)
     ? null
     : JSON.stringify({
-        search: route.search || undefined,
-        hosts: route.hosts.length > 0 ? route.hosts : undefined,
-        tags: route.tags.length > 0 ? route.tags : undefined,
-        conditions: queryFor(route).conditions,
-        colors: route.colors.length > 0 ? (route.colors as HighlightColor[]) : undefined,
+        ...(route.search ? { search: route.search } : {}),
+        ...(route.hosts.length > 0 ? { hosts: route.hosts } : {}),
+        ...(route.tags.length > 0 ? { tags: route.tags } : {}),
+        ...(queryFor(route).conditions !== undefined ? { conditions: queryFor(route).conditions } : {}),
+        ...(route.colors.length > 0 ? { colors: route.colors as HighlightColor[] } : {}),
         ...localDayRange(route.from, route.to),
       } satisfies HighlightQuery)
 
@@ -300,7 +301,7 @@ export default function App() {
   const { selecting, selectedIds, download: libraryDownload } = selection
 
   const openEntry = useCallback(
-    async (entry: EntryRecord) => {
+    (entry: EntryRecord) => {
       drawerTrigger.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
       void MessageUtils.sendMessage({ type: 'RECORD_EVENT', name: 'entry.reopened', props: { type: entry.type } })
       // the drawer is part of the route: refresh restores it (extension.md §2.2)
@@ -478,7 +479,7 @@ export default function App() {
                             registry={registry}
                             selected={!selecting && route.entryId === entry.id}
                             onOpen={() => void openEntry(entry)}
-                            onChanged={!selecting && route.view === 'screenshots' ? reload : undefined}
+                            {...(!selecting && route.view === 'screenshots' ? { onChanged: reload } : {})}
                             selecting={selecting}
                             checked={selectedIds.includes(entry.id)}
                             atCap={selection.atCap}

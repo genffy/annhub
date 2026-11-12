@@ -271,7 +271,8 @@ function applyHighlights(runs: Run[], highlights: Highlight[]): Piece[] {
     const runStart = run.srcStart
     const runEnd = runStart + (run.srcLength ?? run.text.length)
     if (run.srcLength && run.srcLength !== run.text.length) {
-      pieces.push({ ...run, highlight: sorted.find(item => item.start < runEnd && item.end > runStart) })
+      const highlight = sorted.find(item => item.start < runEnd && item.end > runStart)
+      pieces.push({ ...run, ...(highlight !== undefined ? { highlight } : {}) })
       continue
     }
     let cursor = runStart

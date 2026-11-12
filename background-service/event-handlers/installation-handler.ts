@@ -2,8 +2,8 @@ import { Logger } from '../../utils/logger'
 import { RECORDING_FLAG_KEY } from '../../core/storage-keys'
 
 export class InstallationHandler {
-  private installedListener?: (details: chrome.runtime.InstalledDetails) => void
   // `| undefined`, not `?`: the slot is cleared by assignment, which exactOptionalPropertyTypes keeps distinct from absence
+  private installedListener: ((details: chrome.runtime.InstalledDetails) => void) | undefined
   private startupListener: (() => void) | undefined
 
   registerListeners(): void {
@@ -30,7 +30,7 @@ export class InstallationHandler {
         switch (details.reason) {
           case 'install':
             Logger.info('[InstallationHandler] Extension first installation detected')
-            await this.handleFirstInstallation()
+            this.handleFirstInstallation()
             break
 
           case 'update':
@@ -62,7 +62,8 @@ export class InstallationHandler {
     Logger.info('[InstallationHandler] Installation listeners registered successfully')
   }
 
-  private async handleFirstInstallation(): Promise<void> {
+  // setup is synchronous today (the one await is gone); a future await fits without touching the call sites
+  private handleFirstInstallation(): void {
     Logger.info('[InstallationHandler] Handling first installation setup...')
 
     try {
@@ -88,7 +89,7 @@ export class InstallationHandler {
       await this.removeV1Credentials()
       if (previousVersion.startsWith('1.')) {
         Logger.info('[InstallationHandler] Performing migration from version 1.x to 2.x')
-        await this.migrateFromV1ToV2()
+        this.migrateFromV1ToV2()
       }
 
       Logger.info('[InstallationHandler] Version update migration completed successfully')
@@ -114,7 +115,7 @@ export class InstallationHandler {
     await chrome.storage.local.remove(['llmConfig', 'vocabConfig', 'annhub-logseq-config'])
   }
 
-  private async migrateFromV1ToV2(): Promise<void> {
+  private migrateFromV1ToV2(): void {
     Logger.info('[InstallationHandler] Starting V1 to V2 migration...')
     Logger.info('[InstallationHandler] V1 to V2 migration completed (no-op)')
   }

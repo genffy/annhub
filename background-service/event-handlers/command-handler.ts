@@ -15,7 +15,8 @@ import type { TabMessage } from '../../types/messages'
  * a broadcast would start a session in every one of them.
  */
 export class CommandHandler {
-  private commandListener?: (command: string) => void
+  // `| undefined`, not `?`: the slot is cleared by assignment, which exactOptionalPropertyTypes keeps distinct from absence
+  private commandListener: ((command: string) => void) | undefined
 
   registerListeners(): void {
     // Chrome ignores what a listener returns. This one is async so that a caller can wait for the handling (the

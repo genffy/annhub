@@ -9,7 +9,7 @@ import { renderScreenshot, nextStepNumber, snapLine, isLineTool, type Annotation
 import { pointerSamples } from '../pointer-samples'
 import { localPoint } from './pointer-point'
 import type { ViewportRect } from './crop'
-import type { BeautifySettings } from '../../../core/screenshot-options'
+import type { BeautifyChange, BeautifySettings } from '../../../core/screenshot-options'
 import type { ExtensionSettings } from '../../../core/settings'
 import type { WatermarkImage } from '../../../utils/screenshot-output'
 import type { CaptureVia } from '../../../types/messages'
@@ -42,7 +42,7 @@ export interface EditorStagePort {
   /** Where the capture sits on screen when there is no selection: around the element. */
   elementRect(): ViewportRect | null
   beautify(): BeautifySettings
-  changeBeautify(patch: Partial<BeautifySettings>): void
+  changeBeautify(patch: BeautifyChange): void
   resetBeautify(): void
   ratioPresets(): string[]
   /** What refreshDisplay composes onto: the watermark settings, its image, and whether it is on. */
@@ -193,7 +193,7 @@ export class EditorStage {
       beautify: this.port.beautify(),
       scale: paint.dpr,
       textSelection: paint.via === 'menu',
-      watermark: paint.watermarkOn ? paint.watermark : undefined,
+      ...(paint.watermarkOn && paint.watermark ? { watermark: paint.watermark } : {}),
       watermarkImage: paint.watermarkImage,
     })
     this.layout()
@@ -301,6 +301,7 @@ export class EditorStage {
 
   /** The toolbar's whole input, recomputed on every update (RV-CAP-16): `null` is a state the settings take off the table. */
   private toolbarState() {
+    const notice = this.port.notice()
     return {
       tool: this.tool,
       color: this.color,
@@ -312,7 +313,7 @@ export class EditorStage {
       nextStep: nextStepNumber(this.annotations, this.stepSequence),
       beautifyOpen: this.beautify.isOpen,
       busy: this.port.busy(),
-      notice: this.port.notice(),
+      ...(notice !== undefined ? { notice } : {}),
     }
   }
 

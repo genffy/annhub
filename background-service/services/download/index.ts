@@ -99,8 +99,9 @@ export class DownloadService implements IService {
         this.extracting = true
         try {
           await this.ensureOffscreenDocument()
-          const response = await chrome.runtime.sendMessage({ type: 'DOWNLOAD_EXTRACT', html: message.html, url: message.url, hasArticle: message.hasArticle === true })
-          return response?.success && typeof response.data?.html === 'string'
+          // the offscreen answer crosses the port unverified: the envelope is checked before its payload is read
+          const response: unknown = await chrome.runtime.sendMessage({ type: 'DOWNLOAD_EXTRACT', html: message.html, url: message.url, hasArticle: message.hasArticle === true })
+          return MessageUtils.isResponseMessage<{ html: string }>(response) && response.success && typeof response.data?.html === 'string'
             ? MessageUtils.createResponse(true, { html: response.data.html })
             : MessageUtils.createResponse(false, undefined, 'DOWNLOAD_FAILED')
         } catch {
@@ -569,8 +570,9 @@ export class DownloadService implements IService {
 
   private async tellOffscreen(message: object): Promise<{ ok: boolean }> {
     try {
-      const answer = await chrome.runtime.sendMessage(message)
-      return { ok: answer?.success !== false }
+      const answer: unknown = await chrome.runtime.sendMessage(message)
+      // an answer that is not a response is no answer: the tell has failed
+      return { ok: MessageUtils.isResponseMessage(answer) && answer.success !== false }
     } catch {
       return { ok: false }
     }

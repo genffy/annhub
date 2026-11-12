@@ -100,7 +100,7 @@ describe('the beautify panel (screenshot.md §4.4)', () => {
     buttonLabelled(group(panel, uiText('shot.beautify.ratio')), '16:9').click()
     expect(onChange).toHaveBeenLastCalledWith({ ratio: '16:9' })
     buttonLabelled(group(panel, uiText('shot.beautify.ratio')), uiText('shot.beautify.ratio.fit')).click()
-    expect(onChange).toHaveBeenLastCalledWith({ ratio: undefined })
+    expect(onChange).toHaveBeenLastCalledWith({ ratio: null })
     expect(onChange).toHaveBeenCalledTimes(5)
   })
 

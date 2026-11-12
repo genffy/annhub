@@ -7,7 +7,7 @@
  * in the contract.
  */
 
-import { PADDING_PX, RATIO_PRESETS, type BeautifyBackground, type BeautifySettings, type RatioPreset } from '../core/screenshot-options'
+import { PADDING_PX, RATIO_PRESETS, type BeautifyBackground, type BeautifySettings, type RatioPreset, type BeautifyChange } from '../core/screenshot-options'
 
 export interface Rect {
   x: number
@@ -163,8 +163,16 @@ export function watermarkLayout(
 // ── Beautify composition (screenshot.md §4.4) ────────────────────────────
 
 /** The style after the panel changes `patch`. Changing anything but the switch itself turns beautify on, so the change is seen at once. */
-export function applyBeautifyChange(current: BeautifySettings, patch: Partial<BeautifySettings>): BeautifySettings {
-  return { ...current, ...patch, enabled: patch.enabled ?? true }
+export function applyBeautifyChange(current: BeautifySettings, patch: BeautifyChange): BeautifySettings {
+  const { ratio, ...fields } = patch
+  const next = { ...current, ...fields, enabled: patch.enabled ?? true }
+  if (ratio === undefined) return next
+  if (ratio === null) {
+    const free = { ...next }
+    delete free.ratio
+    return free
+  }
+  return { ...next, ratio }
 }
 
 /**

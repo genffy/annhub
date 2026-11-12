@@ -14,9 +14,10 @@ const tabs = {
   onReplaced: tabEvent(),
 }
 const downloads = { download: vi.fn() }
-const runtime: { id: string; getURL: (path: string) => string; lastError?: { message: string } } = {
+const runtime: { id: string; getURL: (path: string) => string; lastError: { message: string } | undefined } = {
   id: 'ext-id',
   getURL: path => `chrome-extension://ext-id/${path}`,
+  lastError: undefined,
 }
 const sessionItems = new Map<string, unknown>()
 const session = {

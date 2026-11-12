@@ -199,7 +199,10 @@ function merge(inner: BlockCandidate, outer: BlockCandidate): BlockCandidate {
   else if (inner.kind !== 'block') kind = inner.kind
   else if (outer.kind !== 'block') kind = outer.kind
   const merged: BlockCandidate = { ...outer, kind }
-  if (kind === 'block') merged.blockShape = outer.blockShape ?? inner.blockShape
+  if (kind === 'block') {
+    const shape = outer.blockShape ?? inner.blockShape
+    if (shape !== undefined) merged.blockShape = shape
+  }
   return merged
 }
 

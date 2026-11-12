@@ -195,6 +195,9 @@ test.describe('the library page and the single export (extension.md §2.2, stora
     await library.waitForFunction(() => Boolean((globalThis as unknown as { __exportGate: { release: unknown } }).__exportGate.release))
     await library.evaluate(() => (globalThis as unknown as { __exportGate: { release: () => void } }).__exportGate.release())
     await expect(dialog).toContainText('完整', { timeout: 20_000 })
+    // the Escape reaches the dialog only through a keydown whose target sits inside it; the focus
+    // effect runs after paint, so a press that beats it lands on body and closes nothing (RV-TEST-16)
+    await expect(dialog.getByRole('button', { name: '完成' })).toBeFocused()
     await library.keyboard.press('Escape')
     await expect(dialog).toHaveCount(0)
     await expect(library.locator('.nav-export')).toBeFocused()

@@ -19,13 +19,13 @@ type Listener = (message: { type: string } & Record<string, unknown>, sender: { 
 let listener: Listener | undefined
 
 /** The worker's answer to GET_RECORDING_STATE; per-test configurable (RV-REC-05). */
-let workerStateAnswer: unknown = { success: true, data: { holdsVideo: false } }
+let workerStateAnswer: unknown = { type: 'RESPONSE', success: true, data: { holdsVideo: false } }
 const sendMessage = vi.fn(async (message: { type: string }) => {
   if (message.type === 'GET_RECORDING_STATE') {
     if (workerStateAnswer instanceof Error) throw workerStateAnswer
     return workerStateAnswer
   }
-  return { success: true }
+  return { type: 'RESPONSE', success: true }
 })
 
 vi.stubGlobal('chrome', {
@@ -101,7 +101,7 @@ beforeEach(() => {
   revokeObjectURL.mockClear()
   FakeRecorder.instances.length = 0
   blobSeq = 0
-  workerStateAnswer = { success: true, data: { holdsVideo: false } }
+  workerStateAnswer = { type: 'RESPONSE', success: true, data: { holdsVideo: false } }
 })
 
 function send(message: Record<string, unknown>, sender: { id?: string; tab?: { id: number } }): { answered: boolean; answer: unknown } {
@@ -152,13 +152,13 @@ describe('the offscreen sender gate (RV-BG-11, notes/sender-rules.md)', () => {
   it('the recovery ping is answered for the worker (RV-REC-02)', () => {
     const { answered, answer } = send({ type: 'OFFSCREEN_PING' }, own)
     expect(answered).toBe(true)
-    expect((answer as { success: boolean }).success).toBe(true)
+    expect((answer as { type: 'RESPONSE'; success: boolean }).success).toBe(true)
   })
 
   it('the worker itself gets through: its run request is answered', () => {
     const { answered, answer } = send({ type: 'DOWNLOAD_RUN', requestId: 'dl_1', form: 'folder', basePath: 'AnnHub/x', withMedia: false, media: [] }, own)
     expect(answered).toBe(true)
-    expect((answer as { success: boolean }).success).toBe(true)
+    expect((answer as { type: 'RESPONSE'; success: boolean }).success).toBe(true)
   })
 })
 
@@ -177,7 +177,7 @@ describe('the start guard on stale state (RV-REC-05, annotate.md §2.5)', () => 
     await sendAsync({ type: 'RECORDING_START', streamId: 's1', withMic: false })
     await command({ type: 'RECORDING_STOP', stoppedBy: 'user' })
     // the video's landing was never reported: the document still holds it
-    workerStateAnswer = { success: true, data: { holdsVideo: false } }
+    workerStateAnswer = { type: 'RESPONSE', success: true, data: { holdsVideo: false } }
     const answer = await sendAsync({ type: 'RECORDING_START', streamId: 's2', withMic: false })
     expect(answer).toMatchObject({ success: true })
     expect(sendMessage).toHaveBeenCalledWith({ type: 'GET_RECORDING_STATE' })
@@ -189,7 +189,7 @@ describe('the start guard on stale state (RV-REC-05, annotate.md §2.5)', () => 
   it('the video still waiting for the disk: the start is refused, nothing is revoked, RECORDING_CLEANUP then revokes it', async () => {
     await sendAsync({ type: 'RECORDING_START', streamId: 's1', withMic: false })
     await command({ type: 'RECORDING_STOP', stoppedBy: 'user' })
-    workerStateAnswer = { success: true, data: { holdsVideo: true } }
+    workerStateAnswer = { type: 'RESPONSE', success: true, data: { holdsVideo: true } }
     const answer = await sendAsync({ type: 'RECORDING_START', streamId: 's2', withMic: false })
     expect(answer).toMatchObject({ success: false })
     expect(revokeObjectURL, 'the video is not dropped before the download lands').not.toHaveBeenCalled()
@@ -224,7 +224,7 @@ describe('the start guard on stale state (RV-REC-05, annotate.md §2.5)', () => 
     expect(answer).toMatchObject({ success: false })
     expect(revokeObjectURL).not.toHaveBeenCalled()
     // the state survived: once the worker is back and done with the video, the next start clears it
-    workerStateAnswer = { success: true, data: { holdsVideo: false } }
+    workerStateAnswer = { type: 'RESPONSE', success: true, data: { holdsVideo: false } }
     const retry = await sendAsync({ type: 'RECORDING_START', streamId: 's3', withMic: false })
     expect(retry).toMatchObject({ success: true })
     expect(revokeObjectURL).toHaveBeenCalledTimes(1)
