@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { listenForRecording, RecordingService } from '../index'
+import { RecordingService } from '../index'
 import type { ResponseMessage } from '../../../../types/messages'
 
 /**
@@ -92,11 +92,11 @@ async function dispatch(service: RecordingService, message: Record<string, unkno
   return handlers[message.type as string]!(message, sender)
 }
 
-// the tab and download listeners register at the worker script's top level, after the stub is in place
-listenForRecording()
-const onDownloadChanged = downloads.onChanged.addListener.mock.calls[0]![0] as (delta: { id: number; state: { previous: string; current: string } }) => void
+/** A fresh service for every test: a recording one test starts is not the next test's starting state. */
+let service: RecordingService
 
 beforeEach(() => {
+  service = new RecordingService()
   localStorageMap.clear()
   sessionStorageMap.clear()
   localStorageMap.set('annhub.settings', { recording: { withMic: false } })
@@ -109,7 +109,6 @@ afterEach(() => {
 
 describe('RECORDING_STATUS answers the tiers it always did (RV-CAP-19 rework)', () => {
   it('answers the top frame of a tab, a same-origin subframe of it, and an extension page', async () => {
-    const service = RecordingService.getInstance()
     for (const sender of [recordedTop, recordedSubframe, extensionSender]) {
       const answer = await dispatch(service, { type: 'RECORDING_STATUS' }, sender)
       expect(answer.success).toBe(true)
@@ -118,7 +117,6 @@ describe('RECORDING_STATUS answers the tiers it always did (RV-CAP-19 rework)', 
   })
 
   it('refuses a cross-origin subframe and a sender from another extension', async () => {
-    const service = RecordingService.getInstance()
     for (const sender of [crossOriginSubframe, foreignExtension]) {
       const answer = await dispatch(service, { type: 'RECORDING_STATUS' }, sender)
       expect(answer.success).toBe(false)
@@ -128,7 +126,6 @@ describe('RECORDING_STATUS answers the tiers it always did (RV-CAP-19 rework)', 
 
 describe('RECORDING_STATUS tells the recorded tab from the others (RV-REC-06, annotate.md §3.2)', () => {
   it('while tab 7 records, tab 7 hears recording and tab 99 does not', async () => {
-    const service = RecordingService.getInstance()
     const start = await dispatch(service, { type: 'START_RECORDING', tabId: 7, streamId: 'per-tab', withMic: false }, extensionSender)
     expect(start.success).toBe(true)
 
@@ -143,7 +140,6 @@ describe('RECORDING_STATUS tells the recorded tab from the others (RV-REC-06, an
   })
 
   it('the recorded tab keeps hearing recording after it navigates, and nobody does once stopped', async () => {
-    const service = RecordingService.getInstance()
     await dispatch(service, { type: 'START_RECORDING', tabId: 7, streamId: 'per-tab-nav', withMic: false }, extensionSender)
     const navigated = { ...recordedTop, url: 'https://example.com/post/next-page' } as chrome.runtime.MessageSender
     const answer = await dispatch(service, { type: 'RECORDING_STATUS' }, navigated)
@@ -157,7 +153,7 @@ describe('RECORDING_STATUS tells the recorded tab from the others (RV-REC-06, an
       { type: 'RECORDING_EVENT', event: 'stopped', blobUrl: 'blob:video', filename: 'AnnHub/recording-status.webm', durationMs: 1_000, stoppedBy: 'user', withMic: false },
       { id: 'abc', url: 'chrome-extension://abc/offscreen.html', tab: undefined } as unknown as chrome.runtime.MessageSender,
     )
-    onDownloadChanged({ id: 1, state: { previous: 'in_progress', current: 'complete' } })
+    await service.onDownloadDelta({ id: 1, state: { previous: 'in_progress', current: 'complete' } })
     for (const sender of [recordedTop, recordedSubframe, otherTabTop, extensionSender]) {
       const after = await dispatch(service, { type: 'RECORDING_STATUS' }, sender)
       expect((after.data as { recording: boolean }).recording).toBe(false)
@@ -167,10 +163,11 @@ describe('RECORDING_STATUS tells the recorded tab from the others (RV-REC-06, an
 
 describe('the recording flag is best-effort around the route (RV-CAP-19 rework)', () => {
   it('a failing flag write leaves START_RECORDING successful and the route written', async () => {
+    // the recovery writes the flag too; it runs first, so the failure below lands on the start's own write
+    await service.initialize()
     storage.local.set.mockImplementationOnce(async () => {
       throw new Error('disk full')
     })
-    const service = RecordingService.getInstance()
     const start = await dispatch(service, { type: 'START_RECORDING', tabId: 7, streamId: 'flag-tolerant', withMic: false }, extensionSender)
     expect(start.success, 'the flow survives the flag').toBe(true)
     expect(sessionStorageMap.has('annhub.recording'), 'the route, the source of truth, is written').toBe(true)
@@ -180,8 +177,10 @@ describe('the recording flag is best-effort around the route (RV-CAP-19 rework)'
     storage.local.set.mockImplementation(async () => {
       throw new Error('disk full')
     })
-    const cold = new RecordingService()
-    await expect(cold.initialize()).resolves.toBeUndefined()
-    storage.local.set.mockRestore()
+    try {
+      await expect(service.initialize()).resolves.toBeUndefined()
+    } finally {
+      storage.local.set.mockRestore()
+    }
   })
 })
