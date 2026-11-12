@@ -553,7 +553,10 @@ export class RecordingService implements IService {
   private async tellOffscreen(message: { type: string } & Record<string, unknown>): Promise<{ ok: boolean }> {
     try {
       const answer: unknown = await chrome.runtime.sendMessage(message)
-      // an answer that is not a response is no answer: the tell has failed
+      // no reply is still a delivery: STOP and CLEANUP are fire-and-forget and Chrome resolves
+      // undefined for a received-but-unanswered message, while a gone document rejects;
+      // only an answer on the record can refuse the command
+      if (answer === undefined) return { ok: true }
       return { ok: MessageUtils.isResponseMessage(answer) && answer.success !== false }
     } catch {
       return { ok: false }

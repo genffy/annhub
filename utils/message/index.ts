@@ -33,7 +33,7 @@ export default class MessageUtils {
         const response: unknown = await chrome.runtime.sendMessage(messageWithMeta)
 
         // what crossed the port is unverified: the envelope is checked here, the payload is the
-        // caller's contract — a shapeless answer counts as a dead connection and is retried
+        // caller's contract — a shapeless answer fails the send at once, without a retry
         if (!MessageUtils.isResponseMessage<ResponseDataOf<K> | undefined>(response)) {
           throw new Error('No response received from background script')
         }
