@@ -225,7 +225,10 @@ function wireBlockEntries(): void {
   blockEntries.install()
 }
 
-/** The recording this tab is in, as far as the page knows: the layer opens toolbar-less and the cursor highlight shows (annotate.md §3). */
+/**
+ * The recording this tab is in, as far as the page knows: the cursor highlight shows while it runs (annotate.md §3.2).
+ * Nothing else on the page reads it: the annotation layer is the same layer with or without a recording (annotate.md §3.1).
+ */
 let recordingActive = false
 let cursorHighlightSettings: CursorHighlightSettings | null = null
 /** Once a lifecycle message has arrived it is the newer truth; the startup status read must not roll it back. */
@@ -233,7 +236,6 @@ let lifecycleSeen = false
 
 function applyRecordingState(): void {
   setCursorHighlight(recordingActive, cursorHighlightSettings ?? undefined)
-  getActiveAnnotationLayer()?.setRecordingMode(recordingActive)
 }
 
 /** The worker tells the recorded tab when a recording starts and stops (annotate.md §3). */
@@ -279,7 +281,6 @@ function startAnnotationLayer(): void {
   enterAnnotationLayer({
     onScreenshot: ink => enterScreenshotWithInk(ink),
   })
-  getActiveAnnotationLayer()?.setRecordingMode(recordingActive)
 }
 
 function toggleAnnotationLayer(): void {
@@ -298,11 +299,6 @@ function toggleAnnotationLayer(): void {
 export default defineContentScript({
   matches: ['<all_urls>'],
   allFrames: true,
-  // document_start: the recording-time single keys must be on the window's
-  // capture phase before the page's own scripts register theirs — a site that
-  // listens for the same keys (X's 点赞 L) would otherwise fire first
-  // (annotate.md §3.1). The overlays wait for the DOM below.
-  runAt: 'document_start',
   async main() {
     if (window.top !== window) {
       try {
@@ -311,18 +307,6 @@ export default defineContentScript({
         return
       }
     }
-    // the single keys of the recording-time annotation layer: window, capture
-    // phase, from the first moment of the page (annotate.md §3.1)
-    window.addEventListener(
-      'keydown',
-      event => {
-        if (!isUserInput(event)) return
-        if (!getActiveAnnotationLayer()?.handleRecordingKey(event)) return
-        event.preventDefault()
-        event.stopPropagation()
-      },
-      true,
-    )
     if (document.readyState === 'loading') {
       await new Promise<void>(resolve => document.addEventListener('DOMContentLoaded', () => resolve(), { once: true }))
     }

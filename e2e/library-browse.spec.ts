@@ -305,8 +305,10 @@ test.describe('library browsing (search.md §4, extension.md §2.3)', () => {
     const empty = library.locator('.empty')
     await expect(empty).toContainText('还没有截图')
     // the shortcut is the browser's real binding, the same keys the nav's hint draws as keycaps
-    const boundKeys = (await library.locator('.nav-shortcut kbd').allTextContents()).join('+')
-    await expect(empty).toContainText(boundKeys)
+    const binding = await library.evaluate(async () => (await chrome.commands.getAll()).find(command => command.name === 'capture-selection')?.shortcut ?? '')
+    expect(binding).not.toBe('')
+    await expect(empty).toContainText(binding)
+    expect((await library.locator('.nav-shortcut kbd').allTextContents()).join('')).toBe(binding.replace(/\+/g, ''))
     await expect(empty).not.toContainText('没有匹配的结果')
     await expect(library.getByRole('button', { name: '清除筛选' })).toHaveCount(0)
 

@@ -198,6 +198,85 @@ describe('leaving the window is not an element appearing under the pointer (capt
   })
 })
 
+describe('the pointer on the capsule is operating it, not resting on the page (capture.md §6.2 收起)', () => {
+  /**
+   * How a hand reaches the capsule: it moves inside the block first — which starts the stillness
+   * clock again — then onto the button, and stops there to aim. The clock the first move started
+   * is still running when the pointer lands, so it expires on the capsule.
+   */
+  async function reachFor(button: Element): Promise<void> {
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 60, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(120)
+    document.elementFromPoint = vi.fn(() => button)
+    button.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 200, clientY: 10 }))
+  }
+
+  it('resting on a capsule button for longer than the dwell keeps the capsule and its outline', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    await reachFor(capsule()!.querySelector('.ann-blk-seg-dl')!)
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(capsule()).not.toBeNull()
+    expect(outline()).not.toBeNull()
+  })
+
+  it('the click lands on the button the pointer rested on', async () => {
+    document.body.innerHTML = NESTED
+    const hooks = hooksFor(true)
+    document.elementFromPoint = vi.fn(() => document.getElementById('code'))
+    vi.useFakeTimers()
+    const entries = new BlockEntries(document, hooks, gate)
+    created.push(entries)
+    entries.install()
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 10, clientY: 10 }))
+    await vi.advanceTimersByTimeAsync(450)
+    const download = capsule()!.querySelector('.ann-blk-seg-dl')!
+    await reachFor(download)
+    await vi.advanceTimersByTimeAsync(1200)
+    // a button that left the page is no target: a real click cannot land on it
+    expect(download.isConnected).toBe(true)
+    download.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(hooks.onDownload).toHaveBeenCalledTimes(1)
+  })
+
+  it('resting on the "more" menu keeps the menu and the capsule it hangs from', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    capsule()!
+      .querySelector('.ann-blk-sub')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    const menu = document.querySelector('[data-ann-ui="block-more"]')!
+    expect(menu).not.toBeNull()
+    await reachFor(menu.querySelector('button')!)
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(document.querySelector('[data-ann-ui="block-more"]')).not.toBeNull()
+    expect(capsule()).not.toBeNull()
+  })
+
+  it('moving back onto the page starts the dwell again: the next rest reveals that block as always', async () => {
+    document.body.innerHTML = NESTED
+    await restOn(document.getElementById('code')!)
+    await reachFor(capsule()!.querySelector('.ann-blk-seg-clip')!)
+    await vi.advanceTimersByTimeAsync(1200)
+    expect(capsule()).not.toBeNull()
+
+    document.elementFromPoint = vi.fn(() => document.querySelector('p'))
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 300, clientY: 300 }))
+    await vi.advanceTimersByTimeAsync(450)
+    expect(document.querySelector('[data-ann-ui="block-label"]')!.textContent).toContain(uiText('block.kind.paragraph'))
+  })
+
+  it('a page element that is not the hover’s own UI still drops the hover when the pointer rests on it', async () => {
+    document.body.innerHTML = NESTED + '<header id="masthead">site header</header>'
+    await restOn(document.getElementById('code')!)
+    document.elementFromPoint = vi.fn(() => document.getElementById('masthead'))
+    document.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 300, clientY: 300 }))
+    await vi.advanceTimersByTimeAsync(450)
+    expect(capsule()).toBeNull()
+    expect(outline()).toBeNull()
+  })
+})
+
 describe('the label sits above the outline, in view, and gives way to the capsule (capture.md §6.2 标注怎样写)', () => {
   const LABEL_HEIGHT = 24
   const CAPSULE_WIDTH = 152

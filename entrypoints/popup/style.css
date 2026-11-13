@@ -349,12 +349,6 @@ textarea {
   line-height: 1.4;
 }
 
-.popup-recording-keys {
-  color: var(--ann-muted);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .popup-mic {
   display: inline-flex;
   flex: none;

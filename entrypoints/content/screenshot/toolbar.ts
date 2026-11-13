@@ -5,7 +5,7 @@ import { isLineTool, LINE_WIDTHS, type LineWidth, type ScreenshotTool } from './
 
 /**
  * The editor toolbar, native DOM like the rest of the session shell (RV-CAP-16): the content
- * script is injected into every page at document_start, so it does not carry a React runtime
+ * script is injected into every page, so it does not carry a React runtime
  * for these buttons. The DOM structure, class names, `aria-*`, `data-*` and keyboard focus
  * behaviour are exactly what the React component produced — the E2E suites and
  * e2e/real-chrome-scenarios.md rely on them. Stable rows only ever have attributes patched, so

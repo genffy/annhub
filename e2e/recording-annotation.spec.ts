@@ -3,12 +3,10 @@ import { test, expect } from './fixtures'
 import { getScreenshotPageUrl, triggerAnnotation } from './helpers'
 
 /**
- * Recording-time annotation and cursor highlight (annotate.md §3): the
- * toolbar stays off the page because the tab capture films everything, so
- * the tools run on the single keys the popup lists; the highlight and the
- * ripple ride the pointer, never block a click, and both end with the
- * recording. The lifecycle message arrives exactly as the worker broadcasts
- * it — the same road, so the test exercises the real listener.
+ * Page annotation and tab recording do not touch each other (annotate.md §3): the annotation layer is the same
+ * layer with or without a recording — its toolbar, its tools, its keys, its ink — and the recording adds only the
+ * cursor highlight and the ripple, which ride the pointer, never block a click and end with the recording. The
+ * lifecycle message arrives exactly as the worker broadcasts it — the same road, so the test exercises the real listener.
  */
 
 test.describe.configure({ timeout: 60_000 })
@@ -81,38 +79,109 @@ async function broadcastLifecycle(page: Page, active: boolean): Promise<void> {
 }
 
 test.describe('recording-time annotation and cursor highlight (annotate.md §3)', () => {
-  test('the layer opens toolbar-less while recording, and the single keys run the tools', async ({ page }) => {
+  /** A drag with the real pointer: the stroke lands on the layer's canvas when a drawing tool is picked. */
+  async function drag(page: Page, from: [number, number], to: [number, number]): Promise<void> {
+    await page.mouse.move(from[0], from[1])
+    await page.mouse.down()
+    await page.mouse.move(to[0], to[1], { steps: 8 })
+    await page.mouse.up()
+  }
+
+  const toolButton = (page: Page, tool: string) => page.locator(`${TOOLBAR} [data-ann-ui="annotation-tool-${tool}"]`)
+
+  test('a layer opened while recording is the layer as always: its toolbar is there, it starts on the pointer, the toolbar picks the tools', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
     await startRecording(page)
     await triggerAnnotation(page)
     await page.locator(LAYER).waitFor()
-    // the toolbar would be filmed: it is hidden while the recording runs
-    await expect(page.locator(TOOLBAR)).toBeHidden()
+    await expect(page.locator(TOOLBAR), 'the toolbar is on the page, so it is in the picture like the rest of the page').toBeVisible()
+    await expect(toolButton(page, 'pointer')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator(LAYER)).not.toHaveClass(/ann-annot-drawing/)
 
-    // press P (pen, red) and draw: the stroke lands on the layer canvas
-    await page.keyboard.press('p')
-    await page.mouse.move(200, 150)
-    await page.mouse.down()
-    await page.mouse.move(320, 150, { steps: 8 })
-    await page.mouse.up()
+    // the pointer tool leaves the page to itself: a drag draws nothing
+    await drag(page, [200, 150], [320, 150])
+    expect(await pixelAt(page, CANVAS, 235, 150)).toEqual([0, 0, 0])
+
+    // pen from the toolbar: red
+    await toolButton(page, 'pen').click()
+    await drag(page, [200, 150], [320, 150])
     const red = await pixelAt(page, CANVAS, 235, 150)
     expect(red[0]).toBeGreaterThan(180)
     expect(red[0] - red[1]).toBeGreaterThan(60)
 
-    // press 2 (yellow) and draw below: the colour followed the key
-    await page.keyboard.press('2')
-    await page.mouse.move(200, 220)
-    await page.mouse.down()
-    await page.mouse.move(320, 220, { steps: 8 })
-    await page.mouse.up()
+    // a colour from the toolbar: yellow
+    await page.locator(`${TOOLBAR} [data-ann-ui="annotation-color-yellow"]`).click()
+    await drag(page, [200, 220], [320, 220])
     expect(isYellow(await pixelAt(page, CANVAS, 235, 220))).toBe(true)
 
-    // Z undoes one stroke; V is the pointer; Esc leaves the layer
-    await page.keyboard.press('z')
+    // undo and exit from the toolbar
+    await page.locator(`${TOOLBAR} [data-ann-ui="annotation-undo"]`).click()
     expect(await pixelAt(page, CANVAS, 235, 220)).toEqual([0, 0, 0])
-    await page.keyboard.press('v')
-    await page.keyboard.press('Escape')
+    await page.locator(`${TOOLBAR} [data-ann-ui="annotation-exit"]`).click()
     await expect(page.locator(LAYER)).toHaveCount(0)
+  })
+
+  test('a layer that is already open when the recording starts is left as it was, and so is it when the recording stops', async ({ page }) => {
+    await page.goto(getScreenshotPageUrl())
+    await triggerAnnotation(page)
+    await page.locator(LAYER).waitFor()
+    await toolButton(page, 'pen').click()
+    await drag(page, [200, 150], [320, 150])
+    const red = async (y: number): Promise<boolean> => {
+      const rgb = await pixelAt(page, CANVAS, 235, y)
+      return rgb[0] > 180 && rgb[0] - rgb[1] > 60
+    }
+    expect(await red(150)).toBe(true)
+
+    await startRecording(page)
+    // nothing about the layer moved: the toolbar, the tool the user picked, the ink drawn so far
+    await expect(page.locator(TOOLBAR)).toBeVisible()
+    await expect(toolButton(page, 'pen')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator(LAYER)).toHaveClass(/ann-annot-drawing/)
+    expect(await red(150)).toBe(true)
+    // the pen still draws, with the cursor highlight riding the pointer over the layer
+    await drag(page, [200, 220], [320, 220])
+    expect(await red(220)).toBe(true)
+    await expect(page.locator(HIGHLIGHT_SHAPE)).toBeVisible()
+
+    await stopRecording(page)
+    await expect(page.locator(HIGHLIGHT)).toHaveCount(0)
+    await expect(page.locator(TOOLBAR)).toBeVisible()
+    await expect(toolButton(page, 'pen')).toHaveAttribute('aria-pressed', 'true')
+    expect(await red(150)).toBe(true)
+    expect(await red(220)).toBe(true)
+    await page.locator(`${TOOLBAR} [data-ann-ui="annotation-exit"]`).click()
+    await expect(page.locator(LAYER)).toHaveCount(0)
+  })
+
+  // A site binds single keys of its own (X: L likes, R replies, T reposts, N posts); the recording must not take them
+  // for the annotation layer, which has no keys of that kind — the page hears every one and nothing in the layer changes.
+  test('the page keeps its own single keys while a recording runs with the layer open', async ({ page }) => {
+    await page.goto(getScreenshotPageUrl())
+    await startRecording(page)
+    await triggerAnnotation(page)
+    await page.locator(LAYER).waitFor()
+    await toolButton(page, 'pen').click()
+    await page.evaluate(() => {
+      const seen: Array<{ key: string; prevented: boolean }> = []
+      ;(window as unknown as { __keys: typeof seen }).__keys = seen
+      window.addEventListener('keydown', event => seen.push({ key: event.key, prevented: event.defaultPrevented }))
+    })
+    const keys = ['l', 'p', 'h', 'a', 'r', 'o', 't', 'n', 'v', '1', '2', 'z', 'e']
+    for (const key of keys) await page.keyboard.press(key)
+    const seen = await page.evaluate(() => (window as unknown as { __keys: Array<{ key: string; prevented: boolean }> }).__keys)
+    expect(
+      seen.map(entry => entry.key),
+      'the page heard every key',
+    ).toEqual(keys)
+    expect(
+      seen.filter(entry => entry.prevented),
+      'and none was taken from it',
+    ).toEqual([])
+    // the layer took none of them for itself either: the pen is still the tool and the layer is still open
+    await expect(toolButton(page, 'pen')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator(LAYER)).toHaveCount(1)
+    await page.locator(`${TOOLBAR} [data-ann-ui="annotation-exit"]`).click()
   })
 
   test('the cursor highlight follows the pointer, never blocks a click, and ends with the recording', async ({ page }) => {
@@ -138,60 +207,6 @@ test.describe('recording-time annotation and cursor highlight (annotate.md §3)'
     // stopping the recording takes the highlight with it (annotate.md §3.3)
     await stopRecording(page)
     await expect(page.locator(HIGHLIGHT)).toHaveCount(0)
-    // and the layer opened now shows its toolbar again (§3.1: 不录制时照常显示)
-    await triggerAnnotation(page)
-    await page.locator(LAYER).waitFor()
-    await expect(page.locator(TOOLBAR)).toBeVisible()
-    await page.keyboard.press('Escape')
-  })
-
-  test('a layer that was open before the recording collapses its toolbar, and it comes back after', async ({ page }) => {
-    await page.goto(getScreenshotPageUrl())
-    await triggerAnnotation(page)
-    await page.locator(LAYER).waitFor()
-    await expect(page.locator(TOOLBAR)).toBeVisible()
-
-    await startRecording(page)
-    await expect(page.locator(TOOLBAR)).toBeHidden()
-    // single keys still reach the collapsed layer
-    await page.keyboard.press('p')
-    await page.mouse.move(180, 180)
-    await page.mouse.down()
-    await page.mouse.move(260, 180, { steps: 5 })
-    await page.mouse.up()
-    const red = await pixelAt(page, CANVAS, 220, 180)
-    expect(red[0]).toBeGreaterThan(180)
-    expect(red[0] - red[1]).toBeGreaterThan(60)
-
-    await stopRecording(page)
-    await expect(page.locator(TOOLBAR)).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(page.locator(LAYER)).toHaveCount(0)
-  })
-
-  test('keys belong to the page while the focus sits in an input', async ({ page }) => {
-    await page.goto(getScreenshotPageUrl())
-    await startRecording(page, false)
-    await triggerAnnotation(page)
-    await page.locator(LAYER).waitFor()
-    // a page-owned input: the keys are the page's even with the layer open (the toolbar is hidden anyway)
-    await page.evaluate(() => {
-      const input = document.createElement('input')
-      input.setAttribute('data-testid', 'page-input')
-      document.body.appendChild(input)
-    })
-    await page.locator('[data-testid="page-input"]').click()
-    await page.keyboard.press('p')
-    // the input holds the character; no tool switched (the stroke below is the pointer, nothing drawn)
-    await page.mouse.move(200, 150)
-    await page.mouse.down()
-    await page.mouse.move(320, 150, { steps: 6 })
-    await page.mouse.up()
-    // nothing was drawn: the layer stayed in pointer mode
-    expect(await pixelAt(page, CANVAS, 235, 150)).toEqual([0, 0, 0])
-    const value = await page.locator('[data-testid="page-input"]').inputValue()
-    expect(value).toBe('p')
-    await page.keyboard.press('Escape')
   })
 
   test('a same-origin subframe follows the stop of the recording like the top frame (annotate.md §3.3, RV-CAP-19)', async ({ page }) => {

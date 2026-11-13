@@ -161,35 +161,27 @@ test.describe('page annotation layer', () => {
     await expect(page.locator(LAYER)).toHaveCount(0)
   })
 
-  test('the toolbar draws its every control itself, and auto-erase cycles off → 3 s → 8 s → off', async ({ page }) => {
+  test('the width steps stand in the bar for every tool and are dim for the tools that take no width (annotate.md §1.1)', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
     await triggerAnnotation(page)
     await page.locator(LAYER).waitFor()
-    await expect(page.locator(TOOLBAR)).toBeVisible()
-
-    const shapes = await page.locator(TOOLBAR).evaluate(bar => ({ selects: bar.querySelectorAll('select').length }))
-    expect(shapes.selects, 'no native select in the toolbar').toBe(0)
-
-    const erase = page.locator('[data-ann-ui="annotation-auto-erase"]')
-    const eraseBox = await erase.boundingBox()
-    expect(Math.min(eraseBox!.width, eraseBox!.height), 'the auto-erase button is a 32px target like its neighbours').toBeGreaterThanOrEqual(32)
-    await expect(erase).toHaveAccessibleName('自动擦除：关')
-    await expect(erase).toHaveAttribute('aria-pressed', 'false')
-    await erase.click()
-    await expect(erase).toHaveAccessibleName('自动擦除：3 秒')
-    await expect(erase).toHaveAttribute('aria-pressed', 'true')
-    await erase.click()
-    await expect(erase).toHaveAccessibleName('自动擦除：8 秒')
-    await erase.click()
-    await expect(erase).toHaveAccessibleName('自动擦除：关')
+    const steps = ['thin', 'medium', 'thick'].map(width => page.locator(`${TOOLBAR} [data-ann-ui="annotation-width-${width}"]`))
+    const takesWidth = { pointer: false, pen: true, highlighter: true, line: true, arrow: false, rectangle: false, ellipse: false, text: false, step: false }
+    for (const [tool, enabled] of Object.entries(takesWidth)) {
+      await page.locator(`${TOOLBAR} [data-ann-ui="annotation-tool-${tool}"]`).click()
+      for (const step of steps) {
+        await expect(step, `a width step is in the bar with the ${tool}`).toBeVisible()
+        if (enabled) await expect(step, `and usable with the ${tool}`).toBeEnabled()
+        else await expect(step, `and dim with the ${tool}`).toBeDisabled()
+      }
+    }
     await triggerAnnotation(page)
     await expect(page.locator(LAYER)).toHaveCount(0)
   })
 
   // The window-edge toolbar is one of the always-dark pills (visual.md §2): it looks the
-  // same whatever the system appearance is, and its icons (≥ 3:1) and its chip's words (≥ 4.5)
-  // read on the dark ground.
-  test('the toolbar is one always-dark pill in both appearances, and its icons and chip read on it', async ({ page }) => {
+  // same whatever the system appearance is, and its icons (≥ 3:1) read on the dark ground.
+  test('the toolbar is one always-dark pill in both appearances, and its icons read on it', async ({ page }) => {
     await page.goto(getScreenshotPageUrl())
     const reading = () =>
       page.evaluate(() => {
@@ -217,7 +209,6 @@ test.describe('page annotation layer', () => {
           pill,
           text: getComputedStyle(bar).color,
           iconContrast: between(getComputedStyle(bar.querySelector('[data-ann-ui="annotation-tool-pen"]')!).color, pill),
-          chipContrast: between(getComputedStyle(document.querySelector('[data-ann-ui="annotation-auto-erase"]')!).color, pill),
         }
       })
     const seen: Record<string, Awaited<ReturnType<typeof reading>>> = {}
@@ -228,7 +219,6 @@ test.describe('page annotation layer', () => {
       await page.locator(TOOLBAR).waitFor()
       seen[scheme] = await reading()
       expect(seen[scheme].iconContrast, `the icons read on the pill (${scheme})`).toBeGreaterThanOrEqual(3)
-      expect(seen[scheme].chipContrast, `the auto-erase chip's words read on the pill (${scheme})`).toBeGreaterThanOrEqual(4.5)
       await triggerAnnotation(page)
       await expect(page.locator(LAYER)).toHaveCount(0)
     }
@@ -716,3 +706,37 @@ test.describe('page annotation layer', () => {
     await page.keyboard.press('Escape')
   })
 })
+
+// The bar is one narrow column in either language (annotate.md §1.1): as wide as a 32px button and its padding, however long
+// the words of the language are, and the same size for every tool — a row that comes and goes moves the buttons under the pointer.
+for (const uiLocale of ['zh-CN', 'en-US'] as const) {
+  test.describe(`the annotation toolbar in ${uiLocale}`, () => {
+    test.use({ uiLocale })
+
+    test('draws its every control itself, as a narrow column of square buttons that keeps its shape from tool to tool', async ({ page }) => {
+      await page.goto(getScreenshotPageUrl())
+      await triggerAnnotation(page)
+      await page.locator(LAYER).waitFor()
+      const bar = page.locator(TOOLBAR)
+      await expect(bar).toBeVisible()
+
+      const parts = await bar.evaluate(element => ({
+        selects: element.querySelectorAll('select').length,
+        withWords: [...element.querySelectorAll('button')].filter(button => (button.textContent ?? '').trim() !== '').map(button => button.getAttribute('data-ann-ui')),
+      }))
+      expect(parts.selects, 'no native select in the toolbar').toBe(0)
+      expect(parts.withWords, 'no button carries words: they would widen the whole bar').toEqual([])
+
+      const first = (await bar.boundingBox())!
+      expect(first.width, 'the bar is one button wide plus its padding').toBeLessThanOrEqual(48)
+      for (const tool of ['pen', 'highlighter', 'line', 'arrow', 'rectangle', 'ellipse', 'text', 'step', 'pointer']) {
+        await page.locator(`${TOOLBAR} [data-ann-ui="annotation-tool-${tool}"]`).click()
+        const box = (await bar.boundingBox())!
+        expect(box.width, `the bar keeps its width with the ${tool}`).toBeCloseTo(first.width, 0)
+        expect(box.height, `and its height with the ${tool}`).toBeCloseTo(first.height, 0)
+      }
+      await triggerAnnotation(page)
+      await expect(page.locator(LAYER)).toHaveCount(0)
+    })
+  })
+}

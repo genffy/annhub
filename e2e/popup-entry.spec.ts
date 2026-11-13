@@ -416,7 +416,7 @@ for (const uiLocale of ['zh-CN', 'en-US'] as const) {
       await popup.close()
     })
 
-    test('recording: the annotate entry and the keys are there, the title on its own line', async ({ page, extensionId }) => {
+    test('recording: the annotate entry is there, the title on its own line', async ({ page, extensionId }) => {
       await clearLibrary(page.context())
       const recording = await popupIn(page, extensionId, {
         status: 'recording',
@@ -434,12 +434,10 @@ for (const uiLocale of ['zh-CN', 'en-US'] as const) {
         return {
           ownLine: titleBox.top >= status.bottom - 1,
           oneLine: titleBox.height < parseFloat(style.fontSize) * 2,
-          keysSize: parseFloat(getComputedStyle(document.querySelector('.popup-recording-keys')!).fontSize),
         }
       })
       expect(lines.ownLine, 'the recorded tab title has its own line').toBe(true)
       expect(lines.oneLine, 'the title is a single ellipsised line').toBe(true)
-      expect(lines.keysSize, 'the keys hint is at least 12px').toBeGreaterThanOrEqual(12)
       await recording.close()
     })
 

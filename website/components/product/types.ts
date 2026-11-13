@@ -86,7 +86,6 @@ export interface ProductUi {
   annotate: {
     toolbar: string
     pointer: string
-    autoerase: string
     clear: string
     screenshot: string
     exit: string

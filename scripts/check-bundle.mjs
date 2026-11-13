@@ -31,7 +31,7 @@ export const BUNDLE_BUDGETS = {
   'background.js': 130744,
   'popup.html': 275682,
   'library.html': 539172,
-  'options.html': 856,
+  'options.html': 1004, // the stub that hands over to the settings view: its script is bundled now, extension pages allow no inline one
   'offscreen.html': 65744,
   'sample.html': 0,
   'sample.en.html': 0,

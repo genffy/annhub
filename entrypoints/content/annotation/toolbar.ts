@@ -1,7 +1,7 @@
 /**
- * The annotation toolbar's DOM and its sync: the tool buttons, the colour swatches, the width steps
- * and the auto-erase chip, plus the undo/clear/screenshot/exit actions. Moved verbatim from
- * layer.ts; the layer state the controls read and write arrives as the host.
+ * The annotation toolbar's DOM and its sync: the tool buttons, the colour swatches and the width
+ * steps, plus the undo/clear/screenshot/exit actions. The layer state the controls read and write
+ * arrives as the host.
  */
 import { isLineTool, type LineWidth, type ScreenshotTool } from '../screenshot/editor'
 import { ANNOTATION_COLORS } from '../../../core/screenshot-options'
@@ -9,7 +9,7 @@ import { isUserInput } from '../user-input'
 import { uiText, type UiTextKey } from '../ui-text'
 import { exitAnnotationLayer } from './layer'
 import { ROOT_ATTR } from './annotation-roots'
-import type { AutoErase, InkTool } from './layer'
+import type { InkTool } from './layer'
 
 /** Simple inline icons (lucide paths) — the toolbar buttons are plain DOM, not a React root. */
 const ICONS: Record<string, string> = {
@@ -40,19 +40,13 @@ const TOOL_KEYS: ReadonlyArray<{ tool: InkTool; labelKey: string }> = [
   { tool: 'step', labelKey: 'shot.tool.step' },
 ]
 
-/** The auto-erase chip cycles through these; the erase timers read the delays. */
-export const AUTO_ERASE_CYCLE: readonly AutoErase[] = ['off', '3s', '8s']
-export const AUTO_ERASE_MS: Record<Exclude<AutoErase, 'off'>, number> = { '3s': 3000, '8s': 8000 }
-
 /** What the toolbar reads and writes on the layer: the live tool state and the actions behind the buttons. */
 export interface ToolbarHost {
   doc: Document
   tool: InkTool
   color: string
   lineWidth: LineWidth
-  autoErase: AutoErase
   setTool(tool: InkTool): void
-  applyToolCursor(): void
   paint(): void
   undo(): void
   clear(): void
@@ -102,7 +96,6 @@ export function buildToolbar(host: ToolbarHost): HTMLDivElement {
       if (!isUserInput(event)) return
       host.color = value
       syncToolbarInto(host, bar)
-      host.applyToolCursor()
       host.paint()
     })
     bar.appendChild(swatch)
@@ -131,24 +124,6 @@ export function buildToolbar(host: ToolbarHost): HTMLDivElement {
     widths.appendChild(button)
   }
   bar.appendChild(widths)
-
-  // a cycle chip (off → 3 s → 8 s → off) saying its state in words: a native select was the one
-  // control in the bar that drew in the browser's face (annotate.md §1.2)
-  const erase = host.doc.createElement('button')
-  erase.type = 'button'
-  erase.className = 'ann-annot-erase'
-  erase.setAttribute('data-ann-ui', 'annotation-auto-erase')
-  const syncErase = (): void => {
-    erase.textContent = uiText(`annotate.autoerase.${host.autoErase}` as UiTextKey)
-    erase.setAttribute('aria-pressed', host.autoErase === 'off' ? 'false' : 'true')
-  }
-  erase.addEventListener('click', event => {
-    if (!isUserInput(event)) return
-    host.autoErase = AUTO_ERASE_CYCLE[(AUTO_ERASE_CYCLE.indexOf(host.autoErase) + 1) % AUTO_ERASE_CYCLE.length]!
-    syncErase()
-  })
-  syncErase()
-  bar.appendChild(erase)
 
   const divider2 = host.doc.createElement('div')
   divider2.className = 'ann-annot-divider'
@@ -186,9 +161,14 @@ export function syncToolbarInto(host: ToolbarHost, bar: HTMLDivElement): void {
   for (const { value, name } of ANNOTATION_COLORS) {
     bar.querySelector(`[data-ann-ui="annotation-color-${name}"]`)?.classList.toggle('ann-annot-active', host.color === value)
   }
-  const widths = bar.querySelector('[data-ann-ui="annotation-widths"]')
-  if (widths instanceof HTMLElement) widths.style.display = isLineTool(host.tool as ScreenshotTool) ? '' : 'none'
+  // The three steps always stand in the bar and go dim where they do not apply (only the pen, the highlighter
+  // and the line take a width): hiding them would resize the bar on every tool change and move the buttons
+  // under the pointer (annotate.md §1.1).
+  const usesWidth = isLineTool(host.tool as ScreenshotTool)
   for (const width of ['thin', 'medium', 'thick'] as const) {
-    bar.querySelector(`[data-ann-ui="annotation-width-${width}"]`)?.classList.toggle('ann-annot-active', host.lineWidth === width)
+    const button = bar.querySelector<HTMLButtonElement>(`[data-ann-ui="annotation-width-${width}"]`)
+    if (!button) continue
+    button.classList.toggle('ann-annot-active', host.lineWidth === width)
+    button.disabled = !usesWidth
   }
 }

@@ -12,7 +12,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * a recorder still rolling, a start already on its way, or a video the
  * worker still holds refuses the next start; only the worker's clear "no
  * video" drops the stale state and lets a new recording begin.
+ *
+ * The third is the container the video is written in (annotate.md §2.2): an
+ * MP4 where the recorder can, a WebM — with its length patched in — where not.
  */
+
+/** The WebM length patch is the one thing only a WebM gets; the spy tells whether a video went through it. */
+const { fixWebmDuration } = vi.hoisted(() => ({ fixWebmDuration: vi.fn((bytes: Uint8Array, _durationMs: number) => bytes) }))
+vi.mock('../../../utils/webm-duration', () => ({ fixWebmDuration }))
 
 type Listener = (message: { type: string } & Record<string, unknown>, sender: { id?: string; tab?: { id: number } }, sendResponse: (answer: unknown) => void) => unknown
 
@@ -36,13 +43,23 @@ vi.stubGlobal('chrome', {
 /** A recorder whose stop delivers one chunk and then the stop event, the order the real one uses. */
 class FakeRecorder {
   static instances: FakeRecorder[] = []
-  static isTypeSupported(): boolean {
-    return true
+  /** Which recorder types this browser can write; per test. */
+  static supports: (type: string) => boolean = () => true
+  /** The type a recorder reports when it was not asked for one: what the browser writes by itself. */
+  static defaultType = ''
+  static isTypeSupported(type: string): boolean {
+    return FakeRecorder.supports(type)
   }
   state: 'inactive' | 'recording' = 'inactive'
+  /** What the recorder reports it writes, as the real one does. */
+  readonly mimeType: string
+  /** The type it was asked for, if any. */
+  readonly requestedType: string | undefined
   ondataavailable: ((event: { data: Blob }) => void) | null = null
   onstop: (() => void) | null = null
-  constructor() {
+  constructor(_stream?: unknown, options: { mimeType?: string } = {}) {
+    this.requestedType = options.mimeType
+    this.mimeType = options.mimeType ?? FakeRecorder.defaultType
     FakeRecorder.instances.push(this)
   }
   start(): void {
@@ -89,7 +106,8 @@ vi.stubGlobal('navigator', { mediaDevices: { getUserMedia } })
 
 let blobSeq = 0
 const revokeObjectURL = vi.fn()
-URL.createObjectURL = vi.fn(() => `blob:offscreen-${String(++blobSeq)}`)
+const createObjectURL = vi.fn((_blob: Blob) => `blob:offscreen-${String(++blobSeq)}`)
+URL.createObjectURL = createObjectURL
 URL.revokeObjectURL = revokeObjectURL
 
 await import('../main')
@@ -99,7 +117,11 @@ const own = { id: 'abc' }
 beforeEach(() => {
   sendMessage.mockClear()
   revokeObjectURL.mockClear()
+  createObjectURL.mockClear()
+  fixWebmDuration.mockClear()
   FakeRecorder.instances.length = 0
+  FakeRecorder.supports = () => true
+  FakeRecorder.defaultType = ''
   blobSeq = 0
   workerStateAnswer = { type: 'RESPONSE', success: true, data: { holdsVideo: false } }
 })
@@ -229,5 +251,69 @@ describe('the start guard on stale state (RV-REC-05, annotate.md §2.5)', () => 
     expect(retry).toMatchObject({ success: true })
     expect(revokeObjectURL).toHaveBeenCalledTimes(1)
     await settleIdle()
+  })
+})
+
+describe('the container the video is written in (annotate.md §2.2)', () => {
+  /** The `stopped` event the worker was sent, once the recorder's stop has gone through. */
+  async function stoppedEvent(): Promise<{ filename?: string; durationMs?: number }> {
+    await vi.waitFor(() => expect(sendMessage.mock.calls.some(([message]) => (message as { event?: string }).event === 'stopped')).toBe(true))
+    return sendMessage.mock.calls.map(([message]) => message as { event?: string; filename?: string; durationMs?: number }).find(message => message.event === 'stopped')!
+  }
+
+  /** Records for a moment and stops: the recorder is asked for a type, a blob is made, a file name is sent. */
+  async function recordOnce(): Promise<{ asked: string | undefined; blobType: string; event: { filename?: string; durationMs?: number } }> {
+    await sendAsync({ type: 'RECORDING_START', streamId: 's1', withMic: false })
+    const recorder = FakeRecorder.instances[FakeRecorder.instances.length - 1]!
+    await command({ type: 'RECORDING_STOP', stoppedBy: 'user' })
+    const event = await stoppedEvent()
+    const blob = createObjectURL.mock.calls[createObjectURL.mock.calls.length - 1]![0]
+    await settleIdle()
+    return { asked: recorder.requestedType, blobType: blob.type, event }
+  }
+
+  it('is an MP4 with H.264 and AAC when the recorder can write one: the file is .mp4 and the bytes are not rewritten', async () => {
+    const { asked, blobType, event } = await recordOnce()
+    expect(asked).toBe('video/mp4;codecs=avc1,mp4a.40.2')
+    expect(blobType).toBe('video/mp4')
+    expect(event.filename).toMatch(/^AnnHub\/recording-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.mp4$/)
+    expect(fixWebmDuration, 'the WebM length patch is not for an MP4').not.toHaveBeenCalled()
+  })
+
+  it('falls back to a WebM with VP9 when the recorder cannot write MP4: the file is .webm and its length is patched in', async () => {
+    FakeRecorder.supports = type => !type.startsWith('video/mp4')
+    const { asked, blobType, event } = await recordOnce()
+    expect(asked).toBe('video/webm;codecs=vp9,opus')
+    expect(blobType).toBe('video/webm')
+    expect(event.filename).toMatch(/^AnnHub\/recording-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.webm$/)
+    expect(fixWebmDuration).toHaveBeenCalledTimes(1)
+    expect(fixWebmDuration.mock.calls[0]![1], 'the length it is given is the recording time').toBe(event.durationMs)
+  })
+
+  it('falls back to VP8 when the recorder writes neither MP4 nor VP9', async () => {
+    FakeRecorder.supports = type => type === 'video/webm;codecs=vp8,opus'
+    const { asked, event } = await recordOnce()
+    expect(asked).toBe('video/webm;codecs=vp8,opus')
+    expect(event.filename).toMatch(/\.webm$/)
+  })
+
+  it('asks for no type when the recorder supports none, and names the file after what the browser wrote', async () => {
+    FakeRecorder.supports = () => false
+    FakeRecorder.defaultType = 'video/webm;codecs=vp8,opus'
+    const { asked, blobType, event } = await recordOnce()
+    expect(asked).toBeUndefined()
+    expect(blobType).toBe('video/webm')
+    expect(event.filename).toMatch(/\.webm$/)
+    expect(fixWebmDuration).toHaveBeenCalledTimes(1)
+  })
+
+  it('follows what the recorder reports, not what was asked for: a default that is an MP4 is an .mp4', async () => {
+    FakeRecorder.supports = () => false
+    FakeRecorder.defaultType = 'video/mp4'
+    const { asked, blobType, event } = await recordOnce()
+    expect(asked).toBeUndefined()
+    expect(blobType).toBe('video/mp4')
+    expect(event.filename).toMatch(/\.mp4$/)
+    expect(fixWebmDuration).not.toHaveBeenCalled()
   })
 })

@@ -91,15 +91,15 @@ export const en: LandingCopy = {
         body: 'Pen, highlighter, line, arrow, rectangle, ellipse, text and step numbers, in five colours and three widths; the ink follows the page content.',
       },
       { title: 'Take it with you', body: 'Screenshot the ink straight into the editor, or record the whole tab as a local video, with optional microphone narration.' },
-      { title: 'Viewers see every mark', body: 'The annotations and the cursor highlight are in the picture; the annotation controls are not.' },
+      { title: 'Viewers see every mark', body: 'The annotations and the cursor highlight are in the picture.' },
     ],
     boundary:
-      'Leaving the annotation layer clears everything — nothing stays on the page, and the ink is never saved. Videos are local WebM files: never in the library, never uploaded.',
+      'Leaving the annotation layer clears everything — nothing stays on the page, and the ink is never saved. Videos are local MP4 files (WebM where the browser cannot record MP4): never in the library, never uploaded.',
     sketch: 'Interface illustration · Sample data',
     captions: {
       annotate: 'The annotation toolbar at the window edge, with an arrow, a circle and a step number drawn over the article',
       editor: 'Into the screenshot editor with the ink: drawn back at the position it had at the moment of capture',
-      record: 'Recording: the timer and the stop button live in the popup; on the page there is only the ink and the cursor highlight — the controls stay out of the picture',
+      record: 'Recording: the timer and the stop button live in the popup; the ink and the cursor highlight on the page are in the picture',
     },
   },
   story: {
@@ -269,7 +269,7 @@ export const en: LandingCopy = {
       },
       {
         q: 'Is the screen recording uploaded? Where does the video go?',
-        a: 'Nothing is uploaded, and there is no account. When you stop, the video downloads itself as a local WebM file; it is not an entry, it never enters the library, and it is not in the export ZIP.',
+        a: 'Nothing is uploaded, and there is no account. When you stop, the video downloads itself as a local MP4 file (a WebM file where your browser cannot record MP4); it is not an entry, it never enters the library, and it is not in the export ZIP.',
       },
       {
         q: 'Why does it need the tabCapture and offscreen permissions?',
@@ -350,7 +350,6 @@ export const en: LandingCopy = {
     annotate: {
       toolbar: 'Annotation toolbar',
       pointer: 'Pointer: the page stays clickable',
-      autoerase: 'Auto-erase: off',
       clear: 'Clear',
       screenshot: 'Screenshot with the ink',
       exit: 'Exit annotation',

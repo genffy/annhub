@@ -53,6 +53,41 @@ test.describe('block clip (capture.md §6.2)', () => {
     expect(entry.context).toBeUndefined()
   })
 
+  test('the capsule stays while the pointer rests on its buttons, and the click still lands (capture.md §6.2 收起)', async ({ page }) => {
+    await page.goto(getCapturePageUrl())
+    const capsule = await hoverForCapsule(page, '[data-testid="section-body"]')
+    const clip = capsule.getByRole('button', { name: '剪藏' })
+    const box = (await clip.boundingBox())!
+    const button = { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+    // how a hand reaches it: a few moves inside the block (they start the stillness clock), a glide
+    // onto the button, then a pause to aim — longer than the 400ms the page needs to count a rest
+    await page.mouse.move(button.x - 40, button.y + 30, { steps: 4 })
+    await page.mouse.move(button.x, button.y, { steps: 8 })
+    await page.waitForTimeout(1200)
+    await expect(capsule).toBeVisible()
+    await expect(page.locator('[data-ann-ui="block-outline"]')).toBeVisible()
+
+    await clip.click()
+    await waitForClipToast(page)
+    expect(await getEntries(page.context())).toHaveLength(1)
+  })
+
+  test('the “更多” menu stays open while the pointer rests on its items (capture.md §6.2 收起)', async ({ page }) => {
+    await page.goto(getCapturePageUrl())
+    const capsule = await hoverForCapsule(page, '[data-testid="section-body"]')
+    await capsule.getByRole('button', { name: '更多' }).click()
+    const menu = page.locator('[data-ann-ui="block-more"]')
+    const item = menu.getByRole('button', { name: '在此网站停用' })
+    await expect(item).toBeVisible()
+    const box = (await item.boundingBox())!
+    // from the capsule down to the item: the glide crosses the page between them, which starts the clock
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 8 })
+    await page.waitForTimeout(1200)
+    await expect(menu).toBeVisible()
+    await expect(capsule).toBeVisible()
+    await expect(page.locator('[data-ann-ui="block-outline"]')).toBeVisible()
+  })
+
   test('block mode ↑ climbs to the article and clips it whole', async ({ page }) => {
     await page.goto(getCapturePageUrl())
     await page.locator('[data-testid="section-body"]').click()

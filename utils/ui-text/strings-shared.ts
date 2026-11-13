@@ -15,4 +15,6 @@ export const sharedStrings = {
     zh: '选中网页文字即可保存 · {keys} 截图',
     en: 'Select text on a page to save it · {keys} to screenshot',
   },
+  // the same hint when the browser has no key bound to the screenshot (extension.md §7.1)
+  'library.shortcutHint.unbound': { zh: '选中网页文字即可保存', en: 'Select text on a page to save it' },
 }

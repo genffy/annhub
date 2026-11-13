@@ -145,11 +145,17 @@ export const settingsStrings = {
   'library.empty.heading': { zh: '资料库还是空的', en: 'The library is empty' },
   'library.empty.how.clip': { zh: '选中网页文字，菜单里点「剪藏」。', en: 'Select text on a page and choose "Clip" from the menu.' },
   'library.empty.how.shot': { zh: '按 {keys} 截一张图。', en: 'Press {keys} to take a screenshot.' },
+  // with no key bound to the screenshot the menu is the way in (extension.md §5)
+  'library.empty.how.shot.unbound': { zh: '或在同一个菜单里点「截图」。', en: 'Or choose "Screenshot" from the same menu.' },
   // an empty view keeps its own title and line (extension.md §5)
   'library.empty.clips.title': { zh: '还没有剪藏', en: 'No clips yet' },
   'library.empty.clips.desc': { zh: '选中网页文字，菜单里点「剪藏」即可保存。', en: 'Select text on a page and choose "Clip" from the menu.' },
   'library.empty.screenshots.title': { zh: '还没有截图', en: 'No screenshots yet' },
   'library.empty.screenshots.desc': { zh: '按 {keys} 框选区域或点选元素。', en: 'Press {keys} to drag an area or click an element.' },
+  'library.empty.screenshots.desc.unbound': {
+    zh: '选中网页文字，菜单里点「截图」，再框选区域或点选元素。',
+    en: 'Select text on a page, choose "Screenshot" from the menu, then drag an area or click an element.',
+  },
   'library.empty.highlights.title': { zh: '还没有高亮', en: 'No highlights yet' },
   'library.empty.highlights.desc': { zh: '打开一条剪藏的阅读视图，选中文字即可。', en: 'Open a clip in the reading view and select text.' },
   // the popup's own empty line for its highlights rail

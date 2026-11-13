@@ -23,7 +23,7 @@ const annotInk = (o = {}) => `<svg class="annot-ink" viewBox="0 0 760 330" aria-
   ${o.dim ? `<text x="96" y="290" font-size="12" fill="#9aa1b2" font-family="var(--font-ui)">墨迹跟着内容走 · 退出即清除</text>` : ''}
 </svg>`
 
-// 窗口边上的批注工具栏（竖排）：指针、画笔、荧光笔、直线、箭头、矩形、椭圆、文字、序号 · 五色 · 线宽 · 自动擦除 · 撤销/清空/截图/退出
+// 窗口边上的批注工具栏（竖排）：指针、画笔、荧光笔、直线、箭头、矩形、椭圆、文字、序号 · 五色 · 线宽 · 撤销/清空/截图/退出
 const annotToolbar = (o = {}) => `<div class="annot-tb">
   ${[['mouse-pointer', 'pointer', '指针：页面照常可点'], ['pencil-line', 'pen', '画笔'], ['highlighter', 'highlighter', '荧光笔'], ['slash', 'line', '直线'], ['arrow-up-right', 'arrow', '箭头'], ['square', 'rect', '矩形'], ['circle', 'ellipse', '椭圆'], ['type', 'text', '文字'], ['list-ordered', 'step', '序号']]
     .map(([icon, tool, title]) => `<span class="tb-b ${o.tool === tool ? 'on' : ''}" title="${title}">${I(icon)}</span>`)
@@ -31,9 +31,9 @@ const annotToolbar = (o = {}) => `<div class="annot-tb">
   <i class="tb-sep"></i>
   <span class="tb-dots">${['#e5484d', '#ffd84d', '#0f9d8f', '#fff', '#111'].map((c, i) => `<i class="${i === (o.color ?? 0) ? 'on' : ''}" style="background:${c}"></i>`).join('')}</span>
   <i class="tb-sep"></i>
-  <span class="annot-wd"><i style="width:4px;height:4px"></i></span><span class="annot-wd ${o.width !== 'thin' && o.width !== 'thick' ? 'on' : ''}"><i style="width:7px;height:7px"></i></span><span class="annot-wd ${o.width === 'thick' ? 'on' : ''}"><i style="width:11px;height:11px"></i></span>
-  <i class="tb-sep"></i>
-  <span class="annot-erase">${o.erase || '自动擦除 · 关'}</span>
+  ${[[4, 'thin'], [7, 'medium'], [11, 'thick']]
+    .map(([d, w]) => `<span class="annot-wd ${(o.width ?? 'medium') === w ? 'on' : ''} ${['pen', 'highlighter', 'line'].includes(o.tool) ? '' : 'dim'}"><i style="width:${d}px;height:${d}px"></i></span>`)
+    .join('')}
   <i class="tb-sep"></i>
   <span class="tb-b" title="撤销">${I('undo-2')}</span><span class="tb-b" title="清空">${I('eraser')}</span><span class="tb-b" title="带着墨迹截图">${I('camera')}</span>
   <i class="tb-sep"></i>
@@ -53,9 +53,8 @@ function extAnnotateGroup() {
     notes: [
       '入口在<b>工具栏弹窗</b>（“在页面上批注”），快捷键<b>默认不绑定</b>，用户在浏览器的快捷键设置里自己指定；<code>chrome://</code> 等受限页面没有这个入口。',
       '进入时没有选中工具，是<b>指针</b>：页面照常点击、选中、滚动。选中一种工具后，按下拖动就是画，这一下不触发页面自己的动作；要点页面时切回“指针”。',
-      '工具栏立在<b>窗口边上</b>：画笔、荧光笔、直线、箭头、矩形、椭圆、文字、序号，五种颜色，三档线宽（画笔/直线/荧光笔），自动擦除（关 · 3 秒 · 8 秒），撤销、清空、截图、退出。画法与截图编辑器相同；每次进入从默认开始：红色、中档线宽、序号从 1。',
+      '工具栏立在<b>窗口边上</b>：画笔、荧光笔、直线、箭头、矩形、椭圆、文字、序号，五种颜色，三档线宽（画笔/直线/荧光笔用；其他工具时变灰、不可点，但一直在，工具栏不随工具变高变矮），撤销、清空、截图、退出。画法与截图编辑器相同；每次进入从默认开始：红色、中档线宽、序号从 1。',
       '<b>墨迹跟着页面内容走</b>（annotate §1.2）：整页滚动时墨迹跟着画在下面的内容移动，滚走再滚回来仍对得上；从吸顶导航、固定挂件这类钉在窗口上的元素上开始的笔画固定在屏幕上（拼长图时不进图）；页面里另一个滚动区域自己滚动时，画在它上面的墨迹不跟着走。窗口大小或排版变化后，墨迹留在画下时的页面位置。',
-      '自动擦除只作用于页面上的墨迹，到时自己消失，<b>不进撤销</b>，也不影响已经截进编辑器或入库的图片。',
     ],
   })
 
@@ -115,7 +114,7 @@ const popupRecordingScene = (o = {}) => `<div class="popup-mock">
   <div class="popup-head-row"><span>剪藏 · 4</span><a>在资料库中打开</a></div>
   ${o.recording
     ? `<div class="popup-rec-row"><i class="rec-dot"></i><b>正在录制：Retries can amplify an outage…</b><span class="popup-time">03:12</span><button class="popup-btn danger">停止录制</button></div>
-       <div class="popup-note">批注单键：P 画笔 · H 荧光笔 · L 直线 · A 箭头 · R 矩形 · O 椭圆 · T 文字 · N 序号 · V 指针 · 1–5 颜色 · [ ] 线宽 · Z 撤销 · E 清空 · Esc 退出批注</div>`
+       <div class="popup-actions-row"><button class="popup-btn">${I('pencil-line')} 在页面上批注</button></div>`
     : `<div class="popup-actions-row">
         <button class="popup-btn">${I('pencil-line')} 在页面上批注</button>
         <button class="popup-btn">${I('scan')} 录制此标签页</button>
@@ -158,8 +157,8 @@ function extRecordGroup() {
       <div class="popup-actions-row"><button class="popup-btn">重新下载</button><button class="popup-btn">放弃</button></div></div>
     </div>`,
     notes: [
-      '录制中图标上有红色 <b>REC</b> 角标；弹窗显示正在录的标签页标题、已录时长和“停止录制”，一次只录一个标签页。页面里不放录制按钮或指示灯——它们会被录进视频。',
-      '停止（按钮、快捷键、关闭被录的标签页）后自动下载为 <code>AnnHub/recording-<本地时间>.webm</code>，与截图同一目录；扩展不弹另存为，浏览器设置了“下载前询问”时由浏览器询问。',
+      '录制中图标上有红色 <b>REC</b> 角标；弹窗显示正在录的标签页标题、已录时长和“停止录制”，一次只录一个标签页。页面里不放录制按钮或指示灯——它们会被录进视频；“在页面上批注”在录制中照常可用，批注层与平时完全一样。',
+      '停止（按钮、快捷键、关闭被录的标签页）后自动下载为 <code>AnnHub/recording-<本地时间>.mp4</code>（浏览器录不了 MP4 时是 <code>.webm</code>），与截图同一目录；扩展不弹另存为，浏览器设置了“下载前询问”时由浏览器询问。',
       '到达上限（15 分钟或约 500 MB，先到为准）自动停止并下载，弹窗写明到了哪一个上限；下载失败时角标换成 <b>!</b>，给出“重新下载”与“放弃”——视频保留到重下成功或放弃，之前不能开始新的录制。',
     ],
   })
@@ -179,7 +178,7 @@ function extRecordGroup() {
   })
 
   return group(
-    { id: 'ext-record', title: '标签页录制：讲解一段操作，录成本地视频', small: 'annotate §2', desc: '从弹窗或自己绑定的快捷键开始，把当前标签页连同批注录成本地 WebM；不入库、不上传，停止后自动下载。' },
+    { id: 'ext-record', title: '标签页录制：讲解一段操作，录成本地视频', small: 'annotate §2', desc: '从弹窗或自己绑定的快捷键开始，把当前标签页连同批注录成本地 MP4（浏览器录不了时是 WebM）；不入库、不上传，停止后自动下载。' },
     row(popupIdle, settingsGrant),
     row(popupLive),
   )

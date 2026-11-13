@@ -6,6 +6,7 @@
 import { useEffect, useState, type KeyboardEvent, type RefObject } from 'react'
 import { Download, Keyboard, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { formatBytes } from '../../utils/format-bytes'
+import { keyCaps } from '../../utils/command-binding'
 import { uiText } from './ui-text'
 import { viewTab } from './library-view-helpers'
 import type { View } from './route'
@@ -51,7 +52,6 @@ export function SideNav({
   onOpenExport,
   exportButtonRef,
   shortcutKeys,
-  shortcutHint,
 }: {
   rail: boolean
   onToggleNav(): void
@@ -67,8 +67,8 @@ export function SideNav({
   exportError: string
   onOpenExport(): void
   exportButtonRef: RefObject<HTMLButtonElement | null>
+  /** The browser's binding of the screenshot, "" when it has none: the hint then names no key. */
   shortcutKeys: string
-  shortcutHint: string
 }) {
   return (
     <nav className="side" aria-label={uiText('library.name')} onKeyDown={onNavKeyDown}>
@@ -130,19 +130,22 @@ export function SideNav({
           </div>
         )}
         {exportState === 'failed' && <span className="nav-note nav-note-warn">{exportError}</span>}
-        <p className="nav-shortcut" title={shortcutHint}>
-          <Keyboard size={15} aria-hidden />
-          <span>
-            {uiText('library.shortcutHint.lead')}{' '}
-            {shortcutKeys
-              .split('+')
-              .filter(Boolean)
-              .map((key, index) => (
+        {shortcutKeys ? (
+          <p className="nav-shortcut" title={uiText('library.shortcutHint', { keys: shortcutKeys })}>
+            <Keyboard size={15} aria-hidden />
+            <span>
+              {uiText('library.shortcutHint.lead')}{' '}
+              {keyCaps(shortcutKeys).map((key, index) => (
                 <kbd key={`${key}-${index}`}>{key}</kbd>
               ))}{' '}
-            {uiText('library.shortcutHint.tail')}
-          </span>
-        </p>
+              {uiText('library.shortcutHint.tail')}
+            </span>
+          </p>
+        ) : (
+          <p className="nav-shortcut">
+            <span>{uiText('library.shortcutHint.unbound')}</span>
+          </p>
+        )}
       </div>
     </nav>
   )

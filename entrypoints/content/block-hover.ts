@@ -12,7 +12,7 @@ import { isUserInput } from './user-input'
 import { overlayIcon } from './icons'
 import { uiText } from './ui-text'
 import { positionCapsule, type PlacedBox } from './capsule-place'
-import { candidateRect, type BlockCandidate } from './blocks'
+import { candidateRect, deepElementFromPoint, type BlockCandidate } from './blocks'
 import { chainAtPoint, isSuppressed, layerKindName, layerLabel, sameLayer, startIndexOf } from './target-chain'
 import { BlockMode } from './block-mode'
 
@@ -337,6 +337,13 @@ class HoverEntry {
     return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom
   }
 
+  /** Whether the point is on this hover's own capsule or on the "more" menu it opened: the hand is operating them. */
+  private onHoverUi(x: number, y: number): boolean {
+    const element = deepElementFromPoint(x, y, this.doc)
+    if (!element) return false
+    return Boolean(this.capsuleEl?.contains(element)) || element.closest('[' + ROOT_ATTR + '="block-more"]') !== null
+  }
+
   /**
    * A screenshot session owns the pointer in every state — picking, confirming
    * and the editor alike: the clip capsule never sits on it. The viewfinder is
@@ -352,6 +359,11 @@ class HoverEntry {
       this.hideNow()
       return
     }
+    // The stillness clock expires on the capsule (or the menu it opened): the pointer is operating our
+    // own UI, not resting on a start of the page. Nothing to reveal and nothing to drop — `isSuppressed`
+    // below reads the capsule as page furniture and would close it under the hand reaching for it. The
+    // hover stays until the pointer leaves the outline and the capsule (capture.md §6.2 收起).
+    if (this.onHoverUi(x, y)) return
     if (!(await this.gate.enabled())) return
     if (generation !== this.revealGeneration) return
     if (this.screenshotSessionActive()) {

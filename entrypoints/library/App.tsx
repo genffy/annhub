@@ -35,6 +35,7 @@ import { buildCondition, localDayRange, recordQueried, SEARCH_DEBOUNCE_MS } from
 import { isListView, listHash, readHash, readHashFor, type FilterState, type RouteState, type View } from './route'
 import { ArrowUpRight, MessageSquareText } from 'lucide-react'
 import { ANN_SCREENSHOT_COMMAND } from '../../constants'
+import { readCommandBinding } from '../../utils/command-binding'
 
 /** The nav's and the page title's words for each view. */
 
@@ -66,9 +67,8 @@ export default function App() {
   // Only a list view has a first answer to wait for. Properties and settings run no query, so nothing would ever clear a flag they started with.
   const [loading, setLoading] = useState(() => isListView(route.view))
   const [usage, setUsage] = useState<{ usage: number; quota: number } | null>(null)
-  // starts from the default binding and follows the browser's own assignment (extension.md §7.1)
-  const [shortcutKeys, setShortcutKeys] = useState('Cmd/Ctrl+Shift+S')
-  const [shortcutHint, setShortcutHint] = useState(() => uiText('library.shortcutHint', { keys: 'Cmd/Ctrl+Shift+S' }))
+  // the browser's binding of the screenshot: "" until it answers and when it has none (extension.md §7.1)
+  const [shortcutKeys, setShortcutKeys] = useState('')
   /** The export command's dialog (extension.md §2.2): the nav button opens it, it runs the one export and answers with its state. */
   const [exportDialogOpen, setExportDialogOpen] = useState(false)
   const exportButton = useRef<HTMLButtonElement>(null)
@@ -265,13 +265,7 @@ export default function App() {
     void MessageUtils.sendMessage({ type: 'USAGE_ESTIMATE' }).then(response => {
       if (response.success) setUsage(response.data!)
     })
-    void chrome.commands.getAll().then(commands => {
-      const binding = commands.find(command => command.name === ANN_SCREENSHOT_COMMAND)?.shortcut
-      if (binding) {
-        setShortcutKeys(binding)
-        setShortcutHint(uiText('library.shortcutHint', { keys: binding }))
-      }
-    })
+    void readCommandBinding(ANN_SCREENSHOT_COMMAND).then(setShortcutKeys)
   }, [])
 
   const closeDrawer = useCallback(() => {
@@ -352,7 +346,6 @@ export default function App() {
         onOpenExport={() => setExportDialogOpen(true)}
         exportButtonRef={exportButton}
         shortcutKeys={shortcutKeys}
-        shortcutHint={shortcutHint}
       />
 
       <main className="content">

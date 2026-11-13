@@ -104,7 +104,7 @@ export default tseslint.config(
     rules: { 'no-restricted-imports': ['error', { patterns: [{ regex: leaves, message: `Dependency direction: ${layer}.` }] }] },
   })),
   {
-    // The content script is injected into every page at document_start (RV-CAP-16): it must not
+    // The content script is injected into every page (RV-CAP-16): it must not
     // carry the React runtime back in. What it renders is plain DOM, its icons inline SVG.
     files: ['entrypoints/content/**/*.{ts,tsx}'],
     ignores: ['**/__tests__/**', '**/*.test.{ts,tsx}'],
