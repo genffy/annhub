@@ -318,7 +318,6 @@ export default function App() {
               <PenLine size={14} aria-hidden />
               {uiText('popup.annotate')}
             </button>
-            <span className="popup-recording-keys">{uiText('popup.recording.keys')}</span>
           </div>
         ) : (
           <div className="popup-actions">

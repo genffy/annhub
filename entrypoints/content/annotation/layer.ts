@@ -24,7 +24,6 @@ import { ROOT_ATTR, ROOT_VALUE } from './annotation-roots'
 import { layerStyles } from './layer-styles'
 import { buildToolbar, syncToolbarInto } from './toolbar'
 import { commitText as commitTextInput, openTextInput } from './text-input'
-import { handleRecordingKey } from './recording-keys'
 import { ensureStepRing, positionStepRing } from './step-ring'
 import { isPinnedPoint } from './pinned-point'
 
@@ -36,11 +35,6 @@ const SWALLOWED_EVENT_TYPES = ['click', 'dblclick', 'auxclick', 'contextmenu', '
 export interface AnnotationLayerOptions {
   /** The screenshot button (or the screenshot shortcut while the layer is open): hand over the ink and hide. */
   onScreenshot: (ink: InkStroke[]) => void
-  /**
-   * A tab is being recorded: the layer opens without its toolbar and with the pen already picked, so a drag
-   * draws at once and the single keys switch tools from there (annotate.md §3.1).
-   */
-  recording?: boolean
 }
 
 let activeLayer: AnnotationLayer | null = null
@@ -96,8 +90,6 @@ export class AnnotationLayer {
   textInput: HTMLTextAreaElement | null = null
   textAt: Point = { x: 0, y: 0 }
   hiddenForScreenshot = false
-  /** 录制中：the toolbar would be filmed, so it is gone and the single keys run the tools (annotate.md §3.1). */
-  recordingMode = false
   private exited = false
   private observer: MutationObserver | null = null
   private listeners: Array<[EventTarget, string, EventListener]> = []
@@ -168,11 +160,6 @@ export class AnnotationLayer {
       if (!this.exited) this.syncDialogPlacement()
     })
     this.observer.observe(this.doc.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] })
-    // Opened while a tab is being recorded: no toolbar to pick a tool from, so the pen is already in hand
-    if (this.options.recording) {
-      this.setRecordingMode(true)
-      this.setTool('pen')
-    }
     this.paint()
   }
 
@@ -243,11 +230,6 @@ export class AnnotationLayer {
 
   // ── toolbar ───────────────────────────────────────────────────────
 
-  /** Every close path of the text box, reachable from the recording keys too. */
-  commitText(): void {
-    commitTextInput(this)
-  }
-
   syncToolbar(): void {
     if (this.toolbarEl) syncToolbarInto(this, this.toolbarEl)
   }
@@ -259,28 +241,7 @@ export class AnnotationLayer {
     this.selectedStep = null
     this.host.classList.toggle('ann-annot-drawing', tool !== 'pointer')
     this.syncToolbar()
-    this.applyToolCursor()
     this.paint()
-  }
-
-  /** 录制中 the toolbar is off the page, so the pointer itself says which tool and colour are on (annotate.md §3.1). */
-  applyToolCursor(): void {
-    if (!this.canvas) return
-    if (!this.recordingMode || this.tool === 'pointer') {
-      this.canvas.style.cursor = ''
-      return
-    }
-    const color = ANNOTATION_COLORS.find(entry => entry.value === this.color)?.value ?? '#e5484d'
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><path d="M12 3v18M3 12h18" stroke="${color}" stroke-width="2.4" stroke-linecap="round"/></svg>`
-    this.canvas.style.cursor = `url("data:image/svg+xml,${encodeURIComponent(svg)}") 12 12, crosshair`
-  }
-
-  /** 开始录制时工具栏收起，停止后回来；录制中打开的批注层一开始就没有工具栏 (annotate.md §3.1)。 */
-  setRecordingMode(active: boolean): void {
-    if (this.recordingMode === active) return
-    this.recordingMode = active
-    if (this.toolbarEl) this.toolbarEl.style.display = active ? 'none' : ''
-    this.applyToolCursor()
   }
 
   // ── input ─────────────────────────────────────────────────────────
@@ -493,17 +454,6 @@ export class AnnotationLayer {
     this.doc.addEventListener('pointermove', move, true)
     this.doc.addEventListener('pointerup', up, true)
     this.doc.addEventListener('pointercancel', cleanup, true)
-  }
-
-  /**
-   * The recording-time single keys (annotate.md §3.1): tools, the five colours,
-   * the width steps, undo, clear and Esc. They act only while the layer is open
-   * and the focus is not in an input or editable area — the rest of the time
-   * the key belongs to the page. The listener sits on the window's capture
-   * phase from document_start, ahead of the site's own handlers.
-   */
-  handleRecordingKey(event: KeyboardEvent): boolean {
-    return handleRecordingKey(this, event)
   }
 
   // ── text tool ─────────────────────────────────────────────────────

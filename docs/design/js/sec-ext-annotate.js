@@ -114,7 +114,7 @@ const popupRecordingScene = (o = {}) => `<div class="popup-mock">
   <div class="popup-head-row"><span>剪藏 · 4</span><a>在资料库中打开</a></div>
   ${o.recording
     ? `<div class="popup-rec-row"><i class="rec-dot"></i><b>正在录制：Retries can amplify an outage…</b><span class="popup-time">03:12</span><button class="popup-btn danger">停止录制</button></div>
-       <div class="popup-note">批注单键：P 画笔 · H 荧光笔 · L 直线 · A 箭头 · R 矩形 · O 椭圆 · T 文字 · N 序号 · V 指针 · 1–5 颜色 · [ ] 线宽 · Z 撤销 · E 清空 · Esc 退出批注</div>`
+       <div class="popup-actions-row"><button class="popup-btn">${I('pencil-line')} 在页面上批注</button></div>`
     : `<div class="popup-actions-row">
         <button class="popup-btn">${I('pencil-line')} 在页面上批注</button>
         <button class="popup-btn">${I('scan')} 录制此标签页</button>
@@ -157,7 +157,7 @@ function extRecordGroup() {
       <div class="popup-actions-row"><button class="popup-btn">重新下载</button><button class="popup-btn">放弃</button></div></div>
     </div>`,
     notes: [
-      '录制中图标上有红色 <b>REC</b> 角标；弹窗显示正在录的标签页标题、已录时长和“停止录制”，一次只录一个标签页。页面里不放录制按钮或指示灯——它们会被录进视频。',
+      '录制中图标上有红色 <b>REC</b> 角标；弹窗显示正在录的标签页标题、已录时长和“停止录制”，一次只录一个标签页。页面里不放录制按钮或指示灯——它们会被录进视频；“在页面上批注”在录制中照常可用，批注层与平时完全一样。',
       '停止（按钮、快捷键、关闭被录的标签页）后自动下载为 <code>AnnHub/recording-<本地时间>.mp4</code>（浏览器录不了 MP4 时是 <code>.webm</code>），与截图同一目录；扩展不弹另存为，浏览器设置了“下载前询问”时由浏览器询问。',
       '到达上限（15 分钟或约 500 MB，先到为准）自动停止并下载，弹窗写明到了哪一个上限；下载失败时角标换成 <b>!</b>，给出“重新下载”与“放弃”——视频保留到重下成功或放弃，之前不能开始新的录制。',
     ],

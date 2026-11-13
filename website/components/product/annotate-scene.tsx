@@ -6,7 +6,7 @@ import type { ProductUi } from './types'
 
 /*
  * The page-annotation layer of docs/design (annotate.md §1, §3): a toolbar standing on the window edge, ink drawn
- * over the article, the ink carried into the screenshot editor, and the recording state where only the ink and the
+ * over the article, the ink carried into the screenshot editor, and the recording state where the ink and the
  * cursor highlight are in the picture. Everything is positioned in fixed-size canvases and scaled by `Fit`.
  */
 
@@ -147,7 +147,7 @@ export function AnnotateEditorScene() {
 
 /**
  * The recording state (annotate.md §2, §3): the toolbar popup carries the timer and the stop button, while the page
- * shows only the ink and the cursor highlight — the controls never enter the picture.
+ * shows the ink and the cursor highlight the video films.
  */
 export const ANNOTATE_RECORD = { width: 460, height: 232 }
 

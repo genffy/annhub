@@ -47,7 +47,6 @@ export interface ToolbarHost {
   color: string
   lineWidth: LineWidth
   setTool(tool: InkTool): void
-  applyToolCursor(): void
   paint(): void
   undo(): void
   clear(): void
@@ -97,7 +96,6 @@ export function buildToolbar(host: ToolbarHost): HTMLDivElement {
       if (!isUserInput(event)) return
       host.color = value
       syncToolbarInto(host, bar)
-      host.applyToolCursor()
       host.paint()
     })
     bar.appendChild(swatch)

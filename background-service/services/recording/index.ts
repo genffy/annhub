@@ -385,7 +385,7 @@ export class RecordingService implements IService {
     this.syncBadge()
   }
 
-  /** 录制开始与停止告诉被录的标签页：光标高亮只在录制中出现，批注层收起工具栏 (annotate.md §3)。 */
+  /** 录制开始与停止告诉被录的标签页：光标高亮只在录制中出现；批注层不读这条消息 (annotate.md §3)。 */
   private async broadcastLifecycle(active: boolean): Promise<void> {
     const tabId = this.state.tabId
     if (!tabId) return

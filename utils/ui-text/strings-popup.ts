@@ -5,12 +5,6 @@ export const popupStrings = {
   'library.openLibrary': { zh: '在资料库中打开', en: 'Open in library' },
   'library.empty': { zh: '还没有条目：选中网页文字即可保存', en: 'Nothing yet — select text on a page to save it' },
   'library.empty.highlights': { zh: '还没有高亮：打开一条剪藏的阅读视图，选中文字即可。', en: 'No highlights yet — open a clip and select text in the reading view.' },
-  // settings: recording section (extension.md §2.5, annotate.md §2.1)
-  // recording-time annotation and cursor highlight (annotate.md §3)
-  'popup.recording.keys': {
-    zh: '批注单键：P 画笔 · H 荧光笔 · L 直线 · A 箭头 · R 矩形 · O 椭圆 · T 文字 · N 序号 · V 指针 · 1–5 颜色 · [ ] 线宽 · Z 撤销 · E 清空 · Esc 退出批注',
-    en: 'Annotation keys: P pen · H highlighter · L line · A arrow · R rectangle · O ellipse · T text · N step · V pointer · 1–5 colour · [ ] width · Z undo · E clear · Esc exit',
-  },
   // toolbar popup footer (extension.md §2.6)
   'popup.recent': { zh: '最近 5 条', en: 'Recent 5' },
   'popup.annotate': { zh: '在页面上批注', en: 'Annotate page' },
