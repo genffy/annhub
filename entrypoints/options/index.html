@@ -7,12 +7,9 @@
          in wxt.config.ts, whose options_ui block never reached the built manifest
          (chrome://extensions 的小对话框里挤进了整个资料库) -->
     <meta name="manifest.open_in_tab" content="true" />
-    <meta http-equiv="refresh" content="0; url=../library.html#/settings" />
     <title>AnnHub Settings</title>
-    <script>
-      // The options entry opens the application page's settings view (extension.md §2.2)
-      location.replace('../library.html#/settings')
-    </script>
   </head>
-  <body></body>
+  <body>
+    <script type="module" src="./main.ts"></script>
+  </body>
 </html>
