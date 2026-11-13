@@ -18,6 +18,7 @@ import { uiText } from './ui-text'
 import { extensionPageUrl } from '../../utils/extension-pages'
 import { TypeTile, VIEW_ICONS } from '../../utils/entry-icons'
 import { ANN_SCREENSHOT_COMMAND } from '../../constants'
+import { keyCaps, readCommandBinding } from '../../utils/command-binding'
 
 type Tab = 'all' | 'clips' | 'highlights' | 'screenshots'
 
@@ -31,26 +32,17 @@ function elapsed(startedAt: number | undefined, now: number): string {
 }
 
 /**
- * One keycap per key of the browser's binding: it reports either "+"-joined
- * names ("Ctrl+Shift+S") or bare glyphs ("⌘⇧S").
+ * The shortcut hint with its key segment drawn as keycaps; the copy itself never changes. Without a
+ * binding the hint is its first half alone: no key is named (extension.md §7.1).
  */
-function keycaps(binding: string): string[] {
-  if (binding.includes('+'))
-    return binding
-      .split('+')
-      .map(key => key.trim())
-      .filter(Boolean)
-  return [...binding]
-}
-
-/** The shortcut hint with its key segment drawn as keycaps; the copy itself never changes. */
 function ShortcutHint({ binding }: { binding: string }) {
+  if (!binding) return <>{uiText('library.shortcutHint.unbound')}</>
   const text = uiText('library.shortcutHint', { keys: binding })
-  const [before, after] = binding && text.includes(binding) ? text.split(binding) : [text, '']
+  const [before, after] = text.includes(binding) ? text.split(binding) : [text, '']
   return (
     <>
       {before}
-      {keycaps(binding).map(key => (
+      {keyCaps(binding).map(key => (
         <kbd key={key}>{key}</kbd>
       ))}
       {after}
@@ -72,8 +64,8 @@ export default function App() {
   const [entries, setEntries] = useState<EntryRecord[]>([])
   const [highlightRows, setHighlightRows] = useState<HighlightQueryResult['groups']>([])
   const [counts, setCounts] = useState<Record<Tab, number>>({ all: 0, clips: 0, highlights: 0, screenshots: 0 })
-  // starts from the default binding and follows the browser's own assignment (extension.md §7.1)
-  const [shortcutBinding, setShortcutBinding] = useState('Cmd/Ctrl+Shift+S')
+  // the browser's binding of the screenshot: "" until it answers and when it has none (extension.md §7.1)
+  const [shortcutBinding, setShortcutBinding] = useState('')
   // The annotation and recording entries work on the pages the content script covers; chrome:// and
   // friends get the reason instead (annotate.md §1.1, §2.4 — the popup is the fallback where page
   // surfaces cannot run).
@@ -87,10 +79,7 @@ export default function App() {
   const activeUrl = useRef<string | null>(null)
 
   useEffect(() => {
-    void chrome.commands.getAll().then(commands => {
-      const binding = commands.find(command => command.name === ANN_SCREENSHOT_COMMAND)?.shortcut
-      if (binding) setShortcutBinding(binding)
-    })
+    void readCommandBinding(ANN_SCREENSHOT_COMMAND).then(setShortcutBinding)
     void chrome.tabs.query({ active: true, currentWindow: true }).then(([active]) => {
       try {
         const url = active?.url ? new URL(active.url) : null

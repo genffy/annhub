@@ -65,7 +65,7 @@ export function viewTab(view: View, count: number, navView: View): ReactNode {
 /**
  * An answer with nothing in it (extension.md §5): with a filter on it says "no results" and offers the way out
  * while keeping every filter; otherwise each view explains its own way in, with the shortcut as the browser
- * actually binds it.
+ * actually binds it, or the selection menu when it binds none.
  */
 function emptyStateImpl(view: 'all' | 'clips' | 'screenshots' | 'highlights', route: RouteState, shortcutKeys: string, setFilter: (next: FilterState) => void): ReactNode {
   if (hasActiveFilter(route)) {
@@ -91,13 +91,16 @@ function emptyStateImpl(view: 'all' | 'clips' | 'screenshots' | 'highlights', ro
         </span>
         <p className="empty-heading">{uiText('library.empty.heading')}</p>
         <p className="empty-desc">{uiText('library.empty.how.clip')}</p>
-        <p className="empty-desc">{uiText('library.empty.how.shot', { keys: shortcutKeys })}</p>
+        <p className="empty-desc">{shortcutKeys ? uiText('library.empty.how.shot', { keys: shortcutKeys }) : uiText('library.empty.how.shot.unbound')}</p>
       </div>
     )
   }
   const { title, desc } = {
     clips: { title: uiText('library.empty.clips.title'), desc: uiText('library.empty.clips.desc') },
-    screenshots: { title: uiText('library.empty.screenshots.title'), desc: uiText('library.empty.screenshots.desc', { keys: shortcutKeys }) },
+    screenshots: {
+      title: uiText('library.empty.screenshots.title'),
+      desc: shortcutKeys ? uiText('library.empty.screenshots.desc', { keys: shortcutKeys }) : uiText('library.empty.screenshots.desc.unbound'),
+    },
     highlights: { title: uiText('library.empty.highlights.title'), desc: uiText('library.empty.highlights.desc') },
   }[view]
   const Icon = VIEW_ICONS[view]

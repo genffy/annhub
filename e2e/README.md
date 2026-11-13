@@ -6,7 +6,7 @@
 pnpm exec playwright test
 ```
 
-主链路的规格：`selection-clip`（菜单、一次点击、撤销、快速编辑、空白选区、URL 令牌清理）、`block-clip`（区块识别、层级、胶囊避让、X 永久链接、键盘模式、按站停用）、`screenshot-capture`（区域/元素入库、复制、取消、伪造事件）、`page-annotation`（批注层、墨迹、截进编辑器）、`recording-annotation`（录制中的批注与光标高亮）、`options-entry`（选项入口跳到设置页并带着录制的标签页编号，麦克风授权后的回程）、`command-bindings`（全新资料里两条默认快捷键由浏览器绑定，其余入口不绑定）、`screenshot-stitch`（滚动长图）、`library-export`（搜索、抽屉、编辑、删除、唯一导出）、`page-download`（胶囊/`D` 键/弹窗的页面下载、响应式图片候选回退、超长正文与评论串、折叠内容与公式脚注、多图表格与列表语义、忙碌、取消）、`library-download`（抽屉与阅读下载、多选与下载对话框、设置卡）、`platform-x`（语义帖子、引用、作者元数据与媒体产物）、`source-page-download`（[来源页面结构](source-pages/README.md)中的百科公式与脚注、文档代码、issue 评论和 X 长文）。
+主链路的规格：`selection-clip`（菜单、一次点击、撤销、快速编辑、空白选区、URL 令牌清理）、`block-clip`（区块识别、层级、胶囊避让、X 永久链接、键盘模式、按站停用）、`screenshot-capture`（区域/元素入库、复制、取消、伪造事件）、`page-annotation`（批注层、墨迹、截进编辑器）、`recording-annotation`（录制中的批注与光标高亮）、`options-entry`（选项入口跳到设置页并带着录制的标签页编号，麦克风授权后的回程）、`command-bindings`（全新资料里两条默认快捷键由浏览器绑定，其余入口不绑定）、`shortcut-hints`（弹窗页脚、导航提示与空视图写的是浏览器此刻绑定的截图键，没绑时不写键位）、`screenshot-stitch`（滚动长图）、`library-export`（搜索、抽屉、编辑、删除、唯一导出）、`page-download`（胶囊/`D` 键/弹窗的页面下载、响应式图片候选回退、超长正文与评论串、折叠内容与公式脚注、多图表格与列表语义、忙碌、取消）、`library-download`（抽屉与阅读下载、多选与下载对话框、设置卡）、`platform-x`（语义帖子、引用、作者元数据与媒体产物）、`source-page-download`（[来源页面结构](source-pages/README.md)中的百科公式与脚注、文档代码、issue 评论和 X 长文）。
 
 `settings-metrics.spec.ts` 在浏览器的本地日历里固定播种上周日与本周一，分别验证两周的数据；不要假设前天与昨天属于同一周，也不要混用 Node 与浏览器各自的日期。
 

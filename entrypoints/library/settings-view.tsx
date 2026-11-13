@@ -10,6 +10,7 @@
  */
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import MessageUtils from '../../utils/message'
+import { keyCaps } from '../../utils/command-binding'
 import type { ExtensionSettings, SettingsPatch } from '../../core/settings'
 import type { OrphanReport } from '../../core/store'
 import type { MetricsPanelData } from '../../core/metrics'
@@ -39,12 +40,6 @@ function shortcutLabel(command: string): UiTextKey {
   if (command === ANN_ANNOTATE_COMMAND) return 'settings.shortcut.annotate'
   if (command === ANN_RECORD_COMMAND) return 'settings.shortcut.record'
   return 'settings.shortcut.block'
-}
-
-/** One shortcut string as keycaps: split at "+" when it has one ("Ctrl+Shift+S"), else per character ("⇧⌘S"). */
-function keyCaps(shortcut: string): string[] {
-  if (shortcut.includes('+')) return shortcut.split('+').filter(Boolean)
-  return [...shortcut]
 }
 
 /** One metric as a row: the M-id in its tag, the name on the left, the value (and its support) on the right. */
