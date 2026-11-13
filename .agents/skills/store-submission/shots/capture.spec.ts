@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { BrowserContext, Page } from '@playwright/test'
+import type { BrowserContext, Locator, Page } from '@playwright/test'
 import { test } from '../../../../e2e/fixtures'
 import { clearLibrary, ensureServiceWorker, selectUntilMenu, sendMessage, triggerAnnotation, triggerScreenshot, updateEntry } from '../../../../e2e/helpers'
 import { CLIPS, PROPERTY_NAMES, SCENE_TEXT, type StoreLocale } from './content'
@@ -14,7 +14,7 @@ import { CLIPS, PROPERTY_NAMES, SCENE_TEXT, type StoreLocale } from './content'
  *   01-selection-menu     the clip menu on an article
  *   02-screenshot-editor  the in-place editor with the highlighter, step numbers and a text label
  *   03-page-annotation    the annotation layer on the live page, with its toolbar
- *   04-record-tab         a recording in progress: the page with ink and cursor highlight, the popup's recording state
+ *   04-record-tab         a recording in progress: the page with its annotation toolbar, ink and cursor highlight (all of it is in the video), the popup's recording state
  *   05-download           the library's selection bar and download dialog over the grid, clips and screenshots together
  *   extra-library.png     the library grid on its own — a spare
  *   extra-reading.png     the reading view with highlights — a spare: the store takes five images
@@ -143,6 +143,11 @@ async function dragFromTo(page: Page, from: [number, number], to: [number, numbe
   await page.mouse.up()
 }
 
+/** A tool button on the annotation toolbar: page DOM, so a recording films it like any other part of the page (annotate.md §3.1). */
+function annotationTool(page: Page, name: string): Locator {
+  return page.locator(`[data-ann-ui="annotation-toolbar"] [data-ann-ui="annotation-tool-${name}"]`)
+}
+
 /** One highlighter stroke along each line a phrase takes; the stroke's round ends reach half a band past its points, so the points sit that far inside. */
 async function highlightLines(page: Page, lines: Box[]): Promise<void> {
   const cap = 9
@@ -255,19 +260,18 @@ test('03 page annotation', async ({ page }) => {
 
   await triggerAnnotation(page)
   await page.locator('[data-ann-ui="annotation-layer"]').waitFor()
-  const tool = (name: string) => page.locator(`[data-ann-ui="annotation-toolbar"] [data-ann-ui="annotation-tool-${name}"]`)
 
-  await tool('highlighter').click()
+  await annotationTool(page, 'highlighter').click()
   await page.locator('[data-ann-ui="annotation-color-yellow"]').click()
   await highlightLines(page, lead)
 
   await page.locator('[data-ann-ui="annotation-color-red"]').click()
-  await tool('text').click()
+  await annotationTool(page, 'text').click()
   await page.mouse.click(labelAt[0], labelAt[1])
   await page.keyboard.type(text.stormLabel)
   await page.keyboard.press('Enter')
 
-  await tool('arrow').click()
+  await annotationTool(page, 'arrow').click()
   await dragFromTo(page, [labelAt[0] - 8, labelAt[1] + 14], [peak[0] + 16, peak[1] + 2])
   await page.mouse.move(peak[0] + 380, peak[1] + 140)
   await settle(500)
@@ -290,7 +294,7 @@ async function popupIn(page: Page, extensionId: string, recording: Record<string
       const send = chrome.runtime.sendMessage.bind(chrome.runtime)
       chrome.runtime.sendMessage = ((...rest: unknown[]) => {
         const type = (rest[0] as { type?: string } | undefined)?.type
-        if (type === 'GET_RECORDING_STATE') return Promise.resolve({ success: true, data: recording })
+        if (type === 'GET_RECORDING_STATE') return Promise.resolve({ type: 'RESPONSE', success: true, data: recording })
         return (send as (...args: unknown[]) => unknown)(...rest)
       }) as typeof chrome.runtime.sendMessage
     },
@@ -325,12 +329,12 @@ test('04 record tab', async ({ context, page, extensionId }) => {
   await broadcastRecording(page)
   await triggerAnnotation(page)
   await page.locator('[data-ann-ui="annotation-layer"]').waitFor()
-  // the toolbar would be filmed, so the layer has none while recording: the tools run on single keys
-  await page.keyboard.press('2')
-  await page.keyboard.press('h')
+  // the ink is drawn with the toolbar like at any other time, and the recording films both
+  await annotationTool(page, 'highlighter').click()
+  await page.locator('[data-ann-ui="annotation-color-yellow"]').click()
   await highlightLines(page, lead)
-  await page.keyboard.press('1')
-  await page.keyboard.press('o')
+  await page.locator('[data-ann-ui="annotation-color-red"]').click()
+  await annotationTool(page, 'ellipse').click()
   await dragFromTo(page, around[0], around[1])
   await page.mouse.move(rest[0], rest[1]) // the cursor highlight rests on the circle's edge
   await settle(500)
